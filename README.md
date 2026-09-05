@@ -9,7 +9,7 @@ npm run build
 npm run preview
 ```
 
-Open `http://localhost:4173`. Start with the procedural demo pulse or stay silent with manual tempo. Click the stage to inject a gesture, use `Shift + ←/→` to transition scenes, and add or play cues from the set panel. All audio, rendering, saves, imports, captures, and recordings stay on the device.
+Open `http://localhost:48101`. Start with the procedural demo pulse or stay silent with manual tempo. Click the stage to inject a gesture, use `Shift + ←/→` to transition scenes, and add or play cues from the set panel. All audio, rendering, saves, imports, captures, and recordings stay on the device.
 
 ## What is bounded
 
