@@ -1,0 +1,13 @@
+{
+  "name": "phosphor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A browser-native performance instrument for bounded generative scenes.",
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 4173",
+    "preview": "python3 -m http.server 4173 -d dist",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

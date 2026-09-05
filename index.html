@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#08070d" />
+    <meta name="description" content="Phosphor is a local, browser-native performance instrument for living visual systems." />
+    <title>Phosphor — living visual systems</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>PHOSPHOR</span><span class="brand-version">/ v1</span></div>
+        <div class="status-line" aria-live="polite"><span id="transportState">READY</span><span class="status-dot"></span><span id="fpsReadout">60 FPS target</span></div>
+        <div class="top-actions"><button class="ghost-button" id="helpButton">Keyboard map</button><button class="icon-button" id="themeButton" aria-label="Toggle contrast theme">◐</button></div>
+      </header>
+
+      <section class="stage-wrap" aria-label="Phosphor performance surface">
+        <canvas id="stage" width="960" height="600" aria-label="Generative visual stage. Click or tap to inject a gesture."></canvas>
+        <div class="stage-overlay top-left"><span id="sceneKicker">ACID MYCELIUM</span><span class="divider">·</span><span id="scenePresetName">Mycelial City</span></div>
+        <div class="stage-overlay top-right"><span id="qualityBadge">1080 / 60</span><span class="divider">·</span><span id="transitionBadge">LIVE</span></div>
+        <div class="stage-overlay bottom-left"><span id="sceneDescription">Slow branching veins with a luminous center.</span></div>
+        <div class="stage-overlay bottom-right"><span>CLICK / SPACE TO INJECT</span></div>
+        <div class="blackout-label" id="blackoutLabel" hidden>BLACKOUT · SPACE TO RECOVER</div>
+      </section>
+
+      <section class="workbench">
+        <aside class="scene-rail panel">
+          <div class="panel-heading"><span>SCENES</span><span class="panel-count">03 / 10</span></div>
+          <div id="sceneList" class="scene-list"></div>
+          <div class="rail-note"><span class="signal-mark">◒</span><span>Ten families share one transport, cue language and save format.</span></div>
+        </aside>
+
+        <section class="control-panel panel" aria-label="Scene controls">
+          <div class="panel-heading"><span id="controlHeading">ACID MYCELIUM / PARAMETERS</span><span class="dirty-state" id="dirtyState">SAVED</span></div>
+          <div id="sceneControls" class="controls-grid"></div>
+          <div id="presetStrip" class="preset-strip" aria-label="Authored presets"></div>
+          <div class="control-footer"><button class="small-button" id="resetButton">Reset seed</button><button class="small-button" id="randomButton">Nudge growth</button><span class="hint">Values are bounded and smoothed into the simulation.</span></div>
+        </section>
+
+        <aside class="set-panel panel">
+          <div class="panel-heading"><span>SET / CUES</span><span class="panel-count" id="cueCount">04 CUES</span></div>
+          <div class="set-controls"><button class="accent-button" id="playSetButton">▶ Play set</button><button class="small-button" id="addCueButton">+ Add cue</button></div>
+          <div id="cueList" class="cue-list"></div>
+          <div class="cue-footer"><span class="transport-pill" id="tempoReadout">♩ 92 BPM</span><span class="hint">Shift + ←/→ scene · P pause · B blackout</span></div>
+        </aside>
+      </section>
+
+      <section class="bottom-dock panel">
+        <div class="dock-group transport-group">
+          <button class="round-button" id="startAudioButton" aria-label="Start audio">●</button><button class="small-button" id="pauseButton">Pause</button><button class="small-button" id="muteButton">Mute</button>
+          <label class="tempo-control">Tempo <input id="tempoInput" type="range" min="40" max="180" value="92" /><output id="tempoOutput">92</output></label>
+        </div>
+        <div class="dock-group source-group"><span class="dock-label">SOURCE</span><button class="small-button" id="demoAudioButton">Demo pulse</button><label class="file-button small-button">Local audio<input id="audioFileInput" type="file" accept="audio/*" /></label><button class="small-button" id="micButton">Mic: off</button></div>
+        <div class="dock-group output-group"><span class="dock-label">OUTPUT</span><button class="small-button" id="captureButton">Capture still</button><button class="small-button" id="recordButton">Record</button><button class="small-button" id="frameExportButton">Frame JSON</button></div>
+      </section>
+
+      <section class="utility-row">
+        <div class="utility-card panel"><div class="panel-heading"><span>PALETTE / MODULATION</span><span class="panel-count" id="modulationReadout">AUDIO 0%</span></div><div class="palette-row"><label>Primary <input id="primaryColor" type="color" value="#d5ff5f" /></label><label>Secondary <input id="secondaryColor" type="color" value="#4a55ff" /></label><label>Accent <input id="accentColor" type="color" value="#ff5bc8" /></label><label>Quality <select id="qualityInput"><option value="1080">1080 / 60</option><option value="720">720 / 30</option></select></label><label class="toggle-line"><input id="reducedMotionInput" type="checkbox" /> Reduced motion</label><label class="brightness-control">Brightness <input id="brightnessInput" type="range" min="20" max="100" value="92" /></label></div></div>
+        <div class="utility-card panel"><div class="panel-heading"><span>PORTABLE SESSION</span><span class="panel-count" id="saveReadout">LOCAL ONLY</span></div><div class="save-row"><button class="small-button" id="saveButton">Save set</button><button class="small-button" id="exportButton">Export JSON</button><label class="file-button small-button">Import JSON<input id="importInput" type="file" accept="application/json,.json" /></label><span class="hint" id="storageHint">Auto-saves on every cue and control change.</span></div></div>
+      </section>
+
+      <footer class="footer"><span>PHOSPHOR / LOCAL PERFORMANCE INSTRUMENT</span><span>Graphics and audio stay on this device · no uploads</span><span>Safari: untested · Chromium desktop + narrow mobile verified target</span></footer>
+    </main>
+    <dialog id="helpDialog"><form method="dialog"><div class="dialog-heading"><span>KEYBOARD MAP</span><button class="icon-button" aria-label="Close">×</button></div><div class="key-map"><span><kbd>Space</kbd> Inject / recover</span><span><kbd>P</kbd> Pause transport</span><span><kbd>B</kbd> Blackout</span><span><kbd>Shift ← →</kbd> Change scene</span><span><kbd>R</kbd> Reset current seed</span><span><kbd>1–3</kbd> Choose scene</span></div></form></dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

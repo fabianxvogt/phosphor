@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+*.webm
+*.mp4
+*.wav
+*.png
+!public/
+.env
+.env.*
+!.env.example
