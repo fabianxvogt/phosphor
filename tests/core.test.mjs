@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedFeedbackValue, clamp, countPolylineIntersections, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
+import { boundedFeedbackValue, clamp, countPolylineIntersections, coupledRegimeStep, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
 
 test('elementary automaton fixture for rule 90 is exact', () => {
   const row = Uint8Array.from([0, 0, 0, 1, 0, 0, 0]);
@@ -56,6 +56,17 @@ test('topological loop families close position and tangent with bounded intersec
     assert.ok(closure.position < 1e-9); assert.ok(closure.tangent < 1e-5);
     const points = Array.from({ length: 65 }, (_, i) => topologyLoopPoint(family, i / 64, .73, .41, .2));
     assert.ok(Number.isInteger(countPolylineIntersections(points))); assert.ok(countPolylineIntersections(points) >= 0);
+  }
+});
+
+test('coupled phase regimes stay finite and bounded through forward and return steps', () => {
+  for (let model = 0; model < 3; model += 1) for (let regime = 0; regime < 6; regime += 1) {
+    let value = .5; let returnPath = .45;
+    for (let frame = 0; frame < 120; frame += 1) {
+      value = coupledRegimeStep(value, returnPath, .75, .9, .8, .2, 1 / 60, regime, model);
+      returnPath = coupledRegimeStep(returnPath, value, .35, .7, .4, .8, 1 / 60, Math.max(0, regime - 1), model);
+    }
+    assert.ok(Number.isFinite(value) && Number.isFinite(returnPath)); assert.ok(value >= 0 && value <= 1 && returnPath >= 0 && returnPath <= 1);
   }
 });
 

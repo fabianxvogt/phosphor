@@ -140,6 +140,21 @@ export function countPolylineIntersections(points) {
   return count;
 }
 
+export function coupledRegimeStep(value, neighbor, control, coupling, disturbance, release, dt, regime = 0, model = 0) {
+  const safeValue = clamp(value, 0, 1);
+  const safeNeighbor = clamp(neighbor, 0, 1);
+  const safeControl = clamp(control, 0, 1);
+  const safeCoupling = clamp(coupling, 0, 1);
+  const safeDisturbance = clamp(disturbance, 0, 1);
+  const safeRelease = clamp(release, 0, 1);
+  const safeDt = clamp(dt, 0, .05);
+  const safeRegime = Math.round(clamp(regime, 0, 5));
+  const bias = (safeRegime - 2.5) * .08 + (model === 1 ? Math.sin(safeValue * Math.PI * 2) * .04 : model === 2 ? (safeValue > .5 ? .06 : -.06) : 0);
+  const drive = (safeControl - .5) * .12 + bias + Math.sin(safeValue * 9 + safeRegime) * safeDisturbance * .008;
+  const relaxation = (safeNeighbor - safeValue) * (.04 + safeCoupling * .2);
+  return clamp(safeValue + (relaxation + drive - safeRelease * (safeValue - .5) * .04) * safeDt * 60, 0, 1);
+}
+
 export function lifecycleStressCheck(sceneCount = 3, switches = 10) {
   let active = 0;
   for (let i = 0; i < switches; i += 1) active = (active + 1) % sceneCount;
