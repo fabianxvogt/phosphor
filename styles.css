@@ -45,4 +45,6 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .focus-mode .app-shell { width:100%; max-width:none; padding:10px; }
 .focus-mode .stage-wrap { height:calc(100vh - 72px); min-height:0; border-color:transparent; }
 .focus-mode .workbench,.focus-mode .bottom-dock,.focus-mode .utility-row,.focus-mode .footer { display:none; }
+.mobile-quickbar { display:none; }
 @media (max-width:680px) { .top-actions .ghost-button:first-child { display:block; } .scene-list { grid-template-columns:repeat(2,minmax(0,1fr)); } .scene-item { min-height:92px; } .scene-name { font-size:13px; overflow-wrap:anywhere; } .scene-mechanism { font-size:10px; } .scene-start { font-size:9px; } .panel-heading-actions { gap:5px; } .workflow-hint { display:none; } .mode-button { padding:5px 6px; } }
+@media (max-width:680px) { .stage-wrap { height:min(42vh,420px); min-height:260px; } .mobile-quickbar { position:sticky; top:0; z-index:4; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; padding:6px; margin-top:8px; border:1px solid var(--line); background:#11101aee; backdrop-filter:blur(10px); } .mobile-quickbar .small-button { min-width:0; padding:8px 4px; font-size:10px; white-space:nowrap; } }

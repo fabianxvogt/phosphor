@@ -21,9 +21,11 @@
         <div class="stage-overlay top-left"><span id="sceneKicker">ACID MYCELIUM</span><span class="divider">·</span><span id="scenePresetName">Mycelial City</span></div>
         <div class="stage-overlay top-right"><span id="qualityBadge">960 × 600 · 60 target</span><span class="divider">·</span><span id="transitionBadge">LIVE</span></div>
         <div class="stage-overlay bottom-left"><span id="sceneDescription">Slow branching veins with a luminous center.</span><span class="stage-mechanism" id="sceneMechanism">Gray–Scott reaction diffusion</span></div>
-        <div class="stage-overlay bottom-right"><span>CLICK / SPACE TO INJECT</span></div>
+        <div class="stage-overlay bottom-right"><span id="stageActionHint">CLICK / SPACE TO INJECT</span></div>
         <div class="blackout-label" id="blackoutLabel" hidden>BLACKOUT · SPACE TO RECOVER</div>
       </section>
+
+      <div class="mobile-quickbar" aria-label="Quick performance controls"><button class="small-button" id="mobilePauseButton">Pause</button><button class="small-button" id="mobilePlayButton">▶ Play set</button><button class="small-button" id="mobileSaveButton">Save set</button><button class="small-button" id="mobileExportButton">Export JSON</button></div>
 
       <section class="workbench">
         <aside class="scene-rail panel">
@@ -63,7 +65,7 @@
 
       <footer class="footer"><span>PHOSPHOR / LOCAL PERFORMANCE INSTRUMENT</span><span>Graphics and audio stay on this device · no uploads</span><span>Safari: untested · Chromium desktop + narrow mobile verified target</span></footer>
     </main>
-    <dialog id="helpDialog"><form method="dialog"><div class="dialog-heading"><span>KEYBOARD MAP</span><button class="icon-button" aria-label="Close">×</button></div><div class="key-map"><span><kbd>Space</kbd> Inject / recover</span><span><kbd>P</kbd> Pause transport</span><span><kbd>B</kbd> Blackout</span><span><kbd>Shift ← →</kbd> Change scene</span><span><kbd>R</kbd> Reset current seed</span><span><kbd>1–3</kbd> Choose scene</span></div></form></dialog>
+    <dialog id="helpDialog"><form method="dialog"><div class="dialog-heading"><span>KEYBOARD MAP</span><button class="icon-button" aria-label="Close">×</button></div><div class="key-map"><span><kbd>Space</kbd> Scene action / recover</span><span><kbd>Evolution</kbd> Space chooses sibling; click chooses child</span><span><kbd>P</kbd> Pause transport</span><span><kbd>B</kbd> Blackout</span><span><kbd>Shift ← →</kbd> Change scene</span><span><kbd>R</kbd> Reset current seed</span><span><kbd>1–3</kbd> Choose scene</span></div></form></dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script type="module" src="app.js"></script>
   </body>
