@@ -2,19 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 class FakeContext {
-  constructor(canvas) { this.canvas = canvas; this.fillRectCalls = 0; this.drawOps = 0; this.drawImageFilters = []; }
+  constructor(canvas) { this.canvas = canvas; this.fillRectCalls = 0; this.drawOps = 0; this.drawImageFilters = []; this.resize(); }
+  resize() { const width = this.canvas.width ?? this.canvas._width; const height = this.canvas.height ?? this.canvas._height; this.pixelData = new Uint8ClampedArray(width * height * 4); }
+  color() { if (typeof this.fillStyle === 'string' && /^#[0-9a-f]{6}$/i.test(this.fillStyle)) return [parseInt(this.fillStyle.slice(1, 3), 16), parseInt(this.fillStyle.slice(3, 5), 16), parseInt(this.fillStyle.slice(5, 7), 16)]; return [255, 255, 255]; }
   createImageData(width, height) { return { data: new Uint8ClampedArray(width * height * 4) }; }
-  getImageData(width, height) { return this.createImageData(width, height); }
+  getImageData(x, y, width, height) { const image = this.createImageData(width, height); for (let row = 0; row < height; row += 1) for (let col = 0; col < width; col += 1) { const source = ((y + row) * this.canvas.width + x + col) * 4; const target = (row * width + col) * 4; image.data.set(this.pixelData.slice(source, source + 4), target); } return image; }
   createRadialGradient() { return { addColorStop() {} }; }
   save() {}
   restore() {}
   beginPath() {}
   moveTo() {}
   lineTo() {}
-  stroke() { this.drawOps += 1; }
-  fill() { this.drawOps += 1; }
-  fillRect() { this.fillRectCalls += 1; this.drawOps += 1; }
-  clearRect() { this.drawOps += 1; }
+  stroke() { this.drawOps += 1; this.pixelData[0] = 255; this.pixelData[1] = 255; this.pixelData[2] = 255; }
+  fill() { this.drawOps += 1; this.pixelData[0] = 255; this.pixelData[1] = 255; this.pixelData[2] = 255; }
+  fillRect(x = 0, y = 0, width = this.canvas.width, height = this.canvas.height) { this.fillRectCalls += 1; this.drawOps += 1; const [red, green, blue] = this.color(); for (let row = Math.max(0, y); row < Math.min(this.canvas.height, y + height); row += 1) for (let col = Math.max(0, x); col < Math.min(this.canvas.width, x + width); col += 1) { const index = (row * this.canvas.width + col) * 4; this.pixelData[index] = red; this.pixelData[index + 1] = green; this.pixelData[index + 2] = blue; this.pixelData[index + 3] = 255; } }
+  clearRect(x = 0, y = 0, width = this.canvas.width, height = this.canvas.height) { this.drawOps += 1; for (let row = Math.max(0, y); row < Math.min(this.canvas.height, y + height); row += 1) for (let col = Math.max(0, x); col < Math.min(this.canvas.width, x + width); col += 1) this.pixelData[(row * this.canvas.width + col) * 4 + 3] = 0; }
   arc() {}
   ellipse() {}
   rect() {}
@@ -22,8 +24,8 @@ class FakeContext {
   rotate() {}
   scale() {}
   setTransform() {}
-  drawImage() { this.drawOps += 1; this.drawImageFilters.push(this.filter || 'none'); }
-  putImageData() { this.drawOps += 1; }
+  drawImage(source) { this.drawOps += 1; this.drawImageFilters.push(this.filter || 'none'); const sourceContext = source?.context; if (!sourceContext?.pixelData) return; const sourceWidth = source.width; const sourceHeight = source.height; for (let row = 0; row < this.canvas.height; row += 1) for (let col = 0; col < this.canvas.width; col += 1) { const sourceRow = Math.min(sourceHeight - 1, Math.floor(row * sourceHeight / this.canvas.height)); const sourceCol = Math.min(sourceWidth - 1, Math.floor(col * sourceWidth / this.canvas.width)); const from = (sourceRow * sourceWidth + sourceCol) * 4; const to = (row * this.canvas.width + col) * 4; this.pixelData[to] = sourceContext.pixelData[from]; this.pixelData[to + 1] = sourceContext.pixelData[from + 1]; this.pixelData[to + 2] = sourceContext.pixelData[from + 2]; this.pixelData[to + 3] = sourceContext.pixelData[from + 3]; } }
+  putImageData(image, x = 0, y = 0) { this.drawOps += 1; const width = Math.min(this.canvas.width - x, Math.floor(image.data.length / 4)); for (let row = 0; row < this.canvas.height - y && row * width * 4 < image.data.length; row += 1) for (let col = 0; col < width; col += 1) { const from = (row * width + col) * 4; const to = ((y + row) * this.canvas.width + x + col) * 4; this.pixelData[to] = image.data[from]; this.pixelData[to + 1] = image.data[from + 1]; this.pixelData[to + 2] = image.data[from + 2]; this.pixelData[to + 3] = image.data[from + 3]; } }
 }
 
 class FakeElement {
@@ -45,7 +47,7 @@ class FakeElement {
 }
 
 class FakeCanvas extends FakeElement {
-  constructor(id, document) { super(id, document); this.width = 960; this.height = 600; this.context = new FakeContext(this); this.toBlobCalls = 0; }
+  constructor(id, document) { super(id, document); this._width = 960; this._height = 600; this.context = new FakeContext(this); Object.defineProperty(this, 'width', { get: () => this._width, set: (value) => { this._width = Number(value); this.context.resize(); } }); Object.defineProperty(this, 'height', { get: () => this._height, set: (value) => { this._height = Number(value); this.context.resize(); } }); this.context.resize(); this.toBlobCalls = 0; }
   getContext() { return this.context; }
   toBlob(callback) { this.toBlobCalls += 1; callback(new Blob(['fake'], { type: 'image/png' })); }
 }
@@ -114,6 +116,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
     assert.equal(api.sessionData().activeScene, sceneIndex);
     if (sceneIndex === 9) assert.ok(api.sessionData().evolution);
     const manifest = api.frameManifest();
+    const beforeRuntime = api.renderRuntimeState();
     const beforeOps = document.getElementById('stage').context.drawOps;
     const start = frameRecords.length;
     const result = await api.renderOfflineFrames(JSON.parse(JSON.stringify(manifest)), { writer: { async writeFrame(name, blob, metadata) {
@@ -134,6 +137,13 @@ test('session repair validates transactionally, migrates legacy saves, and prese
     assert.deepEqual(records.map(({ frameClock }) => frameClock), [manifest.frameClock, manifest.frameClock]);
     assert.ok(records.every(({ scene, params }) => scene === manifest.scene && JSON.stringify(params) === JSON.stringify(manifest.params)));
     assert.ok(document.getElementById('stage').context.drawOps > beforeOps);
+    if (manifest.scene === 'acid' || manifest.scene === 'phase') assert.ok(api.stagePixelStats().visiblePixels > 0, `${manifest.scene} restored preview has visible pixels`);
+    const restoredRuntime = api.renderRuntimeState();
+    assert.equal(restoredRuntime.elapsed, 0);
+    assert.equal(restoredRuntime.cadenceAccumulator, 0);
+    assert.equal(restoredRuntime.paused, true);
+    assert.equal(restoredRuntime.topologyPhase, beforeRuntime.topologyPhase);
+    assert.equal(restoredRuntime.topologyIntersections, beforeRuntime.topologyIntersections);
     assert.equal(document.getElementById('pauseButton').textContent, 'Resume');
     assert.equal(api.sessionData().activeScene, sceneIndex);
   }
@@ -144,10 +154,18 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.switchScene(8, 0);
   api.applySession(api.sessionData());
   const phasePlan = api.frameManifest();
+  const phaseBeforeOffline = api.renderRuntimeState();
   const runPhase = async () => { let renderedPhase = null; const result = await api.renderOfflineFrames(phasePlan, { writer: { async writeFrame() { renderedPhase = api.interferenceRenderState().phase; } } }); assert.equal(result.status, 'complete'); return renderedPhase; };
   const phaseFirst = await runPhase();
   const phaseSecond = await runPhase();
   assert.equal(phaseSecond, phaseFirst);
+  const phaseAfterOffline = api.renderRuntimeState();
+  assert.deepEqual(phaseAfterOffline.phaseValues, phaseBeforeOffline.phaseValues);
+  assert.deepEqual(phaseAfterOffline.phaseCompare, phaseBeforeOffline.phaseCompare);
+  assert.equal(phaseAfterOffline.phaseSeed, phaseBeforeOffline.phaseSeed);
+  assert.equal(phaseAfterOffline.elapsed, 0);
+  assert.equal(phaseAfterOffline.cadenceAccumulator, 0);
+  assert.ok(api.stagePixelStats().visiblePixels > 0);
   api.applySession(phasePlanSession);
 
   assert.throws(() => api.validateFrameManifest({ format: 'phosphor-frame-sequence-v1', version: 1 }), /Legacy frame recipe v1/);
@@ -243,19 +261,39 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(api.sessionData(), invalidBefore);
 
   const cancelRecords = [];
+  const cancelSessionBefore = structuredClone(api.sessionData());
   const canceled = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame(name) { cancelRecords.push(name); if (cancelRecords.length === 1) api.cancelOfflineRender(); } } });
   assert.equal(canceled.status, 'canceled');
   assert.equal(canceled.written, 1);
   assert.equal(cancelRecords.length, 1);
   assert.equal(document.getElementById('frameCancelButton').hidden, true);
-  assert.equal(api.sessionData().activeScene, 9);
+  assert.deepEqual(api.sessionData(), cancelSessionBefore);
+  assert.ok(api.stagePixelStats().visiblePixels > 0);
+  assert.equal(api.renderRuntimeState().elapsed, 0);
 
   let failedWrites = 0;
+  const failureSessionBefore = structuredClone(api.sessionData());
   const failed = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame() { failedWrites += 1; if (failedWrites === 2) throw new Error('disk full'); } } });
   assert.equal(failed.status, 'failed');
   assert.equal(failed.written, 1);
   assert.match(failed.error, /disk full/);
-  assert.equal(api.sessionData().activeScene, 9);
+  assert.deepEqual(api.sessionData(), failureSessionBefore);
+  assert.ok(api.stagePixelStats().visiblePixels > 0);
+  assert.equal(api.renderRuntimeState().elapsed, 0);
+
+  api.setTestRenderFlags({ blackout: true, renderingLost: false });
+  const blackoutSession = structuredClone(api.sessionData());
+  const blackoutResult = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame() {} } });
+  assert.equal(blackoutResult.status, 'complete');
+  assert.deepEqual(api.sessionData(), blackoutSession);
+  assert.equal(api.renderRuntimeState().blackout, true);
+  assert.equal(api.stagePixelStats().visiblePixels, 0);
+  api.setTestRenderFlags({ blackout: false, renderingLost: false });
+
+  api.restoreOfflineSnapshot({ session: structuredClone(api.sessionData()), paused: true, blackout: false, renderingLost: true, audioLevel: 0, gesture: { x: .5, y: .5, active: false, scene: 9 } });
+  assert.equal(api.renderRuntimeState().renderingLost, true);
+  assert.equal(api.stagePixelStats().visiblePixels, 0);
+  api.setTestRenderFlags({ renderingLost: false });
   const unsupported = await api.renderOfflineFrames(deterministicPlan);
   assert.equal(unsupported.status, 'unsupported');
   assert.match(document.getElementById('frameProgress').textContent, /Batch folder output unavailable/);
