@@ -36,7 +36,7 @@ class FakeElement {
   set innerHTML(html) { this._html = html; this.children = []; this._parse(html); }
   get innerHTML() { return this._html || ''; }
   insertAdjacentHTML(_position, html) { this._parse(html); }
-  _parse(html) { const re = /<(button|input)\b([^>]*)>/g; let match; while ((match = re.exec(html))) { const [, tag, attributes] = match; const id = /id="([^"]+)"/.exec(attributes)?.[1]; const element = this.document.ensure(id || `${this.id || 'container'}-${tag}-${this.children.length}`); const scene = /data-scene="([^"]+)"/.exec(attributes); const preset = /data-preset="([^"]+)"/.exec(attributes); if (scene) element.dataset.scene = scene[1]; if (preset) element.dataset.preset = preset[1]; const value = /value="([^"]*)"/.exec(attributes); if (value) element.value = value[1]; this.children.push(element); } }
+  _parse(html) { const re = /<(button|input|select)\b([^>]*)>/g; let match; while ((match = re.exec(html))) { const [, tag, attributes] = match; const id = /id="([^"]+)"/.exec(attributes)?.[1]; const element = this.document.ensure(id || `${this.id || 'container'}-${tag}-${this.children.length}`); const scene = /data-scene="([^"]+)"/.exec(attributes); const preset = /data-preset="([^"]+)"/.exec(attributes); if (scene) element.dataset.scene = scene[1]; if (preset) element.dataset.preset = preset[1]; const value = /value="([^"]*)"/.exec(attributes); if (value) element.value = value[1]; this.children.push(element); } }
   remove() { this.document.elements.delete(this.id); }
   showModal() {}
   getBoundingClientRect() { return { left: 0, top: 0, width: 960, height: 600 }; }
@@ -69,6 +69,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.throws(() => api.applySession(hostile), /Evolution lineage/);
   assert.deepEqual(api.sessionData(), baseline);
 
+  const hostilePhase = structuredClone(baseline); hostilePhase.phaseEvents = [{ type: 'start', arc: 9, progress: 0, time: 0, tempo: 92 }];
+  assert.throws(() => api.applySession(hostilePhase), /Phase event history/);
+  assert.deepEqual(api.sessionData(), baseline);
+
   const legacy = { ...structuredClone(baseline), presetIndex: baseline.presetIndex.slice(0, 3), params: { acid: baseline.params.acid, tapestry: baseline.params.tapestry, feedback: baseline.params.feedback }, cues: baseline.cues.filter((cue) => cue.scene < 3).slice(0, 1) };
   api.applySession(legacy);
   const migrated = api.sessionData();
@@ -80,5 +84,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.switchScene(9, 0); api.mutateEvolution(); api.chooseEvolutionChild(2); api.promoteEvolution(); const evolved = api.sessionData(); const promoted = evolved.cues.find((cue) => cue.nodeId); assert.ok(promoted?.paramsSnapshot); api.switchScene(9, promoted.preset, promoted); assert.deepEqual(api.sessionData().params.evolution, promoted.paramsSnapshot);
 
   const lockedSetup = api.sessionData(); lockedSetup.params.evolution.lock = 1; lockedSetup.params.evolution.lockField = 0; api.applySession(lockedSetup); const parent = api.sessionData().evolution.nodes.find((node) => node.id === api.sessionData().evolution.currentId); api.mutateEvolution(); const child = api.sessionData().evolution.nodes.at(-1); assert.deepEqual(child.params.mutation, parent.params.mutation); assert.deepEqual(child.lockedParameters, ['mutation']);
+  const fast = structuredClone(baseline); fast.tempo = 180; api.applySession(fast); api.switchScene(8, 1); const phaseSelect = document.getElementById('phaseArcSelect'); assert.ok(phaseSelect); phaseSelect.value = '1'; phaseSelect.dispatchEvent({ type: 'change' }); document.getElementById('playPhaseArcButton').click(); const firstArcPhases = new Set(); for (let frame = 0; frame < 700; frame += 1) { api.stepPhase(.05); firstArcPhases.add(api.phaseMeasurement().phase); } assert.ok(firstArcPhases.has('build')); assert.ok(firstArcPhases.has('transition')); assert.ok(firstArcPhases.has('release')); document.getElementById('stopPhaseArcButton').click();
+  const phaseCues = api.sessionData().cues.filter((cue) => cue.scene === 8); assert.equal(phaseCues.length, 3); assert.deepEqual(phaseCues.map((cue) => cue.arc), [0, 1, 2]); api.switchScene(8, phaseCues[1].preset, phaseCues[1]); assert.equal(api.phaseMeasurement().arcId, 'glass-front'); assert.equal(api.phaseMeasurement().playing, true);
+  document.getElementById('rehearsePhaseArcsButton').click(); for (let frame = 0; frame < 2200; frame += 1) api.stepPhase(.05); const phaseMeasurement = api.phaseMeasurement(); assert.equal(phaseMeasurement.arcId, 'night-return'); assert.equal(phaseMeasurement.progress, 1); assert.equal(phaseMeasurement.phase, 'release'); assert.equal(phaseMeasurement.playing, false); assert.ok(phaseMeasurement.traceSamples > 0); assert.deepEqual(api.sessionData().phaseMeasurement, phaseMeasurement); assert.ok(api.sessionData().phaseEvents.some((event) => event.type === 'complete' && event.arc === 2));
   api.applySession(baseline);
 });

@@ -161,6 +161,10 @@ export function coupledRegimeStep(value, neighbor, control, coupling, disturbanc
   return clamp(safeValue + (relaxation + drive - safeRelease * (safeValue - .5) * .04) * safeDt * 60, 0, 1);
 }
 
+export function coupledRegimeFieldStep(value, neighbor, control, coupling, disturbance, release, dt, regime = 0) {
+  return coupledRegimeStep(value, neighbor, control, coupling, disturbance, release, dt, regime, 0);
+}
+
 export function lifecycleStressCheck(sceneCount = 3, switches = 10) {
   let active = 0;
   for (let i = 0; i < switches; i += 1) active = (active + 1) % sceneCount;

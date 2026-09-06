@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedFeedbackValue, clamp, countPolylineIntersections, coupledRegimeStep, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
+import { boundedFeedbackValue, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
 
 test('elementary automaton fixture for rule 90 is exact', () => {
   const row = Uint8Array.from([0, 0, 0, 1, 0, 0, 0]);
@@ -77,6 +77,18 @@ test('coupled phase regimes stay finite and bounded through forward and return s
     assert.ok(Number.isFinite(value) && Number.isFinite(returnPath)); assert.ok(value >= 0 && value <= 1 && returnPath >= 0 && returnPath <= 1);
     assert.ok(measuredGap > 0);
   }
+});
+
+test('fixed Coupled Regime Field wrapper has deterministic return-path separation', () => {
+  let main = .42;
+  let returned = .31;
+  for (let frame = 0; frame < 180; frame += 1) {
+    main = coupledRegimeFieldStep(main, returned, .82, .86, .58, .24, 1 / 60, frame % 6);
+    returned = coupledRegimeFieldStep(returned, main, .34, .72, .28, .82, 1 / 60, Math.max(0, frame % 6 - 1));
+  }
+  assert.ok(Number.isFinite(main) && Number.isFinite(returned));
+  assert.ok(main >= 0 && main <= 1 && returned >= 0 && returned <= 1);
+  assert.ok(Math.abs(main - returned) > .001);
 });
 
 test('ten-switch lifecycle fixture retains fixed renderer resources', () => {
