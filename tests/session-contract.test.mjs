@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 class FakeContext {
-  constructor(canvas) { this.canvas = canvas; }
+  constructor(canvas) { this.canvas = canvas; this.fillRectCalls = 0; }
   createImageData(width, height) { return { data: new Uint8ClampedArray(width * height * 4) }; }
   getImageData(width, height) { return this.createImageData(width, height); }
   createRadialGradient() { return { addColorStop() {} }; }
@@ -13,7 +13,7 @@ class FakeContext {
   lineTo() {}
   stroke() {}
   fill() {}
-  fillRect() {}
+  fillRect() { this.fillRectCalls += 1; }
   clearRect() {}
   arc() {}
   ellipse() {}
@@ -66,7 +66,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const baseline = structuredClone(api.sessionData());
   document.getElementById('performModeButton').click(); assert.equal(api.sessionData().options.workflow, 'perform'); assert.equal(document.getElementById('workflowHint').textContent, 'Essential controls'); document.getElementById('exploreModeButton').click(); assert.equal(api.sessionData().options.workflow, 'explore');
   const olderFull = structuredClone(baseline); delete olderFull.params.cathedrals.lighting; delete olderFull.params.cathedrals.material; delete olderFull.params.cathedrals.fog; delete olderFull.params.cathedrals.emission; api.applySession(olderFull); assert.equal(api.sessionData().params.cathedrals.lighting, baseline.params.cathedrals.lighting); assert.equal(api.sessionData().params.cathedrals.material, baseline.params.cathedrals.material);
-  const quality = document.getElementById('qualityInput'); quality.value = '720'; quality.dispatchEvent({ type: 'change' }); assert.deepEqual([document.getElementById('stage').width, document.getElementById('stage').height], [480, 300]); assert.deepEqual([api.frameManifest().width, api.frameManifest().height, api.frameManifest().targetCadence], [480, 300, 30]); quality.value = '1080'; quality.dispatchEvent({ type: 'change' }); assert.deepEqual([document.getElementById('stage').width, document.getElementById('stage').height], [960, 600]);
+  const quality = document.getElementById('qualityInput'); quality.value = '720'; quality.dispatchEvent({ type: 'change' }); assert.deepEqual([document.getElementById('stage').width, document.getElementById('stage').height], [480, 300]); assert.deepEqual([api.frameManifest().width, api.frameManifest().height, api.frameManifest().targetCadence], [480, 300, 30]); quality.value = '1080'; quality.dispatchEvent({ type: 'change' }); assert.deepEqual([document.getElementById('stage').width, document.getElementById('stage').height], [960, 600]); const stage = document.getElementById('stage'); const brightness = document.getElementById('brightnessInput'); brightness.value = '70'; brightness.dispatchEvent({ type: 'input' }); document.getElementById('pauseButton').click(); stage.context.fillRectCalls = 0; api.renderFrame(1); api.renderFrame(2); assert.equal(stage.context.fillRectCalls, 0); assert.equal(stage.style.filter, 'brightness(0.7)'); document.getElementById('pauseButton').click();
   api.switchScene(9, 0); assert.match(document.getElementById('stageActionHint').textContent, /CHOOSE SIBLING/); assert.match(document.getElementById('stage')['aria-label'], /choose sibling/); document.getElementById('mobilePauseButton').click(); assert.equal(document.getElementById('transportState').textContent, 'PAUSED'); document.getElementById('mobilePauseButton').click(); assert.equal(document.getElementById('transportState').textContent, 'RUNNING'); api.switchScene(3, 0); assert.match(document.getElementById('stageActionHint').textContent, /SHAPE FLOW/); assert.ok(api.sessionData().params.magnetic.density > .8); api.switchScene(5, 0); assert.match(document.getElementById('stageActionHint').textContent, /STEER FEEDERS TOWARD FOOD/); assert.ok(api.sessionData().params.aquarium.population > .2 && api.sessionData().params.aquarium.food > .7); document.getElementById('playSetButton').click(); assert.equal(document.getElementById('mobilePlayButton').textContent, document.getElementById('playSetButton').textContent); document.getElementById('playSetButton').click(); assert.equal(document.getElementById('mobilePlayButton').textContent, document.getElementById('playSetButton').textContent); api.applySession(baseline);
 
   const hostile = structuredClone(baseline); hostile.params.acid.growth = .63; hostile.evolution = { nodes: [null] };
