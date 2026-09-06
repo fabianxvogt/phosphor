@@ -30,4 +30,9 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /coupledRegimeStep\(b\.values/);
   assert.match(app, /b\.compareNext\[index\] = coupledRegimeStep/);
   assert.match(app, /p\.regime, p\.model/);
+  assert.match(app, /function mutateEvolution\(\)/);
+  assert.match(app, /lockedParameters/);
+  assert.match(app, /evolution: state\.evolution/);
+  assert.match(app, /resetRenderer\(\); renderScenes\(\); renderControls\(\); announce\(\); renderCues\(\);/);
+  assert.doesNotMatch(app, /savedAt:/);
 });
