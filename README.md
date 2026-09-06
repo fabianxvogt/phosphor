@@ -11,6 +11,8 @@ npm run preview
 
 Open `http://localhost:48101`. Start with the procedural demo pulse or stay silent with manual tempo. Click the stage to inject a gesture, use `Shift + ←/→` to transition scenes, and add or play cues from the set panel. All audio, rendering, saves, imports, captures, and recordings stay on the device.
 
+The first screen is the instrument: the canvas leads, and the Scene Library shows all ten families with their real mechanism and authored starting look. Use Explore for every bounded scene control, Perform for a smaller live-control surface, and Focus canvas for an immersive stage view. Scene changes keep the shared preset, cue, save, archive, and keyboard/pointer behavior intact.
+
 ## What is bounded
 
 - Acid Mycelium runs a 120×75 Gray–Scott-style field with clamped feed, kill, diffusion, and injection values.

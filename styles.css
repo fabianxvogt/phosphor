@@ -29,3 +29,20 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .phase-action-row select { max-width:260px; border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink); padding:7px 8px; }
 .phase-action-readout { color:var(--muted); font-size:11px; letter-spacing:.02em; }
 .phase-archive-readout { color:var(--acid); font:10px 'DM Mono',monospace; line-height:1.5; overflow-wrap:anywhere; }
+.stage-wrap { height:min(70vh,820px); }
+.panel-heading-actions { display:flex; align-items:center; gap:10px; }
+.workflow-hint { color:var(--muted); font:10px 'DM Mono',monospace; text-transform:none; letter-spacing:0; }
+.workflow-toggle { display:flex; gap:2px; padding:2px; border:1px solid var(--line); border-radius:5px; background:#0b0a11; }
+.mode-button { border:0; border-radius:3px; padding:5px 8px; color:var(--muted); background:transparent; font:11px 'DM Mono',monospace; cursor:pointer; }
+.mode-button.active { color:#0d1008; background:var(--acid); }
+.scene-item { align-items:flex-start; min-height:82px; }
+.scene-card-copy { display:grid; gap:4px; min-width:0; }
+.scene-name { font-size:14px; }
+.scene-mechanism { color:var(--acid); font:11px 'DM Mono',monospace; line-height:1.25; }
+.scene-start { color:var(--muted); font:10px 'DM Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stage-overlay.bottom-left { flex-direction:column; align-items:flex-start; gap:4px; max-width:70%; }
+.stage-mechanism { color:var(--acid); font:10px 'DM Mono',monospace; letter-spacing:.04em; text-transform:uppercase; }
+.focus-mode .app-shell { width:100%; max-width:none; padding:10px; }
+.focus-mode .stage-wrap { height:calc(100vh - 72px); min-height:0; border-color:transparent; }
+.focus-mode .workbench,.focus-mode .bottom-dock,.focus-mode .utility-row,.focus-mode .footer { display:none; }
+@media (max-width:680px) { .top-actions .ghost-button:first-child { display:block; } .scene-list { grid-template-columns:repeat(2,minmax(0,1fr)); } .scene-item { min-height:92px; } .scene-name { font-size:13px; overflow-wrap:anywhere; } .scene-mechanism { font-size:10px; } .scene-start { font-size:9px; } .panel-heading-actions { gap:5px; } .workflow-hint { display:none; } .mode-button { padding:5px 6px; } }

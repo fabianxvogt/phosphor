@@ -13,27 +13,27 @@
       <header class="topbar">
         <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>PHOSPHOR</span><span class="brand-version">/ v1</span></div>
         <div class="status-line" aria-live="polite"><span id="transportState">READY</span><span class="status-dot"></span><span id="fpsReadout">60 FPS target</span></div>
-        <div class="top-actions"><button class="ghost-button" id="helpButton">Keyboard map</button><button class="icon-button" id="themeButton" aria-label="Toggle contrast theme">◐</button></div>
+        <div class="top-actions"><button class="ghost-button" id="focusButton">Focus canvas</button><button class="ghost-button" id="helpButton">Keyboard map</button><button class="icon-button" id="themeButton" aria-label="Toggle contrast theme">◐</button></div>
       </header>
 
       <section class="stage-wrap" aria-label="Phosphor performance surface">
         <canvas id="stage" width="960" height="600" aria-label="Generative visual stage. Click or tap to inject a gesture."></canvas>
         <div class="stage-overlay top-left"><span id="sceneKicker">ACID MYCELIUM</span><span class="divider">·</span><span id="scenePresetName">Mycelial City</span></div>
         <div class="stage-overlay top-right"><span id="qualityBadge">1080 / 60</span><span class="divider">·</span><span id="transitionBadge">LIVE</span></div>
-        <div class="stage-overlay bottom-left"><span id="sceneDescription">Slow branching veins with a luminous center.</span></div>
+        <div class="stage-overlay bottom-left"><span id="sceneDescription">Slow branching veins with a luminous center.</span><span class="stage-mechanism" id="sceneMechanism">Gray–Scott reaction diffusion</span></div>
         <div class="stage-overlay bottom-right"><span>CLICK / SPACE TO INJECT</span></div>
         <div class="blackout-label" id="blackoutLabel" hidden>BLACKOUT · SPACE TO RECOVER</div>
       </section>
 
       <section class="workbench">
         <aside class="scene-rail panel">
-          <div class="panel-heading"><span>SCENES</span><span class="panel-count">10 / 10</span></div>
+          <div class="panel-heading"><span>SCENE LIBRARY</span><span class="panel-count">10 FAMILIES</span></div>
           <div id="sceneList" class="scene-list"></div>
-          <div class="rail-note"><span class="signal-mark">◒</span><span>Ten families share one transport, cue language and save format.</span></div>
+          <div class="rail-note"><span class="signal-mark">◒</span><span>Choose a real mechanism and its authored starting look. All ten share transport, cues, and local saves.</span></div>
         </aside>
 
         <section class="control-panel panel" aria-label="Scene controls">
-          <div class="panel-heading"><span id="controlHeading">ACID MYCELIUM / PARAMETERS</span><span class="dirty-state" id="dirtyState">SAVED</span></div>
+          <div class="panel-heading"><span id="controlHeading">ACID MYCELIUM / PARAMETERS</span><div class="panel-heading-actions"><span class="workflow-hint" id="workflowHint">Full controls</span><div class="workflow-toggle" role="group" aria-label="Workbench mode"><button class="mode-button active" id="exploreModeButton">Explore</button><button class="mode-button" id="performModeButton">Perform</button></div><span class="dirty-state" id="dirtyState">SAVED</span></div></div>
           <div id="sceneControls" class="controls-grid"></div>
           <div id="presetStrip" class="preset-strip" aria-label="Authored presets"></div>
           <div class="control-footer"><button class="small-button" id="resetButton">Reset seed</button><button class="small-button" id="randomButton">Nudge growth</button><span class="hint">Values are bounded and smoothed into the simulation.</span></div>

@@ -64,6 +64,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   await import(new URL('../app.js?session-contract', import.meta.url));
   const api = window.__phosphorTest;
   const baseline = structuredClone(api.sessionData());
+  document.getElementById('performModeButton').click(); assert.equal(api.sessionData().options.workflow, 'perform'); assert.equal(document.getElementById('workflowHint').textContent, 'Essential controls'); document.getElementById('exploreModeButton').click(); assert.equal(api.sessionData().options.workflow, 'explore');
 
   const hostile = structuredClone(baseline); hostile.params.acid.growth = .63; hostile.evolution = { nodes: [null] };
   assert.throws(() => api.applySession(hostile), /Evolution lineage/);

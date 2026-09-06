@@ -16,6 +16,8 @@ test('all ten families register one shared scene contract', () => {
   }
   assert.match(app, /function stepAndDraw\(dt\)[\s\S]*kind === 'evolution'/, 'renderer dispatch');
   assert.match(app, /function resetRenderer\(\)[\s\S]*kind === 'evolution'/, 'reset dispatch');
+  assert.match(app, /mechanism: 'Gray–Scott reaction diffusion'/, 'honest mechanism labels');
+  assert.match(app, /Start · \$\{item\.presets\[0\]\[0\]\}/, 'authored starting looks');
 });
 
 test('new family renderers keep fixed bounded resources in source', () => {
@@ -66,6 +68,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /nodeId: node\.id, paramsSnapshot: structuredClone\(node\.params\)/);
   assert.match(app, /contextlost/);
   assert.match(app, /contextrestored/);
+  assert.match(app, /const visibleSchema = state\.workflow === 'perform'/, 'progressive control modes');
+  assert.match(app, /function toggleFocusMode\(/, 'canvas focus mode');
   assert.match(app, /resolutionAwareInterferenceFilter\(field, neighbors, canvas\.width, canvas\.height, p\.filter\)/);
   assert.match(app, /mutation: \.18, lock: 0, lockField: 0, generation: 1/);
   assert.match(app, /resetRenderer\(\); renderScenes\(\); renderControls\(\); announce\(\); renderCues\(\);/);
