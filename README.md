@@ -1,6 +1,6 @@
 # Phosphor
 
-Phosphor is a local browser instrument for performing bounded, procedural visual systems. The source preview includes ten authored families: Acid Mycelium (47), Magnetic Choir (48), Cathedrals of Error (49), Alien Aquarium (50), Causal Tapestry (51), Feedback Chapel (52), Interference Rituals (53), Topological Melt (54), Phase Transition Theatre (55), and Evolution Garden (56). They share one renderer, transport, save, replay, capture, and export contract; full-v1 acceptance remains gated by independent, browser, device, and human review.
+Phosphor is a local browser instrument for performing bounded, procedural visual systems. The public preview includes ten authored families: Acid Mycelium (47), Magnetic Choir (48), Cathedrals of Error (49), Alien Aquarium (50), Causal Tapestry (51), Feedback Chapel (52), Interference Rituals (53), Topological Melt (54), Phase Transition Theatre (55), and Evolution Garden (56). They share one renderer, transport, save, replay, capture, and export contract. Full-v1 acceptance remains gated by sustained reference-device performance, audio/listening quality, and human/performer review.
 
 ## Try it
 
@@ -12,6 +12,10 @@ npm run preview
 Open `http://localhost:48101`. Start with the procedural demo pulse or stay silent with manual tempo. Use the scene action shown on the stage: click to inject, shape flow, feed, or choose a sibling as appropriate. Use `Shift + ←/→` to transition scenes, and add or play cues from the set panel. On narrow screens, the sticky quick bar keeps pause, play, save, and export reachable. All audio, rendering, saves, imports, captures, and recordings stay on the device.
 
 The first screen is the instrument: the canvas leads, and the Scene Library shows all ten families with their real mechanism and authored starting look. Use Explore for every bounded scene control, Perform for a smaller live-control surface, and Focus canvas for an immersive stage view. Scene changes keep the shared preset, cue, save, archive, and keyboard/pointer behavior intact.
+
+## Verified public preview
+
+Deployed version 3 uses exact source `a67de5338040aee56b598362bf0b2ce5e228eed9`. A bounded Chrome recheck of the public preview passed Evolution mutation and selection, paused brightness adjustment, fresh 960×600 PNG and WebM capture, resume and scene transition, Low 480×300 / 30 target output, and save/reload. This confirms the reviewed public preview output path; it does not establish sustained device performance, audio/listening quality, human acceptance, or full-v1 acceptance.
 
 ## What is bounded
 
