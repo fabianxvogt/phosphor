@@ -200,6 +200,6 @@ function wire() {
 
 function boot() { const saved = localStorage.getItem('phosphor-set-v1'); if (saved) { try { validateSession(JSON.parse(saved)); } catch { localStorage.removeItem('phosphor-set-v1'); } } resetAcid(); resetTapestry(); resetFeedback(); fillPalette(); renderScenes(); renderControls(); renderCues(); announce(); $('qualityBadge').textContent = '1080 / 60'; wire(); if (saved && localStorage.getItem('phosphor-set-v1')) { try { applySession(JSON.parse(saved)); } catch { showToast('Saved session could not be restored; starting clean'); } } if (new URLSearchParams(location.search).has('probe')) setTimeout(() => { window.__phosphorProbeResult = runLifecycleProbe(); showToast(window.__phosphorProbeResult.samples.every((sample) => sample.finitePixels && sample.nonBlack) && window.__phosphorProbeResult.audioCleared && window.__phosphorProbeResult.captureCleared ? 'Lifecycle probe passed' : 'Lifecycle probe found a recovery issue'); }, 350); requestAnimationFrame(renderFrame); }
 
-window.__phosphorTest = { sceneDefs, PHOSPHOR_FAMILY_CATALOG, stepElementary, reactionDiffusionStep, finiteArray, boundedFeedbackValue, lifecycleStressCheck, runLifecycleProbe, sessionData, validateSession };
+window.__phosphorTest = { sceneDefs, PHOSPHOR_FAMILY_CATALOG, stepElementary, reactionDiffusionStep, finiteArray, boundedFeedbackValue, lifecycleStressCheck, runLifecycleProbe, sessionData, validateSession, applySession, switchScene, mutateEvolution, chooseEvolutionChild, promoteEvolution };
 window.__phosphorMetrics = metrics;
 boot();

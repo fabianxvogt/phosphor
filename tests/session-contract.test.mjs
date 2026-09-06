@@ -1,0 +1,84 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+class FakeContext {
+  constructor(canvas) { this.canvas = canvas; }
+  createImageData(width, height) { return { data: new Uint8ClampedArray(width * height * 4) }; }
+  getImageData(width, height) { return this.createImageData(width, height); }
+  createRadialGradient() { return { addColorStop() {} }; }
+  save() {}
+  restore() {}
+  beginPath() {}
+  moveTo() {}
+  lineTo() {}
+  stroke() {}
+  fill() {}
+  fillRect() {}
+  clearRect() {}
+  arc() {}
+  ellipse() {}
+  rect() {}
+  translate() {}
+  rotate() {}
+  scale() {}
+  setTransform() {}
+  drawImage() {}
+  putImageData() {}
+}
+
+class FakeElement {
+  constructor(id, document) { this.id = id; this.document = document; this.listeners = new Map(); this.children = []; this.style = {}; this.classList = { add() {}, remove() {}, toggle() {} }; this.dataset = {}; this.value = ''; this.checked = false; this.hidden = false; this.files = []; }
+  addEventListener(type, callback) { this.listeners.set(type, callback); }
+  setAttribute(name, value) { this[name] = value; }
+  click() { this.listeners.get('click')?.({ target: this }); }
+  querySelectorAll(selector) { if (selector === '[data-scene]') return this.children.filter((child) => child.dataset.scene !== undefined); if (selector === '[data-preset]') return this.children.filter((child) => child.dataset.preset !== undefined); if (selector === '[data-remove-cue]') return this.children.filter((child) => child.dataset.removeCue !== undefined); return []; }
+  dispatchEvent(event) { this.listeners.get(event.type)?.({ ...event, target: this }); }
+  set innerHTML(html) { this._html = html; this.children = []; this._parse(html); }
+  get innerHTML() { return this._html || ''; }
+  insertAdjacentHTML(_position, html) { this._parse(html); }
+  _parse(html) { const re = /<(button|input)\b([^>]*)>/g; let match; while ((match = re.exec(html))) { const [, tag, attributes] = match; const id = /id="([^"]+)"/.exec(attributes)?.[1]; const element = this.document.ensure(id || `${this.id || 'container'}-${tag}-${this.children.length}`); const scene = /data-scene="([^"]+)"/.exec(attributes); const preset = /data-preset="([^"]+)"/.exec(attributes); if (scene) element.dataset.scene = scene[1]; if (preset) element.dataset.preset = preset[1]; const value = /value="([^"]*)"/.exec(attributes); if (value) element.value = value[1]; this.children.push(element); } }
+  remove() { this.document.elements.delete(this.id); }
+  showModal() {}
+  getBoundingClientRect() { return { left: 0, top: 0, width: 960, height: 600 }; }
+  setPointerCapture() {}
+  matches() { return false; }
+}
+
+class FakeCanvas extends FakeElement {
+  constructor(id, document) { super(id, document); this.width = 960; this.height = 600; this.context = new FakeContext(this); }
+  getContext() { return this.context; }
+  toBlob(callback) { callback(new Blob(['fake'])); }
+}
+
+class FakeDocument {
+  constructor() { this.elements = new Map(); this.documentElement = { style: { setProperty() {} } }; this.body = { classList: { toggle() {} } }; }
+  ensure(id) { if (!this.elements.has(id)) this.elements.set(id, id === 'stage' ? new FakeCanvas(id, this) : new FakeElement(id, this)); return this.elements.get(id); }
+  getElementById(id) { return this.ensure(id); }
+  createElement(tag) { return tag === 'canvas' ? new FakeCanvas('', this) : new FakeElement('', this); }
+}
+
+test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
+  const document = new FakeDocument();
+  for (const id of ['stage', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'demoAudioButton', 'playSetButton', 'transportState', 'modulationReadout', 'fpsReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'captureButton', 'frameExportButton', 'saveButton', 'exportButton']) document.ensure(id);
+  globalThis.document = document; globalThis.window = globalThis; globalThis.addEventListener = () => {}; globalThis.location = { search: '' }; globalThis.performance = { now: () => 0 }; globalThis.requestAnimationFrame = () => 0; globalThis.localStorage = { data: new Map(), getItem(key) { return this.data.get(key) ?? null; }, setItem(key, value) { this.data.set(key, value); }, removeItem(key) { this.data.delete(key); } }; globalThis.FileReader = class {}; globalThis.URL.createObjectURL ??= () => 'blob:fake'; globalThis.URL.revokeObjectURL ??= () => {};
+  await import(new URL('../app.js?session-contract', import.meta.url));
+  const api = window.__phosphorTest;
+  const baseline = structuredClone(api.sessionData());
+
+  const hostile = structuredClone(baseline); hostile.params.acid.growth = .63; hostile.evolution = { nodes: [null] };
+  assert.throws(() => api.applySession(hostile), /Evolution lineage/);
+  assert.deepEqual(api.sessionData(), baseline);
+
+  const legacy = { ...structuredClone(baseline), presetIndex: baseline.presetIndex.slice(0, 3), params: { acid: baseline.params.acid, tapestry: baseline.params.tapestry, feedback: baseline.params.feedback }, cues: baseline.cues.filter((cue) => cue.scene < 3).slice(0, 1) };
+  api.applySession(legacy);
+  const migrated = api.sessionData();
+  assert.equal(migrated.presetIndex.length, 10); assert.equal(migrated.params.acid.growth, baseline.params.acid.growth); assert.equal(migrated.params.tapestry.rule, baseline.params.tapestry.rule); assert.equal(migrated.cues[0].scene, legacy.cues[0].scene);
+
+  api.switchScene(1, 2); assert.equal(api.sessionData().params.tapestry.rule, 30);
+  api.switchScene(2, 2); assert.equal(api.sessionData().params.feedback.decay, .86);
+
+  api.switchScene(9, 0); api.mutateEvolution(); api.chooseEvolutionChild(2); api.promoteEvolution(); const evolved = api.sessionData(); const promoted = evolved.cues.find((cue) => cue.nodeId); assert.ok(promoted?.paramsSnapshot); api.switchScene(9, promoted.preset, promoted); assert.deepEqual(api.sessionData().params.evolution, promoted.paramsSnapshot);
+
+  const lockedSetup = api.sessionData(); lockedSetup.params.evolution.lock = 1; lockedSetup.params.evolution.lockField = 0; api.applySession(lockedSetup); const parent = api.sessionData().evolution.nodes.find((node) => node.id === api.sessionData().evolution.currentId); api.mutateEvolution(); const child = api.sessionData().evolution.nodes.at(-1); assert.deepEqual(child.params.mutation, parent.params.mutation); assert.deepEqual(child.lockedParameters, ['mutation']);
+  api.applySession(baseline);
+});
