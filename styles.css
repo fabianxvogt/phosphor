@@ -28,3 +28,4 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .phase-action-row label { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; }
 .phase-action-row select { max-width:260px; border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink); padding:7px 8px; }
 .phase-action-readout { color:var(--muted); font-size:11px; letter-spacing:.02em; }
+.phase-archive-readout { color:var(--acid); font:10px 'DM Mono',monospace; line-height:1.5; overflow-wrap:anywhere; }
