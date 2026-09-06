@@ -36,7 +36,11 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function startPhaseArc\(/);
   assert.match(app, /function rehearsePhaseArcs\(/);
   assert.match(app, /phaseEvents: state\.phaseEvents/);
+  assert.match(app, /phaseMeasurementArchive: state\.phaseMeasurementArchive/);
   assert.match(app, /phaseMeasurement: scene\(\)\.kind === 'phase' \? phaseMeasurement\(\) : null/);
+  assert.match(app, /function sanitizePhaseMeasurementArchive\(/);
+  assert.match(app, /function frameManifest\(/);
+  assert.match(app, /id="capturePhaseMeasurementButton"/);
   assert.match(app, /id="playPhaseArcButton"/);
   assert.match(app, /id="rehearsePhaseArcsButton"/);
   assert.match(app, /resolutionAwareInterferenceFilter\(field, neighbors, canvas\.width, canvas\.height, p\.filter\)/);

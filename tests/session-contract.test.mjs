@@ -72,6 +72,12 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const hostilePhase = structuredClone(baseline); hostilePhase.phaseEvents = [{ type: 'start', arc: 9, progress: 0, time: 0, tempo: 92 }];
   assert.throws(() => api.applySession(hostilePhase), /Phase event history/);
   assert.deepEqual(api.sessionData(), baseline);
+  const hostileArchive = structuredClone(baseline); hostileArchive.phaseMeasurementArchive = { format: 'phosphor-phase-measurement-v0', version: 0, savedMeasurement: true, measurement: {} };
+  assert.throws(() => api.applySession(hostileArchive), /Archived phase measurement/);
+  assert.deepEqual(api.sessionData(), baseline);
+  const hostileFrameMetadata = structuredClone(baseline); hostileFrameMetadata.phaseMeasurement = { model: 'invented', arcId: 'night-return' };
+  assert.throws(() => api.applySession(hostileFrameMetadata), /Phase measurement metadata/);
+  assert.deepEqual(api.sessionData(), baseline);
 
   const legacy = { ...structuredClone(baseline), presetIndex: baseline.presetIndex.slice(0, 3), params: { acid: baseline.params.acid, tapestry: baseline.params.tapestry, feedback: baseline.params.feedback }, cues: baseline.cues.filter((cue) => cue.scene < 3).slice(0, 1) };
   api.applySession(legacy);
@@ -87,5 +93,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const fast = structuredClone(baseline); fast.tempo = 180; api.applySession(fast); api.switchScene(8, 1); const phaseSelect = document.getElementById('phaseArcSelect'); assert.ok(phaseSelect); phaseSelect.value = '1'; phaseSelect.dispatchEvent({ type: 'change' }); document.getElementById('playPhaseArcButton').click(); const firstArcPhases = new Set(); for (let frame = 0; frame < 700; frame += 1) { api.stepPhase(.05); firstArcPhases.add(api.phaseMeasurement().phase); } assert.ok(firstArcPhases.has('build')); assert.ok(firstArcPhases.has('transition')); assert.ok(firstArcPhases.has('release')); document.getElementById('stopPhaseArcButton').click();
   const phaseCues = api.sessionData().cues.filter((cue) => cue.scene === 8); assert.equal(phaseCues.length, 3); assert.deepEqual(phaseCues.map((cue) => cue.arc), [0, 1, 2]); api.switchScene(8, phaseCues[1].preset, phaseCues[1]); assert.equal(api.phaseMeasurement().arcId, 'glass-front'); assert.equal(api.phaseMeasurement().playing, true);
   document.getElementById('rehearsePhaseArcsButton').click(); for (let frame = 0; frame < 2200; frame += 1) api.stepPhase(.05); const phaseMeasurement = api.phaseMeasurement(); assert.equal(phaseMeasurement.arcId, 'night-return'); assert.equal(phaseMeasurement.progress, 1); assert.equal(phaseMeasurement.phase, 'release'); assert.equal(phaseMeasurement.playing, false); assert.ok(phaseMeasurement.traceSamples > 0); assert.deepEqual(api.sessionData().phaseMeasurement, phaseMeasurement); assert.ok(api.sessionData().phaseEvents.some((event) => event.type === 'complete' && event.arc === 2));
+  document.getElementById('capturePhaseMeasurementButton').click(); const savedMeasurementSession = api.sessionData(); const archivedMeasurement = savedMeasurementSession.phaseMeasurementArchive; assert.equal(archivedMeasurement.format, 'phosphor-phase-measurement-v1'); assert.equal(archivedMeasurement.version, 1); assert.equal(archivedMeasurement.savedMeasurement, true); assert.deepEqual(archivedMeasurement.measurement, phaseMeasurement); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement);
+  api.switchScene(0, 0); api.applySession(savedMeasurementSession); assert.deepEqual(api.sessionData().phaseMeasurementArchive, archivedMeasurement); assert.equal(api.phaseMeasurement().phase, 'idle'); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement);
   api.applySession(baseline);
 });
