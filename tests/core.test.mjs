@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedFeedbackValue, clamp, countPolylineIntersections, coupledRegimeStep, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
+import { boundedFeedbackValue, clamp, countPolylineIntersections, coupledRegimeStep, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
 
 test('elementary automaton fixture for rule 90 is exact', () => {
   const row = Uint8Array.from([0, 0, 0, 1, 0, 0, 0]);
@@ -43,6 +43,13 @@ test('interference fields and resolution filter stay finite and bounded', () => 
   assert.ok(filtered.every((value) => value >= 0 && value <= 1));
 });
 
+test('resolution-aware interference filter increases footprint at lower output resolution', () => {
+  const highResolution = resolutionAwareInterferenceFilter(1, -1, 960, 600, .2);
+  const lowResolution = resolutionAwareInterferenceFilter(1, -1, 120, 75, .2);
+  assert.ok(lowResolution < highResolution); assert.ok(highResolution >= -1 && highResolution <= 1); assert.ok(lowResolution >= -1 && lowResolution <= 1);
+  assert.equal(resolutionAwareInterferenceFilter(.4, .4, 960, 600, .2), .4);
+});
+
 test('ray-marched cathedral families stay finite with capped steps', () => {
   for (let family = 0; family < 4; family += 1) for (let recursion = 1; recursion <= 6; recursion += 1) {
     const result = rayMarchCorridor([0, 0, -2], [.2, -.1, 1], family, recursion, 64);
@@ -61,12 +68,14 @@ test('topological loop families close position and tangent with bounded intersec
 
 test('coupled phase regimes stay finite and bounded through forward and return steps', () => {
   for (let model = 0; model < 3; model += 1) for (let regime = 0; regime < 6; regime += 1) {
-    let value = .5; let returnPath = .45;
+    let value = .5; let returnPath = .45; let measuredGap = 0;
     for (let frame = 0; frame < 120; frame += 1) {
       value = coupledRegimeStep(value, returnPath, .75, .9, .8, .2, 1 / 60, regime, model);
       returnPath = coupledRegimeStep(returnPath, value, .35, .7, .4, .8, 1 / 60, Math.max(0, regime - 1), model);
+      measuredGap += Math.abs(value - returnPath);
     }
     assert.ok(Number.isFinite(value) && Number.isFinite(returnPath)); assert.ok(value >= 0 && value <= 1 && returnPath >= 0 && returnPath <= 1);
+    assert.ok(measuredGap > 0);
   }
 });
 

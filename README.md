@@ -1,6 +1,6 @@
 # Phosphor
 
-Phosphor is a local browser instrument for performing bounded, procedural visual systems. The v1 source includes all ten authored families: Acid Mycelium (47), Magnetic Choir (48), Cathedrals of Error (49), Alien Aquarium (50), Causal Tapestry (51), Feedback Chapel (52), Interference Rituals (53), Topological Melt (54), Phase Transition Theatre (55), and Evolution Garden (56). They share one renderer, transport, save, replay, capture, and export contract.
+Phosphor is a local browser instrument for performing bounded, procedural visual systems. The source preview includes ten authored families: Acid Mycelium (47), Magnetic Choir (48), Cathedrals of Error (49), Alien Aquarium (50), Causal Tapestry (51), Feedback Chapel (52), Interference Rituals (53), Topological Melt (54), Phase Transition Theatre (55), and Evolution Garden (56). They share one renderer, transport, save, replay, capture, and export contract; full-v1 acceptance remains gated by independent, browser, device, and human review.
 
 ## Try it
 
@@ -19,7 +19,7 @@ Open `http://localhost:48101`. Start with the procedural demo pulse or stay sile
 - Magnetic Choir caps particle trails at 480 particles, Cathedrals of Error caps recursive corridor depth at six, and Alien Aquarium caps organisms at 64.
 - Interference Rituals and Phase Transition Theatre use bounded low-resolution fields; Topological Melt uses a fixed 160-point loop; Evolution Garden uses five deterministic siblings with bounded mutation controls.
 - `720 / 30` is the lower quality mode for constrained devices. Still capture, WebM recording with active local/demo/microphone audio mixed into the stream, and a versioned offline frame manifest are available when supported; without an audio source, recording remains a visual-only fallback.
-- Reset and automatic Acid growth use a seeded trajectory. Session files carry save metadata, while the canonical scene state and event controls remain reproducible without reattaching imported media.
+- Reset and automatic Acid growth use a seeded trajectory. Session files carry canonical scene state, authored cues, Magnetic gesture events, and Evolution lineage. Portable setup/event replay is supported; exact live-render checkpoint replay is not promised.
 
 ## Project files
 

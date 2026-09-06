@@ -63,6 +63,12 @@ export function filteredInterference(value, filter) {
   return clamp(.5 + Math.tanh(clamp(value, -1, 1) * (1.5 + clamp(filter, .2, 1) * 4)) * .5, 0, 1);
 }
 
+export function resolutionAwareInterferenceFilter(center, neighborAverage, width, height, filter) {
+  const pixelRatio = clamp(240 / Math.max(1, Math.max(Number(width) || 1, Number(height) || 1)), .25, 4);
+  const footprint = clamp((1 - clamp(filter, .2, 1)) * pixelRatio * .35, 0, .8);
+  return clamp(clamp(center, -1, 1) * (1 - footprint) + clamp(neighborAverage, -1, 1) * footprint, -1, 1);
+}
+
 export function rayMarchCorridor(origin, direction, family = 0, recursion = 4, maxSteps = 48) {
   const safeFamily = Math.round(clamp(family, 0, 3));
   const safeRecursion = Math.round(clamp(recursion, 1, 6));
