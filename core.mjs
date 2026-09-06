@@ -51,6 +51,18 @@ export function boundedFeedbackValue(previous, injection, decay) {
   return clamp(clamp(previous, 0, 1) * clamp(decay, 0, .99) + clamp(injection, 0, 1) * .12, 0, 1);
 }
 
+export function interferenceField(x, y, time, frequency, ratio, phase, orientation) {
+  const angle = clamp(orientation, 0, 1) * Math.PI;
+  const cos = Math.cos(angle); const sin = Math.sin(angle);
+  const u = (x * cos - y * sin) * clamp(frequency, .2, 4) * 18;
+  const v = (x * sin + y * cos) * clamp(ratio, .25, 2) * 18;
+  return clamp((Math.sin(u + time) + Math.sin(v - time * .7) + Math.sin((u + v) * .61 + clamp(phase, 0, 1) * Math.PI * 2)) / 3, -1, 1);
+}
+
+export function filteredInterference(value, filter) {
+  return clamp(.5 + Math.tanh(clamp(value, -1, 1) * (1.5 + clamp(filter, .2, 1) * 4)) * .5, 0, 1);
+}
+
 export function lifecycleStressCheck(sceneCount = 3, switches = 10) {
   let active = 0;
   for (let i = 0; i < switches; i += 1) active = (active + 1) % sceneCount;

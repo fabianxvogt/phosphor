@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedFeedbackValue, clamp, finiteArray, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, reactionDiffusionStep, seededRandom, stepElementary } from '../core.mjs';
+import { boundedFeedbackValue, clamp, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, reactionDiffusionStep, seededRandom, stepElementary } from '../core.mjs';
 
 test('elementary automaton fixture for rule 90 is exact', () => {
   const row = Uint8Array.from([0, 0, 0, 1, 0, 0, 0]);
@@ -34,6 +34,13 @@ test('feedback gain remains finite and clipped under an extreme stress run', () 
   for (let i = 0; i < 5000; i += 1) energy = boundedFeedbackValue(energy, 99, 99);
   assert.equal(Number.isFinite(energy), true);
   assert.ok(energy >= 0 && energy <= 1);
+});
+
+test('interference fields and resolution filter stay finite and bounded', () => {
+  const values = Array.from({ length: 64 }, (_, index) => interferenceField((index % 8) / 8 - .5, Math.floor(index / 8) / 8 - .5, .37, 4, 2, .9, 1));
+  assert.equal(finiteArray(values), true); assert.ok(values.every((value) => value >= -1 && value <= 1));
+  const filtered = values.map((value) => filteredInterference(value, 1));
+  assert.ok(filtered.every((value) => value >= 0 && value <= 1));
 });
 
 test('ten-switch lifecycle fixture retains fixed renderer resources', () => {
