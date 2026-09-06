@@ -20,8 +20,8 @@ test('all ten families register one shared scene contract', () => {
 
 test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /magnetic: \{ count: 480, particles: new Float32Array\(480 \* 4\)/);
-  assert.match(app, /aquarium: \{ count: 64, organisms: new Float32Array\(64 \* 5\)/);
+  assert.match(app, /aquarium: \{ count: 64, organisms: new Float32Array\(64 \* 6\)/);
   assert.match(app, /phase: \{ width: 64, height: 40, values: new Float32Array\(64 \* 40\)/);
   assert.match(app, /Math\.min\(b\.count, Math\.floor\(96 \+ p\.density \* 384\)\)/);
-  assert.match(app, /Math\.min\(b\.count, Math\.floor\(8 \+ p\.population \* 56\)\)/);
+  assert.match(app, /Math\.min\(b\.count, Math\.floor\(4 \+ p\.population \* 60\)\)/);
 });
