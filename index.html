@@ -55,7 +55,7 @@
           <label class="tempo-control">Tempo <input id="tempoInput" type="range" min="40" max="180" value="92" /><output id="tempoOutput">92</output></label>
         </div>
         <div class="dock-group source-group"><span class="dock-label">SOURCE</span><button class="small-button" id="demoAudioButton">Demo pulse</button><label class="file-button small-button">Local audio<input id="audioFileInput" type="file" accept="audio/*" /></label><button class="small-button" id="micButton">Mic: off</button></div>
-        <div class="dock-group output-group"><span class="dock-label">OUTPUT</span><button class="small-button" id="captureButton">Capture still</button><button class="small-button" id="recordButton">Record</button><button class="small-button" id="frameExportButton">Frame JSON</button></div>
+        <div class="dock-group output-group"><span class="dock-label">OUTPUT</span><button class="small-button" id="captureButton">Capture still</button><button class="small-button" id="recordButton">Record</button><button class="small-button" id="frameExportButton">Frame plan</button><label class="file-button small-button">Load plan<input id="frameImportInput" type="file" accept="application/json,.json" /></label><label class="frame-count-control">Frames <input id="frameCountInput" type="number" min="1" max="240" step="1" value="120" /></label><button class="small-button" id="frameRenderButton">Render PNGs</button><button class="small-button" id="frameCancelButton" hidden>Cancel</button><span class="frame-progress" id="frameProgress" role="status" aria-live="polite">Seeded start · paused</span></div>
       </section>
 
       <section class="utility-row">

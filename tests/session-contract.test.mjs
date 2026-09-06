@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 class FakeContext {
-  constructor(canvas) { this.canvas = canvas; this.fillRectCalls = 0; this.drawImageFilters = []; }
+  constructor(canvas) { this.canvas = canvas; this.fillRectCalls = 0; this.drawOps = 0; this.drawImageFilters = []; }
   createImageData(width, height) { return { data: new Uint8ClampedArray(width * height * 4) }; }
   getImageData(width, height) { return this.createImageData(width, height); }
   createRadialGradient() { return { addColorStop() {} }; }
@@ -11,10 +11,10 @@ class FakeContext {
   beginPath() {}
   moveTo() {}
   lineTo() {}
-  stroke() {}
-  fill() {}
-  fillRect() { this.fillRectCalls += 1; }
-  clearRect() {}
+  stroke() { this.drawOps += 1; }
+  fill() { this.drawOps += 1; }
+  fillRect() { this.fillRectCalls += 1; this.drawOps += 1; }
+  clearRect() { this.drawOps += 1; }
   arc() {}
   ellipse() {}
   rect() {}
@@ -22,8 +22,8 @@ class FakeContext {
   rotate() {}
   scale() {}
   setTransform() {}
-  drawImage() { this.drawImageFilters.push(this.filter || 'none'); }
-  putImageData() {}
+  drawImage() { this.drawOps += 1; this.drawImageFilters.push(this.filter || 'none'); }
+  putImageData() { this.drawOps += 1; }
 }
 
 class FakeElement {
@@ -45,9 +45,9 @@ class FakeElement {
 }
 
 class FakeCanvas extends FakeElement {
-  constructor(id, document) { super(id, document); this.width = 960; this.height = 600; this.context = new FakeContext(this); }
+  constructor(id, document) { super(id, document); this.width = 960; this.height = 600; this.context = new FakeContext(this); this.toBlobCalls = 0; }
   getContext() { return this.context; }
-  toBlob(callback) { callback(new Blob(['fake'])); }
+  toBlob(callback) { this.toBlobCalls += 1; callback(new Blob(['fake'], { type: 'image/png' })); }
 }
 
 class FakeDocument {
@@ -59,7 +59,7 @@ class FakeDocument {
 
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
-  for (const id of ['stage', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'demoAudioButton', 'playSetButton', 'transportState', 'modulationReadout', 'fpsReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'captureButton', 'frameExportButton', 'saveButton', 'exportButton']) document.ensure(id);
+  for (const id of ['stage', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'demoAudioButton', 'playSetButton', 'transportState', 'modulationReadout', 'fpsReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'exportButton']) document.ensure(id);
   globalThis.document = document; globalThis.window = globalThis; globalThis.addEventListener = () => {}; globalThis.location = { search: '' }; globalThis.performance = { now: () => 0 }; globalThis.requestAnimationFrame = () => 0; globalThis.localStorage = { data: new Map(), getItem(key) { return this.data.get(key) ?? null; }, setItem(key, value) { this.data.set(key, value); }, removeItem(key) { this.data.delete(key); } }; globalThis.FileReader = class {}; globalThis.URL.createObjectURL ??= () => 'blob:fake'; globalThis.URL.revokeObjectURL ??= () => {};
   await import(new URL('../app.js?session-contract', import.meta.url));
   const api = window.__phosphorTest;
@@ -100,5 +100,88 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   document.getElementById('capturePhaseMeasurementButton').click(); const savedMeasurementSession = api.sessionData(); const archivedMeasurement = savedMeasurementSession.phaseMeasurementArchive; assert.equal(archivedMeasurement.format, 'phosphor-phase-measurement-v1'); assert.equal(archivedMeasurement.version, 1); assert.equal(archivedMeasurement.savedMeasurement, true); assert.equal(typeof archivedMeasurement.eventPosition, 'number'); assert.deepEqual(archivedMeasurement.measurement, phaseMeasurement); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement); const capturedText = document.getElementById('phaseArchiveReadout').textContent; assert.match(capturedText, /Saved capture \(archived\)/); assert.match(capturedText, /Night Return/); assert.match(capturedText, /release/); assert.match(capturedText, /progress 1\.00/); assert.match(capturedText, /180 BPM/); assert.match(capturedText, /control/); assert.match(capturedText, /transition gap/); assert.match(capturedText, /model Coupled Regime Field/); assert.match(capturedText, /event \d+/);
   api.switchScene(0, 0); api.applySession(savedMeasurementSession); assert.deepEqual(api.sessionData().phaseMeasurementArchive, archivedMeasurement); assert.equal(api.phaseMeasurement().phase, 'idle'); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement); const reopenedLiveText = document.getElementById('phaseActionReadout').textContent; const reopenedArchiveText = document.getElementById('phaseArchiveReadout').textContent; assert.match(reopenedLiveText, /Live current/); assert.match(reopenedLiveText, /idle/); assert.match(reopenedArchiveText, /Saved capture \(archived\)/); assert.match(reopenedArchiveText, /Night Return/); assert.match(reopenedArchiveText, /release/); assert.match(reopenedArchiveText, /progress 1\.00/); assert.notEqual(api.phaseMeasurement().phase, archivedMeasurement.measurement.phase); assert.notEqual(reopenedLiveText, reopenedArchiveText);
   api.switchScene(3, 0); const magneticStart = api.magneticRenderState().particles; assert.ok(magneticStart.some((value) => value !== 0)); for (let frame = 0; frame < 180; frame += 1) api.stepMagnetic(.016); const magneticAfter = api.magneticRenderState().particles; assert.ok(magneticAfter.every(Number.isFinite)); assert.ok(magneticAfter.some((value, index) => Math.abs(value - magneticStart[index]) > 0.00001)); const orbitRadii = []; const magneticState = api.magneticRenderState(); for (let i = 0; i < 449; i += 1) { const index = i * 4; const attractor = i % 2 ? 2 : 0; orbitRadii.push(Math.hypot(magneticState.particles[index] - magneticState.attractors[attractor], magneticState.particles[index + 1] - magneticState.attractors[attractor + 1])); } const meanOrbitRadius = orbitRadii.reduce((sum, value) => sum + value, 0) / orbitRadii.length; assert.ok(meanOrbitRadius > .05 && meanOrbitRadius < .3, `mean orbit radius ${meanOrbitRadius}`); api.setTestElapsed(0); api.inject(.2, .3, .8); api.setTestElapsed(.5); api.inject(.8, .7, .6); const timed = api.sessionData().gestureHistory.filter((event) => event.scene === 3); assert.equal(timed.length, 2); assert.equal(timed[0].timing, 'beat'); assert.ok(timed[1].beat > timed[0].beat); api.replayGestureSequence(); assert.deepEqual(api.magneticReplayState(), { index: 0, total: 2, playing: true }); document.getElementById('pauseButton').click(); api.setTestElapsed(2); api.stepMagnetic(.016); assert.equal(api.magneticReplayState().index, 0); document.getElementById('pauseButton').click(); api.stepMagnetic(.016); assert.ok(api.magneticReplayState().index >= 1); api.setTestElapsed(3); api.stepMagnetic(.016); assert.equal(api.magneticReplayState().playing, false); api.switchScene(0, 0);
+  api.applySession(baseline);
+  document.getElementById('frameCountInput').value = '2';
+  const offlineBase = structuredClone(api.sessionData());
+  const frameRecords = [];
+  let writesInFlight = 0;
+  let maxWritesInFlight = 0;
+  for (let sceneIndex = 0; sceneIndex < api.sceneDefs.length; sceneIndex += 1) {
+    const candidate = structuredClone(offlineBase);
+    candidate.activeScene = sceneIndex;
+    candidate.options.quality = sceneIndex % 2 === 0 ? '1080' : '720';
+    api.applySession(candidate);
+    assert.equal(api.sessionData().activeScene, sceneIndex);
+    if (sceneIndex === 9) assert.ok(api.sessionData().evolution);
+    const manifest = api.frameManifest();
+    const beforeOps = document.getElementById('stage').context.drawOps;
+    const start = frameRecords.length;
+    const result = await api.renderOfflineFrames(JSON.parse(JSON.stringify(manifest)), { writer: { async writeFrame(name, blob, metadata) {
+      assert.equal(blob.type, 'image/png');
+      assert.ok(blob.size > 0);
+      writesInFlight += 1;
+      maxWritesInFlight = Math.max(maxWritesInFlight, writesInFlight);
+      await Promise.resolve();
+      frameRecords.push({ name, ...metadata });
+      writesInFlight -= 1;
+    } } });
+    assert.equal(result.status, 'complete');
+    assert.equal(result.written, 2);
+    const records = frameRecords.slice(start);
+    assert.deepEqual(records.map(({ name }) => name), [`phosphor-${manifest.scene}-001.png`, `phosphor-${manifest.scene}-002.png`]);
+    assert.deepEqual(records.map(({ width, height }) => [width, height]), [[manifest.width, manifest.height], [manifest.width, manifest.height]]);
+    assert.deepEqual(records.map(({ time }) => time), [manifest.stepSeconds, manifest.stepSeconds * 2]);
+    assert.ok(records.every(({ scene, params }) => scene === manifest.scene && JSON.stringify(params) === JSON.stringify(manifest.params)));
+    assert.ok(document.getElementById('stage').context.drawOps > beforeOps);
+    assert.equal(document.getElementById('pauseButton').textContent, 'Resume');
+    assert.equal(api.sessionData().activeScene, sceneIndex);
+  }
+  assert.equal(frameRecords.length, api.sceneDefs.length * 2);
+  assert.equal(maxWritesInFlight, 1);
+
+  api.applySession(offlineBase);
+  api.switchScene(9, 0);
+  document.getElementById('mutateButton').click();
+  document.getElementById('chooseButton').click();
+  api.applySession(api.sessionData());
+  const evolutionManifest = api.frameManifest();
+  const selectedEvolutionId = evolutionManifest.initialState.evolution.selectedId;
+  assert.ok(selectedEvolutionId !== evolutionManifest.initialState.evolution.nodes[0].id);
+  const importedEvolution = api.importFrameManifest(JSON.parse(JSON.stringify(evolutionManifest)));
+  assert.equal(importedEvolution.initialState.evolution.selectedId, selectedEvolutionId);
+
+  const deterministicPlan = { ...evolutionManifest, frames: 2 };
+  const collectRun = async () => { const records = []; const result = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame(name, blob, metadata) { records.push({ name, time: metadata.time, scene: metadata.scene, params: metadata.params }); } } }); assert.equal(result.status, 'complete'); return records; };
+  const firstRun = await collectRun();
+  const secondRun = await collectRun();
+  assert.deepEqual(secondRun, firstRun);
+  assert.equal(api.sessionData().activeScene, 9);
+
+  const invalidBefore = structuredClone(api.sessionData());
+  const invalidPlan = { ...deterministicPlan, frames: 241 };
+  await assert.rejects(api.renderOfflineFrames(invalidPlan, { writer: { async writeFrame() { throw new Error('must not write'); } } }), /1–240/);
+  assert.deepEqual(api.sessionData(), invalidBefore);
+  const missingStep = { ...deterministicPlan }; delete missingStep.stepSeconds;
+  await assert.rejects(api.renderOfflineFrames(missingStep, { writer: { async writeFrame() { throw new Error('must not write'); } } }), /size, cadence, and step/);
+  assert.deepEqual(api.sessionData(), invalidBefore);
+
+  const cancelRecords = [];
+  const canceled = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame(name) { cancelRecords.push(name); if (cancelRecords.length === 1) api.cancelOfflineRender(); } } });
+  assert.equal(canceled.status, 'canceled');
+  assert.equal(canceled.written, 1);
+  assert.equal(cancelRecords.length, 1);
+  assert.equal(document.getElementById('frameCancelButton').hidden, true);
+  assert.equal(api.sessionData().activeScene, 9);
+
+  let failedWrites = 0;
+  const failed = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame() { failedWrites += 1; if (failedWrites === 2) throw new Error('disk full'); } } });
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.written, 1);
+  assert.match(failed.error, /disk full/);
+  assert.equal(api.sessionData().activeScene, 9);
+  const unsupported = await api.renderOfflineFrames(deterministicPlan);
+  assert.equal(unsupported.status, 'unsupported');
+  assert.match(document.getElementById('frameProgress').textContent, /Batch folder output unavailable/);
+
   api.applySession(baseline);
 });
