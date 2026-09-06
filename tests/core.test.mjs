@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedFeedbackValue, clamp, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, reactionDiffusionStep, seededRandom, stepElementary } from '../core.mjs';
+import { boundedFeedbackValue, clamp, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, seededRandom, stepElementary } from '../core.mjs';
 
 test('elementary automaton fixture for rule 90 is exact', () => {
   const row = Uint8Array.from([0, 0, 0, 1, 0, 0, 0]);
@@ -41,6 +41,13 @@ test('interference fields and resolution filter stay finite and bounded', () => 
   assert.equal(finiteArray(values), true); assert.ok(values.every((value) => value >= -1 && value <= 1));
   const filtered = values.map((value) => filteredInterference(value, 1));
   assert.ok(filtered.every((value) => value >= 0 && value <= 1));
+});
+
+test('ray-marched cathedral families stay finite with capped steps', () => {
+  for (let family = 0; family < 4; family += 1) for (let recursion = 1; recursion <= 6; recursion += 1) {
+    const result = rayMarchCorridor([0, 0, -2], [.2, -.1, 1], family, recursion, 64);
+    assert.equal(Number.isFinite(result.distance), true); assert.equal(Number.isInteger(result.steps), true); assert.ok(result.steps <= 64);
+  }
 });
 
 test('ten-switch lifecycle fixture retains fixed renderer resources', () => {

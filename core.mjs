@@ -63,6 +63,35 @@ export function filteredInterference(value, filter) {
   return clamp(.5 + Math.tanh(clamp(value, -1, 1) * (1.5 + clamp(filter, .2, 1) * 4)) * .5, 0, 1);
 }
 
+export function rayMarchCorridor(origin, direction, family = 0, recursion = 4, maxSteps = 48) {
+  const safeFamily = Math.round(clamp(family, 0, 3));
+  const safeRecursion = Math.round(clamp(recursion, 1, 6));
+  const steps = Math.round(clamp(maxSteps, 8, 64));
+  let distance = 0;
+  for (let step = 0; step < steps; step += 1) {
+    const x = origin[0] + direction[0] * distance;
+    const y = origin[1] + direction[1] * distance;
+    const z = origin[2] + direction[2] * distance;
+    let px = x; let py = y;
+    for (let fold = 0; fold < safeRecursion; fold += 1) {
+      const scale = 1.45 + fold * .18;
+      px = Math.abs(((px + .5 * scale) % scale) - .5 * scale) - .16;
+      py = Math.abs(((py + .5 * scale) % scale) - .5 * scale) - .16;
+      const swap = safeFamily === 1 || (safeFamily === 3 && fold % 2 === 1);
+      if (swap) [px, py] = [py, px];
+    }
+    const radial = Math.hypot(px, py);
+    const corridor = safeFamily === 0 ? Math.max(Math.abs(px), Math.abs(py)) - .06 : safeFamily === 1 ? radial - .08 : safeFamily === 2 ? Math.abs(px) + Math.abs(py) - .095 : Math.max(Math.abs(px + py) * .7, Math.abs(px - py) * .7) - .07;
+    const depth = Math.abs(Math.sin(z * (1.2 + safeFamily * .4))) * .018;
+    const fieldDistance = Math.max(.002, corridor + depth);
+    if (!Number.isFinite(fieldDistance)) return { hit: false, distance: 6, steps: step + 1 };
+    if (fieldDistance < .006) return { hit: true, distance, steps: step + 1 };
+    distance += clamp(fieldDistance * .72, .004, .22);
+    if (distance > 6) return { hit: false, distance, steps: step + 1 };
+  }
+  return { hit: false, distance, steps };
+}
+
 export function lifecycleStressCheck(sceneCount = 3, switches = 10) {
   let active = 0;
   for (let i = 0; i < switches; i += 1) active = (active + 1) % sceneCount;
