@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
+import { aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, evolutionContour, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
 
 test('elementary automaton fixture for rule 90 is exact', () => {
   const row = Uint8Array.from([0, 0, 0, 1, 0, 0, 0]);
@@ -66,6 +66,14 @@ test('aquarium food is local, consumable, and cannot feed a starved inactive org
   const starved = aquariumFoodStep(.01, .8, .02, .1, .8, 1 / 60);
   assert.ok(fed.consumed > 0 && fed.energy > .4 && fed.patchAmount < .8);
   assert.equal(far.consumed, 0); assert.equal(starved.consumed, 0); assert.equal(starved.energy, .01);
+});
+
+test('evolution contours are deterministic and genotype-shaped', () => {
+  const first = evolutionContour(.17, .22, .34, 1.2, .4, 40);
+  const second = evolutionContour(.17, .22, .34, 1.2, .4, 40);
+  const sibling = evolutionContour(1.17, .82, .9, 1.2, .4, 40);
+  assert.deepEqual(first, second); assert.notDeepEqual(first, sibling);
+  assert.equal(first.length, 41); assert.ok(first.flat().every((value) => Number.isFinite(value)));
 });
 
 test('resolution-aware interference filter increases footprint at lower output resolution', () => {

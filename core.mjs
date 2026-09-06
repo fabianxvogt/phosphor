@@ -46,6 +46,23 @@ export function aquariumFoodStep(energy, patchAmount, distance, radius, feeding,
   return { energy: clamp(safeEnergy + consumed * .9, 0, 1), patchAmount: clamp(safePatch - consumed, 0, 1), consumed, active: true };
 }
 
+export function evolutionContour(genotype, lineage, mutation, generationTrait = 1, phase = 0, samples = 40) {
+  const safeGenotype = Number.isFinite(genotype) ? genotype : 0;
+  const safeLineage = clamp(lineage, 0, 1);
+  const safeMutation = clamp(mutation, 0, 1);
+  const safeGeneration = clamp(generationTrait, 0, 2);
+  const count = Math.round(clamp(samples, 8, 64));
+  const lobes = 3 + Math.round(safeLineage * 5);
+  const wobble = .06 + safeMutation * .2;
+  const size = 1 + safeGeneration * .06;
+  return Array.from({ length: count + 1 }, (_, index) => {
+    const t = (index / count) * Math.PI * 2;
+    const harmonic = Math.sin(t * lobes + safeGenotype + phase) * wobble + Math.sin(t * (lobes + 2) - safeGenotype) * wobble * .45;
+    const radius = size * (.84 + harmonic + Math.sin(t * 2 + safeLineage) * .05);
+    return [Math.cos(t) * radius, Math.sin(t) * radius * (.78 + safeLineage * .18)];
+  });
+}
+
 export function stepElementary(row, rule) {
   const next = new Uint8Array(row.length);
   const safeRule = Math.round(clamp(rule, 0, 255));

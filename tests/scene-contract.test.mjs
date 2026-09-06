@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
+const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const families = [
   ['47', 'acid', 'reaction'], ['51', 'tapestry', 'automaton'], ['52', 'feedback', 'feedback'],
   ['48', 'magnetic', 'particles'], ['49', 'cathedrals', 'geometry'], ['50', 'aquarium', 'aquarium'],
@@ -70,6 +72,10 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /contextrestored/);
   assert.match(app, /const visibleSchema = state\.workflow === 'perform'/, 'progressive control modes');
   assert.match(app, /function toggleFocusMode\(/, 'canvas focus mode');
+  assert.match(app, /function evolutionContour|evolutionContour\(/, 'procedural evolution bodies');
+  assert.match(styles, /@media \(min-width:981px\)/, 'desktop split workspace');
+  assert.match(styles, /overflow-y:auto/, 'bounded workspace scrolling');
+  assert.match(html, /mobile-quickbar/, 'mobile quick actions');
   assert.match(app, /resolutionAwareInterferenceFilter\(field, neighbors, canvas\.width, canvas\.height, p\.filter\)/);
   assert.match(app, /mutation: \.18, lock: 0, lockField: 0, generation: 1/);
   assert.match(app, /resetRenderer\(\); renderScenes\(\); renderControls\(\); announce\(\); renderCues\(\);/);
