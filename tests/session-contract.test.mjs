@@ -30,9 +30,9 @@ class FakeElement {
   constructor(id, document) { this.id = id; this.document = document; this.listeners = new Map(); this.children = []; this.style = {}; this.classList = { add() {}, remove() {}, toggle() {} }; this.dataset = {}; this.value = ''; this.checked = false; this.hidden = false; this.files = []; }
   addEventListener(type, callback) { this.listeners.set(type, callback); }
   setAttribute(name, value) { this[name] = value; }
-  click() { this.listeners.get('click')?.({ target: this }); }
+  click() { if (this.disabled) return; this.listeners.get('click')?.({ target: this }); }
   querySelectorAll(selector) { if (selector === '[data-scene]') return this.children.filter((child) => child.dataset.scene !== undefined); if (selector === '[data-preset]') return this.children.filter((child) => child.dataset.preset !== undefined); if (selector === '[data-remove-cue]') return this.children.filter((child) => child.dataset.removeCue !== undefined); return []; }
-  dispatchEvent(event) { this.listeners.get(event.type)?.({ ...event, target: this }); }
+  dispatchEvent(event) { if (this.disabled && ['input', 'change', 'click'].includes(event.type)) return; this.listeners.get(event.type)?.({ ...event, target: this }); }
   set innerHTML(html) { this._html = html; this.children = []; this._parse(html); }
   get innerHTML() { return this._html || ''; }
   insertAdjacentHTML(_position, html) { this._parse(html); }
@@ -130,7 +130,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
     const records = frameRecords.slice(start);
     assert.deepEqual(records.map(({ name }) => name), [`phosphor-${manifest.scene}-001.png`, `phosphor-${manifest.scene}-002.png`]);
     assert.deepEqual(records.map(({ width, height }) => [width, height]), [[manifest.width, manifest.height], [manifest.width, manifest.height]]);
-    assert.deepEqual(records.map(({ time }) => time), [manifest.stepSeconds, manifest.stepSeconds * 2]);
+    assert.deepEqual(records.map(({ time }) => time), [0, manifest.stepSeconds]);
+    assert.deepEqual(records.map(({ frameClock }) => frameClock), [manifest.frameClock, manifest.frameClock]);
     assert.ok(records.every(({ scene, params }) => scene === manifest.scene && JSON.stringify(params) === JSON.stringify(manifest.params)));
     assert.ok(document.getElementById('stage').context.drawOps > beforeOps);
     assert.equal(document.getElementById('pauseButton').textContent, 'Resume');
@@ -138,6 +139,82 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   }
   assert.equal(frameRecords.length, api.sceneDefs.length * 2);
   assert.equal(maxWritesInFlight, 1);
+
+  const phasePlanSession = structuredClone(api.sessionData());
+  api.switchScene(8, 0);
+  api.applySession(api.sessionData());
+  const phasePlan = api.frameManifest();
+  const runPhase = async () => { let renderedPhase = null; const result = await api.renderOfflineFrames(phasePlan, { writer: { async writeFrame() { renderedPhase = api.interferenceRenderState().phase; } } }); assert.equal(result.status, 'complete'); return renderedPhase; };
+  const phaseFirst = await runPhase();
+  const phaseSecond = await runPhase();
+  assert.equal(phaseSecond, phaseFirst);
+  api.applySession(phasePlanSession);
+
+  assert.throws(() => api.validateFrameManifest({ format: 'phosphor-frame-sequence-v1', version: 1 }), /Legacy frame recipe v1/);
+  const planRoundTrip = api.frameManifest();
+  assert.deepEqual(api.validateFrameManifest(JSON.parse(JSON.stringify(planRoundTrip))), planRoundTrip);
+
+  api.switchScene(6, 0);
+  api.applySession(api.sessionData());
+  const interferencePlan = api.frameManifest();
+  api.setTestAudioLevel(.9);
+  let staleAudioPhase = null;
+  await api.renderOfflineFrames(interferencePlan, { writer: { async writeFrame() { staleAudioPhase = api.interferenceRenderState().phase; } } });
+  api.setTestAudioLevel(0);
+  let cleanAudioPhase = null;
+  await api.renderOfflineFrames(interferencePlan, { writer: { async writeFrame() { cleanAudioPhase = api.interferenceRenderState().phase; } } });
+  assert.equal(staleAudioPhase, cleanAudioPhase);
+
+  api.applySession(baseline);
+  const racePlan = api.frameManifest();
+  let releaseWriter;
+  const writerGate = new Promise((resolve) => { releaseWriter = resolve; });
+  let writerEntered = false;
+  const racePromise = api.renderOfflineFrames(racePlan, { writer: { async writeFrame() { writerEntered = true; await writerGate; } } });
+  for (let attempt = 0; attempt < 4 && !writerEntered; attempt += 1) await Promise.resolve();
+  assert.equal(writerEntered, true);
+  const raceBefore = structuredClone(api.sessionData());
+  document.getElementById('qualityInput').value = '720';
+  document.getElementById('qualityInput').dispatchEvent({ type: 'change' });
+  document.getElementById('saveButton').click();
+  document.getElementById('sceneList').children[1]?.click();
+  assert.deepEqual(api.sessionData(), raceBefore);
+  assert.equal(api.cancelOfflineRender(), true);
+  releaseWriter();
+  const raceResult = await racePromise;
+  assert.equal(raceResult.status, 'canceled');
+  assert.deepEqual(api.sessionData(), raceBefore);
+
+  const pendingPickerPlan = api.frameManifest();
+  let releasePicker;
+  const pickerGate = new Promise((resolve) => { releasePicker = resolve; });
+  globalThis.showDirectoryPicker = async () => { await pickerGate; const error = new DOMException('User canceled', 'AbortError'); throw error; };
+  const pickerPromise = api.renderOfflineFrames(pendingPickerPlan);
+  await Promise.resolve();
+  await assert.rejects(api.renderOfflineFrames(pendingPickerPlan), /already running/);
+  const pickerBefore = structuredClone(api.sessionData());
+  releasePicker();
+  const pickerResult = await pickerPromise;
+  assert.equal(pickerResult.status, 'canceled');
+  assert.deepEqual(api.sessionData(), pickerBefore);
+  delete globalThis.showDirectoryPicker;
+
+  const adapterState = { parentWrites: new Map(), folders: new Map() };
+  const adapterDirectory = {
+    async getDirectoryHandle(name, options) {
+      if (!options.create) { if (adapterState.folders.has(name)) return adapterState.folders.get(name); throw Object.assign(new Error('missing'), { name: 'NotFoundError' }); }
+      const folder = { files: new Map(), async getFileHandle(fileName) { const file = { bytes: null, async createWritable() { return { async write(blob) { file.bytes = await blob.arrayBuffer(); }, async close() {}, async abort() {} }; } }; folder.files.set(fileName, file); return file; } };
+      adapterState.folders.set(name, folder); return folder;
+    },
+    async getFileHandle(name) { return { async createWritable() { return { async write(blob) { adapterState.parentWrites.set(name, await blob.arrayBuffer()); }, async close() {} }; } }; }
+  };
+  const oldBytes = new Uint8Array([1, 2, 3]); adapterState.parentWrites.set('phosphor-acid-001.png', oldBytes.buffer);
+  const writer = api.frameDirectoryWriter(adapterDirectory);
+  await writer.writeFrame('phosphor-acid-001.png', new Blob(['new'], { type: 'image/png' }));
+  assert.deepEqual(Array.from(new Uint8Array(adapterState.parentWrites.get('phosphor-acid-001.png'))), [1, 2, 3]);
+  assert.equal(adapterState.folders.size, 1);
+  const folder = [...adapterState.folders.values()][0];
+  assert.deepEqual(Array.from(new Uint8Array(folder.files.get('phosphor-acid-001.png').bytes)), Array.from(new Uint8Array(await new Blob(['new']).arrayBuffer())));
 
   api.applySession(offlineBase);
   api.switchScene(9, 0);
