@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedFeedbackValue, clamp, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, seededRandom, stepElementary } from '../core.mjs';
+import { boundedFeedbackValue, clamp, countPolylineIntersections, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
 
 test('elementary automaton fixture for rule 90 is exact', () => {
   const row = Uint8Array.from([0, 0, 0, 1, 0, 0, 0]);
@@ -47,6 +47,15 @@ test('ray-marched cathedral families stay finite with capped steps', () => {
   for (let family = 0; family < 4; family += 1) for (let recursion = 1; recursion <= 6; recursion += 1) {
     const result = rayMarchCorridor([0, 0, -2], [.2, -.1, 1], family, recursion, 64);
     assert.equal(Number.isFinite(result.distance), true); assert.equal(Number.isInteger(result.steps), true); assert.ok(result.steps <= 64);
+  }
+});
+
+test('topological loop families close position and tangent with bounded intersection detection', () => {
+  for (let family = 0; family < 4; family += 1) {
+    const closure = topologyClosureError(family, .73, .41, .2);
+    assert.ok(closure.position < 1e-9); assert.ok(closure.tangent < 1e-5);
+    const points = Array.from({ length: 65 }, (_, i) => topologyLoopPoint(family, i / 64, .73, .41, .2));
+    assert.ok(Number.isInteger(countPolylineIntersections(points))); assert.ok(countPolylineIntersections(points) >= 0);
   }
 });
 

@@ -24,4 +24,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /phase: \{ width: 64, height: 40, values: new Float32Array\(64 \* 40\)/);
   assert.match(app, /Math\.min\(b\.count, Math\.floor\(96 \+ p\.density \* 384\)\)/);
   assert.match(app, /Math\.min\(b\.count, Math\.floor\(4 \+ p\.population \* 60\)\)/);
+  assert.match(app, /topologyLoopPoint\(p\.family/);
+  assert.match(app, /countPolylineIntersections\(sampled\)/);
+  assert.match(app, /keyframes: new Float32Array\(2 \* 5\)/);
 });

@@ -92,6 +92,54 @@ export function rayMarchCorridor(origin, direction, family = 0, recursion = 4, m
   return { hit: false, distance, steps };
 }
 
+export function topologyLoopPoint(family, t, twist = .5, camera = .5, phase = 0) {
+  const safeFamily = Math.round(clamp(family, 0, 3));
+  const theta = (Number.isFinite(t) ? t : 0) * Math.PI * 2 + phase;
+  const safeTwist = clamp(twist, 0, 1);
+  const safeCamera = clamp(camera, 0, 1);
+  let x; let y;
+  if (safeFamily === 0) {
+    x = Math.cos(theta) * (.78 + .12 * Math.cos(3 * theta + safeTwist));
+    y = Math.sin(theta) * (.58 + .1 * Math.cos(3 * theta + safeTwist));
+  } else if (safeFamily === 1) {
+    x = Math.sin(theta) * .78;
+    y = Math.sin(2 * theta) * (.34 + safeTwist * .16);
+  } else if (safeFamily === 2) {
+    const radius = .56 + .2 * Math.cos(5 * theta + safeTwist * Math.PI * 2);
+    x = radius * Math.cos(theta);
+    y = radius * Math.sin(theta);
+  } else {
+    x = Math.sin(2 * theta) * (.62 + safeTwist * .12);
+    y = Math.sin(3 * theta + safeTwist) * (.48 + safeCamera * .16);
+  }
+  return [x * (1 + safeCamera * .12), y * (1 - safeCamera * .08)];
+}
+
+export function topologyClosureError(family, twist = .5, camera = .5, phase = 0) {
+  const epsilon = 1e-4;
+  const start = topologyLoopPoint(family, 0, twist, camera, phase);
+  const end = topologyLoopPoint(family, 1, twist, camera, phase);
+  const startTangent = topologyLoopPoint(family, epsilon, twist, camera, phase).map((value, i) => value - start[i]);
+  const endTangent = end.map((value, i) => value - topologyLoopPoint(family, 1 - epsilon, twist, camera, phase)[i]);
+  return { position: Math.hypot(start[0] - end[0], start[1] - end[1]), tangent: Math.hypot(startTangent[0] - endTangent[0], startTangent[1] - endTangent[1]) };
+}
+
+function orientation(a, b, c) {
+  const value = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  return value > 1e-7 ? 1 : value < -1e-7 ? -1 : 0;
+}
+
+export function countPolylineIntersections(points) {
+  if (!Array.isArray(points) || points.length < 4) return 0;
+  let count = 0;
+  const crosses = (a, b, c, d) => orientation(a, b, c) * orientation(a, b, d) < 0 && orientation(c, d, a) * orientation(c, d, b) < 0;
+  for (let i = 0; i < points.length - 1; i += 1) for (let j = i + 2; j < points.length - 1; j += 1) {
+    if (i === 0 && j === points.length - 2) continue;
+    if (crosses(points[i], points[i + 1], points[j], points[j + 1])) count += 1;
+  }
+  return count;
+}
+
 export function lifecycleStressCheck(sceneCount = 3, switches = 10) {
   let active = 0;
   for (let i = 0; i < switches; i += 1) active = (active + 1) % sceneCount;
