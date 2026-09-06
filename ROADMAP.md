@@ -1,17 +1,17 @@
 # Roadmap
 
-State: incremental source preview (47/51/52 accepted baseline; 48–50/53–56 implementation updated, independent review and browser/device/human review pending)
+State: public preview remains deployed from exact source `a67de5338040aee56b598362bf0b2ce5e228eed9` (version 3); reviewed version-4 candidate product source is `a6a7f0193abd43ef42b5a70df5b0b7b4c9f0387e` and is prepared privately, not deployed. Sustained device, audio, human, and full-v1 review remain open.
 
 ## Now
 
-- Run the browser/device journey when access is granted: fresh start, ten scene transitions, save/reload, export/import, malformed import, capture, and recording capability detection.
+- Complete sustained reference-device observation across the ten-family journey, including long-running scenes, quality tiers, recovery, and resource behavior.
+- Complete audio/listening and performer review, including local source behavior and the shared transport/cue workflow.
 - Measure sustained scene behavior on the named reference laptop and record actual frame-time evidence per scene and quality tier.
-- Obtain independent exact-source review for each new scene commit before publication or source-complete wording.
 - Keep source-side deterministic stress separate from browser evidence; the current suite runs 900 bounded frames across all ten families and compares identical seeded replays.
 
 ## Next
 
-- Add richer audio feature mapping and a documented offline frame runner.
+- Add richer audio feature mapping.
 - Run blind preset comparison with at least three viewers and one performer.
 
 ## Later
@@ -24,7 +24,8 @@ State: incremental source preview (47/51/52 accepted baseline; 48–50/53–56 i
 - Shared local set schema (`phosphor-set-v1`) with save, export, import validation, and recovery messaging.
 - Six Acid Mycelium, eight Causal Tapestry, and six Feedback Chapel authored presets.
 - Manual transport, procedural demo pulse, local audio, microphone denial handling, pause, mute, blackout, reduced motion, brightness, and quality controls.
-- Cue arrangement, three authored cue arcs, cross-scene morph lifecycle, still capture, WebM recording path, and offline frame manifest export.
-- All ten families (47–56) register against the shared renderer and bounded resource contract. The new families now include concrete source mechanisms for their reviewed briefs, but remain preview additions until independent review passes.
-- Source-side verification includes 14 tests, syntax/build/dist checks, and a 900-frame deterministic bounded renderer stress test; browser, device, and human gates remain open.
+- Cue arrangement, three authored cue arcs, cross-scene morph lifecycle, still capture, WebM recording path, executable seeded-start frame-plan import/export, and numbered PNG folder output capped at 240 frames.
+- Numbered PNG frame plans use executable `phosphor-frame-sequence-v2` manifests with fixed seeded-start timing, bounded 1–240 frame jobs, one Blob/write, cancellation/failure cleanup, unique output folders, and a draw-only paused seeded preview after cleanup. The preview preserves session/clock/Phase state and leaves blackout/recovery dark. Legacy v1 recipes remain explicitly non-executable. Real OPFS directory/file readback and repeat-byte determinism pass; native picker permission and native user-folder selection remain unobserved platform gates.
+- All ten families (47–56) register against the shared renderer and bounded resource contract, with accepted source mechanisms, authored presets, and shared save/replay/capture behavior.
+- Source-side verification includes 21 tests, syntax/build/dist checks, a 900-frame deterministic bounded renderer stress test, and all-ten-family offline-controller dispatch coverage with deterministic fixed-step metadata, transactional hostile-plan rejection, one-at-a-time writes, cancellation, failure cleanup, unsupported-browser fallback, and pixel-readback/state checks for the paused cleanup preview. Public version 3 also passed the bounded browser/output recheck for paused brightness, fresh PNG/WebM bytes, resume, transition, Low output resize, and save/reload. The a6 paused-preview browser delta remains a separate final display check; native picker, sustained device, audio, human, and full-v1 gates remain open.
 - Standalone Git repository initialized on `codex/v1`.

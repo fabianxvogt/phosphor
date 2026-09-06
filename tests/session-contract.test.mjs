@@ -2,19 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 class FakeContext {
-  constructor(canvas) { this.canvas = canvas; this.fillRectCalls = 0; this.drawImageFilters = []; }
+  constructor(canvas) { this.canvas = canvas; this.fillRectCalls = 0; this.drawOps = 0; this.drawImageFilters = []; this.resize(); }
+  resize() { const width = this.canvas.width ?? this.canvas._width; const height = this.canvas.height ?? this.canvas._height; this.pixelData = new Uint8ClampedArray(width * height * 4); }
+  color() { if (typeof this.fillStyle === 'string' && /^#[0-9a-f]{6}$/i.test(this.fillStyle)) return [parseInt(this.fillStyle.slice(1, 3), 16), parseInt(this.fillStyle.slice(3, 5), 16), parseInt(this.fillStyle.slice(5, 7), 16)]; return [255, 255, 255]; }
   createImageData(width, height) { return { data: new Uint8ClampedArray(width * height * 4) }; }
-  getImageData(width, height) { return this.createImageData(width, height); }
+  getImageData(x, y, width, height) { const image = this.createImageData(width, height); for (let row = 0; row < height; row += 1) for (let col = 0; col < width; col += 1) { const source = ((y + row) * this.canvas.width + x + col) * 4; const target = (row * width + col) * 4; image.data.set(this.pixelData.slice(source, source + 4), target); } return image; }
   createRadialGradient() { return { addColorStop() {} }; }
   save() {}
   restore() {}
   beginPath() {}
   moveTo() {}
   lineTo() {}
-  stroke() {}
-  fill() {}
-  fillRect() { this.fillRectCalls += 1; }
-  clearRect() {}
+  stroke() { this.drawOps += 1; this.pixelData[0] = 255; this.pixelData[1] = 255; this.pixelData[2] = 255; }
+  fill() { this.drawOps += 1; this.pixelData[0] = 255; this.pixelData[1] = 255; this.pixelData[2] = 255; }
+  fillRect(x = 0, y = 0, width = this.canvas.width, height = this.canvas.height) { this.fillRectCalls += 1; this.drawOps += 1; const [red, green, blue] = this.color(); for (let row = Math.max(0, y); row < Math.min(this.canvas.height, y + height); row += 1) for (let col = Math.max(0, x); col < Math.min(this.canvas.width, x + width); col += 1) { const index = (row * this.canvas.width + col) * 4; this.pixelData[index] = red; this.pixelData[index + 1] = green; this.pixelData[index + 2] = blue; this.pixelData[index + 3] = 255; } }
+  clearRect(x = 0, y = 0, width = this.canvas.width, height = this.canvas.height) { this.drawOps += 1; for (let row = Math.max(0, y); row < Math.min(this.canvas.height, y + height); row += 1) for (let col = Math.max(0, x); col < Math.min(this.canvas.width, x + width); col += 1) this.pixelData[(row * this.canvas.width + col) * 4 + 3] = 0; }
   arc() {}
   ellipse() {}
   rect() {}
@@ -22,17 +24,17 @@ class FakeContext {
   rotate() {}
   scale() {}
   setTransform() {}
-  drawImage() { this.drawImageFilters.push(this.filter || 'none'); }
-  putImageData() {}
+  drawImage(source) { this.drawOps += 1; this.drawImageFilters.push(this.filter || 'none'); const sourceContext = source?.context; if (!sourceContext?.pixelData) return; const sourceWidth = source.width; const sourceHeight = source.height; for (let row = 0; row < this.canvas.height; row += 1) for (let col = 0; col < this.canvas.width; col += 1) { const sourceRow = Math.min(sourceHeight - 1, Math.floor(row * sourceHeight / this.canvas.height)); const sourceCol = Math.min(sourceWidth - 1, Math.floor(col * sourceWidth / this.canvas.width)); const from = (sourceRow * sourceWidth + sourceCol) * 4; const to = (row * this.canvas.width + col) * 4; this.pixelData[to] = sourceContext.pixelData[from]; this.pixelData[to + 1] = sourceContext.pixelData[from + 1]; this.pixelData[to + 2] = sourceContext.pixelData[from + 2]; this.pixelData[to + 3] = sourceContext.pixelData[from + 3]; } }
+  putImageData(image, x = 0, y = 0) { this.drawOps += 1; const width = Math.min(this.canvas.width - x, Math.floor(image.data.length / 4)); for (let row = 0; row < this.canvas.height - y && row * width * 4 < image.data.length; row += 1) for (let col = 0; col < width; col += 1) { const from = (row * width + col) * 4; const to = ((y + row) * this.canvas.width + x + col) * 4; this.pixelData[to] = image.data[from]; this.pixelData[to + 1] = image.data[from + 1]; this.pixelData[to + 2] = image.data[from + 2]; this.pixelData[to + 3] = image.data[from + 3]; } }
 }
 
 class FakeElement {
   constructor(id, document) { this.id = id; this.document = document; this.listeners = new Map(); this.children = []; this.style = {}; this.classList = { add() {}, remove() {}, toggle() {} }; this.dataset = {}; this.value = ''; this.checked = false; this.hidden = false; this.files = []; }
   addEventListener(type, callback) { this.listeners.set(type, callback); }
   setAttribute(name, value) { this[name] = value; }
-  click() { this.listeners.get('click')?.({ target: this }); }
+  click() { if (this.disabled) return; this.listeners.get('click')?.({ target: this }); }
   querySelectorAll(selector) { if (selector === '[data-scene]') return this.children.filter((child) => child.dataset.scene !== undefined); if (selector === '[data-preset]') return this.children.filter((child) => child.dataset.preset !== undefined); if (selector === '[data-remove-cue]') return this.children.filter((child) => child.dataset.removeCue !== undefined); return []; }
-  dispatchEvent(event) { this.listeners.get(event.type)?.({ ...event, target: this }); }
+  dispatchEvent(event) { if (this.disabled && ['input', 'change', 'click'].includes(event.type)) return; this.listeners.get(event.type)?.({ ...event, target: this }); }
   set innerHTML(html) { this._html = html; this.children = []; this._parse(html); }
   get innerHTML() { return this._html || ''; }
   insertAdjacentHTML(_position, html) { this._parse(html); }
@@ -45,9 +47,9 @@ class FakeElement {
 }
 
 class FakeCanvas extends FakeElement {
-  constructor(id, document) { super(id, document); this.width = 960; this.height = 600; this.context = new FakeContext(this); }
+  constructor(id, document) { super(id, document); this._width = 960; this._height = 600; this.context = new FakeContext(this); Object.defineProperty(this, 'width', { get: () => this._width, set: (value) => { this._width = Number(value); this.context.resize(); } }); Object.defineProperty(this, 'height', { get: () => this._height, set: (value) => { this._height = Number(value); this.context.resize(); } }); this.context.resize(); this.toBlobCalls = 0; }
   getContext() { return this.context; }
-  toBlob(callback) { callback(new Blob(['fake'])); }
+  toBlob(callback) { this.toBlobCalls += 1; callback(new Blob(['fake'], { type: 'image/png' })); }
 }
 
 class FakeDocument {
@@ -59,7 +61,7 @@ class FakeDocument {
 
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
-  for (const id of ['stage', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'demoAudioButton', 'playSetButton', 'transportState', 'modulationReadout', 'fpsReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'captureButton', 'frameExportButton', 'saveButton', 'exportButton']) document.ensure(id);
+  for (const id of ['stage', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'demoAudioButton', 'playSetButton', 'transportState', 'modulationReadout', 'fpsReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'exportButton']) document.ensure(id);
   globalThis.document = document; globalThis.window = globalThis; globalThis.addEventListener = () => {}; globalThis.location = { search: '' }; globalThis.performance = { now: () => 0 }; globalThis.requestAnimationFrame = () => 0; globalThis.localStorage = { data: new Map(), getItem(key) { return this.data.get(key) ?? null; }, setItem(key, value) { this.data.set(key, value); }, removeItem(key) { this.data.delete(key); } }; globalThis.FileReader = class {}; globalThis.URL.createObjectURL ??= () => 'blob:fake'; globalThis.URL.revokeObjectURL ??= () => {};
   await import(new URL('../app.js?session-contract', import.meta.url));
   const api = window.__phosphorTest;
@@ -100,5 +102,201 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   document.getElementById('capturePhaseMeasurementButton').click(); const savedMeasurementSession = api.sessionData(); const archivedMeasurement = savedMeasurementSession.phaseMeasurementArchive; assert.equal(archivedMeasurement.format, 'phosphor-phase-measurement-v1'); assert.equal(archivedMeasurement.version, 1); assert.equal(archivedMeasurement.savedMeasurement, true); assert.equal(typeof archivedMeasurement.eventPosition, 'number'); assert.deepEqual(archivedMeasurement.measurement, phaseMeasurement); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement); const capturedText = document.getElementById('phaseArchiveReadout').textContent; assert.match(capturedText, /Saved capture \(archived\)/); assert.match(capturedText, /Night Return/); assert.match(capturedText, /release/); assert.match(capturedText, /progress 1\.00/); assert.match(capturedText, /180 BPM/); assert.match(capturedText, /control/); assert.match(capturedText, /transition gap/); assert.match(capturedText, /model Coupled Regime Field/); assert.match(capturedText, /event \d+/);
   api.switchScene(0, 0); api.applySession(savedMeasurementSession); assert.deepEqual(api.sessionData().phaseMeasurementArchive, archivedMeasurement); assert.equal(api.phaseMeasurement().phase, 'idle'); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement); const reopenedLiveText = document.getElementById('phaseActionReadout').textContent; const reopenedArchiveText = document.getElementById('phaseArchiveReadout').textContent; assert.match(reopenedLiveText, /Live current/); assert.match(reopenedLiveText, /idle/); assert.match(reopenedArchiveText, /Saved capture \(archived\)/); assert.match(reopenedArchiveText, /Night Return/); assert.match(reopenedArchiveText, /release/); assert.match(reopenedArchiveText, /progress 1\.00/); assert.notEqual(api.phaseMeasurement().phase, archivedMeasurement.measurement.phase); assert.notEqual(reopenedLiveText, reopenedArchiveText);
   api.switchScene(3, 0); const magneticStart = api.magneticRenderState().particles; assert.ok(magneticStart.some((value) => value !== 0)); for (let frame = 0; frame < 180; frame += 1) api.stepMagnetic(.016); const magneticAfter = api.magneticRenderState().particles; assert.ok(magneticAfter.every(Number.isFinite)); assert.ok(magneticAfter.some((value, index) => Math.abs(value - magneticStart[index]) > 0.00001)); const orbitRadii = []; const magneticState = api.magneticRenderState(); for (let i = 0; i < 449; i += 1) { const index = i * 4; const attractor = i % 2 ? 2 : 0; orbitRadii.push(Math.hypot(magneticState.particles[index] - magneticState.attractors[attractor], magneticState.particles[index + 1] - magneticState.attractors[attractor + 1])); } const meanOrbitRadius = orbitRadii.reduce((sum, value) => sum + value, 0) / orbitRadii.length; assert.ok(meanOrbitRadius > .05 && meanOrbitRadius < .3, `mean orbit radius ${meanOrbitRadius}`); api.setTestElapsed(0); api.inject(.2, .3, .8); api.setTestElapsed(.5); api.inject(.8, .7, .6); const timed = api.sessionData().gestureHistory.filter((event) => event.scene === 3); assert.equal(timed.length, 2); assert.equal(timed[0].timing, 'beat'); assert.ok(timed[1].beat > timed[0].beat); api.replayGestureSequence(); assert.deepEqual(api.magneticReplayState(), { index: 0, total: 2, playing: true }); document.getElementById('pauseButton').click(); api.setTestElapsed(2); api.stepMagnetic(.016); assert.equal(api.magneticReplayState().index, 0); document.getElementById('pauseButton').click(); api.stepMagnetic(.016); assert.ok(api.magneticReplayState().index >= 1); api.setTestElapsed(3); api.stepMagnetic(.016); assert.equal(api.magneticReplayState().playing, false); api.switchScene(0, 0);
+  api.applySession(baseline);
+  document.getElementById('frameCountInput').value = '2';
+  const offlineBase = structuredClone(api.sessionData());
+  const frameRecords = [];
+  let writesInFlight = 0;
+  let maxWritesInFlight = 0;
+  for (let sceneIndex = 0; sceneIndex < api.sceneDefs.length; sceneIndex += 1) {
+    const candidate = structuredClone(offlineBase);
+    candidate.activeScene = sceneIndex;
+    candidate.options.quality = sceneIndex % 2 === 0 ? '1080' : '720';
+    api.applySession(candidate);
+    assert.equal(api.sessionData().activeScene, sceneIndex);
+    if (sceneIndex === 9) assert.ok(api.sessionData().evolution);
+    const manifest = api.frameManifest();
+    const beforeRuntime = api.renderRuntimeState();
+    const beforeOps = document.getElementById('stage').context.drawOps;
+    const start = frameRecords.length;
+    const result = await api.renderOfflineFrames(JSON.parse(JSON.stringify(manifest)), { writer: { async writeFrame(name, blob, metadata) {
+      assert.equal(blob.type, 'image/png');
+      assert.ok(blob.size > 0);
+      writesInFlight += 1;
+      maxWritesInFlight = Math.max(maxWritesInFlight, writesInFlight);
+      await Promise.resolve();
+      frameRecords.push({ name, ...metadata });
+      writesInFlight -= 1;
+    } } });
+    assert.equal(result.status, 'complete');
+    assert.equal(result.written, 2);
+    const records = frameRecords.slice(start);
+    assert.deepEqual(records.map(({ name }) => name), [`phosphor-${manifest.scene}-001.png`, `phosphor-${manifest.scene}-002.png`]);
+    assert.deepEqual(records.map(({ width, height }) => [width, height]), [[manifest.width, manifest.height], [manifest.width, manifest.height]]);
+    assert.deepEqual(records.map(({ time }) => time), [0, manifest.stepSeconds]);
+    assert.deepEqual(records.map(({ frameClock }) => frameClock), [manifest.frameClock, manifest.frameClock]);
+    assert.ok(records.every(({ scene, params }) => scene === manifest.scene && JSON.stringify(params) === JSON.stringify(manifest.params)));
+    assert.ok(document.getElementById('stage').context.drawOps > beforeOps);
+    if (manifest.scene === 'acid' || manifest.scene === 'phase') assert.ok(api.stagePixelStats().visiblePixels > 0, `${manifest.scene} restored preview has visible pixels`);
+    const restoredRuntime = api.renderRuntimeState();
+    assert.equal(restoredRuntime.elapsed, 0);
+    assert.equal(restoredRuntime.cadenceAccumulator, 0);
+    assert.equal(restoredRuntime.paused, true);
+    assert.equal(restoredRuntime.topologyPhase, beforeRuntime.topologyPhase);
+    assert.equal(restoredRuntime.topologyIntersections, beforeRuntime.topologyIntersections);
+    assert.equal(document.getElementById('pauseButton').textContent, 'Resume');
+    assert.equal(api.sessionData().activeScene, sceneIndex);
+  }
+  assert.equal(frameRecords.length, api.sceneDefs.length * 2);
+  assert.equal(maxWritesInFlight, 1);
+
+  const phasePlanSession = structuredClone(api.sessionData());
+  api.switchScene(8, 0);
+  api.applySession(api.sessionData());
+  const phasePlan = api.frameManifest();
+  const phaseBeforeOffline = api.renderRuntimeState();
+  const runPhase = async () => { let renderedPhase = null; const result = await api.renderOfflineFrames(phasePlan, { writer: { async writeFrame() { renderedPhase = api.interferenceRenderState().phase; } } }); assert.equal(result.status, 'complete'); return renderedPhase; };
+  const phaseFirst = await runPhase();
+  const phaseSecond = await runPhase();
+  assert.equal(phaseSecond, phaseFirst);
+  const phaseAfterOffline = api.renderRuntimeState();
+  assert.deepEqual(phaseAfterOffline.phaseValues, phaseBeforeOffline.phaseValues);
+  assert.deepEqual(phaseAfterOffline.phaseCompare, phaseBeforeOffline.phaseCompare);
+  assert.equal(phaseAfterOffline.phaseSeed, phaseBeforeOffline.phaseSeed);
+  assert.equal(phaseAfterOffline.elapsed, 0);
+  assert.equal(phaseAfterOffline.cadenceAccumulator, 0);
+  assert.ok(api.stagePixelStats().visiblePixels > 0);
+  api.applySession(phasePlanSession);
+
+  assert.throws(() => api.validateFrameManifest({ format: 'phosphor-frame-sequence-v1', version: 1 }), /Legacy frame recipe v1/);
+  const planRoundTrip = api.frameManifest();
+  assert.deepEqual(api.validateFrameManifest(JSON.parse(JSON.stringify(planRoundTrip))), planRoundTrip);
+
+  api.switchScene(6, 0);
+  api.applySession(api.sessionData());
+  const interferencePlan = api.frameManifest();
+  api.setTestAudioLevel(.9);
+  let staleAudioPhase = null;
+  await api.renderOfflineFrames(interferencePlan, { writer: { async writeFrame() { staleAudioPhase = api.interferenceRenderState().phase; } } });
+  api.setTestAudioLevel(0);
+  let cleanAudioPhase = null;
+  await api.renderOfflineFrames(interferencePlan, { writer: { async writeFrame() { cleanAudioPhase = api.interferenceRenderState().phase; } } });
+  assert.equal(staleAudioPhase, cleanAudioPhase);
+
+  api.applySession(baseline);
+  const racePlan = api.frameManifest();
+  let releaseWriter;
+  const writerGate = new Promise((resolve) => { releaseWriter = resolve; });
+  let writerEntered = false;
+  const racePromise = api.renderOfflineFrames(racePlan, { writer: { async writeFrame() { writerEntered = true; await writerGate; } } });
+  for (let attempt = 0; attempt < 4 && !writerEntered; attempt += 1) await Promise.resolve();
+  assert.equal(writerEntered, true);
+  const raceBefore = structuredClone(api.sessionData());
+  document.getElementById('qualityInput').value = '720';
+  document.getElementById('qualityInput').dispatchEvent({ type: 'change' });
+  document.getElementById('saveButton').click();
+  document.getElementById('sceneList').children[1]?.click();
+  assert.deepEqual(api.sessionData(), raceBefore);
+  assert.equal(api.cancelOfflineRender(), true);
+  releaseWriter();
+  const raceResult = await racePromise;
+  assert.equal(raceResult.status, 'canceled');
+  assert.deepEqual(api.sessionData(), raceBefore);
+
+  const pendingPickerPlan = api.frameManifest();
+  let releasePicker;
+  const pickerGate = new Promise((resolve) => { releasePicker = resolve; });
+  globalThis.showDirectoryPicker = async () => { await pickerGate; const error = new DOMException('User canceled', 'AbortError'); throw error; };
+  const pickerPromise = api.renderOfflineFrames(pendingPickerPlan);
+  await Promise.resolve();
+  await assert.rejects(api.renderOfflineFrames(pendingPickerPlan), /already running/);
+  const pickerBefore = structuredClone(api.sessionData());
+  releasePicker();
+  const pickerResult = await pickerPromise;
+  assert.equal(pickerResult.status, 'canceled');
+  assert.deepEqual(api.sessionData(), pickerBefore);
+  delete globalThis.showDirectoryPicker;
+
+  const adapterState = { parentWrites: new Map(), folders: new Map() };
+  const adapterDirectory = {
+    async getDirectoryHandle(name, options) {
+      if (!options.create) { if (adapterState.folders.has(name)) return adapterState.folders.get(name); throw Object.assign(new Error('missing'), { name: 'NotFoundError' }); }
+      const folder = { files: new Map(), async getFileHandle(fileName) { const file = { bytes: null, async createWritable() { return { async write(blob) { file.bytes = await blob.arrayBuffer(); }, async close() {}, async abort() {} }; } }; folder.files.set(fileName, file); return file; } };
+      adapterState.folders.set(name, folder); return folder;
+    },
+    async getFileHandle(name) { return { async createWritable() { return { async write(blob) { adapterState.parentWrites.set(name, await blob.arrayBuffer()); }, async close() {} }; } }; }
+  };
+  const oldBytes = new Uint8Array([1, 2, 3]); adapterState.parentWrites.set('phosphor-acid-001.png', oldBytes.buffer);
+  const writer = api.frameDirectoryWriter(adapterDirectory);
+  await writer.writeFrame('phosphor-acid-001.png', new Blob(['new'], { type: 'image/png' }));
+  assert.deepEqual(Array.from(new Uint8Array(adapterState.parentWrites.get('phosphor-acid-001.png'))), [1, 2, 3]);
+  assert.equal(adapterState.folders.size, 1);
+  const folder = [...adapterState.folders.values()][0];
+  assert.deepEqual(Array.from(new Uint8Array(folder.files.get('phosphor-acid-001.png').bytes)), Array.from(new Uint8Array(await new Blob(['new']).arrayBuffer())));
+
+  api.applySession(offlineBase);
+  api.switchScene(9, 0);
+  document.getElementById('mutateButton').click();
+  document.getElementById('chooseButton').click();
+  api.applySession(api.sessionData());
+  const evolutionManifest = api.frameManifest();
+  const selectedEvolutionId = evolutionManifest.initialState.evolution.selectedId;
+  assert.ok(selectedEvolutionId !== evolutionManifest.initialState.evolution.nodes[0].id);
+  const importedEvolution = api.importFrameManifest(JSON.parse(JSON.stringify(evolutionManifest)));
+  assert.equal(importedEvolution.initialState.evolution.selectedId, selectedEvolutionId);
+
+  const deterministicPlan = { ...evolutionManifest, frames: 2 };
+  const collectRun = async () => { const records = []; const result = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame(name, blob, metadata) { records.push({ name, time: metadata.time, scene: metadata.scene, params: metadata.params }); } } }); assert.equal(result.status, 'complete'); return records; };
+  const firstRun = await collectRun();
+  const secondRun = await collectRun();
+  assert.deepEqual(secondRun, firstRun);
+  assert.equal(api.sessionData().activeScene, 9);
+
+  const invalidBefore = structuredClone(api.sessionData());
+  const invalidPlan = { ...deterministicPlan, frames: 241 };
+  await assert.rejects(api.renderOfflineFrames(invalidPlan, { writer: { async writeFrame() { throw new Error('must not write'); } } }), /1–240/);
+  assert.deepEqual(api.sessionData(), invalidBefore);
+  const missingStep = { ...deterministicPlan }; delete missingStep.stepSeconds;
+  await assert.rejects(api.renderOfflineFrames(missingStep, { writer: { async writeFrame() { throw new Error('must not write'); } } }), /size, cadence, and step/);
+  assert.deepEqual(api.sessionData(), invalidBefore);
+
+  const cancelRecords = [];
+  const cancelSessionBefore = structuredClone(api.sessionData());
+  const canceled = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame(name) { cancelRecords.push(name); if (cancelRecords.length === 1) api.cancelOfflineRender(); } } });
+  assert.equal(canceled.status, 'canceled');
+  assert.equal(canceled.written, 1);
+  assert.equal(cancelRecords.length, 1);
+  assert.equal(document.getElementById('frameCancelButton').hidden, true);
+  assert.deepEqual(api.sessionData(), cancelSessionBefore);
+  assert.ok(api.stagePixelStats().visiblePixels > 0);
+  assert.equal(api.renderRuntimeState().elapsed, 0);
+
+  let failedWrites = 0;
+  const failureSessionBefore = structuredClone(api.sessionData());
+  const failed = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame() { failedWrites += 1; if (failedWrites === 2) throw new Error('disk full'); } } });
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.written, 1);
+  assert.match(failed.error, /disk full/);
+  assert.deepEqual(api.sessionData(), failureSessionBefore);
+  assert.ok(api.stagePixelStats().visiblePixels > 0);
+  assert.equal(api.renderRuntimeState().elapsed, 0);
+
+  api.setTestRenderFlags({ blackout: true, renderingLost: false });
+  const blackoutSession = structuredClone(api.sessionData());
+  const blackoutResult = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame() {} } });
+  assert.equal(blackoutResult.status, 'complete');
+  assert.deepEqual(api.sessionData(), blackoutSession);
+  assert.equal(api.renderRuntimeState().blackout, true);
+  assert.equal(api.stagePixelStats().visiblePixels, 0);
+  api.setTestRenderFlags({ blackout: false, renderingLost: false });
+
+  api.restoreOfflineSnapshot({ session: structuredClone(api.sessionData()), paused: true, blackout: false, renderingLost: true, audioLevel: 0, gesture: { x: .5, y: .5, active: false, scene: 9 } });
+  assert.equal(api.renderRuntimeState().renderingLost, true);
+  assert.equal(api.stagePixelStats().visiblePixels, 0);
+  api.setTestRenderFlags({ renderingLost: false });
+  const unsupported = await api.renderOfflineFrames(deterministicPlan);
+  assert.equal(unsupported.status, 'unsupported');
+  assert.match(document.getElementById('frameProgress').textContent, /Batch folder output unavailable/);
+
   api.applySession(baseline);
 });
