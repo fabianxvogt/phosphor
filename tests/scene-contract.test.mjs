@@ -76,6 +76,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(styles, /@media \(min-width:981px\)/, 'desktop split workspace');
   assert.match(styles, /overflow-y:auto/, 'bounded workspace scrolling');
   assert.match(html, /mobile-quickbar/, 'mobile quick actions');
+  assert.match(styles, /\.stage-overlay\.top-left \{ top:10px;[\s\S]*\.stage-overlay\.top-right \{ top:10px/, 'narrow stage header separation');
   assert.match(app, /resolutionAwareInterferenceFilter\(field, neighbors, canvas\.width, canvas\.height, p\.filter\)/);
   assert.match(app, /mutation: \.18, lock: 0, lockField: 0, generation: 1/);
   assert.match(app, /resetRenderer\(\); renderScenes\(\); renderControls\(\); announce\(\); renderCues\(\);/);
