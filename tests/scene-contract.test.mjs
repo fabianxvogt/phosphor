@@ -33,6 +33,10 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function mutateEvolution\(\)/);
   assert.match(app, /lockedParameters/);
   assert.match(app, /evolution: state\.evolution/);
+  assert.match(app, /function applyMagneticGesture\(/);
+  assert.match(app, /function replayGestureSequence\(/);
+  assert.match(app, /gestureHistory: state\.gestureHistory/);
+  assert.match(app, /fieldA: \.92/);
   assert.match(app, /resetRenderer\(\); renderScenes\(\); renderControls\(\); announce\(\); renderCues\(\);/);
   assert.doesNotMatch(app, /savedAt:/);
 });
