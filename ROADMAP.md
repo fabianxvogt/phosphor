@@ -1,6 +1,6 @@
 # Roadmap
 
-State: public preview remains deployed from exact source `a67de5338040aee56b598362bf0b2ce5e228eed9` (version 3); reviewed version-4 candidate product source is `a6a7f0193abd43ef42b5a70df5b0b7b4c9f0387e` and is prepared privately, not deployed. Sustained device, audio, human, and full-v1 review remain open.
+State: public preview is deployed as Site version 4 from saved Site source `b4c5a394b6a45edac1423d0d3f0e2c94919189ab`, containing accepted product source `a6a7f0193abd43ef42b5a70df5b0b7b4c9f0387e` and public docs HEAD `a45635a94dc12b040e7bd67e6cfe7c95f3a6ed9b`. Sustained device, audio, human, native picker, and full-v1 review remain open.
 
 ## Now
 
