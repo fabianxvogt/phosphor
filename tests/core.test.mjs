@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedFeedbackValue, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
+import { aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
 
 test('elementary automaton fixture for rule 90 is exact', () => {
   const row = Uint8Array.from([0, 0, 0, 1, 0, 0, 0]);
@@ -41,6 +41,31 @@ test('interference fields and resolution filter stay finite and bounded', () => 
   assert.equal(finiteArray(values), true); assert.ok(values.every((value) => value >= -1 && value <= 1));
   const filtered = values.map((value) => filteredInterference(value, 1));
   assert.ok(filtered.every((value) => value >= 0 && value <= 1));
+});
+
+test('quality profiles apply truthful output dimensions, cadence, and bounded work budgets', () => {
+  const full = qualityProfile('1080'); const low = qualityProfile('720');
+  assert.deepEqual([full.width, full.height, full.cadence], [960, 600, 60]);
+  assert.deepEqual([low.width, low.height, low.cadence], [480, 300, 30]);
+  assert.ok(low.cathedralWidth < full.cathedralWidth && low.interferenceWidth < full.interferenceWidth);
+  assert.ok(low.magneticCap < full.magneticCap && low.aquariumCap < full.aquariumCap);
+  assert.match(low.label, /target/); assert.doesNotMatch(low.label, /measured/i);
+});
+
+test('cathedral authored shading changes surface treatment beyond palette choice', () => {
+  const matte = cathedralShading(1.4, 20, [.4, .2, .8], .2, .05, .9, .04);
+  const charged = cathedralShading(1.4, 20, [.4, .2, .8], .9, .9, .1, .85);
+  assert.ok(Number.isFinite(matte.value) && Number.isFinite(charged.value));
+  assert.notEqual(matte.value, charged.value); assert.notEqual(matte.specular, charged.specular);
+  assert.ok([matte, charged].every((value) => value.value >= 0 && value.value <= 1 && value.fogFactor >= 0 && value.fogFactor <= 1));
+});
+
+test('aquarium food is local, consumable, and cannot feed a starved inactive organism', () => {
+  const fed = aquariumFoodStep(.4, .8, .02, .1, .8, 1 / 60);
+  const far = aquariumFoodStep(.4, .8, .4, .1, .8, 1 / 60);
+  const starved = aquariumFoodStep(.01, .8, .02, .1, .8, 1 / 60);
+  assert.ok(fed.consumed > 0 && fed.energy > .4 && fed.patchAmount < .8);
+  assert.equal(far.consumed, 0); assert.equal(starved.consumed, 0); assert.equal(starved.energy, .01);
 });
 
 test('resolution-aware interference filter increases footprint at lower output resolution', () => {

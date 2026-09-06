@@ -10,6 +10,42 @@ export const PHOSPHOR_FAMILY_CATALOG = [
   ['52', 'Feedback Chapel'], ['53', 'Interference Rituals'], ['54', 'Topological Melt'], ['55', 'Phase Transition Theatre'], ['56', 'Evolution Garden'],
 ];
 
+export function qualityProfile(quality = '1080') {
+  if (quality === '720') return { id: '480x300', label: '480 × 300 · 30 target', width: 480, height: 300, cadence: 30, workScale: .5, cathedralWidth: 112, cathedralHeight: 70, interferenceWidth: 160, interferenceHeight: 100, topologyPoints: 96, magneticCap: 240, aquariumCap: 32 };
+  return { id: '960x600', label: '960 × 600 · 60 target', width: 960, height: 600, cadence: 60, workScale: 1, cathedralWidth: 160, cathedralHeight: 100, interferenceWidth: 240, interferenceHeight: 150, topologyPoints: 160, magneticCap: 480, aquariumCap: 64 };
+}
+
+export function cathedralShading(distance, steps, direction = [0, 0, 1], lighting = .5, material = .5, fog = .3, emission = .2) {
+  const safeDistance = clamp(distance, 0, 6);
+  const safeSteps = clamp(steps, 1, 64);
+  const length = Math.max(.001, Math.hypot(Number(direction[0]) || 0, Number(direction[1]) || 0, Number(direction[2]) || 1));
+  const normalZ = Math.abs((Number(direction[2]) || 1) / length);
+  const facing = clamp((normalZ + 1) * .5, 0, 1);
+  const light = clamp(lighting, 0, 1);
+  const surface = clamp(material, 0, 1);
+  const haze = clamp(fog, 0, 1);
+  const glow = clamp(emission, 0, 1);
+  const specular = Math.pow(facing, 2 + surface * 10) * (.12 + surface * .48);
+  const depth = clamp(1 - safeDistance / 6, 0, 1);
+  const marchConfidence = clamp(1 - safeSteps / 64, 0, 1);
+  const diffuse = facing * (.2 + light * .8) * (.35 + depth * .65);
+  const fogFactor = clamp(haze * (safeDistance / 6) + (1 - marchConfidence) * .18, 0, .95);
+  const value = clamp((diffuse + specular + glow * (.2 + depth * .45)) * (1 - fogFactor) + glow * .12, 0, 1);
+  return { value, facing, specular, fogFactor };
+}
+
+export function aquariumFoodStep(energy, patchAmount, distance, radius, feeding, dt) {
+  const safeEnergy = clamp(energy, 0, 1);
+  const safePatch = clamp(patchAmount, 0, 1);
+  const safeDistance = Number.isFinite(distance) ? Math.max(0, distance) : Infinity;
+  const safeRadius = clamp(radius, .001, .5);
+  const safeFeeding = clamp(feeding, 0, 1);
+  const safeDt = clamp(dt, 0, .05);
+  if (safeEnergy <= .02 || safeDistance > safeRadius || safePatch <= 0 || safeFeeding <= 0) return { energy: safeEnergy, patchAmount: safePatch, consumed: 0, active: safeEnergy > .02 };
+  const consumed = Math.min(safePatch, safeFeeding * safeDt * 60 * .018);
+  return { energy: clamp(safeEnergy + consumed * .9, 0, 1), patchAmount: clamp(safePatch - consumed, 0, 1), consumed, active: true };
+}
+
 export function stepElementary(row, rule) {
   const next = new Uint8Array(row.length);
   const safeRule = Math.round(clamp(rule, 0, 255));

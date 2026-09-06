@@ -12,14 +12,14 @@
     <main class="app-shell">
       <header class="topbar">
         <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>PHOSPHOR</span><span class="brand-version">/ v1</span></div>
-        <div class="status-line" aria-live="polite"><span id="transportState">READY</span><span class="status-dot"></span><span id="fpsReadout">60 FPS target</span></div>
+        <div class="status-line" aria-live="polite"><span id="transportState">READY</span><span class="status-dot"></span><span id="fpsReadout">960 × 600 · 60 target</span></div>
         <div class="top-actions"><button class="ghost-button" id="focusButton">Focus canvas</button><button class="ghost-button" id="helpButton">Keyboard map</button><button class="icon-button" id="themeButton" aria-label="Toggle contrast theme">◐</button></div>
       </header>
 
       <section class="stage-wrap" aria-label="Phosphor performance surface">
         <canvas id="stage" width="960" height="600" aria-label="Generative visual stage. Click or tap to inject a gesture."></canvas>
         <div class="stage-overlay top-left"><span id="sceneKicker">ACID MYCELIUM</span><span class="divider">·</span><span id="scenePresetName">Mycelial City</span></div>
-        <div class="stage-overlay top-right"><span id="qualityBadge">1080 / 60</span><span class="divider">·</span><span id="transitionBadge">LIVE</span></div>
+        <div class="stage-overlay top-right"><span id="qualityBadge">960 × 600 · 60 target</span><span class="divider">·</span><span id="transitionBadge">LIVE</span></div>
         <div class="stage-overlay bottom-left"><span id="sceneDescription">Slow branching veins with a luminous center.</span><span class="stage-mechanism" id="sceneMechanism">Gray–Scott reaction diffusion</span></div>
         <div class="stage-overlay bottom-right"><span>CLICK / SPACE TO INJECT</span></div>
         <div class="blackout-label" id="blackoutLabel" hidden>BLACKOUT · SPACE TO RECOVER</div>
@@ -57,7 +57,7 @@
       </section>
 
       <section class="utility-row">
-        <div class="utility-card panel"><div class="panel-heading"><span>PALETTE / MODULATION</span><span class="panel-count" id="modulationReadout">AUDIO 0%</span></div><div class="palette-row"><label>Primary <input id="primaryColor" type="color" value="#d5ff5f" /></label><label>Secondary <input id="secondaryColor" type="color" value="#4a55ff" /></label><label>Accent <input id="accentColor" type="color" value="#ff5bc8" /></label><label>Quality <select id="qualityInput"><option value="1080">1080 / 60</option><option value="720">720 / 30</option></select></label><label class="toggle-line"><input id="reducedMotionInput" type="checkbox" /> Reduced motion</label><label class="brightness-control">Brightness <input id="brightnessInput" type="range" min="20" max="100" value="92" /></label></div></div>
+        <div class="utility-card panel"><div class="panel-heading"><span>PALETTE / MODULATION</span><span class="panel-count" id="modulationReadout">AUDIO 0%</span></div><div class="palette-row"><label>Primary <input id="primaryColor" type="color" value="#d5ff5f" /></label><label>Secondary <input id="secondaryColor" type="color" value="#4a55ff" /></label><label>Accent <input id="accentColor" type="color" value="#ff5bc8" /></label><label>Quality <select id="qualityInput"><option value="1080">Full · 960×600 / 60 target</option><option value="720">Low · 480×300 / 30 target</option></select></label><label class="toggle-line"><input id="reducedMotionInput" type="checkbox" /> Reduced motion</label><label class="brightness-control">Brightness <input id="brightnessInput" type="range" min="20" max="100" value="92" /></label></div></div>
         <div class="utility-card panel"><div class="panel-heading"><span>PORTABLE SESSION</span><span class="panel-count" id="saveReadout">LOCAL ONLY</span></div><div class="save-row"><button class="small-button" id="saveButton">Save set</button><button class="small-button" id="exportButton">Export JSON</button><label class="file-button small-button">Import JSON<input id="importInput" type="file" accept="application/json,.json" /></label><span class="hint" id="storageHint">Auto-saves on every cue and control change.</span></div></div>
       </section>
 
