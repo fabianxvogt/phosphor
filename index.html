@@ -11,7 +11,7 @@
   <body>
     <main class="app-shell">
       <header class="topbar">
-        <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>PHOSPHOR</span><span class="brand-version">/ v1</span></div>
+        <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>PHOSPHOR</span><span class="brand-version">/ studio</span></div>
         <div class="status-line" aria-live="polite"><span id="transportState">READY</span><span class="status-dot"></span><span id="fpsReadout">960 × 600 · 60 target</span></div>
         <div class="top-actions"><button class="ghost-button" id="focusButton">Focus canvas</button><button class="ghost-button" id="helpButton">Keyboard map</button><button class="icon-button" id="themeButton" aria-label="Toggle contrast theme">◐</button></div>
       </header>
@@ -25,20 +25,33 @@
         <div class="blackout-label" id="blackoutLabel" hidden>BLACKOUT · SPACE TO RECOVER</div>
       </section>
 
+      <div class="palette-panel panel"><div class="panel-heading"><span>SCENE COLORS</span><span class="panel-count" id="modulationReadout">AUDIO 0%</span></div><div class="palette-presets" role="group" aria-label="Color collections"><button class="palette-preset" data-palette="neon">Neon garden</button><button class="palette-preset" data-palette="ember">Ember</button><button class="palette-preset" data-palette="glacier">Glacier</button><button class="palette-preset" data-palette="orchid">Orchid</button><button class="palette-preset" data-palette="mono">Silver</button></div><div class="palette-row"><label>Primary <input id="primaryColor" type="color" value="#d5ff5f" /></label><label>Secondary <input id="secondaryColor" type="color" value="#5364ff" /></label><label>Accent <input id="accentColor" type="color" value="#ff5bc8" /></label><label>Quality <select id="qualityInput"><option value="1080">Full · 960×600 / 60 target</option><option value="720">Low · 480×300 / 30 target</option></select></label><label class="toggle-line"><input id="reducedMotionInput" type="checkbox" /> Reduced motion</label><label class="brightness-control">Brightness <input id="brightnessInput" type="range" min="20" max="100" value="92" /></label></div></div>
+
+      <section class="effects-panel panel" aria-label="Layered effects">
+        <div class="panel-heading"><span>EFFECT STACK</span><div class="effect-actions"><button id="tripStackButton" class="accent-button">Trip stack</button><button id="clearEffectsButton" class="small-button">Clear effects</button></div></div>
+        <div class="effect-grid">
+          <label>Kaleidoscope <output id="effect-value-symmetry">0%</output><input aria-label="Kaleidoscope" id="effect-symmetry" type="range" min="0" max="1" step=".01" value="0" /></label>
+          <label>Echo trails <output id="effect-value-echo">0%</output><input aria-label="Echo trails" id="effect-echo" type="range" min="0" max="1" step=".01" value="0" /></label>
+          <label>Chromatic split <output id="effect-value-chroma">0%</output><input aria-label="Chromatic split" id="effect-chroma" type="range" min="0" max="1" step=".01" value="0" /></label>
+          <label>Glow <output id="effect-value-glow">0%</output><input aria-label="Glow" id="effect-glow" type="range" min="0" max="1" step=".01" value="0" /></label>
+        </div>
+        <p class="effect-note">Layers combine in this order. Echo builds during playback. Your stack travels with saves and exports.</p>
+      </section>
+
       <div class="mobile-quickbar" aria-label="Quick performance controls"><button class="small-button" id="mobilePauseButton">Pause</button><button class="small-button" id="mobilePlayButton">▶ Play set</button><button class="small-button" id="mobileSaveButton">Save set</button><button class="small-button" id="mobileExportButton">Export JSON</button></div>
 
       <section class="workbench">
         <aside class="scene-rail panel">
-          <div class="panel-heading"><span>SCENE LIBRARY</span><span class="panel-count">10 FAMILIES</span></div>
+          <div class="panel-heading"><span>SCENE LIBRARY</span><span class="panel-count">13 FAMILIES</span></div>
           <div id="sceneList" class="scene-list"></div>
-          <div class="rail-note"><span class="signal-mark">◒</span><span>Choose a real mechanism and its authored starting look. All ten share transport, cues, and local saves.</span></div>
+          <div class="rail-note"><span class="signal-mark">◒</span><span>Start with a look, shape it with the controls, then save it to your set.</span></div>
         </aside>
 
         <section class="control-panel panel" aria-label="Scene controls">
           <div class="panel-heading"><span id="controlHeading">ACID MYCELIUM / PARAMETERS</span><div class="panel-heading-actions"><span class="workflow-hint" id="workflowHint">Full controls</span><div class="workflow-toggle" role="group" aria-label="Workbench mode"><button class="mode-button active" id="exploreModeButton">Explore</button><button class="mode-button" id="performModeButton">Perform</button></div><span class="dirty-state" id="dirtyState">SAVED</span></div></div>
           <div id="sceneControls" class="controls-grid"></div>
           <div id="presetStrip" class="preset-strip" aria-label="Authored presets"></div>
-          <div class="control-footer"><button class="small-button" id="resetButton">Reset seed</button><button class="small-button" id="randomButton">Nudge growth</button><span class="hint">Values are bounded and smoothed into the simulation.</span></div>
+          <div class="control-footer"><button class="small-button" id="resetButton">Reset seed</button><button class="small-button" id="randomButton">Nudge scene</button><span class="hint">Changes appear live. Reset seed restarts the pattern.</span></div>
         </section>
 
         <aside class="set-panel panel">
@@ -54,18 +67,18 @@
           <button class="round-button" id="startAudioButton" aria-label="Start audio">●</button><button class="small-button" id="pauseButton">Pause</button><button class="small-button" id="muteButton">Mute</button>
           <label class="tempo-control">Tempo <input id="tempoInput" type="range" min="40" max="180" value="92" /><output id="tempoOutput">92</output></label>
         </div>
-        <div class="dock-group source-group"><span class="dock-label">SOURCE</span><button class="small-button" id="demoAudioButton">Demo pulse</button><label class="file-button small-button">Local audio<input id="audioFileInput" type="file" accept="audio/*" /></label><button class="small-button" id="micButton">Mic: off</button></div>
+        <div class="dock-group source-group"><span class="dock-label">SOURCE</span><button class="small-button" id="demoAudioButton">Demo pulse</button><label class="file-button small-button">Local audio<input id="audioFileInput" type="file" accept="audio/*" /></label><button class="small-button" id="micButton">Microphone</button><button class="small-button" id="tabAudioButton">Use tab audio</button><button class="small-button" id="stopAudioButton">Stop music</button><label class="sensitivity-control">Response <input id="audioSensitivity" type="range" min="0" max="3" step=".05" value="1" /></label><span id="audioStatus" class="audio-status" role="status">No music connected</span><span class="music-help">For radio: open <a href="https://somafm.com/cliqhop/" target="_blank" rel="noopener noreferrer">cliqhop IDM ↗</a> or your own player, then share its tab with audio. Desktop browser support varies.</span></div>
         <div class="dock-group output-group"><span class="dock-label">OUTPUT</span><button class="small-button" id="captureButton">Capture still</button><button class="small-button" id="recordButton">Record</button><button class="small-button" id="frameExportButton">Frame plan</button><label class="file-button small-button">Load plan<input id="frameImportInput" type="file" accept="application/json,.json" /></label><label class="frame-count-control">Frames <input id="frameCountInput" type="number" min="1" max="240" step="1" value="120" /></label><button class="small-button" id="frameRenderButton">Render PNGs</button><button class="small-button" id="frameCancelButton" hidden>Cancel</button><span class="frame-progress" id="frameProgress" role="status" aria-live="polite">Seeded start · paused</span></div>
       </section>
 
       <section class="utility-row">
-        <div class="utility-card panel"><div class="panel-heading"><span>PALETTE / MODULATION</span><span class="panel-count" id="modulationReadout">AUDIO 0%</span></div><div class="palette-row"><label>Primary <input id="primaryColor" type="color" value="#d5ff5f" /></label><label>Secondary <input id="secondaryColor" type="color" value="#4a55ff" /></label><label>Accent <input id="accentColor" type="color" value="#ff5bc8" /></label><label>Quality <select id="qualityInput"><option value="1080">Full · 960×600 / 60 target</option><option value="720">Low · 480×300 / 30 target</option></select></label><label class="toggle-line"><input id="reducedMotionInput" type="checkbox" /> Reduced motion</label><label class="brightness-control">Brightness <input id="brightnessInput" type="range" min="20" max="100" value="92" /></label></div></div>
+
         <div class="utility-card panel"><div class="panel-heading"><span>PORTABLE SESSION</span><span class="panel-count" id="saveReadout">LOCAL ONLY</span></div><div class="save-row"><button class="small-button" id="saveButton">Save set</button><button class="small-button" id="exportButton">Export JSON</button><label class="file-button small-button">Import JSON<input id="importInput" type="file" accept="application/json,.json" /></label><span class="hint" id="storageHint">Auto-saves on every cue and control change.</span></div></div>
       </section>
 
-      <footer class="footer"><span>PHOSPHOR / LOCAL PERFORMANCE INSTRUMENT</span><span>Graphics and audio stay on this device · no uploads</span><span>Safari: untested · Chromium desktop + narrow mobile verified target</span></footer>
+      <footer class="footer"><span>PHOSPHOR / LOCAL PERFORMANCE INSTRUMENT</span><span>Visuals and music analysis stay on this device · no uploads</span><span>Audio files, mic and tab audio · export and reopen your sets</span></footer>
     </main>
-    <dialog id="helpDialog"><form method="dialog"><div class="dialog-heading"><span>KEYBOARD MAP</span><button class="icon-button" aria-label="Close">×</button></div><div class="key-map"><span><kbd>Space</kbd> Scene action / recover</span><span><kbd>Evolution</kbd> Space chooses sibling; click chooses child</span><span><kbd>P</kbd> Pause transport</span><span><kbd>B</kbd> Blackout</span><span><kbd>Shift ← →</kbd> Change scene</span><span><kbd>R</kbd> Reset current seed</span><span><kbd>1–3</kbd> Choose scene</span></div></form></dialog>
+    <dialog id="helpDialog"><form method="dialog"><div class="dialog-heading"><span>KEYBOARD MAP</span><button class="icon-button" aria-label="Close">×</button></div><div class="key-map"><span><kbd>Space</kbd> Scene action / recover</span><span><kbd>Evolution</kbd> Space chooses sibling; click chooses child</span><span><kbd>P</kbd> Pause transport</span><span><kbd>B</kbd> Blackout</span><span><kbd>Shift ← →</kbd> Change scene</span><span><kbd>R</kbd> Reset current seed</span><span><kbd>1–3</kbd> Choose first three scenes</span></div></form></dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script type="module" src="app.js"></script>
   </body>

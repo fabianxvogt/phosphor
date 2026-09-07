@@ -31,10 +31,10 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /topologyLoopPoint\(p\.family/);
   assert.match(app, /countPolylineIntersections\(sampled\)/);
   assert.match(app, /keyframes: new Float32Array\(2 \* 5\)/);
-  assert.match(app, /coupledRegimeFieldStep\(b\.values/);
-  assert.match(app, /b\.compareNext\[index\] = coupledRegimeFieldStep/);
+  assert.match(app, /drivenRegimeFieldStep\(b\.values/);
+  assert.match(app, /b\.compareNext\[index\] = drivenRegimeFieldStep/);
   assert.doesNotMatch(app, /phaseModelNames/);
-  assert.match(app, /const phaseModel = \{ id: 'coupled-regime-field-v1'/);
+  assert.match(app, /const phaseModel = \{ id: 'driven-regime-field-v2'/);
   assert.match(app, /const phaseArcs = \[/);
   assert.match(app, /function phaseArcAt\(/);
   assert.match(app, /function startPhaseArc\(/);
@@ -59,7 +59,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /evolution: state\.evolution/);
   assert.match(app, /function migrateSession\(data\)/);
   assert.match(app, /const safe = validateSession\(data\); const nextPresetIndex/);
-  assert.match(app, /candidate\.presetIndex = \[\.\.\.candidate\.presetIndex, \.\.\.Array\(sceneDefs\.length - 3\)\.fill\(0\)\]/);
+  assert.match(app, /candidate\.presetIndex = \[\.\.\.candidate\.presetIndex, \.\.\.Array\(sceneDefs\.length - candidate\.presetIndex\.length\)\.fill\(0\)\]/);
   assert.match(app, /state\.gesture = \{ x: \.5, y: \.5, active: false, scene: index \}/);
   assert.match(app, /function applyMagneticGesture\(/);
   assert.match(app, /function replayGestureSequence\(/);

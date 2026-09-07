@@ -11,6 +11,8 @@ class FakeContext {
   save() {}
   restore() {}
   beginPath() {}
+  closePath() {}
+  clip() {}
   moveTo() {}
   lineTo() {}
   stroke() { this.drawOps += 1; this.pixelData[0] = 255; this.pixelData[1] = 255; this.pixelData[2] = 255; }
@@ -88,7 +90,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const legacy = { ...structuredClone(baseline), presetIndex: baseline.presetIndex.slice(0, 3), params: { acid: baseline.params.acid, tapestry: baseline.params.tapestry, feedback: baseline.params.feedback }, cues: baseline.cues.filter((cue) => cue.scene < 3).slice(0, 1) };
   api.applySession(legacy);
   const migrated = api.sessionData();
-  assert.equal(migrated.presetIndex.length, 10); assert.equal(migrated.params.acid.growth, baseline.params.acid.growth); assert.equal(migrated.params.tapestry.rule, baseline.params.tapestry.rule); assert.equal(migrated.cues[0].scene, legacy.cues[0].scene);
+  assert.equal(migrated.presetIndex.length, api.sceneDefs.length); assert.equal(migrated.params.acid.growth, baseline.params.acid.growth); assert.equal(migrated.params.tapestry.rule, baseline.params.tapestry.rule); assert.equal(migrated.cues[0].scene, legacy.cues[0].scene);
 
   api.switchScene(1, 2); assert.equal(api.sessionData().params.tapestry.rule, 30);
   api.switchScene(2, 2); assert.equal(api.sessionData().params.feedback.decay, .86);
@@ -99,7 +101,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const fast = structuredClone(baseline); fast.tempo = 180; api.applySession(fast); api.switchScene(8, 1); const phaseSelect = document.getElementById('phaseArcSelect'); assert.ok(phaseSelect); phaseSelect.value = '1'; phaseSelect.dispatchEvent({ type: 'change' }); document.getElementById('playPhaseArcButton').click(); const firstArcPhases = new Set(); for (let frame = 0; frame < 700; frame += 1) { api.stepPhase(.05); firstArcPhases.add(api.phaseMeasurement().phase); } assert.ok(firstArcPhases.has('build')); assert.ok(firstArcPhases.has('transition')); assert.ok(firstArcPhases.has('release')); document.getElementById('stopPhaseArcButton').click();
   const phaseCues = api.sessionData().cues.filter((cue) => cue.scene === 8); assert.equal(phaseCues.length, 3); assert.deepEqual(phaseCues.map((cue) => cue.arc), [0, 1, 2]); api.switchScene(8, phaseCues[1].preset, phaseCues[1]); assert.equal(api.phaseMeasurement().arcId, 'glass-front'); assert.equal(api.phaseMeasurement().playing, true);
   document.getElementById('rehearsePhaseArcsButton').click(); for (let frame = 0; frame < 2200; frame += 1) api.stepPhase(.05); const phaseMeasurement = api.phaseMeasurement(); assert.equal(phaseMeasurement.arcId, 'night-return'); assert.equal(phaseMeasurement.progress, 1); assert.equal(phaseMeasurement.phase, 'release'); assert.equal(phaseMeasurement.playing, false); assert.ok(phaseMeasurement.traceSamples > 0); assert.deepEqual(api.sessionData().phaseMeasurement, phaseMeasurement); assert.ok(api.sessionData().phaseEvents.some((event) => event.type === 'complete' && event.arc === 2));
-  document.getElementById('capturePhaseMeasurementButton').click(); const savedMeasurementSession = api.sessionData(); const archivedMeasurement = savedMeasurementSession.phaseMeasurementArchive; assert.equal(archivedMeasurement.format, 'phosphor-phase-measurement-v1'); assert.equal(archivedMeasurement.version, 1); assert.equal(archivedMeasurement.savedMeasurement, true); assert.equal(typeof archivedMeasurement.eventPosition, 'number'); assert.deepEqual(archivedMeasurement.measurement, phaseMeasurement); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement); const capturedText = document.getElementById('phaseArchiveReadout').textContent; assert.match(capturedText, /Saved capture \(archived\)/); assert.match(capturedText, /Night Return/); assert.match(capturedText, /release/); assert.match(capturedText, /progress 1\.00/); assert.match(capturedText, /180 BPM/); assert.match(capturedText, /control/); assert.match(capturedText, /transition gap/); assert.match(capturedText, /model Coupled Regime Field/); assert.match(capturedText, /event \d+/);
+  document.getElementById('capturePhaseMeasurementButton').click(); const savedMeasurementSession = api.sessionData(); const archivedMeasurement = savedMeasurementSession.phaseMeasurementArchive; assert.equal(archivedMeasurement.format, 'phosphor-phase-measurement-v1'); assert.equal(archivedMeasurement.version, 1); assert.equal(archivedMeasurement.savedMeasurement, true); assert.equal(typeof archivedMeasurement.eventPosition, 'number'); assert.deepEqual(archivedMeasurement.measurement, phaseMeasurement); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement); const capturedText = document.getElementById('phaseArchiveReadout').textContent; assert.match(capturedText, /Saved capture \(archived\)/); assert.match(capturedText, /Night Return/); assert.match(capturedText, /release/); assert.match(capturedText, /progress 1\.00/); assert.match(capturedText, /180 BPM/); assert.match(capturedText, /control/); assert.match(capturedText, /transition gap/); assert.match(capturedText, /model Driven Regime Field/); assert.match(capturedText, /event \d+/);
   api.switchScene(0, 0); api.applySession(savedMeasurementSession); assert.deepEqual(api.sessionData().phaseMeasurementArchive, archivedMeasurement); assert.equal(api.phaseMeasurement().phase, 'idle'); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement); const reopenedLiveText = document.getElementById('phaseActionReadout').textContent; const reopenedArchiveText = document.getElementById('phaseArchiveReadout').textContent; assert.match(reopenedLiveText, /Live current/); assert.match(reopenedLiveText, /idle/); assert.match(reopenedArchiveText, /Saved capture \(archived\)/); assert.match(reopenedArchiveText, /Night Return/); assert.match(reopenedArchiveText, /release/); assert.match(reopenedArchiveText, /progress 1\.00/); assert.notEqual(api.phaseMeasurement().phase, archivedMeasurement.measurement.phase); assert.notEqual(reopenedLiveText, reopenedArchiveText);
   api.switchScene(3, 0); const magneticStart = api.magneticRenderState().particles; assert.ok(magneticStart.some((value) => value !== 0)); for (let frame = 0; frame < 180; frame += 1) api.stepMagnetic(.016); const magneticAfter = api.magneticRenderState().particles; assert.ok(magneticAfter.every(Number.isFinite)); assert.ok(magneticAfter.some((value, index) => Math.abs(value - magneticStart[index]) > 0.00001)); const orbitRadii = []; const magneticState = api.magneticRenderState(); for (let i = 0; i < 449; i += 1) { const index = i * 4; const attractor = i % 2 ? 2 : 0; orbitRadii.push(Math.hypot(magneticState.particles[index] - magneticState.attractors[attractor], magneticState.particles[index + 1] - magneticState.attractors[attractor + 1])); } const meanOrbitRadius = orbitRadii.reduce((sum, value) => sum + value, 0) / orbitRadii.length; assert.ok(meanOrbitRadius > .05 && meanOrbitRadius < .3, `mean orbit radius ${meanOrbitRadius}`); api.setTestElapsed(0); api.inject(.2, .3, .8); api.setTestElapsed(.5); api.inject(.8, .7, .6); const timed = api.sessionData().gestureHistory.filter((event) => event.scene === 3); assert.equal(timed.length, 2); assert.equal(timed[0].timing, 'beat'); assert.ok(timed[1].beat > timed[0].beat); api.replayGestureSequence(); assert.deepEqual(api.magneticReplayState(), { index: 0, total: 2, playing: true }); document.getElementById('pauseButton').click(); api.setTestElapsed(2); api.stepMagnetic(.016); assert.equal(api.magneticReplayState().index, 0); document.getElementById('pauseButton').click(); api.stepMagnetic(.016); assert.ok(api.magneticReplayState().index >= 1); api.setTestElapsed(3); api.stepMagnetic(.016); assert.equal(api.magneticReplayState().playing, false); api.switchScene(0, 0);
   api.applySession(baseline);
@@ -298,5 +300,81 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(unsupported.status, 'unsupported');
   assert.match(document.getElementById('frameProgress').textContent, /Batch folder output unavailable/);
 
+  {
+  // New-family migration retains old looks, and malformed transport imports remain transactional.
+  const ten = structuredClone(baseline); ten.presetIndex = ten.presetIndex.slice(0, 10);
+  delete ten.params.julia; delete ten.params.fourspace; delete ten.params.hyperbolic;
+  assert.equal(api.validateSession(ten).presetIndex.length, 13);
+  for (const change of [{ activeScene: 2.5 }, { tempo: 'bad' }, { presetIndex: [NaN, ...baseline.presetIndex.slice(1)] }]) {
+    const before = structuredClone(api.sessionData()); assert.throws(() => api.applySession({ ...baseline, ...change })); assert.deepEqual(api.sessionData(), before);
+  }
+  api.applySession({ ...structuredClone(baseline), activeScene: 9, evolution: null });
+  api.mutateEvolution(); const firstChildren = [...api.sessionData().evolution.nodes[0].children];
+  api.mutateEvolution(); const secondChildren = [...api.sessionData().evolution.nodes[0].children];
+  assert.equal(secondChildren.length, 5); assert.ok(secondChildren.every(id => !firstChildren.includes(id)));
+  api.chooseEvolutionChild(4); assert.equal(api.sessionData().evolution.selectedId, secondChildren[4]);
+  api.chooseEvolutionChild(1); assert.equal(api.sessionData().evolution.selectedId, secondChildren[1]);
+  assert.doesNotThrow(() => api.validateFrameManifest(api.frameManifest()));
+  // Artist controls are not destructively overwritten by audio modulation.
+  const paramsBeforeAudio = structuredClone(api.sessionData().params); api.setTestAudioLevel(.8); api.stepAndDraw(1/60);
+  assert.deepEqual(api.sessionData().params, paramsBeforeAudio); api.setTestAudioLevel(0);
+  // Scene palette changes are remembered when switching and survive round trips.
+  const color = document.getElementById('primaryColor'); color.value = '#aa1177'; color.dispatchEvent({ type: 'input' });
+  api.switchScene(11, 0); assert.equal(api.sessionData().palette.primary, '#d5ff5f');
+  api.switchScene(9, 0); assert.equal(api.sessionData().palette.primary, '#aa1177');
+  api.applySession(structuredClone(api.sessionData())); assert.equal(api.sessionData().palette.primary, '#aa1177');
+  // Effects are present in both portable sessions and executable frame plans.
+  document.getElementById('tripStackButton').click(); const stack = structuredClone(api.sessionData().options.effects);
+  assert.ok(stack.symmetry > 0 && stack.echo > 0 && stack.chroma > 0 && stack.glow > 0);
+  document.getElementById('frameCountInput').value = '2'; const layered = api.frameManifest();
+  assert.deepEqual(api.validateFrameManifest(layered).settings.effects, stack);
+  assert.equal((await api.renderOfflineFrames(layered, { writer: { async writeFrame() {} } })).status, 'complete');
+  assert.deepEqual(api.sessionData().options.effects, stack);
+  api.switchScene(8, 0); document.getElementById('frameCountInput').value = '1';
+  const phasePlan = api.frameManifest(); assert.equal(phasePlan.phaseModel, 'driven-regime-field-v2');
+  assert.equal(api.validateFrameManifest(phasePlan).phaseModel, phasePlan.phaseModel);
+  const oldPhasePlan = structuredClone(phasePlan); delete oldPhasePlan.phaseModel; assert.throws(() => api.validateFrameManifest(oldPhasePlan), /Phase model changed/);
+  assert.equal((await api.renderOfflineFrames(phasePlan, { writer: { async writeFrame() {} } })).status, 'complete');
+  // An external set invalidates a previously imported plan, only after validation succeeds.
+  api.importFrameManifest(phasePlan); assert.ok(api.pendingFramePlan());
+  assert.throws(() => api.applySession({ ...baseline, tempo: 'invalid' })); assert.ok(api.pendingFramePlan());
+  api.applySession(baseline); assert.equal(api.pendingFramePlan(), null);
+  // Seed 2560 triggers automatic Acid injection on the first 30 Hz step.
+  api.applySession({ ...structuredClone(baseline), activeScene: 0, options: { ...baseline.options, quality: '720' } });
+  api.resetAcid(2560); api.setTestElapsed(0); api.stepAcid(1/30); const liveAcid = api.acidRenderState();
+  const acidPlan = { ...api.frameManifest(), seed: 2560, frames: 1 }; let offlineAcid;
+  assert.equal((await api.renderOfflineFrames(acidPlan, { writer: { async writeFrame() { offlineAcid = api.acidRenderState(); } } })).status, 'complete');
+  assert.deepEqual(offlineAcid, liveAcid, 'offline simulation retains automatic growth injections');
+  // Blend real translucent backgrounds in the mock to detect repeated paused repaint accumulation.
+  const rawFill = stage.context.fillRect;
+  stage.context.fillRect = function(...args) {
+    const rgba = /^rgba\((\d+),(\d+),(\d+),([.\d]+)\)$/.exec(this.fillStyle);
+    const previous = rgba ? this.pixelData.slice() : null;
+    rawFill.apply(this, args);
+    if (rgba) for (let i = 0; i < this.pixelData.length; i += 4) for (let channel = 0; channel < 3; channel++) this.pixelData[i + channel] = Number(rgba[4]) * Number(rgba[channel + 1]) + (1 - Number(rgba[4])) * previous[i + channel];
+  };
+  for (const activeScene of [3, 5]) {
+    api.applySession({ ...structuredClone(baseline), activeScene, options: { ...baseline.options, quality: '720' } });
+    api.drawPreview(); const once = stage.context.pixelData.slice(); api.drawPreview();
+    assert.deepEqual(stage.context.pixelData, once, 'paused trail scene redraw is idempotent');
+  }
+  stage.context.fillRect = rawFill;
+  // Recording cannot restart until the old stop callback completes; stale callbacks are inert.
+  const streams = [], recorders = [];
+  FakeCanvas.prototype.captureStream = function() { const track = { stopped: false, stop() { this.stopped = true; } }; const stream = { track, getTracks: () => [track], addTrack() {} }; streams.push(stream); return stream; };
+  globalThis.MediaRecorder = class {
+    static isTypeSupported() { return true; }
+    constructor(stream) { this.stream = stream; this.state = 'inactive'; recorders.push(this); }
+    start() { this.state = 'recording'; }
+    stop() { this.state = 'inactive'; }
+  };
+  api.toggleRecord(); const oldRecorder = recorders[0]; const oldData = oldRecorder.ondataavailable; const oldStop = oldRecorder.onstop;
+  api.toggleRecord(); api.toggleRecord(); assert.equal(recorders.length, 1, 'restart waits for finalization');
+  oldData({ data: new Blob(['first']) }); oldStop(); assert.equal(streams[0].track.stopped, true);
+  api.toggleRecord(); assert.equal(recorders.length, 2);
+  oldData({ data: new Blob(['stale']) }); oldStop(); assert.equal(api.recordingState().chunks, 0); assert.equal(streams[1].track.stopped, false); assert.equal(api.recordingState().recorder, recorders[1]);
+  api.finishRecording(false); delete FakeCanvas.prototype.captureStream; delete globalThis.MediaRecorder;
+  api.applySession(baseline);
+  }
   api.applySession(baseline);
 });

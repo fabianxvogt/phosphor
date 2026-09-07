@@ -152,26 +152,18 @@ export function rayMarchCorridor(origin, direction, family = 0, recursion = 4, m
 }
 
 export function topologyLoopPoint(family, t, twist = .5, camera = .5, phase = 0) {
-  const safeFamily = Math.round(clamp(family, 0, 3));
-  const theta = (Number.isFinite(t) ? t : 0) * Math.PI * 2 + phase;
-  const safeTwist = clamp(twist, 0, 1);
-  const safeCamera = clamp(camera, 0, 1);
-  let x; let y;
-  if (safeFamily === 0) {
-    x = Math.cos(theta) * (.78 + .12 * Math.cos(3 * theta + safeTwist));
-    y = Math.sin(theta) * (.58 + .1 * Math.cos(3 * theta + safeTwist));
-  } else if (safeFamily === 1) {
-    x = Math.sin(theta) * .78;
-    y = Math.sin(2 * theta) * (.34 + safeTwist * .16);
-  } else if (safeFamily === 2) {
-    const radius = .56 + .2 * Math.cos(5 * theta + safeTwist * Math.PI * 2);
-    x = radius * Math.cos(theta);
-    y = radius * Math.sin(theta);
-  } else {
-    x = Math.sin(2 * theta) * (.62 + safeTwist * .12);
-    y = Math.sin(3 * theta + safeTwist) * (.48 + safeCamera * .16);
-  }
-  return [x * (1 + safeCamera * .12), y * (1 - safeCamera * .08)];
+  const f = Math.round(clamp(family, 0, 3)), a = (Number.isFinite(t) ? t : 0) * Math.PI * 2;
+  const q = clamp(twist, 0, 1), view = clamp(camera, 0, 1);
+  let x, y, z;
+  if (f === 0 || f === 3) {
+    const winding = f === 0 ? 2 : 3, tube = .14 + q * .3;
+    const radius = .53 + tube * Math.cos((f === 0 ? 3 : 2) * a);
+    x = radius * Math.cos(winding * a); y = radius * Math.sin(winding * a); z = tube * Math.sin((f === 0 ? 3 : 2) * a);
+  } else if (f === 1) { x = Math.sin(a) * .8; y = Math.sin(2 * a) * (.26 + q * .28); z = Math.cos(a) * (.08 + q * .4); }
+  else { const radius = .55 + (.08 + q * .25) * Math.cos(5 * a); x = radius * Math.cos(a); y = radius * Math.sin(a); z = Math.sin(3 * a) * (.05 + q * .25); }
+  const yaw = view * Math.PI * 2 + phase, pitch = .35 + Math.sin(phase) * .3;
+  const xx = x * Math.cos(yaw) + z * Math.sin(yaw), zz = -x * Math.sin(yaw) + z * Math.cos(yaw);
+  return [xx, y * Math.cos(pitch) - zz * Math.sin(pitch)];
 }
 
 export function topologyClosureError(family, twist = .5, camera = .5, phase = 0) {
@@ -222,4 +214,21 @@ export function lifecycleStressCheck(sceneCount = 3, switches = 10) {
   let active = 0;
   for (let i = 0; i < switches; i += 1) active = (active + 1) % sceneCount;
   return { activeScene: active, switches, retainedBuffers: 2, retainedRows: 120, retainedAcidCells: 120 * 75 };
+}
+
+// A forced artistic field, not a thermodynamic phase-transition simulator.
+// Both coefficients are nonnegative and sum to <= .55 for dt <= .05:
+// this convex update preserves [0,1] without clipping a runaway bias.
+export function drivenRegimeFieldStep(value, neighbor, target, coupling, release, dt) {
+  const diffusion = clamp(dt, 0, .05) * (1 + clamp(coupling, 0, 1) * 7);
+  const response = clamp(dt, 0, .05) * (1 + clamp(release, 0, 1) * 2);
+  return clamp(value, 0, 1) * (1 - diffusion - response) + clamp(neighbor, 0, 1) * diffusion + clamp(target, 0, 1) * response;
+}
+export function drivenRegimeTarget(x, y, time, regime, control, disturbance) {
+  const r = Math.round(clamp(regime, 0, 5));
+  const theta = r * .52;
+  const u = x * Math.cos(theta) - y * Math.sin(theta), v = x * Math.sin(theta) + y * Math.cos(theta);
+  const wave = Math.sin(u * (9 + r * 2) + time) * Math.cos(v * (7 + r) - time * .63);
+  const ripple = Math.sin(Math.hypot(x, y) * (18 + r * 2) - time * 1.3) * clamp(disturbance, 0, 1) * .5;
+  return .5 + .47 * Math.tanh((wave + ripple + (clamp(control, 0, 1) - .5) * 1.1) * (1.2 + r * .28));
 }
