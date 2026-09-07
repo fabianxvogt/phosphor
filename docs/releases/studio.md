@@ -12,6 +12,8 @@ Julia, 4D tesseract/Hopf and hyperbolic geodesic scenes join the existing librar
 
 Other fixes cover repeated Evolution sibling batches, escaping imported labels, transactional import validation, legacy scene migrations, audio-driven parameter drift, source races/cleanup, recording-track ownership, paused effect edits, cleared echo history and clean scene resets.
 
+The reusable-performance pass adds generalized cue snapshots for the active scene parameters, palette, and effect stack, plus an explicit cue update action. Existing scene/preset-only cues remain readable. Set transport now preserves the active cue and consumed beat position across pause/resume, retimes the remaining cue when tempo changes, completes once instead of wrapping, and invalidates stale timers when cues are removed or a job starts. The set panel shows elapsed/total duration. An explicit Load 24m score action installs a validated nine-cue Acid/Magnetic/Topology rehearsal example only after the performer chooses it; it does not silently replace a saved set.
+
 ## Evidence
 
 EMPIRICAL: a separate Codex session configured as GPT-5.6 Luna (high) ran npm test: 29/29 passing, including the 2,200-step Phase session run, deterministic scene dispatch, portable palette/effect migration, malformed import rejection, offline cancellation/restoration and no base-parameter drift under audio. Mathematical fixtures cover 4D norm/edge structure, Hopf invariance, geodesic orthogonality/isometry, known Julia orbits and finite draw paths. These tests support implementation behavior, not formal proof of the complete renderer.
@@ -21,6 +23,8 @@ EMPIRICAL: build and distribution validation pass. Bounded local browser observa
 The separate Luna code review accepted the prior topology, Phase manifest and effect-buffer repairs, then found four further defects: guarded automatic Acid injections, non-idempotent paused trail redraws, stale pending plans after session import, and recorder callback races. All four are fixed with regression coverage. A final Luna recheck accepted the fixes and Focus layout rules with no remaining actionable issue in that scope. The reviewer’s proposed live transport restoration was declined because the established offline contract is a paused seeded restart, explicitly stated in plans and user documentation.
 
 EMPIRICAL: the parent reran the complete suite after those fixes: 29/29 pass (18.92 seconds), followed by successful build, distribution validation and whitespace checks. New regressions compare live/offline Acid arrays at an automatic injection, blend paused trail backgrounds, test transactional plan invalidation, and deliberately invoke stale recorder callbacks. Actual hardware capture remains untested.
+
+EMPIRICAL: this reusable-performance pass passes the existing 29-test suite, `npm run build`, and `npm run check:dist`. Source evidence is `app.js` cue validation/playback and `index.html` set controls. The 24-minute example is nine cues × 64 bars at 96 BPM = 1,440 seconds; structural snapshot validation is in the session import path. No browser/device rehearsal or performer acceptance is claimed here.
 
 ## Limits and next checks
 

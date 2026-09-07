@@ -42,7 +42,7 @@
 
       <section class="workbench">
         <aside class="scene-rail panel">
-          <div class="panel-heading"><span>SCENE LIBRARY</span><span class="panel-count">13 FAMILIES</span></div>
+          <div class="panel-heading"><span>SCENE LIBRARY</span><span class="panel-count">14 FAMILIES</span></div>
           <div id="sceneList" class="scene-list"></div>
           <div class="rail-note"><span class="signal-mark">◒</span><span>Start with a look, shape it with the controls, then save it to your set.</span></div>
         </aside>
@@ -56,9 +56,9 @@
 
         <aside class="set-panel panel">
           <div class="panel-heading"><span>SET / CUES</span><span class="panel-count" id="cueCount">04 CUES</span></div>
-          <div class="set-controls"><button class="accent-button" id="playSetButton">▶ Play set</button><button class="small-button" id="addCueButton">+ Add cue</button></div>
+          <div class="set-controls"><button class="accent-button" id="playSetButton">▶ Play set</button><button class="small-button" id="addCueButton">+ Add cue</button><button class="small-button" id="loadScoreButton">Load 24m score</button><button class="small-button" id="restoreScoreButton" hidden>Restore previous set</button></div>
           <div id="cueList" class="cue-list"></div>
-          <div class="cue-footer"><span class="transport-pill" id="tempoReadout">♩ 92 BPM</span><span class="hint">Shift + ←/→ scene · P pause · B blackout</span></div>
+          <div class="cue-footer"><span class="transport-pill" id="tempoReadout">♩ 92 BPM</span><span class="hint" id="setProgress">0:00 / 24:00</span><span class="hint">Shift + ←/→ scene · P pause · B blackout</span></div>
         </aside>
       </section>
 
