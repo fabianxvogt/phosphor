@@ -2,7 +2,7 @@
 
 Portfolio decision — **2026-09-07**: **active creative priority**. Build a distinctive instrument that performers reuse. Product and creative priorities are managed separately from research. See the adopted [portfolio strategy](../../docs/PORTFOLIO_STRATEGY.md) and [autumn roadmap](../../docs/AUTUMN_ROADMAP.md). These priorities supersede the expansion backlog below. Existing source ownership, saved versions, release evidence and outstanding acceptance limits remain unchanged.
 
-State: thirteen-family studio update is live as Site version 5; the fourteen-family Fractal Flight integration is recorded separately pending publication. Exact release evidence belongs in [studio evidence](docs/releases/studio.md) and [the integration record](docs/releases/performance-score.md). Classification: INCREMENTAL product improvement; EXPLORATORY future research, no novelty claim.
+State: thirteen-family studio update remains the historical Site version 5 record; the fourteen-family Fractal Flight integration is public as Site version 6. Exact release evidence belongs in [studio evidence](docs/releases/studio.md) and [the integration record](docs/releases/performance-score.md). Classification: INCREMENTAL product improvement; EXPLORATORY future research, no novelty claim.
 
 ## Now
 
@@ -34,7 +34,8 @@ Parked options; reopen only when they improve the selected performance workflow:
 
 ## Done
 
-- Published the reviewed studio update to the existing public Site; bounded local checks, final independent Luna review and build passed.
+- Published the reviewed studio update to the existing public Site; bounded local checks, final independent review and build passed.
+- Published the fourteen-family Fractal Flight integration as Site version 6; public HTTP and renderer-asset verification passed. Ember/Glass timed captures, native WebM export, sustained performance, and performer reuse remain unobserved.
 
 - Fourteen registered scene families, including Julia orbit traps, a 4D tesseract/Hopf instrument, hyperbolic geodesics, and Fractal Flight.
 - Per-scene custom palettes and five color collections isolated from UI colors.

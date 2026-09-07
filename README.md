@@ -2,7 +2,7 @@
 
 A browser instrument for psychedelic generative visuals. Fourteen scene families share live controls, per-scene colors, layered effects, music response, portable sets, and visual export.
 
-[Open the public preview](https://phosphor-visual-instrument.fabian523417.chatgpt.site/). The thirteen-family studio update is live; the unreleased Fractal Flight integration is recorded in [docs/releases/performance-score.md](docs/releases/performance-score.md).
+[Open the public preview](https://phosphor-visual-instrument.fabian523417.chatgpt.site/). The fourteen-family Fractal Flight update is live as Site version 6; deployment evidence is recorded in [docs/releases/performance-score.md](docs/releases/performance-score.md).
 
 ## Play
 
