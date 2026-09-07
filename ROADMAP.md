@@ -1,10 +1,9 @@
 # Roadmap
 
-State: thirteen-family studio update under final review. Existing public preview is version 4; final release status belongs in [studio evidence](docs/releases/studio.md). Classification: INCREMENTAL product improvement; EXPLORATORY future research, no novelty claim.
+State: thirteen-family studio update is live as Site version 5; exact release evidence belongs in [studio evidence](docs/releases/studio.md). Classification: INCREMENTAL product improvement; EXPLORATORY future research, no novelty claim.
 
 ## Now
 
-- Finish bounded browser checks and publish the reviewed studio update.
 - Observe sustained reference-device frame times across all thirteen scenes and effect combinations.
 - Verify native tab/microphone permission, listening behavior, source switching, and native folder output on supported desktop browsers.
 - Obtain aesthetic and performer feedback on discoverability, contrast, control response, and cue performance.
@@ -24,6 +23,8 @@ State: thirteen-family studio update under final review. Existing public preview
 - MIDI, parameter-only share links, and editable effect order.
 
 ## Done
+
+- Published the reviewed studio update to the existing public Site; bounded local checks, final independent Luna review and build passed.
 
 - Thirteen registered scene families, including Julia orbit traps, a 4D tesseract/Hopf instrument, and hyperbolic geodesics.
 - Per-scene custom palettes and five color collections isolated from UI colors.

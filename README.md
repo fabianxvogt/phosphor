@@ -2,7 +2,7 @@
 
 A browser instrument for psychedelic generative visuals. Thirteen scene families share live controls, per-scene colors, layered effects, music response, portable sets, and visual export.
 
-[Open the public preview](https://phosphor-visual-instrument.fabian523417.chatgpt.site/). The studio update is under final review; deployment evidence is recorded in [docs/releases/studio.md](docs/releases/studio.md).
+[Open the public preview](https://phosphor-visual-instrument.fabian523417.chatgpt.site/). The thirteen-family studio update is live; deployment evidence is recorded in [docs/releases/studio.md](docs/releases/studio.md).
 
 ## Play
 

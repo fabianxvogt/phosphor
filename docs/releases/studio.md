@@ -1,6 +1,6 @@
 # Studio update — 2026-09-07
 
-Status: local reviewed candidate; publishing pending. Classification: INCREMENTAL. Research proposals: EXPLORATORY. No mathematical novelty or full-v1 claim.
+Status: PUBLIC PREVIEW, deployed as Site version 5. Classification: INCREMENTAL. Research proposals: EXPLORATORY. No mathematical novelty or full-v1 claim.
 
 ## Changes and cause
 
@@ -28,4 +28,4 @@ Native microphone/tab capture, device permissions, listening quality and native 
 
 ## Release
 
-Existing public preview: Site version 4. Final studio deployment will be recorded here after success.
+Site version 5 deployed successfully on 2026-09-07 from exact source `465236e255b4c303a6314cdfc4bc172b0f7195ff` at [the existing public URL](https://phosphor-visual-instrument.fabian523417.chatgpt.site). The source was pushed to both the owner GitHub repository and the configured Sites source branch before packaging. This document is a subsequent release record; the deployed product source remains the SHA above.
