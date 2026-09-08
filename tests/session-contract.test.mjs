@@ -390,6 +390,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const capturedFlight = structuredClone(api.sessionData()); api.applySession(capturedFlight);
   assert.deepEqual(api.sessionData().cues.at(-1).flightPose, flightSet.flight.pose);
   assert.equal(api.flightState().cruise, false); assert.deepEqual(api.flightState().keys, []);
+  const poseOnlyCue = { label: 'Pose-only flight cue', scene: 13, preset: 0, duration: 1, flightPose: { position: [0, 0, .25], yaw: .7, pitch: -.2 } };
+  const poseOnlySet = { ...structuredClone(capturedFlight), activeScene: 0, cues: [poseOnlyCue] };
+  api.applySession(poseOnlySet); document.getElementById('playSetButton').click();
+  assert.deepEqual(api.flightState().pose, poseOnlyCue.flightPose, 'cue pose restores without optional scene snapshot');
+  document.getElementById('playSetButton').click(); api.applySession(capturedFlight);
   const badFlight = structuredClone(capturedFlight); badFlight.flight.pose.position[0] = 'broken';
   assert.throws(() => api.applySession(badFlight), /Flight pose/);
   assert.deepEqual(api.sessionData().flight, capturedFlight.flight);
@@ -419,6 +424,15 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.renderRuntimeState().paused, true, 'P remains a panic pause while a flight button has focus');
   assert.deepEqual(api.flightState().keys, []);
   document.getElementById('pauseButton').click();
+  fireWindow('keydown', keyEvent('KeyB', focusedButton)); assert.equal(api.renderRuntimeState().blackout, true);
+  const editableInput = { matches: selector => selector.includes('input') };
+  fireWindow('keydown', keyEvent('Space', editableInput)); assert.equal(api.renderRuntimeState().blackout, true, 'editable input retains Space while blackout is active');
+  fireWindow('keydown', keyEvent('Space', focusedButton)); assert.equal(api.renderRuntimeState().blackout, false, 'Space recovers blackout even when a flight button has focus');
+  const collisionSet = structuredClone(capturedFlight); collisionSet.flight.pose = { position: [0, .82, .82], yaw: 0, pitch: .6 };
+  api.applySession(collisionSet); fireWindow('keydown', keyEvent('KeyW')); for (let frame = 0; frame < 12; frame += 1) api.stepFlight(.05); fireWindow('keyup', keyEvent('KeyW'));
+  assert.equal(api.flightState().blocked, true, 'flight reports the collision boundary');
+  document.getElementById('resetButton').click(); assert.equal(api.flightState().blocked, false, 'Reset clears stale collision state');
+  api.applySession(collisionSet); assert.equal(api.flightState().blocked, false, 'Import clears stale collision state');
   const surfaceSave = structuredClone(capturedFlight); surfaceSave.flight.pose.position = [1.5, 1.5, 1.5];
   assert.throws(() => api.validateSession(surfaceSave), /inside a surface/);
   const oldFlightPlan = structuredClone(flightPlan); delete oldFlightPlan.fractalWorld;
@@ -431,6 +445,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.flightState().cruise, false);
   const missingPosePlan = structuredClone(flightPlan); missingPosePlan.initialState = null;
   assert.throws(() => api.validateFrameManifest(missingPosePlan), /Flight frame start/);
+  api.switchScene(0, 0); assert.equal(api.flightState().blocked, false, 'Scene switch clears stale collision state');
   api.applySession(baseline);
   const repeatedLoadPrior = structuredClone(api.sessionData()); document.getElementById('loadScoreButton').click(); document.getElementById('loadScoreButton').click(); document.getElementById('restoreScoreButton').click(); assert.deepEqual(api.sessionData().cues, repeatedLoadPrior.cues); assert.equal(document.getElementById('restoreScoreButton').hidden, true);
 });
