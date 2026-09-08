@@ -2,7 +2,7 @@
 
 A browser instrument for psychedelic generative visuals. Fourteen scene families share live controls, per-scene colors, layered effects, music response, portable sets, and visual export.
 
-[Open the public preview](https://phosphor-visual-instrument.fabian523417.chatgpt.site/). The fourteen-family Fractal Flight update is live as Site version 6; deployment evidence is recorded in [docs/releases/performance-score.md](docs/releases/performance-score.md).
+[Open the public preview](https://phosphor-visual-instrument.fabian523417.chatgpt.site/). The public Site remains version 6. This checkout contains an unreleased recursive-passage and camera repair; see [flight repair evidence](docs/releases/recursive-passages.md). Historical deployment evidence is in [the v6 record](docs/releases/performance-score.md).
 
 ## Play
 
@@ -15,9 +15,17 @@ Open `http://localhost:48101`. Choose a scene and an authored look. Shape it wit
 
 Try **Julia Observatory** for complex fractal filaments; **Fourth Dimension → Hopf lantern** for linked circles rotating through four dimensions; or **Hyperbolic Loom** for geodesics flowing through a Poincaré disk. **Trip stack** combines kaleidoscope, echo trails, chromatic split, and glow. Each layer has an independent strength; Clear effects returns to the raw scene. This stack processes one active scene; mixing several independent scene generators is future work.
 
-The original ten families remain: Acid Mycelium, Causal Tapestry, Feedback Chapel, Magnetic Choir, Cathedrals of Error, Alien Aquarium, Interference Rituals, Topological Melt, Phase Transition Theatre, and Evolution Garden. Julia Observatory, Fourth Dimension, Hyperbolic Loom, and Fractal Flight extend the library with complex filaments, a 4D tesseract/Hopf instrument, hyperbolic geodesics, and a seeded Mandelbox distance-field flight. Topological Melt now rotates and morphs a projected 3D loop with working view, thickness, and color controls. Phase Transition Theatre now sustains moving spatial patterns; Play journey animates its controls, while Manual controls gives them back to you. It is an artistic driven field, not a thermodynamic simulation.
+The original ten families remain: Acid Mycelium, Causal Tapestry, Feedback Chapel, Magnetic Choir, Cathedrals of Error, Alien Aquarium, Interference Rituals, Topological Melt, Phase Transition Theatre, and Evolution Garden. Julia Observatory, Fourth Dimension, Hyperbolic Loom, and Fractal Flight extend the library with complex filaments, a 4D tesseract/Hopf instrument, hyperbolic geodesics, and a navigable five-level recursive sponge. Topological Melt now rotates and morphs a projected 3D loop with working view, thickness, and color controls. Phase Transition Theatre now sustains moving spatial patterns; Play journey animates its controls, while Manual controls gives them back to you. It is an artistic driven field, not a thermodynamic simulation.
 
 Use Pause to compose a still, Shift + left/right to change scenes, B for blackout, and Focus canvas for an immersive view. Explore exposes every control; Perform keeps a smaller set. Add cues to capture the current scene look, palette, and effects; use the cue refresh control to update one safely. Save set for local persistence, Restore previous set to recover the last persisted tab state, and Export JSON to reopen it elsewhere. The explicit Load 24m score action provides a nine-cue, three-look rehearsal example; it does not run until selected. Three-, ten-, and thirteen-scene saves migrate to the fourteen-family library.
+
+## Fractal Flight — local repair awaiting release
+
+Drag the stage to look; W/S move forward or reverse, A/D strafe, Q/E descend or rise, and arrow keys turn the view. Visible hold buttons support pointer/touch operation. Start cruise moves along your heading; Cruise turn adds a steady turning rate. Release held controls to stop manual movement. Pause, blackout, switching scenes, leaving the window, and reopening a set stop movement. Reset to entrance recovers a clear viewpoint. Near surfaces, travel stops; reverse or turn to leave the boundary.
+
+The environment is a five-level recursive sponge repeating every six world units in all directions, with connected passages. It is not infinite unique geometry. Passage width changes the openings; if narrowing would enclose the camera, the view returns to the entrance. Full mode renders the 3D layer at 480×300 before compositing into 960×600; Low uses 240×150 before compositing into 480×300.
+
+Save/reopen and cue snapshots preserve the viewpoint. Cues restore a stationary camera; start Cruise explicitly for motion. Older v6 sessions load at the new entrance because their scalar travel did not encode a navigable pose. Older fractal frame plans are rejected with a request to re-export. New plans record the current starting pose and constant cruise/turn settings; they do not replay the preceding manual flight. PNG and WebM capture record the currently displayed output.
 
 ## Music
 
@@ -35,7 +43,7 @@ The public preview is not full-v1 acceptance: sustained reference-device perform
 
 ## Source
 
-`app.js` integrates scenes, audio, transport, persistence, and export; `core.mjs` contains deterministic simulation primitives; `advanced.mjs` implements fractal/4D/hyperbolic drawing; `mandelbox-flythrough.mjs` implements the bounded WebGL Mandelbox flight; `effects.mjs` implements the bounded effect stack. Run `npm test`, `npm run build`, and `npm run check:dist` for source verification.
+`app.js` integrates scenes, audio, transport, persistence, and export; `core.mjs` contains deterministic simulation primitives; `advanced.mjs` implements fractal/4D/hyperbolic drawing; `mandelbox-flythrough.mjs` retains its historical filename and implements the bounded WebGL recursive passages; `fractal-navigation.mjs` supplies the matching world-distance and camera model; `effects.mjs` implements the bounded effect stack. Run `npm test`, `npm run build`, and `npm run check:dist` for source verification.
 
 ## License
 

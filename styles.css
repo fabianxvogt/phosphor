@@ -114,3 +114,10 @@ button:focus-visible,select:focus-visible,.file-button:focus-within { outline:2p
   .app-shell { grid-template-areas:'topbar topbar' 'stage workbench' 'palette workbench' 'effects workbench' 'dock dock' 'utility utility' 'footer footer'; }
   .effects-panel { grid-area:effects; margin-top:0; }.workbench { height:920px; }
 }
+/* Flight actions remain available in both Explore and Perform. */
+.flight-controls { display: grid; gap: .7rem; margin-top: 1rem; }
+.flight-controls p { font-size: .875rem; line-height: 1.55; margin: 0; color: var(--text-muted, #bcb3cc); }
+.flight-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+.flight-controls button { min-height: 44px; padding: .55rem; font: inherit; font-size: .875rem; border: 1px solid #605071; border-radius: 6px; color: #eee7fa; background: #22172f; cursor: pointer; touch-action: none; }
+.flight-controls button:focus-visible { outline: 2px solid #d5ff5f; outline-offset: 2px; }
+.flight-controls button:active, .flight-controls button[aria-pressed="true"] { background: #533275; border-color: #d5ff5f; }

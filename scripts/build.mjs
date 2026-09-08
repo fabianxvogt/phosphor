@@ -5,7 +5,7 @@ const root = resolve(new URL('..', import.meta.url).pathname);
 const dist = resolve(root, 'dist');
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
-for (const file of ['index.html', 'styles.css', 'app.js', 'core.mjs', 'advanced.mjs', 'effects.mjs', 'mandelbox-flythrough.mjs']) {
+for (const file of ['index.html', 'styles.css', 'app.js', 'core.mjs', 'advanced.mjs', 'effects.mjs', 'mandelbox-flythrough.mjs', 'fractal-navigation.mjs']) {
   await cp(resolve(root, file), resolve(dist, file));
 }
 await cp(resolve(root, '.openai/hosting.json'), resolve(dist, '.openai/hosting.json'));

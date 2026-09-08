@@ -6,6 +6,8 @@ State: thirteen-family studio update remains the historical Site version 5 recor
 
 ## Now
 
+- **2026-09-08 local repair:** replace the owner-rejected v6 distant-object flight with connected recursive passages and persistent heading-directed navigation. Camera, visible controls, cue/session persistence, collision recovery and explicit frame-plan migration are implemented locally. [Evidence and remaining release gates](docs/releases/recursive-passages.md); public v6 remains unchanged until independent review and release.
+
 - Observe three performers using the existing instrument; select three signature looks and one real performance task. Record artistic value and repeated workflow failures before adding scenes.
 - Compose and reopen one reusable 20–30-minute cue set from the fourteen scene families.
 - Reusable score workflow is implemented: cues can capture/update authored scene snapshots, palette and effects; playback pauses on the active cue, resumes by remaining beats, and finishes rather than looping. The explicit Load 24m score example is an implementation artifact, not performer evidence.

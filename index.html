@@ -17,7 +17,7 @@
       </header>
 
       <section class="stage-wrap" aria-label="Phosphor performance surface">
-        <canvas id="stage" width="960" height="600" aria-label="Generative visual stage. Click or tap to inject a gesture."></canvas>
+        <canvas tabindex="0" id="stage" width="960" height="600" aria-label="Generative visual stage. Click or tap to inject a gesture."></canvas>
         <div class="stage-overlay top-left"><span id="sceneKicker">ACID MYCELIUM</span><span class="divider">·</span><span id="scenePresetName">Mycelial City</span></div>
         <div class="stage-overlay top-right"><span id="qualityBadge">960 × 600 · 60 target</span><span class="divider">·</span><span id="transitionBadge">LIVE</span></div>
         <div class="stage-overlay bottom-left"><span id="sceneDescription">Slow branching veins with a luminous center.</span><span class="stage-mechanism" id="sceneMechanism">Gray–Scott reaction diffusion</span></div>
@@ -78,7 +78,7 @@
 
       <footer class="footer"><span>PHOSPHOR / LOCAL PERFORMANCE INSTRUMENT</span><span>Visuals and music analysis stay on this device · no uploads</span><span>Audio files, mic and tab audio · export and reopen your sets</span></footer>
     </main>
-    <dialog id="helpDialog"><form method="dialog"><div class="dialog-heading"><span>KEYBOARD MAP</span><button class="icon-button" aria-label="Close">×</button></div><div class="key-map"><span><kbd>Space</kbd> Scene action / recover</span><span><kbd>Evolution</kbd> Space chooses sibling; click chooses child</span><span><kbd>P</kbd> Pause transport</span><span><kbd>B</kbd> Blackout</span><span><kbd>Shift ← →</kbd> Change scene</span><span><kbd>R</kbd> Reset current seed</span><span><kbd>1–3</kbd> Choose first three scenes</span></div></form></dialog>
+    <dialog id="helpDialog"><form method="dialog"><div class="dialog-heading"><span>KEYBOARD MAP</span><button class="icon-button" aria-label="Close">×</button></div><div class="key-map"><span><kbd>Space</kbd> Scene action / recover</span><span><kbd>Evolution</kbd> Space chooses sibling; click chooses child</span><span><kbd>P</kbd> Pause transport</span><span><kbd>B</kbd> Blackout</span><span><kbd>Shift ← →</kbd> Change scene</span><span><kbd>R</kbd> Reset current seed</span><span><kbd>W / S</kbd> Fractal forward / reverse</span><span><kbd>A / D</kbd> Fractal strafe</span><span><kbd>Q / E</kbd> Fractal descend / rise</span><span><kbd>↑ ↓ ← →</kbd> Fractal look</span><span><kbd>1–3</kbd> Choose first three scenes</span></div></form></dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script type="module" src="app.js"></script>
   </body>
