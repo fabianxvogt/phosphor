@@ -958,7 +958,7 @@ function resetScene() { if (offlineJobActive()) return; resetRenderer(); state.e
 
 function setWorkflow(mode) { if (offlineJobActive()) return; const next = mode === 'perform' ? 'perform' : 'explore'; if (next === state.workflow) return false; state.workflow = next; renderControls(); announce(); markDirty(); return true; }
 function renderWorkflow() { const explore = $('exploreModeButton'); const perform = $('performModeButton'); explore.classList.toggle('active', state.workflow !== 'perform'); perform.classList.toggle('active', state.workflow === 'perform'); explore.setAttribute('aria-pressed', String(state.workflow !== 'perform')); perform.setAttribute('aria-pressed', String(state.workflow === 'perform')); $('workflowHint').textContent = state.workflow === 'perform' ? 'Essential controls' : 'Full controls'; }
-function toggleFocusMode() { if (offlineJobActive()) return; state.focusMode = !state.focusMode; document.body.classList.toggle('focus-mode', state.focusMode); $('focusButton').textContent = state.focusMode ? 'Exit focus' : 'Focus canvas'; $('focusButton').setAttribute('aria-pressed', String(state.focusMode)); syncFocusRenderFit(); syncFocusScaleReadout(); }
+function toggleFocusMode() { if (offlineJobActive()) return; state.focusMode = !state.focusMode; document.body.classList.toggle('focus-mode', state.focusMode); $('focusButton').textContent = state.focusMode ? 'Exit focus' : 'Focus canvas'; $('focusButton').setAttribute('aria-pressed', String(state.focusMode)); refreshPaused(); syncFocusRenderFit(); syncFocusScaleReadout(); }
 function renderScenes() {
   sceneList.innerHTML = sceneDefs.map((item, i) => `<button class="scene-item ${i === state.sceneIndex ? 'active' : ''}" data-scene="${i}" aria-pressed="${i === state.sceneIndex}" aria-label="${item.name}: ${item.mechanism}; starting look ${item.presets[0][0]}"><span class="scene-index">${item.number}</span><span class="scene-card-copy"><span class="scene-name">${item.name}</span><span class="scene-mechanism">${item.mechanism}</span><span class="scene-start">Start · ${item.presets[0][0]}</span></span><span class="scene-status"></span></button>`).join('');
   sceneList.querySelectorAll('[data-scene]').forEach((button) => button.addEventListener('click', () => switchScene(Number(button.dataset.scene))));
@@ -1201,7 +1201,7 @@ function drawSceneBase() {
   else if (scene().kind === 'evolution') drawEvolution();
   else if (scene().kind === 'fractal') drawFractal();
   else if (scene().kind === 'advanced') {
-    const path = drawAdvanced(ctx, renderBuffer, scene().id, state.params[scene().id], state.elapsed * (state.reducedMotion ? .15 : 1), palette, state.quality === '720', beatResponseLevel(scene().id));
+    const path = drawAdvanced(ctx, renderBuffer, scene().id, state.params[scene().id], state.elapsed * (state.reducedMotion ? .15 : 1), palette, state.quality === '720', beatResponseLevel(scene().id), { focus: state.focusMode });
     activeRenderState = scene().id === 'julia' ? { ...juliaRenderState(renderBuffer), outputWidth: canvas.width, outputHeight: canvas.height } : { path: path || 'canvas-2d', width: canvas.width, height: canvas.height };
   }
   syncRendererReadout();

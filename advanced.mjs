@@ -48,11 +48,12 @@ function juliaSampleInto(x, y, real, imaginary, iterations, out) {
 export function juliaSample(x, y, real, imaginary, iterations) {
   return juliaSampleInto(x, y, real, imaginary, iterations, {});
 }
-export function advancedRasterSize(width, height, low = false) {
+export function advancedRasterSize(width, height, low = false, focus = false) {
   const safeWidth = Number.isFinite(width) && width > 0 ? width : 1;
   const safeHeight = Number.isFinite(height) && height > 0 ? height : 1;
-  const maxDimension = low ? 160 : safeWidth >= 1440 && safeHeight >= 900 ? 640 : 480;
-  const scale = Math.min(.5, maxDimension / safeWidth, maxDimension / safeHeight);
+  const hdSized = focus || (safeWidth >= 1440 && safeHeight >= 900);
+  const maxDimension = low ? 160 : hdSized ? 640 : 480;
+  const scale = Math.min(focus ? 1 : .5, maxDimension / safeWidth, maxDimension / safeHeight);
   return { width: Math.max(1, Math.round(safeWidth * scale)), height: Math.max(1, Math.round(safeHeight * scale)) };
 }
 export function mobius([x, y], [a, b]) {
@@ -174,13 +175,13 @@ function drawJuliaGpu(ctx, buffer, width, height, p, time, palette, level = 0) {
     return false;
   }
 }
-export function drawAdvanced(ctx, buffer, id, p, time, palette, low, level = 0) {
+export function drawAdvanced(ctx, buffer, id, p, time, palette, low, level = 0, options = {}) {
   const { width, height } = ctx.canvas;
   const colors = [rgb(palette.secondary), rgb(palette.primary), rgb(palette.accent)];
   ctx.fillStyle = '#04040a'; ctx.fillRect(0, 0, width, height);
   if (id === 'julia') {
     if (drawJuliaGpu(ctx, buffer, width, height, p, time, palette, level)) return 'webgl';
-    const { width: w, height: h } = advancedRasterSize(width, height, low);
+    const { width: w, height: h } = advancedRasterSize(width, height, low, options?.focus === true);
     buffer.width = w; buffer.height = h;
     const off = buffer.getContext('2d'), image = off.createImageData(w, h);
     const real = p.real + Math.sin(time * .13) * p.motion * .018;

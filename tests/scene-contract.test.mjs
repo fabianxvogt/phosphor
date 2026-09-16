@@ -27,7 +27,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(advanced, /precision highp float/, 'Julia has a fragment-shader path');
   assert.match(advanced, /__juliaGpuDisabled/, 'Julia shader failure falls back instead of breaking the stage');
   assert.match(advanced, /function juliaRenderState\(/, 'Julia exposes the selected render path for rehearsal evidence');
-  assert.match(advanced, /advancedRasterSize\(width, height, low\)/, 'Julia keeps an explicit bounded CPU fallback');
+  assert.match(advanced, /advancedRasterSize\(width, height, low, options\?\.focus === true\)/, 'Julia Focus can request a bounded higher-detail CPU fallback');
+  assert.match(app, /beatResponseLevel\(scene\(\)\.id\), \{ focus: state\.focusMode \}\)/, 'Julia draw receives the live Focus detail option');
   assert.match(app, /function normalizeQuality\(value\)/, 'quality selection normalizes saved values');
   assert.match(app, /id === '1920x1200' \? 'native'/, 'HD output profile maps through report and frame-plan validation');
   assert.match(html, /<option value="native">HD · 1920×1200 \/ 60 target<\/option>/, 'HD output profile is explicitly opt-in');
