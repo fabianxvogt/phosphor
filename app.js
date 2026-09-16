@@ -1094,6 +1094,7 @@ function playDemoClap(start) {
 function playDemoHat(start, velocity, open = false) { demoNoise(start, open ? .22 : .055, (open ? .13 : .085) + velocity * .07, 'highpass', open ? 4200 : 6200, .6); }
 function scheduleDemoStep(request) {
   if (request !== audioRequest || !state.demoOn || !audio.context) return;
+  if (state.paused) { pulseTimer = setTimeout(() => scheduleDemoStep(request), 40); return; }
   const stepIndex = audio.demoStep; const step = darkTechnoStep(stepIndex); const start = (audio.context.currentTime || 0) + .018;
   if (step.kick) { setBeatPulse(.86 + step.kick * .14, stepIndex); playDemoKick(start, step.kick); }
   if (step.bass) playDemoBass(start, stepIndex, step.bass);

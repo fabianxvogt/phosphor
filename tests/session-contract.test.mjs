@@ -843,6 +843,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(api.rehearsalReport().audio.history.at(-1), { source: 'TAB AUDIO', status: 'empty' }, 'report attributes empty tab-audio history');
   assert.equal(document.getElementById('audioOutcomeReadout').textContent, 'Source empty', 'source dock retains the empty tab-audio outcome');
   assert.equal(document.getElementById('audioStatus').textContent, 'No audio was shared · select a browser tab and enable Share tab audio');
+  if (api.renderRuntimeState().paused) document.getElementById('pauseButton').click();
   await api.toggleDemo();
   assert.equal(api.audioState().hasDemo, true, 'demo beat becomes the active local source');
   assert.equal(api.audioState().demoStep, 1, 'demo beat schedules the first 16th-note step');
@@ -850,6 +851,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat/);
   assert.match(document.getElementById('beatReadout').textContent, /^BEAT 01\/16 · KICK\+SUB · 100%$/, 'beat readout names the first kick step and voices');
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS BEAT-LINKED', 'demo beat exposes complete visual coverage');
+  document.getElementById('pauseButton').click(); const pausedDemoStep = api.audioState().demoStep; await new Promise((resolve) => setTimeout(resolve, 220)); assert.equal(api.audioState().demoStep, pausedDemoStep, 'paused stage holds the demo beat step'); document.getElementById('pauseButton').click();
   document.getElementById('muteButton').click();
   assert.equal(api.audioState().outputGain, 0, 'mute cuts the demo beat output');
   document.getElementById('muteButton').click();

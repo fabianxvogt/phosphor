@@ -13,7 +13,7 @@ The Demo kick now layers a low sine body beneath its pitch-dropping punch and se
 
 Mute and unmute preserve the selected source and restore the authored demo level, so the heavier kick does not silently come back at a different gain.
 
-The source dock now names the active 16th-note step, voices, and bounded beat response while the demo is running; it returns to `BEAT IDLE` when the source stops. A companion `14/14 VISUALS BEAT-LINKED` readout makes the complete scene-family coverage explicit.
+The source dock now names the active 16th-note step, voices, and bounded beat response while the demo is running; it returns to `BEAT IDLE` when the source stops. A companion `14/14 VISUALS BEAT-LINKED` readout makes the complete scene-family coverage explicit. Global pause now holds the Demo scheduler on its current step so audio and visuals resume together.
 
 The rehearsal surface now has a permission-free **Run beat check** action. It raises a fixed test pulse without touching the live set, verifies all fourteen scene mappings and the four shared effect links, and stores a bounded `phosphor-beat-response-v1` payload in the next report. This is wiring evidence: it does not claim that every look is aesthetically successful, that audio hardware behaves consistently, or that a device is certified.
 
@@ -23,7 +23,7 @@ The advanced-renderer import now uses a namespace boundary with a local Julia di
 
 ## Evidence
 
-- `npm test`: passing, including deterministic 16-step pattern, demo-source lifecycle, beat-readout state, all-family modulation contracts, the live scope markup contract, and the versioned beat-response check/report comparison.
+- `npm test`: passing, including deterministic 16-step pattern, paused Demo transport, demo-source lifecycle, beat-readout state, all-family modulation contracts, the live scope markup contract, and the versioned beat-response check/report comparison.
 - `npm run build`, `npm run check:dist`, and `git diff --check`: passing.
 - Local Chrome smoke: the repaired module graph boots with `RUNNING`, Julia reports `Julia · WebGL native 960×600`, and the Demo beat source starts with `Dark techno demo beat · kick, clap, hats`, reports an active source, and exposes live steps plus `14/14 VISUALS BEAT-LINKED`. Voice-level loudness and long-run device output remain uncalibrated.
 
