@@ -26,7 +26,7 @@ Four composable effects provide immediate artistic range without pretending to b
 
 ## Music direction
 
-Current implementation uses local files, a synthetic pulse, microphone and optional user-selected tab audio. Browser audio-track availability must be checked; tab sharing requires user interaction and varies by browser ([Chrome screen-sharing controls](https://developer.chrome.com/docs/web-platform/screen-sharing-controls)). Captured tab/microphone audio is analysed locally, never monitored or included in exported recordings.
+Current implementation uses local files, a synthetic dark-techno beat, microphone and optional user-selected tab audio. Browser audio-track availability must be checked; tab sharing requires user interaction and varies by browser ([Chrome screen-sharing controls](https://developer.chrome.com/docs/web-platform/screen-sharing-controls)). Captured tab/microphone audio is analysed locally, never monitored or included in exported recordings.
 
 Use official radio player links for discovery, including [cliqhop IDM](https://somafm.com/cliqhop/). Do not bundle its raw endpoints: SomaFM describes direct links as personal-use only and excludes games/streams ([direct-stream terms](https://somafm.com/live/directstreamlinks.html)). Cross-origin audio analysis requires suitable CORS permission ([Web Audio specification](https://www.w3.org/TR/webaudio-1.0/#MediaElementAudioSourceNode-security)); ordinary audible playback does not establish analyser access. A custom URL or station directory is deferred.
 

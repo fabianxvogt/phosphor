@@ -10,9 +10,59 @@ export const PHOSPHOR_FAMILY_CATALOG = [
   ['52', 'Feedback Chapel'], ['53', 'Interference Rituals'], ['54', 'Topological Melt'], ['55', 'Phase Transition Theatre'], ['56', 'Evolution Garden'],
 ];
 
+// One bar of four-on-the-floor dark techno. Velocities stay bounded so the
+// WebAudio layer can shape the voices without ever depending on wall-clock
+// randomness or an unbounded event list.
+export const DARK_TECHNO_PATTERN = Object.freeze([
+  { kick: 1, clap: 0, hat: 0, openHat: 0, bass: 1 },
+  { kick: 0, clap: 0, hat: .42, openHat: 0, bass: 0 },
+  { kick: 0, clap: 0, hat: .58, openHat: 0, bass: 0 },
+  { kick: 0, clap: 0, hat: .36, openHat: 0, bass: .55 },
+  { kick: .82, clap: 1, hat: 0, openHat: 0, bass: .78 },
+  { kick: 0, clap: 0, hat: .62, openHat: 0, bass: 0 },
+  { kick: 0, clap: 0, hat: .52, openHat: .68, bass: .62 },
+  { kick: 0, clap: 0, hat: .38, openHat: 0, bass: 0 },
+  { kick: 1, clap: 0, hat: 0, openHat: 0, bass: 1 },
+  { kick: 0, clap: 0, hat: .46, openHat: 0, bass: 0 },
+  { kick: 0, clap: 0, hat: .62, openHat: 0, bass: .58 },
+  { kick: 0, clap: 0, hat: .38, openHat: 0, bass: 0 },
+  { kick: .9, clap: 1, hat: 0, openHat: 0, bass: .82 },
+  { kick: 0, clap: 0, hat: .64, openHat: 0, bass: 0 },
+  { kick: 0, clap: 0, hat: .54, openHat: .74, bass: .7 },
+  { kick: 0, clap: 0, hat: .4, openHat: 0, bass: 0 },
+]);
+
+export function darkTechnoStep(step = 0) {
+  const index = ((Math.floor(Number(step) || 0) % DARK_TECHNO_PATTERN.length) + DARK_TECHNO_PATTERN.length) % DARK_TECHNO_PATTERN.length;
+  return DARK_TECHNO_PATTERN[index];
+}
+
 export function qualityProfile(quality = '1080') {
   if (quality === '720') return { id: '480x300', label: '480 × 300 · 30 target', width: 480, height: 300, cadence: 30, workScale: .5, cathedralWidth: 112, cathedralHeight: 70, interferenceWidth: 160, interferenceHeight: 100, topologyPoints: 96, magneticCap: 240, aquariumCap: 32 };
+  if (quality === 'native') return { id: '1920x1200', label: 'HD · 1920 × 1200 · 60 target', width: 1920, height: 1200, cadence: 60, workScale: 2, cathedralWidth: 240, cathedralHeight: 150, interferenceWidth: 320, interferenceHeight: 200, topologyPoints: 240, magneticCap: 720, aquariumCap: 96 };
   return { id: '960x600', label: '960 × 600 · 60 target', width: 960, height: 600, cadence: 60, workScale: 1, cathedralWidth: 160, cathedralHeight: 100, interferenceWidth: 240, interferenceHeight: 150, topologyPoints: 160, magneticCap: 480, aquariumCap: 64 };
+}
+
+// Deterministic, bounded peak bands for the analyser's byte-frequency output.
+// Peak bins keep narrow tones responsive when devices expose different sample rates.
+export function audioBandLevels(spectrum, sampleRate = 44100) {
+  const bands = { low: [20, 250], mid: [250, 2000], high: [2000, 12000] };
+  const count = Number(spectrum?.length) || 0;
+  const rate = Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : 44100;
+  if (!count) return { low: 0, mid: 0, high: 0 };
+  const peaks = { low: 0, mid: 0, high: 0 };
+  for (let index = 1; index < count; index += 1) {
+    const frequency = index * rate / (count * 2);
+    const value = Number(spectrum[index]);
+    if (!Number.isFinite(value)) continue;
+    for (const [name, [minimum, maximum]] of Object.entries(bands)) {
+      if (frequency >= minimum && frequency < maximum) {
+        peaks[name] = Math.max(peaks[name], clamp(value / 255, 0, 1));
+        break;
+      }
+    }
+  }
+  return peaks;
 }
 
 export function cathedralShading(distance, steps, direction = [0, 0, 1], lighting = .5, material = .5, fog = .3, emission = .2) {

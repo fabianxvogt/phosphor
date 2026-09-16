@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rotate4, hopfPoint, cubeVertices, cubeEdges, mobius, geodesicPoint, juliaSample, advancedDefaults, drawAdvanced } from '../advanced.mjs';
+import { rotate4, hopfPoint, cubeVertices, cubeEdges, mobius, geodesicPoint, juliaSample, advancedDefaults, advancedRasterSize, juliaRenderState, drawAdvanced } from '../advanced.mjs';
 import { topologyLoopPoint, drivenRegimeFieldStep, drivenRegimeTarget } from '../core.mjs';
 import { validateEffects } from '../effects.mjs';
 const norm = v => Math.hypot(...v);
@@ -38,6 +38,86 @@ test('Julia samples distinguish known bounded and escaped orbits without nonfini
   assert.equal(juliaSample(0,0,0,0,80).escaped,false);
   assert.equal(juliaSample(2,0,0,0,80).escaped,true);
   for(let i=0;i<100;i++){ const s=juliaSample(Math.sin(i)*2,Math.cos(i)*2,-.745,.186,112); assert.ok(Number.isFinite(s.smooth)); assert.ok(s.trap>=0&&s.trap<=1); }
+});
+test('Julia raster follows output size instead of stretching a tiny thumbnail', () => {
+  assert.deepEqual(advancedRasterSize(960, 600, false), { width: 320, height: 200 });
+  assert.deepEqual(advancedRasterSize(480, 300, true), { width: 160, height: 100 });
+  assert.deepEqual(advancedRasterSize(320, 200, false), { width: 160, height: 100 });
+  assert.deepEqual(advancedRasterSize(960, 600, true), { width: 160, height: 100 });
+  assert.deepEqual(advancedRasterSize(600, 960, false), { width: 200, height: 320 });
+  assert.deepEqual(advancedRasterSize(1920, 1200, false), { width: 640, height: 400 });
+  assert.deepEqual(advancedRasterSize(1, 1e9, true), { width: 1, height: 160 });
+  assert.deepEqual(advancedRasterSize(Number.MAX_VALUE, Number.MAX_VALUE, false), { width: 640, height: 640 });
+});
+test('Julia draw allocates the bounded raster and composites opaque pixels', () => {
+  let allocation = null, composite = null, pixels = null;
+  const off = { createImageData(width, height) { allocation = { width, height }; pixels = new Uint8ClampedArray(width * height * 4); return { data: pixels }; }, putImageData() {} };
+  const ctx = { canvas: { width: 960, height: 600 }, fillRect() {}, drawImage(image) { composite = { width: image.width, height: image.height }; } };
+  const buffer = { width: 0, height: 0, getContext() { return off; } };
+  drawAdvanced(ctx, buffer, 'julia', advancedDefaults.julia, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false);
+  assert.deepEqual(allocation, { width: 320, height: 200 });
+  assert.deepEqual(composite, allocation);
+  assert.deepEqual(juliaRenderState(buffer), { path: 'cpu', width: 320, height: 200, reason: 'WebGL unavailable' });
+  assert.ok(pixels.some((value, index) => index % 4 !== 3 && value > 0));
+  assert.ok(pixels.every((value, index) => index % 4 !== 3 || value === 255));
+});
+test('Julia uses native output dimensions through the WebGL compositor when available', () => {
+  const calls = [];
+  const gl = {
+    VERTEX_SHADER: 1, FRAGMENT_SHADER: 2, COMPILE_STATUS: 3, LINK_STATUS: 4, ARRAY_BUFFER: 5, STATIC_DRAW: 6, FLOAT: 7, TRIANGLE_STRIP: 8,
+    createShader: type => ({ type }), shaderSource() {}, compileShader() {}, getShaderParameter: () => true,
+    createProgram: () => ({}), attachShader() {}, linkProgram() {}, getProgramParameter: () => true,
+    createBuffer: () => ({}), bindBuffer() {}, bufferData() {}, getUniformLocation: (_program, name) => name, getAttribLocation: () => 0,
+    viewport: (...args) => calls.push(['viewport', ...args]), isContextLost: () => false, useProgram() {}, enableVertexAttribArray() {}, vertexAttribPointer() {},
+    uniform2f: (...args) => calls.push(['uniform2f', ...args]), uniform1f() {}, uniform3f() {}, drawArrays: (...args) => calls.push(['drawArrays', ...args]),
+  };
+  const listeners = new Map();
+  const surface = { width: 0, height: 0, getContext: () => gl, addEventListener(type, callback) { listeners.set(type, callback); } };
+  const previousDocument = globalThis.document;
+  globalThis.document = { createElement: () => surface };
+  try {
+    const ctx = { canvas: { width: 960, height: 600 }, fillRect() {}, drawImage(image) { calls.push(['composite', image.width, image.height]); } };
+    const buffer = { width: 0, height: 0 };
+    drawAdvanced(ctx, buffer, 'julia', advancedDefaults.julia, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false);
+    assert.deepEqual(calls.at(-1), ['composite', 960, 600]);
+    assert.deepEqual(calls.find(call => call[0] === 'viewport'), ['viewport', 0, 0, 960, 600]);
+    assert.deepEqual(calls.find(call => call[0] === 'drawArrays'), ['drawArrays', gl.TRIANGLE_STRIP, 0, 4]);
+    assert.deepEqual(juliaRenderState(buffer), { path: 'webgl', width: 960, height: 600, reason: null });
+    assert.equal(buffer.__juliaGpuDisabled, undefined);
+    assert.ok(listeners.has('webglcontextlost') && listeners.has('webglcontextrestored'));
+    listeners.get('webglcontextlost')({ preventDefault() {} });
+    assert.equal(buffer.__juliaGpuDisabled, true);
+    listeners.get('webglcontextrestored')();
+    assert.equal(buffer.__juliaGpuDisabled, false);
+    assert.equal(buffer.__juliaGpu, null);
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument;
+  }
+});
+
+test('Julia HD profile keeps the WebGL backing surface at 1920×1200', () => {
+  const calls = [];
+  const gl = {
+    VERTEX_SHADER: 1, FRAGMENT_SHADER: 2, COMPILE_STATUS: 3, LINK_STATUS: 4, ARRAY_BUFFER: 5, STATIC_DRAW: 6, FLOAT: 7, TRIANGLE_STRIP: 8,
+    createShader: type => ({ type }), shaderSource() {}, compileShader() {}, getShaderParameter: () => true,
+    createProgram: () => ({}), attachShader() {}, linkProgram() {}, getProgramParameter: () => true,
+    createBuffer: () => ({}), bindBuffer() {}, bufferData() {}, getUniformLocation: (_program, name) => name, getAttribLocation: () => 0,
+    viewport: (...args) => calls.push(['viewport', ...args]), isContextLost: () => false, useProgram() {}, enableVertexAttribArray() {}, vertexAttribPointer() {},
+    uniform2f: (...args) => calls.push(['uniform2f', ...args]), uniform1f() {}, uniform3f() {}, drawArrays: (...args) => calls.push(['drawArrays', ...args]),
+  };
+  const surface = { width: 0, height: 0, getContext: () => gl, addEventListener() {} };
+  const previousDocument = globalThis.document;
+  globalThis.document = { createElement: () => surface };
+  try {
+    const ctx = { canvas: { width: 1920, height: 1200 }, fillRect() {}, drawImage(image) { calls.push(['composite', image.width, image.height]); } };
+    const buffer = { width: 0, height: 0 };
+    drawAdvanced(ctx, buffer, 'julia', advancedDefaults.julia, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false);
+    assert.deepEqual(calls.at(-1), ['composite', 1920, 1200]);
+    assert.deepEqual(calls.find(call => call[0] === 'viewport'), ['viewport', 0, 0, 1920, 1200]);
+    assert.deepEqual(juliaRenderState(buffer), { path: 'webgl', width: 1920, height: 1200, reason: null });
+  } finally {
+    globalThis.document = previousDocument;
+  }
 });
 test('topology camera and time change the whole curve, not just the starting sample', () => {
   function cloud(f,c,p){return Array.from({length:180},(_,i)=>topologyLoopPoint(f,i/180,.6,c,p));}

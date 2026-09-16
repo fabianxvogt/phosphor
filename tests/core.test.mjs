@@ -1,6 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, evolutionContour, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
+import { audioBandLevels, aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, darkTechnoStep, DARK_TECHNO_PATTERN, evolutionContour, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
+
+test('audio spectrum bands are deterministic, bounded, and frequency-specific', () => {
+  const spectrum = new Uint8Array(256);
+  spectrum[2] = 255; // low range at 44.1 kHz
+  spectrum[10] = 180; // mid range
+  spectrum[50] = 90; // high range
+  const bands = audioBandLevels(spectrum, 44100);
+  assert.ok(bands.low > bands.mid && bands.mid > bands.high);
+  assert.deepEqual(audioBandLevels(spectrum, 44100), bands);
+  assert.ok(Object.values(bands).every((value) => Number.isFinite(value) && value >= 0 && value <= 1));
+  assert.deepEqual(audioBandLevels(null), { low: 0, mid: 0, high: 0 });
+  const lowAt44k = new Uint8Array(256); lowAt44k[2] = 255;
+  const lowAt96k = new Uint8Array(256); lowAt96k[1] = 255;
+  assert.equal(audioBandLevels(lowAt44k, 44100).low, audioBandLevels(lowAt96k, 96000).low);
+});
+
+test('dark techno pattern keeps kick, clap, hats, and bass on a bounded 16-step bar', () => {
+  assert.equal(DARK_TECHNO_PATTERN.length, 16);
+  assert.deepEqual([0, 4, 8, 12].map((step) => darkTechnoStep(step).kick > 0), [true, true, true, true]);
+  assert.deepEqual([4, 12].map((step) => darkTechnoStep(step).clap), [1, 1]);
+  assert.ok([1, 3, 5, 7, 9, 11, 13, 15].every((step) => darkTechnoStep(step).hat > 0));
+  assert.ok(DARK_TECHNO_PATTERN.every((step) => Object.values(step).every((value) => value >= 0 && value <= 1)));
+  assert.deepEqual(darkTechnoStep(-1), darkTechnoStep(15));
+});
 
 test('elementary automaton fixture for rule 90 is exact', () => {
   const row = Uint8Array.from([0, 0, 0, 1, 0, 0, 0]);
@@ -44,9 +68,12 @@ test('interference fields and resolution filter stay finite and bounded', () => 
 });
 
 test('quality profiles apply truthful output dimensions, cadence, and bounded work budgets', () => {
-  const full = qualityProfile('1080'); const low = qualityProfile('720');
+  const full = qualityProfile('1080'); const low = qualityProfile('720'); const native = qualityProfile('native');
   assert.deepEqual([full.width, full.height, full.cadence], [960, 600, 60]);
   assert.deepEqual([low.width, low.height, low.cadence], [480, 300, 30]);
+  assert.deepEqual([native.width, native.height, native.cadence], [1920, 1200, 60]);
+  assert.ok(full.width < native.width && full.height < native.height);
+  assert.ok(full.cathedralWidth < native.cathedralWidth && full.interferenceWidth < native.interferenceWidth);
   assert.ok(low.cathedralWidth < full.cathedralWidth && low.interferenceWidth < full.interferenceWidth);
   assert.ok(low.magneticCap < full.magneticCap && low.aquariumCap < full.aquariumCap);
   assert.match(low.label, /target/); assert.doesNotMatch(low.label, /measured/i);

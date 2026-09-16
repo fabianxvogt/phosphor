@@ -31,16 +31,16 @@ class FakeContext {
 }
 
 class FakeElement {
-  constructor(id, document) { this.id = id; this.document = document; this.listeners = new Map(); this.children = []; this.style = {}; this.classList = { add() {}, remove() {}, toggle() {} }; this.dataset = {}; this.value = ''; this.checked = false; this.hidden = false; this.files = []; }
+  constructor(id, document) { this.id = id; this.document = document; this.listeners = new Map(); this.children = []; this.style = {}; const classes = new Set(); this.classList = { add: (...names) => names.forEach(name => classes.add(name)), remove: (...names) => names.forEach(name => classes.delete(name)), contains: name => classes.has(name), toggle: (name, force) => { const next = force === undefined ? !classes.has(name) : Boolean(force); if (next) classes.add(name); else classes.delete(name); return next; } }; this.dataset = {}; this.value = ''; this.checked = false; this.hidden = false; this.disabled = false; this.files = []; }
   addEventListener(type, callback) { this.listeners.set(type, callback); }
   setAttribute(name, value) { this[name] = value; }
   click() { if (this.disabled) return; this.listeners.get('click')?.({ target: this }); }
-  querySelectorAll(selector) { if (selector === '[data-scene]') return this.children.filter((child) => child.dataset.scene !== undefined); if (selector === '[data-preset]') return this.children.filter((child) => child.dataset.preset !== undefined); if (selector === '[data-remove-cue]') return this.children.filter((child) => child.dataset.removeCue !== undefined); return []; }
+  querySelectorAll(selector) { if (selector === '[data-scene]') return this.children.filter((child) => child.dataset.scene !== undefined); if (selector === '[data-preset]') return this.children.filter((child) => child.dataset.preset !== undefined); if (selector === '[data-label-cue]') return this.children.filter((child) => child.dataset.labelCue !== undefined); if (selector === '[data-duration-cue]') return this.children.filter((child) => child.dataset.durationCue !== undefined); if (selector === '[data-preview-cue]') return this.children.filter((child) => child.dataset.previewCue !== undefined); if (selector === '[data-duplicate-cue]') return this.children.filter((child) => child.dataset.duplicateCue !== undefined); if (selector === '[data-move-cue]') return this.children.filter((child) => child.dataset.moveCue !== undefined); if (selector === '[data-remove-cue]') return this.children.filter((child) => child.dataset.removeCue !== undefined); return []; }
   dispatchEvent(event) { if (this.disabled && ['input', 'change', 'click'].includes(event.type)) return; this.listeners.get(event.type)?.({ ...event, target: this }); }
   set innerHTML(html) { this._html = html; this.children = []; this._parse(html); }
   get innerHTML() { return this._html || ''; }
   insertAdjacentHTML(_position, html) { this._parse(html); }
-  _parse(html) { const re = /<(button|input|select)\b([^>]*)>/g; let match; while ((match = re.exec(html))) { const [, tag, attributes] = match; const id = /id="([^"]+)"/.exec(attributes)?.[1]; const element = this.document.ensure(id || `${this.id || 'container'}-${tag}-${this.children.length}`); const scene = /data-scene="([^"]+)"/.exec(attributes); const preset = /data-preset="([^"]+)"/.exec(attributes); if (scene) element.dataset.scene = scene[1]; if (preset) element.dataset.preset = preset[1]; const value = /value="([^"]*)"/.exec(attributes); if (value) element.value = value[1]; this.children.push(element); } }
+  _parse(html) { const re = /<(button|input|select)\b([^>]*)>/g; let match; while ((match = re.exec(html))) { const [, tag, attributes] = match; const id = /id="([^"]+)"/.exec(attributes)?.[1]; const element = this.document.ensure(id || `${this.id || 'container'}-${tag}-${this.children.length}`); const scene = /data-scene="([^"]+)"/.exec(attributes); const preset = /data-preset="([^"]+)"/.exec(attributes); const labelCue = /data-label-cue="([^"]+)"/.exec(attributes); const durationCue = /data-duration-cue="([^"]+)"/.exec(attributes); const previewCue = /data-preview-cue="([^"]+)"/.exec(attributes); const duplicateCue = /data-duplicate-cue="([^"]+)"/.exec(attributes); const moveCue = /data-move-cue="([^"]+)"/.exec(attributes); const removeCue = /data-remove-cue="([^"]+)"/.exec(attributes); const direction = /data-direction="([^"]+)"/.exec(attributes); if (scene) element.dataset.scene = scene[1]; if (preset) element.dataset.preset = preset[1]; if (labelCue) element.dataset.labelCue = labelCue[1]; if (durationCue) element.dataset.durationCue = durationCue[1]; if (previewCue) element.dataset.previewCue = previewCue[1]; if (duplicateCue) element.dataset.duplicateCue = duplicateCue[1]; if (moveCue) element.dataset.moveCue = moveCue[1]; if (removeCue) element.dataset.removeCue = removeCue[1]; if (direction) element.dataset.direction = direction[1]; element.disabled = /\sdisabled(?:\s|=|>)/.test(attributes); const value = /value="([^"]*)"/.exec(attributes); if (value) element.value = value[1]; this.children.push(element); } }
   remove() { this.document.elements.delete(this.id); }
   showModal() {}
   getBoundingClientRect() { return { left: 0, top: 0, width: 960, height: 600 }; }
@@ -49,13 +49,16 @@ class FakeElement {
 }
 
 class FakeCanvas extends FakeElement {
-  constructor(id, document) { super(id, document); this._width = 960; this._height = 600; this.context = new FakeContext(this); Object.defineProperty(this, 'width', { get: () => this._width, set: (value) => { this._width = Number(value); this.context.resize(); } }); Object.defineProperty(this, 'height', { get: () => this._height, set: (value) => { this._height = Number(value); this.context.resize(); } }); this.context.resize(); this.toBlobCalls = 0; }
+  constructor(id, document) { super(id, document); this._width = 960; this._height = 600; this.rect = { left: 0, top: 0, width: 960, height: 600 }; this.context = new FakeContext(this); Object.defineProperty(this, 'width', { get: () => this._width, set: (value) => { this._width = Number(value); this.context.resize(); } }); Object.defineProperty(this, 'height', { get: () => this._height, set: (value) => { this._height = Number(value); this.context.resize(); } }); this.context.resize(); this.toBlobCalls = 0; }
   getContext() { return this.context; }
+  getBoundingClientRect() { return this.rect; }
   toBlob(callback) { this.toBlobCalls += 1; callback(new Blob(['fake'], { type: 'image/png' })); }
 }
 
 class FakeDocument {
-  constructor() { this.elements = new Map(); this.documentElement = { style: { setProperty() {} } }; this.body = { classList: { toggle() {} } }; }
+  constructor() { this.elements = new Map(); this.listeners = new Map(); this.hidden = false; this.documentElement = { style: { setProperty() {} } }; this.body = { classList: { toggle() {} } }; }
+  addEventListener(type, callback) { if (!this.listeners.has(type)) this.listeners.set(type, []); this.listeners.get(type).push(callback); }
+  dispatchEvent(event) { for (const callback of this.listeners.get(event.type) || []) callback(event); }
   ensure(id) { if (!this.elements.has(id)) this.elements.set(id, id === 'stage' ? new FakeCanvas(id, this) : new FakeElement(id, this)); return this.elements.get(id); }
   getElementById(id) { return this.ensure(id); }
   createElement(tag) { return tag === 'canvas' ? new FakeCanvas('', this) : new FakeElement('', this); }
@@ -63,17 +66,445 @@ class FakeDocument {
 
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
-  for (const id of ['stage', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'demoAudioButton', 'playSetButton', 'transportState', 'modulationReadout', 'fpsReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'exportButton']) document.ensure(id);
+  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'fpsReadout', 'performanceReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'preflightButton', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportEvidenceReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
   const windowListeners = new Map();
   const fireWindow = (type, event) => { for (const callback of windowListeners.get(type) || []) callback(event); };
   globalThis.document = document; globalThis.window = globalThis; globalThis.addEventListener = (type, callback) => { if (!windowListeners.has(type)) windowListeners.set(type, []); windowListeners.get(type).push(callback); }; globalThis.location = { search: '' }; globalThis.performance = { now: () => 0 }; globalThis.requestAnimationFrame = () => 0; globalThis.localStorage = { data: new Map(), getItem(key) { return this.data.get(key) ?? null; }, setItem(key, value) { this.data.set(key, value); }, removeItem(key) { this.data.delete(key); } }; globalThis.FileReader = class {}; globalThis.URL.createObjectURL ??= () => 'blob:fake'; globalThis.URL.revokeObjectURL ??= () => {};
   await import(new URL('../app.js?session-contract', import.meta.url));
   const api = window.__phosphorTest;
   const baseline = structuredClone(api.sessionData());
+  assert.equal(document.getElementById('demoAudioButton')['aria-pressed'], 'false', 'demo source starts inactive');
+  assert.equal(document.getElementById('micButton')['aria-pressed'], 'false', 'microphone source starts inactive');
+  assert.equal(document.getElementById('tabAudioButton')['aria-pressed'], 'false', 'tab source starts inactive');
+  assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus', 'file source points to its status');
+  assert.equal(document.getElementById('rehearsalReportReadout').textContent, 'No report saved', 'rehearsal report starts idle');
+  assert.equal(document.getElementById('rehearsalReportImportReadout').textContent, 'No report loaded', 'rehearsal report import starts idle');
+  assert.equal(document.getElementById('rehearsalReportImportEvidenceReadout').textContent, 'No loaded evidence', 'loaded report evidence starts idle');
+  assert.equal(document.getElementById('clearRehearsalReportButton').disabled, true, 'clear action starts disabled until a report is loaded');
+  assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path not checked', 'recording MIME detail starts explicit');
+  assert.equal(document.getElementById('recordingStatus').textContent, 'Recording idle', 'recording outcome starts explicit');
+  assert.equal(document.getElementById('audioOutcomeReadout').textContent, 'Source idle', 'audio-source outcome starts explicit');
+  assert.equal(document.getElementById('rendererReadout').textContent, 'Canvas 2D · 960×600', 'renderer path starts explicit');
+  assert.equal(document.getElementById('focusRendererReadout').textContent, 'Canvas 2D · 960×600', 'focus mode mirrors renderer path');
+  assert.equal(document.getElementById('focusPerformanceReadout').textContent, 'Frame timing warming up · 16.7ms target', 'focus mode mirrors performance readout');
+  assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 1.0× native fit', 'focus mode reports display scale');
+  assert.equal(api.visualAudioCoverage().length, api.sceneDefs.length, 'beat coverage enumerates every visual family');
+  assert.equal(api.visualAudioCoverage().every((entry) => entry.mapped), true, 'every visual family has a beat response mapping');
+  const stageWrap = document.getElementById('stageWrap');
+  document.getElementById('focusButton').click(); api.switchScene(10, 0); api.drawPreview();
+  assert.equal(stageWrap.classList.contains('julia-cpu-fit'), true, 'Focus constrains a CPU Julia fallback to a bounded display width');
+  assert.equal(stageWrap.style['--julia-fit-width'], '640px', 'Focus caps CPU Julia at twice its internal raster width');
+  document.getElementById('stage').rect = { left: 0, top: 0, width: 640, height: 400 }; api.syncFocusScaleReadout();
+  assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 640×400 · 2.0× CPU raster upscale · HD available', 'Focus reports effective CPU raster scale and the Julia HD escape hatch');
+  assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Focus exposes the one-click HD action when Julia is enlarged');
+  document.getElementById('focusQualityButton').click();
+  assert.equal(document.getElementById('qualityInput').value, 'native', 'Focus HD action switches to the native output profile');
+  assert.match(document.getElementById('toast').textContent, /HD output enabled/, 'Focus HD action confirms the profile change');
+  assert.equal(document.getElementById('focusQualityButton').hidden, true, 'Focus hides the HD action after switching profiles');
+  document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; document.getElementById('focusButton').click(); api.applySession(baseline); api.drawPreview();
+  document.getElementById('stage').rect = { left: 0, top: 0, width: 1920, height: 1200 }; api.syncFocusScaleReadout();
+  assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 1920×1200 · 2.0× CSS upscale', 'focus mode names a large CSS upscale');
+  document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusScaleReadout();
+  assert.equal(api.rehearsalReport().preflight, null, 'report stays explicit when preflight has not run');
+  assert.equal(api.rehearsalReport().recordingMimeType, null, 'report stays explicit about MIME before preflight or capture');
+  assert.equal(api.rehearsalReport().recordingStatus, 'idle', 'report starts with an idle recording outcome');
+  assert.equal(api.rehearsalReport().audio.status, 'idle', 'report starts with an idle audio-source outcome');
+  assert.deepEqual(api.rehearsalReport().renderer, { path: 'canvas-2d', width: 960, height: 600, outputWidth: 960, outputHeight: 600 }, 'report captures the active renderer path and dimensions');
+  assert.deepEqual(api.rehearsalReport().audio.history, [], 'report starts with an empty audio-source history');
+  assert.equal(api.rehearsalReport().deviceLabel, '', 'report starts without an optional device label');
+  assert.equal(api.rehearsalReport().observedChecksAt, null, 'report starts without an observed-check timestamp');
+  assert.deepEqual(api.rehearsalReport().observedChecks, { microphone: false, tabAudio: false, recording: false, pngFolder: false, performance: false }, 'report starts with explicit observed checks');
+  assert.equal(document.getElementById('observedChecksReadout').textContent, '0/5 observed checks recorded', 'observed checks start with an explicit progress readout');
+  assert.equal(document.getElementById('observedChecksTimestamp').textContent, 'Not recorded', 'observed checks start without a timestamp');
+  assert.equal(document.getElementById('observedChecksNext').textContent, 'Evidence not started · remaining: Microphone · Tab audio · Recording · PNG folder · Performance', 'observed checks name the remaining outcomes');
+  assert.deepEqual(api.rehearsalReport().observedEvidence, { status: 'not-started', label: 'Not started', completed: 0, total: 5 }, 'report starts with explicit evidence status');
+  assert.equal(document.getElementById('performanceReadout').textContent, 'Frame timing warming up · 16.7ms target', 'performance readout starts honestly');
+  api.updatePerformanceReadout(0);
+  assert.equal(document.getElementById('performanceReadout')['aria-label'], 'Frame timing is warming up; the 60 target is 16.7 milliseconds');
+  window.__phosphorMetrics.sceneTimes[0].push(16.7, 18.1, 21.4, 34.2);
+  api.updatePerformanceReadout(1000);
+  assert.match(document.getElementById('performanceReadout').textContent, /^Frame 19\.8ms med · 34\.2ms p95 · over target$/);
+  assert.equal(document.getElementById('focusPerformanceReadout').textContent, document.getElementById('performanceReadout').textContent, 'focus mode keeps measured timing visible');
+  const overTargetManifest = api.frameManifest();
+  assert.equal(overTargetManifest.performanceMeasurement.status, 'over-target', 'frame plans preserve an over-target measurement status');
+  assert.equal(overTargetManifest.performanceMeasurement.targetMs, 16.67, 'full frame plans preserve their nominal target');
+  const profileInput = document.getElementById('qualityInput');
+  profileInput.value = '720'; profileInput.dispatchEvent({ type: 'change' });
+  assert.equal(window.__phosphorMetrics.summary(0).sampleCount, 0, 'quality changes discard incompatible frame samples');
+  assert.equal(api.rehearsalReport().performance.status, 'warming-up', 'low profile report stays warming up before samples');
+  assert.equal(api.rehearsalReport().performance.targetMs, 33.33, 'low profile report carries its nominal target');
+  const lowWarmupManifest = api.frameManifest();
+  assert.equal(lowWarmupManifest.performanceMeasurement.status, 'warming-up', 'low frame plans preserve a warming-up status');
+  assert.equal(lowWarmupManifest.performanceMeasurement.targetMs, 33.33, 'low frame plans preserve their nominal target');
+  window.__phosphorMetrics.sceneTimes[0].push(8, 10, 12);
+  api.updatePerformanceReadout(2000);
+  assert.match(document.getElementById('performanceReadout').textContent, /^Frame 10\.0ms med · 12\.0ms p95 · within target$/);
+  assert.equal(api.rehearsalReport().performance.status, 'within-target', 'rehearsal report marks measured performance within target');
+  profileInput.value = '1080'; profileInput.dispatchEvent({ type: 'change' });
+  window.__phosphorMetrics.sceneTimes[0].push(16.67);
+  api.updatePerformanceReadout(3000);
+  assert.match(document.getElementById('performanceReadout').textContent, /^Frame 16\.7ms med · 16\.7ms p95 · within target$/, 'an exact nominal budget remains within target');
+  window.__phosphorMetrics.reset();
+  api.switchScene(1, 0);
+  assert.equal(document.getElementById('performanceReadout').textContent, 'Frame timing warming up · 16.7ms target', 'scene changes clear prior-scene timing');
+  assert.equal(baseline.name, 'Untitled set');
+  const setNameInput = document.getElementById('setNameInput');
+  setNameInput.value = 'Berlin rehearsal'; setNameInput.dispatchEvent({ type: 'change' });
+  assert.equal(api.sessionData().name, 'Berlin rehearsal');
+  document.getElementById('saveButton').click();
+  assert.match(document.getElementById('saveReadout').textContent, /^LOCAL · .+/, 'manual save exposes a local timestamp');
+  setNameInput.value = '   '; setNameInput.dispatchEvent({ type: 'change' });
+  assert.equal(api.sessionData().name, 'Berlin rehearsal', 'blank set names restore previous value');
+  setNameInput.value = 'x'.repeat(100); setNameInput.dispatchEvent({ type: 'change' });
+  assert.equal(api.sessionData().name.length, 80, 'set names are capped at 80 characters');
+  api.applySession({ ...baseline, name: 'Night / Bloom: Berlin rehearsal' });
+  assert.equal(api.exportFilename(), 'phosphor-night-bloom-berlin-rehearsal.json', 'export filenames carry a safe set identity');
+  const hostileCueLabelSession = structuredClone(baseline); hostileCueLabelSession.cues[0].label = 'A "quoted" <cue> & more';
+  api.applySession(hostileCueLabelSession);
+  const hostileCueMarkup = document.getElementById('cueList').innerHTML;
+  assert.match(hostileCueMarkup, /aria-label="Cue 1 of \d+: A &quot;quoted&quot; &lt;cue&gt; &amp; more ·/, 'cue row labels escape hostile text');
+  assert.doesNotMatch(hostileCueMarkup, /aria-label="Cue 1 of \d+: A "quoted"/, 'cue row attributes do not contain raw quotes');
+  setNameInput.value = 'Saved on hide'; setNameInput.dispatchEvent({ type: 'change' });
+  assert.notEqual(JSON.parse(localStorage.getItem('phosphor-set-v1')).name, 'Saved on hide', 'dirty edit remains pending before the flush');
+  fireWindow('pagehide', {});
+  assert.equal(JSON.parse(localStorage.getItem('phosphor-set-v1')).name, 'Saved on hide', 'page hide flushes the latest dirty session');
+  api.applySession(baseline);
+  assert.equal(document.getElementById('readinessReadout').textContent, 'READY · NO AUDIO · OUTPUT READY');
+  assert.equal(document.getElementById('transitionBadge').textContent, 'LIVE', 'stage overlay starts in the idle visual state');
+  assert.equal(document.getElementById('transitionBadge').role, 'status', 'stage overlay exposes a status role');
+  assert.equal(document.getElementById('transitionBadge')['aria-live'], 'polite', 'stage overlay announces changes politely');
+  assert.equal(document.getElementById('cueCurrentReadout').textContent, 'No cue selected');
+  assert.doesNotMatch(document.getElementById('cueList').innerHTML, /aria-current="step"/, 'idle cue list has no active step');
+  api.switchScene(1, 0);
+  assert.equal(document.getElementById('transitionBadge').textContent, 'LIVE · MORPHING', 'stage overlay keeps an idle scene transition visible');
+  api.applySession(baseline);
+  const transitionSet = structuredClone(baseline);
+  transitionSet.cues = [{ ...transitionSet.cues[0], scene: 3, preset: 0 }];
+  api.applySession(transitionSet);
+  document.getElementById('playSetButton').click();
+  assert.equal(document.getElementById('transitionBadge').textContent, 'SET LIVE · MORPHING', 'stage overlay combines live cue transport with an active scene transition');
+  const transitionBlackoutKey = { code: 'KeyB', key: 'b', target: document.getElementById('stage'), preventDefault() {}, stopImmediatePropagation() {} };
+  fireWindow('keydown', transitionBlackoutKey);
+  assert.equal(document.getElementById('transitionBadge').textContent, 'BLACKOUT', 'blackout takes precedence over a live scene transition');
+  fireWindow('keydown', { code: 'Space', key: ' ', target: document.getElementById('stage'), preventDefault() {}, stopImmediatePropagation() {} });
+  assert.equal(document.getElementById('transitionBadge').textContent, 'SET LIVE · MORPHING', 'blackout recovery restores the live transition context');
+  document.getElementById('playSetButton').click();
+  api.applySession(baseline);
+  const completionSet = { ...structuredClone(baseline), tempo: 180, cues: [{ ...structuredClone(baseline.cues[0]), duration: 1 }] };
+  api.applySession(completionSet);
+  document.getElementById('playSetButton').click();
+  await new Promise((resolve) => setTimeout(resolve, 1600));
+  assert.equal(document.getElementById('readinessReadout').textContent, 'SET COMPLETE · NO AUDIO · OUTPUT READY');
+  assert.match(document.getElementById('transitionBadge').textContent, /^SET COMPLETE(?: · MORPHING)?$/, 'stage overlay names completed set transport');
+  assert.equal(document.getElementById('setProgress').textContent, '0:01 / 0:01 · 1 bars · COMPLETE');
+  assert.equal(document.getElementById('cueCurrentReadout').textContent, 'Set complete · Play set to restart');
+  assert.doesNotMatch(document.getElementById('cueList').innerHTML, /aria-current="step"/, 'completed set clears the active cue step');
+  assert.equal(document.getElementById('playSetButton').textContent, '↻ Restart set');
+  document.getElementById('rehearsalNotesInput').value = 'Completed take · ready to export'; document.getElementById('rehearsalNotesInput').dispatchEvent({ type: 'input' });
+  assert.equal(document.getElementById('readinessReadout').textContent, 'SET COMPLETE · NO AUDIO · OUTPUT READY', 'metadata notes keep the completed transport handoff');
+  assert.equal(document.getElementById('playSetButton').textContent, '↻ Restart set', 'metadata notes do not turn completion into a hidden restart');
+  document.getElementById('playSetButton').click();
+  assert.match(document.getElementById('readinessReadout').textContent, /^SET LIVE · NO AUDIO · OUTPUT READY$/);
+  assert.match(document.getElementById('transitionBadge').textContent, /^SET LIVE(?: · MORPHING)?$/, 'stage overlay names live set transport');
+  assert.equal(document.getElementById('playSetButton').textContent, 'Ⅱ Pause set');
+  document.getElementById('playSetButton').click();
+  api.applySession(baseline);
+  document.getElementById('playSetButton').click();
+  assert.match(document.getElementById('readinessReadout').textContent, /^SET LIVE · NO AUDIO · OUTPUT READY$/);
+  document.getElementById('playSetButton').click();
+  assert.match(document.getElementById('readinessReadout').textContent, /^SET PAUSED · NO AUDIO · OUTPUT READY$/);
+  assert.match(document.getElementById('transitionBadge').textContent, /^SET PAUSED(?: · MORPHING)?$/, 'stage overlay names paused cue transport');
+  document.getElementById('playSetButton').click();
+  const liveRehearsalReport = api.rehearsalReport();
+  assert.equal(liveRehearsalReport.set.playing, true, 'live report captures transport state');
+  assert.deepEqual(liveRehearsalReport.set.currentCue, { index: 0, label: baseline.cues[0].label, scene: api.sceneDefs[baseline.cues[0].scene].id, preset: api.sceneDefs[baseline.cues[0].scene].presets[baseline.cues[0].preset][0], duration: baseline.cues[0].duration });
+  document.getElementById('playSetButton').click();
+  api.applySession(baseline);
+  assert.equal(document.getElementById('preflightReadout').textContent, 'Capability check not run');
+  assert.equal(document.getElementById('preflightTimestamp').textContent, 'Not run');
+  const preflight = api.preflightReport();
+  assert.deepEqual(Object.keys(preflight), ['audioApi', 'microphone', 'tabAudio', 'recording', 'pngFolder', 'localSave', 'webglApi']);
+  assert.ok(Object.values(preflight).every((value) => typeof value === 'boolean'));
+  document.getElementById('preflightButton').click();
+  assert.match(document.getElementById('preflightReadout').textContent, /^(Fallbacks needed|All browser APIs available)/);
+  if (!preflight.webglApi) assert.match(document.getElementById('preflightReadout').textContent, /WebGL API/);
+  assert.equal(document.getElementById('preflightChecklist').hidden, false);
+  assert.match(document.getElementById('preflightTimestamp').textContent, /^Checked .+/);
+  assert.match(document.getElementById('preflightChecklist').innerHTML, /Audio API · (available|fallback)/);
+  assert.match(document.getElementById('preflightChecklist').innerHTML, /WebGL API · (available|fallback)/);
+  assert.equal(api.preflightReport().webglApi, false, 'preflight does not confuse a 2D-only test surface with usable WebGL');
+  if (!preflight.recording) assert.match(document.getElementById('preflightChecklist').innerHTML, /Capture still or Render PNGs/);
+  if (!preflight.pngFolder) assert.match(document.getElementById('preflightChecklist').innerHTML, /Frame plan or WebM/);
+  if (!preflight.webglApi) assert.match(document.getElementById('preflightChecklist').innerHTML, /Choose a 2D scene/);
+  const deviceInput = document.getElementById('rehearsalDeviceInput');
+  deviceInput.value = 'Studio Mac · Chrome 152'; deviceInput.dispatchEvent({ type: 'change' });
+  assert.equal(api.sessionData().deviceLabel, 'Studio Mac · Chrome 152', 'device label persists in the portable session');
+  const rehearsalReport = api.exportRehearsalReport();
+  assert.equal(rehearsalReport.format, 'phosphor-rehearsal-report-v1');
+  assert.equal(rehearsalReport.version, 1);
+  assert.equal(rehearsalReport.deviceLabel, 'Studio Mac · Chrome 152', 'rehearsal report carries the named device label');
+  assert.equal(rehearsalReport.recordingMimeType, null, 'rehearsal report makes an unavailable MIME path explicit');
+  assert.equal(rehearsalReport.recordingStatus, 'idle', 'rehearsal report carries an explicit idle recording outcome');
+  assert.ok(rehearsalReport.renderer && ['webgl', 'cpu', 'canvas-2d', 'warming-up', 'unavailable'].includes(rehearsalReport.renderer.path), 'rehearsal report records a bounded renderer path');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /Studio Mac · Chrome 152$/, 'saved report readout names the setup label');
+  const reportCache = JSON.parse(localStorage.getItem('phosphor-rehearsal-report-cache-v1'));
+  assert.equal(reportCache.format, 'phosphor-rehearsal-report-cache-v1', 'saved report metadata survives in local storage');
+  assert.equal(reportCache.version, 1);
+  assert.equal(reportCache.deviceLabel, 'Studio Mac · Chrome 152', 'report cache keeps the saved setup label');
+  assert.deepEqual(reportCache.preflight, preflight, 'report cache keeps the capability matrix for reopen');
+  assert.equal(reportCache.preflightCheckedAt, rehearsalReport.preflightCheckedAt, 'report cache keeps the preflight check timestamp');
+  assert.equal(reportCache.recordingMimeType, rehearsalReport.recordingMimeType, 'report cache keeps the recording MIME detail');
+  assert.equal(reportCache.recordingStatus, rehearsalReport.recordingStatus, 'report cache keeps the recording outcome');
+  assert.deepEqual(reportCache.observedChecks, rehearsalReport.observedChecks, 'report cache keeps observed-check metadata for reopen');
+  assert.equal(reportCache.observedChecksAt, rehearsalReport.observedChecksAt, 'report cache keeps the observed-check timestamp');
+  assert.equal(typeof reportCache.performanceSignature, 'string', 'report cache keeps the measured performance signature');
+  assert.doesNotMatch(JSON.stringify(reportCache), /mediaUrl|MediaStream|credential/i, 'report cache stores metadata only, not media or credentials');
+  assert.equal(api.restoreRehearsalReportCache(reportCache), true, 'saved report metadata can be restored after reopen');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /Studio Mac · Chrome 152 · reopened$/, 'reopened report metadata names the setup label');
+  assert.equal(document.getElementById('preflightChecklist').hidden, false, 'reopened report restores the capability checklist');
+  assert.match(document.getElementById('preflightTimestamp').textContent, /^Checked .+/);
+  const legacyReportCache = structuredClone(reportCache); delete legacyReportCache.performanceSignature;
+  assert.equal(api.restoreRehearsalReportCache(legacyReportCache), true, 'legacy report cache without performance metadata remains reopenable');
+  const legacyMimeCache = structuredClone(reportCache); delete legacyMimeCache.recordingMimeType;
+  assert.equal(api.restoreRehearsalReportCache(legacyMimeCache), true, 'legacy report cache without MIME metadata remains reopenable');
+  assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path · not recorded', 'legacy MIME cache absence stays explicit in the UI');
+  const legacyRecordingCache = structuredClone(reportCache); delete legacyRecordingCache.recordingStatus;
+  assert.equal(api.restoreRehearsalReportCache(legacyRecordingCache), true, 'legacy report cache without recording outcome remains reopenable');
+  const invalidRecordingCache = structuredClone(reportCache); invalidRecordingCache.recordingStatus = 'maybe';
+  assert.equal(api.restoreRehearsalReportCache(invalidRecordingCache), false, 'report cache rejects unknown recording outcomes');
+  const importedSame = api.importRehearsalReport(rehearsalReport);
+  assert.equal(importedSame.comparison.equivalent, true, 'imported report compares as equivalent to the current set');
+  assert.equal(document.getElementById('clearRehearsalReportButton').disabled, false, 'clear action enables after a report is loaded');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /matches current set$/, 'imported report readout confirms a matching set');
+  assert.equal(document.getElementById('rehearsalReportImportEvidenceReadout').textContent, 'Loaded evidence · 0/5 · Not started', 'loaded report exposes captured evidence progress');
+  assert.equal(api.rehearsalReportImport().setName, rehearsalReport.setName, 'imported report remains available as read-only metadata');
+  assert.deepEqual(importedSame.report.set, rehearsalReport.set, 'imported report preserves bounded transport metadata');
+  assert.deepEqual(api.sessionData().cues, baseline.cues, 'loading a report does not mutate the live cue set');
+  window.__phosphorMetrics.sceneTimes[0].push(8, 10, 12);
+  api.updatePerformanceReadout(5000);
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /current state changed$/, 'measured performance changes mark a loaded report stale');
+  api.importRehearsalReport(rehearsalReport);
+  window.__phosphorMetrics.reset();
+  document.getElementById('pauseButton').click();
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /current state changed$/, 'loaded report becomes visibly stale after a live transport change');
+  document.getElementById('pauseButton').click();
+  const changedReport = structuredClone(rehearsalReport); changedReport.cuePlan[0].label = 'Alternate opening'; changedReport.deviceLabel = 'Second room';
+  const importedDifferent = api.importRehearsalReport(changedReport);
+  assert.equal(importedDifferent.comparison.sameSet, false, 'imported report detects a different cue plan');
+  assert.equal(importedDifferent.comparison.sameDevice, false, 'imported report detects a different device label');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: set plan · device$/, 'imported report readout names the differences');
+  const changedRuntimeReport = structuredClone(rehearsalReport); changedRuntimeReport.audio.source = 'DEMO'; changedRuntimeReport.audio.status = 'active'; changedRuntimeReport.audio.history = [{ source: 'DEMO', status: 'active' }]; changedRuntimeReport.performance = { sampleCount: 1, medianMs: 20, p95Ms: 20, sceneFrames: 1, status: 'over-target', statusLabel: 'Over target', targetMs: 16.67, heapUsedBytes: null };
+  const importedRuntimeDifferent = api.importRehearsalReport(changedRuntimeReport);
+  assert.equal(importedRuntimeDifferent.comparison.sameAudio, false, 'imported report detects a different audio source path');
+  assert.equal(importedRuntimeDifferent.comparison.sameAudioHistory, false, 'imported report detects a different audio-source transition history');
+  assert.equal(importedRuntimeDifferent.comparison.samePerformance, false, 'imported report detects a different measured performance result');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: audio source · performance$/, 'imported report readout names source and performance differences');
+  const changedEnvironmentImport = structuredClone(rehearsalReport); changedEnvironmentImport.environment.language = 'de-DE';
+  const importedEnvironmentDifferent = api.importRehearsalReport(changedEnvironmentImport);
+  assert.equal(importedEnvironmentDifferent.comparison.sameEnvironment, false, 'imported report detects a different runtime context');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: runtime$/, 'imported report readout names runtime differences');
+  const changedRendererReport = structuredClone(rehearsalReport); changedRendererReport.renderer = { path: 'cpu', width: 320, height: 200, outputWidth: rehearsalReport.width, outputHeight: rehearsalReport.height };
+  const importedRendererDifferent = api.importRehearsalReport(changedRendererReport);
+  assert.equal(importedRendererDifferent.comparison.sameRenderer, false, 'imported report detects a different renderer path');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: renderer path$/, 'imported report readout names renderer-path differences');
+  const changedRecordingReport = structuredClone(rehearsalReport); changedRecordingReport.recordingStatus = 'failed';
+  const importedRecordingDifferent = api.importRehearsalReport(changedRecordingReport);
+  assert.equal(importedRecordingDifferent.comparison.sameRecording, false, 'imported report detects a different recording outcome');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: recording result$/, 'imported report readout names recording-result differences');
+  const validTransportCue = { index: 0, label: rehearsalReport.cuePlan[0].label, scene: rehearsalReport.cuePlan[0].scene, preset: rehearsalReport.cuePlan[0].preset, duration: rehearsalReport.cuePlan[0].duration };
+  const mismatchedTotalBars = structuredClone(rehearsalReport); mismatchedTotalBars.set.totalBars += 1;
+  assert.throws(() => api.validateRehearsalReport(mismatchedTotalBars), /transport is malformed/, 'transport rejects aggregate bars that disagree with the cue plan');
+  const inconsistentActiveCue = structuredClone(rehearsalReport); inconsistentActiveCue.set.currentCue = { ...validTransportCue, label: 'Wrong cue' };
+  assert.throws(() => api.validateRehearsalReport(inconsistentActiveCue), /transport is inconsistent/, 'transport rejects active cue metadata that disagrees with the cue plan');
+  const playingWithoutCue = structuredClone(rehearsalReport); playingWithoutCue.set.playing = true; playingWithoutCue.set.currentCue = null;
+  assert.throws(() => api.validateRehearsalReport(playingWithoutCue), /transport is malformed/, 'transport rejects a live report without an active cue');
+  const completedWithCue = structuredClone(rehearsalReport); completedWithCue.set.complete = true; completedWithCue.set.currentCue = validTransportCue;
+  assert.throws(() => api.validateRehearsalReport(completedWithCue), /transport is malformed/, 'transport rejects a completed report with an active cue');
+  const playingAndComplete = structuredClone(rehearsalReport); playingAndComplete.set.playing = true; playingAndComplete.set.complete = true; playingAndComplete.set.currentCue = validTransportCue;
+  assert.throws(() => api.validateRehearsalReport(playingAndComplete), /transport is malformed/, 'transport rejects a report that is both live and complete');
+  const pausedTransportReport = structuredClone(rehearsalReport); pausedTransportReport.set.currentCue = validTransportCue;
+  assert.deepEqual(api.validateRehearsalReport(pausedTransportReport).set.currentCue, validTransportCue, 'transport preserves a valid paused active cue');
+  assert.equal(api.compareRehearsalReports(pausedTransportReport, pausedTransportReport).sameTransport, true, 'paused transport compares equal to itself');
+  const completedTransportReport = structuredClone(rehearsalReport); completedTransportReport.set.complete = true;
+  assert.equal(api.validateRehearsalReport(completedTransportReport).set.complete, true, 'transport preserves a valid completed state');
+  assert.equal(api.compareRehearsalReports(completedTransportReport, completedTransportReport).sameTransport, true, 'completed transport compares equal to itself');
+  const changedTransportReport = structuredClone(rehearsalReport); changedTransportReport.set.playing = true; changedTransportReport.set.complete = false; changedTransportReport.set.currentCue = { index: 0, label: changedTransportReport.cuePlan[0].label, scene: changedTransportReport.cuePlan[0].scene, preset: changedTransportReport.cuePlan[0].preset, duration: changedTransportReport.cuePlan[0].duration };
+  const importedTransportDifferent = api.importRehearsalReport(changedTransportReport);
+  assert.equal(importedTransportDifferent.comparison.sameTransport, false, 'imported report detects a different active transport state');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: transport$/, 'imported report readout names transport differences');
+  const legacyTransportReport = structuredClone(rehearsalReport); delete legacyTransportReport.set;
+  assert.equal(api.validateRehearsalReport(legacyTransportReport).set, null, 'legacy reports without transport metadata remain valid');
+  assert.equal(api.compareRehearsalReports(rehearsalReport, legacyTransportReport).sameTransport, true, 'legacy reports without transport metadata skip only the new transport comparison');
+  api.importRehearsalReport(rehearsalReport);
+  assert.ok(api.rehearsalReportImport(), 'loaded report is available before clearing');
+  document.getElementById('clearRehearsalReportButton').click();
+  assert.equal(api.rehearsalReportImport(), null, 'clearing a loaded report removes the read-only body');
+  assert.equal(document.getElementById('rehearsalReportImportReadout').textContent, 'No report loaded', 'clearing a loaded report resets the comparison readout');
+  assert.equal(document.getElementById('rehearsalReportImportEvidenceReadout').textContent, 'No loaded evidence', 'clearing a loaded report resets its evidence readout');
+  assert.equal(api.clearRehearsalReportImport(), false, 'clearing again is a guarded no-op');
+  assert.deepEqual(api.sessionData().cues, baseline.cues, 'clearing a loaded report does not mutate the live cue set');
+  api.importRehearsalReport(rehearsalReport);
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, cuePlan: [] }), /cue plan/, 'malformed imported reports are rejected');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, outputProfile: '1920x1200' }), /output profile is inconsistent/, 'imported reports reject dimensions that disagree with the HD profile');
+  const dishonestEvidence = { ...rehearsalReport, observedChecks: { microphone: false, tabAudio: false, recording: false, pngFolder: false, performance: false }, observedEvidence: { status: 'complete', label: 'Complete', completed: 5, total: 5 } };
+  assert.throws(() => api.validateRehearsalReport(dishonestEvidence), /evidence status is inconsistent/, 'imported evidence cannot claim completion beyond its check flags');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { source: 'PRIVATE STREAM' } }), /audio source is malformed/, 'imported reports reject unknown audio source labels');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { source: 'NO AUDIO', status: 'maybe' } }), /audio status is malformed/, 'imported reports reject unknown audio outcomes');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { source: 'NO AUDIO', status: 'idle', history: [{ source: 'DEMO', status: 'active' }] } }), /audio history is inconsistent/, 'imported reports reject audio histories that do not end at the reported outcome');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { source: 'DEMO', status: 'active', history: [{ source: 'MIC', status: 'active' }] } }), /audio history is inconsistent/, 'imported reports reject active source labels that disagree with history');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { source: 'DEMO', status: 'failed', history: [{ source: 'FILE', status: 'failed' }] } }), /audio history is inconsistent/, 'imported reports reject failed source labels that disagree with history');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { source: 'NO AUDIO', status: 'idle', history: [{ source: 'PRIVATE STREAM', status: 'active' }] } }), /audio history is malformed/, 'imported reports reject unknown audio history sources');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { source: 'NO AUDIO', status: 'idle', history: Array.from({ length: 9 }, () => ({ source: 'NO AUDIO', status: 'idle' })) } }), /audio history is malformed/, 'imported reports bound audio history length');
+  const legacyAudioReport = structuredClone(rehearsalReport); delete legacyAudioReport.audio.history;
+  assert.deepEqual(api.validateRehearsalReport(legacyAudioReport).audio.history, [], 'legacy reports without audio history remain readable');
+  const legacyEnvironmentReport = structuredClone(rehearsalReport); delete legacyEnvironmentReport.environment;
+  assert.equal(api.validateRehearsalReport(legacyEnvironmentReport).environment, null, 'legacy reports without runtime context remain readable');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, environment: { ...rehearsalReport.environment, viewport: { width: 0, height: rehearsalReport.environment.viewport.height } } }), /environment is malformed/, 'imported reports reject invalid runtime viewport bounds');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, renderer: { path: 'shader', width: 960, height: 600, outputWidth: 960, outputHeight: 600 } }), /renderer is malformed/, 'imported reports reject unknown renderer paths');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, recordingStatus: 'maybe' }), /recording status is malformed/, 'imported reports reject unknown recording outcomes');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, performance: { sampleCount: 1, medianMs: 20, p95Ms: 20, sceneFrames: 1, status: 'within-target', statusLabel: 'Within target', targetMs: 16.67, heapUsedBytes: null } }), /performance status is inconsistent/, 'imported reports reject contradictory performance status');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, performance: { sampleCount: 2, medianMs: 40, p95Ms: 10, sceneFrames: 2, status: 'within-target', statusLabel: 'Within target', targetMs: 16.67, heapUsedBytes: null } }), /performance is malformed/, 'imported reports reject a median above the p95 tail');
+  assert.deepEqual(rehearsalReport.preflight, preflight, 'rehearsal report carries the checked capability matrix');
+  assert.equal(rehearsalReport.performance.heapUsedBytes, null, 'rehearsal report makes optional heap telemetry explicit');
+  assert.equal(rehearsalReport.performance.status, 'warming-up', 'rehearsal report marks unmeasured performance as warming up');
+  assert.equal(rehearsalReport.performance.targetMs, 16.67, 'rehearsal report carries the selected profile target');
+  assert.equal(rehearsalReport.outputProfile, '960x600');
+  assert.equal(rehearsalReport.scene, api.sceneDefs[0].id);
+  assert.equal(typeof rehearsalReport.environment.userAgent, 'string', 'rehearsal report captures a bounded browser identifier');
+  assert.ok(rehearsalReport.environment.viewport.width > 0 && rehearsalReport.environment.viewport.height > 0, 'rehearsal report captures a positive viewport');
+  assert.ok(rehearsalReport.environment.devicePixelRatio >= .1 && rehearsalReport.environment.devicePixelRatio <= 8, 'rehearsal report bounds pixel ratio');
+  assert.equal(rehearsalReport.audio.source, 'NO AUDIO', 'rehearsal report records source kind without media payloads');
+  assert.deepEqual(api.validateRehearsalReport(rehearsalReport).environment, rehearsalReport.environment, 'rehearsal report preserves bounded runtime context on validation');
+  const changedEnvironmentReport = structuredClone(rehearsalReport); changedEnvironmentReport.environment.viewport.width += 1;
+  assert.equal(api.compareRehearsalReports(rehearsalReport, changedEnvironmentReport).sameEnvironment, false, 'rehearsal report comparison detects a changed runtime viewport');
+  assert.doesNotMatch(JSON.stringify(rehearsalReport), /mediaUrl|MediaStream|credential/i, 'rehearsal report omits media and credential fields');
+  assert.equal(rehearsalReport.set.cueCount, baseline.cues.length, 'rehearsal report carries cue count');
+  assert.equal(rehearsalReport.set.totalBars, baseline.cues.reduce((sum, cue) => sum + cue.duration, 0), 'rehearsal report carries aggregate cue bars');
+  assert.equal(rehearsalReport.set.currentCue, null, 'idle rehearsal report has no active cue');
+  assert.equal(rehearsalReport.cuePlan.length, baseline.cues.length, 'rehearsal report carries a bounded cue plan');
+  assert.deepEqual(rehearsalReport.cuePlan[0], { index: 0, label: baseline.cues[0].label, scene: api.sceneDefs[baseline.cues[0].scene].id, preset: api.sceneDefs[baseline.cues[0].scene].presets[baseline.cues[0].preset][0], duration: baseline.cues[0].duration });
+  assert.equal(rehearsalReport.readiness, document.getElementById('readinessReadout').textContent);
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+/);
+  deviceInput.value = 'x'.repeat(120); deviceInput.dispatchEvent({ type: 'change' });
+  assert.equal(api.sessionData().deviceLabel.length, 80, 'device labels are bounded for local reports');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'changing the device label marks a saved report stale');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /Studio Mac · Chrome 152 · state changed$/, 'stale report readout keeps the captured setup label');
+  const boundedDeviceReport = api.exportRehearsalReport();
+  assert.equal(boundedDeviceReport.deviceLabel.length, 80, 'bounded device labels round-trip through reports');
+  const freshReportText = document.getElementById('rehearsalReportReadout').textContent;
+  api.stopAudioSource();
+  assert.equal(document.getElementById('rehearsalReportReadout').textContent, freshReportText, 'a no-op source cleanup leaves the report fresh');
+  api.applySession(api.sessionData());
+  assert.equal(document.getElementById('rehearsalReportReadout').textContent, freshReportText, 'reapplying the same session leaves the report fresh');
+  document.getElementById('setNameInput').value = baseline.setName;
+  document.getElementById('setNameInput').dispatchEvent({ type: 'change' });
+  assert.equal(api.setCueDuration(0, baseline.cues[0].duration), true, 'unchanged cue duration is accepted without mutation');
+  assert.equal(api.setCueLabel(0, baseline.cues[0].label), true, 'unchanged cue label is accepted without mutation');
+  document.getElementById('exploreModeButton').click();
+  document.getElementById('presetStrip').querySelectorAll('[data-preset]')[0].click();
+  assert.equal(document.getElementById('rehearsalReportReadout').textContent, freshReportText, 'no-op edits leave the report fresh');
+  const observedMic = document.getElementById('observedMicCheck');
+  observedMic.checked = true; observedMic.dispatchEvent({ type: 'change' });
+  assert.equal(api.sessionData().rehearsalChecks.microphone, true, 'observed device checks persist in the portable session');
+  assert.match(api.sessionData().rehearsalChecksAt, /^\d{4}-\d{2}-\d{2}T/, 'observed checks capture an ISO timestamp in the portable session');
+  assert.match(document.getElementById('observedChecksTimestamp').textContent, /^Updated .+/, 'observed check timestamp is visible in the card');
+  assert.equal(document.getElementById('observedChecksReadout').textContent, '1/5 observed checks recorded', 'observed check progress updates immediately');
+  assert.equal(document.getElementById('observedChecksNext').textContent, 'Evidence in progress · remaining: Tab audio · Recording · PNG folder · Performance', 'observed checks remove completed outcomes from the remaining summary');
+  assert.deepEqual(api.rehearsalReport().observedEvidence, { status: 'in-progress', label: 'In progress', completed: 1, total: 5 }, 'report marks partial evidence as in progress');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'observed checks mark a saved report stale');
+  const observedReport = api.exportRehearsalReport();
+  assert.equal(observedReport.observedChecks.microphone, true, 'rehearsal report carries observed device checks');
+  assert.equal(observedReport.observedChecksAt, api.sessionData().rehearsalChecksAt, 'rehearsal report carries the observed-check timestamp');
+  const resetNotes = api.sessionData().notes; const resetPreflight = api.rehearsalReport().preflight;
+  document.getElementById('clearObservedChecksButton').click();
+  assert.equal(api.sessionData().rehearsalChecks.microphone, false, 'reset clears only observed checks');
+  assert.equal(api.sessionData().notes, resetNotes, 'reset preserves rehearsal notes');
+  assert.deepEqual(api.rehearsalReport().preflight, resetPreflight, 'reset preserves the capability matrix');
+  assert.equal(document.getElementById('observedChecksReadout').textContent, '0/5 observed checks recorded', 'reset clears observed progress');
+  assert.equal(api.sessionData().rehearsalChecksAt, null, 'reset clears the observed-check timestamp for a fresh pass');
+  assert.equal(document.getElementById('observedChecksTimestamp').textContent, 'Not recorded', 'reset clears the visible observed-check timestamp');
+  assert.deepEqual(api.rehearsalReport().observedEvidence, { status: 'not-started', label: 'Not started', completed: 0, total: 5 }, 'reset returns report evidence status to not started');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'reset marks the saved report stale');
+  assert.equal(api.resetObservedChecks(), false, 'reset is a no-op when observations are already clear');
+  const timestampOnlyChecks = structuredClone(api.sessionData()); timestampOnlyChecks.rehearsalChecksAt = new Date().toISOString(); api.applySession(timestampOnlyChecks);
+  assert.match(document.getElementById('observedChecksTimestamp').textContent, /^Updated .+/, 'timestamp-only observed evidence remains visible');
+  assert.equal(api.resetObservedChecks(), true, 'reset clears an observation timestamp even when all flags are false');
+  assert.equal(api.sessionData().rehearsalChecksAt, null, 'timestamp-only reset clears the persisted observation timestamp');
+  const checksVariant = structuredClone(api.sessionData()); checksVariant.rehearsalChecks = { microphone: false, tabAudio: false, recording: false, pngFolder: false, performance: true }; api.applySession(checksVariant);
+  assert.equal(document.getElementById('observedPerformanceCheck').checked, true, 'portable session application restores observed checkboxes');
+  assert.equal(document.getElementById('observedChecksReadout').textContent, '1/5 observed checks recorded', 'portable session application restores observed check progress');
+  assert.equal(document.getElementById('observedChecksNext').textContent, 'Evidence in progress · remaining: Microphone · Tab audio · Recording · PNG folder', 'portable session application restores remaining observed outcomes');
+  const allChecksVariant = structuredClone(api.sessionData()); allChecksVariant.rehearsalChecks = { microphone: true, tabAudio: true, recording: true, pngFolder: true, performance: true }; api.applySession(allChecksVariant);
+  assert.equal(document.getElementById('observedChecksReadout').textContent, '5/5 observed checks recorded', 'all observed outcomes report complete progress');
+  assert.equal(document.getElementById('observedChecksNext').textContent, 'Evidence complete · all observed checks recorded', 'all observed outcomes clear the remaining summary');
+  assert.deepEqual(api.rehearsalReport().observedEvidence, { status: 'complete', label: 'Complete', completed: 5, total: 5 }, 'report marks all recorded evidence complete');
+  api.applySession(baseline);
+  assert.equal(document.getElementById('observedChecksReadout').textContent, '0/5 observed checks recorded', 'baseline restore clears observed check progress');
+  assert.equal(document.getElementById('rehearsalDeviceInput').value, '', 'baseline restore clears the optional device label');
+  const notesInput = document.getElementById('rehearsalNotesInput');
+  notesInput.value = 'Tab audio denied; use local file'; notesInput.dispatchEvent({ type: 'input' });
+  assert.equal(api.sessionData().notes, 'Tab audio denied; use local file', 'rehearsal notes persist in the portable session');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'editing rehearsal notes marks a saved report stale');
+  const reportWithNotes = api.exportRehearsalReport();
+  assert.equal(reportWithNotes.notes, 'Tab audio denied; use local file', 'rehearsal report carries the performer note');
+  const originalInnerWidth = globalThis.innerWidth;
+  globalThis.innerWidth = reportWithNotes.environment.viewport.width + 1;
+  api.renderFrame(3);
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'viewport changes mark the saved report stale');
+  globalThis.innerWidth = originalInnerWidth;
+  assert.doesNotMatch(JSON.stringify(reportWithNotes), /mediaUrl|MediaStream|credential/i, 'rehearsal notes report keeps the existing privacy boundary');
+  const notesVariant = structuredClone(api.sessionData()); notesVariant.notes = 'Second room · local mic passed'; notesVariant.deviceLabel = 'Second room · Mac mini'; api.applySession(notesVariant);
+  assert.equal(document.getElementById('rehearsalNotesInput').value, 'Second room · local mic passed', 'portable session import restores rehearsal notes');
+  assert.equal(document.getElementById('rehearsalDeviceInput').value, 'Second room · Mac mini', 'portable session import restores the device label');
+  notesInput.value = 'x'.repeat(1200); notesInput.dispatchEvent({ type: 'input' });
+  assert.equal(api.sessionData().notes.length, 1000, 'rehearsal notes are bounded for local reports');
+  api.applySession(baseline);
+  const visualVariant = structuredClone(api.sessionData());
+  visualVariant.params.acid.growth = visualVariant.params.acid.growth > .7 ? .4 : .8;
+  api.applySession(visualVariant);
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'imported visual changes mark a saved report stale');
+  api.applySession(baseline);
+  api.exportRehearsalReport();
+  document.getElementById('pauseButton').click();
+  assert.equal(document.getElementById('transitionBadge').textContent, 'PAUSED', 'stage overlay names a globally paused visual stage');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'pause changes mark the report stale');
+  document.getElementById('pauseButton').click();
+  assert.equal(document.getElementById('transitionBadge').textContent, 'LIVE', 'stage overlay returns to live visual transport');
+  api.exportRehearsalReport();
+  const blackoutKey = { code: 'KeyB', key: 'b', target: document.getElementById('stage'), preventDefault() {}, stopImmediatePropagation() {} };
+  fireWindow('keydown', blackoutKey);
+  assert.equal(document.getElementById('transitionBadge').textContent, 'BLACKOUT', 'stage overlay names blackout recovery state');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'blackout changes mark a saved report stale immediately');
+  api.renderFrame(1);
+  fireWindow('keydown', { code: 'Space', key: ' ', target: document.getElementById('stage'), preventDefault() {}, stopImmediatePropagation() {} });
+  api.renderFrame(2);
+  assert.equal(document.getElementById('transitionBadge').textContent, 'LIVE', 'stage overlay returns to live after blackout recovery');
+  api.exportRehearsalReport();
+  document.getElementById('stage').dispatchEvent({ type: 'contextlost', preventDefault() {} });
+  assert.equal(document.getElementById('transitionBadge').textContent, 'RECOVERING', 'stage overlay names graphics recovery state');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'graphics loss marks a saved report stale immediately');
+  document.getElementById('stage').dispatchEvent({ type: 'contextrestored' });
+  assert.equal(document.getElementById('transitionBadge').textContent, 'LIVE', 'stage overlay returns to live after graphics recovery');
+  document.getElementById('playSetButton').click();
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'transport changes mark a saved report stale');
+  document.getElementById('playSetButton').click();
+  document.getElementById('playSetButton').click();
+  api.exportRehearsalReport();
+  const progressNow = globalThis.performance.now;
+  globalThis.performance.now = () => 400;
+  api.renderFrame(400);
+  globalThis.performance.now = progressNow;
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /^Saved .+ · state changed$/, 'live cue progress marks a saved report stale');
+  document.getElementById('playSetButton').click();
+  const originalStorageSetItem = localStorage.setItem;
+  localStorage.setItem = () => { throw new Error('quota'); };
+  assert.equal(api.preflightReport().localSave, false, 'preflight catches read-only or full local storage');
+  localStorage.setItem = originalStorageSetItem;
+  assert.equal(api.preflightReport().localSave, true, 'preflight recognizes writable local storage');
   const scoreInput = { ...structuredClone(baseline), activeScene: 7, tempo: 96, cues: structuredClone(api.performanceScoreCues), options: { ...baseline.options, quality: '720', workflow: 'perform' } }; const score = api.validateSession(scoreInput); assert.equal(score.cues.length, 9); assert.equal(score.cues.reduce((sum, cue) => sum + cue.duration, 0), 576); assert.ok(score.cues.every((cue) => cue.sceneParamsSnapshot && cue.paletteSnapshot && cue.effectsSnapshot)); api.applySession(scoreInput); assert.deepEqual(api.sessionData().cues[0].sceneParamsSnapshot, score.cues[0].sceneParamsSnapshot); assert.deepEqual(api.sessionData().cues[0].paletteSnapshot, score.cues[0].paletteSnapshot); assert.deepEqual(api.sessionData().cues[0].effectsSnapshot, score.cues[0].effectsSnapshot); document.getElementById('playSetButton').click(); assert.equal(api.sessionData().activeScene, 0); assert.equal(api.sessionData().params.acid.growth, score.cues[0].sceneParamsSnapshot.growth); assert.equal(api.sessionData().palette.primary, score.cues[0].paletteSnapshot.primary); document.getElementById('playSetButton').click(); api.applySession(baseline); const priorSet = structuredClone(api.sessionData()); document.getElementById('loadScoreButton').click(); assert.equal(api.sessionData().cues.length, 9); document.getElementById('restoreScoreButton').click(); assert.deepEqual(api.sessionData().cues, priorSet.cues); assert.equal(document.getElementById('restoreScoreButton').hidden, true);
   document.getElementById('performModeButton').click(); assert.equal(api.sessionData().options.workflow, 'perform'); assert.equal(document.getElementById('workflowHint').textContent, 'Essential controls'); document.getElementById('exploreModeButton').click(); assert.equal(api.sessionData().options.workflow, 'explore');
   const olderFull = structuredClone(baseline); delete olderFull.params.cathedrals.lighting; delete olderFull.params.cathedrals.material; delete olderFull.params.cathedrals.fog; delete olderFull.params.cathedrals.emission; api.applySession(olderFull); assert.equal(api.sessionData().params.cathedrals.lighting, baseline.params.cathedrals.lighting); assert.equal(api.sessionData().params.cathedrals.material, baseline.params.cathedrals.material);
-  const quality = document.getElementById('qualityInput'); quality.value = '720'; quality.dispatchEvent({ type: 'change' }); assert.deepEqual([document.getElementById('stage').width, document.getElementById('stage').height], [480, 300]); assert.deepEqual([api.frameManifest().width, api.frameManifest().height, api.frameManifest().targetCadence], [480, 300, 30]); quality.value = '1080'; quality.dispatchEvent({ type: 'change' }); assert.deepEqual([document.getElementById('stage').width, document.getElementById('stage').height], [960, 600]); const stage = document.getElementById('stage'); const brightness = document.getElementById('brightnessInput'); brightness.value = '70'; brightness.dispatchEvent({ type: 'input' }); const captured = api.compositeOutputFrame(); assert.deepEqual([captured.width, captured.height], [960, 600]); assert.equal(captured.context.drawImageFilters.at(-1), 'brightness(0.7)'); brightness.value = '100'; brightness.dispatchEvent({ type: 'input' }); api.compositeOutputFrame(); assert.equal(captured.context.drawImageFilters.at(-1), 'none'); brightness.value = '70'; brightness.dispatchEvent({ type: 'input' }); document.getElementById('pauseButton').click(); stage.context.fillRectCalls = 0; api.renderFrame(1); api.renderFrame(2); assert.equal(stage.context.fillRectCalls, 0); assert.equal(stage.style.filter, 'brightness(0.7)'); api.compositeOutputFrame(); assert.equal(captured.context.drawImageFilters.at(-1), 'brightness(0.7)'); document.getElementById('pauseButton').click();
+  const quality = document.getElementById('qualityInput'); quality.value = '720'; quality.dispatchEvent({ type: 'change' }); assert.deepEqual([document.getElementById('stage').width, document.getElementById('stage').height], [480, 300]); assert.deepEqual([api.frameManifest().width, api.frameManifest().height, api.frameManifest().targetCadence], [480, 300, 30]); quality.value = 'native'; quality.dispatchEvent({ type: 'change' }); assert.deepEqual([document.getElementById('stage').width, document.getElementById('stage').height], [1920, 1200]); assert.deepEqual([api.frameManifest().width, api.frameManifest().height, api.frameManifest().targetCadence], [1920, 1200, 60]); assert.equal(api.sessionData().options.quality, 'native'); quality.value = '1080'; quality.dispatchEvent({ type: 'change' }); assert.deepEqual([document.getElementById('stage').width, document.getElementById('stage').height], [960, 600]); const stage = document.getElementById('stage'); const brightness = document.getElementById('brightnessInput'); brightness.value = '70'; brightness.dispatchEvent({ type: 'input' }); const captured = api.compositeOutputFrame(); assert.deepEqual([captured.width, captured.height], [960, 600]); assert.equal(captured.context.drawImageFilters.at(-1), 'brightness(0.7)'); brightness.value = '100'; brightness.dispatchEvent({ type: 'input' }); api.compositeOutputFrame(); assert.equal(captured.context.drawImageFilters.at(-1), 'none'); brightness.value = '70'; brightness.dispatchEvent({ type: 'input' }); document.getElementById('pauseButton').click(); stage.context.fillRectCalls = 0; api.renderFrame(1); api.renderFrame(2); assert.equal(stage.context.fillRectCalls, 0); assert.equal(stage.style.filter, 'brightness(0.7)'); api.compositeOutputFrame(); assert.equal(captured.context.drawImageFilters.at(-1), 'brightness(0.7)'); document.getElementById('pauseButton').click();
   api.switchScene(9, 0); assert.match(document.getElementById('stageActionHint').textContent, /CHOOSE SIBLING/); assert.match(document.getElementById('stage')['aria-label'], /choose sibling/); document.getElementById('mobilePauseButton').click(); assert.equal(document.getElementById('transportState').textContent, 'PAUSED'); document.getElementById('mobilePauseButton').click(); assert.equal(document.getElementById('transportState').textContent, 'RUNNING'); api.switchScene(3, 0); assert.match(document.getElementById('stageActionHint').textContent, /SHAPE FLOW/); assert.ok(api.sessionData().params.magnetic.density > .8); api.switchScene(5, 0); assert.match(document.getElementById('stageActionHint').textContent, /STEER FEEDERS TOWARD FOOD/); assert.ok(api.sessionData().params.aquarium.population > .2 && api.sessionData().params.aquarium.food > .7); document.getElementById('playSetButton').click(); assert.equal(document.getElementById('mobilePlayButton').textContent, document.getElementById('playSetButton').textContent); document.getElementById('playSetButton').click(); assert.equal(document.getElementById('mobilePlayButton').textContent, document.getElementById('playSetButton').textContent); api.applySession(baseline);
 
   const hostile = structuredClone(baseline); hostile.params.acid.growth = .63; hostile.evolution = { nodes: [null] };
@@ -89,6 +520,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const hostileFrameMetadata = structuredClone(baseline); hostileFrameMetadata.phaseMeasurement = { model: 'invented', arcId: 'night-return' };
   assert.throws(() => api.applySession(hostileFrameMetadata), /Phase measurement metadata/);
   assert.deepEqual(api.sessionData(), baseline);
+  const hostileChecks = structuredClone(baseline); hostileChecks.rehearsalChecks = { microphone: false, extra: true };
+  assert.throws(() => api.validateSession(hostileChecks), /Observed rehearsal checks/);
+  const hostileCheckType = structuredClone(baseline); hostileCheckType.rehearsalChecks = { microphone: 'passed' };
+  assert.throws(() => api.validateSession(hostileCheckType), /Observed rehearsal checks/);
 
   const legacy = { ...structuredClone(baseline), presetIndex: baseline.presetIndex.slice(0, 3), params: { acid: baseline.params.acid, tapestry: baseline.params.tapestry, feedback: baseline.params.feedback }, cues: baseline.cues.filter((cue) => cue.scene < 3).slice(0, 1) };
   api.applySession(legacy);
@@ -108,6 +543,27 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.switchScene(0, 0); api.applySession(savedMeasurementSession); assert.deepEqual(api.sessionData().phaseMeasurementArchive, archivedMeasurement); assert.equal(api.phaseMeasurement().phase, 'idle'); assert.deepEqual(api.frameManifest().phaseMeasurementArchive, archivedMeasurement); const reopenedLiveText = document.getElementById('phaseActionReadout').textContent; const reopenedArchiveText = document.getElementById('phaseArchiveReadout').textContent; assert.match(reopenedLiveText, /Live current/); assert.match(reopenedLiveText, /idle/); assert.match(reopenedArchiveText, /Saved capture \(archived\)/); assert.match(reopenedArchiveText, /Night Return/); assert.match(reopenedArchiveText, /release/); assert.match(reopenedArchiveText, /progress 1\.00/); assert.notEqual(api.phaseMeasurement().phase, archivedMeasurement.measurement.phase); assert.notEqual(reopenedLiveText, reopenedArchiveText);
   api.switchScene(3, 0); const magneticStart = api.magneticRenderState().particles; assert.ok(magneticStart.some((value) => value !== 0)); for (let frame = 0; frame < 180; frame += 1) api.stepMagnetic(.016); const magneticAfter = api.magneticRenderState().particles; assert.ok(magneticAfter.every(Number.isFinite)); assert.ok(magneticAfter.some((value, index) => Math.abs(value - magneticStart[index]) > 0.00001)); const orbitRadii = []; const magneticState = api.magneticRenderState(); for (let i = 0; i < 449; i += 1) { const index = i * 4; const attractor = i % 2 ? 2 : 0; orbitRadii.push(Math.hypot(magneticState.particles[index] - magneticState.attractors[attractor], magneticState.particles[index + 1] - magneticState.attractors[attractor + 1])); } const meanOrbitRadius = orbitRadii.reduce((sum, value) => sum + value, 0) / orbitRadii.length; assert.ok(meanOrbitRadius > .05 && meanOrbitRadius < .3, `mean orbit radius ${meanOrbitRadius}`); api.setTestElapsed(0); api.inject(.2, .3, .8); api.setTestElapsed(.5); api.inject(.8, .7, .6); const timed = api.sessionData().gestureHistory.filter((event) => event.scene === 3); assert.equal(timed.length, 2); assert.equal(timed[0].timing, 'beat'); assert.ok(timed[1].beat > timed[0].beat); api.replayGestureSequence(); assert.deepEqual(api.magneticReplayState(), { index: 0, total: 2, playing: true }); document.getElementById('pauseButton').click(); api.setTestElapsed(2); api.stepMagnetic(.016); assert.equal(api.magneticReplayState().index, 0); document.getElementById('pauseButton').click(); api.stepMagnetic(.016); assert.ok(api.magneticReplayState().index >= 1); api.setTestElapsed(3); api.stepMagnetic(.016); assert.equal(api.magneticReplayState().playing, false); api.switchScene(0, 0);
   api.applySession(baseline);
+  if (!api.renderRuntimeState().paused) document.getElementById('pauseButton').click();
+  window.__phosphorMetrics.sceneTimes[0].push(8, 10, 12);
+  api.updatePerformanceReadout(7000);
+  const measuredReportBeforeOffline = api.exportRehearsalReport();
+  assert.equal(measuredReportBeforeOffline.performance.sampleCount, 3, 'offline freshness fixture starts with measured timing');
+  const measuredReportTextBeforeOffline = document.getElementById('rehearsalReportReadout').textContent;
+  const differentProfileManifest = api.frameManifest();
+  differentProfileManifest.frames = 1;
+  differentProfileManifest.outputProfile = '480x300'; differentProfileManifest.width = 480; differentProfileManifest.height = 300; differentProfileManifest.frameRate = 30; differentProfileManifest.targetCadence = 30; differentProfileManifest.stepSeconds = 1 / 30;
+  const measuredOfflineResult = await api.renderOfflineFrames(JSON.parse(JSON.stringify(differentProfileManifest)), { writer: { async writeFrame() {} } });
+  assert.equal(measuredOfflineResult.status, 'complete', 'different-profile offline render completes for the freshness fixture');
+  assert.equal(api.rehearsalReport().performance.sampleCount, 3, 'offline profile swaps restore the measured timing samples');
+  assert.equal(document.getElementById('rehearsalReportReadout').textContent, measuredReportTextBeforeOffline, 'offline profile swaps preserve a measured report for the restored state');
+  assert.equal(api.previewCue(0), true, 'cue preview creates a paused transport checkpoint');
+  const pausedCueReport = api.exportRehearsalReport();
+  const pausedCueReportText = document.getElementById('rehearsalReportReadout').textContent;
+  await api.renderOfflineFrames(JSON.parse(JSON.stringify(differentProfileManifest)), { writer: { async writeFrame() {} } });
+  assert.equal(api.renderRuntimeState().currentCue, 0, 'offline restoration keeps the paused cue position');
+  assert.equal(api.rehearsalReport().set.currentCue.index, 0, 'restored cue position remains reportable after offline rendering');
+  assert.equal(api.rehearsalReport().set.currentCue.label, pausedCueReport.set.currentCue.label, 'restored cue identity remains intact after offline rendering');
+  assert.equal(document.getElementById('rehearsalReportReadout').textContent, pausedCueReportText, 'offline rendering preserves a paused cue report for the restored state');
   document.getElementById('frameCountInput').value = '2';
   const offlineBase = structuredClone(api.sessionData());
   const frameRecords = [];
@@ -124,7 +580,12 @@ test('session repair validates transactionally, migrates legacy saves, and prese
     const beforeRuntime = api.renderRuntimeState();
     const beforeOps = document.getElementById('stage').context.drawOps;
     const start = frameRecords.length;
+    if (sceneIndex === 0 && !api.renderRuntimeState().paused) document.getElementById('pauseButton').click();
+    const savedReportText = sceneIndex === 0 ? (api.exportRehearsalReport(), document.getElementById('rehearsalReportReadout').textContent) : null;
     const result = await api.renderOfflineFrames(JSON.parse(JSON.stringify(manifest)), { writer: { async writeFrame(name, blob, metadata) {
+      if (sceneIndex === 0) { assert.equal(document.getElementById('tabAudioButton').disabled, true, 'tab source is locked during offline render'); assert.equal(document.getElementById('stopAudioButton').disabled, true, 'stop source control is locked during offline render'); assert.equal(document.getElementById('audioSensitivity').disabled, true, 'audio response is locked during offline render'); assert.equal(document.getElementById('rehearsalReportButton').disabled, true, 'rehearsal report is locked during offline render'); assert.equal(document.getElementById('rehearsalReportInput').disabled, true, 'report import is locked during offline render'); assert.equal(document.getElementById('rehearsalDeviceInput').disabled, true, 'device label is locked during offline render'); assert.equal(document.getElementById('clearObservedChecksButton').disabled, true, 'observed check reset is locked during offline render'); assert.equal(document.getElementById('mobilePlayButton').disabled, true, 'mobile transport is locked during offline render'); }
+      if (sceneIndex === 0) { assert.equal(document.getElementById('clearRehearsalReportButton').disabled, true, 'loaded-report clear action is locked during offline render'); }
+      if (sceneIndex === 0) assert.equal(document.getElementById('frameCancelButton').disabled, false, 'frame cancel is enabled once rendering starts');
       assert.equal(blob.type, 'image/png');
       assert.ok(blob.size > 0);
       writesInFlight += 1;
@@ -136,7 +597,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
     assert.equal(result.status, 'complete');
     assert.equal(result.written, 2);
     const records = frameRecords.slice(start);
-    assert.deepEqual(records.map(({ name }) => name), [`phosphor-${manifest.scene}-001.png`, `phosphor-${manifest.scene}-002.png`]);
+    assert.deepEqual(records.map(({ name }) => name), [`phosphor-untitled-set-${manifest.scene}-001.png`, `phosphor-untitled-set-${manifest.scene}-002.png`]);
     assert.deepEqual(records.map(({ width, height }) => [width, height]), [[manifest.width, manifest.height], [manifest.width, manifest.height]]);
     assert.deepEqual(records.map(({ time }) => time), [0, manifest.stepSeconds]);
     assert.deepEqual(records.map(({ frameClock }) => frameClock), [manifest.frameClock, manifest.frameClock]);
@@ -150,10 +611,195 @@ test('session repair validates transactionally, migrates legacy saves, and prese
     assert.equal(restoredRuntime.topologyPhase, beforeRuntime.topologyPhase);
     assert.equal(restoredRuntime.topologyIntersections, beforeRuntime.topologyIntersections);
     assert.equal(document.getElementById('pauseButton').textContent, 'Resume');
+    if (savedReportText) assert.equal(document.getElementById('rehearsalReportReadout').textContent, savedReportText, 'offline rendering preserves a report for the restored state');
+    if (sceneIndex === 0) { assert.match(document.getElementById('readinessReadout').textContent, /^(READY|PAUSED) · NO AUDIO · OUTPUT READY$/, 'readiness clears PNG render state immediately'); assert.equal(document.getElementById('tabAudioButton').disabled, false, 'tab source unlocks after offline render'); assert.equal(document.getElementById('stopAudioButton').disabled, false, 'stop source control unlocks after offline render'); assert.equal(document.getElementById('audioSensitivity').disabled, false, 'audio response unlocks after offline render'); assert.equal(document.getElementById('rehearsalReportButton').disabled, false, 'rehearsal report unlocks after offline render'); assert.equal(document.getElementById('rehearsalReportInput').disabled, false, 'report import unlocks after offline render'); assert.equal(document.getElementById('clearRehearsalReportButton').disabled, false, 'loaded-report clear action unlocks after offline render'); assert.equal(document.getElementById('clearObservedChecksButton').disabled, false, 'observed check reset unlocks after offline render'); assert.equal(document.getElementById('mobilePlayButton').disabled, false, 'mobile transport unlocks after offline render'); }
     assert.equal(api.sessionData().activeScene, sceneIndex);
   }
   assert.equal(frameRecords.length, api.sceneDefs.length * 2);
   assert.equal(maxWritesInFlight, 1);
+
+  if (api.renderRuntimeState().paused) document.getElementById('pauseButton').click();
+  const previewButton = document.getElementById('cueList').querySelectorAll('[data-preview-cue]').find((button) => button.dataset.previewCue === '1');
+  previewButton.click();
+  assert.equal(api.renderRuntimeState().currentCue, 1, 'cue preview selects the requested cue');
+  assert.equal(api.sessionData().activeScene, api.sessionData().cues[1].scene, 'cue preview recalls the saved scene');
+  assert.match(document.getElementById('setProgress').textContent, /PAUSED/, 'cue preview exposes a paused set position');
+  assert.match(document.getElementById('transitionBadge').textContent, /^SET PAUSED(?: · MORPHING)?$/, 'cue preview updates the stage transport badge immediately');
+  assert.match(document.getElementById('cueCurrentReadout').textContent, /^Cue 2\/\d+ · .+ · \d+:\d{2} left · PAUSED$/, 'cue preview exposes the named current cue and remaining time');
+  assert.equal((document.getElementById('cueList').innerHTML.match(/aria-current="step"/g) || []).length, 1, 'cue preview marks exactly one current step');
+  assert.match(document.getElementById('cueList').innerHTML, /class="cue current"[^>]*role="listitem"[^>]*aria-posinset="2"[^>]*aria-current="step"/, 'cue preview marks the selected row');
+  document.getElementById('playSetButton').click();
+  assert.match(document.getElementById('transitionBadge').textContent, /^SET LIVE(?: · MORPHING)?$/, 'running cue updates the stage transport badge');
+  assert.match(document.getElementById('cueCurrentReadout').textContent, /^Cue 2\/\d+ · .+ · \d+:\d{2} left · LIVE$/, 'running set exposes the named current cue and remaining time');
+  document.getElementById('playSetButton').click();
+  api.applySession(baseline);
+  api.applySession(scoreInput);
+  const duplicateSource = structuredClone(api.sessionData().cues[0]);
+  const duplicateButton = document.getElementById('cueList').querySelectorAll('[data-duplicate-cue]').find((button) => button.dataset.duplicateCue === '0');
+  duplicateButton.click();
+  const duplicatedCue = api.sessionData().cues[1];
+  assert.equal(api.sessionData().cues.length, 10, 'duplicate action adds one cue');
+  assert.equal(duplicatedCue.label, `${duplicateSource.label.slice(0, 53)} · copy`, 'duplicate receives an editable bounded label');
+  assert.deepEqual(duplicatedCue.sceneParamsSnapshot, duplicateSource.sceneParamsSnapshot, 'duplicate preserves scene snapshot');
+  assert.deepEqual(duplicatedCue.effectsSnapshot, duplicateSource.effectsSnapshot, 'duplicate preserves effects snapshot');
+  const duplicatedPortable = structuredClone(api.sessionData()); api.applySession(duplicatedPortable);
+  assert.equal(api.sessionData().cues[1].label, duplicatedCue.label, 'duplicate order survives portable session application');
+  assert.equal(api.duplicateCue(999), false, 'invalid duplicate indices are rejected');
+  api.applySession(baseline);
+  const cueOrder = api.sessionData().cues.map((cue) => cue.label);
+  assert.match(document.getElementById('cueList').innerHTML, /data-move-cue="0"/);
+  const firstCueDown = document.getElementById('cueList').querySelectorAll('[data-move-cue]').find((button) => button.dataset.moveCue === '0' && button.dataset.direction === '1');
+  firstCueDown.click();
+  assert.equal(api.sessionData().cues[1].label, cueOrder[0], 'cue move button reorders the set');
+  assert.equal(api.moveCue(1, -1), true);
+  assert.deepEqual(api.sessionData().cues.map((cue) => cue.label), cueOrder, 'moving a cue back restores the original order');
+  assert.equal(api.moveCue(0, -1), false, 'first cue cannot move earlier');
+  assert.equal(api.moveCue(0, 2), false, 'cue moves are limited to adjacent positions');
+  document.getElementById('playSetButton').click(); document.getElementById('playSetButton').click();
+  assert.equal(api.renderRuntimeState().currentCue, 0, 'pausing a set keeps the active cue');
+  const pausedCueLabel = api.sessionData().cues[0].label;
+  assert.equal(api.moveCue(0, 1), true);
+  assert.equal(api.renderRuntimeState().currentCue, 1, 'reordering preserves the paused cue identity');
+  assert.equal(api.sessionData().cues[1].label, pausedCueLabel);
+  const removeBeforeCurrent = document.getElementById('cueList').querySelectorAll('[data-remove-cue]').find((button) => button.dataset.removeCue === '0');
+  removeBeforeCurrent.click();
+  assert.equal(api.renderRuntimeState().currentCue, 0, 'removing a cue before the paused cue keeps its position');
+  assert.equal(api.sessionData().cues[0].label, pausedCueLabel);
+  document.getElementById('cueList').querySelectorAll('[data-remove-cue]')[0].click();
+  assert.equal(api.renderRuntimeState().currentCue, -1, 'removing the paused cue clears its transport position');
+  api.applySession(baseline);
+
+  assert.equal(api.setCueDuration(0, 12), true);
+  assert.equal(api.sessionData().cues[0].duration, 12);
+  assert.match(document.getElementById('cueList').innerHTML, /data-duration-cue="0"/);
+  const cueDurationInput = document.getElementById('cueList').querySelectorAll('[data-duration-cue]')[0];
+  cueDurationInput.value = '13'; cueDurationInput.dispatchEvent({ type: 'change' });
+  assert.equal(api.sessionData().cues[0].duration, 13, 'duration editor change event updates the cue');
+  assert.equal(api.setCueLabel(0, 'Opening build'), true);
+  assert.equal(api.sessionData().cues[0].label, 'Opening build');
+  const cueLabelInput = document.getElementById('cueList').querySelectorAll('[data-label-cue]')[0];
+  cueLabelInput.value = 'Named from editor'; cueLabelInput.dispatchEvent({ type: 'change' });
+  assert.equal(api.sessionData().cues[0].label, 'Named from editor');
+  assert.equal(api.setCueLabel(0, '   '), false, 'blank cue labels are rejected');
+  const longCueLabel = 'x'.repeat(80); assert.equal(api.setCueLabel(0, longCueLabel), true);
+  assert.equal(api.sessionData().cues[0].label.length, 60, 'cue labels are capped at 60 characters');
+  assert.match(document.getElementById('setProgress').textContent, /bars/, 'set readout exposes total bars');
+  assert.equal(api.setCueDuration(0, 99), true);
+  assert.equal(api.sessionData().cues[0].duration, 64, 'cue duration is capped at 64 bars');
+  assert.equal(api.setCueDuration(0, 'not-a-number'), false);
+  assert.equal(api.sessionData().cues[0].duration, 64);
+  assert.equal(api.setCueDuration(0, ''), false, 'blank cue durations are rejected');
+  assert.equal(api.setCueDuration(0, '1.5'), false, 'fractional cue durations are rejected');
+  const fractionalDuration = structuredClone(api.sessionData()); fractionalDuration.cues[0].duration = 1.5;
+  assert.throws(() => api.validateSession(fractionalDuration), /Cue duration is outside its 1–64 bound/);
+  const editedPortable = structuredClone(api.sessionData()); editedPortable.cues[0].duration = 17; editedPortable.cues[0].label = 'Portable build';
+  assert.equal(api.validateSession(editedPortable).cues[0].duration, 17);
+  const whitespaceLabel = structuredClone(editedPortable); whitespaceLabel.cues[0].label = '   ';
+  assert.equal(api.validateSession(whitespaceLabel).cues[0].label, 'Unnamed cue', 'blank imported labels fall back to a visible name');
+  const whitespaceSetName = structuredClone(editedPortable); whitespaceSetName.name = '   ';
+  assert.equal(api.validateSession(whitespaceSetName).name, 'Untitled set', 'blank imported set names fall back to a visible name');
+  const namedPortable = structuredClone(editedPortable); namedPortable.name = 'Portable rehearsal';
+  api.applySession(namedPortable);
+  assert.equal(api.sessionData().name, 'Portable rehearsal', 'set name survives portable session application');
+  api.applySession(editedPortable);
+  assert.equal(api.sessionData().cues[0].duration, 17, 'edited duration survives portable session application');
+  assert.equal(api.sessionData().cues[0].label, 'Portable build', 'edited label survives portable session application');
+  api.applySession(offlineBase);
+  document.getElementById('playSetButton').click();
+  assert.equal(document.getElementById('cueList').querySelectorAll('[data-duration-cue]')[0].disabled, true, 'live timing inputs are disabled');
+  assert.equal(document.getElementById('cueList').querySelectorAll('[data-label-cue]')[0].disabled, true, 'live label inputs are disabled');
+  assert.equal(document.getElementById('cueList').querySelectorAll('[data-move-cue]')[1].disabled, true, 'live reorder controls are disabled');
+  assert.equal(document.getElementById('cueList').querySelectorAll('[data-preview-cue]')[0].disabled, true, 'live preview controls are disabled');
+  assert.equal(document.getElementById('cueList').querySelectorAll('[data-duplicate-cue]')[0].disabled, true, 'live duplicate controls are disabled');
+  assert.equal(document.getElementById('cueList').querySelectorAll('[data-remove-cue]')[0].disabled, true, 'live remove controls are disabled');
+  assert.equal(document.getElementById('setNameInput').disabled, true, 'live set name is disabled');
+  assert.equal(api.setCueDuration(0, 8), false, 'live sets cannot change cue timing');
+  assert.equal(api.setCueLabel(0, 'Live edit'), false, 'live sets cannot change cue labels');
+  document.getElementById('playSetButton').click();
+  let testNow = 0; const originalNow = globalThis.performance.now; globalThis.performance.now = () => testNow;
+  api.applySession(offlineBase); document.getElementById('playSetButton').click(); testNow = 60000; document.getElementById('playSetButton').click();
+  assert.equal(api.setCueDuration(0, 1), true, 'paused cue can be shortened below elapsed time');
+  document.getElementById('playSetButton').click(); assert.equal(api.renderRuntimeState().currentCue, 1, 'shortened completed cue advances on resume');
+  globalThis.performance.now = originalNow;
+  api.applySession(offlineBase);
+  if (!api.renderRuntimeState().paused) document.getElementById('pauseButton').click();
+  api.setTestAudioBands({ low: .2, mid: .45, high: .7 });
+  assert.equal(api.audioResponseLevel('acid'), .45, 'Acid responds to the mid band');
+  api.setTestAudioBands({ low: 1, mid: 0, high: 0 });
+  api.setTestAudioLevel(1);
+  assert.equal(api.audioResponseLevel('acid'), 0, 'a silent mapped band stays silent');
+  assert.equal(api.audioResponseLevel('feedback'), 1, 'Feedback responds to the low band');
+  assert.equal(api.audioResponseLevel('julia'), 0, 'Julia stays silent when its high band is silent');
+  assert.equal(api.audioResponseLevel('interference'), 0, 'Interference stays silent when its high band is silent');
+  api.setTestAudioBands({ low: .2, mid: .45, high: .7 });
+  const bandsBeforeOffline = api.audioState().bands;
+  assert.equal(api.audioState().bandsReady, true);
+  const bandRestoreResult = await api.renderOfflineFrames(api.frameManifest(), { writer: { async writeFrame() {} } });
+  assert.equal(bandRestoreResult.status, 'complete');
+  assert.deepEqual(api.audioState().bands, bandsBeforeOffline, 'offline rendering restores live audio-band state');
+  assert.equal(api.audioState().bandsReady, true);
+  api.stopAudioSource(); assert.equal(document.getElementById('audioStatus').textContent, 'No music connected'); assert.equal(api.rehearsalReport().audio.status, 'idle', 'manual source stop returns the audio outcome to idle'); api.stopAudioSource('Shared tab ended · choose another source'); assert.equal(document.getElementById('audioStatus').textContent, 'Shared tab ended · choose another source'); assert.equal(api.rehearsalReport().audio.status, 'ended', 'ended source status remains explicit after cleanup');
+
+  // Native source lifecycle guards stop empty or ended streams without leaking tracks.
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const audioContextDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
+  const webkitAudioContextDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'webkitAudioContext');
+  class FakeAudioNode { connect() {} disconnect() {} stop() {} }
+  class FakeAnalyser extends FakeAudioNode { constructor() { super(); this.fftSize = 512; this.frequencyBinCount = 256; } getByteTimeDomainData(data) { data.fill(128); } getByteFrequencyData(data) { data.fill(0); } }
+  class FakeAudioContext {
+    constructor() { this.currentTime = 0; this.destination = {}; }
+    createAnalyser() { return new FakeAnalyser(); }
+    createGain() { const gain = new FakeAudioNode(); gain.gain = { value: 0 }; return gain; }
+    createMediaStreamDestination() { return { stream: { getAudioTracks: () => [], getTracks: () => [] } }; }
+    createMediaStreamSource() { return new FakeAudioNode(); }
+    resume() { return Promise.resolve(); }
+  }
+  const makeTrack = () => ({ stopped: false, onended: null, stop() { this.stopped = true; } });
+  const micTracks = [makeTrack(), makeTrack()];
+  const micStream = { getAudioTracks: () => micTracks, getTracks: () => micTracks };
+  const emptyTrack = makeTrack();
+  const emptyMicStream = { getAudioTracks: () => [], getTracks: () => [emptyTrack] };
+  const tabTrack = makeTrack();
+  const mediaDevices = { getUserMedia: async () => micStream, getDisplayMedia: async () => ({ getAudioTracks: () => [], getTracks: () => [tabTrack] }) };
+  Object.defineProperty(globalThis, 'AudioContext', { value: FakeAudioContext, configurable: true, writable: true });
+  Object.defineProperty(globalThis, 'webkitAudioContext', { value: undefined, configurable: true, writable: true });
+  Object.defineProperty(globalThis, 'navigator', { value: { userAgent: 'native-source-test', language: 'en', mediaDevices }, configurable: true, writable: true });
+  await api.toggleMic();
+  assert.equal(api.audioState().hasMic, true, 'microphone connects when audio tracks are present');
+  assert.equal(api.rehearsalReport().audio.status, 'active', 'report records an active microphone outcome');
+  assert.deepEqual(api.rehearsalReport().audio.history.at(-1), { source: 'MIC', status: 'active' }, 'report attributes active microphone history');
+  assert.equal(document.getElementById('audioOutcomeReadout').textContent, 'Source active', 'source dock exposes an active microphone outcome');
+  assert.equal(typeof micTracks[1].onended, 'function', 'microphone watches every returned track');
+  micTracks[1].onended();
+  assert.equal(api.audioState().hasMic, false, 'an ended microphone track tears down the source');
+  assert.equal(api.rehearsalReport().audio.status, 'ended', 'report records an ended microphone outcome');
+  assert.deepEqual(api.rehearsalReport().audio.history.at(-1), { source: 'MIC', status: 'ended' }, 'report attributes ended microphone history');
+  assert.equal(document.getElementById('audioOutcomeReadout').textContent, 'Source ended', 'source dock exposes an ended microphone outcome');
+  assert.equal(micTracks.every((track) => track.stopped), true, 'microphone teardown stops all tracks');
+  mediaDevices.getUserMedia = async () => emptyMicStream;
+  await api.toggleMic();
+  assert.equal(emptyTrack.stopped, true, 'empty microphone streams are stopped immediately');
+  assert.equal(api.audioState().hasMic, false, 'empty microphone streams do not become active');
+  assert.equal(api.rehearsalReport().audio.status, 'empty', 'report records an empty microphone outcome');
+  assert.deepEqual(api.rehearsalReport().audio.history.at(-1), { source: 'MIC', status: 'empty' }, 'report attributes empty microphone history');
+  assert.equal(document.getElementById('audioOutcomeReadout').textContent, 'Source empty', 'source dock exposes an empty microphone outcome');
+  assert.equal(document.getElementById('audioStatus').textContent, 'Microphone returned no audio · try an audio file');
+  await api.connectTabAudio();
+  assert.equal(tabTrack.stopped, true, 'tab streams without audio are stopped immediately');
+  assert.equal(api.rehearsalReport().audio.status, 'empty', 'report records an empty tab-audio outcome');
+  assert.deepEqual(api.rehearsalReport().audio.history.at(-1), { source: 'TAB AUDIO', status: 'empty' }, 'report attributes empty tab-audio history');
+  assert.equal(document.getElementById('audioOutcomeReadout').textContent, 'Source empty', 'source dock retains the empty tab-audio outcome');
+  assert.equal(document.getElementById('audioStatus').textContent, 'No audio was shared · select a browser tab and enable Share tab audio');
+  await api.toggleDemo();
+  assert.equal(api.audioState().hasDemo, true, 'demo beat becomes the active local source');
+  assert.equal(api.audioState().demoStep, 1, 'demo beat schedules the first 16th-note step');
+  assert.equal(document.getElementById('demoAudioButton').textContent, 'Stop beat', 'demo source names the beat while active');
+  assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat/);
+  api.stopAudioSource();
+  assert.equal(api.audioState().hasDemo, false, 'stopping music clears the demo beat');
+  if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator;
+  if (audioContextDescriptor) Object.defineProperty(globalThis, 'AudioContext', audioContextDescriptor); else delete globalThis.AudioContext;
+  if (webkitAudioContextDescriptor) Object.defineProperty(globalThis, 'webkitAudioContext', webkitAudioContextDescriptor); else delete globalThis.webkitAudioContext;
 
   const phasePlanSession = structuredClone(api.sessionData());
   api.switchScene(8, 0);
@@ -214,11 +860,16 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   globalThis.showDirectoryPicker = async () => { await pickerGate; const error = new DOMException('User canceled', 'AbortError'); throw error; };
   const pickerPromise = api.renderOfflineFrames(pendingPickerPlan);
   await Promise.resolve();
+  assert.equal(document.getElementById('frameCancelButton').hidden, false, 'frame cancel remains visible while the chooser is open');
+  assert.equal(document.getElementById('frameCancelButton').disabled, true, 'frame cancel is disabled until a folder is chosen');
+  assert.match(document.getElementById('frameCancelButton').title, /output folder/);
+  assert.equal(api.cancelOfflineRender(), false, 'programmatic cancellation is also refused while the chooser is pending');
   await assert.rejects(api.renderOfflineFrames(pendingPickerPlan), /already running/);
   const pickerBefore = structuredClone(api.sessionData());
   releasePicker();
   const pickerResult = await pickerPromise;
   assert.equal(pickerResult.status, 'canceled');
+  assert.equal(document.getElementById('frameCancelButton').disabled, false, 'frame cancel is restored after chooser cancellation');
   assert.deepEqual(api.sessionData(), pickerBefore);
   delete globalThis.showDirectoryPicker;
 
@@ -237,7 +888,29 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(Array.from(new Uint8Array(adapterState.parentWrites.get('phosphor-acid-001.png'))), [1, 2, 3]);
   assert.equal(adapterState.folders.size, 1);
   const folder = [...adapterState.folders.values()][0];
-  assert.deepEqual(Array.from(new Uint8Array(folder.files.get('phosphor-acid-001.png').bytes)), Array.from(new Uint8Array(await new Blob(['new']).arrayBuffer())));
+  assert.deepEqual(Array.from(new Uint8Array(folder.files.get('phosphor-untitled-set-acid-001.png').bytes)), Array.from(new Uint8Array(await new Blob(['new']).arrayBuffer())));
+  await writer.writeMetadata({ format: 'phosphor-frame-output-v1', version: 1, status: 'complete', written: 1, total: 1 });
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(new Uint8Array(folder.files.get('phosphor-untitled-set-frame-output.json').bytes))), { format: 'phosphor-frame-output-v1', version: 1, status: 'complete', written: 1, total: 1 });
+
+  const acceptedWrites = [];
+  const acceptedFiles = new Map();
+  const acceptedDirectory = {
+    async getDirectoryHandle(name, options) {
+      if (!options.create) throw Object.assign(new Error('missing'), { name: 'NotFoundError' });
+      const folder = { async getFileHandle(fileName) { const file = { bytes: null, async createWritable() { return { async write(blob) { file.bytes = await blob.arrayBuffer(); if (fileName.endsWith('.png')) { assert.equal(document.getElementById('frameCancelButton').disabled, false, 'accepted picker enables cancellation before the first write'); acceptedWrites.push({ fileName, size: blob.size }); } }, async close() {}, async abort() {} }; } }; acceptedFiles.set(fileName, file); return file; } };
+      return folder;
+    }
+  };
+  document.getElementById('frameCountInput').value = '1';
+  globalThis.showDirectoryPicker = async () => acceptedDirectory;
+  const acceptedPickerResult = await api.renderOfflineFrames(api.frameManifest());
+  assert.equal(acceptedPickerResult.status, 'complete');
+  assert.equal(acceptedWrites.length, 1, 'accepted picker writes one requested frame');
+  const acceptedMetadata = JSON.parse(new TextDecoder().decode(new Uint8Array(acceptedFiles.get('phosphor-untitled-set-frame-output.json').bytes)));
+  assert.deepEqual({ status: acceptedMetadata.status, written: acceptedMetadata.written, total: acceptedMetadata.total }, { status: 'complete', written: 1, total: 1 });
+  assert.equal(document.getElementById('frameCancelButton').hidden, true, 'frame cancel hides after accepted render');
+  assert.equal(document.getElementById('frameCancelButton').disabled, false, 'frame cancel is restored after accepted render');
+  delete globalThis.showDirectoryPicker;
 
   api.applySession(offlineBase);
   api.switchScene(9, 0);
@@ -266,22 +939,28 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(api.sessionData(), invalidBefore);
 
   const cancelRecords = [];
+  let cancelMetadata = null;
   const cancelSessionBefore = structuredClone(api.sessionData());
-  const canceled = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame(name) { cancelRecords.push(name); if (cancelRecords.length === 1) api.cancelOfflineRender(); } } });
+  const canceled = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame(name) { cancelRecords.push(name); if (cancelRecords.length === 1) api.cancelOfflineRender(); }, async writeMetadata(metadata) { cancelMetadata = metadata; } } });
   assert.equal(canceled.status, 'canceled');
   assert.equal(canceled.written, 1);
   assert.equal(cancelRecords.length, 1);
+  assert.deepEqual({ status: cancelMetadata.status, written: cancelMetadata.written, total: cancelMetadata.total }, { status: 'canceled', written: 1, total: deterministicPlan.frames });
   assert.equal(document.getElementById('frameCancelButton').hidden, true);
   assert.deepEqual(api.sessionData(), cancelSessionBefore);
   assert.ok(api.stagePixelStats().visiblePixels > 0);
   assert.equal(api.renderRuntimeState().elapsed, 0);
 
   let failedWrites = 0;
+  let failureMetadata = null;
   const failureSessionBefore = structuredClone(api.sessionData());
-  const failed = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame() { failedWrites += 1; if (failedWrites === 2) throw new Error('disk full'); } } });
+  const failed = await api.renderOfflineFrames(deterministicPlan, { writer: { async writeFrame() { failedWrites += 1; if (failedWrites === 2) throw new Error('disk full'); }, async writeMetadata(metadata) { failureMetadata = metadata; } } });
   assert.equal(failed.status, 'failed');
   assert.equal(failed.written, 1);
   assert.match(failed.error, /disk full/);
+  assert.deepEqual({ status: failureMetadata.status, written: failureMetadata.written, total: failureMetadata.total }, { status: 'failed', written: 1, total: deterministicPlan.frames });
+  assert.match(document.getElementById('frameProgress').textContent, /^Failed · 1 PNGs written · use still, WebM, or Frame plan$/, 'folder failure names the actionable fallback');
+  assert.match(document.getElementById('toast').textContent, /still, WebM, or Frame plan remain available/, 'folder failure toast keeps the fallback visible');
   assert.deepEqual(api.sessionData(), failureSessionBefore);
   assert.ok(api.stagePixelStats().visiblePixels > 0);
   assert.equal(api.renderRuntimeState().elapsed, 0);
@@ -372,12 +1051,60 @@ test('session repair validates transactionally, migrates legacy saves, and prese
     start() { this.state = 'recording'; }
     stop() { this.state = 'inactive'; }
   };
+  const captureStreamProbe = FakeCanvas.prototype.captureStream;
+  FakeCanvas.prototype.captureStream = true;
+  assert.equal(api.preflightReport().recording, false, 'preflight rejects a non-callable captureStream implementation');
+  FakeCanvas.prototype.captureStream = captureStreamProbe;
+  assert.equal(api.preflightReport().recording, true, 'preflight recognizes a supported WebM MIME path');
+  document.getElementById('preflightButton').click();
+  assert.match(document.getElementById('recordingMimeReadout').textContent, /^WebM path · video\/webm;codecs=vp9,opus$/, 'preflight names the accepted WebM MIME path');
+  const supportedMimeProbe = globalThis.MediaRecorder.isTypeSupported;
+  globalThis.MediaRecorder.isTypeSupported = () => false;
+  assert.equal(api.preflightReport().recording, false, 'preflight rejects a recorder with no supported WebM MIME');
+  document.getElementById('preflightButton').click();
+  assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path · none accepted', 'preflight names the missing WebM MIME path');
+  globalThis.MediaRecorder.isTypeSupported = supportedMimeProbe;
   api.toggleRecord(); const oldRecorder = recorders[0]; const oldData = oldRecorder.ondataavailable; const oldStop = oldRecorder.onstop;
+  assert.equal(document.getElementById('recordingStatus').textContent, 'Recording active', 'recording outcome is visible while capture is active');
+  assert.equal(api.rehearsalReport().recordingStatus, 'active', 'reports saved during capture carry the active outcome');
+  assert.match(document.getElementById('readinessReadout').textContent, /^(READY|PAUSED) · NO AUDIO · RECORDING$/, 'readiness updates immediately when recording starts');
+  assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path · video/webm;codecs=vp9,opus', 'active recording names the MIME path actually in use');
+  assert.equal(document.getElementById('recordingMimeReadout')['aria-label'], 'Active WebM recording path video/webm;codecs=vp9,opus', 'active recording MIME path is announced');
+  assert.equal(api.rehearsalReport().recordingMimeType, 'video/webm;codecs=vp9,opus', 'reports saved during capture use the active MIME path');
+  assert.equal(document.getElementById('recordButton').textContent, 'Stop · 0:00', 'recording control starts with an elapsed timer');
+  assert.equal(typeof api.recordingState().startedAt, 'number', 'recording captures a start timestamp');
+  api.syncRecordingReadout(api.recordingState().startedAt + 61_000);
+  assert.equal(document.getElementById('recordButton').textContent, 'Stop · 1:01', 'recording timer advances deterministically');
+  assert.equal(document.getElementById('demoAudioButton').disabled, true, 'demo source is visibly locked while recording'); assert.equal(document.getElementById('micButton').disabled, true, 'microphone source is visibly locked while recording'); assert.equal(document.getElementById('tabAudioButton').disabled, true, 'tab source is visibly locked while recording'); assert.equal(document.getElementById('audioFileInput').disabled, true, 'file source is visibly locked while recording'); assert.equal(document.getElementById('stopAudioButton').disabled, true, 'stop source is visibly locked while recording');
+  await api.toggleDemo(); assert.equal(recorders.length, 1, 'audio source changes are blocked while recording'); assert.equal(api.recordingState().recorder, oldRecorder); assert.match(document.getElementById('toast').textContent, /Stop recording before changing audio source/);
   api.toggleRecord(); api.toggleRecord(); assert.equal(recorders.length, 1, 'restart waits for finalization');
-  oldData({ data: new Blob(['first']) }); oldStop(); assert.equal(streams[0].track.stopped, true);
-  api.toggleRecord(); assert.equal(recorders.length, 2);
+  oldData({ data: new Blob(['first']) }); oldStop(); assert.equal(streams[0].track.stopped, true); assert.equal(document.getElementById('recordButton').textContent, 'Record', 'recording timer returns to the idle action'); assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path · none accepted', 'stopping restores the last preflight MIME result'); assert.equal(document.getElementById('recordingStatus').textContent, 'Recording saved', 'recording outcome confirms a non-empty capture'); assert.equal(api.rehearsalReport().recordingMimeType, null, 'reports after capture return to the cached preflight result'); assert.equal(api.rehearsalReport().recordingStatus, 'saved', 'reports after capture carry the saved outcome'); assert.match(document.getElementById('readinessReadout').textContent, /^(READY|PAUSED) · NO AUDIO · OUTPUT READY$/, 'readiness updates immediately after recording finalizes'); assert.equal(document.getElementById('demoAudioButton').disabled, false, 'demo source unlocks after recording finalizes'); assert.equal(document.getElementById('audioFileInput').disabled, false, 'file source unlocks after recording finalizes'); assert.equal(document.getElementById('stopAudioButton').disabled, false, 'stop source unlocks after recording finalizes');
+  api.toggleRecord(); assert.equal(recorders.length, 2); assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path · video/webm;codecs=vp9,opus', 'a restarted recording reasserts its active MIME path');
   oldData({ data: new Blob(['stale']) }); oldStop(); assert.equal(api.recordingState().chunks, 0); assert.equal(streams[1].track.stopped, false); assert.equal(api.recordingState().recorder, recorders[1]);
-  api.finishRecording(false); delete FakeCanvas.prototype.captureStream; delete globalThis.MediaRecorder;
+  assert.equal(typeof streams[1].track.onended, 'function', 'recording capture tracks install an ended-source handler'); streams[1].track.onended(); assert.equal(streams[1].track.stopped, true, 'an ended recording track is released'); assert.equal(api.recordingState().recorder, null, 'an ended recording track finalizes capture'); assert.equal(document.getElementById('recordingStatus').textContent, 'Recording failed · use still or frame export', 'an ended recording track exposes the fallback outcome');
+  api.finishRecording(false); assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path · none accepted', 'manual cleanup restores the cached MIME result');
+  api.toggleRecord(); const noDataRecorder = recorders[2]; assert.equal(document.getElementById('recordingStatus').textContent, 'Recording active'); noDataRecorder.onstop(); assert.equal(document.getElementById('recordingStatus').textContent, 'Recording returned no data · use still or frame export', 'empty captures stay distinguishable from saved recordings'); assert.equal(api.rehearsalReport().recordingStatus, 'empty');
+  delete FakeCanvas.prototype.captureStream; delete globalThis.MediaRecorder;
+  FakeCanvas.prototype.captureStream = () => { throw new Error('capture unavailable'); }; globalThis.MediaRecorder = class { static isTypeSupported() { return true; } };
+  assert.doesNotThrow(() => api.toggleRecord(), 'capture setup failures are contained'); assert.equal(recorders.length, 3, 'capture setup failure does not create a recorder'); assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path · none accepted', 'capture setup failure leaves the cached MIME result visible'); assert.equal(document.getElementById('recordingStatus').textContent, 'Recording failed · use still or frame export'); assert.match(document.getElementById('toast').textContent, /Recording capture setup failed/);
+  delete FakeCanvas.prototype.captureStream; delete globalThis.MediaRecorder;
+  const stopFailureTracks = [];
+  FakeCanvas.prototype.captureStream = () => { const track = { stopped: false, stop() { this.stopped = true; } }; stopFailureTracks.push(track); return { getTracks: () => [track], addTrack() {} }; };
+  globalThis.MediaRecorder = class {
+    static isTypeSupported() { return true; }
+    constructor() { this.state = 'inactive'; }
+    start() { this.state = 'recording'; }
+    stop() { throw new Error('stop unavailable'); }
+  };
+  api.toggleRecord(); assert.equal(api.recordingState().recorder?.state, 'recording', 'stop-failure fixture starts a recording');
+  assert.doesNotThrow(() => api.toggleRecord(), 'synchronous recorder stop failures are contained');
+  assert.equal(api.recordingState().recorder, null, 'stop failure releases the recorder');
+  assert.equal(stopFailureTracks[0].stopped, true, 'stop failure releases the capture track');
+  assert.equal(document.getElementById('recordButton').textContent, 'Record', 'stop failure restores the record control');
+  assert.equal(document.getElementById('recordingStatus').textContent, 'Recording failed · use still or frame export', 'stop failure remains visible in the output status');
+  assert.equal(api.rehearsalReport().recordingStatus, 'failed', 'reports preserve the failed recording outcome');
+  assert.match(document.getElementById('toast').textContent, /Recording could not stop · capture cleaned up/);
+  delete FakeCanvas.prototype.captureStream; delete globalThis.MediaRecorder;
   api.applySession(baseline);
   }
   api.applySession(baseline);
@@ -411,6 +1138,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.notDeepEqual(api.flightState().pose.position, beforeMove.position);
   fireWindow('keyup', keyEvent('KeyW')); const released = api.flightState().pose;
   api.stepFlight(.05); assert.deepEqual(api.flightState().pose, released);
+  fireWindow('keydown', keyEvent('KeyD')); document.hidden = true; document.dispatchEvent({ type: 'visibilitychange' }); api.stepFlight(.05); assert.deepEqual(api.flightState().pose, released, 'hidden document clears held travel'); document.hidden = false;
   fireWindow('keydown', keyEvent('KeyD')); fireWindow('blur', {}); api.stepFlight(.05);
   assert.deepEqual(api.flightState().pose, released, 'window blur clears held travel');
   document.getElementById('pauseButton').click(); fireWindow('keydown', keyEvent('KeyW')); api.stepFlight(.05);
