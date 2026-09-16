@@ -131,4 +131,5 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Rehearsal preflight now condenses audio, beat-link, timing, and manual-observation state into an explicit local pass snapshot without implying certification.
 - The pass snapshot now distinguishes timing warm-up from over-target timing and requires a sustained 20-minute audio envelope before `READY`.
 - Saved rehearsal reports now preserve a bounded copy of that pass snapshot and compare it on load; reports from before this field remain readable.
+- Loaded reports now surface the captured pass level and gate summary beside the live rehearsal snapshot for handoff clarity.
 - [Earlier public preview evidence](docs/releases/v4.md).
