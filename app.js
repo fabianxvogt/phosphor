@@ -316,7 +316,7 @@ function syncFocusScaleReadout() {
     const rasterScale = displayWidth / activeRenderState.width;
     const roundedRasterScale = rasterScale.toFixed(1);
     const mode = rasterScale > 1.05 ? 'CPU raster upscale' : rasterScale < .95 ? 'CPU raster downscale' : 'native CPU fit';
-    const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && Number(roundedRasterScale) >= 1.5;
+    const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || Number(roundedRasterScale) >= 1.5);
     const hdHint = showHdHint ? ' · HD available' : '';
     syncFocusQualityAction(showHdHint);
     output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedRasterScale}× ${mode}${hdHint}`;
@@ -325,7 +325,7 @@ function syncFocusScaleReadout() {
   }
   const roundedScale = scale.toFixed(1);
   const mode = scale > 1.05 ? 'CSS upscale' : scale < .95 ? 'CSS downscale' : 'native fit';
-  const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && Number(roundedScale) >= 1.5;
+  const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || Number(roundedScale) >= 1.5);
   const hdHint = showHdHint ? ' · HD available' : '';
   syncFocusQualityAction(showHdHint);
   output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedScale}× ${mode}${hdHint}`;
@@ -1124,7 +1124,7 @@ function beatDrivenEffects() {
 function drawScene(advance = false) { effectStack.restore(ctx); if (!advance && ['particles', 'aquarium'].includes(scene().kind)) { ctx.fillStyle = '#04040a'; ctx.fillRect(0, 0, canvas.width, canvas.height); } drawSceneBase(); effectStack.apply(ctx, beatDrivenEffects(), advance); applyBeatVisualPulse(); }
 function markEffectDirty() { if (state.paused && !state.blackout && !state.renderingLost) effectStack.apply(ctx, beatDrivenEffects(), false, false); markDirty(false); }
 function renderEffects() { for (const key of Object.keys(effectDefaults)) { $('effect-' + key).value = effects[key]; $('effect-value-' + key).textContent = `${Math.round(effects[key] * 100)}%`; } }
-function drawPreview() { const intersections = buffers.topology.intersections; drawScene(); buffers.topology.intersections = intersections; }
+function drawPreview() { const intersections = buffers.topology.intersections; drawScene(); buffers.topology.intersections = intersections; syncFocusScaleReadout(); }
 function stepAndDrawBase(dt) { if (scene().kind === 'reaction') stepAcid(dt); else if (scene().kind === 'automaton') stepTapestry(dt); else if (scene().kind === 'feedback') stepFeedback(); else if (scene().kind === 'particles') stepMagnetic(dt); else if (scene().kind === 'geometry') stepCathedrals(dt); else if (scene().kind === 'aquarium') stepAquarium(dt); else if (scene().kind === 'interference') stepInterference(dt); else if (scene().kind === 'topology') stepTopology(dt); else if (scene().kind === 'phase') stepPhase(dt); else if (scene().kind === 'evolution') stepEvolution(dt); else if (scene().kind === 'fractal') stepFlight(dt); drawScene(true); }
 function stepAndDraw(dt) {
   const id = scene().id, original = state.params[id];

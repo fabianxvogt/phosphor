@@ -120,6 +120,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const stageWrap = document.getElementById('stageWrap');
   document.getElementById('focusButton').click(); api.switchScene(10, 0); api.drawPreview();
   assert.equal(document.getElementById('qualityABButton').disabled, false, 'quality A/B unlocks for Julia');
+  assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Focus keeps the HD correction visible for non-HD Julia output');
   const qualityAB = api.runQualityABProbe();
   assert.equal(qualityAB.format, 'phosphor-quality-ab-v1', 'quality A/B probe is versioned');
   assert.deepEqual([qualityAB.full.outputProfile, qualityAB.hd.outputProfile], ['960x600', '1920x1200'], 'quality A/B captures Full and HD profiles');

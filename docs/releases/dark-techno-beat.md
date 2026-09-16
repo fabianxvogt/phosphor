@@ -37,6 +37,7 @@ The loaded pass and comparison lines now share an unambiguous UTC capture time a
 The preflight card also provides a compact grouped comparison (`setup`, `transport`, `audio`, `timing`, `visuals`, `evidence`, `pass`, `set`) so handoffs can scan drift without opening the JSON.
 
 - `npm test`: passing, including deterministic 16-step pattern, paused Demo transport, demo-source lifecycle, active-source duration across elapsed frame gaps, the rehearsal pass snapshot gate, beat-readout state, all-family modulation contracts, the live scope markup contract, the set-level performance coverage contract, bounded audio-run headroom telemetry, and the versioned beat-response check/report comparison.
+- Focus keeps Julia's one-click `Use HD` correction visible for any non-HD profile, making a soft enlarged preview actionable before a resize measurement arrives.
 - `npm run build`, `npm run check:dist`, and `git diff --check`: passing.
 - Local Chrome smoke: the repaired module graph boots with `RUNNING`, Julia reports `Julia · WebGL native 960×600`, and the Demo beat source starts with `Dark techno demo beat · kick, clap, hats`, reports an active source, and exposes live steps plus `14/14 VISUALS BEAT-LINKED`. Voice-level loudness and long-run device output remain uncalibrated.
 

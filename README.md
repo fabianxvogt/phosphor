@@ -67,7 +67,7 @@ The loaded comparison also checks the captured transport state (live, paused, co
 
 HD is an opt-in native-output profile: on a usable WebGL browser, Julia renders directly at 1920×1200 instead of the Full profile's 960×600 surface; without WebGL it raises the bounded CPU fallback to 640×400. The larger backing surface costs more work, so unsupported browsers remain visibly labeled rather than appearing sharper than they are.
 
-The output dock reports the selected native dimensions (`960×600` or `1920×1200`) and the Focus overlay repeats the same path, so a saved screenshot can be read against the actual render surface rather than its CSS display size.
+The output dock reports the selected native dimensions (`960×600` or `1920×1200`) and the Focus overlay repeats the same path, so a saved screenshot can be read against the actual render surface rather than its CSS display size. In Focus, Julia keeps the one-click `Use HD` correction visible whenever the non-HD profile is active, even before a resize event updates the scale measurement.
 
 ## Focus diagnostics
 
