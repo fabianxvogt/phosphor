@@ -385,7 +385,7 @@ function syncFocusScaleReadout() {
   const scaleX = displayWidth / canvas.width;
   const scaleY = displayHeight / canvas.height;
   const scale = Math.max(scaleX, scaleY);
-  const signature = `${Math.round(displayWidth)}×${Math.round(displayHeight)}·${scale.toFixed(3)}·${activeRenderState.path}·${activeRenderState.width ?? ''}`;
+  const signature = `${Math.round(displayWidth)}×${Math.round(displayHeight)}·${scale.toFixed(3)}·${activeRenderState.path}·${activeRenderState.width ?? ''}·${activeRenderState.height ?? ''}`;
   if (signature === lastDisplayScaleSignature) {
     // Focus can toggle without changing the canvas rect. Keep the correction
     // affordance synchronized even when the scale readout itself is cached.
@@ -403,6 +403,17 @@ function syncFocusScaleReadout() {
     syncFocusQualityAction(showHdHint);
     output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedRasterScale}× ${mode}${hdHint}`;
     output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels, ${roundedRasterScale} times the ${activeRenderState.width} by ${activeRenderState.height} CPU raster; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
+    return;
+  }
+  if (activeRenderState.path === 'webgl' && Number.isInteger(activeRenderState.width) && activeRenderState.width > 0 && Number.isInteger(activeRenderState.height) && activeRenderState.height > 0 && (activeRenderState.width !== canvas.width || activeRenderState.height !== canvas.height)) {
+    const backingScale = Math.max(displayWidth / activeRenderState.width, displayHeight / activeRenderState.height);
+    const roundedBackingScale = backingScale.toFixed(1);
+    const mode = backingScale > 1.05 ? 'WebGL backing upscale' : backingScale < .95 ? 'WebGL backing downscale' : 'native WebGL backing fit';
+    const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || Number(roundedBackingScale) >= 1.5);
+    const hdHint = showHdHint ? ' · HD available' : '';
+    syncFocusQualityAction(showHdHint);
+    output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedBackingScale}× ${mode}${hdHint}`;
+    output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels, ${roundedBackingScale} times the ${activeRenderState.width} by ${activeRenderState.height} WebGL backing surface; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
     return;
   }
   const roundedScale = scale.toFixed(1);

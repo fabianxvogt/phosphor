@@ -37,7 +37,7 @@ The rehearsal preflight card mirrors that live onset snapshot beside the pass su
 
 Julia's display-scale diagnostic now exposes the existing one-click `Use HD` action outside Focus mode too. When the 960×600 or CPU fallback surface is visibly enlarged, the action appears beside the stage readout so a performer can correct softness without hunting through the quality selector; HD remains an explicit, measured tradeoff.
 
-Focus-mode Julia CPU fallback now uses a bounded 640×400 detail pass on the Full profile, reducing the common 2× raster enlargement to 1.5× while leaving the normal Full budget unchanged; the renderer readout remains explicit about the extra bounded work.
+Focus-mode Julia now uses a bounded 1440×900 WebGL backing surface when available, or a 640×400 CPU detail pass otherwise, reducing the common 2× enlargement to a bounded 1.5× target while leaving the normal Full output profile unchanged; the renderer readout remains explicit about the extra bounded work.
 
 The advanced-renderer import now uses a namespace boundary with a local Julia diagnostics fallback. That keeps a stale browser cache or older static module from aborting the whole instrument before the canvas and beat controls can start.
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rotate4, hopfPoint, cubeVertices, cubeEdges, mobius, geodesicPoint, juliaSample, advancedDefaults, advancedRasterSize, juliaRenderState, drawAdvanced } from '../advanced.mjs';
+import { rotate4, hopfPoint, cubeVertices, cubeEdges, mobius, geodesicPoint, juliaSample, advancedDefaults, advancedRasterSize, juliaGpuSize, juliaRenderState, drawAdvanced } from '../advanced.mjs';
 import { topologyLoopPoint, drivenRegimeFieldStep, drivenRegimeTarget } from '../core.mjs';
 import { validateEffects } from '../effects.mjs';
 const norm = v => Math.hypot(...v);
@@ -50,6 +50,10 @@ test('Julia raster follows output size instead of stretching a tiny thumbnail', 
   assert.deepEqual(advancedRasterSize(1920, 1200, false), { width: 640, height: 400 });
   assert.deepEqual(advancedRasterSize(1, 1e9, true), { width: 1, height: 160 });
   assert.deepEqual(advancedRasterSize(Number.MAX_VALUE, Number.MAX_VALUE, false), { width: 640, height: 640 });
+  assert.deepEqual(juliaGpuSize(960, 600, false, true), { width: 1440, height: 900 });
+  assert.deepEqual(juliaGpuSize(1920, 1200, false, true), { width: 1920, height: 1200 });
+  assert.deepEqual(juliaGpuSize(480, 300, true, true), { width: 480, height: 300 });
+  assert.deepEqual(juliaGpuSize(10000, 10000, false, true), { width: 900, height: 900 });
 });
 test('Julia draw allocates the bounded raster and composites opaque pixels', () => {
   let allocation = null, composite = null, pixels = null;
@@ -103,6 +107,31 @@ test('Julia uses native output dimensions through the WebGL compositor when avai
     assert.equal(buffer.__juliaGpu, null);
   } finally {
     if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument;
+  }
+});
+test('Julia Focus uses a bounded higher-resolution WebGL backing surface', () => {
+  const calls = [];
+  const gl = {
+    VERTEX_SHADER: 1, FRAGMENT_SHADER: 2, COMPILE_STATUS: 3, LINK_STATUS: 4, ARRAY_BUFFER: 5, STATIC_DRAW: 6, FLOAT: 7, TRIANGLE_STRIP: 8,
+    createShader: type => ({ type }), shaderSource() {}, compileShader() {}, getShaderParameter: () => true,
+    createProgram: () => ({}), attachShader() {}, linkProgram() {}, getProgramParameter: () => true,
+    createBuffer: () => ({}), bindBuffer() {}, bufferData() {}, getUniformLocation: (_program, name) => name, getAttribLocation: () => 0,
+    viewport: (...args) => calls.push(['viewport', ...args]), isContextLost: () => false, useProgram() {}, enableVertexAttribArray() {}, vertexAttribPointer() {},
+    uniform2f: (...args) => calls.push(['uniform2f', ...args]), uniform1f() {}, uniform3f() {}, drawArrays: (...args) => calls.push(['drawArrays', ...args]),
+  };
+  const surface = { width: 0, height: 0, getContext: () => gl, addEventListener() {} };
+  const previousDocument = globalThis.document;
+  globalThis.document = { createElement: () => surface };
+  try {
+    const ctx = { canvas: { width: 960, height: 600 }, fillRect() {}, drawImage(image, ...destination) { calls.push(['composite', image.width, image.height, ...destination]); } };
+    const buffer = { width: 0, height: 0 };
+    drawAdvanced(ctx, buffer, 'julia', advancedDefaults.julia, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false, 0, { focus: true });
+    assert.deepEqual(calls.find(call => call[0] === 'viewport'), ['viewport', 0, 0, 1440, 900]);
+    assert.deepEqual(calls.find(call => call[0] === 'uniform2f' && call[1] === 'uResolution'), ['uniform2f', 'uResolution', 1440, 900]);
+    assert.deepEqual(calls.find(call => call[0] === 'composite'), ['composite', 1440, 900, 0, 0, 960, 600]);
+    assert.deepEqual(juliaRenderState(buffer), { path: 'webgl', width: 1440, height: 900, reason: null });
+  } finally {
+    globalThis.document = previousDocument;
   }
 });
 

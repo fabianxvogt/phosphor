@@ -56,6 +56,13 @@ export function advancedRasterSize(width, height, low = false, focus = false) {
   const scale = Math.min(focus ? 1 : .5, maxDimension / safeWidth, maxDimension / safeHeight);
   return { width: Math.max(1, Math.round(safeWidth * scale)), height: Math.max(1, Math.round(safeHeight * scale)) };
 }
+export function juliaGpuSize(width, height, low = false, focus = false) {
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : 1;
+  const safeHeight = Number.isFinite(height) && height > 0 ? height : 1;
+  if (!focus || low || (safeWidth === 1920 && safeHeight === 1200)) return { width: Math.max(1, Math.round(safeWidth)), height: Math.max(1, Math.round(safeHeight)) };
+  const scale = Math.min(1.5, 1440 / safeWidth, 900 / safeHeight);
+  return { width: Math.max(1, Math.round(safeWidth * scale)), height: Math.max(1, Math.round(safeHeight * scale)) };
+}
 export function mobius([x, y], [a, b]) {
   // (z+a)/(1+conj(a)z), an orientation-preserving disk isometry for |a|<1.
   const dr = 1 + a * x + b * y, di = a * y - b * x, norm = dr * dr + di * di;
@@ -152,7 +159,7 @@ function createJuliaGpu(buffer) {
     return null;
   }
 }
-function drawJuliaGpu(ctx, buffer, width, height, p, time, palette, level = 0) {
+function drawJuliaGpu(ctx, buffer, width, height, p, time, palette, level = 0, renderWidth = width, renderHeight = height) {
   const gpu = createJuliaGpu(buffer);
   if (!gpu) return false;
   try {
@@ -160,15 +167,15 @@ function drawJuliaGpu(ctx, buffer, width, height, p, time, palette, level = 0) {
     if (typeof gl.isContextLost === 'function' && gl.isContextLost()) throw new Error('Julia WebGL context lost');
     const real = p.real + Math.sin(time * .13) * p.motion * .018;
     const imaginary = p.imaginary + Math.cos(time * .11) * p.motion * .018;
-    if (surface.width !== width) surface.width = width;
-    if (surface.height !== height) surface.height = height;
-    gl.viewport(0, 0, width, height); gl.useProgram(program);
+    if (surface.width !== renderWidth) surface.width = renderWidth;
+    if (surface.height !== renderHeight) surface.height = renderHeight;
+    gl.viewport(0, 0, renderWidth, renderHeight); gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, gpu.positionBuffer); gl.enableVertexAttribArray(gpu.position); gl.vertexAttribPointer(gpu.position, 2, gl.FLOAT, false, 0, 0);
-    gl.uniform2f(uniforms.uResolution, width, height); gl.uniform2f(uniforms.uConstant, real, imaginary); gl.uniform1f(uniforms.uZoom, p.zoom); gl.uniform1f(uniforms.uDetail, Math.round(p.detail)); gl.uniform1f(uniforms.uTrapPower, p.trap); gl.uniform1f(uniforms.uLevel, level);
+    gl.uniform2f(uniforms.uResolution, renderWidth, renderHeight); gl.uniform2f(uniforms.uConstant, real, imaginary); gl.uniform1f(uniforms.uZoom, p.zoom); gl.uniform1f(uniforms.uDetail, Math.round(p.detail)); gl.uniform1f(uniforms.uTrapPower, p.trap); gl.uniform1f(uniforms.uLevel, level);
     for (const [name, color] of [['uSecondary', palette.secondary], ['uPrimary', palette.primary], ['uAccent', palette.accent]]) { const values = rgb(color); gl.uniform3f(uniforms[name], values[0] / 255, values[1] / 255, values[2] / 255); }
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if (typeof gl.isContextLost === 'function' && gl.isContextLost()) throw new Error('Julia WebGL context lost');
-    ctx.imageSmoothingEnabled = true; ctx.drawImage(surface, 0, 0, width, height); buffer.__juliaGpuFailure = null; setJuliaRenderState(buffer, 'webgl', width, height); return true;
+    ctx.imageSmoothingEnabled = true; ctx.drawImage(surface, 0, 0, width, height); buffer.__juliaGpuFailure = null; setJuliaRenderState(buffer, 'webgl', renderWidth, renderHeight); return true;
   } catch (error) {
     buffer.__juliaGpuDisabled = true;
     buffer.__juliaGpuFailure = error?.message || 'WebGL draw failed';
@@ -180,7 +187,8 @@ export function drawAdvanced(ctx, buffer, id, p, time, palette, low, level = 0, 
   const colors = [rgb(palette.secondary), rgb(palette.primary), rgb(palette.accent)];
   ctx.fillStyle = '#04040a'; ctx.fillRect(0, 0, width, height);
   if (id === 'julia') {
-    if (drawJuliaGpu(ctx, buffer, width, height, p, time, palette, level)) return 'webgl';
+    const gpuSize = juliaGpuSize(width, height, low, options?.focus === true);
+    if (drawJuliaGpu(ctx, buffer, width, height, p, time, palette, level, gpuSize.width, gpuSize.height)) return 'webgl';
     const { width: w, height: h } = advancedRasterSize(width, height, low, options?.focus === true);
     buffer.width = w; buffer.height = h;
     const off = buffer.getContext('2d'), image = off.createImageData(w, h);
