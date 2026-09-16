@@ -81,7 +81,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS READY', 'coverage readout starts ready for every scene family');
   assert.equal(document.getElementById('audioHeadroomReadout').textContent, 'PEAK 0% · HEADROOM 100%', 'headroom readout starts clear');
   assert.equal(document.getElementById('audioSessionReadout').textContent, 'RUN 0:00 · ENVELOPE WARMING UP', 'audio run telemetry starts warming up');
-  assert.equal(document.getElementById('rehearsalPassReadout').textContent, 'PASS IN PROGRESS · NO AUDIO · no audio run · 14/14 visuals · 0/14 timing · 0/5 observed', 'rehearsal pass snapshot starts explicit about missing evidence');
+  assert.equal(document.getElementById('rehearsalPassReadout').textContent, 'PASS IN PROGRESS · NO AUDIO · no audio run / 20:00 target · 14/14 visuals · 0/14 timing warmup · 0/5 observed', 'rehearsal pass snapshot starts explicit about missing evidence');
   assert.equal(api.rehearsalPassSummary().status, 'in-progress', 'rehearsal pass snapshot does not claim readiness before a device run');
   assert.equal(document.getElementById('qualityABButton').disabled, true, 'quality A/B is limited to the Julia scene');
   assert.equal(document.getElementById('qualityABReadout').textContent, 'Quality A/B available on Julia', 'quality A/B readout starts with its scene gate');
@@ -168,6 +168,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.updatePerformanceReadout(1000);
   assert.match(document.getElementById('performanceReadout').textContent, /^Frame 19\.8ms med · 34\.2ms p95 · over target$/);
   assert.match(document.getElementById('performanceSetReadout').textContent, /^Set 1\/14 scenes · 34\.2ms p95 max · over target so far · worst Acid Mycelium 34\.2ms$/);
+  assert.match(document.getElementById('rehearsalPassReadout').textContent, /PASS ATTENTION .*1\/14 timing over target/, 'pass snapshot distinguishes an over-target timing result from warm-up');
   assert.equal(api.rehearsalReport().performanceSet.worstScene.id, 'acid', 'set report identifies the slowest measured visual family');
   assert.equal(document.getElementById('focusPerformanceReadout').textContent, document.getElementById('performanceReadout').textContent, 'focus mode keeps measured timing visible');
   const overTargetManifest = api.frameManifest();
