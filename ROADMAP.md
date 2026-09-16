@@ -109,6 +109,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Full-profile CPU Julia fallback now uses a bounded 480×300 raster, reducing Focus enlargement to at most 2× while keeping Low at 160×100 and HD at 640×400.
 - Focus diagnostics now add an actionable `HD available` hint when a non-HD Julia frame is visibly enlarged, keeping the quality choice explicit without silently increasing render cost.
 - Local Chrome quality A/B evidence now records the Full/HD render paths and visible scale, with a one-click Focus action for the sharper profile; sustained named-device and performer checks remain open.
+- Rehearsal Preflight now runs a bounded three-sample-per-profile Julia Full/HD A/B probe and carries renderer path, display scale, median/p95 timing, and target status into the versioned rehearsal report; it restores the live profile and does not claim certification.
 - Local dark-techno Demo beat now provides a bounded kick/clap/hat pattern, stable mute/unmute gain, and a shared beat envelope across all fourteen visual families; voice balance and sustained headroom remain open on a named device.
 - Demo kick now layers a dedicated low-end body and uses a conservative dynamics compressor when supported, keeping added weight inside a bounded bus level.
 - Source dock now exposes bounded peak/hold headroom telemetry and rehearsal reports preserve the coarse values without storing media or claiming calibrated loudness.

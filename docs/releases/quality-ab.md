@@ -14,9 +14,8 @@ The first live browser comparison explains the softness in the supplied Focus sc
 - HD: `Julia · WebGL native 1920×1200`; Focus scale `0.7× CSS downscale`.
 - Bounded smoke readout: approximately `0.2ms` median / `0.3ms` p95, within the selected target in both profiles. This is not a sustained benchmark or device certification.
 
-Focus now exposes a one-click `Use HD` action when a non-HD Julia frame is visibly enlarged. The action is opt-in, updates the quality selector and renderer readout, and keeps the CPU fallback honest when WebGL is unavailable.
+Focus now exposes a one-click `Use HD` action when a non-HD Julia frame is visibly enlarged. The action is opt-in, updates the quality selector and renderer readout, and keeps the CPU fallback honest when WebGL is unavailable. Rehearsal Preflight also exposes `Run Full / HD A/B` when Julia is selected. It performs three synchronous preview draws at Full and three at HD, records each renderer path, display scale, median/p95 timing, and target status, then restores the active profile and live state. Saving a rehearsal report carries this bounded evidence as `phosphor-quality-ab-v1`; it contains no pixels, media, or device fingerprint.
 
 ## Limits and next test
 
-This pass establishes the render-size cause and confirms that native HD improves the observed browser image; it does not establish long-run thermal behavior, recording stability, or performer preference. Next, repeat the A/B on a named reference device with a sustained rehearsal and record the exported rehearsal report before changing shader parameters or fallback budgets.
-
+This pass establishes the render-size cause and makes the comparison repeatable on the named device in the report; it does not establish long-run thermal behavior, recording stability, or performer preference. Next, run the probe and a sustained rehearsal on the reference device, export the report, and compare its p95 tail and observed sharpness before changing shader parameters or fallback budgets.

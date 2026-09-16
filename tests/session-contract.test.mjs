@@ -66,7 +66,7 @@ class FakeDocument {
 
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
-  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'audioCoverageReadout', 'audioHeadroomReadout', 'fpsReadout', 'performanceReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'preflightButton', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportEvidenceReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
+  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'audioCoverageReadout', 'audioHeadroomReadout', 'fpsReadout', 'performanceReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportEvidenceReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
   const windowListeners = new Map();
   const fireWindow = (type, event) => { for (const callback of windowListeners.get(type) || []) callback(event); };
   globalThis.document = document; globalThis.window = globalThis; globalThis.addEventListener = (type, callback) => { if (!windowListeners.has(type)) windowListeners.set(type, []); windowListeners.get(type).push(callback); }; globalThis.location = { search: '' }; globalThis.performance = { now: () => 0 }; globalThis.requestAnimationFrame = () => 0; globalThis.localStorage = { data: new Map(), getItem(key) { return this.data.get(key) ?? null; }, setItem(key, value) { this.data.set(key, value); }, removeItem(key) { this.data.delete(key); } }; globalThis.FileReader = class {}; globalThis.URL.createObjectURL ??= () => 'blob:fake'; globalThis.URL.revokeObjectURL ??= () => {};
@@ -80,6 +80,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('beatReadout').textContent, 'BEAT IDLE', 'beat readout starts idle');
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS READY', 'coverage readout starts ready for every scene family');
   assert.equal(document.getElementById('audioHeadroomReadout').textContent, 'PEAK 0% · HEADROOM 100%', 'headroom readout starts clear');
+  assert.equal(document.getElementById('qualityABButton').disabled, true, 'quality A/B is limited to the Julia scene');
+  assert.equal(document.getElementById('qualityABReadout').textContent, 'Quality A/B available on Julia', 'quality A/B readout starts with its scene gate');
   assert.equal(document.getElementById('rehearsalReportReadout').textContent, 'No report saved', 'rehearsal report starts idle');
   assert.equal(document.getElementById('rehearsalReportImportReadout').textContent, 'No report loaded', 'rehearsal report import starts idle');
   assert.equal(document.getElementById('rehearsalReportImportEvidenceReadout').textContent, 'No loaded evidence', 'loaded report evidence starts idle');
@@ -101,6 +103,16 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.setTestBeatPulse(0, 0);
   const stageWrap = document.getElementById('stageWrap');
   document.getElementById('focusButton').click(); api.switchScene(10, 0); api.drawPreview();
+  assert.equal(document.getElementById('qualityABButton').disabled, false, 'quality A/B unlocks for Julia');
+  const qualityAB = api.runQualityABProbe();
+  assert.equal(qualityAB.format, 'phosphor-quality-ab-v1', 'quality A/B probe is versioned');
+  assert.deepEqual([qualityAB.full.outputProfile, qualityAB.hd.outputProfile], ['960x600', '1920x1200'], 'quality A/B captures Full and HD profiles');
+  assert.equal(qualityAB.full.samples.length, 3, 'Full probe is bounded to three samples');
+  assert.equal(qualityAB.hd.samples.length, 3, 'HD probe is bounded to three samples');
+  assert.equal(document.getElementById('qualityInput').value, '1080', 'quality A/B restores the active quality profile');
+  assert.deepEqual(api.rehearsalReport().qualityAB, qualityAB, 'quality A/B evidence carries into rehearsal reports');
+  const juliaReportWithQualityAB = api.rehearsalReport();
+  assert.match(document.getElementById('qualityABReadout').textContent, /^A\/B /, 'quality A/B readout summarizes both profiles');
   assert.equal(stageWrap.classList.contains('julia-cpu-fit'), true, 'Focus constrains a CPU Julia fallback to a bounded display width');
   assert.equal(stageWrap.style['--julia-fit-width'], '960px', 'Focus caps CPU Julia at twice its internal raster width');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusScaleReadout();
@@ -357,6 +369,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.clearRehearsalReportImport(), false, 'clearing again is a guarded no-op');
   assert.deepEqual(api.sessionData().cues, baseline.cues, 'clearing a loaded report does not mutate the live cue set');
   api.importRehearsalReport(rehearsalReport);
+  assert.deepEqual(api.validateRehearsalReport(juliaReportWithQualityAB).qualityAB, qualityAB, 'quality A/B evidence validates as part of a Julia report');
+  assert.throws(() => api.validateRehearsalReport({ ...juliaReportWithQualityAB, qualityAB: { ...qualityAB, full: { ...qualityAB.full, width: 320 } } }), /Quality A\/B measurement is malformed/, 'quality A/B rejects dishonest profile dimensions');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, qualityAB }), /inconsistent with the report scene/, 'quality A/B cannot be attached to another scene');
+  const changedQualityAB = structuredClone(juliaReportWithQualityAB); changedQualityAB.qualityAB.deviceLabel = 'Reference device';
+  assert.equal(api.compareRehearsalReports(juliaReportWithQualityAB, changedQualityAB).sameQualityAB, false, 'report comparison detects a changed quality A/B result');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, cuePlan: [] }), /cue plan/, 'malformed imported reports are rejected');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, outputProfile: '1920x1200' }), /output profile is inconsistent/, 'imported reports reject dimensions that disagree with the HD profile');
   const dishonestEvidence = { ...rehearsalReport, observedChecks: { microphone: false, tabAudio: false, recording: false, pngFolder: false, performance: false }, observedEvidence: { status: 'complete', label: 'Complete', completed: 5, total: 5 } };
