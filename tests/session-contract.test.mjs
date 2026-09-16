@@ -343,7 +343,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(importedSame.comparison.equivalent, true, 'imported report compares as equivalent to the current set');
   assert.equal(importedSame.comparison.samePassSnapshot, true, 'imported report compares the persisted pass snapshot');
   assert.equal(document.getElementById('clearRehearsalReportButton').disabled, false, 'clear action enables after a report is loaded');
-  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /matches current set$/, 'imported report readout confirms a matching set');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /^Loaded \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z · Studio Mac · Chrome 152 · matches current set$/, 'imported report readout confirms a matching UTC capture and set match');
   assert.equal(document.getElementById('rehearsalReportImportEvidenceReadout').textContent, 'Loaded evidence · 0/5 · Not started', 'loaded report exposes captured evidence progress');
   const loadedPassReadout = document.getElementById('rehearsalReportImportPassReadout').textContent;
   assert.match(loadedPassReadout, /^Loaded PASS IN PROGRESS · NO AUDIO · no audio run \/ 20:00 target · 14\/14 visuals · 0\/14 timing warmup · 0\/5 observed · captured \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z · setup Studio Mac · Chrome 152$/, 'loaded report exposes the captured pass snapshot and setup context');

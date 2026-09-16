@@ -50,7 +50,7 @@ Music analysis stays on the device. Microphone and shared-tab audio are analysed
 
 Saved rehearsal reports include the exact pass snapshot shown on the rehearsal card, so the 20-minute audio gate and 14/14 visual/timing evidence remain visible after export and report reload.
 Loading a report also surfaces that stored pass snapshot in the preflight card, with the same level color and gate wording; pre-snapshot reports stay explicitly labeled as legacy.
-The loaded pass line also names its UTC capture time and optional setup label, and marks that historical line stale when the live instrument drifts.
+The loaded pass and comparison lines name the same UTC capture time and optional setup label, and mark that historical line stale when the live instrument drifts.
 
 Frame plans retain the selected profile's bounded performance status (`warming-up`, `within-target`, or `over-target`) and nominal frame budget beside any measured median/p95 samples; this is observation metadata, not an FPS or device-certification claim.
 
