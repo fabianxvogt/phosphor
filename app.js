@@ -179,7 +179,7 @@ function rehearsalReportLabelSuffix() { const label = sanitizeDeviceLabel(lastRe
 function markRehearsalReportStale() { markRehearsalReportImportStale(); if (offlineFrameJob || !lastRehearsalReportAt || rehearsalReportStale) return; rehearsalReportStale = true; const output = $('rehearsalReportReadout'); if (!output) return; output.textContent = `Saved ${lastRehearsalReportAt}${rehearsalReportLabelSuffix()} · state changed`; output.setAttribute('aria-label', `Rehearsal report saved at ${lastRehearsalReportAt}${rehearsalReportLabelSuffix()}; current state changed since that snapshot`); }
 function markRehearsalReportImportStale() { if (offlineFrameJob || !importedRehearsalReport || importedRehearsalReportStale) return; importedRehearsalReportStale = true; const output = $('rehearsalReportImportReadout'); if (!output) return; const stamp = preflightTimestamp(new Date(importedRehearsalReport.capturedAt)); const label = importedRehearsalReport.deviceLabel ? ` · ${importedRehearsalReport.deviceLabel}` : ''; output.textContent = `Loaded ${stamp}${label} · current state changed`; output.setAttribute('aria-label', `Loaded rehearsal report from ${stamp}${label}; current state changed since comparison`); }
 function syncRehearsalReportFreshness() { if (offlineFrameJob || (!lastRehearsalReportLiveSignature && !importedRehearsalReportLiveSignature)) return; const liveSignature = rehearsalReportLiveSignature(); if (lastRehearsalReportLiveSignature && !rehearsalReportStale && liveSignature !== lastRehearsalReportLiveSignature) markRehearsalReportStale(); if (importedRehearsalReport && !importedRehearsalReportStale && importedRehearsalReportLiveSignature && liveSignature !== importedRehearsalReportLiveSignature) markRehearsalReportImportStale(); }
-function syncAudioSourceControls() { const locked = Boolean(audio.recorder || audio.recordingStream); const active = { demoAudioButton: state.demoOn, micButton: Boolean(audio.micStream), tabAudioButton: Boolean(audio.tabStream) }; for (const id of ['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton']) { const element = $(id); if (!element) continue; element.disabled = locked; element.setAttribute('aria-disabled', String(locked)); element.setAttribute('aria-describedby', 'audioStatus'); if (id in active) element.setAttribute('aria-pressed', String(Boolean(active[id]))); if (locked) element.title = 'Stop recording before changing audio source'; else element.removeAttribute?.('title'); } const sensitivity = $('audioSensitivity'); if (sensitivity) sensitivity.setAttribute('aria-describedby', 'audioStatus'); syncReadinessStatus(); }
+function syncAudioSourceControls() { const locked = Boolean(audio.recorder || audio.recordingStream); const active = { demoAudioButton: state.demoOn, micButton: Boolean(audio.micStream), tabAudioButton: Boolean(audio.tabStream) }; for (const id of ['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton']) { const element = $(id); if (!element) continue; element.disabled = locked; element.setAttribute('aria-disabled', String(locked)); element.setAttribute('aria-describedby', 'audioStatus beatReadout'); if (id in active) element.setAttribute('aria-pressed', String(Boolean(active[id]))); if (locked) element.title = 'Stop recording before changing audio source'; else element.removeAttribute?.('title'); } const sensitivity = $('audioSensitivity'); if (sensitivity) sensitivity.setAttribute('aria-describedby', 'audioStatus beatReadout'); syncReadinessStatus(); }
 function refreshPaused() { if (state.paused && !state.blackout && !state.renderingLost) { state.transition = null; drawPreview(); } }
 function markDirty(redraw = true, resetCompletion = true) { pendingFrameManifest = null; if (resetCompletion) state.setComplete = false; state.dirty = true; $('dirtyState').textContent = 'UNSAVED'; markRehearsalReportStale(); applyDisplayBrightness(); if (redraw) refreshPaused(); scheduleSave(); }
 function sceneActionHint() { if (scene().kind === 'fractal') return 'DRAG TO LOOK · W/S MOVE · A/D STRAFE · Q/E HEIGHT'; if (scene().id === 'julia') return 'DRAG TO CHANGE FRACTAL'; if (scene().id === 'fourspace') return 'DRAG TO SET ROTATION'; if (scene().id === 'hyperbolic') return 'DRAG TO MOVE VIEWPOINT'; if (scene().kind === 'topology') return 'DRAG TO TURN THE LOOP'; if (scene().kind === 'evolution') return 'CLICK / SPACE TO CHOOSE SIBLING'; if (scene().kind === 'particles') return 'CLICK / DRAG TO SHAPE FLOW'; if (scene().kind === 'aquarium') return 'CLICK / DRAG TO STEER FEEDERS TOWARD FOOD'; if (scene().kind === 'phase') return 'CLICK / SPACE TO NUDGE FIELD'; return 'CLICK / SPACE TO INJECT'; }
@@ -783,9 +783,26 @@ function updateAudioLevel() {
   const detectedBeat = clamp(Math.max(next * 1.6, bands.low * 1.35, bands.mid * 1.05) * audioSensitivity, 0, 1);
   state.beatPulse = Math.max(state.beatPulse, detectedBeat * .55);
   $('modulationReadout').textContent = `AUDIO ${Math.round(state.audioLevel * 100)}% · L${Math.round(state.audioBands.low * 100)} M${Math.round(state.audioBands.mid * 100)} H${Math.round(state.audioBands.high * 100)}`;
+  syncBeatReadout();
 }
-function decayBeatPulse(dt) { state.beatPulse = clamp(state.beatPulse * Math.exp(-Math.max(0, Number(dt) || 0) * 9), 0, 1); }
-function setBeatPulse(amount, step = state.beatStep) { state.beatPulse = Math.max(state.beatPulse, clamp(Number(amount) || 0, 0, 1)); state.beatStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16; state.beatBar = Math.floor(Math.max(0, Number(step) || 0) / 16); }
+function syncBeatReadout() {
+  const output = $('beatReadout');
+  if (!output) return;
+  const pulse = Math.round(clamp(state.beatPulse, 0, 1) * 20) * 5;
+  let next = 'BEAT IDLE';
+  if (state.demoOn) {
+    const step = darkTechnoStep(state.beatStep); const voices = [];
+    if (step.kick) voices.push('KICK');
+    if (step.clap) voices.push('CLAP');
+    if (step.hat) voices.push(step.openHat ? 'HAT+OPEN' : 'HAT');
+    else if (step.openHat) voices.push('OPEN HAT');
+    if (step.bass) voices.push('SUB');
+    next = `BEAT ${String(state.beatStep + 1).padStart(2, '0')}/16 · ${voices.join('+') || 'REST'} · ${pulse}%`;
+  } else if (audioSourceKind() !== 'NO AUDIO' && pulse > 0) next = `BEAT RESPONSE · ${pulse}%`;
+  if (output.textContent !== next) output.textContent = next;
+}
+function decayBeatPulse(dt) { state.beatPulse = clamp(state.beatPulse * Math.exp(-Math.max(0, Number(dt) || 0) * 9), 0, 1); syncBeatReadout(); }
+function setBeatPulse(amount, step = state.beatStep) { state.beatPulse = Math.max(state.beatPulse, clamp(Number(amount) || 0, 0, 1)); state.beatStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16; state.beatBar = Math.floor(Math.max(0, Number(step) || 0) / 16); syncBeatReadout(); }
 function beatResponseLevel(id) { return clamp(Math.max(audioResponseLevel(id), state.beatPulse * .72), 0, 1); }
 function visualAudioCoverage() { return sceneDefs.map((def) => ({ id: def.id, mapped: Boolean(audioMappings[def.id]) })); }
 function applyBeatVisualPulse() {
@@ -885,7 +902,7 @@ function stopAudioSource(status = 'No music connected') {
   state.audioBands = { low: 0, mid: 0, high: 0 }; state.audioBandsReady = false;
   if (audio.gain) audio.gain.gain.value = audioOutputGain();
   $('demoAudioButton').textContent = 'Demo beat'; $('micButton').textContent = 'Microphone';
-  $('audioStatus').textContent = status; $('tabAudioButton').textContent = 'Use tab audio'; $('modulationReadout').textContent = 'AUDIO 0% · L0 M0 H0'; syncAudioSourceControls();
+  $('audioStatus').textContent = status; $('tabAudioButton').textContent = 'Use tab audio'; $('modulationReadout').textContent = 'AUDIO 0% · L0 M0 H0'; syncBeatReadout(); syncAudioSourceControls();
 }
 async function ensureAudio(source = audioSourceKind()) {
   if (offlineJobActive()) return false;
@@ -1122,7 +1139,7 @@ function runLifecycleProbe() { const saved = { sceneIndex: state.sceneIndex, pre
 
 function boot() {
   let saved = null; let savedReportCache = null; try { saved = localStorage.getItem('phosphor-set-v1'); savedReportCache = localStorage.getItem(rehearsalReportCacheKey); } catch { $('storageHint').textContent = 'Browser storage unavailable · Export JSON keeps your work'; }
-  resetAcid(); resetTapestry(); resetFeedback(); fillPalette(); renderEffects(); renderScenes(); renderControls(); renderCues(); $('rehearsalNotesInput').value = state.rehearsalNotes; for (const [key, id] of Object.entries(rehearsalCheckIds)) $(id).checked = state.rehearsalChecks[key]; syncObservedChecksReadout(); $('preflightReadout').textContent = 'Capability check not run'; $('preflightTimestamp').textContent = 'Not run'; $('preflightChecklist').innerHTML = ''; $('preflightChecklist').hidden = true; $('rehearsalReportReadout').textContent = 'No report saved'; $('rehearsalReportReadout').setAttribute('aria-label', 'No rehearsal report saved'); $('rehearsalReportImportReadout').textContent = 'No report loaded'; $('rehearsalReportImportReadout').setAttribute('aria-label', 'No rehearsal report loaded'); syncRecordingMimeReadout(); $('recordingStatus').textContent = recordingOutcomeLabels.idle; syncAudioSourceOutcome(); resetPerformanceReadout(); syncRendererReadout(); announce(); syncPauseControls(); syncAudioSourceControls(); previousScoreBackup = loadPreviousScoreBackup(); wire(); syncScoreRecovery();
+  resetAcid(); resetTapestry(); resetFeedback(); fillPalette(); renderEffects(); renderScenes(); renderControls(); renderCues(); $('rehearsalNotesInput').value = state.rehearsalNotes; for (const [key, id] of Object.entries(rehearsalCheckIds)) $(id).checked = state.rehearsalChecks[key]; syncObservedChecksReadout(); $('preflightReadout').textContent = 'Capability check not run'; $('preflightTimestamp').textContent = 'Not run'; $('preflightChecklist').innerHTML = ''; $('preflightChecklist').hidden = true; $('rehearsalReportReadout').textContent = 'No report saved'; $('rehearsalReportReadout').setAttribute('aria-label', 'No rehearsal report saved'); $('rehearsalReportImportReadout').textContent = 'No report loaded'; $('rehearsalReportImportReadout').setAttribute('aria-label', 'No rehearsal report loaded'); syncRecordingMimeReadout(); $('recordingStatus').textContent = recordingOutcomeLabels.idle; syncAudioSourceOutcome(); resetPerformanceReadout(); syncRendererReadout(); announce(); syncPauseControls(); syncBeatReadout(); syncAudioSourceControls(); previousScoreBackup = loadPreviousScoreBackup(); wire(); syncScoreRecovery();
   if (saved) { try { applySession(JSON.parse(saved)); } catch { showToast('Saved session could not be restored; starting clean'); } }
   if (savedReportCache) { try { restoreRehearsalReportCache(JSON.parse(savedReportCache)); } catch {} }
   syncFocusScaleReadout(); requestAnimationFrame(renderFrame);
