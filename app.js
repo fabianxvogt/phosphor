@@ -928,7 +928,8 @@ function updateAudioLevel() {
   let bands = { low: 0, mid: 0, high: 0 };
   let peak = 0;
   const sourceActive = Boolean(audio.analyser && (audio.source || audio.demoGain || audio.micStream || audio.tabStream));
-  if (sourceActive) {
+  const canReadTimeDomain = sourceActive && typeof audio.analyser.getByteTimeDomainData === 'function' && audio.data && Number.isFinite(audio.data.length);
+  if (canReadTimeDomain) {
     audio.analyser.getByteTimeDomainData(audio.data); let sum = 0; for (const value of audio.data) { const sample = Math.abs((value - 128) / 128); peak = Math.max(peak, sample); sum += sample ** 2; } next = Math.sqrt(sum / audio.data.length);
     if (audio.analyser.getByteFrequencyData && audio.frequencyData) { audio.analyser.getByteFrequencyData(audio.frequencyData); bands = audioBandLevels(audio.frequencyData, audio.context?.sampleRate); state.audioBandsReady = true; }
   } else state.audioBandsReady = false;
@@ -1002,12 +1003,17 @@ function syncBeatScope() {
     const id = cell.dataset.beatFamily;
     const def = sceneDefs.find((candidate) => candidate.id === id);
     const level = beatResponseLevel(id);
-    cell.style?.setProperty?.('--beat-level', level.toFixed(3));
-    cell.dataset.active = String(level > .05);
-    cell.setAttribute('aria-label', `${def?.name || id}: ${Math.round(level * 100)}% beat response`);
-    cell.title = `${def?.name || id} · ${source} · ${Math.round(level * 100)}% response`;
+    const levelText = level.toFixed(3);
+    if (cell.dataset.beatLevel !== levelText) { cell.style?.setProperty?.('--beat-level', levelText); cell.dataset.beatLevel = levelText; }
+    const active = String(level > .05);
+    if (cell.dataset.active !== active) cell.dataset.active = active;
+    const ariaLabel = `${def?.name || id}: ${Math.round(level * 100)}% beat response`;
+    if (cell.dataset.beatAria !== ariaLabel) { cell.setAttribute('aria-label', ariaLabel); cell.dataset.beatAria = ariaLabel; }
+    const title = `${def?.name || id} · ${source} · ${Math.round(level * 100)}% response`;
+    if (cell.dataset.beatTitle !== title) { cell.title = title; cell.dataset.beatTitle = title; }
   }
-  output.setAttribute('aria-label', `${coverage.length} visual-family beat response meters; ${source === 'NO AUDIO' ? 'awaiting audio' : `${source} response active`}`);
+  const scopeAria = `${coverage.length} visual-family beat response meters; ${source === 'NO AUDIO' ? 'awaiting audio' : `${source} response active`}`;
+  if (output.dataset.beatScopeAria !== scopeAria) { output.setAttribute('aria-label', scopeAria); output.dataset.beatScopeAria = scopeAria; }
 }
 function decayBeatPulse(dt) { state.beatPulse = clamp(state.beatPulse * Math.exp(-Math.max(0, Number(dt) || 0) * 9), 0, 1); syncBeatReadout(); }
 function setBeatPulse(amount, step = state.beatStep) { state.beatPulse = Math.max(state.beatPulse, clamp(Number(amount) || 0, 0, 1)); state.beatStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16; state.beatBar = Math.floor(Math.max(0, Number(step) || 0) / 16); syncBeatReadout(); }
