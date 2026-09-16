@@ -125,6 +125,8 @@ select { max-width:100%; background:#171522; border:1px solid #514b64; border-ra
 .scene-beat-readout { flex:1 1 210px; min-width:190px; color:var(--muted); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; font-variant-numeric:tabular-nums; }
 .scene-beat-readout[data-active="true"] { color:var(--acid); text-shadow:0 0 10px #d5ff5f33; }
 .audio-coverage-readout { flex:0 1 auto; min-width:150px; color:var(--acid); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; }
+.audio-beat-telemetry-readout { flex:0 1 auto; min-width:175px; color:var(--muted); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; font-variant-numeric:tabular-nums; }
+.audio-beat-telemetry-readout[data-active="true"] { color:var(--pink); text-shadow:0 0 10px #ff5bc833; }
 .beat-scope { flex:1 1 100%; display:grid; grid-template-columns:repeat(14,minmax(14px,1fr)); gap:4px; min-width:240px; padding:5px 0 1px; }
 .beat-scope-cell { display:grid; grid-template-rows:28px auto; gap:3px; min-width:0; }
 .beat-scope-meter { position:relative; overflow:hidden; height:28px; border:1px solid #2e2b3d; border-radius:3px; background:#090811; }

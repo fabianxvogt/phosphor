@@ -31,6 +31,8 @@ The rehearsal card now condenses those signals into a local pass snapshot: sourc
 
 The source dock now keeps a bounded audio-run envelope while a source is active. It records actual active-source duration, the maximum held peak, average hold, hot/near-clip proportions, remaining headroom, and whether the sample cap was reached, then carries that snapshot through reports, cache reopen, and before/after comparison. This makes the heavy-kick/headroom check useful over a sustained device pass without storing media or claiming calibrated loudness.
 
+The source dock also records a capped `HITS / LAST` onset snapshot. External sources use a threshold crossing with hysteresis; the Demo counts one qualifying event per 16th-note step. Reports carry the UTC timestamp and source label so a rehearsal can distinguish a real hit from a sustained envelope without treating the counter as beat-grid certification.
+
 Julia's display-scale diagnostic now exposes the existing one-click `Use HD` action outside Focus mode too. When the 960×600 or CPU fallback surface is visibly enlarged, the action appears beside the stage readout so a performer can correct softness without hunting through the quality selector; HD remains an explicit, measured tradeoff.
 
 The advanced-renderer import now uses a namespace boundary with a local Julia diagnostics fallback. That keeps a stale browser cache or older static module from aborting the whole instrument before the canvas and beat controls can start.
@@ -42,7 +44,7 @@ Loading a report mirrors that stored pass level and wording in the preflight car
 The loaded pass and comparison lines now share an unambiguous UTC capture time and optional setup label, with an explicit stale marker after current-state changes.
 The preflight card also provides a compact grouped comparison (`setup`, `transport`, `audio`, `timing`, `visuals`, `evidence`, `pass`, `set`) so handoffs can scan drift without opening the JSON.
 
-- `npm test`: passing, including deterministic 16-step pattern, paused Demo transport, demo-source lifecycle, active-source duration across elapsed frame gaps, the rehearsal pass snapshot gate, beat-readout state, all-family modulation contracts, the live scope markup contract, the set-level performance coverage contract, bounded audio-run headroom telemetry, and the versioned beat-response check/report comparison.
+- `npm test`: passing, including deterministic 16-step pattern, paused Demo transport, demo-source lifecycle, active-source duration across elapsed frame gaps, the rehearsal pass snapshot gate, beat-readout state, all-family modulation contracts, the live scope markup contract, the set-level performance coverage contract, bounded audio-run headroom and onset telemetry, and the versioned beat-response check/report comparison.
 - Focus keeps Julia's one-click `Use HD` correction visible for any non-HD profile, making a soft enlarged preview actionable before a resize measurement arrives.
 - `npm run build`, `npm run check:dist`, and `git diff --check`: passing.
 - Local Chrome smoke: the repaired module graph boots with `RUNNING`, Julia reports `Julia · WebGL native 960×600`, and the Demo beat source starts with `Dark techno demo beat · kick, clap, hats`, reports an active source, and exposes live steps plus `14/14 VISUALS BEAT-LINKED`. Voice-level loudness and long-run device output remain uncalibrated.

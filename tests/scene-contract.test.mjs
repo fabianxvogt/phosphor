@@ -105,7 +105,12 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function syncSceneBeatReadout\(/, 'selected scene exposes its local beat response');
   assert.match(app, /dataset\.selected/, 'beat scope marks the selected visual family');
   assert.match(app, /function syncAudioHeadroomReadout\(/, 'audio peak/headroom is surfaced for rehearsal tuning');
+  assert.match(app, /function beatTelemetry\(/, 'beat onset telemetry is versioned and reportable');
+  assert.match(app, /function recordAudioBeatOnset\(/, 'external audio onsets use a bounded hysteresis gate');
+  assert.match(app, /function recordDemoBeatOnset\(/, 'demo steps register at most one onset per 16th note');
+  assert.match(app, /function sanitizeBeatTelemetry\(/, 'imported onset telemetry is validated');
   assert.match(html, /id="beatReadout"/, 'beat readout is present in the source dock');
+  assert.match(html, /id="audioBeatTelemetryReadout"[^>]*>HITS 0 · LAST —/, 'source dock exposes the onset counter and timestamp');
   assert.match(html, /id="sceneBeatReadout"[^>]*role="status"[^>]*>SCENE ACID MYCELIUM · BEAT IDLE/, 'source dock names the selected-scene beat response');
   assert.match(html, /id="audioCoverageReadout"[^>]*>14\/14 VISUALS READY/, 'source dock names complete visual coverage');
   assert.match(html, /id="beatScope"[^>]*role="group"/, 'source dock includes an accessible per-family beat scope');
@@ -140,8 +145,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /aria-pressed.*active/, 'active audio source state is synchronized');
   assert.match(app, /\['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton'\]/, 'recording locks the stop-source control');
   assert.match(app, /stopAudioButton'\)\.addEventListener\('click', \(\) => \{ if \(!offlineJobActive\(\) && !recordingBlocksSourceChange\(\)\)/, 'stop source handler keeps recording audio intact');
-  assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?"/, 'demo source announces its state, beat response, coverage, headroom, and run telemetry');
-  assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?"/, 'file source references its status, beat response, coverage, headroom, and run telemetry');
+  assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)?"/, 'demo source announces its state, beat response, coverage, headroom, run, and onset telemetry');
+  assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)?"/, 'file source references its status, beat response, coverage, headroom, run, and onset telemetry');
   assert.match(html, /id="audioOutcomeReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'source outcome is announced');
   assert.match(app, /function syncRecordingReadout\(/, 'recording duration is surfaced while capturing');
   assert.match(app, /try \{ audio\.recorder\.stop\(\); \} catch \{ finishRecording\(false, 'Recording could not stop · capture cleaned up'\); \}/, 'recorder stop failures restore the capture UI');
@@ -154,6 +159,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function syncAudioSourceOutcome\(/, 'native source outcomes stay visible in the source dock');
   assert.match(app, /audio: \{ source: audioSourceKind\(\), status: audioSourceOutcome, history: structuredClone\(audioSourceEvents\)/, 'reports carry the bounded native source outcome history');
   assert.match(app, /sameAudioHistory/, 'rehearsal reports compare source transition history');
+  assert.match(app, /sameAudioBeat/, 'rehearsal reports compare captured beat onset telemetry');
   assert.match(app, /function sanitizeRehearsalEnvironment\(/, 'rehearsal reports preserve bounded runtime context');
   assert.match(app, /sameEnvironment/, 'rehearsal reports compare runtime context');
   assert.match(app, /const release = \(\) =>/, 'stale local audio requests have an explicit media cleanup path');

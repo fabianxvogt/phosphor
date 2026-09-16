@@ -130,6 +130,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Global pause now holds the Demo beat scheduler on its current step, keeping audio and visual transport aligned on resume.
 - Set-level performance readout now counts measured visual families and reports the worst measured p95, while naming unmeasured families honestly in the rehearsal surface and report.
 - Audio rehearsal telemetry now keeps a bounded active-source envelope (maximum/average held peak, hot and near-clip proportions, headroom, and cap state) through the source dock, reports, cache reopen, and comparisons.
+- Beat rehearsal telemetry now records a capped onset count, UTC timestamp, and source label with external hysteresis and one-per-step Demo registration; reports and the source dock expose it without claiming beat-grid accuracy.
 - Beat envelope now gives the shared effect stack a bounded transient lift (symmetry, echo, chroma, and glow) without changing saved effect strengths.
 - Advanced renderer imports now tolerate older cached module exports, with a local Julia diagnostics fallback so a stale static asset cannot prevent the instrument from booting.
 - Preflight now probes an actual usable WebGL context, so a constructor-only capability result cannot hide the CPU fallback cause.

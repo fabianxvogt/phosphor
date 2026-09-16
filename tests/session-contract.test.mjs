@@ -66,7 +66,7 @@ class FakeDocument {
 
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
-  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'sceneBeatReadout', 'audioCoverageReadout', 'beatScope', 'audioHeadroomReadout', 'audioSessionReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'rehearsalPassReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportCompareReadout', 'rehearsalReportImportEvidenceReadout', 'rehearsalReportImportPassReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
+  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'sceneBeatReadout', 'audioCoverageReadout', 'audioBeatTelemetryReadout', 'beatScope', 'audioHeadroomReadout', 'audioSessionReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'rehearsalPassReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportCompareReadout', 'rehearsalReportImportEvidenceReadout', 'rehearsalReportImportPassReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
   const windowListeners = new Map();
   const fireWindow = (type, event) => { for (const callback of windowListeners.get(type) || []) callback(event); };
   globalThis.document = document; globalThis.window = globalThis; globalThis.addEventListener = (type, callback) => { if (!windowListeners.has(type)) windowListeners.set(type, []); windowListeners.get(type).push(callback); }; globalThis.location = { search: '' }; globalThis.performance = { now: () => 0 }; globalThis.requestAnimationFrame = () => 0; globalThis.localStorage = { data: new Map(), getItem(key) { return this.data.get(key) ?? null; }, setItem(key, value) { this.data.set(key, value); }, removeItem(key) { this.data.delete(key); } }; globalThis.FileReader = class {}; globalThis.URL.createObjectURL ??= () => 'blob:fake'; globalThis.URL.revokeObjectURL ??= () => {};
@@ -76,13 +76,15 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('demoAudioButton')['aria-pressed'], 'false', 'demo source starts inactive');
   assert.equal(document.getElementById('micButton')['aria-pressed'], 'false', 'microphone source starts inactive');
   assert.equal(document.getElementById('tabAudioButton')['aria-pressed'], 'false', 'tab source starts inactive');
-  assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus beatReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout', 'file source points to its status, beat response, coverage, headroom, and run telemetry');
+  assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus beatReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout', 'file source points to its status, beat response, coverage, headroom, run, and onset telemetry');
   assert.equal(document.getElementById('beatReadout').textContent, 'BEAT IDLE', 'beat readout starts idle');
   assert.equal(document.getElementById('sceneBeatReadout').textContent, 'SCENE ACID MYCELIUM · BEAT IDLE', 'selected-scene beat readout starts idle');
   assert.equal(document.getElementById('sceneBeatReadout').dataset.active, 'false', 'selected-scene beat readout starts inactive');
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS READY', 'coverage readout starts ready for every scene family');
   assert.equal(document.getElementById('audioHeadroomReadout').textContent, 'PEAK 0% · HEADROOM 100%', 'headroom readout starts clear');
   assert.equal(document.getElementById('audioSessionReadout').textContent, 'RUN 0:00 · ENVELOPE WARMING UP', 'audio run telemetry starts warming up');
+  assert.equal(document.getElementById('audioBeatTelemetryReadout').textContent, 'HITS 0 · LAST —', 'beat onset telemetry starts empty');
+  assert.deepEqual(api.audioState().beat, { format: 'phosphor-beat-telemetry-v1', version: 1, hits: 0, lastOnsetAt: null, lastOnsetSource: null, capped: false }, 'audio state exposes an empty bounded beat telemetry snapshot');
   assert.equal(document.getElementById('rehearsalPassReadout').textContent, 'PASS IN PROGRESS · NO AUDIO · no audio run / 20:00 target · 14/14 visuals · 0/14 timing warmup · 0/5 observed', 'rehearsal pass snapshot starts explicit about missing evidence');
   assert.equal(api.rehearsalPassSummary().status, 'in-progress', 'rehearsal pass snapshot does not claim readiness before a device run');
   assert.equal(document.getElementById('qualityABButton').disabled, true, 'quality A/B is limited to the Julia scene');
@@ -113,6 +115,17 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(beatResponse.sharedEffectsLinked, true, 'beat wiring evidence confirms the shared effect stack');
   assert.equal(beatResponse.effects.length, 4, 'beat wiring evidence records each shared effect');
   assert.deepEqual(api.rehearsalReport().beatResponse, beatResponse, 'beat wiring evidence carries into rehearsal reports');
+  assert.deepEqual(api.rehearsalReport().audio.beat, api.audioState().beat, 'rehearsal reports carry a bounded beat telemetry snapshot');
+  assert.deepEqual(api.validateRehearsalReport(api.rehearsalReport()).audio.beat, api.audioState().beat, 'beat telemetry survives rehearsal report validation');
+  assert.equal(api.recordBeatOnset(.5, 'MIC'), true, 'audio onset telemetry accepts a threshold crossing');
+  assert.equal(api.recordBeatOnset(.5, 'MIC'), false, 'audio onset telemetry does not double-count a sustained envelope');
+  assert.equal(api.recordBeatOnset(.1, 'MIC'), false, 're-arm samples below the threshold do not register a hit');
+  assert.equal(api.recordBeatOnset(.5, 'MIC'), true, 'audio onset telemetry re-arms after a quiet sample');
+  api.resetBeatTelemetry();
+  const malformedBeatTelemetry = structuredClone(api.rehearsalReport()); malformedBeatTelemetry.audio.beat.hits = 4097;
+  assert.throws(() => api.validateRehearsalReport(malformedBeatTelemetry), /beat telemetry is malformed/, 'imported reports reject out-of-range beat hit counts');
+  const malformedBeatTimestamp = structuredClone(api.rehearsalReport()); malformedBeatTimestamp.audio.beat = { format: 'phosphor-beat-telemetry-v1', version: 1, hits: 1, lastOnsetAt: '2026-09-16T13:09:27+02:00', lastOnsetSource: 'MIC', capped: false };
+  assert.throws(() => api.validateRehearsalReport(malformedBeatTimestamp), /beat telemetry is malformed/, 'imported reports reject non-canonical onset timestamps');
   assert.match(document.getElementById('beatResponseReadout').textContent, /^Beat check 14\/14 · NO AUDIO · effects linked$/, 'beat wiring readout summarizes the captured coverage');
   const beatCanvas = document.getElementById('stage');
   const idlePulseOps = beatCanvas.context.drawOps;
@@ -970,6 +983,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   await api.toggleDemo();
   assert.equal(api.audioState().hasDemo, true, 'demo beat becomes the active local source');
   assert.equal(api.audioState().demoStep, 1, 'demo beat schedules the first 16th-note step');
+  assert.equal(api.audioState().beat.hits, 1, 'demo kick registers one onset for the first step');
+  assert.match(document.getElementById('audioBeatTelemetryReadout').textContent, /^HITS 1 · LAST \d{2}:\d{2}:\d{2}Z · DEMO$/, 'onset readout exposes a compact UTC timestamp and source');
+  assert.equal(api.audioState().beat.lastOnsetSource, 'DEMO', 'onset telemetry identifies the demo source');
   assert.equal(document.getElementById('demoAudioButton').textContent, 'Stop beat', 'demo source names the beat while active');
   assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat/);
   assert.match(document.getElementById('beatReadout').textContent, /^BEAT 01\/16 · KICK\+SUB · 100%$/, 'beat readout names the first kick step and voices');
@@ -984,6 +1000,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.audioState().outputGain, .24, 'unmute restores the heavier demo beat level');
   api.stopAudioSource();
   assert.equal(api.audioState().hasDemo, false, 'stopping music clears the demo beat');
+  assert.equal(api.audioState().beat.hits, 0, 'stopping music resets onset telemetry for the next source');
+  assert.equal(document.getElementById('audioBeatTelemetryReadout').textContent, 'HITS 0 · LAST —', 'stopping music clears the onset readout');
   assert.equal(document.getElementById('beatReadout').textContent, 'BEAT IDLE', 'stopping music clears the beat readout');
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS READY', 'stopping music returns coverage to ready');
   assert.equal(document.getElementById('audioHeadroomReadout').textContent, 'PEAK 0% · HEADROOM 100%', 'stopping music clears held peak telemetry');
