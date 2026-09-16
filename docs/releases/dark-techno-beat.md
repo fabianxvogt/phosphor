@@ -21,14 +21,16 @@ The source dock now adds a live fourteen-cell beat scope. Each meter follows the
 
 The output dock now keeps a bounded set-level performance summary alongside the selected-scene timing. It counts distinct visual families with retained samples, uses the worst measured scene p95 as the set-level tail, and names the slowest family. Until all fourteen families have samples, the readout says how many remain unmeasured; it is a rehearsal aid, not device certification.
 
+The source dock now keeps a bounded audio-run envelope while a source is active. It records the maximum held peak, average hold, hot/near-clip proportions, remaining headroom, and whether the sample cap was reached, then carries that snapshot through reports, cache reopen, and before/after comparison. This makes the heavy-kick/headroom check useful over a sustained device pass without storing media or claiming calibrated loudness.
+
 The advanced-renderer import now uses a namespace boundary with a local Julia diagnostics fallback. That keeps a stale browser cache or older static module from aborting the whole instrument before the canvas and beat controls can start.
 
 ## Evidence
 
-- `npm test`: passing, including deterministic 16-step pattern, paused Demo transport, demo-source lifecycle, beat-readout state, all-family modulation contracts, the live scope markup contract, the set-level performance coverage contract, and the versioned beat-response check/report comparison.
+- `npm test`: passing, including deterministic 16-step pattern, paused Demo transport, demo-source lifecycle, beat-readout state, all-family modulation contracts, the live scope markup contract, the set-level performance coverage contract, bounded audio-run headroom telemetry, and the versioned beat-response check/report comparison.
 - `npm run build`, `npm run check:dist`, and `git diff --check`: passing.
 - Local Chrome smoke: the repaired module graph boots with `RUNNING`, Julia reports `Julia · WebGL native 960×600`, and the Demo beat source starts with `Dark techno demo beat · kick, clap, hats`, reports an active source, and exposes live steps plus `14/14 VISUALS BEAT-LINKED`. Voice-level loudness and long-run device output remain uncalibrated.
 
 ## Limits and next test
 
-This is an authored preview groove, not a calibrated drum machine or beat detector. Repeat on a named reference device with headphones/speakers and a sustained 20–30-minute set, checking kick weight, hat harshness, output headroom, whether each scene's visual response feels intentional, and whether all fourteen families reach the set-level timing summary.
+This is an authored preview groove, not a calibrated drum machine or beat detector. Repeat on a named reference device with headphones/speakers and a sustained 20–30-minute set, checking kick weight, hat harshness, output headroom, whether each scene's visual response feels intentional, and whether all fourteen families reach the set-level timing summary. The run envelope is bounded to roughly 33 minutes at a 60 Hz sample cadence; a `CAP` marker means the pass exceeded that evidence window.

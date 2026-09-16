@@ -66,7 +66,7 @@ class FakeDocument {
 
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
-  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'audioCoverageReadout', 'beatScope', 'audioHeadroomReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportEvidenceReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
+  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'audioCoverageReadout', 'beatScope', 'audioHeadroomReadout', 'audioSessionReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportEvidenceReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
   const windowListeners = new Map();
   const fireWindow = (type, event) => { for (const callback of windowListeners.get(type) || []) callback(event); };
   globalThis.document = document; globalThis.window = globalThis; globalThis.addEventListener = (type, callback) => { if (!windowListeners.has(type)) windowListeners.set(type, []); windowListeners.get(type).push(callback); }; globalThis.location = { search: '' }; globalThis.performance = { now: () => 0 }; globalThis.requestAnimationFrame = () => 0; globalThis.localStorage = { data: new Map(), getItem(key) { return this.data.get(key) ?? null; }, setItem(key, value) { this.data.set(key, value); }, removeItem(key) { this.data.delete(key); } }; globalThis.FileReader = class {}; globalThis.URL.createObjectURL ??= () => 'blob:fake'; globalThis.URL.revokeObjectURL ??= () => {};
@@ -76,10 +76,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('demoAudioButton')['aria-pressed'], 'false', 'demo source starts inactive');
   assert.equal(document.getElementById('micButton')['aria-pressed'], 'false', 'microphone source starts inactive');
   assert.equal(document.getElementById('tabAudioButton')['aria-pressed'], 'false', 'tab source starts inactive');
-  assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus beatReadout audioCoverageReadout audioHeadroomReadout', 'file source points to its status, beat response, coverage, and headroom');
+  assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus beatReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout', 'file source points to its status, beat response, coverage, headroom, and run telemetry');
   assert.equal(document.getElementById('beatReadout').textContent, 'BEAT IDLE', 'beat readout starts idle');
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS READY', 'coverage readout starts ready for every scene family');
   assert.equal(document.getElementById('audioHeadroomReadout').textContent, 'PEAK 0% · HEADROOM 100%', 'headroom readout starts clear');
+  assert.equal(document.getElementById('audioSessionReadout').textContent, 'RUN 0:00 · ENVELOPE WARMING UP', 'audio run telemetry starts warming up');
   assert.equal(document.getElementById('qualityABButton').disabled, true, 'quality A/B is limited to the Julia scene');
   assert.equal(document.getElementById('qualityABReadout').textContent, 'Quality A/B available on Julia', 'quality A/B readout starts with its scene gate');
   assert.equal(document.getElementById('rehearsalReportReadout').textContent, 'No report saved', 'rehearsal report starts idle');
@@ -309,6 +310,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(reportCache.observedChecksAt, rehearsalReport.observedChecksAt, 'report cache keeps the observed-check timestamp');
   assert.equal(typeof reportCache.performanceSignature, 'string', 'report cache keeps the measured performance signature');
   assert.equal(typeof reportCache.performanceSetSignature, 'string', 'report cache keeps the set performance signature');
+  assert.equal(typeof reportCache.audioPeakSessionSignature, 'string', 'report cache keeps the audio run envelope signature');
   assert.doesNotMatch(JSON.stringify(reportCache), /mediaUrl|MediaStream|credential/i, 'report cache stores metadata only, not media or credentials');
   assert.equal(api.restoreRehearsalReportCache(reportCache), true, 'saved report metadata can be restored after reopen');
   assert.match(document.getElementById('rehearsalReportReadout').textContent, /Studio Mac · Chrome 152 · reopened$/, 'reopened report metadata names the setup label');
@@ -318,6 +320,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.restoreRehearsalReportCache(legacyReportCache), true, 'legacy report cache without performance metadata remains reopenable');
   const legacySetPerformanceCache = structuredClone(reportCache); delete legacySetPerformanceCache.performanceSetSignature;
   assert.equal(api.restoreRehearsalReportCache(legacySetPerformanceCache), true, 'legacy report cache without set performance metadata remains reopenable');
+  const legacyAudioPeakSessionCache = structuredClone(reportCache); delete legacyAudioPeakSessionCache.audioPeakSessionSignature;
+  assert.equal(api.restoreRehearsalReportCache(legacyAudioPeakSessionCache), true, 'legacy report cache without audio run metadata remains reopenable');
   const legacyMimeCache = structuredClone(reportCache); delete legacyMimeCache.recordingMimeType;
   assert.equal(api.restoreRehearsalReportCache(legacyMimeCache), true, 'legacy report cache without MIME metadata remains reopenable');
   assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path · not recorded', 'legacy MIME cache absence stays explicit in the UI');
@@ -356,6 +360,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const importedPeakDifferent = api.importRehearsalReport(changedPeakReport);
   assert.equal(importedPeakDifferent.comparison.sameAudioPeak, false, 'imported report detects a different held audio peak');
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: headroom$/, 'imported report readout names headroom differences');
+  const changedPeakSessionReport = structuredClone(rehearsalReport); changedPeakSessionReport.audio.peakSession = { sampleCount: 1, peakMax: .4, holdMax: .82, averageHold: .62, headroom: .18, hotPercent: 100, nearClipPercent: 0, capped: false };
+  const importedPeakSessionDifferent = api.importRehearsalReport(changedPeakSessionReport);
+  assert.equal(importedPeakSessionDifferent.comparison.sameAudioPeakSession, false, 'imported report detects a different audio run envelope');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: headroom$/, 'imported report readout names audio run headroom differences');
   const changedEnvironmentImport = structuredClone(rehearsalReport); changedEnvironmentImport.environment.language = 'de-DE';
   const importedEnvironmentDifferent = api.importRehearsalReport(changedEnvironmentImport);
   assert.equal(importedEnvironmentDifferent.comparison.sameEnvironment, false, 'imported report detects a different runtime context');
@@ -423,6 +431,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { source: 'NO AUDIO', status: 'idle', history: Array.from({ length: 9 }, () => ({ source: 'NO AUDIO', status: 'idle' })) } }), /audio history is malformed/, 'imported reports bound audio history length');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { ...rehearsalReport.audio, peak: { current: 1.2, hold: 0, headroom: 1 } } }), /audio peak is malformed/, 'imported reports reject peaks outside the bounded range');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { ...rehearsalReport.audio, peak: { current: .4, hold: .8, headroom: .8 } } }), /audio peak is malformed/, 'imported reports reject contradictory headroom telemetry');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { ...rehearsalReport.audio, peakSession: { ...rehearsalReport.audio.peakSession, holdMax: .8, headroom: .1 } } }), /audio peak session is malformed/, 'imported reports reject contradictory audio run headroom telemetry');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { ...rehearsalReport.audio, peakSession: { ...rehearsalReport.audio.peakSession, sampleCount: 1, peakMax: .9, holdMax: .4, averageHold: .3, headroom: .6, hotPercent: 0, nearClipPercent: 0, capped: false } } }), /audio peak session is malformed/, 'imported reports reject a peak above the held maximum');
   const legacyAudioReport = structuredClone(rehearsalReport); delete legacyAudioReport.audio.history;
   assert.deepEqual(api.validateRehearsalReport(legacyAudioReport).audio.history, [], 'legacy reports without audio history remain readable');
   const legacyEnvironmentReport = structuredClone(rehearsalReport); delete legacyEnvironmentReport.environment;
@@ -445,6 +455,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.ok(rehearsalReport.environment.devicePixelRatio >= .1 && rehearsalReport.environment.devicePixelRatio <= 8, 'rehearsal report bounds pixel ratio');
   assert.equal(rehearsalReport.audio.source, 'NO AUDIO', 'rehearsal report records source kind without media payloads');
   assert.deepEqual(rehearsalReport.audio.peak, { current: 0, hold: 0, headroom: 1 }, 'rehearsal report records clear bounded audio headroom');
+  assert.deepEqual(rehearsalReport.audio.peakSession, { sampleCount: 0, peakMax: 0, holdMax: 0, averageHold: 0, headroom: 1, hotPercent: 0, nearClipPercent: 0, capped: false }, 'rehearsal report records an explicit empty audio run envelope');
   assert.deepEqual(api.validateRehearsalReport(rehearsalReport).environment, rehearsalReport.environment, 'rehearsal report preserves bounded runtime context on validation');
   const changedEnvironmentReport = structuredClone(rehearsalReport); changedEnvironmentReport.environment.viewport.width += 1;
   assert.equal(api.compareRehearsalReports(rehearsalReport, changedEnvironmentReport).sameEnvironment, false, 'rehearsal report comparison detects a changed runtime viewport');
@@ -805,6 +816,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.setTestAudioPeak(.64, .9);
   assert.equal(document.getElementById('audioHeadroomReadout').textContent, 'PEAK 64% · HOT 10%', 'headroom readout exposes a held near-peak without claiming clipping');
   assert.deepEqual(api.rehearsalReport().audio.peak, { current: .64, hold: .9, headroom: .1 }, 'rehearsal report carries bounded peak/headroom telemetry');
+  api.setTestAudioPeak(.64, .9, true); api.setTestAudioPeak(.2, .4, true);
+  assert.deepEqual(api.audioPeakSessionTelemetry(), { sampleCount: 2, peakMax: .64, holdMax: .9, averageHold: .65, headroom: .1, hotPercent: 50, nearClipPercent: 0, capped: false }, 'audio run telemetry aggregates a bounded peak envelope');
+  assert.match(document.getElementById('audioSessionReadout').textContent, /^RUN 0:00 · MAX 90% · 10% HEADROOM$/, 'audio run readout names the held maximum and remaining headroom');
+  assert.deepEqual(api.rehearsalReport().audio.peakSession, { sampleCount: 2, peakMax: .64, holdMax: .9, averageHold: .65, headroom: .1, hotPercent: 50, nearClipPercent: 0, capped: false }, 'rehearsal report carries bounded audio run telemetry');
   api.setTestAudioPeak(0, 0);
   api.setTestAudioBands({ low: .2, mid: .45, high: .7 });
   const bandsBeforeOffline = api.audioState().bands;

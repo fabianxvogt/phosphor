@@ -132,8 +132,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /aria-pressed.*active/, 'active audio source state is synchronized');
   assert.match(app, /\['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton'\]/, 'recording locks the stop-source control');
   assert.match(app, /stopAudioButton'\)\.addEventListener\('click', \(\) => \{ if \(!offlineJobActive\(\) && !recordingBlocksSourceChange\(\)\)/, 'stop source handler keeps recording audio intact');
-  assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout"/, 'demo source announces its state, beat response, coverage, and headroom');
-  assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout"/, 'file source references its status, beat response, coverage, and headroom');
+  assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?"/, 'demo source announces its state, beat response, coverage, headroom, and run telemetry');
+  assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?"/, 'file source references its status, beat response, coverage, headroom, and run telemetry');
   assert.match(html, /id="audioOutcomeReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'source outcome is announced');
   assert.match(app, /function syncRecordingReadout\(/, 'recording duration is surfaced while capturing');
   assert.match(app, /try \{ audio\.recorder\.stop\(\); \} catch \{ finishRecording\(false, 'Recording could not stop · capture cleaned up'\); \}/, 'recorder stop failures restore the capture UI');
