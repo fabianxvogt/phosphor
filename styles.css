@@ -32,6 +32,7 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 @media (max-width:680px) { .preflight-checklist { grid-template-columns:1fr; } }
 @media (max-width:680px) { .beat-scope { grid-template-columns:repeat(7,minmax(24px,1fr)); gap:5px; } }
 .performance-readout { flex:1 1 180px; min-width:160px; color:var(--muted); font:10px 'DM Mono',monospace; font-variant-numeric:tabular-nums; }
+.performance-set-readout { flex:1 1 260px; min-width:220px; color:var(--pink); font:10px 'DM Mono',monospace; font-variant-numeric:tabular-nums; }
 .renderer-readout { flex:1 1 210px; min-width:180px; color:var(--acid); font:10px 'DM Mono',monospace; font-variant-numeric:tabular-nums; }
 .focus-renderer-readout { display:none; color:var(--acid); font:10px 'DM Mono',monospace; font-variant-numeric:tabular-nums; }
 .focus-mode .focus-renderer-readout { display:inline; }

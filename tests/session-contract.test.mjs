@@ -66,7 +66,7 @@ class FakeDocument {
 
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
-  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'audioCoverageReadout', 'beatScope', 'audioHeadroomReadout', 'fpsReadout', 'performanceReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportEvidenceReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
+  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'audioCoverageReadout', 'beatScope', 'audioHeadroomReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportEvidenceReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
   const windowListeners = new Map();
   const fireWindow = (type, event) => { for (const callback of windowListeners.get(type) || []) callback(event); };
   globalThis.document = document; globalThis.window = globalThis; globalThis.addEventListener = (type, callback) => { if (!windowListeners.has(type)) windowListeners.set(type, []); windowListeners.get(type).push(callback); }; globalThis.location = { search: '' }; globalThis.performance = { now: () => 0 }; globalThis.requestAnimationFrame = () => 0; globalThis.localStorage = { data: new Map(), getItem(key) { return this.data.get(key) ?? null; }, setItem(key, value) { this.data.set(key, value); }, removeItem(key) { this.data.delete(key); } }; globalThis.FileReader = class {}; globalThis.URL.createObjectURL ??= () => 'blob:fake'; globalThis.URL.revokeObjectURL ??= () => {};
@@ -152,11 +152,15 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('observedChecksNext').textContent, 'Evidence not started · remaining: Microphone · Tab audio · Recording · PNG folder · Performance', 'observed checks name the remaining outcomes');
   assert.deepEqual(api.rehearsalReport().observedEvidence, { status: 'not-started', label: 'Not started', completed: 0, total: 5 }, 'report starts with explicit evidence status');
   assert.equal(document.getElementById('performanceReadout').textContent, 'Frame timing warming up · 16.7ms target', 'performance readout starts honestly');
+  assert.equal(document.getElementById('performanceSetReadout').textContent, 'Set timing warming up · 0/14 scenes · 16.7ms target', 'set performance readout starts honestly');
+  assert.deepEqual(api.rehearsalReport().performanceSet, { sampleCount: 0, medianMs: null, p95Ms: null, sceneFrames: 0, sampledScenes: 0, totalScenes: 14, unmeasuredScenes: 14, coverage: 'partial', worstScene: null, status: 'warming-up', statusLabel: 'Warming up', targetMs: 16.67 }, 'rehearsal report starts explicit about unmeasured visual families');
   api.updatePerformanceReadout(0);
   assert.equal(document.getElementById('performanceReadout')['aria-label'], 'Frame timing is warming up; the 60 target is 16.7 milliseconds');
   window.__phosphorMetrics.sceneTimes[0].push(16.7, 18.1, 21.4, 34.2);
   api.updatePerformanceReadout(1000);
   assert.match(document.getElementById('performanceReadout').textContent, /^Frame 19\.8ms med · 34\.2ms p95 · over target$/);
+  assert.match(document.getElementById('performanceSetReadout').textContent, /^Set 1\/14 scenes · 34\.2ms p95 max · over target so far · worst Acid Mycelium 34\.2ms$/);
+  assert.equal(api.rehearsalReport().performanceSet.worstScene.id, 'acid', 'set report identifies the slowest measured visual family');
   assert.equal(document.getElementById('focusPerformanceReadout').textContent, document.getElementById('performanceReadout').textContent, 'focus mode keeps measured timing visible');
   const overTargetManifest = api.frameManifest();
   assert.equal(overTargetManifest.performanceMeasurement.status, 'over-target', 'frame plans preserve an over-target measurement status');
@@ -173,6 +177,19 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.updatePerformanceReadout(2000);
   assert.match(document.getElementById('performanceReadout').textContent, /^Frame 10\.0ms med · 12\.0ms p95 · within target$/);
   assert.equal(api.rehearsalReport().performance.status, 'within-target', 'rehearsal report marks measured performance within target');
+  assert.equal(api.rehearsalReport().performanceSet.coverage, 'partial', 'set report keeps partial coverage explicit');
+  window.__phosphorMetrics.sceneTimes[1].push(10, 11, 12);
+  window.__phosphorMetrics.sceneFrames[1] = 3;
+  const setSummary = api.rehearsalReport().performanceSet;
+  assert.equal(setSummary.sampledScenes, 2, 'set summary counts distinct measured families');
+  assert.equal(setSummary.unmeasuredScenes, 12, 'set summary names remaining unmeasured families');
+  assert.equal(setSummary.worstScene.id, 'acid', 'set summary preserves the worst-family p95 across scenes');
+  for (let index = 2; index < api.sceneDefs.length; index += 1) { window.__phosphorMetrics.sceneTimes[index].push(10); window.__phosphorMetrics.sceneFrames[index] = 1; }
+  const completeSetSummary = api.performanceSetSummary();
+  api.syncSetPerformanceReadout(completeSetSummary);
+  assert.equal(completeSetSummary.coverage, 'complete', 'set summary marks all visual families measured');
+  assert.equal(completeSetSummary.unmeasuredScenes, 0, 'complete set summary has no unmeasured families');
+  assert.match(document.getElementById('performanceSetReadout').textContent, /^Set 14\/14 scenes · 12\.0ms p95 max · within target · worst Acid Mycelium 12\.0ms$/);
   profileInput.value = '1080'; profileInput.dispatchEvent({ type: 'change' });
   window.__phosphorMetrics.sceneTimes[0].push(16.67);
   api.updatePerformanceReadout(3000);
@@ -291,6 +308,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(reportCache.observedChecks, rehearsalReport.observedChecks, 'report cache keeps observed-check metadata for reopen');
   assert.equal(reportCache.observedChecksAt, rehearsalReport.observedChecksAt, 'report cache keeps the observed-check timestamp');
   assert.equal(typeof reportCache.performanceSignature, 'string', 'report cache keeps the measured performance signature');
+  assert.equal(typeof reportCache.performanceSetSignature, 'string', 'report cache keeps the set performance signature');
   assert.doesNotMatch(JSON.stringify(reportCache), /mediaUrl|MediaStream|credential/i, 'report cache stores metadata only, not media or credentials');
   assert.equal(api.restoreRehearsalReportCache(reportCache), true, 'saved report metadata can be restored after reopen');
   assert.match(document.getElementById('rehearsalReportReadout').textContent, /Studio Mac · Chrome 152 · reopened$/, 'reopened report metadata names the setup label');
@@ -298,6 +316,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('preflightTimestamp').textContent, /^Checked .+/);
   const legacyReportCache = structuredClone(reportCache); delete legacyReportCache.performanceSignature;
   assert.equal(api.restoreRehearsalReportCache(legacyReportCache), true, 'legacy report cache without performance metadata remains reopenable');
+  const legacySetPerformanceCache = structuredClone(reportCache); delete legacySetPerformanceCache.performanceSetSignature;
+  assert.equal(api.restoreRehearsalReportCache(legacySetPerformanceCache), true, 'legacy report cache without set performance metadata remains reopenable');
   const legacyMimeCache = structuredClone(reportCache); delete legacyMimeCache.recordingMimeType;
   assert.equal(api.restoreRehearsalReportCache(legacyMimeCache), true, 'legacy report cache without MIME metadata remains reopenable');
   assert.equal(document.getElementById('recordingMimeReadout').textContent, 'WebM path · not recorded', 'legacy MIME cache absence stays explicit in the UI');
@@ -412,6 +432,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, recordingStatus: 'maybe' }), /recording status is malformed/, 'imported reports reject unknown recording outcomes');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, performance: { sampleCount: 1, medianMs: 20, p95Ms: 20, sceneFrames: 1, status: 'within-target', statusLabel: 'Within target', targetMs: 16.67, heapUsedBytes: null } }), /performance status is inconsistent/, 'imported reports reject contradictory performance status');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, performance: { sampleCount: 2, medianMs: 40, p95Ms: 10, sceneFrames: 2, status: 'within-target', statusLabel: 'Within target', targetMs: 16.67, heapUsedBytes: null } }), /performance is malformed/, 'imported reports reject a median above the p95 tail');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, performanceSet: { ...rehearsalReport.performanceSet, sampledScenes: 14, unmeasuredScenes: 0, coverage: 'complete' } }), /set performance is malformed/, 'imported reports reject set coverage that claims samples for unmeasured families');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, performanceSet: { ...rehearsalReport.performanceSet, worstScene: { id: 'acid', name: 'Acid Mycelium', index: 0, sampleCount: 1, p95Ms: 999 } } }), /worst scene is malformed/, 'imported reports reject contradictory set worst-scene timing');
   assert.deepEqual(rehearsalReport.preflight, preflight, 'rehearsal report carries the checked capability matrix');
   assert.equal(rehearsalReport.performance.heapUsedBytes, null, 'rehearsal report makes optional heap telemetry explicit');
   assert.equal(rehearsalReport.performance.status, 'warming-up', 'rehearsal report marks unmeasured performance as warming up');

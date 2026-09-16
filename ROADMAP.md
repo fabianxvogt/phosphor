@@ -18,6 +18,7 @@ State: thirteen-family studio update remains the historical Site version 5 recor
 
 - Run one browser/device rehearsal using the readiness readout: the local Chrome smoke pass now verifies named-cue preview, combined `SET LIVE · MORPHING` transport, global pause/blackout recovery, and a legible capability checklist. Still verify microphone/tab permission outcomes, source switching, recorder state, and native folder output on a real reference device before further feature expansion.
 - Repeat the browser A/B on a named reference device, including the bounded CPU fallback where WebGL is unavailable; record sustained visual samples and median/p95 draw time before deciding whether to tune the shader or adjust the fallback budget further.
+- Use the set-level performance readout during that rehearsal: visit all fourteen visual families, confirm the worst measured p95 stays visible, and record any family that remains over target or unmeasured.
 - The first local Chrome A/B is recorded in [Julia quality A/B](docs/releases/quality-ab.md): Full is a `1.5×` Focus upscale while HD is a `0.7×` downscale and visibly sharper; the remaining gate is a sustained named-device rehearsal, not speculative shader tuning.
 - Repair failures observed in rehearsal; prioritize expressive controls, discoverability, contrast, reliable transitions and state recovery.
 - Formative continuation gate: three performers observed, at least two independently reusing a saved set, one complete 20–30-minute performance, and no lost project state in the declared workflow. Separate fresh-user usability failures from lack of artistic interest; this small sample does not establish general reliability or market demand.
@@ -118,6 +119,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Source dock now exposes complete `14/14 VISUALS BEAT-LINKED` coverage while a source is active, making the all-family response contract legible during rehearsal.
 - Source dock now exposes a low-cost fourteen-family beat scope, keeping each mapped response visible during rehearsal without adding a second modulation path.
 - Global pause now holds the Demo beat scheduler on its current step, keeping audio and visual transport aligned on resume.
+- Set-level performance readout now counts measured visual families and reports the worst measured p95, while naming unmeasured families honestly in the rehearsal surface and report.
 - Beat envelope now gives the shared effect stack a bounded transient lift (symmetry, echo, chroma, and glow) without changing saved effect strengths.
 - Advanced renderer imports now tolerate older cached module exports, with a local Julia diagnostics fallback so a stale static asset cannot prevent the instrument from booting.
 - Preflight now probes an actual usable WebGL context, so a constructor-only capability result cannot hide the CPU fallback cause.
