@@ -460,7 +460,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.ok(rehearsalReport.environment.devicePixelRatio >= .1 && rehearsalReport.environment.devicePixelRatio <= 8, 'rehearsal report bounds pixel ratio');
   assert.equal(rehearsalReport.audio.source, 'NO AUDIO', 'rehearsal report records source kind without media payloads');
   assert.deepEqual(rehearsalReport.audio.peak, { current: 0, hold: 0, headroom: 1 }, 'rehearsal report records clear bounded audio headroom');
-  assert.deepEqual(rehearsalReport.audio.peakSession, { sampleCount: 0, peakMax: 0, holdMax: 0, averageHold: 0, headroom: 1, hotPercent: 0, nearClipPercent: 0, capped: false }, 'rehearsal report records an explicit empty audio run envelope');
+  assert.deepEqual(rehearsalReport.audio.peakSession, { sampleCount: 0, durationSeconds: 0, peakMax: 0, holdMax: 0, averageHold: 0, headroom: 1, hotPercent: 0, nearClipPercent: 0, capped: false }, 'rehearsal report records an explicit empty audio run envelope');
   assert.deepEqual(api.validateRehearsalReport(rehearsalReport).environment, rehearsalReport.environment, 'rehearsal report preserves bounded runtime context on validation');
   const changedEnvironmentReport = structuredClone(rehearsalReport); changedEnvironmentReport.environment.viewport.width += 1;
   assert.equal(api.compareRehearsalReports(rehearsalReport, changedEnvironmentReport).sameEnvironment, false, 'rehearsal report comparison detects a changed runtime viewport');
@@ -821,10 +821,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.setTestAudioPeak(.64, .9);
   assert.equal(document.getElementById('audioHeadroomReadout').textContent, 'PEAK 64% · HOT 10%', 'headroom readout exposes a held near-peak without claiming clipping');
   assert.deepEqual(api.rehearsalReport().audio.peak, { current: .64, hold: .9, headroom: .1 }, 'rehearsal report carries bounded peak/headroom telemetry');
-  api.setTestAudioPeak(.64, .9, true); api.setTestAudioPeak(.2, .4, true);
-  assert.deepEqual(api.audioPeakSessionTelemetry(), { sampleCount: 2, peakMax: .64, holdMax: .9, averageHold: .65, headroom: .1, hotPercent: 50, nearClipPercent: 0, capped: false }, 'audio run telemetry aggregates a bounded peak envelope');
-  assert.match(document.getElementById('audioSessionReadout').textContent, /^RUN 0:00 · MAX 90% · 10% HEADROOM$/, 'audio run readout names the held maximum and remaining headroom');
-  assert.deepEqual(api.rehearsalReport().audio.peakSession, { sampleCount: 2, peakMax: .64, holdMax: .9, averageHold: .65, headroom: .1, hotPercent: 50, nearClipPercent: 0, capped: false }, 'rehearsal report carries bounded audio run telemetry');
+  api.setTestAudioPeak(.64, .9, true, .5); api.setTestAudioPeak(.2, .4, true, .25);
+  assert.deepEqual(api.audioPeakSessionTelemetry(), { sampleCount: 2, durationSeconds: .75, peakMax: .64, holdMax: .9, averageHold: .65, headroom: .1, hotPercent: 50, nearClipPercent: 0, capped: false }, 'audio run telemetry aggregates a bounded peak envelope');
+  assert.match(document.getElementById('audioSessionReadout').textContent, /^RUN 0:01 · MAX 90% · 10% HEADROOM$/, 'audio run readout names the held maximum and elapsed duration');
+  assert.deepEqual(api.rehearsalReport().audio.peakSession, { sampleCount: 2, durationSeconds: .75, peakMax: .64, holdMax: .9, averageHold: .65, headroom: .1, hotPercent: 50, nearClipPercent: 0, capped: false }, 'rehearsal report carries bounded audio run telemetry');
   api.setTestAudioPeak(0, 0);
   api.setTestAudioBands({ low: .2, mid: .45, high: .7 });
   const bandsBeforeOffline = api.audioState().bands;

@@ -21,7 +21,7 @@ The source dock now adds a live fourteen-cell beat scope. Each meter follows the
 
 The output dock now keeps a bounded set-level performance summary alongside the selected-scene timing. It counts distinct visual families with retained samples, uses the worst measured scene p95 as the set-level tail, and names the slowest family. Until all fourteen families have samples, the readout says how many remain unmeasured; it is a rehearsal aid, not device certification.
 
-The source dock now keeps a bounded audio-run envelope while a source is active. It records the maximum held peak, average hold, hot/near-clip proportions, remaining headroom, and whether the sample cap was reached, then carries that snapshot through reports, cache reopen, and before/after comparison. This makes the heavy-kick/headroom check useful over a sustained device pass without storing media or claiming calibrated loudness.
+The source dock now keeps a bounded audio-run envelope while a source is active. It records actual active-source duration, the maximum held peak, average hold, hot/near-clip proportions, remaining headroom, and whether the sample cap was reached, then carries that snapshot through reports, cache reopen, and before/after comparison. This makes the heavy-kick/headroom check useful over a sustained device pass without storing media or claiming calibrated loudness.
 
 Julia's display-scale diagnostic now exposes the existing one-click `Use HD` action outside Focus mode too. When the 960×600 or CPU fallback surface is visibly enlarged, the action appears beside the stage readout so a performer can correct softness without hunting through the quality selector; HD remains an explicit, measured tradeoff.
 
@@ -35,4 +35,4 @@ The advanced-renderer import now uses a namespace boundary with a local Julia di
 
 ## Limits and next test
 
-This is an authored preview groove, not a calibrated drum machine or beat detector. Repeat on a named reference device with headphones/speakers and a sustained 20–30-minute set, checking kick weight, hat harshness, output headroom, whether each scene's visual response feels intentional, and whether all fourteen families reach the set-level timing summary. The run envelope is bounded to roughly 33 minutes at a 60 Hz sample cadence; a `CAP` marker means the pass exceeded that evidence window.
+This is an authored preview groove, not a calibrated drum machine or beat detector. Repeat on a named reference device with headphones/speakers and a sustained 20–30-minute set, checking kick weight, hat harshness, output headroom, whether each scene's visual response feels intentional, and whether all fourteen families reach the set-level timing summary. The run envelope keeps actual active-source time but bounds samples to roughly 33 minutes at a 60 Hz cadence; a `CAP` marker means the pass exceeded that evidence window.
