@@ -106,11 +106,13 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /dataset\.selected/, 'beat scope marks the selected visual family');
   assert.match(app, /function syncAudioHeadroomReadout\(/, 'audio peak/headroom is surfaced for rehearsal tuning');
   assert.match(app, /function beatTelemetry\(/, 'beat onset telemetry is versioned and reportable');
+  assert.match(app, /function syncRehearsalBeatReadout\(/, 'rehearsal card mirrors onset telemetry');
   assert.match(app, /function recordAudioBeatOnset\(/, 'external audio onsets use a bounded hysteresis gate');
   assert.match(app, /function recordDemoBeatOnset\(/, 'demo steps register at most one onset per 16th note');
   assert.match(app, /function sanitizeBeatTelemetry\(/, 'imported onset telemetry is validated');
   assert.match(html, /id="beatReadout"/, 'beat readout is present in the source dock');
   assert.match(html, /id="audioBeatTelemetryReadout"[^>]*>HITS 0 · LAST —/, 'source dock exposes the onset counter and timestamp');
+  assert.match(html, /id="rehearsalBeatReadout"[^>]*aria-live="off"[^>]*>BEAT TELEMETRY · 0 HITS · LAST — · diagnostic only/, 'rehearsal card exposes non-grid onset evidence');
   assert.match(html, /id="sceneBeatReadout"[^>]*role="status"[^>]*>SCENE ACID MYCELIUM · BEAT IDLE/, 'source dock names the selected-scene beat response');
   assert.match(html, /id="audioCoverageReadout"[^>]*>14\/14 VISUALS READY/, 'source dock names complete visual coverage');
   assert.match(html, /id="beatScope"[^>]*role="group"/, 'source dock includes an accessible per-family beat scope');

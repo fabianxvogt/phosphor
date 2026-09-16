@@ -57,6 +57,8 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .preflight-report-import-compare[data-level="differs"] { color:var(--orange) !important; }
 .preflight-report-import-compare[data-level="stale"] { color:var(--muted) !important; }
 .preflight-quality-ab { flex:1 1 100% !important; min-width:0 !important; color:var(--acid) !important; overflow-wrap:anywhere; }
+.preflight-beat-telemetry { flex:1 1 100% !important; min-width:0 !important; color:var(--muted) !important; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.preflight-beat-telemetry[data-active="true"] { color:var(--pink) !important; }
 .preflight-beat-response { flex:1 1 100% !important; min-width:0 !important; color:var(--pink) !important; overflow-wrap:anywhere; }
 .preflight-pass { flex:1 1 100% !important; min-width:0 !important; color:var(--acid) !important; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
 .preflight-pass[data-level="in-progress"] { color:var(--pink) !important; }

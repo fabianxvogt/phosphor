@@ -245,6 +245,24 @@ function rehearsalEnvironment() { const nav = globalThis.navigator; const width 
 function audioSourceKind() { return audio.media ? 'FILE' : audio.micStream ? 'MIC' : audio.tabStream ? 'TAB AUDIO' : state.demoOn ? 'DEMO' : 'NO AUDIO'; }
 function recordAudioSourceEvent(source, status) { if (!audioSourceOutcomes.has(status)) return; const safeSource = rehearsalAudioSources.has(source) ? source : 'NO AUDIO'; const previous = audioSourceEvents.at(-1); if (previous?.source === safeSource && previous.status === status) return; audioSourceEvents.push({ source: safeSource, status }); if (audioSourceEvents.length > maxAudioSourceEvents) audioSourceEvents.shift(); }
 function beatTelemetry() { return { format: beatTelemetryFormat, version: 1, hits: beatTelemetryHits, lastOnsetAt: beatTelemetryLastOnsetAt, lastOnsetSource: beatTelemetryLastOnsetSource, capped: beatTelemetryHits >= maxBeatTelemetryHits }; }
+function beatTelemetryDisplayText(telemetry = beatTelemetry(), source = audioSourceKind(), prefix = 'BEAT TELEMETRY') {
+  const last = telemetry.lastOnsetAt ? `${telemetry.lastOnsetAt.slice(11, 19)}Z` : '—';
+  const onsetSource = telemetry.lastOnsetSource || source;
+  return `${prefix} · ${telemetry.hits} HIT${telemetry.hits === 1 ? '' : 'S'}${telemetry.capped ? ' · CAP' : ''} · LAST ${last}${telemetry.lastOnsetAt ? ` · ${onsetSource}` : ''}`;
+}
+function beatTelemetryDisplayAria(telemetry = beatTelemetry(), source = audioSourceKind()) {
+  return telemetry.lastOnsetAt ? `${telemetry.hits} detected beat hits${telemetry.capped ? '; telemetry cap reached' : ''}; last onset ${telemetry.lastOnsetAt} from ${telemetry.lastOnsetSource || source}; current source ${source}` : `No detected beat hits; source ${source}`;
+}
+function syncRehearsalBeatReadout() {
+  const output = $('rehearsalBeatReadout');
+  if (!output) return;
+  const source = audioSourceKind();
+  const telemetry = beatTelemetry();
+  const next = `${beatTelemetryDisplayText(telemetry, source)} · diagnostic only`;
+  if (output.textContent !== next) output.textContent = next;
+  output.setAttribute('aria-label', `${beatTelemetryDisplayAria(telemetry, source)}. Diagnostic rehearsal telemetry only; this does not certify a beat grid.`);
+  output.dataset.active = String(telemetry.hits > 0);
+}
 function syncBeatTelemetryReadout() {
   const output = $('audioBeatTelemetryReadout');
   if (!output) return;
@@ -263,7 +281,8 @@ function syncBeatTelemetryReadout() {
   output.dataset.source = source;
   output.dataset.capped = String(telemetry.capped);
   output.dataset.active = String(telemetry.hits > 0);
-  output.setAttribute('aria-label', telemetry.lastOnsetAt ? `${telemetry.hits} detected beat hits${telemetry.capped ? '; telemetry cap reached' : ''}; last onset ${telemetry.lastOnsetAt} from ${telemetry.lastOnsetSource || source}; current source ${source}` : `No detected beat hits; source ${source}`);
+  output.setAttribute('aria-label', beatTelemetryDisplayAria(telemetry, source));
+  syncRehearsalBeatReadout();
 }
 function resetBeatTelemetry() { beatTelemetryHits = 0; beatTelemetryLastOnsetAt = null; beatTelemetryLastOnsetSource = null; beatTelemetryArmed = true; lastDemoTelemetryStep = -1; syncBeatTelemetryReadout(); }
 function recordBeatEvent(source) {
