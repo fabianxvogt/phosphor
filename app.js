@@ -99,6 +99,10 @@ const scenePalettes = Object.fromEntries(sceneDefs.map(def => [def.id, { ...pale
 const paletteCollections = { neon: ['#d5ff5f', '#5364ff', '#ff5bc8'], ember: ['#ffcd75', '#802938', '#ff643d'], glacier: ['#b1ffed', '#234f9e', '#65caff'], orchid: ['#ecc7ff', '#5c2dba', '#ff70ab'], mono: ['#ffffff', '#364152', '#a5b4c9'] };
 const state = { sceneIndex: 0, presetIndex: Array(sceneDefs.length).fill(0), params: structuredClone(initialParams), evolution: null, gestureHistory: [], phaseEvents: [], phaseMeasurementArchive: null, workflow: 'explore', focusMode: false, renderingLost: false, tempo: 92, paused: false, muted: false, blackout: false, reducedMotion: false, brightness: .92, quality: '1080', cadenceAccumulator: 0, currentCue: -1, transition: null, dirty: false, setPlaying: false, setComplete: false, lastTime: performance.now(), elapsed: 0, audioLevel: 0, audioBands: { low: 0, mid: 0, high: 0 }, audioBandsReady: false, audioPeak: 0, audioPeakHold: 0, beatPulse: 0, beatStep: 0, beatBar: 0, gesture: { x: .5, y: .5, active: false }, setName: 'Untitled set', rehearsalNotes: '', rehearsalChecks: { microphone: false, tabAudio: false, recording: false, pngFolder: false, performance: false }, rehearsalChecksAt: null, demoOn: false };
 state.deviceLabel = '';
+let previousBeatVisualPulse = 0;
+let beatVisualArmed = true;
+const beatVisualTriggerThreshold = .28;
+const beatVisualRearmThreshold = .14;
 const audioMappings = { acid: ['mid', 'injection', .35], tapestry: ['high', 'weave', .3], feedback: ['low', 'tunnel', .25], magnetic: ['mid', 'motion', .4], cathedrals: ['high', 'emission', .5], aquarium: ['low', 'bloom', .4], interference: ['high', 'phase', .35], topology: ['mid', 'twist', .3], phase: ['mid', 'disturbance', .4], evolution: ['high', 'mutation', .3], julia: ['high', 'motion', .3], fourspace: ['mid', 'thickness', .3], hyperbolic: ['low', 'orbit', .3], fractal: ['low', 'detail', .25] };
 const metrics = {
   frameTimes: [],
@@ -1112,7 +1116,7 @@ function drawSceneBase() {
   syncRendererReadout();
 }
 function beatDrivenEffects() {
-  const pulse = clamp(state.beatPulse, 0, 1);
+  const pulse = state.reducedMotion ? 0 : clamp(state.beatPulse, 0, 1);
   if (pulse <= .01) return effects;
   return {
     symmetry: clamp(effects.symmetry + pulse * .08, 0, 1),
@@ -1238,8 +1242,12 @@ function syncSceneBeatReadout() {
   const level = clamp(beatResponseLevel(def.id), 0, 1);
   const percentage = Math.round(level * 100);
   const active = level > .05;
+  const sceneChanged = output.dataset.sceneId !== def.id;
+  const activeChanged = output.dataset.active !== String(active);
   const next = active ? `SCENE ${def.name.toUpperCase()} · ${percentage}% RESPONSE` : `SCENE ${def.name.toUpperCase()} · BEAT IDLE`;
+  output.setAttribute('aria-live', sceneChanged || activeChanged ? 'polite' : 'off');
   if (output.textContent !== next) output.textContent = next;
+  output.dataset.sceneId = def.id;
   output.dataset.active = String(active);
   output.dataset.beatLevel = level.toFixed(3);
   const source = audioSourceKind();
@@ -1294,10 +1302,14 @@ function beatResponseLevel(id) { return clamp(Math.max(audioResponseLevel(id), s
 function visualAudioCoverage() { return sceneDefs.map((def) => ({ id: def.id, mapped: Boolean(audioMappings[def.id]) })); }
 function applyBeatVisualPulse() {
   const pulse = clamp(state.beatPulse, 0, 1);
-  if (pulse <= .01) return;
-  const kickAccent = state.beatStep % 4 === 0 ? .025 : 0;
-  const washAlpha = clamp(.012 + pulse * .055 + kickAccent, 0, .1);
-  const frameAlpha = clamp(.01 + pulse * .065 + kickAccent * .5, 0, .1);
+  if (pulse <= beatVisualRearmThreshold) beatVisualArmed = true;
+  const onset = beatVisualArmed && pulse >= beatVisualTriggerThreshold ? clamp(pulse - previousBeatVisualPulse, 0, 1) : 0;
+  previousBeatVisualPulse = pulse;
+  if (onset > .01) beatVisualArmed = false;
+  if (state.reducedMotion || onset <= .01) return;
+  const kickAccent = state.demoOn && state.beatStep % 4 === 0 ? .025 : 0;
+  const washAlpha = clamp(.012 + onset * .09 + kickAccent, 0, .1);
+  const frameAlpha = clamp(.01 + onset * .08 + kickAccent * .5, 0, .1);
   ctx.save();
   ctx.globalCompositeOperation = 'screen';
   ctx.globalAlpha = washAlpha;
