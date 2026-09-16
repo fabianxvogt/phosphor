@@ -1,5 +1,5 @@
 import { createEffectStack, effectDefaults, validateEffects } from './effects.mjs';
-import { advancedDefaults, advancedScenes, drawAdvanced, juliaRenderState } from './advanced.mjs';
+import * as advancedModule from './advanced.mjs';
 import { audioBandLevels, darkTechnoStep, drivenRegimeFieldStep, drivenRegimeTarget, aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, evolutionContour, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from './core.mjs';
 import { FRACTAL_WORLD, defaultFlightPose, validateFlightPose, turnFlight, advanceFlight, worldDistance } from './fractal-navigation.mjs';
 import { createMandelboxFlythroughRenderer } from './mandelbox-flythrough.mjs';
@@ -7,6 +7,15 @@ import { createMandelboxFlythroughRenderer } from './mandelbox-flythrough.mjs';
 const $ = (id) => document.getElementById(id);
 const canvas = $('stage');
 const ctx = canvas.getContext('2d', { alpha: false });
+const { advancedDefaults, advancedScenes, drawAdvanced } = advancedModule;
+const fallbackJuliaRenderState = (buffer) => {
+  const path = ['webgl', 'cpu'].includes(buffer?.__juliaRenderPath) ? buffer.__juliaRenderPath : 'warming-up';
+  const width = Number.isInteger(buffer?.__juliaRenderWidth) ? buffer.__juliaRenderWidth : null;
+  const height = Number.isInteger(buffer?.__juliaRenderHeight) ? buffer.__juliaRenderHeight : null;
+  const reason = typeof buffer?.__juliaRenderReason === 'string' && buffer.__juliaRenderReason.length <= 120 ? buffer.__juliaRenderReason : null;
+  return { path, width, height, reason };
+};
+const juliaRenderState = typeof advancedModule.juliaRenderState === 'function' ? advancedModule.juliaRenderState : fallbackJuliaRenderState;
 const effectStack = createEffectStack(() => document.createElement('canvas'));
 let effects = { ...effectDefaults };
 const sceneList = $('sceneList');

@@ -109,6 +109,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Focus diagnostics now add an actionable `HD available` hint when a non-HD Julia frame is visibly enlarged, keeping the quality choice explicit without silently increasing render cost.
 - Local Chrome quality A/B evidence now records the Full/HD render paths and visible scale, with a one-click Focus action for the sharper profile; sustained named-device and performer checks remain open.
 - Local dark-techno Demo beat now provides a bounded kick/clap/hat pattern, stable mute/unmute gain, and a shared beat envelope across all fourteen visual families; voice balance and sustained headroom remain open on a named device.
+- Advanced renderer imports now tolerate older cached module exports, with a local Julia diagnostics fallback so a stale static asset cannot prevent the instrument from booting.
 - Preflight now probes an actual usable WebGL context, so a constructor-only capability result cannot hide the CPU fallback cause.
 - CPU fallback readouts now preserve a bounded failure reason, making a soft Focus frame actionable without changing report privacy or compatibility.
 - [Earlier public preview evidence](docs/releases/v4.md).

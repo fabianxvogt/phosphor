@@ -81,6 +81,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /const visibleSchema = state\.workflow === 'perform'/, 'progressive control modes');
   assert.match(app, /function toggleFocusMode\(/, 'canvas focus mode');
   assert.match(app, /getByteFrequencyData/, 'audio frequency analysis');
+  assert.match(app, /import \* as advancedModule from '\.\/advanced\.mjs';/, 'advanced module boundary tolerates older cached exports');
+  assert.match(app, /fallbackJuliaRenderState/, 'Julia diagnostics retain a local compatibility fallback');
   assert.match(app, /const audioMappings = \{ acid: \['mid'/, 'scene-specific audio bands');
   assert.match(app, /fractal: \['low', 'detail', \.25\]/, 'Fractal Flight participates in beat modulation');
   assert.match(app, /function scheduleDemoStep\(/, 'demo source schedules a bounded beat pattern');
