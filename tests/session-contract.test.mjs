@@ -192,6 +192,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusScaleReadout();
   assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 2.0× CPU raster upscale · HD available', 'Focus reports effective CPU raster scale for the sharper Full fallback');
   assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Focus exposes the one-click HD action when Julia is enlarged');
+  document.getElementById('stage').rect = { left: 0, top: 0, width: 480, height: 300 }; api.syncFocusScaleReadout(); document.getElementById('focusButton').click(); api.syncFocusScaleReadout();
+  assert.equal(document.getElementById('focusQualityButton').hidden, true, 'leaving Focus hides the HD action at native preview scale even when the signature is cached');
+  document.getElementById('focusButton').click(); api.syncFocusScaleReadout();
+  assert.equal(document.getElementById('focusQualityButton').hidden, false, 're-entering Focus restores the HD action without a scale-signature change');
   document.getElementById('focusQualityButton').click();
   assert.equal(document.getElementById('qualityInput').value, 'native', 'Focus HD action switches to the native output profile');
   assert.match(document.getElementById('toast').textContent, /HD output enabled/, 'Focus HD action confirms the profile change');

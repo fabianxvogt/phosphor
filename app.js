@@ -386,7 +386,13 @@ function syncFocusScaleReadout() {
   const scaleY = displayHeight / canvas.height;
   const scale = Math.max(scaleX, scaleY);
   const signature = `${Math.round(displayWidth)}×${Math.round(displayHeight)}·${scale.toFixed(3)}·${activeRenderState.path}·${activeRenderState.width ?? ''}`;
-  if (signature === lastDisplayScaleSignature) return;
+  if (signature === lastDisplayScaleSignature) {
+    // Focus can toggle without changing the canvas rect. Keep the correction
+    // affordance synchronized even when the scale readout itself is cached.
+    const rasterScale = activeRenderState.path === 'cpu' && Number.isInteger(activeRenderState.width) && activeRenderState.width > 0 ? displayWidth / activeRenderState.width : scale;
+    syncFocusQualityAction(scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || rasterScale >= 1.5));
+    return;
+  }
   lastDisplayScaleSignature = signature;
   if (activeRenderState.path === 'cpu' && Number.isInteger(activeRenderState.width) && activeRenderState.width > 0) {
     const rasterScale = displayWidth / activeRenderState.width;

@@ -113,7 +113,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Opt-in HD output (`1920×1200 · 60 target`) now gives Julia's native WebGL path a denser backing surface and raises its bounded CPU fallback to 640×400; both paths remain explicitly reported.
 - Full-profile CPU Julia fallback now uses a bounded 480×300 raster, reducing Focus enlargement to at most 2× while keeping Low at 160×100 and HD at 640×400.
 - Focus diagnostics now add an actionable `HD available` hint when a non-HD Julia frame is visibly enlarged, keeping the quality choice explicit without silently increasing render cost.
-- Focus keeps the `Use HD` correction visible for any non-HD Julia profile, so the quality fix remains discoverable before a resize measurement arrives.
+- Focus keeps the `Use HD` correction visible for any non-HD Julia profile, so the quality fix remains discoverable before a resize measurement arrives; the action now also refreshes when Focus toggles without a size change.
 - Local Chrome quality A/B evidence now records the Full/HD render paths and visible scale, with a one-click Focus action for the sharper profile; sustained named-device and performer checks remain open.
 - Rehearsal Preflight now runs a bounded three-sample-per-profile Julia Full/HD A/B probe and carries renderer path, display scale, median/p95 timing, and target status into the versioned rehearsal report; it restores the live profile and does not claim certification.
 - Rehearsal surface now runs a permission-free beat wiring check across all fourteen visual families and the shared effect stack, carries versioned bounded evidence into reports, and compares it as `beat response`; it is wiring evidence only, not aesthetic or device certification.
