@@ -110,6 +110,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Local Chrome quality A/B evidence now records the Full/HD render paths and visible scale, with a one-click Focus action for the sharper profile; sustained named-device and performer checks remain open.
 - Local dark-techno Demo beat now provides a bounded kick/clap/hat pattern, stable mute/unmute gain, and a shared beat envelope across all fourteen visual families; voice balance and sustained headroom remain open on a named device.
 - Source dock now exposes complete `14/14 VISUALS BEAT-LINKED` coverage while a source is active, making the all-family response contract legible during rehearsal.
+- Beat envelope now gives the shared effect stack a bounded transient lift (symmetry, echo, chroma, and glow) without changing saved effect strengths.
 - Advanced renderer imports now tolerate older cached module exports, with a local Julia diagnostics fallback so a stale static asset cannot prevent the instrument from booting.
 - Preflight now probes an actual usable WebGL context, so a constructor-only capability result cannot hide the CPU fallback cause.
 - CPU fallback readouts now preserve a bounded failure reason, making a soft Focus frame actionable without changing report privacy or compatibility.

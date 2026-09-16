@@ -89,6 +89,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /Dark techno demo beat · kick, clap, hats/, 'demo source names its techno voices');
   assert.match(app, /function applyBeatVisualPulse\(/, 'beat pulse reaches every rendered canvas');
   assert.match(app, /function beatResponseLevel\(/, 'beat envelope feeds scene-specific modulation');
+  assert.match(app, /function beatDrivenEffects\(/, 'beat envelope lifts the shared effect stack');
+  assert.match(app, /effectStack\.apply\(ctx, beatDrivenEffects\(\), advance\)/, 'beat-driven effects are applied without mutating authored settings');
   assert.match(app, /function visualAudioCoverage\(/, 'beat coverage is inspectable across the scene catalog');
   assert.match(app, /function syncAudioCoverageReadout\(/, 'beat coverage is surfaced in the source dock');
   assert.match(html, /id="beatReadout"/, 'beat readout is present in the source dock');

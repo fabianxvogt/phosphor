@@ -92,6 +92,12 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 1.0× native fit', 'focus mode reports display scale');
   assert.equal(api.visualAudioCoverage().length, api.sceneDefs.length, 'beat coverage enumerates every visual family');
   assert.equal(api.visualAudioCoverage().every((entry) => entry.mapped), true, 'every visual family has a beat response mapping');
+  assert.deepEqual(api.beatDrivenEffects(), { symmetry: 0, echo: 0, chroma: 0, glow: 0 }, 'effect stack stays authored while the beat is idle');
+  api.setTestBeatPulse(1, 0);
+  const beatEffects = api.beatDrivenEffects();
+  assert.ok(beatEffects.symmetry > 0 && beatEffects.echo > 0 && beatEffects.chroma > 0 && beatEffects.glow > 0, 'beat pulse lifts every shared effect');
+  assert.deepEqual(api.sessionData().options.effects, { symmetry: 0, echo: 0, chroma: 0, glow: 0 }, 'beat effect lift does not mutate saved effect values');
+  api.setTestBeatPulse(0, 0);
   const stageWrap = document.getElementById('stageWrap');
   document.getElementById('focusButton').click(); api.switchScene(10, 0); api.drawPreview();
   assert.equal(stageWrap.classList.contains('julia-cpu-fit'), true, 'Focus constrains a CPU Julia fallback to a bounded display width');
