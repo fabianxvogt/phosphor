@@ -9,7 +9,7 @@ Every Phosphor family receives the beat envelope in two ways: its existing scene
 
 Mute and unmute preserve the selected source and restore the authored demo level, so the heavier kick does not silently come back at a different gain.
 
-The source dock now names the active 16th-note step, voices, and bounded beat response while the demo is running; it returns to `BEAT IDLE` when the source stops.
+The source dock now names the active 16th-note step, voices, and bounded beat response while the demo is running; it returns to `BEAT IDLE` when the source stops. A companion `14/14 VISUALS BEAT-LINKED` readout makes the complete scene-family coverage explicit.
 
 The advanced-renderer import now uses a namespace boundary with a local Julia diagnostics fallback. That keeps a stale browser cache or older static module from aborting the whole instrument before the canvas and beat controls can start.
 
@@ -17,7 +17,7 @@ The advanced-renderer import now uses a namespace boundary with a local Julia di
 
 - `npm test`: 39/39 passing, including deterministic 16-step pattern, demo-source lifecycle, beat-readout state, and all-family modulation contracts.
 - `npm run build`, `npm run check:dist`, and `git diff --check`: passing.
-- Local Chrome smoke: the repaired module graph boots with `RUNNING`, Julia reports `Julia · WebGL native 960×600`, and the Demo beat source starts with `Dark techno demo beat · kick, clap, hats`, reports an active source, and exposes a live step such as `BEAT 03/16 · HAT · 15%`. Voice-level loudness and long-run device output remain uncalibrated.
+- Local Chrome smoke: the repaired module graph boots with `RUNNING`, Julia reports `Julia · WebGL native 960×600`, and the Demo beat source starts with `Dark techno demo beat · kick, clap, hats`, reports an active source, and exposes live steps plus `14/14 VISUALS BEAT-LINKED`. Voice-level loudness and long-run device output remain uncalibrated.
 
 ## Limits and next test
 
