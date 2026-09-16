@@ -81,6 +81,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Loaded rehearsal reports also validate and compare captured runtime context, the audio source, bounded lifecycle outcome (`idle`, `connecting`, `active`, `empty`, `ended`, or `failed`), and last-eight source transition history plus frame-time sample/median/p95/target status, rejecting contradictory metadata or unknown source labels/outcomes so named-device before/after passes surface runtime drift.
 - Loaded pass summaries retain an unambiguous UTC capture time/setup context and visibly mark that historical line stale after live drift, while legacy reports keep the explicit missing-snapshot fallback.
 - The adjacent loaded-report comparison uses the same UTC capture stamp, keeping both handoff lines coherent across viewer time zones.
+- A compact loaded-report comparison groups drift into setup, transport, audio, timing, visuals, evidence, pass, and authored-set buckets, with a stale state after live changes.
 - Loaded report comparisons keep a compact live signature and switch to `current state changed` after transport, source/outcome, preflight, observation, or measured-performance changes, so a before/after snapshot is not mistaken for a live match.
 - A guarded Clear loaded action stays disabled until a snapshot exists, then dismisses the read-only comparison without mutating or caching the live set.
 - Loaded report evidence count and status are shown separately from the live manual checklist, keeping before/after evidence legible without implying permission proof.
