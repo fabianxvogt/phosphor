@@ -48,6 +48,8 @@ Music analysis stays on the device. Microphone and shared-tab audio are analysed
 
 ## Output and limits
 
+Saved rehearsal reports include the exact pass snapshot shown on the rehearsal card, so the 20-minute audio gate and 14/14 visual/timing evidence remain visible after export and report reload.
+
 Frame plans retain the selected profile's bounded performance status (`warming-up`, `within-target`, or `over-target`) and nominal frame budget beside any measured median/p95 samples; this is observation metadata, not an FPS or device-certification claim.
 
 Rehearsal Preflight accepts an optional bounded Device label so exported reports can name a setup such as `Studio Mac · Chrome 152`; the report readout repeats that label for saved, reopened, and stale snapshots. It stays local metadata and does not replace the browser/runtime context or certify the device.

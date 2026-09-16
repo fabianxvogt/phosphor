@@ -305,6 +305,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(rehearsalReport.recordingMimeType, null, 'rehearsal report makes an unavailable MIME path explicit');
   assert.equal(rehearsalReport.recordingStatus, 'idle', 'rehearsal report carries an explicit idle recording outcome');
   assert.ok(rehearsalReport.renderer && ['webgl', 'cpu', 'canvas-2d', 'warming-up', 'unavailable'].includes(rehearsalReport.renderer.path), 'rehearsal report records a bounded renderer path');
+  assert.deepEqual(rehearsalReport.passSnapshot, api.rehearsalPassSummary(rehearsalReport.performanceSet), 'rehearsal report persists the live pass snapshot');
   assert.match(document.getElementById('rehearsalReportReadout').textContent, /Studio Mac · Chrome 152$/, 'saved report readout names the setup label');
   const reportCache = JSON.parse(localStorage.getItem('phosphor-rehearsal-report-cache-v1'));
   assert.equal(reportCache.format, 'phosphor-rehearsal-report-cache-v1', 'saved report metadata survives in local storage');
@@ -339,6 +340,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.restoreRehearsalReportCache(invalidRecordingCache), false, 'report cache rejects unknown recording outcomes');
   const importedSame = api.importRehearsalReport(rehearsalReport);
   assert.equal(importedSame.comparison.equivalent, true, 'imported report compares as equivalent to the current set');
+  assert.equal(importedSame.comparison.samePassSnapshot, true, 'imported report compares the persisted pass snapshot');
   assert.equal(document.getElementById('clearRehearsalReportButton').disabled, false, 'clear action enables after a report is loaded');
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /matches current set$/, 'imported report readout confirms a matching set');
   assert.equal(document.getElementById('rehearsalReportImportEvidenceReadout').textContent, 'Loaded evidence · 0/5 · Not started', 'loaded report exposes captured evidence progress');
@@ -358,7 +360,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(importedDifferent.comparison.sameSet, false, 'imported report detects a different cue plan');
   assert.equal(importedDifferent.comparison.sameDevice, false, 'imported report detects a different device label');
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: set plan · device$/, 'imported report readout names the differences');
-  const changedRuntimeReport = structuredClone(rehearsalReport); changedRuntimeReport.audio.source = 'DEMO'; changedRuntimeReport.audio.status = 'active'; changedRuntimeReport.audio.history = [{ source: 'DEMO', status: 'active' }]; changedRuntimeReport.performance = { sampleCount: 1, medianMs: 20, p95Ms: 20, sceneFrames: 1, status: 'over-target', statusLabel: 'Over target', targetMs: 16.67, heapUsedBytes: null };
+  const changedRuntimeReport = structuredClone(rehearsalReport); delete changedRuntimeReport.passSnapshot; changedRuntimeReport.audio.source = 'DEMO'; changedRuntimeReport.audio.status = 'active'; changedRuntimeReport.audio.history = [{ source: 'DEMO', status: 'active' }]; changedRuntimeReport.performance = { sampleCount: 1, medianMs: 20, p95Ms: 20, sceneFrames: 1, status: 'over-target', statusLabel: 'Over target', targetMs: 16.67, heapUsedBytes: null };
   const importedRuntimeDifferent = api.importRehearsalReport(changedRuntimeReport);
   assert.equal(importedRuntimeDifferent.comparison.sameAudio, false, 'imported report detects a different audio source path');
   assert.equal(importedRuntimeDifferent.comparison.sameAudioHistory, false, 'imported report detects a different audio-source transition history');
@@ -368,10 +370,14 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const importedPeakDifferent = api.importRehearsalReport(changedPeakReport);
   assert.equal(importedPeakDifferent.comparison.sameAudioPeak, false, 'imported report detects a different held audio peak');
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: headroom$/, 'imported report readout names headroom differences');
-  const changedPeakSessionReport = structuredClone(rehearsalReport); changedPeakSessionReport.audio.peakSession = { sampleCount: 1, peakMax: .4, holdMax: .82, averageHold: .62, headroom: .18, hotPercent: 100, nearClipPercent: 0, capped: false };
+  const changedPeakSessionReport = structuredClone(rehearsalReport); delete changedPeakSessionReport.passSnapshot; changedPeakSessionReport.audio.peakSession = { sampleCount: 1, peakMax: .4, holdMax: .82, averageHold: .62, headroom: .18, hotPercent: 100, nearClipPercent: 0, capped: false };
   const importedPeakSessionDifferent = api.importRehearsalReport(changedPeakSessionReport);
   assert.equal(importedPeakSessionDifferent.comparison.sameAudioPeakSession, false, 'imported report detects a different audio run envelope');
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: headroom$/, 'imported report readout names audio run headroom differences');
+  const changedPassSnapshot = structuredClone(rehearsalReport); changedPassSnapshot.audio.peakSession = { sampleCount: 1, durationSeconds: 1, peakMax: .4, holdMax: .58, averageHold: .4, headroom: .42, hotPercent: 0, nearClipPercent: 0, capped: false }; changedPassSnapshot.passSnapshot.audio = { sampleCount: 1, durationSeconds: 1, headroom: .42, holdMax: .58, capped: false }; changedPassSnapshot.passSnapshot.issues = ['audio source', '20m audio run', 'visual timing', 'observed checks'];
+  const importedPassDifferent = api.importRehearsalReport(changedPassSnapshot);
+  assert.equal(importedPassDifferent.comparison.samePassSnapshot, false, 'imported report detects a changed pass snapshot');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: headroom · pass snapshot$/, 'imported report readout names pass snapshot differences');
   const changedEnvironmentImport = structuredClone(rehearsalReport); changedEnvironmentImport.environment.language = 'de-DE';
   const importedEnvironmentDifferent = api.importRehearsalReport(changedEnvironmentImport);
   assert.equal(importedEnvironmentDifferent.comparison.sameEnvironment, false, 'imported report detects a different runtime context');
@@ -445,6 +451,15 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(api.validateRehearsalReport(legacyAudioReport).audio.history, [], 'legacy reports without audio history remain readable');
   const legacyEnvironmentReport = structuredClone(rehearsalReport); delete legacyEnvironmentReport.environment;
   assert.equal(api.validateRehearsalReport(legacyEnvironmentReport).environment, null, 'legacy reports without runtime context remain readable');
+  const legacyPassSnapshotReport = structuredClone(rehearsalReport); delete legacyPassSnapshotReport.passSnapshot;
+  assert.equal(api.validateRehearsalReport(legacyPassSnapshotReport).passSnapshot, null, 'legacy reports without pass snapshots remain readable');
+  assert.equal(api.compareRehearsalReports(rehearsalReport, legacyPassSnapshotReport).samePassSnapshot, true, 'legacy reports without pass snapshots skip only the new comparison');
+  const malformedPassSnapshot = structuredClone(rehearsalReport); malformedPassSnapshot.passSnapshot.visual.total = api.sceneDefs.length - 1;
+  assert.throws(() => api.validateRehearsalReport(malformedPassSnapshot), /pass snapshot is malformed/, 'imported reports reject dishonest pass snapshot totals');
+  const contradictoryPassSnapshot = structuredClone(rehearsalReport); contradictoryPassSnapshot.passSnapshot.status = 'ready'; contradictoryPassSnapshot.passSnapshot.label = 'Ready'; contradictoryPassSnapshot.passSnapshot.issues = [];
+  assert.throws(() => api.validateRehearsalReport(contradictoryPassSnapshot), /pass snapshot is inconsistent/, 'imported reports reject a pass status that disagrees with its evidence');
+  const malformedPassAudio = structuredClone(rehearsalReport); malformedPassAudio.passSnapshot.audio.headroom = .5; malformedPassAudio.passSnapshot.audio.holdMax = .5;
+  assert.throws(() => api.validateRehearsalReport(malformedPassAudio), /pass snapshot is malformed/, 'imported reports reject contradictory pass headroom telemetry');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, environment: { ...rehearsalReport.environment, viewport: { width: 0, height: rehearsalReport.environment.viewport.height } } }), /environment is malformed/, 'imported reports reject invalid runtime viewport bounds');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, renderer: { path: 'shader', width: 960, height: 600, outputWidth: 960, outputHeight: 600 } }), /renderer is malformed/, 'imported reports reject unknown renderer paths');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, recordingStatus: 'maybe' }), /recording status is malformed/, 'imported reports reject unknown recording outcomes');
