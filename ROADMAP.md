@@ -126,4 +126,5 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Advanced renderer imports now tolerate older cached module exports, with a local Julia diagnostics fallback so a stale static asset cannot prevent the instrument from booting.
 - Preflight now probes an actual usable WebGL context, so a constructor-only capability result cannot hide the CPU fallback cause.
 - CPU fallback readouts now preserve a bounded failure reason, making a soft Focus frame actionable without changing report privacy or compatibility.
+- Julia display-scale diagnostics now surface the one-click `Use HD` correction in regular previews as well as Focus mode whenever the stage is visibly enlarged.
 - [Earlier public preview evidence](docs/releases/v4.md).

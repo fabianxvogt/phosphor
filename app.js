@@ -279,7 +279,7 @@ function syncFocusRenderFit() {
 function syncFocusQualityAction(showHint = false) {
   const button = $('focusQualityButton');
   if (!button) return;
-  const visible = Boolean(state.focusMode && showHint && !offlineFrameJob);
+  const visible = Boolean(showHint && !offlineFrameJob);
   button.hidden = !visible;
   button.disabled = Boolean(offlineFrameJob);
   button.setAttribute('aria-label', 'Switch Julia output to HD 1920 by 1200');

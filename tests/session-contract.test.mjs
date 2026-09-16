@@ -135,6 +135,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('toast').textContent, /HD output enabled/, 'Focus HD action confirms the profile change');
   assert.equal(document.getElementById('focusQualityButton').hidden, true, 'Focus hides the HD action after switching profiles');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; document.getElementById('focusButton').click(); api.applySession(baseline); api.drawPreview();
+  api.switchScene(10, 0); document.getElementById('stage').rect = { left: 0, top: 0, width: 1920, height: 1200 }; api.drawPreview(); api.syncFocusScaleReadout();
+  assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Julia preview exposes the HD action when the stage is enlarged');
+  document.getElementById('focusQualityButton').click();
+  assert.equal(document.getElementById('qualityInput').value, 'native', 'Preview HD action switches to the native output profile');
+  document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.applySession(baseline); api.drawPreview();
   assert.equal(api.rehearsalReport().beatResponse, null, 'importing a session clears authored-state beat evidence');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 1920, height: 1200 }; api.syncFocusScaleReadout();
   assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 1920×1200 · 2.0× CSS upscale', 'focus mode names a large CSS upscale');

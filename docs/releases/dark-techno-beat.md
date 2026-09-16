@@ -23,6 +23,8 @@ The output dock now keeps a bounded set-level performance summary alongside the 
 
 The source dock now keeps a bounded audio-run envelope while a source is active. It records the maximum held peak, average hold, hot/near-clip proportions, remaining headroom, and whether the sample cap was reached, then carries that snapshot through reports, cache reopen, and before/after comparison. This makes the heavy-kick/headroom check useful over a sustained device pass without storing media or claiming calibrated loudness.
 
+Julia's display-scale diagnostic now exposes the existing one-click `Use HD` action outside Focus mode too. When the 960×600 or CPU fallback surface is visibly enlarged, the action appears beside the stage readout so a performer can correct softness without hunting through the quality selector; HD remains an explicit, measured tradeoff.
+
 The advanced-renderer import now uses a namespace boundary with a local Julia diagnostics fallback. That keeps a stale browser cache or older static module from aborting the whole instrument before the canvas and beat controls can start.
 
 ## Evidence
