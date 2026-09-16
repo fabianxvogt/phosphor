@@ -353,6 +353,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   window.__phosphorMetrics.sceneTimes[0].push(8, 10, 12);
   api.updatePerformanceReadout(5000);
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /current state changed$/, 'measured performance changes mark a loaded report stale');
+  assert.match(document.getElementById('rehearsalReportImportPassReadout').textContent, /· stale$/, 'measured performance changes mark the loaded pass snapshot stale');
+  assert.equal(document.getElementById('rehearsalReportImportPassReadout').dataset.level, 'stale', 'stale loaded pass snapshot uses a muted level');
   api.importRehearsalReport(rehearsalReport);
   window.__phosphorMetrics.reset();
   document.getElementById('pauseButton').click();
