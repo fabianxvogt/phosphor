@@ -893,6 +893,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat/);
   assert.match(document.getElementById('beatReadout').textContent, /^BEAT 01\/16 · KICK\+SUB · 100%$/, 'beat readout names the first kick step and voices');
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS BEAT-LINKED', 'demo beat exposes complete visual coverage');
+  const durationBeforeFrameGaps = api.audioPeakSessionTelemetry().durationSeconds;
+  api.renderFrame(1000); api.renderFrame(2000);
+  assert.equal(api.audioPeakSessionTelemetry().durationSeconds - durationBeforeFrameGaps, 2, 'active-source duration follows elapsed frame gaps instead of a fixed sample cadence');
   document.getElementById('pauseButton').click(); const pausedDemoStep = api.audioState().demoStep; await new Promise((resolve) => setTimeout(resolve, 220)); assert.equal(api.audioState().demoStep, pausedDemoStep, 'paused stage holds the demo beat step'); document.getElementById('pauseButton').click();
   document.getElementById('muteButton').click();
   assert.equal(api.audioState().outputGain, 0, 'mute cuts the demo beat output');
