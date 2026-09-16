@@ -1,3 +1,14 @@
+<!-- portfolio
+{
+  "title": "Phosphor",
+  "topic": "Creative tools/Generative art",
+  "type": "product",
+  "description": "A visual instrument for generative scenes, fractal flight and live performance.",
+  "demo": "https://phosphor-visual-instrument.fabian523417.chatgpt.site",
+  "featured": true
+}
+-->
+
 # Phosphor
 
 A browser instrument for psychedelic generative visuals. Fourteen scene families share live controls, per-scene colors, layered effects, music response, portable sets, and visual export.
