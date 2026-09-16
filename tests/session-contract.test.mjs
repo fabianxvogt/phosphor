@@ -308,6 +308,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(importedRuntimeDifferent.comparison.sameAudioHistory, false, 'imported report detects a different audio-source transition history');
   assert.equal(importedRuntimeDifferent.comparison.samePerformance, false, 'imported report detects a different measured performance result');
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: audio source · performance$/, 'imported report readout names source and performance differences');
+  const changedPeakReport = structuredClone(rehearsalReport); changedPeakReport.audio.peak = { current: .36, hold: .84, headroom: .16 };
+  const importedPeakDifferent = api.importRehearsalReport(changedPeakReport);
+  assert.equal(importedPeakDifferent.comparison.sameAudioPeak, false, 'imported report detects a different held audio peak');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: headroom$/, 'imported report readout names headroom differences');
   const changedEnvironmentImport = structuredClone(rehearsalReport); changedEnvironmentImport.environment.language = 'de-DE';
   const importedEnvironmentDifferent = api.importRehearsalReport(changedEnvironmentImport);
   assert.equal(importedEnvironmentDifferent.comparison.sameEnvironment, false, 'imported report detects a different runtime context');

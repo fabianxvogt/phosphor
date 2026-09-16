@@ -8,7 +8,7 @@ The analyser now derives bounded low (20–250 Hz), mid (250–2,000 Hz), and hi
 
 The band state is runtime-only. Offline seeded frame rendering clears it so exported plans remain independent of connected audio, then restores the live levels and analyser-availability flag after completion, cancellation, picker failure, or writer failure. If a microphone permission or shared tab ends, source cleanup resets the bands and leaves an actionable ended-source message instead of silently returning to a generic idle label.
 
-The source dock also exposes a bounded time-domain peak and short hold (`PEAK`, `HOT`, or `NEAR CLIP` plus remaining headroom). This is a rehearsal aid for tuning the Demo kick on a named device, not a calibrated loudness or clipping guarantee. Reports carry the coarse current/held/headroom values without any media payload.
+The source dock also exposes a bounded time-domain peak and short hold (`PEAK`, `HOT`, or `NEAR CLIP` plus remaining headroom). This is a rehearsal aid for tuning the Demo kick on a named device, not a calibrated loudness or clipping guarantee. Reports carry the coarse current/held/headroom values without any media payload, and imported before/after reports flag a changed headroom envelope separately from source identity.
 
 ## Evidence
 
