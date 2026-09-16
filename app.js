@@ -131,7 +131,7 @@ let fractalError = '';
 const transitionCtx = transitionCanvas.getContext('2d');
 const captureCanvas = document.createElement('canvas'); captureCanvas.width = canvas.width; captureCanvas.height = canvas.height;
 
-let audio = { context: null, analyser: null, gain: null, recordDestination: null, source: null, demoGain: null, demoNodes: new Set(), demoNoiseBuffer: null, demoStep: 0, media: null, mediaUrl: null, micStream: null, tabStream: null, data: null, frequencyData: null, recorder: null, recordingStream: null, recordingMime: null, recordingStem: null, recordingScene: null, recordingStartedAt: null, recordingLastPaint: -Infinity, chunks: [] };
+let audio = { context: null, analyser: null, gain: null, recordDestination: null, source: null, demoGain: null, demoCompressor: null, demoNodes: new Set(), demoNoiseBuffer: null, demoStep: 0, media: null, mediaUrl: null, micStream: null, tabStream: null, data: null, frequencyData: null, recorder: null, recordingStream: null, recordingMime: null, recordingStem: null, recordingScene: null, recordingStartedAt: null, recordingLastPaint: -Infinity, chunks: [] };
 let audioRequest = 0;
 let pulseTimer = null;
 let audioSensitivity = 1;
@@ -894,8 +894,11 @@ function demoNoise(start, duration, peak, filterType, frequency, q = 0.7) {
   source.start?.(start); source.stop?.(start + duration + .02); demoTrackNodes([source, filter, gain], start + duration + .03);
 }
 function playDemoKick(start, velocity) {
+  // Give the kick a separate low body; the compressor below catches the
+  // summed transient so the master bus does not need to run hotter.
+  demoOscillator(start, .32, .44 + velocity * .22, 'sine', 112, 36);
   demoOscillator(start, .25, .56 + velocity * .24, 'sine', 148, 44);
-  demoOscillator(start, .045, .12 + velocity * .08, 'square', 1800, 420);
+  demoOscillator(start, .045, .14 + velocity * .08, 'square', 1800, 420);
 }
 function playDemoBass(start, step, velocity) {
   const notes = [55, 49, 65, 49]; const note = notes[Math.floor(step / 4) % notes.length];
@@ -925,6 +928,7 @@ function stopAudioSource(status = 'No music connected') {
   for (const node of audio.demoNodes) { try { node.stop?.(); } catch {} try { node.disconnect?.(); } catch {} }
   audio.demoNodes.clear(); audio.demoNoiseBuffer = null; audio.demoStep = 0;
   audio.demoGain?.disconnect(); audio.demoGain = null;
+  audio.demoCompressor?.disconnect(); audio.demoCompressor = null;
   if (audio.media) { audio.media.onerror = null; audio.media.pause(); audio.media.removeAttribute('src'); audio.media.load(); audio.media = null; }
   if (audio.mediaUrl) URL.revokeObjectURL(audio.mediaUrl); audio.mediaUrl = null;
   for (const stream of [audio.micStream, audio.tabStream]) stopMediaStream(stream);
@@ -953,7 +957,18 @@ async function toggleDemo() {
   if (offlineJobActive() || recordingBlocksSourceChange()) return;
   const wasOn = state.demoOn; stopAudioSource(); if (wasOn) return;
   const request = audioRequest; setAudioSourceOutcome('connecting', 'DEMO'); if (!await ensureAudio('DEMO') || request !== audioRequest) { if (request === audioRequest) setAudioSourceOutcome('failed', 'DEMO'); return; }
-  const bus = audio.context.createGain(); bus.gain.value = .92; demoConnect(bus, audio.analyser);
+  const bus = audio.context.createGain(); bus.gain.value = .92;
+  const compressor = audio.context.createDynamicsCompressor?.();
+  if (compressor) {
+    try {
+      compressor.threshold.value = -18;
+      compressor.knee.value = 9;
+      compressor.ratio.value = 6;
+      compressor.attack.value = .003;
+      compressor.release.value = .14;
+    } catch {}
+    demoConnect(bus, compressor); demoConnect(compressor, audio.analyser); audio.demoCompressor = compressor;
+  } else demoConnect(bus, audio.analyser);
   audio.demoGain = bus; audio.demoStep = 0; state.demoOn = true; audio.gain.gain.value = audioOutputGain();
   scheduleDemoStep(request); setAudioSourceOutcome('active', 'DEMO'); $('demoAudioButton').textContent = 'Stop beat'; $('audioStatus').textContent = 'Dark techno demo beat · kick, clap, hats · tempo follows BPM'; syncAudioSourceControls();
 }
@@ -1181,7 +1196,7 @@ function renderRuntimeState() { return { sceneIndex: state.sceneIndex, paused: s
 function setTestRenderFlags(flags = {}) { if (Object.hasOwn(flags, 'blackout')) state.blackout = Boolean(flags.blackout); if (Object.hasOwn(flags, 'renderingLost')) state.renderingLost = Boolean(flags.renderingLost); }
 
 window.__phosphorTest = { stepFlight, stopFlight, flightState: () => ({ pose: structuredClone(flightPose), cruise: flightCruise, blocked: flightBlocked, keys: [...flightKeys] }), sceneDefs, performanceScoreCues, PHOSPHOR_FAMILY_CATALOG, audioBandLevels, audioResponseLevel, darkTechnoStep, visualAudioCoverage, beatDrivenEffects, setCueLabel, setCueDuration, moveCue, previewCue, duplicateCue, clearRehearsalReportImport, stepElementary, reactionDiffusionStep, finiteArray, boundedFeedbackValue, lifecycleStressCheck, qualityProfile, cathedralShading, aquariumFoodStep, evolutionContour, runLifecycleProbe, sessionData, validateSession, applySession, switchScene, stepPhase, phaseMeasurement, startPhaseArc, stopPhaseArc, rehearsePhaseArcs, archivePhaseMeasurement, frameManifest, validateFrameManifest, importFrameManifest, frameDirectoryWriter, renderOfflineFrames, cancelOfflineRender, mutateEvolution, chooseEvolutionChild, promoteEvolution, inject, stepMagnetic, stopMagneticReplay, replayGestureSequence, magneticReplayState: () => ({ index: buffers.magnetic.replay.index, total: buffers.magnetic.replay.events.length, playing: buffers.magnetic.replay.playing }), evolutionRenderState: () => ({ phase: buffers.evolution.phase, siblings: Array.from(buffers.evolution.siblings) }), magneticRenderState: () => ({ particles: Array.from(buffers.magnetic.particles), previous: Array.from(buffers.magnetic.previous), attractors: Array.from(buffers.magnetic.attractors) }), interferenceRenderState: () => ({ phase: buffers.interference.phase }), stagePixelStats, renderRuntimeState, restoreOfflineSnapshot, setTestRenderFlags, setTestElapsed: (value) => { state.elapsed = Math.max(0, Number(value) || 0); }, setTestAudioLevel: (value) => { state.audioLevel = Math.max(0, Number(value) || 0); }, setTestAudioBands: (value) => { state.audioBands = { low: clamp(Number(value?.low), 0, 1), mid: clamp(Number(value?.mid), 0, 1), high: clamp(Number(value?.high), 0, 1) }; state.audioBandsReady = true; }, setTestBeatPulse: (value, step = 0) => { state.beatPulse = clamp(Number(value) || 0, 0, 1); state.beatStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16; syncBeatReadout(); } };
-Object.assign(window.__phosphorTest, { drawPreview, stepAcid, resetAcid, acidRenderState: () => ({ u: Array.from(buffers.acid.u), v: Array.from(buffers.acid.v) }), pendingFramePlan: () => pendingFrameManifest, toggleRecord, finishRecording, syncRecordingReadout, updatePerformanceReadout, syncFocusScaleReadout, syncFocusRenderFit, rehearsalReport, exportRehearsalReport, validateRehearsalReport, compareRehearsalReports, importRehearsalReport, readRehearsalReportFile, rehearsalReportImport: () => structuredClone(importedRehearsalReport), restoreRehearsalReportCache, resetObservedChecks, recordingState: () => ({ recorder: audio.recorder, chunks: audio.chunks.length, stream: audio.recordingStream, startedAt: audio.recordingStartedAt }), stepAndDraw, updateAudioLevel, stopAudioSource, toggleDemo, loadLocalAudio, toggleMic, connectTabAudio, preflightReport, runPreflight, assetStem, exportFilename, audioState: () => ({ request: audioRequest, hasSource: Boolean(audio.source), hasDemo: state.demoOn, demoStep: audio.demoStep, hasMic: Boolean(audio.micStream), hasTab: Boolean(audio.tabStream), sourceOutcome: audioSourceOutcome, sourceHistory: structuredClone(audioSourceEvents), outputGain: audio.gain?.gain.value, bands: structuredClone(state.audioBands), bandsReady: state.audioBandsReady, beatPulse: state.beatPulse }) });
+Object.assign(window.__phosphorTest, { drawPreview, stepAcid, resetAcid, acidRenderState: () => ({ u: Array.from(buffers.acid.u), v: Array.from(buffers.acid.v) }), pendingFramePlan: () => pendingFrameManifest, toggleRecord, finishRecording, syncRecordingReadout, updatePerformanceReadout, syncFocusScaleReadout, syncFocusRenderFit, rehearsalReport, exportRehearsalReport, validateRehearsalReport, compareRehearsalReports, importRehearsalReport, readRehearsalReportFile, rehearsalReportImport: () => structuredClone(importedRehearsalReport), restoreRehearsalReportCache, resetObservedChecks, recordingState: () => ({ recorder: audio.recorder, chunks: audio.chunks.length, stream: audio.recordingStream, startedAt: audio.recordingStartedAt }), stepAndDraw, updateAudioLevel, stopAudioSource, toggleDemo, loadLocalAudio, toggleMic, connectTabAudio, preflightReport, runPreflight, assetStem, exportFilename, audioState: () => ({ request: audioRequest, hasSource: Boolean(audio.source), hasDemo: state.demoOn, hasDemoCompressor: Boolean(audio.demoCompressor), demoStep: audio.demoStep, hasMic: Boolean(audio.micStream), hasTab: Boolean(audio.tabStream), sourceOutcome: audioSourceOutcome, sourceHistory: structuredClone(audioSourceEvents), outputGain: audio.gain?.gain.value, bands: structuredClone(state.audioBands), bandsReady: state.audioBandsReady, beatPulse: state.beatPulse }) });
 window.__phosphorTest.renderOfflineFrames = renderOfflineFramesWithNamedAssets;
 window.__phosphorTest.compositeOutputFrame = compositeOutputFrame;
 window.__phosphorTest.renderFrame = renderFrame;

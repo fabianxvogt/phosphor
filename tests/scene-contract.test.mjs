@@ -87,6 +87,9 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /fractal: \['low', 'detail', \.25\]/, 'Fractal Flight participates in beat modulation');
   assert.match(app, /function scheduleDemoStep\(/, 'demo source schedules a bounded beat pattern');
   assert.match(app, /Dark techno demo beat · kick, clap, hats/, 'demo source names its techno voices');
+  assert.match(app, /function playDemoKick\(start, velocity\)[\s\S]*demoOscillator\(start, \.32/, 'demo kick has a dedicated low-end body');
+  assert.match(app, /createDynamicsCompressor\?\.\(\)/, 'demo bus uses a bounded compressor when supported');
+  assert.match(app, /compressor\.threshold\.value = -18/, 'demo compressor keeps a concrete headroom threshold');
   assert.match(app, /function applyBeatVisualPulse\(/, 'beat pulse reaches every rendered canvas');
   assert.match(app, /function beatResponseLevel\(/, 'beat envelope feeds scene-specific modulation');
   assert.match(app, /function beatDrivenEffects\(/, 'beat envelope lifts the shared effect stack');

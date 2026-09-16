@@ -9,6 +9,8 @@ Every Phosphor family receives the beat envelope in two ways: its existing scene
 
 The same envelope now gives the authored effect stack a bounded transient lift: symmetry opens, echo catches a short trail, chroma separates slightly, and glow breathes on the hit. These are render-time overlays; saved effect strengths remain unchanged.
 
+The Demo kick now layers a low sine body beneath its pitch-dropping punch and sends the summed bus through a conservative dynamics compressor when the browser supports it. This adds weight and keeps the kick/clap stack inside a predictable headroom envelope; unsupported browsers retain the uncompressed fallback.
+
 Mute and unmute preserve the selected source and restore the authored demo level, so the heavier kick does not silently come back at a different gain.
 
 The source dock now names the active 16th-note step, voices, and bounded beat response while the demo is running; it returns to `BEAT IDLE` when the source stops. A companion `14/14 VISUALS BEAT-LINKED` readout makes the complete scene-family coverage explicit.
