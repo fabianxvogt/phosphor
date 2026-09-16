@@ -33,6 +33,7 @@ The advanced-renderer import now uses a namespace boundary with a local Julia di
 
 Saved rehearsal reports now carry the bounded pass snapshot itself, preserving the 20-minute audio gate, all-family visual coverage, timing status, and manual evidence state across export and reload; older reports remain readable without that optional field.
 Loading a report mirrors that stored pass level and wording in the preflight card, while legacy reports identify the missing field instead of implying a current pass.
+The loaded line now includes an unambiguous UTC capture time and optional setup label, with an explicit stale marker after current-state changes.
 
 - `npm test`: passing, including deterministic 16-step pattern, paused Demo transport, demo-source lifecycle, active-source duration across elapsed frame gaps, the rehearsal pass snapshot gate, beat-readout state, all-family modulation contracts, the live scope markup contract, the set-level performance coverage contract, bounded audio-run headroom telemetry, and the versioned beat-response check/report comparison.
 - `npm run build`, `npm run check:dist`, and `git diff --check`: passing.

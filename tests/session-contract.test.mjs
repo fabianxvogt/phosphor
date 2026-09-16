@@ -345,7 +345,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('clearRehearsalReportButton').disabled, false, 'clear action enables after a report is loaded');
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /matches current set$/, 'imported report readout confirms a matching set');
   assert.equal(document.getElementById('rehearsalReportImportEvidenceReadout').textContent, 'Loaded evidence · 0/5 · Not started', 'loaded report exposes captured evidence progress');
-  assert.equal(document.getElementById('rehearsalReportImportPassReadout').textContent, 'Loaded PASS IN PROGRESS · NO AUDIO · no audio run / 20:00 target · 14/14 visuals · 0/14 timing warmup · 0/5 observed', 'loaded report exposes the captured pass snapshot');
+  const loadedPassReadout = document.getElementById('rehearsalReportImportPassReadout').textContent;
+  assert.match(loadedPassReadout, /^Loaded PASS IN PROGRESS · NO AUDIO · no audio run \/ 20:00 target · 14\/14 visuals · 0\/14 timing warmup · 0\/5 observed · captured \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z · setup Studio Mac · Chrome 152$/, 'loaded report exposes the captured pass snapshot and setup context');
+  assert.match(document.getElementById('rehearsalReportImportPassReadout')['aria-label'], /Captured at \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z\. Setup Studio Mac · Chrome 152\./, 'loaded report pass summary exposes capture context to assistive technology');
   assert.equal(document.getElementById('rehearsalReportImportPassReadout').dataset.level, 'in-progress', 'loaded report pass summary carries its evidence level');
   assert.equal(api.rehearsalReportImport().setName, rehearsalReport.setName, 'imported report remains available as read-only metadata');
   assert.deepEqual(importedSame.report.set, rehearsalReport.set, 'imported report preserves bounded transport metadata');
@@ -353,7 +355,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   window.__phosphorMetrics.sceneTimes[0].push(8, 10, 12);
   api.updatePerformanceReadout(5000);
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /current state changed$/, 'measured performance changes mark a loaded report stale');
-  assert.match(document.getElementById('rehearsalReportImportPassReadout').textContent, /· stale$/, 'measured performance changes mark the loaded pass snapshot stale');
+  assert.match(document.getElementById('rehearsalReportImportPassReadout').textContent, / · captured .+ · setup Studio Mac · Chrome 152 · stale$/, 'measured performance changes mark the loaded pass snapshot stale while retaining setup context');
   assert.equal(document.getElementById('rehearsalReportImportPassReadout').dataset.level, 'stale', 'stale loaded pass snapshot uses a muted level');
   api.importRehearsalReport(rehearsalReport);
   window.__phosphorMetrics.reset();
@@ -460,6 +462,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const legacyPassSnapshotReport = structuredClone(rehearsalReport); delete legacyPassSnapshotReport.passSnapshot;
   assert.equal(api.validateRehearsalReport(legacyPassSnapshotReport).passSnapshot, null, 'legacy reports without pass snapshots remain readable');
   assert.equal(api.compareRehearsalReports(rehearsalReport, legacyPassSnapshotReport).samePassSnapshot, true, 'legacy reports without pass snapshots skip only the new comparison');
+  api.importRehearsalReport(legacyPassSnapshotReport);
+  assert.equal(document.getElementById('rehearsalReportImportPassReadout').textContent, 'No loaded pass snapshot', 'legacy report import keeps an explicit missing-pass fallback');
+  assert.match(document.getElementById('rehearsalReportImportPassReadout')['aria-label'], /predates the persisted pass field/, 'legacy report import explains the missing pass field to assistive technology');
+  api.importRehearsalReport(rehearsalReport);
   const malformedPassSnapshot = structuredClone(rehearsalReport); malformedPassSnapshot.passSnapshot.visual.total = api.sceneDefs.length - 1;
   assert.throws(() => api.validateRehearsalReport(malformedPassSnapshot), /pass snapshot is malformed/, 'imported reports reject dishonest pass snapshot totals');
   const contradictoryPassSnapshot = structuredClone(rehearsalReport); contradictoryPassSnapshot.passSnapshot.status = 'ready'; contradictoryPassSnapshot.passSnapshot.label = 'Ready'; contradictoryPassSnapshot.passSnapshot.issues = [];
