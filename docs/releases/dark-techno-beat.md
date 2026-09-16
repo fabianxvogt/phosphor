@@ -7,6 +7,8 @@ The synthetic audio source is now a small local dark-techno instrument rather th
 
 Every Phosphor family receives the beat envelope in two ways: its existing scene-specific audio mapping gets a bounded transient boost, and the shared output receives a subtle accent pulse. Fractal Flight participates through surface detail and the shared pulse, but the beat never steers the camera. The pattern follows the BPM control and remains local-only; no audio is uploaded or persisted.
 
+Mute and unmute preserve the selected source and restore the authored demo level, so the heavier kick does not silently come back at a different gain.
+
 ## Evidence
 
 - `npm test`: passing deterministic 16-step pattern, demo-source lifecycle, and all-family modulation contracts.
@@ -16,4 +18,3 @@ Every Phosphor family receives the beat envelope in two ways: its existing scene
 ## Limits and next test
 
 This is an authored preview groove, not a calibrated drum machine or beat detector. Repeat on a named reference device with headphones/speakers and a sustained 20–30-minute set, checking kick weight, hat harshness, output headroom, and whether each scene's visual response feels intentional.
-

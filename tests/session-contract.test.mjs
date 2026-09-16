@@ -795,6 +795,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.audioState().demoStep, 1, 'demo beat schedules the first 16th-note step');
   assert.equal(document.getElementById('demoAudioButton').textContent, 'Stop beat', 'demo source names the beat while active');
   assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat/);
+  document.getElementById('muteButton').click();
+  assert.equal(api.audioState().outputGain, 0, 'mute cuts the demo beat output');
+  document.getElementById('muteButton').click();
+  assert.equal(api.audioState().outputGain, .24, 'unmute restores the heavier demo beat level');
   api.stopAudioSource();
   assert.equal(api.audioState().hasDemo, false, 'stopping music clears the demo beat');
   if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator;
