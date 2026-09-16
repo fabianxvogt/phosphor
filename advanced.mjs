@@ -51,7 +51,7 @@ export function juliaSample(x, y, real, imaginary, iterations) {
 export function advancedRasterSize(width, height, low = false) {
   const safeWidth = Number.isFinite(width) && width > 0 ? width : 1;
   const safeHeight = Number.isFinite(height) && height > 0 ? height : 1;
-  const maxDimension = low ? 160 : safeWidth >= 1440 && safeHeight >= 900 ? 640 : 320;
+  const maxDimension = low ? 160 : safeWidth >= 1440 && safeHeight >= 900 ? 640 : 480;
   const scale = Math.min(.5, maxDimension / safeWidth, maxDimension / safeHeight);
   return { width: Math.max(1, Math.round(safeWidth * scale)), height: Math.max(1, Math.round(safeHeight * scale)) };
 }

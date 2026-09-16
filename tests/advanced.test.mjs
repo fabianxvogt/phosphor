@@ -40,11 +40,11 @@ test('Julia samples distinguish known bounded and escaped orbits without nonfini
   for(let i=0;i<100;i++){ const s=juliaSample(Math.sin(i)*2,Math.cos(i)*2,-.745,.186,112); assert.ok(Number.isFinite(s.smooth)); assert.ok(s.trap>=0&&s.trap<=1); }
 });
 test('Julia raster follows output size instead of stretching a tiny thumbnail', () => {
-  assert.deepEqual(advancedRasterSize(960, 600, false), { width: 320, height: 200 });
+  assert.deepEqual(advancedRasterSize(960, 600, false), { width: 480, height: 300 });
   assert.deepEqual(advancedRasterSize(480, 300, true), { width: 160, height: 100 });
   assert.deepEqual(advancedRasterSize(320, 200, false), { width: 160, height: 100 });
   assert.deepEqual(advancedRasterSize(960, 600, true), { width: 160, height: 100 });
-  assert.deepEqual(advancedRasterSize(600, 960, false), { width: 200, height: 320 });
+  assert.deepEqual(advancedRasterSize(600, 960, false), { width: 300, height: 480 });
   assert.deepEqual(advancedRasterSize(1920, 1200, false), { width: 640, height: 400 });
   assert.deepEqual(advancedRasterSize(1, 1e9, true), { width: 1, height: 160 });
   assert.deepEqual(advancedRasterSize(Number.MAX_VALUE, Number.MAX_VALUE, false), { width: 640, height: 640 });
@@ -55,9 +55,9 @@ test('Julia draw allocates the bounded raster and composites opaque pixels', () 
   const ctx = { canvas: { width: 960, height: 600 }, fillRect() {}, drawImage(image) { composite = { width: image.width, height: image.height }; } };
   const buffer = { width: 0, height: 0, getContext() { return off; } };
   drawAdvanced(ctx, buffer, 'julia', advancedDefaults.julia, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false);
-  assert.deepEqual(allocation, { width: 320, height: 200 });
+  assert.deepEqual(allocation, { width: 480, height: 300 });
   assert.deepEqual(composite, allocation);
-  assert.deepEqual(juliaRenderState(buffer), { path: 'cpu', width: 320, height: 200, reason: 'WebGL unavailable' });
+  assert.deepEqual(juliaRenderState(buffer), { path: 'cpu', width: 480, height: 300, reason: 'WebGL unavailable' });
   assert.ok(pixels.some((value, index) => index % 4 !== 3 && value > 0));
   assert.ok(pixels.every((value, index) => index % 4 !== 3 || value === 255));
 });

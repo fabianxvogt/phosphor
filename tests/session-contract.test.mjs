@@ -102,9 +102,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const stageWrap = document.getElementById('stageWrap');
   document.getElementById('focusButton').click(); api.switchScene(10, 0); api.drawPreview();
   assert.equal(stageWrap.classList.contains('julia-cpu-fit'), true, 'Focus constrains a CPU Julia fallback to a bounded display width');
-  assert.equal(stageWrap.style['--julia-fit-width'], '640px', 'Focus caps CPU Julia at twice its internal raster width');
-  document.getElementById('stage').rect = { left: 0, top: 0, width: 640, height: 400 }; api.syncFocusScaleReadout();
-  assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 640×400 · 2.0× CPU raster upscale · HD available', 'Focus reports effective CPU raster scale and the Julia HD escape hatch');
+  assert.equal(stageWrap.style['--julia-fit-width'], '960px', 'Focus caps CPU Julia at twice its internal raster width');
+  document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusScaleReadout();
+  assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 2.0× CPU raster upscale · HD available', 'Focus reports effective CPU raster scale for the sharper Full fallback');
   assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Focus exposes the one-click HD action when Julia is enlarged');
   document.getElementById('focusQualityButton').click();
   assert.equal(document.getElementById('qualityInput').value, 'native', 'Focus HD action switches to the native output profile');
