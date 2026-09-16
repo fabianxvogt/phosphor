@@ -96,8 +96,10 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /effectStack\.apply\(ctx, beatDrivenEffects\(\), advance\)/, 'beat-driven effects are applied without mutating authored settings');
   assert.match(app, /function visualAudioCoverage\(/, 'beat coverage is inspectable across the scene catalog');
   assert.match(app, /function syncAudioCoverageReadout\(/, 'beat coverage is surfaced in the source dock');
+  assert.match(app, /function syncAudioHeadroomReadout\(/, 'audio peak/headroom is surfaced for rehearsal tuning');
   assert.match(html, /id="beatReadout"/, 'beat readout is present in the source dock');
   assert.match(html, /id="audioCoverageReadout"[^>]*>14\/14 VISUALS READY/, 'source dock names complete visual coverage');
+  assert.match(html, /id="audioHeadroomReadout"[^>]*>PEAK 0% · HEADROOM 100%/, 'source dock starts with explicit headroom');
   assert.match(app, /data-label-cue/, 'editable cue names');
   assert.match(app, /data-duration-cue/, 'editable cue timing');
   assert.match(app, /data-move-cue/, 'adjacent cue reordering');
@@ -128,8 +130,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /aria-pressed.*active/, 'active audio source state is synchronized');
   assert.match(app, /\['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton'\]/, 'recording locks the stop-source control');
   assert.match(app, /stopAudioButton'\)\.addEventListener\('click', \(\) => \{ if \(!offlineJobActive\(\) && !recordingBlocksSourceChange\(\)\)/, 'stop source handler keeps recording audio intact');
-  assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout"/, 'demo source announces its state, beat response, and coverage');
-  assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout"/, 'file source references its status, beat response, and coverage');
+  assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout"/, 'demo source announces its state, beat response, coverage, and headroom');
+  assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout"/, 'file source references its status, beat response, coverage, and headroom');
   assert.match(html, /id="audioOutcomeReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'source outcome is announced');
   assert.match(app, /function syncRecordingReadout\(/, 'recording duration is surfaced while capturing');
   assert.match(app, /try \{ audio\.recorder\.stop\(\); \} catch \{ finishRecording\(false, 'Recording could not stop · capture cleaned up'\); \}/, 'recorder stop failures restore the capture UI');
