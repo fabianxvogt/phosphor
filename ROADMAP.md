@@ -128,4 +128,5 @@ Parked options; reopen only when they improve the selected performance workflow:
 - CPU fallback readouts now preserve a bounded failure reason, making a soft Focus frame actionable without changing report privacy or compatibility.
 - Julia display-scale diagnostics now surface the one-click `Use HD` correction in regular previews as well as Focus mode whenever the stage is visibly enlarged.
 - Audio run-envelope duration now accumulates active frame time, with a bounded sample-rate fallback for legacy reports.
+- Rehearsal preflight now condenses audio, beat-link, timing, and manual-observation state into an explicit local pass snapshot without implying certification.
 - [Earlier public preview evidence](docs/releases/v4.md).

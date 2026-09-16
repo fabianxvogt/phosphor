@@ -55,6 +55,9 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .preflight-report-import { flex:1 1 100% !important; min-width:0 !important; overflow-wrap:anywhere; }
 .preflight-quality-ab { flex:1 1 100% !important; min-width:0 !important; color:var(--acid) !important; overflow-wrap:anywhere; }
 .preflight-beat-response { flex:1 1 100% !important; min-width:0 !important; color:var(--pink) !important; overflow-wrap:anywhere; }
+.preflight-pass { flex:1 1 100% !important; min-width:0 !important; color:var(--acid) !important; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.preflight-pass[data-level="in-progress"] { color:var(--pink) !important; }
+.preflight-pass[data-level="attention"] { color:var(--orange) !important; }
 .beat-response-row { display:flex; gap:12px; margin-top:12px; align-items:stretch; }
 .preflight-notes { display:grid; gap:6px; flex:1 1 100%; min-width:220px; color:var(--muted); font:10px 'DM Mono',monospace; letter-spacing:.04em; text-transform:uppercase; }
 .preflight-notes textarea { width:100%; min-height:48px; padding:7px 8px; border:1px solid var(--line); border-radius:4px; background:#0c0b12; color:var(--ink); font:11px 'Space Grotesk',system-ui,sans-serif; letter-spacing:0; text-transform:none; resize:vertical; }

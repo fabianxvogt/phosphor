@@ -21,6 +21,8 @@ The source dock now adds a live fourteen-cell beat scope. Each meter follows the
 
 The output dock now keeps a bounded set-level performance summary alongside the selected-scene timing. It counts distinct visual families with retained samples, uses the worst measured scene p95 as the set-level tail, and names the slowest family. Until all fourteen families have samples, the readout says how many remain unmeasured; it is a rehearsal aid, not device certification.
 
+The rehearsal card now condenses those signals into a local pass snapshot: source state, active audio-run duration and headroom, fourteen-family beat coverage, set timing coverage, and manual observations. It stays `IN PROGRESS` or `ATTENTION` while evidence is missing or risky, and only reports `READY` when every local gate is satisfied; the label is evidence guidance, never device certification.
+
 The source dock now keeps a bounded audio-run envelope while a source is active. It records actual active-source duration, the maximum held peak, average hold, hot/near-clip proportions, remaining headroom, and whether the sample cap was reached, then carries that snapshot through reports, cache reopen, and before/after comparison. This makes the heavy-kick/headroom check useful over a sustained device pass without storing media or claiming calibrated loudness.
 
 Julia's display-scale diagnostic now exposes the existing one-click `Use HD` action outside Focus mode too. When the 960×600 or CPU fallback surface is visibly enlarged, the action appears beside the stage readout so a performer can correct softness without hunting through the quality selector; HD remains an explicit, measured tradeoff.
@@ -29,7 +31,7 @@ The advanced-renderer import now uses a namespace boundary with a local Julia di
 
 ## Evidence
 
-- `npm test`: passing, including deterministic 16-step pattern, paused Demo transport, demo-source lifecycle, active-source duration across elapsed frame gaps, beat-readout state, all-family modulation contracts, the live scope markup contract, the set-level performance coverage contract, bounded audio-run headroom telemetry, and the versioned beat-response check/report comparison.
+- `npm test`: passing, including deterministic 16-step pattern, paused Demo transport, demo-source lifecycle, active-source duration across elapsed frame gaps, the rehearsal pass snapshot gate, beat-readout state, all-family modulation contracts, the live scope markup contract, the set-level performance coverage contract, bounded audio-run headroom telemetry, and the versioned beat-response check/report comparison.
 - `npm run build`, `npm run check:dist`, and `git diff --check`: passing.
 - Local Chrome smoke: the repaired module graph boots with `RUNNING`, Julia reports `Julia · WebGL native 960×600`, and the Demo beat source starts with `Dark techno demo beat · kick, clap, hats`, reports an active source, and exposes live steps plus `14/14 VISUALS BEAT-LINKED`. Voice-level loudness and long-run device output remain uncalibrated.
 
