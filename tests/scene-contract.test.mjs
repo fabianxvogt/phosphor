@@ -96,9 +96,11 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /effectStack\.apply\(ctx, beatDrivenEffects\(\), advance\)/, 'beat-driven effects are applied without mutating authored settings');
   assert.match(app, /function visualAudioCoverage\(/, 'beat coverage is inspectable across the scene catalog');
   assert.match(app, /function syncAudioCoverageReadout\(/, 'beat coverage is surfaced in the source dock');
+  assert.match(app, /function syncBeatScope\(/, 'per-family beat meters stay synchronized with the source dock');
   assert.match(app, /function syncAudioHeadroomReadout\(/, 'audio peak/headroom is surfaced for rehearsal tuning');
   assert.match(html, /id="beatReadout"/, 'beat readout is present in the source dock');
   assert.match(html, /id="audioCoverageReadout"[^>]*>14\/14 VISUALS READY/, 'source dock names complete visual coverage');
+  assert.match(html, /id="beatScope"[^>]*role="group"/, 'source dock includes an accessible per-family beat scope');
   assert.match(html, /id="audioHeadroomReadout"[^>]*>PEAK 0% · HEADROOM 100%/, 'source dock starts with explicit headroom');
   assert.match(app, /data-label-cue/, 'editable cue names');
   assert.match(app, /data-duration-cue/, 'editable cue timing');

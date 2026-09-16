@@ -927,10 +927,11 @@ function updateAudioLevel() {
   let next = 0;
   let bands = { low: 0, mid: 0, high: 0 };
   let peak = 0;
-  if (audio.analyser) {
+  const sourceActive = Boolean(audio.analyser && (audio.source || audio.demoGain || audio.micStream || audio.tabStream));
+  if (sourceActive) {
     audio.analyser.getByteTimeDomainData(audio.data); let sum = 0; for (const value of audio.data) { const sample = Math.abs((value - 128) / 128); peak = Math.max(peak, sample); sum += sample ** 2; } next = Math.sqrt(sum / audio.data.length);
     if (audio.analyser.getByteFrequencyData && audio.frequencyData) { audio.analyser.getByteFrequencyData(audio.frequencyData); bands = audioBandLevels(audio.frequencyData, audio.context?.sampleRate); state.audioBandsReady = true; }
-  }
+  } else state.audioBandsReady = false;
   state.audioPeak += (clamp(peak, 0, 1) - state.audioPeak) * .35;
   state.audioPeakHold = Math.max(state.audioPeakHold * .96, peak);
   state.audioLevel += (clamp(next * audioSensitivity * 3, 0, 1) - state.audioLevel) * .15;
@@ -982,6 +983,31 @@ function syncAudioCoverageReadout() {
   const mode = source === 'NO AUDIO' ? 'READY' : source === 'DEMO' ? 'BEAT-LINKED' : 'AUDIO-LINKED';
   const next = `${mapped}/${coverage.length} VISUALS ${mode}`;
   if (output.textContent !== next) output.textContent = next;
+  syncBeatScope();
+}
+function syncBeatScope() {
+  const output = $('beatScope');
+  if (!output) return;
+  const coverage = visualAudioCoverage();
+  if (output.dataset.ready !== 'true') {
+    output.innerHTML = coverage.map(({ id }) => {
+      const def = sceneDefs.find((candidate) => candidate.id === id);
+      return `<span class="beat-scope-cell" data-beat-family="${id}" data-active="false" role="img"><span class="beat-scope-meter" aria-hidden="true"></span><span class="beat-scope-label">${def?.number || id}</span></span>`;
+    }).join('');
+    output.dataset.ready = 'true';
+  }
+  const source = audioSourceKind();
+  const cells = output.querySelectorAll('[data-beat-family]');
+  for (const cell of cells) {
+    const id = cell.dataset.beatFamily;
+    const def = sceneDefs.find((candidate) => candidate.id === id);
+    const level = beatResponseLevel(id);
+    cell.style?.setProperty?.('--beat-level', level.toFixed(3));
+    cell.dataset.active = String(level > .05);
+    cell.setAttribute('aria-label', `${def?.name || id}: ${Math.round(level * 100)}% beat response`);
+    cell.title = `${def?.name || id} · ${source} · ${Math.round(level * 100)}% response`;
+  }
+  output.setAttribute('aria-label', `${coverage.length} visual-family beat response meters; ${source === 'NO AUDIO' ? 'awaiting audio' : `${source} response active`}`);
 }
 function decayBeatPulse(dt) { state.beatPulse = clamp(state.beatPulse * Math.exp(-Math.max(0, Number(dt) || 0) * 9), 0, 1); syncBeatReadout(); }
 function setBeatPulse(amount, step = state.beatStep) { state.beatPulse = Math.max(state.beatPulse, clamp(Number(amount) || 0, 0, 1)); state.beatStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16; state.beatBar = Math.floor(Math.max(0, Number(step) || 0) / 16); syncBeatReadout(); }

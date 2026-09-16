@@ -17,11 +17,13 @@ The source dock now names the active 16th-note step, voices, and bounded beat re
 
 The rehearsal surface now has a permission-free **Run beat check** action. It raises a fixed test pulse without touching the live set, verifies all fourteen scene mappings and the four shared effect links, and stores a bounded `phosphor-beat-response-v1` payload in the next report. This is wiring evidence: it does not claim that every look is aesthetically successful, that audio hardware behaves consistently, or that a device is certified.
 
+The source dock now adds a live fourteen-cell beat scope. Each meter follows the same bounded scene response used by the renderer, so a performer can see the family-level spread while Demo, file, microphone, or tab audio is active; it is a monitor, not a second modulation path.
+
 The advanced-renderer import now uses a namespace boundary with a local Julia diagnostics fallback. That keeps a stale browser cache or older static module from aborting the whole instrument before the canvas and beat controls can start.
 
 ## Evidence
 
-- `npm test`: passing, including deterministic 16-step pattern, demo-source lifecycle, beat-readout state, all-family modulation contracts, and the versioned beat-response check/report comparison.
+- `npm test`: passing, including deterministic 16-step pattern, demo-source lifecycle, beat-readout state, all-family modulation contracts, the live scope markup contract, and the versioned beat-response check/report comparison.
 - `npm run build`, `npm run check:dist`, and `git diff --check`: passing.
 - Local Chrome smoke: the repaired module graph boots with `RUNNING`, Julia reports `Julia · WebGL native 960×600`, and the Demo beat source starts with `Dark techno demo beat · kick, clap, hats`, reports an active source, and exposes live steps plus `14/14 VISUALS BEAT-LINKED`. Voice-level loudness and long-run device output remain uncalibrated.
 

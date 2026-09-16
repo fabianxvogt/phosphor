@@ -116,6 +116,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Source dock now exposes bounded peak/hold headroom telemetry and rehearsal reports preserve the coarse values without storing media or claiming calibrated loudness.
 - Loaded rehearsal report comparisons now flag a changed peak/headroom envelope separately from source identity, keeping Demo tuning differences legible across passes.
 - Source dock now exposes complete `14/14 VISUALS BEAT-LINKED` coverage while a source is active, making the all-family response contract legible during rehearsal.
+- Source dock now exposes a low-cost fourteen-family beat scope, keeping each mapped response visible during rehearsal without adding a second modulation path.
 - Beat envelope now gives the shared effect stack a bounded transient lift (symmetry, echo, chroma, and glow) without changing saved effect strengths.
 - Advanced renderer imports now tolerate older cached module exports, with a local Julia diagnostics fallback so a stale static asset cannot prevent the instrument from booting.
 - Preflight now probes an actual usable WebGL context, so a constructor-only capability result cannot hide the CPU fallback cause.
