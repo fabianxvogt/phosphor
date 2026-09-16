@@ -114,9 +114,16 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(beatResponse.effects.length, 4, 'beat wiring evidence records each shared effect');
   assert.deepEqual(api.rehearsalReport().beatResponse, beatResponse, 'beat wiring evidence carries into rehearsal reports');
   assert.match(document.getElementById('beatResponseReadout').textContent, /^Beat check 14\/14 · NO AUDIO · effects linked$/, 'beat wiring readout summarizes the captured coverage');
+  const beatCanvas = document.getElementById('stage');
+  const idlePulseOps = beatCanvas.context.drawOps;
+  api.applyBeatVisualPulse();
+  assert.equal(beatCanvas.context.drawOps, idlePulseOps, 'idle beat does not paint a stage accent');
   api.setTestBeatPulse(1, 0);
   assert.match(document.getElementById('sceneBeatReadout').textContent, /^SCENE ACID MYCELIUM · 72% RESPONSE$/, 'selected scene exposes its bounded beat response');
   assert.equal(document.getElementById('sceneBeatReadout').dataset.active, 'true', 'selected-scene beat readout becomes active with the shared pulse');
+  const hitPulseOps = beatCanvas.context.drawOps;
+  api.applyBeatVisualPulse();
+  assert.equal(beatCanvas.context.drawOps - hitPulseOps, 2, 'a beat hit adds one bounded wash and one frame accent');
   const beatEffects = api.beatDrivenEffects();
   assert.ok(beatEffects.symmetry > 0 && beatEffects.echo > 0 && beatEffects.chroma > 0 && beatEffects.glow > 0, 'beat pulse lifts every shared effect');
   assert.deepEqual(api.sessionData().options.effects, { symmetry: 0, echo: 0, chroma: 0, glow: 0 }, 'beat effect lift does not mutate saved effect values');

@@ -91,6 +91,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /createDynamicsCompressor\?\.\(\)/, 'demo bus uses a bounded compressor when supported');
   assert.match(app, /compressor\.threshold\.value = -18/, 'demo compressor keeps a concrete headroom threshold');
   assert.match(app, /function applyBeatVisualPulse\(/, 'beat pulse reaches every rendered canvas');
+  assert.match(app, /const frameAlpha = clamp\(/, 'beat stage accent keeps a bounded frame alpha');
+  assert.match(app, /ctx\.rect\(inset, inset/, 'beat stage accent draws a perimeter cue');
   assert.match(app, /function beatResponseLevel\(/, 'beat envelope feeds scene-specific modulation');
   assert.match(app, /function beatDrivenEffects\(/, 'beat envelope lifts the shared effect stack');
   assert.match(app, /effectStack\.apply\(ctx, beatDrivenEffects\(\), advance\)/, 'beat-driven effects are applied without mutating authored settings');
