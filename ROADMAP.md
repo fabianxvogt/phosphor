@@ -123,6 +123,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Loaded rehearsal report comparisons now flag a changed peak/headroom envelope separately from source identity, keeping Demo tuning differences legible across passes.
 - Source dock now exposes complete `14/14 VISUALS BEAT-LINKED` coverage while a source is active, making the all-family response contract legible during rehearsal.
 - Source dock now exposes a low-cost fourteen-family beat scope, keeping each mapped response visible during rehearsal without adding a second modulation path.
+- Source dock now calls out the selected scene's bounded beat response and highlights its family meter, making the visual currently on stage legible inside the all-family scope.
 - Global pause now holds the Demo beat scheduler on its current step, keeping audio and visual transport aligned on resume.
 - Set-level performance readout now counts measured visual families and reports the worst measured p95, while naming unmeasured families honestly in the rehearsal surface and report.
 - Audio rehearsal telemetry now keeps a bounded active-source envelope (maximum/average held peak, hot and near-clip proportions, headroom, and cap state) through the source dock, reports, cache reopen, and comparisons.

@@ -19,6 +19,8 @@ The rehearsal surface now has a permission-free **Run beat check** action. It ra
 
 The source dock now adds a live fourteen-cell beat scope. Each meter follows the same bounded scene response used by the renderer, so a performer can see the family-level spread while Demo, file, microphone, or tab audio is active; it is a monitor, not a second modulation path. Meter style and accessibility updates are change-only, keeping the scope cheap on CPU fallback paths.
 
+The source dock now also labels the selected scene's bounded response and highlights that scene's family meter. Switching scenes therefore keeps the current visual's beat relationship visible without creating a parallel modulation path.
+
 The output dock now keeps a bounded set-level performance summary alongside the selected-scene timing. It counts distinct visual families with retained samples, uses the worst measured scene p95 as the set-level tail, and names the slowest family. Until all fourteen families have samples, the readout says how many remain unmeasured; it is a rehearsal aid, not device certification.
 
 The rehearsal card now condenses those signals into a local pass snapshot: source state, active audio-run duration and headroom, fourteen-family beat coverage, set timing coverage, and manual observations. It stays `IN PROGRESS` or `ATTENTION` while evidence is missing or risky, distinguishes timing warm-up from an over-target set, and only reports `READY` after a sustained 20-minute audio run plus every local gate; the label is evidence guidance, never device certification.
