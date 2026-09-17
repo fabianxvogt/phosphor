@@ -230,6 +230,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusScaleReadout();
   assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 1.3× CPU raster upscale · HD available', 'Focus reports effective CPU raster scale for the sharper Full fallback');
   assert.equal(document.getElementById('focusScaleReadout').classList.contains('quality-warning'), true, 'Focus highlights the available HD correction');
+  assert.equal(document.getElementById('qualityBadge').textContent, '960 × 600 · 60 target · HD AVAILABLE', 'stage quality badge repeats the sharper Julia correction');
+  assert.match(document.getElementById('qualityBadge')['aria-label'], /HD output is available for sharper Julia detail/, 'stage quality badge exposes the correction accessibly');
   assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Focus exposes the one-click HD action when Julia is enlarged');
   globalThis.devicePixelRatio = 2;
   document.getElementById('stage').rect = { left: 0, top: 0, width: 480, height: 300 }; api.syncFocusScaleReadout();
@@ -256,8 +258,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('qualityInput').value, 'native', 'Focus HD action switches to the native output profile');
   assert.match(document.getElementById('toast').textContent, /HD output enabled/, 'Focus HD action confirms the profile change');
   assert.equal(document.getElementById('focusScaleReadout').classList.contains('quality-warning'), false, 'Focus clears the quality warning after switching to HD');
+  assert.equal(document.getElementById('qualityBadge').textContent, 'HD · 1920 × 1200 · 60 target', 'stage quality badge clears the HD correction after switching profiles');
   assert.equal(document.getElementById('focusQualityButton').hidden, true, 'Focus hides the HD action after switching profiles');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; document.getElementById('focusButton').click(); api.applySession(baseline); api.drawPreview();
+  assert.equal(document.getElementById('qualityBadge').textContent, '960 × 600 · 60 target', 'normal profile changes clear the stage HD correction hint');
+  assert.equal(document.getElementById('qualityBadge')['aria-label'], '960 × 600 · 60 target', 'normal profile changes clear the accessible HD correction hint');
   api.switchScene(10, 0); document.getElementById('stage').rect = { left: 0, top: 0, width: 1920, height: 1200 }; api.drawPreview(); api.syncFocusScaleReadout();
   assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Julia preview exposes the HD action when the stage is enlarged');
   document.getElementById('focusQualityButton').click();

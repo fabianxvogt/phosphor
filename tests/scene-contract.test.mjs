@@ -215,6 +215,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function rehearsalReportWithKickWeight\(\)/, 'rehearsal reports retain the selected Demo kick weight');
   assert.match(app, /function sanitizeRehearsalAudioWithKickWeight\(data\)/, 'rehearsal report audio validates the Demo kick weight');
   assert.match(app, /function demoAudioStatusLabel\(\)/, 'active Demo status names the selected kick weight');
+  assert.match(app, /function syncQualityBadgeHint\(showHint = false\)/, 'quality badge surfaces the Julia HD correction');
   assert.match(html, /id="demoKickWeightInput"[^>]*min="\.6"[^>]*max="1\.5"[^>]*value="1\.15"[^>]*title="Adjusts only the local Demo beat"/, 'source dock exposes the bounded Demo-only kick weight control');
   assert.match(app, /function audioSourceHistoryKinds\(/, 'source history derives distinct source paths seen or attempted');
   assert.match(app, /function syncAudioSourceHistoryReadout\(/, 'source switching history is surfaced');
@@ -259,6 +260,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="focusRendererReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'focus mode exposes renderer path');
   assert.match(html, /id="focusPerformanceReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'focus mode exposes frame timing');
   assert.match(html, /id="focusScaleReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'focus mode exposes display scale');
+  assert.match(html, /id="qualityBadge"[^>]*role="status"[^>]*aria-live="polite"/, 'stage quality badge announces sharpness guidance');
   assert.match(html, /id="focusQualityButton"[^>]*hidden[^>]*>Use HD</, 'focus mode exposes an explicit HD action');
   assert.match(styles, /\.focus-scale-readout\.quality-warning\s*\{[^}]*color:var\(--acid\)/, 'quality warning is visually emphasized');
   assert.match(app, /function syncPerformanceReadouts\(/, 'focus mode mirrors frame timing');
