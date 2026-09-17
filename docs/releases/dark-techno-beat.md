@@ -55,7 +55,7 @@ The rehearsal card now condenses those signals into a local pass snapshot: sourc
 
 The source dock now keeps a bounded audio-run envelope while a source is active. It records actual active-source duration, the maximum held peak, average hold, hot/near-clip proportions, remaining headroom, and whether the sample cap was reached, then carries that snapshot through reports, cache reopen, and before/after comparison. This makes the heavy-kick/headroom check useful over a sustained device pass without storing media or claiming calibrated loudness.
 
-The source dock also records a capped `HITS / LAST` onset snapshot. External sources use a threshold crossing with hysteresis; the Demo counts one qualifying event per 16th-note step. Reports carry the UTC timestamp, source label, and selected Demo kick weight so a rehearsal can distinguish a real hit from a sustained envelope and attribute its low-end setting without treating the counter as beat-grid certification.
+The source dock also records a capped `HITS / LAST` onset snapshot. External sources use a threshold crossing with hysteresis; the Demo counts one qualifying event per 16th-note step. Reports carry the UTC timestamp, source label, and selected Demo kick weight so a rehearsal can distinguish a real hit from a sustained envelope and attribute its low-end setting without treating the counter as beat-grid certification. The report freshness signatures include that weight, so a reopened report becomes stale when the live low-end setting has changed.
 
 The rehearsal preflight card mirrors that live onset snapshot beside the pass summary, including the hit count, last source, and UTC time. It is intentionally marked diagnostic only and keeps steady-hit updates out of the screen-reader live region.
 
