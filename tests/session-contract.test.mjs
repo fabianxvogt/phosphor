@@ -1144,6 +1144,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.setTestBeatPulse(.3, Infinity);
   assert.equal(document.getElementById('beatBarReadout').textContent, 'BAR 01', 'non-finite beat steps fall back to the first demo bar');
   assert.doesNotMatch(document.getElementById('beatNextReadout').textContent, /NaN|Infinity/, 'non-finite beat steps never leak malformed readout text');
+  const hostileBeatValue = { [Symbol.toPrimitive]() { throw new Error('hostile beat value'); } };
+  assert.doesNotThrow(() => api.setTestBeatPulse(hostileBeatValue, hostileBeatValue), 'hostile beat pulse values fail closed without throwing');
+  assert.doesNotMatch(document.getElementById('beatReadout').textContent, /NaN|Infinity/, 'hostile beat pulse values never leak malformed readout text');
   api.setTestBeatPulse(0, 0);
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS BEAT-LINKED', 'demo beat exposes complete visual coverage');
   const durationBeforeFrameGaps = api.audioPeakSessionTelemetry().durationSeconds;
