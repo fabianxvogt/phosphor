@@ -7,7 +7,7 @@
 - [Version 4 evidence](releases/v4.md): historical public release and offline-output evidence; its ten-family descriptions are historical.
 - [Performance score and Fractal Flight](releases/performance-score.md): public v6 reusable-set workflow, 14-family migration, Mandelbox bounds and browser evidence limits.
 - [Audio band response](releases/audio-bands.md): local low/mid/high analyser mapping, deterministic offline boundaries, and open device/performance checks.
-- [Dark techno demo beat](releases/dark-techno-beat.md): local kick/clap/hat/ghost-percussion pattern, bounded beat envelope, and all-family visual response.
+- [Dark techno demo beat](releases/dark-techno-beat.md): local kick/clap/hat/ghost-percussion pattern, visible 16-step monitor, bounded beat envelope, and all-family visual response.
 - [Cue labels and timing](releases/cue-timing.md): bounded per-cue naming/bar editing, live-set protection, and persistence evidence.
 - [Performance readout](releases/performance-readout.md): rolling per-scene frame-time, renderer-path evidence, and optional heap telemetry for rehearsal checks.
 - [Julia quality A/B](releases/quality-ab.md): empirical Full-versus-HD Focus comparison, visible scale evidence, and the remaining reference-device gate.

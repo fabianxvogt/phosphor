@@ -125,6 +125,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.doesNotMatch(core, /if \(swap\) \[px, py\] = \[py, px\];/, 'Ray marcher swaps folded coordinates without allocating arrays');
   assert.match(app, /function releaseOfflineJob\([\s\S]*scene\(\)\.kind === 'fractal' && state\.focusMode && !state\.renderingLost\) drawPreview\(\)/, 'Fractal Focus repaints at its quality backing after offline rendering restores the session');
   assert.match(app, /function scheduleDemoStep\(/, 'demo source schedules a bounded beat pattern');
+  assert.match(app, /function syncBeatPattern\(/, 'demo source exposes the complete 16-step pattern monitor');
   assert.match(app, /Dark techno demo beat · kick, clap, hats/, 'demo source names its techno voices');
   assert.match(app, /function playDemoPerc\(start, velocity\)/, 'demo beat includes a bounded ghost percussion voice');
   assert.match(app, /function playDemoKick\(start, velocity\)[\s\S]*demoOscillator\(start, \.32/, 'demo kick has a dedicated low-end body');
@@ -156,6 +157,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function sanitizeBeatTelemetry\(/, 'imported onset telemetry is validated');
   assert.match(html, /id="beatReadout"/, 'beat readout is present in the source dock');
   assert.match(html, /id="audioBeatTelemetryReadout"[^>]*>HITS 0 · LAST —/, 'source dock exposes the onset counter and timestamp');
+  assert.match(html, /id="beatPattern"[^>]*role="group"[^>]*aria-label="Demo 16-step pattern preview"/, 'pattern monitor is present and explicit when the demo is inactive');
   assert.match(html, /id="rehearsalBeatReadout"[^>]*aria-live="off"[^>]*>BEAT TELEMETRY · 0 HITS · LAST — · diagnostic only/, 'rehearsal card exposes non-grid onset evidence');
   assert.match(html, /id="sceneBeatReadout"[^>]*role="status"[^>]*>SCENE ACID MYCELIUM · BEAT IDLE/, 'source dock names the selected-scene beat response');
   assert.match(html, /id="audioCoverageReadout"[^>]*>14\/14 VISUALS READY/, 'source dock names complete visual coverage');

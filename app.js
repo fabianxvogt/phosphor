@@ -1,6 +1,6 @@
 import { createEffectStack, effectDefaults, validateEffects } from './effects.mjs';
 import * as advancedModule from './advanced.mjs';
-import { audioBandLevels, darkTechnoStep, drivenRegimeFieldStep, drivenRegimeTarget, aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, evolutionContour, finiteArray, fractalRenderSize, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from './core.mjs';
+import { audioBandLevels, DARK_TECHNO_PATTERN, darkTechnoStep, drivenRegimeFieldStep, drivenRegimeTarget, aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, evolutionContour, finiteArray, fractalRenderSize, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from './core.mjs';
 import { FRACTAL_WORLD, defaultFlightPose, validateFlightPose, turnFlight, advanceFlight, worldDistance } from './fractal-navigation.mjs';
 import { createMandelboxFlythroughRenderer } from './mandelbox-flythrough.mjs';
 
@@ -1675,6 +1675,51 @@ function syncBeatReadout() {
   syncAudioCoverageReadout();
   syncAudioHeadroomReadout();
   syncBeatTelemetryReadout();
+  syncBeatPattern();
+}
+function beatPatternVoiceLabel(step) {
+  const voices = [];
+  if (step?.kick) voices.push('kick');
+  if (step?.clap) voices.push('clap');
+  if (step?.hat) voices.push(step.openHat ? 'closed hat and open hat' : 'closed hat');
+  else if (step?.openHat) voices.push('open hat');
+  if (step?.bass) voices.push('sub');
+  if (step?.perc) voices.push('ghost percussion');
+  return voices.join(', ') || 'rest';
+}
+function beatPatternVoiceSymbols(step) {
+  const symbols = [];
+  if (step?.kick) symbols.push('K');
+  if (step?.clap) symbols.push('C');
+  if (step?.hat) symbols.push(step.openHat ? 'H/O' : 'H');
+  else if (step?.openHat) symbols.push('O');
+  if (step?.bass) symbols.push('S');
+  if (step?.perc) symbols.push('P');
+  return symbols.join('·') || '·';
+}
+function syncBeatPattern() {
+  const output = $('beatPattern');
+  if (!output) return;
+  if (output.dataset.ready !== 'true') {
+    output.innerHTML = DARK_TECHNO_PATTERN.map((step, index) => {
+      const number = String(index + 1).padStart(2, '0');
+      const label = beatPatternVoiceLabel(step);
+      return `<span class="beat-pattern-step" data-beat-step="${index}" data-active="false" role="img" aria-label="Step ${number}: ${label}"><span class="beat-pattern-index">${number}</span><span class="beat-pattern-voices">${beatPatternVoiceSymbols(step)}</span></span>`;
+    }).join('');
+    output.dataset.ready = 'true';
+  }
+  const currentStep = state.demoOn ? state.beatStep : -1;
+  const source = audioSourceKind();
+  const signature = `${source}:${currentStep}`;
+  if (output.dataset.signature === signature) return;
+  output.dataset.signature = signature;
+  const cells = output.querySelectorAll('[data-beat-step]');
+  for (const cell of cells) {
+    const active = String(state.demoOn && Number(cell.dataset.beatStep) === currentStep);
+    if (cell.dataset.active !== active) cell.dataset.active = active;
+  }
+  output.dataset.active = String(state.demoOn);
+  output.setAttribute('aria-label', state.demoOn ? `Demo 16-step pattern; step ${String(currentStep + 1).padStart(2, '0')} is active` : 'Demo 16-step pattern preview; inactive for the current source');
 }
 function syncSceneBeatReadout() {
   const output = $('sceneBeatReadout');
