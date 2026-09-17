@@ -1124,6 +1124,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('demoAudioButton').textContent, 'Stop beat', 'demo source names the beat while active');
   assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat/);
   assert.match(document.getElementById('beatReadout').textContent, /^BEAT 01\/16 · KICK\+SUB · 100%$/, 'beat readout names the first kick step and voices');
+  assert.ok(api.demoStepPulse(api.darkTechnoStep(6)) > api.demoStepPulse(api.darkTechnoStep(2)), 'open-hat step carries a deliberate accent above a closed-hat step');
+  assert.ok(api.demoStepPulse(api.darkTechnoStep(6)) <= 1, 'open-hat beat accent stays bounded');
   assert.equal(document.getElementById('beatNextReadout').textContent, 'NEXT 02/16 · HAT', 'next-step readout names the following hat step');
   assert.equal(document.getElementById('beatNextReadout')['aria-label'], 'Next demo step 02/16: closed hat', 'next-step readout exposes a compact handoff label');
   assert.equal(document.getElementById('beatBarReadout').textContent, 'BAR 01', 'beat bar readout names the first demo bar');

@@ -204,6 +204,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="audioOutcomeReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'source outcome is announced');
   assert.match(html, /id="startAudioButton"[^>]*aria-label="Start dark techno demo beat"[^>]*aria-pressed="false"/, 'primary sound control names the default beat and exposes its state');
   assert.match(app, /Start dark techno demo fallback/, 'primary sound control names the local fallback after a source failure');
+  assert.match(app, /function demoStepPulse\(step\)/, 'demo beat pulse calculation is explicit and shared');
+  assert.match(app, /if \(step\?\.openHat\) pulse = Math\.max\(pulse, \.32 \+ step\.openHat \* \.22\)/, 'open-hat hits carry a deliberate shared visual beat accent');
   assert.match(app, /function audioSourceHistoryKinds\(/, 'source history derives distinct source paths seen or attempted');
   assert.match(app, /function syncAudioSourceHistoryReadout\(/, 'source switching history is surfaced');
   assert.match(html, /id="audioSourceHistoryReadout"[^>]*role="status"[^>]*aria-live="polite"[^>]*>SOURCE HISTORY · 0 PATHS · SWITCHING NOT OBSERVED/, 'source switching history readout is present');
