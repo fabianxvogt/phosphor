@@ -1928,7 +1928,16 @@ function playDemoBass(start, step, velocity) {
 function playDemoClap(start) {
   for (const offset of [0, .018, .036]) demoNoise(start + offset, .105, .16 - offset * 1.4, 'bandpass', 1750, 1.2);
 }
-function playDemoHat(start, velocity, open = false) { demoNoise(start, open ? .22 : .055, (open ? .13 : .085) + velocity * .07, 'highpass', open ? 4200 : 6200, .6); }
+function playDemoHat(start, velocity, open = false) {
+  let numericVelocity = 0;
+  try { numericVelocity = Number(velocity); } catch {}
+  const safeVelocity = clamp(numericVelocity, 0, 1);
+  if (!open) return demoNoise(start, .055, .085 + safeVelocity * .07, 'highpass', 6200, .6);
+  // Keep the open hat airy, then add a quiet resonant body so the accent reads
+  // on small speakers without turning the high end into a sustained wash.
+  demoNoise(start, .22, .13 + safeVelocity * .07, 'highpass', 4200, .6);
+  demoNoise(start + .003, .16, .035 + safeVelocity * .025, 'bandpass', 7600, 3.2);
+}
 function playDemoPerc(start, velocity) { demoNoise(start, .045, .045 + velocity * .04, 'bandpass', 2800, 2.2); }
 function demoStepPulse(step) {
   let pulse = 0;
