@@ -48,7 +48,7 @@ Music analysis stays on the device. Microphone and shared-tab audio are analysed
 
 The source dock also summarizes distinct source paths seen or attempted in that local history; two or more paths are labeled as multiple paths seen, without claiming that every path became active or proving permission or hardware behavior.
 
-Rehearsal Preflight mirrors that bounded live source-history line as a visual aid, so the current source context sits beside pass and beat evidence even when the source dock is out of view. Reports still store their own bounded history for comparison after reopen.
+Rehearsal Preflight mirrors that bounded live source-history line as a visual aid, so the current source context sits beside pass and beat evidence even when the source dock is out of view. Loading a report also exposes its saved source-history line with the last recorded outcome; the live mirror is intentionally not restored from a report after reload.
 
 ## Output and limits
 

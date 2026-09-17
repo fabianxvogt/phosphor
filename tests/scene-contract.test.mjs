@@ -163,6 +163,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function syncAudioSourceHistoryReadout\(/, 'source switching history is surfaced');
   assert.match(html, /id="audioSourceHistoryReadout"[^>]*role="status"[^>]*aria-live="polite"[^>]*>SOURCE HISTORY · 0 PATHS · SWITCHING NOT OBSERVED/, 'source switching history readout is present');
   assert.match(html, /id="rehearsalSourceHistoryReadout"[^>]*role="status"[^>]*aria-live="off"[^>]*>SOURCE HISTORY · 0 PATHS · SWITCHING NOT OBSERVED/, 'rehearsal card mirrors source history without duplicate announcements');
+  assert.match(html, /id="rehearsalReportImportSourceHistoryReadout"[^>]*role="status"[^>]*aria-live="off"[^>]*>No loaded source history/, 'loaded reports expose historical source paths without duplicate announcements');
   assert.match(app, /function syncRecordingReadout\(/, 'recording duration is surfaced while capturing');
   assert.match(app, /try \{ audio\.recorder\.stop\(\); \} catch \{ finishRecording\(false, 'Recording could not stop · capture cleaned up'\); \}/, 'recorder stop failures restore the capture UI');
   assert.match(app, /function recordingMimeType\(/, 'recording capability uses the same MIME probe as capture');

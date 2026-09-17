@@ -944,7 +944,7 @@ let importedRehearsalReportAudioPeakSessionSignature = null;
 let importedRehearsalReportStale = false;
 function importRehearsalReport(data) {
   if (offlineJobActive()) return null;
-  const report = validateRehearsalReport(data); const comparison = compareRehearsalReports(rehearsalReport(), report); importedRehearsalReport = report; importedRehearsalReportLiveSignature = rehearsalReportLiveSignature(); importedRehearsalReportPerformanceSignature = rehearsalPerformanceSignature(report.performance); importedRehearsalReportPerformanceSetSignature = rehearsalPerformanceSetSignature(report.performanceSet); importedRehearsalReportAudioPeakSessionSignature = rehearsalAudioPeakSessionSignature(report.audio?.peakSession); importedRehearsalReportStale = false; syncRehearsalReportClearControl(); syncRehearsalReportImportEvidence(report);
+  const report = validateRehearsalReport(data); const comparison = compareRehearsalReports(rehearsalReport(), report); importedRehearsalReport = report; importedRehearsalReportLiveSignature = rehearsalReportLiveSignature(); importedRehearsalReportPerformanceSignature = rehearsalPerformanceSignature(report.performance); importedRehearsalReportPerformanceSetSignature = rehearsalPerformanceSetSignature(report.performanceSet); importedRehearsalReportAudioPeakSessionSignature = rehearsalAudioPeakSessionSignature(report.audio?.peakSession); importedRehearsalReportStale = false; syncRehearsalReportClearControl(); syncRehearsalReportImportEvidence(report); syncRehearsalReportImportSourceHistory(report);
   syncRehearsalReportImportComparison(comparison);
   syncRehearsalReportImportPass(report);
   syncQualityABReadout();
@@ -956,6 +956,20 @@ function importRehearsalReport(data) {
 }
 function syncRehearsalReportClearControl() { const button = $('clearRehearsalReportButton'); if (button) button.disabled = !importedRehearsalReport; }
 function syncRehearsalReportImportEvidence(report = importedRehearsalReport) { const output = $('rehearsalReportImportEvidenceReadout'); if (!output) return; if (!report?.observedEvidence) { output.textContent = 'No loaded evidence'; output.setAttribute('aria-label', 'No loaded rehearsal evidence'); return; } const evidence = report.observedEvidence; output.textContent = `Loaded evidence · ${evidence.completed}/${evidence.total} · ${evidence.label}`; output.setAttribute('aria-label', `Loaded rehearsal report evidence ${evidence.completed} of ${evidence.total}; ${evidence.label.toLowerCase()}`); }
+function syncRehearsalReportImportSourceHistory(report = importedRehearsalReport) {
+  const output = $('rehearsalReportImportSourceHistoryReadout');
+  if (!output) return;
+  if (!report) { output.textContent = 'No loaded source history'; output.setAttribute('aria-label', 'No loaded source history'); output.dataset.paths = '0'; return; }
+  if (!report.audio) { output.textContent = 'LOADED SOURCE HISTORY · UNAVAILABLE (LEGACY REPORT)'; output.setAttribute('aria-label', 'Loaded report predates the persisted audio source history'); delete output.dataset.paths; return; }
+  const kinds = [...new Set((report.audio.history || []).map((event) => event.source).filter((source) => rehearsalAudioSources.has(source) && source !== 'NO AUDIO'))];
+  const countLabel = `${kinds.length} ${kinds.length === 1 ? 'PATH' : 'PATHS'}`;
+  const detail = kinds.length > 1 ? `${kinds.join(' · ')} · MULTIPLE PATHS SEEN` : kinds.length ? kinds[0] : 'NO AUDIO';
+  const source = report.audio.source || 'NO AUDIO';
+  const status = report.audio.status || 'idle';
+  output.textContent = `LOADED SOURCE HISTORY · ${countLabel} · ${detail} · LAST ${source} ${status.toUpperCase()}`;
+  output.setAttribute('aria-label', kinds.length ? `Loaded source history includes ${kinds.length} paths seen or attempted: ${kinds.join(', ')}. Last recorded source ${source}, outcome ${status}. This is historical report evidence; media and permissions were not saved.` : `Loaded source history has no connected source paths. Last recorded source ${source}, outcome ${status}. This is historical report evidence; media and permissions were not saved.`);
+  output.dataset.paths = String(kinds.length);
+}
 function syncRehearsalReportImportPass(report = importedRehearsalReport) { const output = $('rehearsalReportImportPassReadout'); if (!output) return; if (!report?.passSnapshot) { output.textContent = 'No loaded pass snapshot'; output.setAttribute('aria-label', 'No loaded rehearsal pass snapshot; this report predates the persisted pass field'); delete output.dataset.level; return; } const contextText = rehearsalReportImportPassContext(report); const contextAria = rehearsalReportImportPassContextAria(report); output.textContent = `Loaded ${rehearsalPassDisplayText(report.passSnapshot)}${contextText}`; output.setAttribute('aria-label', `Loaded ${rehearsalPassDisplayAria(report.passSnapshot)}${contextAria}`); output.dataset.level = report.passSnapshot.status; }
 function syncRehearsalReportImportComparison(comparison = null) { const output = $('rehearsalReportImportCompareReadout'); if (!output) return; if (!comparison) { output.textContent = 'No loaded comparison'; output.setAttribute('aria-label', 'No loaded rehearsal report comparison'); delete output.dataset.level; return; } const groups = [['setup', comparison.sameDevice && comparison.sameEnvironment], ['transport', comparison.sameTransport], ['audio', comparison.sameAudio && comparison.sameAudioHistory && comparison.sameAudioPeak && comparison.sameAudioPeakSession && comparison.sameAudioBeat && comparison.sameRecording], ['timing', comparison.samePerformance && comparison.samePerformanceSet], ['visuals', comparison.sameScene && comparison.sameProfile && comparison.sameRenderer && comparison.sameQualityAB && comparison.sameBeatResponse], ['evidence', comparison.samePreflight && comparison.sameObservations], ['pass', comparison.samePassSnapshot], ['set', comparison.sameSet]]; const differences = groups.filter(([, same]) => !same).map(([label]) => label); const qualityGuidance = qualityABRecommendationAria(importedRehearsalReport?.qualityAB); const qualitySuffix = qualityGuidance ? `; ${qualityGuidance}` : ''; if (!differences.length) { output.textContent = 'Compare · live match'; output.setAttribute('aria-label', `Loaded rehearsal report matches the live setup, transport, audio, timing, visuals, evidence, pass, and set${qualitySuffix}`); output.dataset.level = 'match'; return; } output.textContent = `Compare · differs: ${differences.join(' · ')}`; output.setAttribute('aria-label', `Loaded rehearsal report differs from the live instrument in ${differences.join(', ')}${qualitySuffix}`); output.dataset.level = 'differs'; }
 function clearRehearsalReportImport() {
@@ -968,6 +982,7 @@ function clearRehearsalReportImport() {
   importedRehearsalReportStale = false;
   syncRehearsalReportClearControl();
   syncRehearsalReportImportEvidence();
+  syncRehearsalReportImportSourceHistory();
   syncRehearsalReportImportPass();
   syncRehearsalReportImportComparison();
   syncQualityABReadout();
@@ -1824,6 +1839,7 @@ function runLifecycleProbe() { const saved = { sceneIndex: state.sceneIndex, pre
     function wire() {
       syncRehearsalReportClearControl();
       syncRehearsalReportImportEvidence();
+      syncRehearsalReportImportSourceHistory();
       $('clearRehearsalReportButton').addEventListener('click', clearRehearsalReportImport);
       $('focusQualityButton').addEventListener('click', () => { if (setQuality('native')) { syncFocusScaleReadout(); showToast('HD output enabled · native WebGL when available'); } });
       for (const key of Object.keys(effectDefaults)) $('effect-' + key).addEventListener('input', event => { if (offlineJobActive()) return; effects[key] = Number(event.target.value); $('effect-value-' + key).textContent = `${Math.round(effects[key] * 100)}%`; markEffectDirty(); });
