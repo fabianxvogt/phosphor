@@ -352,6 +352,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function updateSetProgress\([\s\S]*cueCurrentReadout/, 'named cue progress readout');
   assert.match(app, /function evolutionContour|evolutionContour\(/, 'procedural evolution bodies');
   assert.match(styles, /@media \(min-width:981px\)/, 'desktop split workspace');
+  assert.match(styles, /grid-template-areas:'topbar topbar' 'stage workbench' 'palette workbench' 'effects workbench' 'dock dock' 'utility utility' 'beat beat' 'footer footer'/, 'desktop grid keeps beat response in the explicit two-column layout');
   assert.match(styles, /overflow-y:auto/, 'bounded workspace scrolling');
   assert.match(html, /mobile-quickbar/, 'mobile quick actions');
   assert.match(styles, /\.stage-overlay\.top-left \{ top:10px;[\s\S]*\.stage-overlay\.top-right \{ top:10px/, 'narrow stage header separation');

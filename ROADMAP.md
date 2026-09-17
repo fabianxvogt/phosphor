@@ -21,6 +21,7 @@ State: thirteen-family studio update remains the historical Site version 5 recor
 - Use the set-level performance readout during that rehearsal: visit all fourteen visual families, confirm the worst measured p95 stays visible, and record any family that remains over target or unmeasured.
 - The output dock now has a bounded **Measure 14 scenes** pass: one warmed draw plus three timed draws per family, restoring the active scene, pause state, camera, audio and authored set while filling the set-level p95 readout. Treat its result as local empirical evidence, not device certification.
 - Use the expanded **Timing detail** list during the named-device rehearsal to keep every family’s p95 and `within target`/`over target`/`unmeasured` state visible; record any repeated slow family before tuning.
+- The latest local Demo-beat rehearsal now records `14/14` timed families within target, with Cathedrals of Error at `9.5ms` p95 and `32%` held headroom after 26 seconds; repeat this on a named device before changing renderer budgets.
 - Keep the audio run envelope visible during the same pass: verify the heavy kick has useful headroom, watch for hot/near-clip proportions, and save the report from the named setup before changing source or quality.
 - The first local Chrome A/B is recorded in [Julia quality A/B](docs/releases/quality-ab.md): Full is a `1.5×` Focus upscale while HD is a `0.7×` downscale and visibly sharper; the remaining gate is a sustained named-device rehearsal, not speculative shader tuning.
 - Repair failures observed in rehearsal; prioritize expressive controls, discoverability, contrast, reliable transitions and state recovery.
@@ -62,6 +63,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Local preflight timestamp so performers can tell whether the capability check is current.
 - Rolling per-scene draw-time median/p95 readout (with optional heap usage), scoped to the selected quality profile, makes the open performance-measurement gate visible during rehearsal.
 - The bounded set timing pass now has an expandable per-family detail list with catalog numbers, p95 values, and explicit `within target`/`over target`/`unmeasured` status for all fourteen visual families.
+- Desktop workspace grid now keeps the beat-response row explicit, preventing implicit zero-width tracks from compressing the source/output dock during a live beat pass.
 - Focus diagnostics now sit in a separated, bounded card with a two-column layout, keeping renderer, timing, display-scale and `Use HD` controls readable without covering the scene title.
 - Renderer-path readout and bounded rehearsal-report evidence now name Julia's actual WebGL/CPU path and internal dimensions, so Focus-mode quality comparisons cannot confuse output-canvas size with render size.
 - Exported seeded frame plans preserve the measured p95 status and selected nominal target alongside their existing timing samples, so offline assets retain the same evidence context as the live readout.
