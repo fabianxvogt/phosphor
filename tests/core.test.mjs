@@ -17,11 +17,12 @@ test('audio spectrum bands are deterministic, bounded, and frequency-specific', 
   assert.equal(audioBandLevels(lowAt44k, 44100).low, audioBandLevels(lowAt96k, 96000).low);
 });
 
-test('dark techno pattern keeps kick, clap, hats, and bass on a bounded 16-step bar', () => {
+test('dark techno pattern keeps kick, clap, hats, bass, and ghost percussion on a bounded 16-step bar', () => {
   assert.equal(DARK_TECHNO_PATTERN.length, 16);
   assert.deepEqual([0, 4, 8, 12].map((step) => darkTechnoStep(step).kick > 0), [true, true, true, true]);
   assert.deepEqual([4, 12].map((step) => darkTechnoStep(step).clap), [1, 1]);
   assert.ok([1, 3, 5, 7, 9, 11, 13, 15].every((step) => darkTechnoStep(step).hat > 0));
+  assert.deepEqual([3, 7, 11, 15].map((step) => darkTechnoStep(step).perc > 0), [true, true, true, true]);
   assert.ok(DARK_TECHNO_PATTERN.every((step) => Object.values(step).every((value) => value >= 0 && value <= 1)));
   assert.deepEqual(darkTechnoStep(-1), darkTechnoStep(15));
 });

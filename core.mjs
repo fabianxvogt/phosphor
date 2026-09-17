@@ -14,22 +14,22 @@ export const PHOSPHOR_FAMILY_CATALOG = [
 // WebAudio layer can shape the voices without ever depending on wall-clock
 // randomness or an unbounded event list.
 export const DARK_TECHNO_PATTERN = Object.freeze([
-  { kick: 1, clap: 0, hat: 0, openHat: 0, bass: 1 },
-  { kick: 0, clap: 0, hat: .42, openHat: 0, bass: 0 },
-  { kick: 0, clap: 0, hat: .58, openHat: 0, bass: 0 },
-  { kick: 0, clap: 0, hat: .36, openHat: 0, bass: .55 },
-  { kick: .82, clap: 1, hat: 0, openHat: 0, bass: .78 },
-  { kick: 0, clap: 0, hat: .62, openHat: 0, bass: 0 },
-  { kick: 0, clap: 0, hat: .52, openHat: .68, bass: .62 },
-  { kick: 0, clap: 0, hat: .38, openHat: 0, bass: 0 },
-  { kick: 1, clap: 0, hat: 0, openHat: 0, bass: 1 },
-  { kick: 0, clap: 0, hat: .46, openHat: 0, bass: 0 },
-  { kick: 0, clap: 0, hat: .62, openHat: 0, bass: .58 },
-  { kick: 0, clap: 0, hat: .38, openHat: 0, bass: 0 },
-  { kick: .9, clap: 1, hat: 0, openHat: 0, bass: .82 },
-  { kick: 0, clap: 0, hat: .64, openHat: 0, bass: 0 },
-  { kick: 0, clap: 0, hat: .54, openHat: .74, bass: .7 },
-  { kick: 0, clap: 0, hat: .4, openHat: 0, bass: 0 },
+  { kick: 1, clap: 0, hat: 0, openHat: 0, bass: 1, perc: 0 },
+  { kick: 0, clap: 0, hat: .42, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: .58, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: .36, openHat: 0, bass: .55, perc: .28 },
+  { kick: .82, clap: 1, hat: 0, openHat: 0, bass: .78, perc: 0 },
+  { kick: 0, clap: 0, hat: .62, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: .52, openHat: .68, bass: .62, perc: 0 },
+  { kick: 0, clap: 0, hat: .38, openHat: 0, bass: 0, perc: .22 },
+  { kick: 1, clap: 0, hat: 0, openHat: 0, bass: 1, perc: 0 },
+  { kick: 0, clap: 0, hat: .46, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: .62, openHat: 0, bass: .58, perc: 0 },
+  { kick: 0, clap: 0, hat: .38, openHat: 0, bass: 0, perc: .32 },
+  { kick: .9, clap: 1, hat: 0, openHat: 0, bass: .82, perc: 0 },
+  { kick: 0, clap: 0, hat: .64, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: .54, openHat: .74, bass: .7, perc: 0 },
+  { kick: 0, clap: 0, hat: .4, openHat: 0, bass: 0, perc: .26 },
 ]);
 
 export function darkTechnoStep(step = 0) {

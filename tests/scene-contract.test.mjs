@@ -126,6 +126,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function releaseOfflineJob\([\s\S]*scene\(\)\.kind === 'fractal' && state\.focusMode && !state\.renderingLost\) drawPreview\(\)/, 'Fractal Focus repaints at its quality backing after offline rendering restores the session');
   assert.match(app, /function scheduleDemoStep\(/, 'demo source schedules a bounded beat pattern');
   assert.match(app, /Dark techno demo beat · kick, clap, hats/, 'demo source names its techno voices');
+  assert.match(app, /function playDemoPerc\(start, velocity\)/, 'demo beat includes a bounded ghost percussion voice');
   assert.match(app, /function playDemoKick\(start, velocity\)[\s\S]*demoOscillator\(start, \.32/, 'demo kick has a dedicated low-end body');
   assert.match(app, /createDynamicsCompressor\?\.\(\)/, 'demo bus uses a bounded compressor when supported');
   assert.match(app, /compressor\.threshold\.value = -18/, 'demo compressor keeps a concrete headroom threshold');

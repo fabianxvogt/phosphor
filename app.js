@@ -1667,6 +1667,7 @@ function syncBeatReadout() {
     if (step.hat) voices.push(step.openHat ? 'HAT+OPEN' : 'HAT');
     else if (step.openHat) voices.push('OPEN HAT');
     if (step.bass) voices.push('SUB');
+    if (step.perc) voices.push('PERC');
     next = `BEAT ${String(state.beatStep + 1).padStart(2, '0')}/16 · ${voices.join('+') || 'REST'} · ${pulse}%`;
   } else if (audioSourceKind() !== 'NO AUDIO' && pulse > 0) next = `BEAT RESPONSE · ${pulse}%`;
   if (output.textContent !== next) output.textContent = next;
@@ -1851,6 +1852,7 @@ function playDemoClap(start) {
   for (const offset of [0, .018, .036]) demoNoise(start + offset, .105, .16 - offset * 1.4, 'bandpass', 1750, 1.2);
 }
 function playDemoHat(start, velocity, open = false) { demoNoise(start, open ? .22 : .055, (open ? .13 : .085) + velocity * .07, 'highpass', open ? 4200 : 6200, .6); }
+function playDemoPerc(start, velocity) { demoNoise(start, .045, .045 + velocity * .04, 'bandpass', 2800, 2.2); }
 function scheduleDemoStep(request) {
   if (request !== audioRequest || !state.demoOn || !audio.context) return;
   if (state.paused) { pulseTimer = setTimeout(() => scheduleDemoStep(request), 40); return; }
@@ -1860,6 +1862,7 @@ function scheduleDemoStep(request) {
   if (step.clap) { setBeatPulse(Math.max(state.beatPulse, .7), stepIndex); playDemoClap(start); }
   if (step.hat) { setBeatPulse(Math.max(state.beatPulse, .24 + step.hat * .18), stepIndex); playDemoHat(start, step.hat); }
   if (step.openHat) playDemoHat(start, step.openHat, true);
+  if (step.perc) { setBeatPulse(Math.max(state.beatPulse, .16 + step.perc * .12), stepIndex); playDemoPerc(start, step.perc); }
   audio.demoStep = (stepIndex + 1) % 16;
   const stepMs = 60000 / clamp(Number(state.tempo) || 92, 40, 180) / 4;
   pulseTimer = setTimeout(() => scheduleDemoStep(request), Math.max(18, stepMs));
@@ -1919,7 +1922,7 @@ async function toggleDemo() {
     demoConnect(bus, compressor); demoConnect(compressor, audio.analyser); audio.demoCompressor = compressor;
   } else demoConnect(bus, audio.analyser);
   audio.demoGain = bus; audio.demoStep = 0; state.demoOn = true; audio.gain.gain.value = audioOutputGain();
-  scheduleDemoStep(request); setAudioSourceOutcome('active', 'DEMO'); $('demoAudioButton').textContent = 'Stop beat'; $('audioStatus').textContent = 'Dark techno demo beat · kick, clap, hats · tempo follows BPM'; syncAudioSourceControls();
+  scheduleDemoStep(request); setAudioSourceOutcome('active', 'DEMO'); $('demoAudioButton').textContent = 'Stop beat'; $('audioStatus').textContent = 'Dark techno demo beat · kick, clap, hats, perc · tempo follows BPM'; syncAudioSourceControls();
 }
 async function loadLocalAudio(file) {
   if (offlineJobActive() || recordingBlocksSourceChange() || !file) return;
