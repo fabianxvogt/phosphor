@@ -602,14 +602,14 @@ function syncRecordingOutcome() { const output = $('recordingStatus'); if (!outp
 function setRecordingOutcome(next) { recordingOutcome = recordingOutcomes.has(next) ? next : 'idle'; syncRecordingOutcome(); syncReadinessStatus(); }
 function audioSourceHistoryKinds() { return [...new Set(audioSourceEvents.map((event) => event.source).filter((source) => rehearsalAudioSources.has(source) && source !== 'NO AUDIO'))]; }
 function syncAudioSourceHistoryReadout() {
-  const output = $('audioSourceHistoryReadout');
-  if (!output) return;
+  const outputs = [$('audioSourceHistoryReadout'), $('rehearsalSourceHistoryReadout')].filter(Boolean);
+  if (!outputs.length) return;
   const kinds = audioSourceHistoryKinds();
   const countLabel = `${kinds.length} ${kinds.length === 1 ? 'PATH' : 'PATHS'}`;
-  const detail = kinds.length > 1 ? `${kinds.join(' · ')} · SWITCHING OBSERVED` : kinds.length ? kinds[0] : 'SWITCHING NOT OBSERVED';
-  output.textContent = `SOURCE HISTORY · ${countLabel} · ${detail}`;
-  output.setAttribute('aria-label', kinds.length > 1 ? `Source history includes ${kinds.length} paths: ${kinds.join(', ')}. Source switching observed in this local history.` : kinds.length === 1 ? `Source history includes one path: ${kinds[0]}. Source switching is not observed yet.` : 'No connected audio source paths are in history; source switching is not observed yet.');
-  output.dataset.paths = String(kinds.length);
+  const detail = kinds.length > 1 ? `${kinds.join(' · ')} · MULTIPLE PATHS SEEN` : kinds.length ? kinds[0] : 'SWITCHING NOT OBSERVED';
+  const text = `SOURCE HISTORY · ${countLabel} · ${detail}`;
+  const aria = kinds.length > 1 ? `Source history includes ${kinds.length} paths seen or attempted: ${kinds.join(', ')}. Multiple source paths are present in this local history; this does not prove that each path became active.` : kinds.length === 1 ? `Source history includes one path seen or attempted: ${kinds[0]}. Source switching is not observed yet.` : 'No audio source paths are in history; source switching is not observed yet.';
+  for (const output of outputs) { output.textContent = text; output.setAttribute('aria-label', aria); output.dataset.paths = String(kinds.length); }
 }
 function syncAudioSourceOutcome() { const output = $('audioOutcomeReadout'); if (!output) return; const label = audioSourceOutcomeLabels[audioSourceOutcome] || audioSourceOutcomeLabels.idle; if (output.textContent !== label) output.textContent = label; output.setAttribute('aria-label', label); syncAudioSourceHistoryReadout(); }
 function setAudioSourceOutcome(next, source = audioSourceKind()) { audioSourceOutcome = audioSourceOutcomes.has(next) ? next : 'idle'; recordAudioSourceEvent(source, audioSourceOutcome); syncAudioSourceOutcome(); syncBeatTelemetryReadout(); syncReadinessStatus(); }

@@ -159,9 +159,10 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)? audioSourceHistoryReadout"/, 'demo source announces its state, beat response, coverage, headroom, run, onset telemetry, and source history');
   assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)? audioSourceHistoryReadout"/, 'file source references its status, beat response, coverage, headroom, run, onset telemetry, and source history');
   assert.match(html, /id="audioOutcomeReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'source outcome is announced');
-  assert.match(app, /function audioSourceHistoryKinds\(/, 'source history derives distinct connected paths');
+  assert.match(app, /function audioSourceHistoryKinds\(/, 'source history derives distinct source paths seen or attempted');
   assert.match(app, /function syncAudioSourceHistoryReadout\(/, 'source switching history is surfaced');
   assert.match(html, /id="audioSourceHistoryReadout"[^>]*role="status"[^>]*aria-live="polite"[^>]*>SOURCE HISTORY · 0 PATHS · SWITCHING NOT OBSERVED/, 'source switching history readout is present');
+  assert.match(html, /id="rehearsalSourceHistoryReadout"[^>]*role="status"[^>]*aria-live="off"[^>]*>SOURCE HISTORY · 0 PATHS · SWITCHING NOT OBSERVED/, 'rehearsal card mirrors source history without duplicate announcements');
   assert.match(app, /function syncRecordingReadout\(/, 'recording duration is surfaced while capturing');
   assert.match(app, /try \{ audio\.recorder\.stop\(\); \} catch \{ finishRecording\(false, 'Recording could not stop · capture cleaned up'\); \}/, 'recorder stop failures restore the capture UI');
   assert.match(app, /function recordingMimeType\(/, 'recording capability uses the same MIME probe as capture');
