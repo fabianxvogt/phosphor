@@ -51,7 +51,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Repeated Evolution mutation/selection fixes; transactional import bounds, legacy save migration, audio parameter drift fix and async source cleanup.
 - Music status, sensitivity, local files, Demo beat, microphone, optional tab audio, and source stop.
 - Shared pause, blackout, quality, cues, gestures, portable saves, still/WebM capture and executable bounded PNG folder plans.
-- Source verification: 41/41 tests, including mathematical fixtures, audio-band bounds, the deterministic dark-techno pattern, cue timing, Julia CPU/WebGL sizing and draw allocation, bounded Focus WebGL/CPU backing contracts, the HD WebGL backing-surface contract, renderer-path evidence/comparison, and the 2,200-step Phase session run. Browser and hardware limits remain separate.
+- Source verification: 42/42 tests, including mathematical fixtures, audio-band bounds, the deterministic dark-techno pattern, cue timing, Julia CPU/WebGL sizing and draw allocation, bounded Focus WebGL/CPU backing contracts, Fractal Flight profile-aware backing sizes and offline determinism, the HD WebGL backing-surface contract, renderer-path evidence/comparison, and the 2,200-step Phase session run. Browser and hardware limits remain separate.
 - Bounded low/mid/high audio-band analysis with scene-specific modulation mappings and a compact live readout.
 - Per-cue preview/recall, duplication, cue naming, set naming, safe identity-based export filenames, adjacent reorder controls, and duration editing (1–64 bars), live-set protection, portable-session persistence, a clock-plus-bars set readout, an active-cue name/remaining-time readout, and an explicit COMPLETE/restart handoff.
 - Compact readiness status for set transport, audio source, and visual output activity.
@@ -149,6 +149,9 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Preflight now probes an actual usable WebGL context, so a constructor-only capability result cannot hide the CPU fallback cause.
 - CPU fallback readouts now preserve a bounded failure reason, making a soft Focus frame actionable without changing report privacy or compatibility.
 - Julia display-scale diagnostics now surface the one-click `Use HD` correction in regular previews as well as Focus mode whenever the stage is visibly enlarged.
+- Fractal Flight now uses bounded profile-aware WebGL backing sizes (640×400 Full, 720×450 Focus, 1280×800 HD, 240×150 Low) instead of a fixed 480×300 thumbnail; the larger surfaces reduce visible enlargement while the reference-device performance gate remains open.
+- Fractal Flight Focus now caps its visible stage to 1.5× the bounded WebGL backing, preventing a quality gain from being stretched back into a wall-sized preview.
+- Seeded Fractal frame plans ignore transient Focus enlargement and restore a Focus session at its quality backing after export, keeping offline pixels deterministic without leaving the live view soft.
 - Audio run-envelope duration now accumulates active frame time, with a bounded sample-rate fallback for legacy reports.
 - Rehearsal preflight now condenses audio, beat-link, timing, and manual-observation state into an explicit local pass snapshot without implying certification.
 - The pass snapshot now distinguishes timing warm-up from over-target timing and requires a sustained 20-minute audio envelope before `READY`.

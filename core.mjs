@@ -43,6 +43,14 @@ export function qualityProfile(quality = '1080') {
   return { id: '960x600', label: '960 × 600 · 60 target', width: 960, height: 600, cadence: 60, workScale: 1, cathedralWidth: 160, cathedralHeight: 100, interferenceWidth: 240, interferenceHeight: 150, topologyPoints: 160, magneticCap: 480, aquariumCap: 64 };
 }
 
+// Fractal Flight is GPU-bound, so keep its ray-marched backing surface below
+// the output canvas while avoiding the former fixed 2× Full-profile thumbnail.
+export function fractalRenderSize(quality = '1080', focus = false) {
+  if (quality === '720') return { width: 240, height: 150 };
+  if (quality === 'native') return { width: 1280, height: 800 };
+  return focus ? { width: 720, height: 450 } : { width: 640, height: 400 };
+}
+
 // Deterministic, bounded peak bands for the analyser's byte-frequency output.
 // Peak bins keep narrow tones responsive when devices expose different sample rates.
 export function audioBandLevels(spectrum, sampleRate = 44100) {

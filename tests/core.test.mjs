@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { audioBandLevels, aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, darkTechnoStep, DARK_TECHNO_PATTERN, evolutionContour, finiteArray, filteredInterference, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
+import { audioBandLevels, aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, darkTechnoStep, DARK_TECHNO_PATTERN, evolutionContour, finiteArray, filteredInterference, fractalRenderSize, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
 
 test('audio spectrum bands are deterministic, bounded, and frequency-specific', () => {
   const spectrum = new Uint8Array(256);
@@ -77,6 +77,15 @@ test('quality profiles apply truthful output dimensions, cadence, and bounded wo
   assert.ok(low.cathedralWidth < full.cathedralWidth && low.interferenceWidth < full.interferenceWidth);
   assert.ok(low.magneticCap < full.magneticCap && low.aquariumCap < full.aquariumCap);
   assert.match(low.label, /target/); assert.doesNotMatch(low.label, /measured/i);
+});
+
+test('Fractal Flight backing sizes are bounded and reduce Full-profile enlargement', () => {
+  assert.deepEqual(fractalRenderSize('720'), { width: 240, height: 150 });
+  assert.deepEqual(fractalRenderSize('1080'), { width: 640, height: 400 });
+  assert.deepEqual(fractalRenderSize('1080', true), { width: 720, height: 450 });
+  assert.deepEqual(fractalRenderSize('native'), { width: 1280, height: 800 });
+  assert.ok(fractalRenderSize('1080').width * fractalRenderSize('1080').height < 960 * 600);
+  assert.ok(fractalRenderSize('native').width * fractalRenderSize('native').height < 1920 * 1200);
 });
 
 test('cathedral authored shading changes surface treatment beyond palette choice', () => {

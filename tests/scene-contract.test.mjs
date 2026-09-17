@@ -32,7 +32,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /beatResponseLevel\(scene\(\)\.id\), \{ focus: state\.focusMode \}\)/, 'Julia draw receives the live Focus detail option');
   assert.match(app, /WebGL backing upscale/, 'Focus reports the scale of a supersampled Julia backing surface');
   assert.match(app, /julia-quality-fit/, 'Focus constrains Julia stage width to the visible output cap');
-  assert.match(styles, /\.focus-mode \.stage-wrap\.julia-quality-fit \{ width:min\(100%,var\(--julia-fit-width,960px\),calc\(160dvh - 160px\)\)/, 'Focus stage uses a responsive bounded Julia quality fit');
+  assert.match(app, /fractalQualityFit/, 'Focus constrains Fractal Flight stage width to its bounded backing');
+  assert.match(styles, /\.focus-mode \.stage-wrap\.julia-quality-fit,\.focus-mode \.stage-wrap\.fractal-quality-fit \{ width:min\(100%,var\(--julia-fit-width,960px\),calc\(160dvh - 160px\)\)/, 'Focus stage uses a responsive bounded quality fit for Julia and Fractal Flight');
   assert.match(app, /function normalizeQuality\(value\)/, 'quality selection normalizes saved values');
   assert.match(app, /id === '1920x1200' \? 'native'/, 'HD output profile maps through report and frame-plan validation');
   assert.match(html, /<option value="native">HD · 1920×1200 \/ 60 target<\/option>/, 'HD output profile is explicitly opt-in');
@@ -90,6 +91,9 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /fallbackJuliaRenderState/, 'Julia diagnostics retain a local compatibility fallback');
   assert.match(app, /const audioMappings = \{ acid: \['mid'/, 'scene-specific audio bands');
   assert.match(app, /fractal: \['low', 'detail', \.25\]/, 'Fractal Flight participates in beat modulation');
+  assert.match(app, /fractalRenderSize\(state\.quality, Boolean\(state\.focusMode && !offlineFrameJob\)\)/, 'Fractal Flight uses profile-aware bounded backing sizes outside deterministic offline renders');
+  assert.match(app, /function ensureFractalRenderer\(\)[\s\S]*const \{ width, height \} = fractalRenderSize\(state\.quality, Boolean\(state\.focusMode && !offlineFrameJob\)\)/, 'Fractal renderer starts at its bounded profile backing without a full-size allocation');
+  assert.match(app, /function releaseOfflineJob\([\s\S]*scene\(\)\.kind === 'fractal' && state\.focusMode && !state\.renderingLost\) drawPreview\(\)/, 'Fractal Focus repaints at its quality backing after offline rendering restores the session');
   assert.match(app, /function scheduleDemoStep\(/, 'demo source schedules a bounded beat pattern');
   assert.match(app, /Dark techno demo beat · kick, clap, hats/, 'demo source names its techno voices');
   assert.match(app, /function playDemoKick\(start, velocity\)[\s\S]*demoOscillator\(start, \.32/, 'demo kick has a dedicated low-end body');
