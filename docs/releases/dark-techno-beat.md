@@ -23,6 +23,8 @@ The source dock now also labels the selected scene's bounded response and highli
 
 The `14/14` coverage contract now checks that each beat mapping still targets a live parameter in its scene schema. Reports keep the existing versioned shape, while the live meter, rehearsal pass, and wiring check refuse to claim complete coverage if a future scene-control rename breaks a mapping.
 
+That guard also bounds the mapped band and modulation amount (`low`/`mid`/`high`, positive and at most `1`). A stale or malformed entry therefore fails closed instead of silently producing a dead family or an overdriven response.
+
 Every active hit now adds a restrained perimeter accent to the rendered stage alongside the existing shared wash. The cue is clamped and disappears at idle, making the beat legible across all families without overpowering the authored image.
 
 The perimeter cue now keys from a hysteresis-gated rising beat onset rather than a sustained high envelope, so loud external audio does not hold a continuous frame flash; the extra kick accent is limited to the Demo pattern. Reduced motion suppresses both the perimeter cue and the shared transient effect lift while leaving the existing scene-specific mapping available, and the selected-scene status avoids repeating live-region announcements during a steady pulse.

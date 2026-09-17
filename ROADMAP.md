@@ -138,6 +138,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Source dock now exposes a low-cost fourteen-family beat scope, keeping each mapped response visible during rehearsal without adding a second modulation path.
 - Source dock now calls out the selected scene's bounded beat response and highlights its family meter, making the visual currently on stage legible inside the all-family scope.
 - Beat coverage now validates every mapped parameter against its scene schema before reporting `14/14`, preventing a stale control rename from silently breaking a visual response.
+- Beat coverage also validates each mapped band and modulation amount, failing closed on malformed wiring while preserving the versioned report shape.
 - Beat hits now add a restrained, bounded perimeter cue on the rendered stage, making the shared response readable across every family while preserving the artwork's dark contrast.
 - The perimeter cue now follows rising beat onset instead of sustained loudness and respects Reduced motion, keeping long external-audio runs readable without a continuous flash.
 - Onset gating now uses a re-arm threshold and Demo-only kick accent, while Reduced motion also removes the shared transient effect lift and steady live-region chatter.

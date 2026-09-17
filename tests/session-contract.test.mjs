@@ -113,7 +113,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 1.0× native fit', 'focus mode reports display scale');
   assert.equal(api.visualAudioCoverage().length, api.sceneDefs.length, 'beat coverage enumerates every visual family');
   assert.equal(api.visualAudioCoverage().every((entry) => entry.mapped), true, 'every visual family has a beat response mapping');
-  assert.equal(api.visualAudioCoverage().every((entry) => entry.valid && typeof entry.parameter === 'string'), true, 'every beat mapping targets a live scene parameter');
+  assert.equal(api.visualAudioCoverage().every((entry) => entry.valid && ['low', 'mid', 'high'].includes(entry.band) && typeof entry.parameter === 'string' && entry.amount > 0 && entry.amount <= 1), true, 'every beat mapping targets a live bounded scene parameter');
   assert.equal((document.getElementById('beatScope').innerHTML.match(/data-beat-family=/g) || []).length, api.sceneDefs.length, 'beat scope renders one meter for every visual family');
   assert.match(document.getElementById('beatScope').innerHTML, /data-beat-family="acid"/, 'beat scope includes the first visual family');
   assert.deepEqual(api.beatDrivenEffects(), { symmetry: 0, echo: 0, chroma: 0, glow: 0 }, 'effect stack stays authored while the beat is idle');
@@ -124,7 +124,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(beatResponse.coverage.every((entry) => entry.mapped && entry.response >= .5), true, 'beat wiring evidence records a live response level for every family');
   assert.equal(beatResponse.sharedEffectsLinked, true, 'beat wiring evidence confirms the shared effect stack');
   assert.equal(beatResponse.effects.length, 4, 'beat wiring evidence records each shared effect');
+  assert.equal(beatResponse.coverage.some((entry) => 'valid' in entry), false, 'beat wiring reports keep internal mapping validity out of the v1 shape');
   assert.deepEqual(api.rehearsalReport().beatResponse, beatResponse, 'beat wiring evidence carries into rehearsal reports');
+  assert.match(document.getElementById('beatResponseReadout').textContent, /^Beat check 14\/14 · NO AUDIO · effects linked$/, 'beat wiring readout summarizes the captured coverage');
+  const firstSchemaField = api.sceneDefs[0].schema.find((field) => field[0] === api.visualAudioCoverage()[0].parameter); const originalSchemaKey = firstSchemaField[0]; firstSchemaField[0] = `${originalSchemaKey}-renamed`;
+  try { assert.equal(api.visualAudioCoverage()[0].valid, false, 'beat coverage detects a renamed scene control'); assert.throws(() => api.runBeatResponseCheck(), /Beat response evidence is malformed/, 'beat wiring check rejects a stale scene mapping'); } finally { firstSchemaField[0] = originalSchemaKey; }
   assert.deepEqual(api.rehearsalReport().audio.beat, api.audioState().beat, 'rehearsal reports carry a bounded beat telemetry snapshot');
   assert.deepEqual(api.validateRehearsalReport(api.rehearsalReport()).audio.beat, api.audioState().beat, 'beat telemetry survives rehearsal report validation');
   assert.equal(api.recordBeatOnset(.5, 'MIC'), true, 'audio onset telemetry accepts a threshold crossing');
@@ -136,7 +140,6 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.throws(() => api.validateRehearsalReport(malformedBeatTelemetry), /beat telemetry is malformed/, 'imported reports reject out-of-range beat hit counts');
   const malformedBeatTimestamp = structuredClone(api.rehearsalReport()); malformedBeatTimestamp.audio.beat = { format: 'phosphor-beat-telemetry-v1', version: 1, hits: 1, lastOnsetAt: '2026-09-16T13:09:27+02:00', lastOnsetSource: 'MIC', capped: false };
   assert.throws(() => api.validateRehearsalReport(malformedBeatTimestamp), /beat telemetry is malformed/, 'imported reports reject non-canonical onset timestamps');
-  assert.match(document.getElementById('beatResponseReadout').textContent, /^Beat check 14\/14 · NO AUDIO · effects linked$/, 'beat wiring readout summarizes the captured coverage');
   const beatCanvas = document.getElementById('stage');
   const idlePulseOps = beatCanvas.context.drawOps;
   api.applyBeatVisualPulse();

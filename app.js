@@ -1512,9 +1512,12 @@ function beatResponseLevel(id) { return clamp(Math.max(audioResponseLevel(id), s
 function visualAudioCoverage() {
   return sceneDefs.map((def) => {
     const mapping = audioMappings[def.id];
-    const parameter = mapping?.[1] || null;
-    const valid = Boolean(mapping && def.schema?.some(([key]) => key === parameter));
-    return { id: def.id, mapped: Boolean(mapping), parameter, valid };
+    const [band, parameter, amount] = Array.isArray(mapping) ? mapping : [];
+    const validBand = ['low', 'mid', 'high'].includes(band);
+    const validParameter = typeof parameter === 'string' && def.schema?.some(([key]) => key === parameter);
+    const validAmount = Number.isFinite(amount) && amount > 0 && amount <= 1;
+    const valid = Boolean(Array.isArray(mapping) && mapping.length === 3 && validBand && validParameter && validAmount);
+    return { id: def.id, mapped: Boolean(mapping), band: typeof band === 'string' ? band : null, parameter: typeof parameter === 'string' ? parameter : null, amount: Number.isFinite(amount) ? amount : null, valid };
   });
 }
 function applyBeatVisualPulse() {

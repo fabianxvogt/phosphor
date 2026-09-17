@@ -110,7 +110,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function beatDrivenEffects\(/, 'beat envelope lifts the shared effect stack');
   assert.match(app, /effectStack\.apply\(ctx, beatDrivenEffects\(\), advance\)/, 'beat-driven effects are applied without mutating authored settings');
   assert.match(app, /function visualAudioCoverage\(/, 'beat coverage is inspectable across the scene catalog');
-  assert.match(app, /const valid = Boolean\(mapping && def\.schema\?\.some/, 'beat coverage validates mapped scene parameters');
+  assert.match(app, /const validBand = \['low', 'mid', 'high'\]\.includes\(band\)/, 'beat coverage validates mapped audio bands');
+  assert.match(app, /const validAmount = Number\.isFinite\(amount\) && amount > 0 && amount <= 1/, 'beat coverage validates bounded modulation amounts');
   assert.match(app, /function syncAudioCoverageReadout\(/, 'beat coverage is surfaced in the source dock');
   assert.match(app, /function syncBeatScope\(/, 'per-family beat meters stay synchronized with the source dock');
   assert.match(app, /function syncSceneBeatReadout\(/, 'selected scene exposes its local beat response');
