@@ -193,7 +193,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.setTestBeatPulse(0, 0);
   assert.equal(document.getElementById('sceneBeatReadout').textContent, 'SCENE ACID MYCELIUM · BEAT IDLE', 'selected-scene readout returns to idle after the pulse');
   const stageWrap = document.getElementById('stageWrap');
-  document.getElementById('focusButton').click(); assert.equal(stageWrap.style['--focus-fit-width'], '960px', 'Focus caps native Canvas 2D families to the output width'); api.switchScene(10, 0); api.drawPreview();
+  document.getElementById('focusButton').click(); assert.equal(stageWrap.style['--focus-fit-width'], '960px', 'Focus caps native Canvas 2D families to the output width'); api.switchScene(10, 0); assert.equal(stageWrap.classList.contains('julia-quality-fit'), true, 'Focus keeps the Julia quality cap during renderer warm-up'); api.drawPreview();
   assert.equal(document.getElementById('sceneBeatReadout').textContent, 'SCENE JULIA OBSERVATORY · BEAT IDLE', 'selected-scene readout follows scene changes');
   assert.equal(document.getElementById('qualityABButton').disabled, false, 'quality A/B unlocks for Julia');
   assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Focus keeps the HD correction visible for non-HD Julia output');
