@@ -142,7 +142,10 @@ export function reactionDiffusionStep(u, v, width, height, feed, kill, diffusion
   const nextV = new Float32Array(v.length);
   const safeFeed = clamp(feed, 0.005, 0.09);
   const safeKill = clamp(kill, 0.02, 0.09);
-  const safeDiffusion = clamp(diffusion, 0.2, 1.4);
+  // The explicit four-neighbour update is only stable below roughly 0.35.
+  // Keep the public control expressive while mapping it into that safe range;
+  // the old 0.82 default amplified the checkerboard mode into a hard raster.
+  const safeDiffusion = clamp(diffusion * 0.3, 0.05, 0.24);
   const at = (x, y) => ((y + height) % height) * width + ((x + width) % width);
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -150,8 +153,8 @@ export function reactionDiffusionStep(u, v, width, height, feed, kill, diffusion
       const lapU = u[at(x - 1, y)] + u[at(x + 1, y)] + u[at(x, y - 1)] + u[at(x, y + 1)] - 4 * u[i];
       const lapV = v[at(x - 1, y)] + v[at(x + 1, y)] + v[at(x, y - 1)] + v[at(x, y + 1)] - 4 * v[i];
       const uvv = u[i] * v[i] * v[i];
-      nextU[i] = clamp(u[i] + (diffusion * lapU - uvv + safeFeed * (1 - u[i])) * 0.9, 0, 1);
-      nextV[i] = clamp(v[i] + (diffusion * lapV + uvv - (safeFeed + safeKill) * v[i]) * 0.9, 0, 1);
+      nextU[i] = clamp(u[i] + (safeDiffusion * lapU - uvv + safeFeed * (1 - u[i])) * 0.9, 0, 1);
+      nextV[i] = clamp(v[i] + (safeDiffusion * lapV + uvv - (safeFeed + safeKill) * v[i]) * 0.9, 0, 1);
     }
   }
   return { u: nextU, v: nextV };

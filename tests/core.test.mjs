@@ -48,6 +48,13 @@ test('reaction diffusion stays finite and bounded', () => {
   assert.equal(next.v.every((value) => value >= 0 && value <= 1), true);
 });
 
+test('reaction diffusion damps the checkerboard mode at the public diffusion ceiling', () => {
+  const width = 24; const height = 16; let u = new Float32Array(width * height).fill(1); let v = new Float32Array(width * height); v[8 * width + 12] = .9;
+  for (let step = 0; step < 48; step += 1) ({ u, v } = reactionDiffusionStep(u, v, width, height, .034, .0526, 1.4));
+  const parity = [0, 0]; for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) parity[(x + y) & 1] += v[y * width + x];
+  const total = parity[0] + parity[1]; assert.ok(total > 0); assert.ok(Math.abs(parity[0] - parity[1]) / total < .05, 'high diffusion does not collapse into alternating pixels');
+});
+
 test('clamp repairs non-finite input to the safe minimum', () => {
   assert.equal(clamp(Number.NaN, 0, 1), 0); assert.equal(clamp(2, 0, 1), 1); assert.equal(clamp(-1, 0, 1), 0);
 });

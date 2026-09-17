@@ -24,6 +24,7 @@ State: thirteen-family studio update remains the historical Site version 5 recor
 - The latest local Demo-beat rehearsal now records `14/14` timed families within target, with Cathedrals of Error at `10.5ms` p95 and `29%` held headroom after 13 seconds; repeat this on a named device before changing renderer budgets.
 - Keep the audio run envelope visible during the same pass: verify the heavy kick has useful headroom, watch for hot/near-clip proportions, and save the report from the named setup before changing source or quality.
 - The first local Chrome A/B is recorded in [Julia quality A/B](docs/releases/quality-ab.md): Full is a `1.5×` Focus upscale while HD is a `0.7×` downscale and visibly sharper; the remaining gate is a sustained named-device rehearsal, not speculative shader tuning.
+- Acid Mycelium now uses a bounded quality-aware display raster (120×75 Low, 240×150 Full, 480×300 HD) with edge-preserving upsampling and a stable diffusion coefficient; validate the visible branch detail on the named reference device before tuning other authored rasters.
 - Repair failures observed in rehearsal; prioritize expressive controls, discoverability, contrast, reliable transitions and state recovery.
 - Formative continuation gate: three performers observed, at least two independently reusing a saved set, one complete 20–30-minute performance, and no lost project state in the declared workflow. Separate fresh-user usability failures from lack of artistic interest; this small sample does not establish general reliability or market demand.
 - Review after six weeks using finished performances and repeat use. Continue, narrow or replace the focus based on evidence; the owner's sustained practice can independently justify an authored creative lane.
@@ -50,6 +51,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Rehearsal reports preserve the selected Demo kick weight, include it in freshness signatures, and treat a changed value as an audio comparison difference, while legacy reports remain readable.
 - The active Demo source status repeats the selected kick-weight percentage, keeping the live low-end setting visible while performers tune the groove.
 - Source stop now immediately refreshes the rehearsal pass summary alongside the reset audio run, keeping `NO AUDIO` and the cleared gate aligned in the handoff.
+- Acid Mycelium quality pass keeps the 120×75 simulation deterministic while doubling/quadrupling its display raster for Full/HD, damps the public diffusion ceiling's checkerboard mode, and records 44/44 source verification in [the release note](docs/releases/acid-quality.md).
 
 - Fourteen registered scene families, including Julia orbit traps, a 4D tesseract/Hopf instrument, hyperbolic geodesics, and Fractal Flight.
 - Per-scene custom palettes and five color collections isolated from UI colors.

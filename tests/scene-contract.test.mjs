@@ -98,6 +98,11 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /fractal: \['low', 'detail', \.25\]/, 'Fractal Flight participates in beat modulation');
   assert.match(app, /fractalRenderSize\(state\.quality, Boolean\(state\.focusMode && !offlineFrameJob\)\)/, 'Fractal Flight uses profile-aware bounded backing sizes outside deterministic offline renders');
   assert.match(app, /function ensureFractalRenderer\(\)[\s\S]*const \{ width, height \} = fractalRenderSize\(state\.quality, Boolean\(state\.focusMode && !offlineFrameJob\)\)/, 'Fractal renderer starts at its bounded profile backing without a full-size allocation');
+  const acidRenderer = app.match(/function drawAcid\(\) \{[\s\S]*?\nfunction stepTapestry/)?.[0] || '';
+  assert.match(app, /function acidRenderPlan\(profile = outputProfile\(\)\)/, 'Acid Mycelium derives a bounded quality-aware raster plan');
+  assert.match(acidRenderer, /const plan = acidRenderPlan\(\)/, 'Acid Mycelium uses the quality-aware raster plan');
+  assert.match(acidRenderer, /const edge = Math\.abs\(field -/, 'Acid Mycelium preserves reaction edges during upsampling');
+  assert.match(acidRenderer, /const top = b\.v\[y0 \* sourceWidth \+ x0\]/, 'Acid Mycelium bilinearly samples the simulation field');
   const tapestryRenderer = app.match(/function drawTapestry\(\) \{[\s\S]*?\nfunction drawCathedrals/)?.[0] || '';
   assert.match(tapestryRenderer, /ensureTapestryRasterCache\(width\)/, 'Causal Tapestry reuses its output-width raster cache');
   assert.match(tapestryRenderer, /tapestryColumnMap\[x\]/, 'Causal Tapestry uses a cached source-column lookup');
