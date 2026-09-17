@@ -94,6 +94,11 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /fractal: \['low', 'detail', \.25\]/, 'Fractal Flight participates in beat modulation');
   assert.match(app, /fractalRenderSize\(state\.quality, Boolean\(state\.focusMode && !offlineFrameJob\)\)/, 'Fractal Flight uses profile-aware bounded backing sizes outside deterministic offline renders');
   assert.match(app, /function ensureFractalRenderer\(\)[\s\S]*const \{ width, height \} = fractalRenderSize\(state\.quality, Boolean\(state\.focusMode && !offlineFrameJob\)\)/, 'Fractal renderer starts at its bounded profile backing without a full-size allocation');
+  const tapestryRenderer = app.match(/function drawTapestry\(\) \{[\s\S]*?\nfunction drawCathedrals/)?.[0] || '';
+  assert.match(tapestryRenderer, /ensureTapestryRasterCache\(width\)/, 'Causal Tapestry reuses its output-width raster cache');
+  assert.match(tapestryRenderer, /tapestryColumnMap\[x\]/, 'Causal Tapestry uses a cached source-column lookup');
+  assert.match(tapestryRenderer, /Math\.round\(a\[0\] \+ \(target\[0\] - a\[0\]\) \* weave\)/, 'Causal Tapestry interpolates channels without per-pixel color arrays');
+  assert.doesNotMatch(tapestryRenderer, /mixColor\(/, 'Causal Tapestry avoids per-pixel mixColor allocations');
   assert.match(app, /function releaseOfflineJob\([\s\S]*scene\(\)\.kind === 'fractal' && state\.focusMode && !state\.renderingLost\) drawPreview\(\)/, 'Fractal Focus repaints at its quality backing after offline rendering restores the session');
   assert.match(app, /function scheduleDemoStep\(/, 'demo source schedules a bounded beat pattern');
   assert.match(app, /Dark techno demo beat · kick, clap, hats/, 'demo source names its techno voices');
