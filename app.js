@@ -529,9 +529,9 @@ function runQualityABProbe() {
   const result = sanitizeQualityAB({ format: qualityABFormat, version: 1, capturedAt: new Date().toISOString(), scene: scene().id, preset: preset()[0], deviceLabel: state.deviceLabel, full: measurements.full, hd: measurements.hd }); lastQualityABProbe = result; syncQualityABReadout(); markRehearsalReportStale(); showToast('Julia Full / HD A/B captured · save a rehearsal report to keep it'); return structuredClone(result);
 }
 function beatResponseCheckSnapshot() {
-  const coverage = visualAudioCoverage().map(({ id, mapped }) => {
+  const coverage = visualAudioCoverage().map(({ id, mapped, valid }) => {
     const mapping = audioMappings[id];
-    return { id, mapped, band: mapping?.[0] || null, response: Number(beatResponseLevel(id).toFixed(3)) };
+    return { id, mapped, valid, band: mapping?.[0] || null, response: Number(beatResponseLevel(id).toFixed(3)) };
   });
   const pulsedEffects = beatDrivenEffects();
   const effectEvidence = beatResponseEffectKeys.map((key) => {
@@ -539,7 +539,7 @@ function beatResponseCheckSnapshot() {
     const beat = Number(clamp(pulsedEffects[key], 0, 1).toFixed(3));
     return { key, authored, beat, boost: Number(Math.max(0, beat - authored).toFixed(3)) };
   });
-  return { format: beatResponseFormat, version: 1, capturedAt: new Date().toISOString(), source: audioSourceKind(), pulse: beatResponsePulse, total: coverage.length, linked: coverage.filter((entry) => entry.mapped && entry.response >= .5).length, sharedEffectsLinked: beatResponseEffectKeys.every((key) => Number.isFinite(pulsedEffects[key]) && pulsedEffects[key] >= effectsForReportValue(effects, key)), coverage, effects: effectEvidence };
+  return { format: beatResponseFormat, version: 1, capturedAt: new Date().toISOString(), source: audioSourceKind(), pulse: beatResponsePulse, total: coverage.length, linked: coverage.filter((entry) => entry.mapped && entry.valid && entry.response >= .5).length, sharedEffectsLinked: beatResponseEffectKeys.every((key) => Number.isFinite(pulsedEffects[key]) && pulsedEffects[key] >= effectsForReportValue(effects, key)), coverage: coverage.map(({ id, mapped, band, response }) => ({ id, mapped, band, response })), effects: effectEvidence };
 }
 function effectsForReportValue(effectState, key) { return Number(effectState?.[key]) || 0; }
 function sanitizeBeatResponseCheck(data) {
@@ -548,7 +548,7 @@ function sanitizeBeatResponseCheck(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some((key) => !allowed.has(key)) || data.format !== beatResponseFormat || data.version !== 1 || typeof data.capturedAt !== 'string' || data.capturedAt.length > 64 || !Number.isFinite(Date.parse(data.capturedAt)) || typeof data.source !== 'string' || !rehearsalAudioSources.has(data.source) || data.pulse !== beatResponsePulse || data.total !== sceneDefs.length || data.linked !== sceneDefs.length || data.sharedEffectsLinked !== true) throw new Error('Beat response evidence is malformed');
   if (!Array.isArray(data.coverage) || data.coverage.length !== sceneDefs.length) throw new Error('Beat response coverage is malformed');
   const coverage = data.coverage.map((entry, index) => {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || Object.keys(entry).some((key) => !['id', 'mapped', 'band', 'response'].includes(key)) || entry.id !== sceneDefs[index].id || entry.mapped !== true || !['low', 'mid', 'high'].includes(entry.band) || entry.band !== audioMappings[entry.id]?.[0] || !Number.isFinite(entry.response) || entry.response < .5 || entry.response > 1) throw new Error('Beat response coverage is malformed');
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || Object.keys(entry).some((key) => !['id', 'mapped', 'band', 'response'].includes(key)) || entry.id !== sceneDefs[index].id || entry.mapped !== true || !['low', 'mid', 'high'].includes(entry.band) || entry.band !== audioMappings[entry.id]?.[0] || !Number.isFinite(entry.response) || entry.response < .5 || entry.response > 1 || !visualAudioCoverage()[index]?.valid) throw new Error('Beat response coverage is malformed');
     return { id: entry.id, mapped: true, band: entry.band, response: Number(entry.response) };
   });
   if (!Array.isArray(data.effects) || data.effects.length !== beatResponseEffectKeys.length) throw new Error('Beat response effect evidence is malformed');
@@ -557,6 +557,7 @@ function sanitizeBeatResponseCheck(data) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry) || Object.keys(entry).some((field) => !['key', 'authored', 'beat', 'boost'].includes(field)) || entry.key !== key || !Number.isFinite(entry.authored) || entry.authored < 0 || entry.authored > 1 || !Number.isFinite(entry.beat) || entry.beat < 0 || entry.beat > 1 || !Number.isFinite(entry.boost) || entry.boost < 0 || entry.boost > 1 || entry.beat + .011 < entry.authored || Math.abs(entry.boost - Math.max(0, entry.beat - entry.authored)) > .011) throw new Error('Beat response effect evidence is malformed');
     return { key, authored: Number(entry.authored), beat: Number(entry.beat), boost: Number(entry.boost) };
   });
+  if (visualAudioCoverage().some((entry) => !entry.valid)) throw new Error('Beat response mapping is invalid');
   return { format: beatResponseFormat, version: 1, capturedAt: data.capturedAt, source: data.source, pulse: beatResponsePulse, total: sceneDefs.length, linked: sceneDefs.length, sharedEffectsLinked: true, coverage, effects };
 }
 function syncBeatResponseReadout() {
@@ -650,7 +651,7 @@ function rehearsalPassSummary(performanceOverride = null) {
   const audio = audioPeakSessionTelemetry();
   const performance = performanceOverride || metrics.setSummary();
   const observed = rehearsalEvidenceStatus();
-  return rehearsalPassSummaryFromEvidence({ source: audioSourceKind(), sourceStatus: audioSourceOutcome, audio, performance, visual: { linked: coverage.filter((entry) => entry.mapped).length, total: coverage.length }, observed });
+  return rehearsalPassSummaryFromEvidence({ source: audioSourceKind(), sourceStatus: audioSourceOutcome, audio, performance, visual: { linked: coverage.filter((entry) => entry.mapped && entry.valid).length, total: coverage.length }, observed });
 }
 const rehearsalPassStatuses = new Set(['ready', 'attention', 'in-progress']);
 const rehearsalPassStatusLabels = { ready: 'Ready', attention: 'Attention', 'in-progress': 'In progress' };
@@ -703,7 +704,7 @@ function sanitizeRehearsalPassSnapshot(data, context = null) {
   if (context) {
     if (!context.audio?.peakSession || !context.performanceSet || !context.observedEvidence) throw new Error('Rehearsal report pass snapshot is inconsistent');
     const coverage = visualAudioCoverage();
-    const expected = rehearsalPassSummaryFromEvidence({ source: context.audio.source, sourceStatus: context.audio.status, audio: context.audio.peakSession, performance: context.performanceSet, visual: { linked: coverage.filter((entry) => entry.mapped).length, total: coverage.length }, observed: context.observedEvidence });
+    const expected = rehearsalPassSummaryFromEvidence({ source: context.audio.source, sourceStatus: context.audio.status, audio: context.audio.peakSession, performance: context.performanceSet, visual: { linked: coverage.filter((entry) => entry.mapped && entry.valid).length, total: coverage.length }, observed: context.observedEvidence });
     if (JSON.stringify(candidate) !== JSON.stringify(expected)) throw new Error('Rehearsal report pass snapshot is inconsistent');
   }
   return candidate;
@@ -1467,7 +1468,7 @@ function syncAudioCoverageReadout() {
   const output = $('audioCoverageReadout');
   if (!output) return;
   const coverage = visualAudioCoverage();
-  const mapped = coverage.filter((entry) => entry.mapped).length;
+  const mapped = coverage.filter((entry) => entry.mapped && entry.valid).length;
   const source = audioSourceKind();
   const mode = source === 'NO AUDIO' ? 'READY' : source === 'DEMO' ? 'BEAT-LINKED' : 'AUDIO-LINKED';
   const next = `${mapped}/${coverage.length} VISUALS ${mode}`;
@@ -1508,7 +1509,14 @@ function syncBeatScope() {
 function decayBeatPulse(dt) { state.beatPulse = clamp(state.beatPulse * Math.exp(-Math.max(0, Number(dt) || 0) * 9), 0, 1); syncBeatReadout(); }
 function setBeatPulse(amount, step = state.beatStep) { const safeAmount = clamp(Number(amount) || 0, 0, 1); const safeStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16; state.beatPulse = Math.max(state.beatPulse, safeAmount); state.beatStep = safeStep; state.beatBar = Math.floor(Math.max(0, Number(step) || 0) / 16); if (state.demoOn) recordDemoBeatOnset(safeStep, safeAmount); syncBeatReadout(); }
 function beatResponseLevel(id) { return clamp(Math.max(audioResponseLevel(id), state.beatPulse * .72), 0, 1); }
-function visualAudioCoverage() { return sceneDefs.map((def) => ({ id: def.id, mapped: Boolean(audioMappings[def.id]) })); }
+function visualAudioCoverage() {
+  return sceneDefs.map((def) => {
+    const mapping = audioMappings[def.id];
+    const parameter = mapping?.[1] || null;
+    const valid = Boolean(mapping && def.schema?.some(([key]) => key === parameter));
+    return { id: def.id, mapped: Boolean(mapping), parameter, valid };
+  });
+}
 function applyBeatVisualPulse() {
   const pulse = clamp(state.beatPulse, 0, 1);
   if (pulse <= beatVisualRearmThreshold) beatVisualArmed = true;

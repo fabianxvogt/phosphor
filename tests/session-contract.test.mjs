@@ -113,6 +113,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 1.0× native fit', 'focus mode reports display scale');
   assert.equal(api.visualAudioCoverage().length, api.sceneDefs.length, 'beat coverage enumerates every visual family');
   assert.equal(api.visualAudioCoverage().every((entry) => entry.mapped), true, 'every visual family has a beat response mapping');
+  assert.equal(api.visualAudioCoverage().every((entry) => entry.valid && typeof entry.parameter === 'string'), true, 'every beat mapping targets a live scene parameter');
   assert.equal((document.getElementById('beatScope').innerHTML.match(/data-beat-family=/g) || []).length, api.sceneDefs.length, 'beat scope renders one meter for every visual family');
   assert.match(document.getElementById('beatScope').innerHTML, /data-beat-family="acid"/, 'beat scope includes the first visual family');
   assert.deepEqual(api.beatDrivenEffects(), { symmetry: 0, echo: 0, chroma: 0, glow: 0 }, 'effect stack stays authored while the beat is idle');
