@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { audioBandLevels, aquariumFoodStep, boundedFeedbackValue, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, darkTechnoStep, DARK_TECHNO_PATTERN, evolutionContour, finiteArray, filteredInterference, fractalRenderSize, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
+import { audioBandLevels, aquariumFoodStep, boundedFeedbackValue, cathedralEdgeEnhance, cathedralShading, clamp, countPolylineIntersections, coupledRegimeFieldStep, coupledRegimeStep, darkTechnoStep, DARK_TECHNO_PATTERN, evolutionContour, finiteArray, filteredInterference, fractalRenderSize, interferenceField, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, qualityProfile, rayMarchCorridor, reactionDiffusionStep, resolutionAwareInterferenceFilter, seededRandom, stepElementary, topologyClosureError, topologyLoopPoint } from '../core.mjs';
 
 test('audio spectrum bands are deterministic, bounded, and frequency-specific', () => {
   const spectrum = new Uint8Array(256);
@@ -105,6 +105,18 @@ test('cathedral authored shading changes surface treatment beyond palette choice
   assert.ok(Number.isFinite(matte.value) && Number.isFinite(charged.value));
   assert.notEqual(matte.value, charged.value); assert.notEqual(matte.specular, charged.specular);
   assert.ok([matte, charged].every((value) => value.value >= 0 && value.value <= 1 && value.fogFactor >= 0 && value.fogFactor <= 1));
+});
+
+test('cathedral edge enhancement stays bounded and restores local edge contrast', () => {
+  const width = 3; const height = 3;
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let pixel = 0; pixel < width * height; pixel += 1) { const index = pixel * 4; data[index] = 12; data[index + 1] = 16; data[index + 2] = 28; data[index + 3] = 255; }
+  const center = 4 * 4; data[center] = 120; data[center + 1] = 140; data[center + 2] = 180;
+  const before = data.slice(); const luma = new Float32Array(width * height);
+  assert.equal(cathedralEdgeEnhance(data, width, height, luma, .2), data);
+  assert.ok(data[center] > before[center] && data[center + 1] > before[center + 1] && data[center + 2] > before[center + 2]);
+  assert.ok(Array.from(data).every((value, index) => index % 4 === 3 ? value === 255 : value >= 0 && value <= 255));
+  assert.equal(cathedralEdgeEnhance(data, 2, 2, new Float32Array(4), .2), data, 'tiny rasters fail closed without allocating');
 });
 
 test('aquarium food is local, consumable, and cannot feed a starved inactive organism', () => {

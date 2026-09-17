@@ -95,6 +95,32 @@ export function cathedralShading(distance, steps, direction = [0, 0, 1], lightin
   return { value, facing, specular, fogFactor };
 }
 
+// Recover a little edge definition after a bounded Cathedral raster is
+// enlarged. The caller supplies a reusable luma buffer so the per-frame pass
+// does not allocate a second image or change the ray-march budget.
+export function cathedralEdgeEnhance(data, width, height, luma, amount = .18) {
+  const safeWidth = Math.max(0, Math.floor(Number(width) || 0));
+  const safeHeight = Math.max(0, Math.floor(Number(height) || 0));
+  const size = safeWidth * safeHeight;
+  if (!data || !luma || safeWidth < 3 || safeHeight < 3 || data.length < size * 4 || luma.length < size) return data;
+  const strength = clamp(amount, 0, .4);
+  for (let pixel = 0; pixel < size; pixel += 1) {
+    const index = pixel * 4;
+    luma[pixel] = data[index] * .2126 + data[index + 1] * .7152 + data[index + 2] * .0722;
+  }
+  for (let y = 1; y < safeHeight - 1; y += 1) for (let x = 1; x < safeWidth - 1; x += 1) {
+    const pixel = y * safeWidth + x;
+    const edge = luma[pixel] - (luma[pixel - 1] + luma[pixel + 1] + luma[pixel - safeWidth] + luma[pixel + safeWidth]) * .25;
+    const boost = clamp(edge * strength, -24, 24);
+    if (Math.abs(boost) < .25) continue;
+    const index = pixel * 4;
+    data[index] = clamp(Math.round(data[index] + boost), 0, 255);
+    data[index + 1] = clamp(Math.round(data[index + 1] + boost), 0, 255);
+    data[index + 2] = clamp(Math.round(data[index + 2] + boost), 0, 255);
+  }
+  return data;
+}
+
 export function aquariumFoodStep(energy, patchAmount, distance, radius, feeding, dt) {
   const safeEnergy = clamp(energy, 0, 1);
   const safePatch = clamp(patchAmount, 0, 1);

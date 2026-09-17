@@ -54,6 +54,8 @@ Rehearsal Preflight mirrors that bounded live source-history line as a visual ai
 
 ## Output and limits
 
+Cathedrals of Error adds a small reusable luma edge pass before enlarging its bounded source raster. This restores local edge definition without increasing ray-march steps; confirm the visual result and timing on the named reference device before raising the raster budget.
+
 Saved rehearsal reports include the exact pass snapshot shown on the rehearsal card, so the 20-minute audio gate and 14/14 visual/timing evidence remain visible after export and report reload. The source dock also includes a bounded 20-minute progress meter and remaining-time label tied to active-source duration; both reset when the source is stopped, keeping a restarted run from looking continuous.
 Loading a report also surfaces that stored pass snapshot in the preflight card, with the same level color and gate wording; pre-snapshot reports stay explicitly labeled as legacy.
 The loaded pass and comparison lines name the same UTC capture time and optional setup label, and mark that historical line stale when the live instrument drifts.
