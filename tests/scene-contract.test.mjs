@@ -133,7 +133,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(cathedralRenderer, /const maxSteps = cathedralMaxSteps\(profile, beatLoad\)/, 'Cathedrals uses the bounded ray-step budget');
   assert.match(cathedralRenderer, /activeRenderState = \{ path: 'canvas-2d', width, height \}/, 'Cathedrals reports its actual backing raster');
   assert.match(core, /export function cathedralEdgeEnhance\(/, 'Cathedrals exposes a bounded edge-enhancement helper');
-  assert.match(cathedralRenderer, /cathedralEdgeEnhance\(data, width, height, cathedralLumaCache/, 'Cathedrals sharpens the bounded raster before enlargement');
+  assert.match(core, /const strength = clamp\(amount, 0, \.4\)/, 'Cathedrals keeps the edge helper amount linear and bounded');
+  assert.match(cathedralRenderer, /cathedralEdgeEnhance\(data, width, height, cathedralLumaCache, \(\.035 \+ surface \* \.025\) \* 2\.5\)/, 'Cathedrals lifts its low-strength edge signal at the call site');
   assert.match(cathedralRenderer, /ctx\.imageSmoothingQuality = 'high'/, 'Cathedrals requests high-quality enlargement for the display pass');
   assert.match(cathedralRenderer, /const beatLoad = state\.demoOn \|\| state\.audioBandsReady/, 'Cathedrals detects active beat load for bounded quality scaling');
   assert.match(app, /function cathedralBeatRasterScale\(profile = outputProfile\(\)\) \{ return profile\?\.workScale >= 2 \? \.95 : 1; \}/, 'Cathedrals centralizes the bounded beat raster rule');

@@ -3,6 +3,8 @@
 Date: 2026-09-16  
 Classification: **INCREMENTAL** · **EMPIRICAL**
 
+Quality follow-up — **2026-09-17 (Cathedrals edge contrast)**: the bounded Cathedral raster now applies a `2.5×` lift to its low-strength local luma edge signal before the existing `.4` clamp. Raster dimensions, ray-step budgets, and the beat-loaded path are unchanged; the intent is clearer near-surface boundaries after enlargement, not a claim of native detail. A constrained local Focus preview remained `240×150` with p95 around `23ms` against the nominal `16.7ms` target, so the named-device visual and timing rehearsal is still open.
+
 Performance follow-up — **2026-09-17 (transient modulation)**: beat-linked scene parameters are now applied in-place for the current frame and restored in a `finally` block, avoiding a fresh parameter object on every rendered beat frame. The session contract rehearses authored-state restoration across all fourteen families, while visual behavior and the wiring contract remain unchanged; timing still needs the named-device rehearsal.
 
 Performance follow-up — **2026-09-17**: Causal Tapestry keeps its full 960×600 output, but now reuses the output-width source-column map and a cached horizontal phase basis instead of allocating colors or evaluating a sine for every pixel on every frame. In the local Chrome rehearsal, the selected family measured `4.3ms` p95 with no source and `6.8ms` p95 with the Demo beat active, both within the nominal `16.7ms` frame target. This is local empirical evidence, not a named-device certification.
