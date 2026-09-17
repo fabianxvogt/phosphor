@@ -114,7 +114,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(cathedralRenderer, /cathedralDirectionCache\[directionIndex\]/, 'Cathedrals reads normalized directions from its cache');
   assert.match(cathedralRenderer, /marchCathedral\(/, 'Cathedrals uses its allocation-free scalar marcher');
   assert.match(cathedralRenderer, /const beatLoad = state\.demoOn \|\| state\.audioBandsReady/, 'Cathedrals detects active beat load for bounded quality scaling');
-  assert.match(cathedralRenderer, /const rasterScale = beatLoad \? \(profile\.workScale >= 2 \? \.95 : 1\) : 1/, 'Cathedrals keeps native Full/Low detail and a bounded HD active-beat raster');
+  assert.match(app, /function cathedralBeatRasterScale\(profile = outputProfile\(\)\) \{ return profile\?\.workScale >= 2 \? \.95 : 1; \}/, 'Cathedrals centralizes the bounded beat raster rule');
+  assert.match(cathedralRenderer, /const rasterScale = beatLoad \? cathedralBeatRasterScale\(profile\) : 1/, 'Cathedrals keeps native Full/Low detail and a bounded HD active-beat raster');
   assert.match(cathedralRenderer, /const maxSteps = beatLoad \? \(profile\.workScale < 1 \? 8 : 10\)/, 'Cathedrals caps beat-loaded ray steps after preserving the sharper raster');
   assert.match(app, /beat raster \$\{beatWidth\}×\$\{beatHeight\}/, 'Cathedrals exposes its beat-time backing size in the renderer readout');
   assert.doesNotMatch(cathedralRenderer, /rayMarchCorridor\(/, 'Cathedrals avoids per-pixel ray-march result objects');
