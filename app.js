@@ -406,7 +406,7 @@ function syncFocusRenderFit() {
   const stageWrap = $('stageWrap');
   if (!stageWrap) return;
   const cpuFocus = Boolean(state.focusMode && scene().id === 'julia' && activeRenderState.path === 'cpu');
-  const juliaQualityFit = Boolean(state.focusMode && scene().id === 'julia' && ['cpu', 'webgl'].includes(activeRenderState.path));
+  const juliaQualityFit = Boolean(state.focusMode && scene().id === 'julia');
   const fractalQualityFit = Boolean(state.focusMode && scene().kind === 'fractal' && activeRenderState.path === 'webgl');
   stageWrap.classList.toggle('julia-cpu-fit', cpuFocus);
   stageWrap.classList.toggle('julia-quality-fit', juliaQualityFit);
@@ -416,7 +416,7 @@ function syncFocusRenderFit() {
   // WebGL still renders a supersampled backing into this output canvas; the
   // output cap avoids stretching that composited surface a second time.
   const pixelRatio = Math.max(1, displayPixelRatio());
-  const fitCap = activeRenderState.path === 'webgl' && fractalQualityFit ? Math.min(canvas.width, rasterWidth * 1.5 / pixelRatio) : activeRenderState.path === 'webgl' ? Math.min(canvas.width, rasterWidth / pixelRatio) : Math.min(canvas.width, rasterWidth * 4 / 3 / pixelRatio);
+  const fitCap = activeRenderState.path === 'webgl' && fractalQualityFit ? Math.min(canvas.width, rasterWidth * 1.5 / pixelRatio) : activeRenderState.path === 'webgl' ? Math.min(canvas.width, rasterWidth / pixelRatio) : activeRenderState.path === 'cpu' ? Math.min(canvas.width, rasterWidth * 4 / 3 / pixelRatio) : Math.min(canvas.width, rasterWidth / pixelRatio);
   const fitWidth = `${Math.max(1, Math.round(fitCap))}px`;
   stageWrap.style.setProperty?.('--focus-fit-width', fitWidth);
   if (!stageWrap.style.setProperty) stageWrap.style['--focus-fit-width'] = fitWidth;
