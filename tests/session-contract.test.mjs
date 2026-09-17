@@ -143,7 +143,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const firstSchemaField = api.sceneDefs[0].schema.find((field) => field[0] === api.visualAudioCoverage()[0].parameter); const originalSchemaKey = firstSchemaField[0]; firstSchemaField[0] = `${originalSchemaKey}-renamed`;
   try { assert.equal(api.visualAudioCoverage()[0].valid, false, 'beat coverage detects a renamed scene control'); assert.throws(() => api.runBeatResponseCheck(), /Beat response evidence is malformed/, 'beat wiring check rejects a stale scene mapping'); } finally { firstSchemaField[0] = originalSchemaKey; }
   assert.deepEqual(api.rehearsalReport().audio.beat, api.audioState().beat, 'rehearsal reports carry a bounded beat telemetry snapshot');
+  assert.equal(api.rehearsalReport().audio.demoKickWeight, 1.15, 'rehearsal reports carry the selected Demo kick weight');
   assert.deepEqual(api.validateRehearsalReport(api.rehearsalReport()).audio.beat, api.audioState().beat, 'beat telemetry survives rehearsal report validation');
+  assert.equal(api.validateRehearsalReport(api.rehearsalReport()).audio.demoKickWeight, 1.15, 'report validation preserves the selected Demo kick weight');
   assert.equal(api.recordBeatOnset(.5, 'MIC'), true, 'audio onset telemetry accepts a threshold crossing');
   assert.equal(api.recordBeatOnset(.5, 'MIC'), false, 'audio onset telemetry does not double-count a sustained envelope');
   assert.equal(api.recordBeatOnset(.1, 'MIC'), false, 're-arm samples below the threshold do not register a hit');
@@ -615,6 +617,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.compareRehearsalReports(juliaReportWithQualityAB, changedQualityAB).sameQualityAB, false, 'report comparison detects a changed quality A/B result');
   const changedBeatResponse = structuredClone(juliaReportWithQualityAB); changedBeatResponse.beatResponse.coverage[0].response = .51;
   assert.equal(api.compareRehearsalReports(juliaReportWithQualityAB, changedBeatResponse).sameBeatResponse, false, 'report comparison detects a changed beat wiring result');
+  const changedKickWeight = structuredClone(juliaReportWithQualityAB); changedKickWeight.audio.demoKickWeight = 1.5;
+  assert.equal(api.compareRehearsalReports(juliaReportWithQualityAB, changedKickWeight).sameAudioKickWeight, false, 'report comparison detects a changed Demo kick weight');
+  assert.equal(api.compareRehearsalReports(juliaReportWithQualityAB, changedKickWeight).sameAudioSource, true, 'kick-weight comparison keeps the audio source match separate');
+  assert.equal(api.compareRehearsalReports(juliaReportWithQualityAB, changedKickWeight).sameAudio, false, 'changed Demo kick weight marks the audio comparison different');
+  assert.equal(api.compareRehearsalReports(juliaReportWithQualityAB, changedKickWeight).equivalent, false, 'changed Demo kick weight prevents equivalent report comparisons');
   assert.throws(() => api.validateRehearsalReport({ ...juliaReportWithQualityAB, beatResponse: { ...beatResponse, linked: beatResponse.linked - 1 } }), /Beat response evidence is malformed/, 'beat wiring evidence rejects incomplete family coverage');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, cuePlan: [] }), /cue plan/, 'malformed imported reports are rejected');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, outputProfile: '1920x1200' }), /output profile is inconsistent/, 'imported reports reject dimensions that disagree with the HD profile');
@@ -631,8 +638,14 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { ...rehearsalReport.audio, peak: { current: .4, hold: .8, headroom: .8 } } }), /audio peak is malformed/, 'imported reports reject contradictory headroom telemetry');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { ...rehearsalReport.audio, peakSession: { ...rehearsalReport.audio.peakSession, holdMax: .8, headroom: .1 } } }), /audio peak session is malformed/, 'imported reports reject contradictory audio run headroom telemetry');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { ...rehearsalReport.audio, peakSession: { ...rehearsalReport.audio.peakSession, sampleCount: 1, peakMax: .9, holdMax: .4, averageHold: .3, headroom: .6, hotPercent: 0, nearClipPercent: 0, capped: false } } }), /audio peak session is malformed/, 'imported reports reject a peak above the held maximum');
+  assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, audio: { ...rehearsalReport.audio, demoKickWeight: 1.6 } }), /Demo kick weight is malformed/, 'imported reports reject an out-of-range Demo kick weight');
   const legacyAudioReport = structuredClone(rehearsalReport); delete legacyAudioReport.audio.history;
   assert.deepEqual(api.validateRehearsalReport(legacyAudioReport).audio.history, [], 'legacy reports without audio history remain readable');
+  const legacyKickWeightReport = structuredClone(rehearsalReport); delete legacyKickWeightReport.audio.demoKickWeight;
+  const migratedKickWeightReport = api.validateRehearsalReport(legacyKickWeightReport);
+  assert.equal(migratedKickWeightReport.audio.demoKickWeight, null, 'legacy reports without Demo kick weight remain readable');
+  assert.equal(api.validateRehearsalReport(migratedKickWeightReport).audio.demoKickWeight, null, 'migrated legacy kick weight remains re-importable');
+  assert.equal(api.compareRehearsalReports(rehearsalReport, migratedKickWeightReport).sameAudioKickWeight, true, 'legacy kick-weight reports compare without inventing a difference');
   const legacyEnvironmentReport = structuredClone(rehearsalReport); delete legacyEnvironmentReport.environment;
   assert.equal(api.validateRehearsalReport(legacyEnvironmentReport).environment, null, 'legacy reports without runtime context remain readable');
   const legacyPassSnapshotReport = structuredClone(rehearsalReport); delete legacyPassSnapshotReport.passSnapshot;

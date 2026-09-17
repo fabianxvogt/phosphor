@@ -212,6 +212,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /if \(step\?\.openHat\) pulse = Math\.max\(pulse, \.32 \+ step\.openHat \* \.22\)/, 'open-hat hits carry a deliberate shared visual beat accent');
   assert.match(app, /demoNoise\(start \+ \.003, \.16, \.035 \+ safeVelocity \* \.025, 'bandpass', 7600, 3\.2\)/, 'open hats carry a bounded metallic resonance layer');
   assert.match(app, /function normalizedBeatValue\(value = 0\)/, 'beat pulse values use a throwing-safe numeric guard');
+  assert.match(app, /function rehearsalReportWithKickWeight\(\)/, 'rehearsal reports retain the selected Demo kick weight');
+  assert.match(app, /function sanitizeRehearsalAudioWithKickWeight\(data\)/, 'rehearsal report audio validates the Demo kick weight');
   assert.match(html, /id="demoKickWeightInput"[^>]*min="\.6"[^>]*max="1\.5"[^>]*value="1\.15"[^>]*title="Adjusts only the local Demo beat"/, 'source dock exposes the bounded Demo-only kick weight control');
   assert.match(app, /function audioSourceHistoryKinds\(/, 'source history derives distinct source paths seen or attempted');
   assert.match(app, /function syncAudioSourceHistoryReadout\(/, 'source switching history is surfaced');
