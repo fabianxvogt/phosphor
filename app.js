@@ -1718,7 +1718,8 @@ function beatPatternVoiceSymbols(step) {
   return beatStepVoices(step).map(({ symbol }) => symbol).join('·') || '·';
 }
 function normalizedBeatIndex(step = 0) {
-  const value = Number(step);
+  let value = 0;
+  try { value = Number(step); } catch {}
   return Number.isFinite(value) ? Math.floor(value) : 0;
 }
 function syncBeatPattern() {
