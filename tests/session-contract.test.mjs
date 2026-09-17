@@ -191,6 +191,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const juliaReportWithQualityAB = api.rehearsalReport();
   assert.match(document.getElementById('qualityABReadout').textContent, /^A\/B /, 'quality A/B readout summarizes both profiles');
   assert.match(document.getElementById('qualityABReadout').textContent, /A\/B CPU 640×400→960×600/, 'quality A/B readout names the Focus CPU backing and output dimensions');
+  assert.match(document.getElementById('qualityABReadout').textContent, /(HD (HIGHER DETAIL|REDUCES UPSCALE)|FULL HIGHER DETAIL|SAME BACKING DETAIL)/, 'quality A/B readout names the actionable detail outcome');
+  assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 960, height: 600 }, display: { width: 2142, height: 1338, scale: 2.231 } }, hd: { renderer: { width: 1920, height: 1200 }, display: { width: 2142, height: 1338, scale: 1.116 } } }), ' · HD REDUCES UPSCALE', 'quality A/B recommends HD when the Full backing is enlarged');
+  assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 960, height: 600 }, display: { width: 480, height: 300, scale: .5 } }, hd: { renderer: { width: 1920, height: 1200 }, display: { width: 480, height: 300, scale: .25 } } }), ' · HD HIGHER DETAIL', 'quality A/B avoids calling downscaling an upscale reduction');
+  assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 640, height: 400 }, display: { width: 960, height: 600, scale: 1 } }, hd: { renderer: { width: 640, height: 400 }, display: { width: 960, height: 600, scale: .5 } } }), ' · SAME BACKING DETAIL', 'quality A/B calls out unchanged CPU backing detail');
   assert.equal(stageWrap.classList.contains('julia-cpu-fit'), true, 'Focus constrains a CPU Julia fallback to a bounded display width');
   assert.equal(stageWrap.style['--julia-fit-width'], '960px', 'Focus caps CPU Julia at twice its internal raster width');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusScaleReadout();
