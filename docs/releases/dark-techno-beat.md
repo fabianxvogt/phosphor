@@ -23,7 +23,7 @@ The source dock now also labels the selected scene's bounded response and highli
 
 The `14/14` coverage contract now checks that each beat mapping still targets a live parameter in its scene schema. Reports keep the existing versioned shape, while the live meter, rehearsal pass, and wiring check refuse to claim complete coverage if a future scene-control rename breaks a mapping.
 
-That guard also bounds the mapped band and modulation amount (`low`/`mid`/`high`, positive and at most `1`). A stale or malformed entry therefore fails closed instead of silently producing a dead family or an overdriven response.
+That guard also bounds the mapped band and modulation amount (`low`/`mid`/`high`, positive and at most `1`). The render loop consumes the same validator, so a stale or malformed entry fails closed instead of silently producing a dead family or an overdriven response.
 
 Every active hit now adds a restrained perimeter accent to the rendered stage alongside the existing shared wash. The cue is clamped and disappears at idle, making the beat legible across all families without overpowering the authored image.
 

@@ -1317,11 +1317,11 @@ function drawPreview() { const intersections = buffers.topology.intersections; d
 function stepAndDrawBase(dt) { if (scene().kind === 'reaction') stepAcid(dt); else if (scene().kind === 'automaton') stepTapestry(dt); else if (scene().kind === 'feedback') stepFeedback(); else if (scene().kind === 'particles') stepMagnetic(dt); else if (scene().kind === 'geometry') stepCathedrals(dt); else if (scene().kind === 'aquarium') stepAquarium(dt); else if (scene().kind === 'interference') stepInterference(dt); else if (scene().kind === 'topology') stepTopology(dt); else if (scene().kind === 'phase') stepPhase(dt); else if (scene().kind === 'evolution') stepEvolution(dt); else if (scene().kind === 'fractal') stepFlight(dt); drawScene(true); }
 function stepAndDraw(dt) {
   const id = scene().id, original = state.params[id];
-  const mapping = audioMappings[id];
+  const mapping = audioMappingForScene(id);
   if (mapping) { const [, key, amount] = mapping; const mappedLevel = beatResponseLevel(id); if (mappedLevel > 0) state.params[id] = { ...original, [key]: clamp(original[key] + mappedLevel * amount, 0, 1) }; }
   try { stepAndDrawBase(dt); } finally { state.params[id] = original; }
 }
-function audioResponseLevel(id) { const mapping = audioMappings[id]; if (!mapping) return 0; return state.audioBandsReady ? state.audioBands[mapping[0]] : state.audioLevel; }
+function audioResponseLevel(id) { const mapping = audioMappingForScene(id); if (!mapping) return 0; return state.audioBandsReady ? state.audioBands[mapping[0]] : state.audioLevel; }
 function renderFrame(now) { const frameGap = Math.max(0, (now - state.lastTime) / 1000); const dt = Math.min(.05, frameGap); state.lastTime = now; decayBeatPulse(dt); const active = !state.paused && !state.blackout && !state.renderingLost; if (!active && scene().kind === 'fractal' && !offlineFrameJob) stopFlight(); if (active) { state.elapsed += dt; updateAudioLevel(frameGap); state.cadenceAccumulator += dt; const cadence = 1 / outputProfile().cadence; if (state.cadenceAccumulator >= cadence || outputProfile().cadence === 60) { const renderDt = Math.min(.05, state.cadenceAccumulator); state.cadenceAccumulator = 0; const renderStartedAt = performance.now(); stepAndDraw(renderDt); const renderDuration = Math.max(0, performance.now() - renderStartedAt); if (renderDuration > 0) metrics.sceneTimes[state.sceneIndex].push(renderDuration); updatePhaseReadout(); metrics.sceneFrames[state.sceneIndex] += 1; } metrics.frameTimes.push(dt * 1000); if (metrics.frameTimes.length > 3600) metrics.frameTimes.shift(); if (metrics.sceneTimes[state.sceneIndex].length > 360) metrics.sceneTimes[state.sceneIndex].shift(); } else if (state.blackout || state.renderingLost) { ctx.fillStyle = '#020207'; ctx.fillRect(0, 0, canvas.width, canvas.height); } if (state.transition && active) { state.transition.progress = Math.min(1, state.transition.progress + dt / 2.6); ctx.save(); ctx.globalAlpha = 1 - state.transition.progress; ctx.drawImage(transitionCanvas, 0, 0); ctx.restore(); if (state.transition.progress >= 1) state.transition = null; } if (state.setPlaying && now - lastSetProgressPaint > 250) { lastSetProgressPaint = now; updateSetProgress(); } applyDisplayBrightness(); if (audio.recordingStream) compositeOutputFrame(); syncRecordingReadout(now); updatePerformanceReadout(now); syncFocusScaleReadout(); $('fpsReadout').textContent = outputProfile().label; const badge = $('transitionBadge'); if (badge) { const next = stageTransportBadge(); if (badge.textContent !== next) badge.textContent = next; } syncReadinessStatus(); requestAnimationFrame(renderFrame); }
 
 function updateAudioLevel(elapsedSeconds = 0) {
@@ -1509,14 +1509,23 @@ function syncBeatScope() {
 function decayBeatPulse(dt) { state.beatPulse = clamp(state.beatPulse * Math.exp(-Math.max(0, Number(dt) || 0) * 9), 0, 1); syncBeatReadout(); }
 function setBeatPulse(amount, step = state.beatStep) { const safeAmount = clamp(Number(amount) || 0, 0, 1); const safeStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16; state.beatPulse = Math.max(state.beatPulse, safeAmount); state.beatStep = safeStep; state.beatBar = Math.floor(Math.max(0, Number(step) || 0) / 16); if (state.demoOn) recordDemoBeatOnset(safeStep, safeAmount); syncBeatReadout(); }
 function beatResponseLevel(id) { return clamp(Math.max(audioResponseLevel(id), state.beatPulse * .72), 0, 1); }
+function audioMappingValidation(def) {
+  const mapping = audioMappings[def?.id];
+  const [band, parameter, amount] = Array.isArray(mapping) ? mapping : [];
+  const validBand = ['low', 'mid', 'high'].includes(band);
+  const validParameter = typeof parameter === 'string' && def?.schema?.some(([key]) => key === parameter);
+  const validAmount = Number.isFinite(amount) && amount > 0 && amount <= 1;
+  const valid = Boolean(Array.isArray(mapping) && mapping.length === 3 && validBand && validParameter && validAmount);
+  return { mapping, band, parameter, amount, valid };
+}
+function audioMappingForScene(id) {
+  const def = sceneDefs.find((candidate) => candidate.id === id);
+  const validation = audioMappingValidation(def);
+  return validation.valid ? validation.mapping : null;
+}
 function visualAudioCoverage() {
   return sceneDefs.map((def) => {
-    const mapping = audioMappings[def.id];
-    const [band, parameter, amount] = Array.isArray(mapping) ? mapping : [];
-    const validBand = ['low', 'mid', 'high'].includes(band);
-    const validParameter = typeof parameter === 'string' && def.schema?.some(([key]) => key === parameter);
-    const validAmount = Number.isFinite(amount) && amount > 0 && amount <= 1;
-    const valid = Boolean(Array.isArray(mapping) && mapping.length === 3 && validBand && validParameter && validAmount);
+    const { mapping, band, parameter, amount, valid } = audioMappingValidation(def);
     return { id: def.id, mapped: Boolean(mapping), band: typeof band === 'string' ? band : null, parameter: typeof parameter === 'string' ? parameter : null, amount: Number.isFinite(amount) ? amount : null, valid };
   });
 }
