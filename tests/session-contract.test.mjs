@@ -1036,6 +1036,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.rehearsalReport().audio.status, 'empty', 'report records an empty tab-audio outcome');
   assert.deepEqual(api.rehearsalReport().audio.history.at(-1), { source: 'TAB AUDIO', status: 'empty' }, 'report attributes empty tab-audio history');
   assert.equal(document.getElementById('audioOutcomeReadout').textContent, 'Source empty', 'source dock retains the empty tab-audio outcome');
+  assert.equal(document.getElementById('startAudioButton')['aria-label'], 'Start dark techno demo fallback', 'primary sound control offers the local fallback after an empty source');
   assert.equal(document.getElementById('audioSourceHistoryReadout').textContent, 'SOURCE HISTORY · 2 PATHS · MIC · TAB AUDIO · MULTIPLE PATHS SEEN', 'source dock marks multiple source paths seen in its bounded history');
   assert.equal(document.getElementById('rehearsalSourceHistoryReadout').textContent, 'SOURCE HISTORY · 2 PATHS · MIC · TAB AUDIO · MULTIPLE PATHS SEEN', 'rehearsal card mirrors multiple source paths seen');
   assert.equal(document.getElementById('audioStatus').textContent, 'No audio was shared · select a browser tab and enable Share tab audio');
