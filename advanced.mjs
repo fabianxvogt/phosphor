@@ -196,7 +196,7 @@ function drawJuliaGpu(ctx, buffer, width, height, p, time, palette, level = 0, r
     for (const [name, color] of [['uSecondary', palette.secondary], ['uPrimary', palette.primary], ['uAccent', palette.accent]]) { const values = rgb(color); gl.uniform3f(uniforms[name], values[0] / 255, values[1] / 255, values[2] / 255); }
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     if (typeof gl.isContextLost === 'function' && gl.isContextLost()) throw new Error('Julia WebGL context lost');
-    ctx.imageSmoothingEnabled = true; ctx.drawImage(surface, 0, 0, width, height); buffer.__juliaGpuFailure = null; setJuliaRenderState(buffer, 'webgl', renderWidth, renderHeight); return true;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(surface, 0, 0, width, height); buffer.__juliaGpuFailure = null; setJuliaRenderState(buffer, 'webgl', renderWidth, renderHeight); return true;
   } catch (error) {
     buffer.__juliaGpuDisabled = true;
     buffer.__juliaGpuFailure = error?.message || 'WebGL draw failed';
@@ -236,7 +236,7 @@ export function drawAdvanced(ctx, buffer, id, p, time, palette, low, level = 0, 
     }
     if (!(buffer.__juliaSharpnessScratch instanceof Uint8ClampedArray) || buffer.__juliaSharpnessScratch.length !== image.data.length) buffer.__juliaSharpnessScratch = new Uint8ClampedArray(image.data.length);
     juliaEdgeEnhance(image.data, w, h, buffer.__juliaSharpnessScratch, .16 + level * .08);
-    off.putImageData(image, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(buffer, 0, 0, width, height); setJuliaRenderState(buffer, 'cpu', w, h, buffer.__juliaGpuFailure || 'WebGL unavailable'); return 'cpu';
+    off.putImageData(image, 0, 0); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(buffer, 0, 0, width, height); setJuliaRenderState(buffer, 'cpu', w, h, buffer.__juliaGpuFailure || 'WebGL unavailable'); return 'cpu';
   }
   ctx.save(); ctx.translate(width / 2, height / 2);
   const scale = Math.min(width, height) * .41;

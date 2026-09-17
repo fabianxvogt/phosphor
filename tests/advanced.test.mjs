@@ -92,6 +92,7 @@ test('Julia draw allocates the bounded raster and composites opaque pixels', () 
   drawAdvanced(ctx, buffer, 'julia', advancedDefaults.julia, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false);
   assert.deepEqual(allocation, { width: 480, height: 300 });
   assert.deepEqual(composite, allocation);
+  assert.equal(ctx.imageSmoothingQuality, 'high', 'Julia CPU fallback requests high-quality enlargement');
   assert.deepEqual(juliaRenderState(buffer), { path: 'cpu', width: 480, height: 300, reason: 'WebGL unavailable' });
   assert.ok(pixels.some((value, index) => index % 4 !== 3 && value > 0));
   assert.ok(pixels.every((value, index) => index % 4 !== 3 || value === 255));
@@ -133,6 +134,7 @@ test('Julia uses native output dimensions through the WebGL compositor when avai
     const buffer = { width: 0, height: 0 };
     drawAdvanced(ctx, buffer, 'julia', advancedDefaults.julia, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false);
     assert.deepEqual(calls.at(-1), ['composite', 960, 600]);
+    assert.equal(ctx.imageSmoothingQuality, 'high', 'Julia WebGL compositor requests high-quality downsampling');
     assert.deepEqual(calls.find(call => call[0] === 'viewport'), ['viewport', 0, 0, 960, 600]);
     assert.deepEqual(calls.find(call => call[0] === 'drawArrays'), ['drawArrays', gl.TRIANGLE_STRIP, 0, 4]);
     assert.deepEqual(juliaRenderState(buffer), { path: 'webgl', width: 960, height: 600, reason: null });

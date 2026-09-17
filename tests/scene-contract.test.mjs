@@ -30,6 +30,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(advanced, /function juliaRenderState\(/, 'Julia exposes the selected render path for rehearsal evidence');
   assert.match(advanced, /export function juliaEdgeEnhance\(/, 'Julia exposes a bounded CPU edge-enhancement helper');
   assert.match(advanced, /juliaEdgeEnhance\(image\.data, w, h, buffer\.__juliaSharpnessScratch, \.16 \+ level \* \.08\)/, 'Julia CPU fallback lets the beat lift its bounded edge signal before enlargement');
+  assert.match(advanced, /ctx\.imageSmoothingQuality = 'high'; ctx\.drawImage\(surface/, 'Julia WebGL compositing requests high-quality resampling');
+  assert.match(advanced, /ctx\.imageSmoothingQuality = 'high'; ctx\.drawImage\(buffer/, 'Julia CPU compositing requests high-quality resampling');
   assert.match(advanced, /advancedRasterSize\(width, height, low, options\?\.focus === true\)/, 'Julia Focus can request a bounded higher-detail CPU fallback');
   assert.match(advanced, /juliaGpuSize\(width, height, low, options\?\.focus === true\)/, 'Julia Focus can request a bounded higher-resolution WebGL backing surface');
   assert.match(app, /beatResponseLevel\(scene\(\)\.id\), \{ focus: state\.focusMode \}\)/, 'Julia draw receives the live Focus detail option');
