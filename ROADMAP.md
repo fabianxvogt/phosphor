@@ -49,6 +49,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Canonical per-family beat response snapshots now drive both the live fourteen-cell scope and the saved wiring check; saturated-band session coverage proves all fourteen families stay active and bounded across low/mid/high routing.
 - Rehearsal reports preserve the selected Demo kick weight, include it in freshness signatures, and treat a changed value as an audio comparison difference, while legacy reports remain readable.
 - The active Demo source status repeats the selected kick-weight percentage, keeping the live low-end setting visible while performers tune the groove.
+- Source stop now immediately refreshes the rehearsal pass summary alongside the reset audio run, keeping `NO AUDIO` and the cleared gate aligned in the handoff.
 
 - Fourteen registered scene families, including Julia orbit traps, a 4D tesseract/Hopf instrument, hyperbolic geodesics, and Fractal Flight.
 - Per-scene custom palettes and five color collections isolated from UI colors.

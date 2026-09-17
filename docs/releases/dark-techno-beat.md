@@ -17,6 +17,8 @@ Performance follow-up — **2026-09-17 (active-beat rehearsal)**: the same local
 
 Performance follow-up — **2026-09-17 (fresh active-beat timing pass)**: a second local browser pass recorded `14/14` timed families with the Demo beat active, `77` Demo onsets, and `RUN 0:13 · MAX 71% · 29% HEADROOM`; Cathedrals of Error was the slowest family at `10.5ms` p95, still inside the nominal `16.7ms` target. This is a fresh local tuning signal, not named-device or sustained-run evidence.
 
+Source-stop handoff — **2026-09-17**: stopping Demo or a native source now forces the rehearsal pass line to refresh with `NO AUDIO` and a reset run immediately, so the pass summary cannot briefly retain the stopped source while the dock already reports idle.
+
 Layout follow-up — **2026-09-17**: a live desktop inspection found the responsive grid override had omitted the explicit beat-response row. Chromium therefore created implicit zero-width tracks, squeezing the source/output dock and wrapping readouts into one another. The area map now keeps `beat beat` explicit; a fresh Demo pass renders the shell as two stable columns (`813.9px + 626.1px`) and the dock as three readable tracks (`324.6px / 649.2px / 432.8px`).
 
 Quality follow-up — **2026-09-17**: Focus quality fitting and scale diagnostics now include the browser's device-pixel ratio. On a 2× display, Julia's bounded Full CPU backing is capped to a `480px` CSS stage at the existing `1.3×` physical raster allowance, and the readout names `DPR 2.0×` instead of mislabeling the physical result as a downscale. Standard 1× behavior is unchanged.

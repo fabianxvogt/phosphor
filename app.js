@@ -2001,7 +2001,7 @@ function stopAudioSource(status = 'No music connected') {
   state.audioBands = { low: 0, mid: 0, high: 0 }; state.audioBandsReady = false;
   if (audio.gain) audio.gain.gain.value = audioOutputGain();
   $('demoAudioButton').textContent = 'Demo beat'; $('micButton').textContent = 'Microphone';
-  $('audioStatus').textContent = status; $('tabAudioButton').textContent = 'Use tab audio'; $('modulationReadout').textContent = 'AUDIO 0% · L0 M0 H0'; syncBeatReadout(); syncAudioHeadroomReadout(); syncAudioSourceControls();
+  $('audioStatus').textContent = status; $('tabAudioButton').textContent = 'Use tab audio'; $('modulationReadout').textContent = 'AUDIO 0% · L0 M0 H0'; syncBeatReadout(); syncAudioHeadroomReadout(); syncAudioSourceControls(); syncRehearsalPassReadout(true);
 }
 async function ensureAudio(source = audioSourceKind()) {
   if (offlineJobActive()) return false;
