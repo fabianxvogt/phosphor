@@ -25,6 +25,8 @@ test('dark techno pattern keeps kick, clap, hats, bass, and ghost percussion on 
   assert.deepEqual([3, 7, 11, 15].map((step) => darkTechnoStep(step).perc > 0), [true, true, true, true]);
   assert.ok(DARK_TECHNO_PATTERN.every((step) => Object.values(step).every((value) => value >= 0 && value <= 1)));
   assert.deepEqual(darkTechnoStep(-1), darkTechnoStep(15));
+  assert.deepEqual(darkTechnoStep(Infinity), darkTechnoStep(0));
+  assert.deepEqual(darkTechnoStep(NaN), darkTechnoStep(0));
 });
 
 test('elementary automaton fixture for rule 90 is exact', () => {

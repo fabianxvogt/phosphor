@@ -33,7 +33,9 @@ export const DARK_TECHNO_PATTERN = Object.freeze([
 ]);
 
 export function darkTechnoStep(step = 0) {
-  const index = ((Math.floor(Number(step) || 0) % DARK_TECHNO_PATTERN.length) + DARK_TECHNO_PATTERN.length) % DARK_TECHNO_PATTERN.length;
+  const numericStep = Number(step);
+  const safeStep = Number.isFinite(numericStep) ? Math.floor(numericStep) : 0;
+  const index = ((safeStep % DARK_TECHNO_PATTERN.length) + DARK_TECHNO_PATTERN.length) % DARK_TECHNO_PATTERN.length;
   return DARK_TECHNO_PATTERN[index];
 }
 
