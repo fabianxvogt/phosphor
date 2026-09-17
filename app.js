@@ -349,9 +349,15 @@ function syncFocusRenderFit() {
   const stageWrap = $('stageWrap');
   if (!stageWrap) return;
   const cpuFocus = Boolean(state.focusMode && scene().id === 'julia' && activeRenderState.path === 'cpu');
+  const qualityFit = Boolean(state.focusMode && scene().id === 'julia' && ['cpu', 'webgl'].includes(activeRenderState.path));
   stageWrap.classList.toggle('julia-cpu-fit', cpuFocus);
+  stageWrap.classList.toggle('julia-quality-fit', qualityFit);
   const rasterWidth = Number.isInteger(activeRenderState.width) && activeRenderState.width > 0 ? activeRenderState.width : canvas.width;
-  const fitWidth = `${Math.max(1, Math.min(canvas.width, rasterWidth * 2))}px`;
+  // Keep Focus from enlarging the visible Julia output past its useful detail.
+  // WebGL still renders a supersampled backing into this output canvas; the
+  // output cap avoids stretching that composited surface a second time.
+  const fitCap = activeRenderState.path === 'webgl' ? canvas.width : Math.min(canvas.width, rasterWidth * 2);
+  const fitWidth = `${Math.max(1, Math.round(fitCap))}px`;
   stageWrap.style.setProperty?.('--julia-fit-width', fitWidth);
   if (!stageWrap.style.setProperty) stageWrap.style['--julia-fit-width'] = fitWidth;
 }

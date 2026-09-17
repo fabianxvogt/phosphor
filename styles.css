@@ -43,7 +43,7 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .focus-quality-button { pointer-events:auto; border:1px solid var(--acid); border-radius:4px; padding:3px 6px; background:#0b0d08dd; color:var(--acid); font:10px 'DM Mono',monospace; letter-spacing:.02em; }
 .focus-quality-button:hover,.focus-quality-button:focus-visible { background:var(--acid); color:#0d1008; }
 .focus-mode .focus-quality-button:not([hidden]) { display:inline-block; }
-.focus-mode .stage-wrap.julia-cpu-fit { width:min(100%,var(--julia-fit-width,960px)); }
+.focus-mode .stage-wrap.julia-quality-fit { width:min(100%,var(--julia-fit-width,960px),calc(160dvh - 160px)); margin-left:auto; margin-right:auto; }
 .recording-status { flex:1 1 180px; min-width:160px; color:var(--muted); font:10px 'DM Mono',monospace; overflow-wrap:anywhere; }
 .cue-footer { flex-wrap:wrap; }
 .preflight-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
