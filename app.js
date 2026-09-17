@@ -364,7 +364,7 @@ function markRehearsalReportStale() { markRehearsalReportImportStale(); if (offl
 function markRehearsalReportImportStale() { if (offlineFrameJob || !importedRehearsalReport || importedRehearsalReportStale) return; importedRehearsalReportStale = true; syncQualityABReadout(); const output = $('rehearsalReportImportReadout'); const compareOutput = $('rehearsalReportImportCompareReadout'); const passOutput = $('rehearsalReportImportPassReadout'); if (passOutput && importedRehearsalReport.passSnapshot) { const contextText = rehearsalReportImportPassContext(importedRehearsalReport); const contextAria = rehearsalReportImportPassContextAria(importedRehearsalReport); passOutput.textContent = `Loaded ${rehearsalPassDisplayText(importedRehearsalReport.passSnapshot)}${contextText} · stale`; passOutput.setAttribute('aria-label', `Loaded ${rehearsalPassDisplayAria(importedRehearsalReport.passSnapshot)}${contextAria} The current instrument changed after this snapshot, so the loaded pass is stale.`); passOutput.dataset.level = 'stale'; } if (compareOutput) { compareOutput.textContent = 'Compare · stale · current state changed'; const qualityGuidance = qualityABRecommendationAria(importedRehearsalReport?.qualityAB); compareOutput.setAttribute('aria-label', `Loaded report comparison is stale because the current instrument changed${qualityGuidance ? `; ${qualityGuidance}` : ''}`); compareOutput.dataset.level = 'stale'; } if (!output) return; const stamp = rehearsalReportImportDisplayStamp(importedRehearsalReport); const label = importedRehearsalReport.deviceLabel ? ` · ${importedRehearsalReport.deviceLabel}` : ''; output.textContent = `Loaded ${stamp}${label} · current state changed`; output.setAttribute('aria-label', `Loaded rehearsal report from ${stamp}${label}; current state changed since comparison`); }
 function syncRehearsalReportFreshness() { if (offlineFrameJob || (!lastRehearsalReportLiveSignature && !importedRehearsalReportLiveSignature)) return; const liveSignature = rehearsalReportLiveSignature(); if (lastRehearsalReportLiveSignature && !rehearsalReportStale && liveSignature !== lastRehearsalReportLiveSignature) markRehearsalReportStale(); if (importedRehearsalReport && !importedRehearsalReportStale && importedRehearsalReportLiveSignature && liveSignature !== importedRehearsalReportLiveSignature) markRehearsalReportImportStale(); }
 function syncStartAudioControl() { const button = $('startAudioButton'); if (!button) return; const active = audioSourceKind() !== 'NO AUDIO'; const fallback = !active && ['empty', 'ended', 'failed'].includes(audioSourceOutcome); button.setAttribute('aria-pressed', String(active)); button.setAttribute('aria-label', active ? 'Audio active' : fallback ? 'Start dark techno demo fallback' : 'Start dark techno demo beat'); button.title = active ? 'Audio context and a source are active' : fallback ? 'Start the local dark techno demo beat as a fallback' : 'Start the local dark techno demo beat'; }
-function syncAudioSourceControls() { const locked = Boolean(audio.recorder || audio.recordingStream); const active = { demoAudioButton: state.demoOn, micButton: Boolean(audio.micStream), tabAudioButton: Boolean(audio.tabStream) }; const describedBy = 'audioStatus beatReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout audioSourceHistoryReadout'; for (const id of ['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton']) { const element = $(id); if (!element) continue; element.disabled = locked; element.setAttribute('aria-disabled', String(locked)); element.setAttribute('aria-describedby', describedBy); if (id in active) element.setAttribute('aria-pressed', String(Boolean(active[id]))); if (locked) element.title = 'Stop recording before changing audio source'; else element.removeAttribute?.('title'); } const sensitivity = $('audioSensitivity'); if (sensitivity) sensitivity.setAttribute('aria-describedby', describedBy); syncStartAudioControl(); syncReadinessStatus(); }
+function syncAudioSourceControls() { const locked = Boolean(audio.recorder || audio.recordingStream); const active = { demoAudioButton: state.demoOn, micButton: Boolean(audio.micStream), tabAudioButton: Boolean(audio.tabStream) }; const describedBy = 'audioStatus beatReadout beatNextReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout audioSourceHistoryReadout'; for (const id of ['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton']) { const element = $(id); if (!element) continue; element.disabled = locked; element.setAttribute('aria-disabled', String(locked)); element.setAttribute('aria-describedby', describedBy); if (id in active) element.setAttribute('aria-pressed', String(Boolean(active[id]))); if (locked) element.title = 'Stop recording before changing audio source'; else element.removeAttribute?.('title'); } const sensitivity = $('audioSensitivity'); if (sensitivity) sensitivity.setAttribute('aria-describedby', describedBy); syncStartAudioControl(); syncReadinessStatus(); }
 function refreshPaused() { if (state.paused && !state.blackout && !state.renderingLost) { state.transition = null; drawPreview(); } }
 function markDirty(redraw = true, resetCompletion = true) { pendingFrameManifest = null; if (resetCompletion) state.setComplete = false; state.dirty = true; $('dirtyState').textContent = 'UNSAVED'; markRehearsalReportStale(); applyDisplayBrightness(); if (redraw) refreshPaused(); scheduleSave(); }
 function sceneActionHint() { if (scene().kind === 'fractal') return 'DRAG TO LOOK · W/S MOVE · A/D STRAFE · Q/E HEIGHT'; if (scene().id === 'julia') return 'DRAG TO CHANGE FRACTAL'; if (scene().id === 'fourspace') return 'DRAG TO SET ROTATION'; if (scene().id === 'hyperbolic') return 'DRAG TO MOVE VIEWPOINT'; if (scene().kind === 'topology') return 'DRAG TO TURN THE LOOP'; if (scene().kind === 'evolution') return 'CLICK / SPACE TO CHOOSE SIBLING'; if (scene().kind === 'particles') return 'CLICK / DRAG TO SHAPE FLOW'; if (scene().kind === 'aquarium') return 'CLICK / DRAG TO STEER FEEDERS TOWARD FOOD'; if (scene().kind === 'phase') return 'CLICK / SPACE TO NUDGE FIELD'; return 'CLICK / SPACE TO INJECT'; }
@@ -1652,22 +1652,38 @@ function syncAudioHeadroomReadout() {
   output.setAttribute('aria-label', `Input peak ${Math.round(telemetry.current * 100)} percent; ${label.toLowerCase()}, ${Math.round(telemetry.headroom * 100)} percent headroom`);
   syncAudioPeakSessionReadout();
 }
+function beatStepVoices(step) {
+  const voices = [];
+  if (step?.kick) voices.push({ readout: 'KICK', label: 'kick', symbol: 'K' });
+  if (step?.clap) voices.push({ readout: 'CLAP', label: 'clap', symbol: 'C' });
+  if (step?.hat) voices.push(step.openHat ? { readout: 'HAT+OPEN', label: 'closed hat and open hat', symbol: 'H/O' } : { readout: 'HAT', label: 'closed hat', symbol: 'H' });
+  else if (step?.openHat) voices.push({ readout: 'OPEN HAT', label: 'open hat', symbol: 'O' });
+  if (step?.bass) voices.push({ readout: 'SUB', label: 'sub', symbol: 'S' });
+  if (step?.perc) voices.push({ readout: 'PERC', label: 'ghost percussion', symbol: 'P' });
+  return voices;
+}
 function syncBeatReadout() {
   const output = $('beatReadout');
   if (!output) return;
+  const nextOutput = $('beatNextReadout');
   const pulse = Math.round(clamp(state.beatPulse, 0, 1) * 20) * 5;
   let next = 'BEAT IDLE';
+  let nextStepReadout = 'NEXT —';
+  let nextStepActive = false;
   if (state.demoOn) {
-    const step = darkTechnoStep(state.beatStep); const voices = [];
-    if (step.kick) voices.push('KICK');
-    if (step.clap) voices.push('CLAP');
-    if (step.hat) voices.push(step.openHat ? 'HAT+OPEN' : 'HAT');
-    else if (step.openHat) voices.push('OPEN HAT');
-    if (step.bass) voices.push('SUB');
-    if (step.perc) voices.push('PERC');
+    const step = darkTechnoStep(state.beatStep); const voices = beatStepVoices(step).map(({ readout }) => readout);
     next = `BEAT ${String(state.beatStep + 1).padStart(2, '0')}/16 · ${voices.join('+') || 'REST'} · ${pulse}%`;
+    const nextStepIndex = (state.beatStep + 1) % DARK_TECHNO_PATTERN.length;
+    const followingVoices = beatStepVoices(darkTechnoStep(nextStepIndex)).map(({ readout }) => readout);
+    nextStepReadout = `NEXT ${String(nextStepIndex + 1).padStart(2, '0')}/16 · ${followingVoices.join('+') || 'REST'}`;
+    nextStepActive = true;
   } else if (audioSourceKind() !== 'NO AUDIO' && pulse > 0) next = `BEAT RESPONSE · ${pulse}%`;
   if (output.textContent !== next) output.textContent = next;
+  if (nextOutput) {
+    if (nextOutput.textContent !== nextStepReadout) nextOutput.textContent = nextStepReadout;
+    nextOutput.dataset.active = String(nextStepActive);
+    nextOutput.setAttribute('aria-label', state.demoOn ? `Next demo step ${nextStepReadout.replace('NEXT ', '').replace(' · ', ': ')}` : 'Next demo step unavailable for the current source');
+  }
   syncSceneBeatReadout();
   syncAudioCoverageReadout();
   syncAudioHeadroomReadout();
@@ -1675,24 +1691,10 @@ function syncBeatReadout() {
   syncBeatPattern();
 }
 function beatPatternVoiceLabel(step) {
-  const voices = [];
-  if (step?.kick) voices.push('kick');
-  if (step?.clap) voices.push('clap');
-  if (step?.hat) voices.push(step.openHat ? 'closed hat and open hat' : 'closed hat');
-  else if (step?.openHat) voices.push('open hat');
-  if (step?.bass) voices.push('sub');
-  if (step?.perc) voices.push('ghost percussion');
-  return voices.join(', ') || 'rest';
+  return beatStepVoices(step).map(({ label }) => label).join(', ') || 'rest';
 }
 function beatPatternVoiceSymbols(step) {
-  const symbols = [];
-  if (step?.kick) symbols.push('K');
-  if (step?.clap) symbols.push('C');
-  if (step?.hat) symbols.push(step.openHat ? 'H/O' : 'H');
-  else if (step?.openHat) symbols.push('O');
-  if (step?.bass) symbols.push('S');
-  if (step?.perc) symbols.push('P');
-  return symbols.join('·') || '·';
+  return beatStepVoices(step).map(({ symbol }) => symbol).join('·') || '·';
 }
 function syncBeatPattern() {
   const output = $('beatPattern');
