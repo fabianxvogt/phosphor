@@ -588,6 +588,7 @@ function syncQualityABReadout() {
   const loaded = !lastQualityABProbe && Boolean(importedRehearsalReport?.qualityAB);
   const reopened = !lastQualityABProbe && !importedRehearsalReport && Boolean(lastRehearsalReportQualityAB);
   if (!probe) {
+    output.removeAttribute?.('data-level');
     output.textContent = scene().id === 'julia' ? 'Quality A/B not captured · Full vs HD' : 'Quality A/B available on Julia';
     output.setAttribute('aria-label', scene().id === 'julia' ? 'Julia quality A/B has not been captured; compare Full and HD from this device' : 'Quality A/B is available when Julia is selected');
     return;
@@ -604,6 +605,7 @@ function syncQualityABReadout() {
   const reportStale = loaded ? importedRehearsalReportStale : reopened ? rehearsalReportStale : false;
   const stale = reportStale || displayStale;
   const staleSuffix = stale ? ' · STALE' : '';
+  output.dataset.level = stale ? 'stale' : 'fresh';
   output.textContent = `${prefix} ${full.renderer.path.toUpperCase()} ${fullRenderer} ${full.medianMs.toFixed(1)}ms · HD ${hd.renderer.path.toUpperCase()} ${hdRenderer} ${hd.medianMs.toFixed(1)}ms${densitySuffix}${recommendation}${staleSuffix}`;
   const staleAria = displayStale ? ' The live display size or density changed after capture, so this evidence is stale.' : stale ? ` The ${loaded ? 'loaded' : 'saved'} evidence is stale.` : '';
   output.setAttribute('aria-label', `${loaded ? 'Loaded ' : reopened ? 'Saved ' : ''}Julia quality A/B captured on ${probe.deviceLabel || 'this device'}${densitySuffix ? ` at device pixel ratio ${pixelRatio.toFixed(1)}` : ''}; Full ${qualityABRendererAria(full)}, ${full.renderer.path}, ${full.medianMs.toFixed(1)} millisecond median; HD ${qualityABRendererAria(hd)}, ${hd.renderer.path}, ${hd.medianMs.toFixed(1)} millisecond median${recommendation ? `; recommendation ${recommendation.slice(3).toLowerCase()}` : ''}${staleAria}`);

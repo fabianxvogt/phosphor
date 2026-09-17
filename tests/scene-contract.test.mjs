@@ -257,6 +257,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function syncFocusQualityAction\(/, 'focus mode synchronizes the HD action');
   assert.match(app, /setQuality\('native'\)/, 'focus HD action selects the native output profile');
   assert.match(styles, /\.focus-quality-button \{ pointer-events:auto;/, 'focus HD action remains clickable inside the pointer-transparent overlay');
+  assert.match(styles, /\.preflight-quality-ab\[data-level="stale"\]/, 'stale quality A\/B evidence gets a visible warning treatment');
   assert.match(app, /function currentRendererEvidence\(/, 'rehearsal reports capture the actual renderer path');
   assert.match(app, /function usableWebglContext\(/, 'preflight probes a usable WebGL context');
   assert.match(app, /CPU fallback .*reason/, 'renderer readout names the fallback reason');

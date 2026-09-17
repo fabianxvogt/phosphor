@@ -129,6 +129,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Julia quality A/B summaries now add a bounded recommendation (`HD HIGHER DETAIL`, `HD REDUCES UPSCALE`, `FULL HIGHER DETAIL`, or `SAME BACKING DETAIL`) from the captured backing/display scales, making the quality choice actionable without changing render cost or hiding CPU limits.
 - Julia quality A/B evidence now records bounded device-pixel ratio and evaluates its recommendation in physical display pixels, so Retina density cannot hide a Full-profile upscale; legacy evidence remains readable as 1×.
 - Julia A/B guidance now marks itself stale after a live stage resize or display-density change, so an old recommendation cannot be mistaken for a current fit.
+- Stale Julia A/B guidance now switches to the warning color in the preflight card, making a changed display fit visible before a performer acts on it.
 - Loaded Julia quality A/B reports now reuse that derived detail recommendation in the preflight readout, keeping older handoffs actionable without rerunning the probe.
 - Loaded-report comparison accessibility now repeats the saved Julia quality recommendation, so screen-reader review retains the same quality decision context.
 - Local report-cache reopen now preserves bounded Julia quality A/B evidence and its derived recommendation, keeping a refreshed browser handoff actionable without storing media.
