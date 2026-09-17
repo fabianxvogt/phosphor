@@ -1318,6 +1318,18 @@ function syncAudioPeakSessionReadout(session = audioPeakSessionTelemetry()) {
   if (output.textContent !== text) output.textContent = text;
   const aria = session.sampleCount ? `Audio headroom run ${duration}; maximum held peak ${Math.round(session.holdMax * 100)} percent; ${Math.round(session.headroom * 100)} percent headroom${session.capped ? '; sample cap reached' : ''}` : 'Audio headroom run is warming up; no active source samples yet';
   output.setAttribute('aria-label', aria);
+  const progress = $('audioRunProgress');
+  if (progress) {
+    const seconds = clamp(Number(session.durationSeconds) || 0, 0, rehearsalMinimumAudioSeconds);
+    const roundedSeconds = Number(seconds.toFixed(2));
+    progress.max = rehearsalMinimumAudioSeconds;
+    progress.value = roundedSeconds;
+    progress.setAttribute('aria-valuemin', '0');
+    progress.setAttribute('aria-valuemax', String(rehearsalMinimumAudioSeconds));
+    progress.setAttribute('aria-valuenow', String(roundedSeconds));
+    progress.setAttribute('aria-valuetext', `${formatSetTime(seconds)} of ${formatSetTime(rehearsalMinimumAudioSeconds)}`);
+    progress.dataset.complete = String(seconds >= rehearsalMinimumAudioSeconds);
+  }
   syncRehearsalReportAudioPeakSessionFreshness(session);
 }
 function syncAudioHeadroomReadout() {

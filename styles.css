@@ -121,7 +121,8 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .control-footer { flex-wrap:wrap; }.control-footer .hint { min-width:130px; }
 .controls-grid { gap:16px; }
 select { max-width:100%; background:#171522; border:1px solid #514b64; border-radius:4px; color:var(--ink); padding:6px; font:inherit; }
-.source-group { flex-wrap:wrap; justify-content:flex-start; align-content:flex-start; }
+.transport-group,.source-group { flex-wrap:wrap; }
+.source-group { justify-content:flex-start; align-content:flex-start; }
 .audio-status { flex:1 1 100%; font-size:14px; color:var(--acid); line-height:1.5; }
 .beat-readout { flex:0 1 auto; min-width:150px; color:var(--pink); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; }
 .scene-beat-readout { flex:1 1 210px; min-width:190px; color:var(--muted); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; font-variant-numeric:tabular-nums; }
@@ -142,6 +143,7 @@ select { max-width:100%; background:#171522; border:1px solid #514b64; border-ra
 .audio-headroom-readout[data-level="warm"],.audio-headroom-readout[data-level="hot"] { color:var(--orange); }
 .audio-headroom-readout[data-level="hot"] { text-shadow:0 0 10px #ff9c6755; }
 .audio-session-readout { flex:0 1 auto; min-width:190px; color:var(--muted); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; font-variant-numeric:tabular-nums; }
+.audio-run-progress { flex:1 1 150px; min-width:150px; width:150px; height:8px; accent-color:var(--acid); }
 .audio-outcome-status { flex:0 1 auto; min-width:110px; color:var(--muted); font:10px 'DM Mono',monospace; text-transform:uppercase; letter-spacing:.06em; }
 .music-help { flex:1 1 100%; font-size:12px; color:var(--muted); line-height:1.5; }
 .music-help a { color:#bab2ff; }
