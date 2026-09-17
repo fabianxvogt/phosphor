@@ -46,6 +46,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 
 - Published the reviewed studio update to the existing public Site; bounded local checks, final independent review and build passed.
 - Published the fourteen-family Fractal Flight integration as Site version 6; public HTTP and renderer-asset verification passed. Ember/Glass timed captures, native WebM export, sustained performance, and performer reuse remain unobserved.
+- Canonical per-family beat response snapshots now drive both the live fourteen-cell scope and the saved wiring check; saturated-band session coverage proves all fourteen families stay active and bounded across low/mid/high routing.
 
 - Fourteen registered scene families, including Julia orbit traps, a 4D tesseract/Hopf instrument, hyperbolic geodesics, and Fractal Flight.
 - Per-scene custom palettes and five color collections isolated from UI colors.

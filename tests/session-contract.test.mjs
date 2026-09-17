@@ -1009,6 +1009,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   if (!api.renderRuntimeState().paused) document.getElementById('pauseButton').click();
   api.setTestAudioBands({ low: .2, mid: .45, high: .7 });
   assert.equal(api.audioResponseLevel('acid'), .45, 'Acid responds to the mid band');
+  api.setTestAudioBands({ low: 1, mid: 1, high: 1 });
+  const saturatedBeatResponses = api.visualBeatResponseSnapshot();
+  assert.equal(saturatedBeatResponses.length, api.sceneDefs.length, 'beat response snapshot covers every visual family');
+  assert.equal(saturatedBeatResponses.every((entry) => entry.valid && entry.mapped && entry.response === 1 && entry.active), true, 'every visual family reports an active bounded response when its mapped band is saturated');
+  assert.equal(new Set(saturatedBeatResponses.map((entry) => entry.band)).size, 3, 'beat response snapshot retains low, mid, and high band routing');
   api.setTestAudioBands({ low: 1, mid: 0, high: 0 });
   api.setTestAudioLevel(1);
   assert.equal(api.audioResponseLevel('acid'), 0, 'a silent mapped band stays silent');
