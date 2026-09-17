@@ -155,6 +155,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function syncRehearsalBeatReadout\(/, 'rehearsal card mirrors onset telemetry');
   assert.match(app, /function recordAudioBeatOnset\(/, 'external audio onsets use a bounded hysteresis gate');
   assert.match(app, /function recordDemoBeatOnset\(/, 'demo steps register at most one onset per 16th note');
+  assert.match(app, /const safeLevel = clamp\(normalizedBeatValue\(level\), 0, 1\)/, 'beat onset telemetry shares the throwing-safe pulse guard');
   assert.match(app, /function sanitizeBeatTelemetry\(/, 'imported onset telemetry is validated');
   assert.match(html, /id="beatReadout"/, 'beat readout is present in the source dock');
   assert.match(html, /id="audioBeatTelemetryReadout"[^>]*>HITS 0 · LAST —/, 'source dock exposes the onset counter and timestamp');

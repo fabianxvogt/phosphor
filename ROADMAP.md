@@ -160,7 +160,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - The perimeter cue now follows rising beat onset instead of sustained loudness and respects Reduced motion, keeping long external-audio runs readable without a continuous flash.
 - Onset gating now uses a re-arm threshold and Demo-only kick accent, while Reduced motion also removes the shared transient effect lift and steady live-region chatter.
 - Global pause now holds the Demo beat scheduler on its current step, keeping audio and visual transport aligned on resume.
-- Beat pulse transport now fails closed on non-finite or throwing values, so diagnostic and live setters cannot leak malformed step or bar readouts.
+- Beat pulse transport and onset telemetry now fail closed on non-finite or throwing values, so diagnostic and live setters cannot leak malformed step, bar, or hit readouts.
 - Set-level performance readout now counts measured visual families and reports the worst measured p95, while naming unmeasured families honestly in the rehearsal surface and report.
 - Audio rehearsal telemetry now keeps a bounded active-source envelope (maximum/average held peak, hot and near-clip proportions, headroom, and cap state) through the source dock, reports, cache reopen, and comparisons.
 - Beat rehearsal telemetry now records a capped onset count, UTC timestamp, and source label with external hysteresis and one-per-step Demo registration; reports and the source dock expose it without claiming beat-grid accuracy.

@@ -343,15 +343,15 @@ function recordBeatEvent(source) {
   return true;
 }
 function recordAudioBeatOnset(level, source = audioSourceKind()) {
-  const safeLevel = clamp(Number(level) || 0, 0, 1);
+  const safeLevel = clamp(normalizedBeatValue(level), 0, 1);
   if (safeLevel <= beatTelemetryRearmThreshold) beatTelemetryArmed = true;
   if (!beatTelemetryArmed || safeLevel < beatTelemetryTriggerThreshold) return false;
   beatTelemetryArmed = false;
   return recordBeatEvent(source);
 }
 function recordDemoBeatOnset(step, level) {
-  const safeStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16;
-  const safeLevel = clamp(Number(level) || 0, 0, 1);
+  const safeStep = ((normalizedBeatIndex(step) % 16) + 16) % 16;
+  const safeLevel = clamp(normalizedBeatValue(level), 0, 1);
   if (safeLevel < beatTelemetryTriggerThreshold || safeStep === lastDemoTelemetryStep) return false;
   lastDemoTelemetryStep = safeStep;
   return recordBeatEvent('DEMO');

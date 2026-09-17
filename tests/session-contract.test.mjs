@@ -145,6 +145,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.recordBeatOnset(.1, 'MIC'), false, 're-arm samples below the threshold do not register a hit');
   assert.equal(api.recordBeatOnset(.5, 'MIC'), true, 'audio onset telemetry re-arms after a quiet sample');
   api.resetBeatTelemetry();
+  const hostileOnsetValue = { [Symbol.toPrimitive]() { throw new Error('hostile onset value'); } };
+  assert.doesNotThrow(() => api.recordBeatOnset(hostileOnsetValue, 'MIC'), 'hostile onset values fail closed without throwing');
+  assert.equal(api.audioState().beat.hits, 0, 'hostile onset values do not inflate telemetry');
   const malformedBeatTelemetry = structuredClone(api.rehearsalReport()); malformedBeatTelemetry.audio.beat.hits = 4097;
   assert.throws(() => api.validateRehearsalReport(malformedBeatTelemetry), /beat telemetry is malformed/, 'imported reports reject out-of-range beat hit counts');
   const malformedBeatTimestamp = structuredClone(api.rehearsalReport()); malformedBeatTimestamp.audio.beat = { format: 'phosphor-beat-telemetry-v1', version: 1, hits: 1, lastOnsetAt: '2026-09-16T13:09:27+02:00', lastOnsetSource: 'MIC', capped: false };
