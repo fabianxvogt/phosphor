@@ -1611,8 +1611,20 @@ function stepAndDrawBase(dt) { if (scene().kind === 'reaction') stepAcid(dt); el
 function stepAndDraw(dt) {
   const id = scene().id, original = state.params[id];
   const mapping = audioMappingForScene(id);
-  if (mapping) { const [, key, amount] = mapping; const mappedLevel = beatResponseLevel(id); if (mappedLevel > 0) state.params[id] = { ...original, [key]: clamp(original[key] + mappedLevel * amount, 0, 1) }; }
-  try { stepAndDrawBase(dt); } finally { state.params[id] = original; }
+  let mappedKey = null;
+  let mappedValue = null;
+  if (mapping) {
+    const [, key, amount] = mapping;
+    const mappedLevel = beatResponseLevel(id);
+    if (mappedLevel > 0) {
+      mappedKey = key;
+      mappedValue = original[key];
+      original[key] = clamp(mappedValue + mappedLevel * amount, 0, 1);
+    }
+  }
+  try { stepAndDrawBase(dt); } finally {
+    if (mappedKey !== null) original[mappedKey] = mappedValue;
+  }
 }
 function audioResponseLevel(id) { const mapping = audioMappingForScene(id); if (!mapping) return 0; return state.audioBandsReady ? state.audioBands[mapping[0]] : state.audioLevel; }
 function renderFrame(now) { const frameGap = Math.max(0, (now - state.lastTime) / 1000); const dt = Math.min(.05, frameGap); state.lastTime = now; decayBeatPulse(dt); const active = !state.paused && !state.blackout && !state.renderingLost; if (!active && scene().kind === 'fractal' && !offlineFrameJob) stopFlight(); if (active) { state.elapsed += dt; updateAudioLevel(frameGap); state.cadenceAccumulator += dt; const cadence = 1 / outputProfile().cadence; if (state.cadenceAccumulator >= cadence || outputProfile().cadence === 60) { const renderDt = Math.min(.05, state.cadenceAccumulator); state.cadenceAccumulator = 0; const renderStartedAt = performance.now(); stepAndDraw(renderDt); const renderDuration = Math.max(0, performance.now() - renderStartedAt); if (renderDuration > 0) metrics.sceneTimes[state.sceneIndex].push(renderDuration); updatePhaseReadout(); metrics.sceneFrames[state.sceneIndex] += 1; } metrics.frameTimes.push(dt * 1000); if (metrics.frameTimes.length > 3600) metrics.frameTimes.shift(); if (metrics.sceneTimes[state.sceneIndex].length > 360) metrics.sceneTimes[state.sceneIndex].shift(); } else if (state.blackout || state.renderingLost) { ctx.fillStyle = '#020207'; ctx.fillRect(0, 0, canvas.width, canvas.height); } if (state.transition && active) { state.transition.progress = Math.min(1, state.transition.progress + dt / 2.6); ctx.save(); ctx.globalAlpha = 1 - state.transition.progress; ctx.drawImage(transitionCanvas, 0, 0); ctx.restore(); if (state.transition.progress >= 1) state.transition = null; } if (state.setPlaying && now - lastSetProgressPaint > 250) { lastSetProgressPaint = now; updateSetProgress(); } applyDisplayBrightness(); if (audio.recordingStream) compositeOutputFrame(); syncRecordingReadout(now); updatePerformanceReadout(now); syncFocusScaleReadout(); $('fpsReadout').textContent = outputProfile().label; const badge = $('transitionBadge'); if (badge) { const next = stageTransportBadge(); if (badge.textContent !== next) badge.textContent = next; } syncReadinessStatus(); requestAnimationFrame(renderFrame); }

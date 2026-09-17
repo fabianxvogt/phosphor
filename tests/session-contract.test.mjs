@@ -1429,9 +1429,15 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.chooseEvolutionChild(4); assert.equal(api.sessionData().evolution.selectedId, secondChildren[4]);
   api.chooseEvolutionChild(1); assert.equal(api.sessionData().evolution.selectedId, secondChildren[1]);
   assert.doesNotThrow(() => api.validateFrameManifest(api.frameManifest()));
-  // Artist controls are not destructively overwritten by audio modulation.
-  const paramsBeforeAudio = structuredClone(api.sessionData().params); api.setTestAudioLevel(.8); api.stepAndDraw(1/60);
-  assert.deepEqual(api.sessionData().params, paramsBeforeAudio); api.setTestAudioLevel(0);
+  // Artist controls are not destructively overwritten by audio modulation in any family.
+  api.setTestAudioLevel(.8);
+  for (let activeScene = 0; activeScene < api.sceneDefs.length; activeScene += 1) {
+    api.applySession({ ...structuredClone(baseline), activeScene });
+    const paramsBeforeAudio = structuredClone(api.sessionData().params);
+    api.stepAndDraw(1 / 60);
+    assert.deepEqual(api.sessionData().params, paramsBeforeAudio, `beat modulation restores authored params for scene ${activeScene}`);
+  }
+  api.setTestAudioLevel(0); api.applySession({ ...structuredClone(baseline), activeScene: 9, evolution: null });
   // Scene palette changes are remembered when switching and survive round trips.
   const color = document.getElementById('primaryColor'); color.value = '#aa1177'; color.dispatchEvent({ type: 'input' });
   api.switchScene(11, 0); assert.equal(api.sessionData().palette.primary, '#d5ff5f');

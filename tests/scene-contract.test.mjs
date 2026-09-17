@@ -166,6 +166,9 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /const frameAlpha = clamp\(/, 'beat stage accent keeps a bounded frame alpha');
   assert.match(app, /ctx\.rect\(inset, inset/, 'beat stage accent draws a perimeter cue');
   assert.match(app, /function beatResponseLevel\(/, 'beat envelope feeds scene-specific modulation');
+  assert.match(app, /let mappedKey = null;/, 'beat modulation tracks the transient parameter key without cloning scene state');
+  assert.match(app, /if \(mappedKey !== null\) original\[mappedKey\] = mappedValue;/, 'beat modulation restores authored parameter state after the frame');
+  assert.doesNotMatch(app, /state\.params\[id\] = \{ \.\.\.original, \[key\]: clamp/, 'beat modulation avoids per-frame scene parameter cloning');
   assert.match(app, /function beatDrivenEffects\(/, 'beat envelope lifts the shared effect stack');
   assert.match(app, /effectStack\.apply\(ctx, beatDrivenEffects\(\), advance\)/, 'beat-driven effects are applied without mutating authored settings');
   assert.match(app, /function visualAudioCoverage\(/, 'beat coverage is inspectable across the scene catalog');
