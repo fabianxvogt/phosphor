@@ -41,13 +41,14 @@ test('Julia samples distinguish known bounded and escaped orbits without nonfini
 });
 test('Julia raster follows output size instead of stretching a tiny thumbnail', () => {
   assert.deepEqual(advancedRasterSize(960, 600, false), { width: 480, height: 300 });
-  assert.deepEqual(advancedRasterSize(960, 600, false, true), { width: 640, height: 400 });
+  assert.deepEqual(advancedRasterSize(960, 600, false, true), { width: 720, height: 450 });
   assert.deepEqual(advancedRasterSize(480, 300, true), { width: 160, height: 100 });
   assert.deepEqual(advancedRasterSize(480, 300, true, true), { width: 160, height: 100 });
   assert.deepEqual(advancedRasterSize(320, 200, false), { width: 160, height: 100 });
   assert.deepEqual(advancedRasterSize(960, 600, true), { width: 160, height: 100 });
   assert.deepEqual(advancedRasterSize(600, 960, false), { width: 300, height: 480 });
   assert.deepEqual(advancedRasterSize(1920, 1200, false), { width: 640, height: 400 });
+  assert.deepEqual(advancedRasterSize(1920, 1200, false, true), { width: 960, height: 600 });
   assert.deepEqual(advancedRasterSize(1, 1e9, true), { width: 1, height: 160 });
   assert.deepEqual(advancedRasterSize(Number.MAX_VALUE, Number.MAX_VALUE, false), { width: 640, height: 640 });
   assert.deepEqual(juliaGpuSize(960, 600, false, true), { width: 1440, height: 900 });
@@ -73,8 +74,17 @@ test('Julia Focus CPU fallback uses the bounded higher-detail raster', () => {
   const ctx = { canvas: { width: 960, height: 600 }, fillRect() {}, drawImage() {} };
   const buffer = { width: 0, height: 0, getContext() { return off; } };
   drawAdvanced(ctx, buffer, 'julia', advancedDefaults.julia, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false, 0, { focus: true });
-  assert.deepEqual(allocation, { width: 640, height: 400 });
-  assert.deepEqual(juliaRenderState(buffer), { path: 'cpu', width: 640, height: 400, reason: 'WebGL unavailable' });
+  assert.deepEqual(allocation, { width: 720, height: 450 });
+  assert.deepEqual(juliaRenderState(buffer), { path: 'cpu', width: 720, height: 450, reason: 'WebGL unavailable' });
+});
+test('Julia HD Focus CPU fallback allocates the explicit sharper backing', () => {
+  let allocation = null;
+  const off = { createImageData(width, height) { allocation = { width, height }; return { data: new Uint8ClampedArray(width * height * 4) }; }, putImageData() {} };
+  const ctx = { canvas: { width: 1920, height: 1200 }, fillRect() {}, drawImage() {} };
+  const buffer = { width: 0, height: 0, getContext() { return off; } };
+  drawAdvanced(ctx, buffer, 'julia', advancedDefaults.julia, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false, 0, { focus: true });
+  assert.deepEqual(allocation, { width: 960, height: 600 });
+  assert.deepEqual(juliaRenderState(buffer), { path: 'cpu', width: 960, height: 600, reason: 'WebGL unavailable' });
 });
 test('Julia uses native output dimensions through the WebGL compositor when available', () => {
   const calls = [];

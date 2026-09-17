@@ -37,7 +37,7 @@ The rehearsal preflight card mirrors that live onset snapshot beside the pass su
 
 Julia's display-scale diagnostic now exposes the existing one-click `Use HD` action outside Focus mode too. When the 960×600 or CPU fallback surface is visibly enlarged, the action appears beside the stage readout so a performer can correct softness without hunting through the quality selector; HD remains an explicit, measured tradeoff.
 
-Focus-mode Julia now uses a bounded 1440×900 WebGL backing surface when available, or a 640×400 CPU detail pass otherwise, reducing the common 2× enlargement to a bounded 1.5× target while leaving the normal Full output profile unchanged; the renderer readout remains explicit about the extra bounded work.
+Focus-mode Julia now uses a bounded 1440×900 WebGL backing surface when available, or a 720×450 CPU detail pass at Full (960×600 when HD is selected), reducing the common 2× enlargement to a bounded 1.3× target while leaving the normal Full output profile unchanged; the renderer readout remains explicit about the extra bounded work.
 
 When that Focus diagnostic detects an enlarged non-HD Julia render, its `HD available` warning is now highlighted so the quality correction reads clearly before a performer opens the selector.
 

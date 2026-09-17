@@ -195,7 +195,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(api.rehearsalReport().qualityAB, qualityAB, 'quality A/B evidence carries into rehearsal reports');
   const juliaReportWithQualityAB = api.rehearsalReport();
   assert.match(document.getElementById('qualityABReadout').textContent, /^A\/B /, 'quality A/B readout summarizes both profiles');
-  assert.match(document.getElementById('qualityABReadout').textContent, /A\/B CPU 640×400→960×600/, 'quality A/B readout names the Focus CPU backing and output dimensions');
+  assert.match(document.getElementById('qualityABReadout').textContent, /A\/B CPU 720×450→960×600/, 'quality A/B readout names the sharper Focus CPU backing and output dimensions');
   assert.match(document.getElementById('qualityABReadout').textContent, /(HD (HIGHER DETAIL|REDUCES UPSCALE)|FULL HIGHER DETAIL|SAME BACKING DETAIL)/, 'quality A/B readout names the actionable detail outcome');
   assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 960, height: 600 }, display: { width: 2142, height: 1338, scale: 2.231 } }, hd: { renderer: { width: 1920, height: 1200 }, display: { width: 2142, height: 1338, scale: 1.116 } } }), ' · HD REDUCES UPSCALE', 'quality A/B recommends HD when the Full backing is enlarged');
   assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 960, height: 600 }, display: { width: 480, height: 300, scale: .5 } }, hd: { renderer: { width: 1920, height: 1200 }, display: { width: 480, height: 300, scale: .25 } } }), ' · HD HIGHER DETAIL', 'quality A/B avoids calling downscaling an upscale reduction');
@@ -204,7 +204,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(stageWrap.classList.contains('julia-quality-fit'), true, 'Focus constrains every Julia renderer to its bounded detail width');
   assert.equal(stageWrap.style['--focus-fit-width'], '960px', 'Focus caps CPU Julia at twice its internal raster width');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusScaleReadout();
-  assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 1.5× CPU raster upscale · HD available', 'Focus reports effective CPU raster scale for the sharper Full fallback');
+  assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 1.3× CPU raster upscale · HD available', 'Focus reports effective CPU raster scale for the sharper Full fallback');
   assert.equal(document.getElementById('focusScaleReadout').classList.contains('quality-warning'), true, 'Focus highlights the available HD correction');
   assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Focus exposes the one-click HD action when Julia is enlarged');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 480, height: 300 }; api.syncFocusScaleReadout(); document.getElementById('focusButton').click(); api.syncFocusScaleReadout();
@@ -214,7 +214,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   document.getElementById('focusButton').click(); api.drawPreview(); document.getElementById('pauseButton').click();
   assert.equal(api.renderRuntimeState().renderer.width, 480, 'paused Julia keeps the normal Full CPU raster outside Focus');
   document.getElementById('focusButton').click();
-  assert.equal(api.renderRuntimeState().renderer.width, 640, 'entering Focus repaints a paused Julia with the higher-detail CPU raster');
+  assert.equal(api.renderRuntimeState().renderer.width, 720, 'entering Focus repaints a paused Julia with the sharper higher-detail CPU raster');
   document.getElementById('focusButton').click();
   assert.equal(api.renderRuntimeState().renderer.width, 480, 'leaving Focus repaints a paused Julia back to the normal Full CPU raster');
   document.getElementById('pauseButton').click();
