@@ -67,6 +67,7 @@ class FakeDocument {
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
   for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'sceneBeatReadout', 'audioCoverageReadout', 'audioBeatTelemetryReadout', 'beatScope', 'audioHeadroomReadout', 'audioSessionReadout', 'audioRunProgress', 'audioRunProgressReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'setTimingButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'rehearsalPassReadout', 'rehearsalBeatReadout', 'rehearsalSourceHistoryReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportCompareReadout', 'rehearsalReportImportEvidenceReadout', 'rehearsalReportImportSourceHistoryReadout', 'rehearsalReportImportPassReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'audioSourceHistoryReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
+  document.ensure('performanceSetDetailReadout');
   const windowListeners = new Map();
   const fireWindow = (type, event) => { for (const callback of windowListeners.get(type) || []) callback(event); };
   globalThis.document = document; globalThis.window = globalThis; globalThis.addEventListener = (type, callback) => { if (!windowListeners.has(type)) windowListeners.set(type, []); windowListeners.get(type).push(callback); }; globalThis.location = { search: '' }; globalThis.performance = { now: () => 0 }; globalThis.requestAnimationFrame = () => 0; globalThis.localStorage = { data: new Map(), getItem(key) { return this.data.get(key) ?? null; }, setItem(key, value) { this.data.set(key, value); }, removeItem(key) { this.data.delete(key); } }; globalThis.FileReader = class {}; globalThis.URL.createObjectURL ??= () => 'blob:fake'; globalThis.URL.revokeObjectURL ??= () => {};
@@ -253,6 +254,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(api.rehearsalReport().observedEvidence, { status: 'not-started', label: 'Not started', completed: 0, total: 5 }, 'report starts with explicit evidence status');
   assert.equal(document.getElementById('performanceReadout').textContent, 'Frame timing warming up · 16.7ms target', 'performance readout starts honestly');
   assert.equal(document.getElementById('performanceSetReadout').textContent, 'Set timing warming up · 0/14 scenes · 16.7ms target', 'set performance readout starts honestly');
+  assert.equal(document.getElementById('performanceSetDetailReadout').textContent, 'No timing coverage yet', 'set timing detail starts explicit');
   assert.deepEqual(api.rehearsalReport().performanceSet, { sampleCount: 0, medianMs: null, p95Ms: null, sceneFrames: 0, sampledScenes: 0, totalScenes: 14, unmeasuredScenes: 14, coverage: 'partial', worstScene: null, status: 'warming-up', statusLabel: 'Warming up', targetMs: 16.67 }, 'rehearsal report starts explicit about unmeasured visual families');
   api.updatePerformanceReadout(0);
   assert.equal(document.getElementById('performanceReadout')['aria-label'], 'Frame timing is warming up; the 60 target is 16.7 milliseconds');
@@ -260,6 +262,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.updatePerformanceReadout(1000);
   assert.match(document.getElementById('performanceReadout').textContent, /^Frame 19\.8ms med · 34\.2ms p95 · over target$/);
   assert.match(document.getElementById('performanceSetReadout').textContent, /^Set 1\/14 scenes · 34\.2ms p95 max · over target so far · worst Acid Mycelium 34\.2ms$/);
+  assert.match(document.getElementById('performanceSetDetailReadout').textContent, /47 Acid Mycelium · 34\.2ms p95 · over target/);
+  assert.match(document.getElementById('performanceSetDetailReadout').textContent, /51 Causal Tapestry · unmeasured/);
   assert.match(document.getElementById('rehearsalPassReadout').textContent, /PASS ATTENTION .*1\/14 timing over target/, 'pass snapshot distinguishes an over-target timing result from warm-up');
   assert.equal(api.rehearsalReport().performanceSet.worstScene.id, 'acid', 'set report identifies the slowest measured visual family');
   assert.equal(document.getElementById('focusPerformanceReadout').textContent, document.getElementById('performanceReadout').textContent, 'focus mode keeps measured timing visible');
@@ -291,6 +295,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(completeSetSummary.coverage, 'complete', 'set summary marks all visual families measured');
   assert.equal(completeSetSummary.unmeasuredScenes, 0, 'complete set summary has no unmeasured families');
   assert.match(document.getElementById('performanceSetReadout').textContent, /^Set 14\/14 scenes · 12\.0ms p95 max · within target · worst Acid Mycelium 12\.0ms$/);
+  assert.match(document.getElementById('performanceSetDetailReadout').textContent, /57 Fractal Flight · 10\.0ms p95 · within target/);
+  assert.doesNotMatch(document.getElementById('performanceSetDetailReadout').textContent, /unmeasured/);
   profileInput.value = '1080'; profileInput.dispatchEvent({ type: 'change' });
   window.__phosphorMetrics.sceneTimes[0].push(16.67);
   api.updatePerformanceReadout(3000);
@@ -310,6 +316,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(setTiming.coverage, 'complete', 'set timing probe returns complete coverage');
   assert.equal(api.performanceSetSummary().coverage, 'complete', 'set timing probe fills the live set summary');
   assert.match(document.getElementById('performanceSetReadout').textContent, /^Set 14\/14 scenes · /, 'set timing probe leaves the complete set readout visible');
+  assert.doesNotMatch(document.getElementById('performanceSetDetailReadout').textContent, /unmeasured/, 'set timing probe leaves complete per-family detail visible');
   const afterSetTiming = api.renderRuntimeState();
   assert.equal(afterSetTiming.sceneIndex, beforeSetTiming.sceneIndex, 'set timing probe restores the active scene');
   assert.equal(afterSetTiming.paused, beforeSetTiming.paused, 'set timing probe restores pause state');
