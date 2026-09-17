@@ -99,6 +99,14 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(tapestryRenderer, /tapestryColumnMap\[x\]/, 'Causal Tapestry uses a cached source-column lookup');
   assert.match(tapestryRenderer, /Math\.round\(a\[0\] \+ \(target\[0\] - a\[0\]\) \* weave\)/, 'Causal Tapestry interpolates channels without per-pixel color arrays');
   assert.doesNotMatch(tapestryRenderer, /mixColor\(/, 'Causal Tapestry avoids per-pixel mixColor allocations');
+  const interferenceRenderer = app.match(/function drawInterference\(\) \{[\s\S]*?\nfunction drawTopology/)?.[0] || '';
+  assert.match(app, /function ensureInterferenceRasterCache\(width, height\)/, 'Interference keeps a bounded padded neighbor cache');
+  assert.match(app, /function interferenceCompositeWithBasis\(/, 'Interference hoists per-frame spatial constants');
+  assert.match(interferenceRenderer, /ensureInterferenceRasterCache\(width, height\)/, 'Interference reuses its cache across frames and profiles');
+  assert.match(interferenceRenderer, /interferenceCompositeWithBasis\(/, 'Interference fills the cache with the hoisted basis');
+  assert.match(interferenceRenderer, /interferenceRasterCache\[center - stride\]/, 'Interference samples neighbors from one composite field pass');
+  assert.doesNotMatch(interferenceRenderer, /interferenceComposite\(nx - 1 \/ width/, 'Interference does not recompute horizontal neighbors per pixel');
+  assert.doesNotMatch(interferenceRenderer, /mixColor\(/, 'Interference interpolates output channels without per-pixel color arrays');
   assert.match(app, /function releaseOfflineJob\([\s\S]*scene\(\)\.kind === 'fractal' && state\.focusMode && !state\.renderingLost\) drawPreview\(\)/, 'Fractal Focus repaints at its quality backing after offline rendering restores the session');
   assert.match(app, /function scheduleDemoStep\(/, 'demo source schedules a bounded beat pattern');
   assert.match(app, /Dark techno demo beat · kick, clap, hats/, 'demo source names its techno voices');

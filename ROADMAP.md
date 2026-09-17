@@ -141,6 +141,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Beat coverage also validates each mapped band and modulation amount, failing closed on malformed wiring while preserving the versioned report shape.
 - Runtime scene modulation now shares that validator, so malformed beat wiring is skipped during playback as well as excluded from evidence.
 - Causal Tapestry now keeps its full 960×600 raster while reusing cached source-column and phase bases; local Chrome rehearsal measured 6.8ms p95 with Demo active (4.3ms idle), within the 16.7ms target. This remains empirical local evidence until the named-device rehearsal.
+- Interference Rituals now computes one padded composite field, reuses its four neighbors, hoists bounded spatial constants, and interpolates channels inline; local Chrome rehearsal measured 13.5ms p95 with Demo active (10.4ms idle), within the 16.7ms target. This remains empirical local evidence until the named-device rehearsal.
 - Beat hits now add a restrained, bounded perimeter cue on the rendered stage, making the shared response readable across every family while preserving the artwork's dark contrast.
 - The perimeter cue now follows rising beat onset instead of sustained loudness and respects Reduced motion, keeping long external-audio runs readable without a continuous flash.
 - Onset gating now uses a re-arm threshold and Demo-only kick accent, while Reduced motion also removes the shared transient effect lift and steady live-region chatter.
