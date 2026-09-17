@@ -149,6 +149,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /SET COMPLETE/, 'completed set readiness state');
   assert.match(app, /Restart set/, 'completed set restart action');
   assert.match(app, /function syncAudioSourceControls\(/, 'recording source lock is surfaced in controls');
+  assert.match(app, /function startAudioPlayback\(/, 'primary sound control starts a source when none is active');
   assert.match(app, /function streamTracks\(/, 'native source tracks are read through a guarded helper');
   assert.match(app, /function bindStreamEnded\(/, 'native source teardown watches every track');
   assert.match(app, /Microphone returned no audio · try an audio file/, 'empty microphone streams name a concrete fallback');
@@ -159,6 +160,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)? audioSourceHistoryReadout"/, 'demo source announces its state, beat response, coverage, headroom, run, onset telemetry, and source history');
   assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)? audioSourceHistoryReadout"/, 'file source references its status, beat response, coverage, headroom, run, onset telemetry, and source history');
   assert.match(html, /id="audioOutcomeReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'source outcome is announced');
+  assert.match(html, /id="startAudioButton"[^>]*aria-label="Start dark techno demo beat"[^>]*aria-pressed="false"/, 'primary sound control names the default beat and exposes its state');
   assert.match(app, /function audioSourceHistoryKinds\(/, 'source history derives distinct source paths seen or attempted');
   assert.match(app, /function syncAudioSourceHistoryReadout\(/, 'source switching history is surfaced');
   assert.match(html, /id="audioSourceHistoryReadout"[^>]*role="status"[^>]*aria-live="polite"[^>]*>SOURCE HISTORY · 0 PATHS · SWITCHING NOT OBSERVED/, 'source switching history readout is present');

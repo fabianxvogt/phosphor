@@ -74,6 +74,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const api = window.__phosphorTest;
   const baseline = structuredClone(api.sessionData());
   assert.equal(document.getElementById('demoAudioButton')['aria-pressed'], 'false', 'demo source starts inactive');
+  assert.equal(document.getElementById('startAudioButton')['aria-pressed'], 'false', 'primary sound control starts inactive');
+  assert.equal(document.getElementById('startAudioButton')['aria-label'], 'Start dark techno demo beat', 'primary sound control names the default beat');
   assert.equal(document.getElementById('micButton')['aria-pressed'], 'false', 'microphone source starts inactive');
   assert.equal(document.getElementById('tabAudioButton')['aria-pressed'], 'false', 'tab source starts inactive');
   assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus beatReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout audioSourceHistoryReadout', 'file source points to its status, beat response, coverage, headroom, run, onset telemetry, and source history');
@@ -1040,6 +1042,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   if (api.renderRuntimeState().paused) document.getElementById('pauseButton').click();
   await api.toggleDemo();
   assert.equal(api.audioState().hasDemo, true, 'demo beat becomes the active local source');
+  assert.equal(document.getElementById('startAudioButton')['aria-pressed'], 'true', 'primary sound control reflects an active source');
+  assert.equal(document.getElementById('startAudioButton')['aria-label'], 'Audio active', 'primary sound control names its active state');
+  document.getElementById('startAudioButton').click(); await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(api.audioState().hasDemo, true, 'primary sound control resumes an active source without replacing it');
   assert.equal(api.audioState().demoStep, 1, 'demo beat schedules the first 16th-note step');
   assert.equal(document.getElementById('audioSourceHistoryReadout').textContent, 'SOURCE HISTORY · 3 PATHS · MIC · TAB AUDIO · DEMO · MULTIPLE PATHS SEEN', 'source dock includes the demo path after multiple source paths are seen');
   assert.equal(document.getElementById('rehearsalSourceHistoryReadout').textContent, 'SOURCE HISTORY · 3 PATHS · MIC · TAB AUDIO · DEMO · MULTIPLE PATHS SEEN', 'rehearsal card mirrors the complete local source history');
@@ -1067,6 +1073,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('beatReadout').textContent, 'BEAT IDLE', 'stopping music clears the beat readout');
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS READY', 'stopping music returns coverage to ready');
   assert.equal(document.getElementById('audioHeadroomReadout').textContent, 'PEAK 0% · HEADROOM 100%', 'stopping music clears held peak telemetry');
+  document.getElementById('startAudioButton').click(); await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(api.audioState().hasDemo, true, 'primary sound control starts the demo beat when no source is active');
+  assert.equal(document.getElementById('startAudioButton')['aria-pressed'], 'true', 'primary sound control announces the started demo');
+  api.stopAudioSource();
+  assert.equal(document.getElementById('startAudioButton')['aria-pressed'], 'false', 'primary sound control resets after the demo stops');
   if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator;
   if (audioContextDescriptor) Object.defineProperty(globalThis, 'AudioContext', audioContextDescriptor); else delete globalThis.AudioContext;
   if (webkitAudioContextDescriptor) Object.defineProperty(globalThis, 'webkitAudioContext', webkitAudioContextDescriptor); else delete globalThis.webkitAudioContext;
