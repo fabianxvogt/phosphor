@@ -18,7 +18,7 @@ Focus now exposes a one-click `Use HD` action when a non-HD Julia frame is visib
 
 The CPU fallback now runs a small reusable luma edge lift over its existing bounded raster before the high-quality display enlargement. Both CPU and WebGL compositing explicitly request the browser's `high` image-resampling quality instead of inheriting a low-quality default. The pass reuses a size-matched scratch buffer, clamps the lift, preserves alpha, and leaves the WebGL path, raster dimensions, and iteration budget unchanged for this correction. This is a readability correction for soft fallback filaments, not added detail or a replacement for the explicit HD profile.
 
-When the shared beat response is active, the fallback raises that edge amount from `.16` toward `.24` within the same clamp. The `high`-band mapping therefore gives Julia a restrained contour lift in addition to its bounded iteration-detail response; GPU output and authored parameters remain unchanged.
+When the shared beat response is active, the fallback raises that edge amount from `.16` toward `.24` within the same clamp. The `high`-band mapping therefore gives Julia a restrained contour lift in addition to its bounded iteration-detail response; both CPU and GPU paths receive that temporary detail lift, while authored parameters remain unchanged.
 
 When the quality guard recommends HD, the stage badge repeats `HD AVAILABLE` beside the profile label, so the correction remains visible even when the detailed Focus diagnostics are not in view. Selecting HD clears the badge hint after the native profile is active.
 
