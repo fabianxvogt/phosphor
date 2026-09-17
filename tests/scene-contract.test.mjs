@@ -156,9 +156,12 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /aria-pressed.*active/, 'active audio source state is synchronized');
   assert.match(app, /\['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton'\]/, 'recording locks the stop-source control');
   assert.match(app, /stopAudioButton'\)\.addEventListener\('click', \(\) => \{ if \(!offlineJobActive\(\) && !recordingBlocksSourceChange\(\)\)/, 'stop source handler keeps recording audio intact');
-  assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)?"/, 'demo source announces its state, beat response, coverage, headroom, run, and onset telemetry');
-  assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)?"/, 'file source references its status, beat response, coverage, headroom, run, and onset telemetry');
+  assert.match(html, /id="demoAudioButton"[^>]*aria-pressed="false"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)? audioSourceHistoryReadout"/, 'demo source announces its state, beat response, coverage, headroom, run, onset telemetry, and source history');
+  assert.match(html, /id="audioFileInput"[^>]*aria-describedby="audioStatus beatReadout audioCoverageReadout audioHeadroomReadout(?: audioSessionReadout)?(?: audioBeatTelemetryReadout)? audioSourceHistoryReadout"/, 'file source references its status, beat response, coverage, headroom, run, onset telemetry, and source history');
   assert.match(html, /id="audioOutcomeReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'source outcome is announced');
+  assert.match(app, /function audioSourceHistoryKinds\(/, 'source history derives distinct connected paths');
+  assert.match(app, /function syncAudioSourceHistoryReadout\(/, 'source switching history is surfaced');
+  assert.match(html, /id="audioSourceHistoryReadout"[^>]*role="status"[^>]*aria-live="polite"[^>]*>SOURCE HISTORY · 0 PATHS · SWITCHING NOT OBSERVED/, 'source switching history readout is present');
   assert.match(app, /function syncRecordingReadout\(/, 'recording duration is surfaced while capturing');
   assert.match(app, /try \{ audio\.recorder\.stop\(\); \} catch \{ finishRecording\(false, 'Recording could not stop · capture cleaned up'\); \}/, 'recorder stop failures restore the capture UI');
   assert.match(app, /function recordingMimeType\(/, 'recording capability uses the same MIME probe as capture');
