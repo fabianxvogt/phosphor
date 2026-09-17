@@ -515,6 +515,12 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.clearRehearsalReportImport(), false, 'clearing again is a guarded no-op');
   assert.deepEqual(api.sessionData().cues, baseline.cues, 'clearing a loaded report does not mutate the live cue set');
   api.importRehearsalReport(rehearsalReport);
+  const importedJuliaQuality = api.importRehearsalReport(juliaReportWithQualityAB);
+  assert.equal(importedJuliaQuality.report.qualityAB.format, 'phosphor-quality-ab-v1', 'loaded Julia report keeps its saved quality A/B evidence');
+  assert.match(document.getElementById('qualityABReadout').textContent, /^Loaded A\/B /, 'loaded report surfaces saved quality A/B evidence');
+  assert.match(document.getElementById('qualityABReadout').textContent, /(HD (HIGHER DETAIL|REDUCES UPSCALE)|FULL HIGHER DETAIL|SAME BACKING DETAIL)/, 'loaded report preserves actionable quality guidance');
+  assert.match(document.getElementById('qualityABReadout')['aria-label'], /recommendation (hd higher detail|hd reduces upscale|full higher detail|same backing detail)/, 'loaded quality guidance is accessible');
+  api.importRehearsalReport(rehearsalReport);
   assert.deepEqual(api.validateRehearsalReport(juliaReportWithQualityAB).qualityAB, qualityAB, 'quality A/B evidence validates as part of a Julia report');
   assert.deepEqual(api.validateRehearsalReport(juliaReportWithQualityAB).beatResponse, beatResponse, 'beat wiring evidence validates as part of a rehearsal report');
   assert.throws(() => api.validateRehearsalReport({ ...juliaReportWithQualityAB, qualityAB: { ...qualityAB, full: { ...qualityAB.full, width: 320 } } }), /Quality A\/B measurement is malformed/, 'quality A/B rejects dishonest profile dimensions');
