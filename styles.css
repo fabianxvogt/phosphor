@@ -138,6 +138,8 @@ select { max-width:100%; background:#171522; border:1px solid #514b64; border-ra
 .source-group { justify-content:flex-start; align-content:flex-start; }
 .audio-status { flex:1 1 100%; font-size:14px; color:var(--acid); line-height:1.5; }
 .beat-readout { flex:0 1 auto; min-width:150px; color:var(--pink); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; }
+.beat-bar-readout { flex:0 1 auto; min-width:58px; color:var(--muted); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; font-variant-numeric:tabular-nums; }
+.beat-bar-readout[data-active="true"] { color:var(--pink); }
 .beat-next-readout { flex:0 1 auto; min-width:130px; color:var(--muted); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; font-variant-numeric:tabular-nums; }
 .beat-next-readout[data-active="true"] { color:var(--acid); }
 .beat-pattern { flex:1 1 100%; display:grid; grid-template-columns:repeat(16,minmax(18px,1fr)); gap:3px; min-width:280px; padding:4px 0 1px; }

@@ -219,7 +219,7 @@ let fractalError = '';
 const transitionCtx = transitionCanvas.getContext('2d');
 const captureCanvas = document.createElement('canvas'); captureCanvas.width = canvas.width; captureCanvas.height = canvas.height;
 
-let audio = { context: null, analyser: null, gain: null, recordDestination: null, source: null, demoGain: null, demoCompressor: null, demoNodes: new Set(), demoNoiseBuffer: null, demoStep: 0, media: null, mediaUrl: null, micStream: null, tabStream: null, data: null, frequencyData: null, recorder: null, recordingStream: null, recordingMime: null, recordingStem: null, recordingScene: null, recordingStartedAt: null, recordingLastPaint: -Infinity, chunks: [], peakSession: createAudioPeakSession() };
+let audio = { context: null, analyser: null, gain: null, recordDestination: null, source: null, demoGain: null, demoCompressor: null, demoNodes: new Set(), demoNoiseBuffer: null, demoStep: 0, demoBar: 0, media: null, mediaUrl: null, micStream: null, tabStream: null, data: null, frequencyData: null, recorder: null, recordingStream: null, recordingMime: null, recordingStem: null, recordingScene: null, recordingStartedAt: null, recordingLastPaint: -Infinity, chunks: [], peakSession: createAudioPeakSession() };
 let audioRequest = 0;
 let pulseTimer = null;
 let audioSensitivity = 1;
@@ -364,7 +364,7 @@ function markRehearsalReportStale() { markRehearsalReportImportStale(); if (offl
 function markRehearsalReportImportStale() { if (offlineFrameJob || !importedRehearsalReport || importedRehearsalReportStale) return; importedRehearsalReportStale = true; syncQualityABReadout(); const output = $('rehearsalReportImportReadout'); const compareOutput = $('rehearsalReportImportCompareReadout'); const passOutput = $('rehearsalReportImportPassReadout'); if (passOutput && importedRehearsalReport.passSnapshot) { const contextText = rehearsalReportImportPassContext(importedRehearsalReport); const contextAria = rehearsalReportImportPassContextAria(importedRehearsalReport); passOutput.textContent = `Loaded ${rehearsalPassDisplayText(importedRehearsalReport.passSnapshot)}${contextText} · stale`; passOutput.setAttribute('aria-label', `Loaded ${rehearsalPassDisplayAria(importedRehearsalReport.passSnapshot)}${contextAria} The current instrument changed after this snapshot, so the loaded pass is stale.`); passOutput.dataset.level = 'stale'; } if (compareOutput) { compareOutput.textContent = 'Compare · stale · current state changed'; const qualityGuidance = qualityABRecommendationAria(importedRehearsalReport?.qualityAB); compareOutput.setAttribute('aria-label', `Loaded report comparison is stale because the current instrument changed${qualityGuidance ? `; ${qualityGuidance}` : ''}`); compareOutput.dataset.level = 'stale'; } if (!output) return; const stamp = rehearsalReportImportDisplayStamp(importedRehearsalReport); const label = importedRehearsalReport.deviceLabel ? ` · ${importedRehearsalReport.deviceLabel}` : ''; output.textContent = `Loaded ${stamp}${label} · current state changed`; output.setAttribute('aria-label', `Loaded rehearsal report from ${stamp}${label}; current state changed since comparison`); }
 function syncRehearsalReportFreshness() { if (offlineFrameJob || (!lastRehearsalReportLiveSignature && !importedRehearsalReportLiveSignature)) return; const liveSignature = rehearsalReportLiveSignature(); if (lastRehearsalReportLiveSignature && !rehearsalReportStale && liveSignature !== lastRehearsalReportLiveSignature) markRehearsalReportStale(); if (importedRehearsalReport && !importedRehearsalReportStale && importedRehearsalReportLiveSignature && liveSignature !== importedRehearsalReportLiveSignature) markRehearsalReportImportStale(); }
 function syncStartAudioControl() { const button = $('startAudioButton'); if (!button) return; const active = audioSourceKind() !== 'NO AUDIO'; const fallback = !active && ['empty', 'ended', 'failed'].includes(audioSourceOutcome); button.setAttribute('aria-pressed', String(active)); button.setAttribute('aria-label', active ? 'Audio active' : fallback ? 'Start dark techno demo fallback' : 'Start dark techno demo beat'); button.title = active ? 'Audio context and a source are active' : fallback ? 'Start the local dark techno demo beat as a fallback' : 'Start the local dark techno demo beat'; }
-function syncAudioSourceControls() { const locked = Boolean(audio.recorder || audio.recordingStream); const active = { demoAudioButton: state.demoOn, micButton: Boolean(audio.micStream), tabAudioButton: Boolean(audio.tabStream) }; const describedBy = 'audioStatus beatReadout beatNextReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout audioSourceHistoryReadout'; for (const id of ['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton']) { const element = $(id); if (!element) continue; element.disabled = locked; element.setAttribute('aria-disabled', String(locked)); element.setAttribute('aria-describedby', describedBy); if (id in active) element.setAttribute('aria-pressed', String(Boolean(active[id]))); if (locked) element.title = 'Stop recording before changing audio source'; else element.removeAttribute?.('title'); } const sensitivity = $('audioSensitivity'); if (sensitivity) sensitivity.setAttribute('aria-describedby', describedBy); syncStartAudioControl(); syncReadinessStatus(); }
+function syncAudioSourceControls() { const locked = Boolean(audio.recorder || audio.recordingStream); const active = { demoAudioButton: state.demoOn, micButton: Boolean(audio.micStream), tabAudioButton: Boolean(audio.tabStream) }; const describedBy = 'audioStatus beatReadout beatBarReadout beatNextReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout audioSourceHistoryReadout'; for (const id of ['demoAudioButton', 'micButton', 'tabAudioButton', 'audioFileInput', 'stopAudioButton']) { const element = $(id); if (!element) continue; element.disabled = locked; element.setAttribute('aria-disabled', String(locked)); element.setAttribute('aria-describedby', describedBy); if (id in active) element.setAttribute('aria-pressed', String(Boolean(active[id]))); if (locked) element.title = 'Stop recording before changing audio source'; else element.removeAttribute?.('title'); } const sensitivity = $('audioSensitivity'); if (sensitivity) sensitivity.setAttribute('aria-describedby', describedBy); syncStartAudioControl(); syncReadinessStatus(); }
 function refreshPaused() { if (state.paused && !state.blackout && !state.renderingLost) { state.transition = null; drawPreview(); } }
 function markDirty(redraw = true, resetCompletion = true) { pendingFrameManifest = null; if (resetCompletion) state.setComplete = false; state.dirty = true; $('dirtyState').textContent = 'UNSAVED'; markRehearsalReportStale(); applyDisplayBrightness(); if (redraw) refreshPaused(); scheduleSave(); }
 function sceneActionHint() { if (scene().kind === 'fractal') return 'DRAG TO LOOK · W/S MOVE · A/D STRAFE · Q/E HEIGHT'; if (scene().id === 'julia') return 'DRAG TO CHANGE FRACTAL'; if (scene().id === 'fourspace') return 'DRAG TO SET ROTATION'; if (scene().id === 'hyperbolic') return 'DRAG TO MOVE VIEWPOINT'; if (scene().kind === 'topology') return 'DRAG TO TURN THE LOOP'; if (scene().kind === 'evolution') return 'CLICK / SPACE TO CHOOSE SIBLING'; if (scene().kind === 'particles') return 'CLICK / DRAG TO SHAPE FLOW'; if (scene().kind === 'aquarium') return 'CLICK / DRAG TO STEER FEEDERS TOWARD FOOD'; if (scene().kind === 'phase') return 'CLICK / SPACE TO NUDGE FIELD'; return 'CLICK / SPACE TO INJECT'; }
@@ -1665,24 +1665,45 @@ function beatStepVoices(step) {
 function syncBeatReadout() {
   const output = $('beatReadout');
   if (!output) return;
+  const barOutput = $('beatBarReadout');
   const nextOutput = $('beatNextReadout');
   const pulse = Math.round(clamp(state.beatPulse, 0, 1) * 20) * 5;
   let next = 'BEAT IDLE';
+  let barReadout = 'BAR —';
+  let barActive = false;
   let nextStepReadout = 'NEXT —';
   let nextStepActive = false;
   if (state.demoOn) {
     const step = darkTechnoStep(state.beatStep); const voices = beatStepVoices(step).map(({ readout }) => readout);
+    const bar = Math.max(0, Math.floor(Number(state.beatBar) || 0)) + 1;
+    barReadout = `BAR ${String(bar).padStart(2, '0')}`;
+    barActive = true;
     next = `BEAT ${String(state.beatStep + 1).padStart(2, '0')}/16 · ${voices.join('+') || 'REST'} · ${pulse}%`;
     const nextStepIndex = (state.beatStep + 1) % DARK_TECHNO_PATTERN.length;
     const followingVoices = beatStepVoices(darkTechnoStep(nextStepIndex)).map(({ readout }) => readout);
-    nextStepReadout = `NEXT ${String(nextStepIndex + 1).padStart(2, '0')}/16 · ${followingVoices.join('+') || 'REST'}`;
+    const wrapsBar = state.beatStep === DARK_TECHNO_PATTERN.length - 1;
+    nextStepReadout = wrapsBar
+      ? `NEXT BAR ${String(bar + 1).padStart(2, '0')} · ${String(nextStepIndex + 1).padStart(2, '0')}/16 · ${followingVoices.join('+') || 'REST'}`
+      : `NEXT ${String(nextStepIndex + 1).padStart(2, '0')}/16 · ${followingVoices.join('+') || 'REST'}`;
     nextStepActive = true;
   } else if (audioSourceKind() !== 'NO AUDIO' && pulse > 0) next = `BEAT RESPONSE · ${pulse}%`;
   if (output.textContent !== next) output.textContent = next;
+  if (barOutput) {
+    if (barOutput.textContent !== barReadout) barOutput.textContent = barReadout;
+    barOutput.dataset.active = String(barActive);
+    barOutput.setAttribute('aria-label', state.demoOn ? `Demo bar ${barReadout.replace('BAR ', '')}` : 'Demo bar unavailable for the current source');
+  }
   if (nextOutput) {
     if (nextOutput.textContent !== nextStepReadout) nextOutput.textContent = nextStepReadout;
     nextOutput.dataset.active = String(nextStepActive);
-    nextOutput.setAttribute('aria-label', state.demoOn ? `Next demo step ${nextStepReadout.replace('NEXT ', '').replace(' · ', ': ')}` : 'Next demo step unavailable for the current source');
+    if (state.demoOn) {
+      const wrapsBar = state.beatStep === DARK_TECHNO_PATTERN.length - 1;
+      const nextStepIndex = (state.beatStep + 1) % DARK_TECHNO_PATTERN.length;
+      const followingLabels = beatStepVoices(darkTechnoStep(nextStepIndex)).map(({ label }) => label).join(' and ') || 'rest';
+      nextOutput.setAttribute('aria-label', wrapsBar
+        ? `Next demo bar ${String(Math.max(0, Math.floor(Number(state.beatBar) || 0) + 2)).padStart(2, '0')}, step ${String(nextStepIndex + 1).padStart(2, '0')}: ${followingLabels}`
+        : `Next demo step ${String(nextStepIndex + 1).padStart(2, '0')}/16: ${followingLabels}`);
+    } else nextOutput.setAttribute('aria-label', 'Next demo step unavailable for the current source');
   }
   syncSceneBeatReadout();
   syncAudioCoverageReadout();
@@ -1695,6 +1716,10 @@ function beatPatternVoiceLabel(step) {
 }
 function beatPatternVoiceSymbols(step) {
   return beatStepVoices(step).map(({ symbol }) => symbol).join('·') || '·';
+}
+function normalizedBeatIndex(step = 0) {
+  const value = Number(step);
+  return Number.isFinite(value) ? Math.floor(value) : 0;
 }
 function syncBeatPattern() {
   const output = $('beatPattern');
@@ -1783,7 +1808,7 @@ function syncBeatScope(coverage = visualBeatResponseSnapshot()) {
   if (output.dataset.beatScopeAria !== scopeAria) { output.setAttribute('aria-label', scopeAria); output.dataset.beatScopeAria = scopeAria; }
 }
 function decayBeatPulse(dt) { state.beatPulse = clamp(state.beatPulse * Math.exp(-Math.max(0, Number(dt) || 0) * 9), 0, 1); syncBeatReadout(); }
-function setBeatPulse(amount, step = state.beatStep) { const safeAmount = clamp(Number(amount) || 0, 0, 1); const safeStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16; state.beatPulse = Math.max(state.beatPulse, safeAmount); state.beatStep = safeStep; state.beatBar = Math.floor(Math.max(0, Number(step) || 0) / 16); if (state.demoOn) recordDemoBeatOnset(safeStep, safeAmount); syncBeatReadout(); }
+function setBeatPulse(amount, step = state.beatStep) { const safeAmount = clamp(Number(amount) || 0, 0, 1); const rawStep = normalizedBeatIndex(step); const safeStep = ((rawStep % DARK_TECHNO_PATTERN.length) + DARK_TECHNO_PATTERN.length) % DARK_TECHNO_PATTERN.length; state.beatPulse = Math.max(state.beatPulse, safeAmount); state.beatStep = safeStep; state.beatBar = Math.floor(Math.max(0, rawStep) / DARK_TECHNO_PATTERN.length); if (state.demoOn) recordDemoBeatOnset(safeStep, safeAmount); syncBeatReadout(); }
 function beatResponseLevel(id) { return clamp(Math.max(audioResponseLevel(id), state.beatPulse * .72), 0, 1); }
 function audioMappingValidation(def) {
   const mapping = audioMappings[def?.id];
@@ -1907,14 +1932,15 @@ function playDemoPerc(start, velocity) { demoNoise(start, .045, .045 + velocity 
 function scheduleDemoStep(request) {
   if (request !== audioRequest || !state.demoOn || !audio.context) return;
   if (state.paused) { pulseTimer = setTimeout(() => scheduleDemoStep(request), 40); return; }
-  const stepIndex = audio.demoStep; const step = darkTechnoStep(stepIndex); const start = (audio.context.currentTime || 0) + .018;
-  if (step.kick) { setBeatPulse(.86 + step.kick * .14, stepIndex); playDemoKick(start, step.kick); }
+  const stepIndex = audio.demoStep; const absoluteStep = audio.demoBar * DARK_TECHNO_PATTERN.length + stepIndex; const step = darkTechnoStep(stepIndex); const start = (audio.context.currentTime || 0) + .018;
+  if (step.kick) { setBeatPulse(.86 + step.kick * .14, absoluteStep); playDemoKick(start, step.kick); }
   if (step.bass) playDemoBass(start, stepIndex, step.bass);
-  if (step.clap) { setBeatPulse(Math.max(state.beatPulse, .7), stepIndex); playDemoClap(start); }
-  if (step.hat) { setBeatPulse(Math.max(state.beatPulse, .24 + step.hat * .18), stepIndex); playDemoHat(start, step.hat); }
+  if (step.clap) { setBeatPulse(Math.max(state.beatPulse, .7), absoluteStep); playDemoClap(start); }
+  if (step.hat) { setBeatPulse(Math.max(state.beatPulse, .24 + step.hat * .18), absoluteStep); playDemoHat(start, step.hat); }
   if (step.openHat) playDemoHat(start, step.openHat, true);
-  if (step.perc) { setBeatPulse(Math.max(state.beatPulse, .16 + step.perc * .12), stepIndex); playDemoPerc(start, step.perc); }
-  audio.demoStep = (stepIndex + 1) % 16;
+  if (step.perc) { setBeatPulse(Math.max(state.beatPulse, .16 + step.perc * .12), absoluteStep); playDemoPerc(start, step.perc); }
+  if (stepIndex === DARK_TECHNO_PATTERN.length - 1) audio.demoBar += 1;
+  audio.demoStep = (stepIndex + 1) % DARK_TECHNO_PATTERN.length;
   const stepMs = 60000 / clamp(Number(state.tempo) || 92, 40, 180) / 4;
   pulseTimer = setTimeout(() => scheduleDemoStep(request), Math.max(18, stepMs));
 }
@@ -1924,7 +1950,7 @@ function stopAudioSource(status = 'No music connected') {
   audioRequest += 1; clearTimeout(pulseTimer); pulseTimer = null;
   if (audio.source) { try { audio.source.stop?.(); audio.source.disconnect(); } catch {} audio.source = null; }
   for (const node of audio.demoNodes) { try { node.stop?.(); } catch {} try { node.disconnect?.(); } catch {} }
-  audio.demoNodes.clear(); audio.demoNoiseBuffer = null; audio.demoStep = 0;
+  audio.demoNodes.clear(); audio.demoNoiseBuffer = null; audio.demoStep = 0; audio.demoBar = 0;
   audio.demoGain?.disconnect(); audio.demoGain = null;
   audio.demoCompressor?.disconnect(); audio.demoCompressor = null;
   if (audio.media) { audio.media.onerror = null; audio.media.pause(); audio.media.removeAttribute('src'); audio.media.load(); audio.media = null; }
@@ -1972,7 +1998,7 @@ async function toggleDemo() {
     } catch {}
     demoConnect(bus, compressor); demoConnect(compressor, audio.analyser); audio.demoCompressor = compressor;
   } else demoConnect(bus, audio.analyser);
-  audio.demoGain = bus; audio.demoStep = 0; state.demoOn = true; audio.gain.gain.value = audioOutputGain();
+  audio.demoGain = bus; audio.demoStep = 0; audio.demoBar = 0; state.demoOn = true; audio.gain.gain.value = audioOutputGain();
   scheduleDemoStep(request); setAudioSourceOutcome('active', 'DEMO'); $('demoAudioButton').textContent = 'Stop beat'; $('audioStatus').textContent = 'Dark techno demo beat · kick, clap, hats, perc · tempo follows BPM'; syncAudioSourceControls();
 }
 async function loadLocalAudio(file) {
@@ -2199,8 +2225,8 @@ function stagePixelStats() { const data = ctx.getImageData(0, 0, canvas.width, c
 function renderRuntimeState() { return { sceneIndex: state.sceneIndex, paused: state.paused, blackout: state.blackout, renderingLost: state.renderingLost, elapsed: state.elapsed, cadenceAccumulator: state.cadenceAccumulator, currentCue: state.currentCue, setPlaying: state.setPlaying, audioLevel: state.audioLevel, renderer: currentRendererEvidence(), phaseSeed: buffers.phase.seed, phaseValues: Array.from(buffers.phase.values), phaseCompare: Array.from(buffers.phase.compare), topologyPhase: buffers.topology.phase, topologyIntersections: buffers.topology.intersections }; }
 function setTestRenderFlags(flags = {}) { if (Object.hasOwn(flags, 'blackout')) state.blackout = Boolean(flags.blackout); if (Object.hasOwn(flags, 'renderingLost')) state.renderingLost = Boolean(flags.renderingLost); }
 
-window.__phosphorTest = { stepFlight, stopFlight, flightState: () => ({ pose: structuredClone(flightPose), cruise: flightCruise, blocked: flightBlocked, keys: [...flightKeys] }), sceneDefs, performanceScoreCues, PHOSPHOR_FAMILY_CATALOG, audioBandLevels, audioResponseLevel, darkTechnoStep, visualAudioCoverage, visualBeatResponseSnapshot, beatDrivenEffects, applyBeatVisualPulse, runBeatResponseCheck, sanitizeBeatResponseCheck, setCueLabel, setCueDuration, moveCue, previewCue, duplicateCue, clearRehearsalReportImport, stepElementary, reactionDiffusionStep, finiteArray, boundedFeedbackValue, lifecycleStressCheck, qualityProfile, cathedralShading, aquariumFoodStep, evolutionContour, runLifecycleProbe, runQualityABProbe, runSetTimingProbe, sanitizeQualityAB, sessionData, validateSession, applySession, switchScene, stepPhase, phaseMeasurement, startPhaseArc, stopPhaseArc, rehearsePhaseArcs, archivePhaseMeasurement, frameManifest, validateFrameManifest, importFrameManifest, frameDirectoryWriter, renderOfflineFrames, cancelOfflineRender, mutateEvolution, chooseEvolutionChild, promoteEvolution, inject, stepMagnetic, stopMagneticReplay, replayGestureSequence, magneticReplayState: () => ({ index: buffers.magnetic.replay.index, total: buffers.magnetic.replay.events.length, playing: buffers.magnetic.replay.playing }), evolutionRenderState: () => ({ phase: buffers.evolution.phase, siblings: Array.from(buffers.evolution.siblings) }), magneticRenderState: () => ({ phase: buffers.magnetic.phase, particles: Array.from(buffers.magnetic.particles), previous: Array.from(buffers.magnetic.previous), attractors: Array.from(buffers.magnetic.attractors) }), interferenceRenderState: () => ({ phase: buffers.interference.phase }), beatTelemetry, resetBeatTelemetry, recordBeatOnset: recordAudioBeatOnset, stagePixelStats, renderRuntimeState, restoreOfflineSnapshot, setTestRenderFlags, setTestElapsed: (value) => { state.elapsed = Math.max(0, Number(value) || 0); }, setTestAudioLevel: (value) => { state.audioLevel = Math.max(0, Number(value) || 0); }, setTestAudioPeak: (value, hold = value, record = false, elapsedSeconds = 0) => { state.audioPeak = clamp(Number(value) || 0, 0, 1); state.audioPeakHold = clamp(Number(hold) || 0, 0, 1); if (record) recordAudioPeakSample(state.audioPeak, state.audioPeakHold, elapsedSeconds); syncAudioHeadroomReadout(); }, recordAudioPeakSample, audioPeakSessionTelemetry, rehearsalPassSummary, setTestAudioBands: (value) => { state.audioBands = { low: clamp(Number(value?.low), 0, 1), mid: clamp(Number(value?.mid), 0, 1), high: clamp(Number(value?.high), 0, 1) }; state.audioBandsReady = true; }, setTestBeatPulse: (value, step = 0) => { state.beatPulse = clamp(Number(value) || 0, 0, 1); state.beatStep = ((Math.floor(Number(step) || 0) % 16) + 16) % 16; syncBeatReadout(); } };
-Object.assign(window.__phosphorTest, { drawPreview, stepAcid, resetAcid, acidRenderState: () => ({ u: Array.from(buffers.acid.u), v: Array.from(buffers.acid.v) }), pendingFramePlan: () => pendingFrameManifest, toggleRecord, finishRecording, syncRecordingReadout, updatePerformanceReadout, syncSetPerformanceReadout, syncSetPerformanceDetail, performanceSetSummary: () => metrics.setSummary(), syncFocusScaleReadout, syncFocusRenderFit, rehearsalReport, exportRehearsalReport, validateRehearsalReport, compareRehearsalReports, importRehearsalReport, readRehearsalReportFile, rehearsalReportImport: () => structuredClone(importedRehearsalReport), restoreRehearsalReportCache: restoreRehearsalReportCacheWithQuality, resetObservedChecks, recordingState: () => ({ recorder: audio.recorder, chunks: audio.chunks.length, stream: audio.recordingStream, startedAt: audio.recordingStartedAt }), stepAndDraw, updateAudioLevel, stopAudioSource, toggleDemo, loadLocalAudio, toggleMic, connectTabAudio, preflightReport, runPreflight, assetStem, exportFilename, audioState: () => ({ request: audioRequest, hasSource: Boolean(audio.source), hasDemo: state.demoOn, demoStep: audio.demoStep, hasDemoCompressor: Boolean(audio.demoCompressor), hasMic: Boolean(audio.micStream), hasTab: Boolean(audio.tabStream), sourceOutcome: audioSourceOutcome, sourceHistory: structuredClone(audioSourceEvents), outputGain: audio.gain?.gain.value, bands: structuredClone(state.audioBands), bandsReady: state.audioBandsReady, peak: audioPeakTelemetry(), peakSession: audioPeakSessionTelemetry(), beatPulse: state.beatPulse, beat: beatTelemetry() }) });
+window.__phosphorTest = { stepFlight, stopFlight, flightState: () => ({ pose: structuredClone(flightPose), cruise: flightCruise, blocked: flightBlocked, keys: [...flightKeys] }), sceneDefs, performanceScoreCues, PHOSPHOR_FAMILY_CATALOG, audioBandLevels, audioResponseLevel, darkTechnoStep, visualAudioCoverage, visualBeatResponseSnapshot, beatDrivenEffects, applyBeatVisualPulse, runBeatResponseCheck, sanitizeBeatResponseCheck, setCueLabel, setCueDuration, moveCue, previewCue, duplicateCue, clearRehearsalReportImport, stepElementary, reactionDiffusionStep, finiteArray, boundedFeedbackValue, lifecycleStressCheck, qualityProfile, cathedralShading, aquariumFoodStep, evolutionContour, runLifecycleProbe, runQualityABProbe, runSetTimingProbe, sanitizeQualityAB, sessionData, validateSession, applySession, switchScene, stepPhase, phaseMeasurement, startPhaseArc, stopPhaseArc, rehearsePhaseArcs, archivePhaseMeasurement, frameManifest, validateFrameManifest, importFrameManifest, frameDirectoryWriter, renderOfflineFrames, cancelOfflineRender, mutateEvolution, chooseEvolutionChild, promoteEvolution, inject, stepMagnetic, stopMagneticReplay, replayGestureSequence, magneticReplayState: () => ({ index: buffers.magnetic.replay.index, total: buffers.magnetic.replay.events.length, playing: buffers.magnetic.replay.playing }), evolutionRenderState: () => ({ phase: buffers.evolution.phase, siblings: Array.from(buffers.evolution.siblings) }), magneticRenderState: () => ({ phase: buffers.magnetic.phase, particles: Array.from(buffers.magnetic.particles), previous: Array.from(buffers.magnetic.previous), attractors: Array.from(buffers.magnetic.attractors) }), interferenceRenderState: () => ({ phase: buffers.interference.phase }), beatTelemetry, resetBeatTelemetry, recordBeatOnset: recordAudioBeatOnset, stagePixelStats, renderRuntimeState, restoreOfflineSnapshot, setTestRenderFlags, setTestElapsed: (value) => { state.elapsed = Math.max(0, Number(value) || 0); }, setTestAudioLevel: (value) => { state.audioLevel = Math.max(0, Number(value) || 0); }, setTestAudioPeak: (value, hold = value, record = false, elapsedSeconds = 0) => { state.audioPeak = clamp(Number(value) || 0, 0, 1); state.audioPeakHold = clamp(Number(hold) || 0, 0, 1); if (record) recordAudioPeakSample(state.audioPeak, state.audioPeakHold, elapsedSeconds); syncAudioHeadroomReadout(); }, recordAudioPeakSample, audioPeakSessionTelemetry, rehearsalPassSummary, setTestAudioBands: (value) => { state.audioBands = { low: clamp(Number(value?.low), 0, 1), mid: clamp(Number(value?.mid), 0, 1), high: clamp(Number(value?.high), 0, 1) }; state.audioBandsReady = true; }, setTestBeatPulse: (value, step = 0) => { const safeStep = normalizedBeatIndex(step); state.beatPulse = clamp(Number(value) || 0, 0, 1); state.beatStep = ((safeStep % DARK_TECHNO_PATTERN.length) + DARK_TECHNO_PATTERN.length) % DARK_TECHNO_PATTERN.length; state.beatBar = Math.floor(Math.max(0, safeStep) / DARK_TECHNO_PATTERN.length); syncBeatReadout(); } };
+Object.assign(window.__phosphorTest, { drawPreview, stepAcid, resetAcid, acidRenderState: () => ({ u: Array.from(buffers.acid.u), v: Array.from(buffers.acid.v) }), pendingFramePlan: () => pendingFrameManifest, toggleRecord, finishRecording, syncRecordingReadout, updatePerformanceReadout, syncSetPerformanceReadout, syncSetPerformanceDetail, performanceSetSummary: () => metrics.setSummary(), syncFocusScaleReadout, syncFocusRenderFit, rehearsalReport, exportRehearsalReport, validateRehearsalReport, compareRehearsalReports, importRehearsalReport, readRehearsalReportFile, rehearsalReportImport: () => structuredClone(importedRehearsalReport), restoreRehearsalReportCache: restoreRehearsalReportCacheWithQuality, resetObservedChecks, recordingState: () => ({ recorder: audio.recorder, chunks: audio.chunks.length, stream: audio.recordingStream, startedAt: audio.recordingStartedAt }), stepAndDraw, updateAudioLevel, stopAudioSource, toggleDemo, loadLocalAudio, toggleMic, connectTabAudio, preflightReport, runPreflight, assetStem, exportFilename, audioState: () => ({ request: audioRequest, hasSource: Boolean(audio.source), hasDemo: state.demoOn, demoStep: audio.demoStep, demoBar: audio.demoBar, hasDemoCompressor: Boolean(audio.demoCompressor), hasMic: Boolean(audio.micStream), hasTab: Boolean(audio.tabStream), sourceOutcome: audioSourceOutcome, sourceHistory: structuredClone(audioSourceEvents), outputGain: audio.gain?.gain.value, bands: structuredClone(state.audioBands), bandsReady: state.audioBandsReady, peak: audioPeakTelemetry(), peakSession: audioPeakSessionTelemetry(), beatPulse: state.beatPulse, beat: beatTelemetry() }) });
 window.__phosphorTest.renderOfflineFrames = renderOfflineFramesWithNamedAssets;
 window.__phosphorTest.qualityABRecommendation = qualityABRecommendation;
 window.__phosphorTest.compositeOutputFrame = compositeOutputFrame;

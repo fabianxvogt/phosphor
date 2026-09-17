@@ -66,7 +66,7 @@ class FakeDocument {
 
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
-  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'beatNextReadout', 'sceneBeatReadout', 'audioCoverageReadout', 'audioBeatTelemetryReadout', 'beatPattern', 'beatScope', 'audioHeadroomReadout', 'audioSessionReadout', 'audioRunProgress', 'audioRunProgressReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'setTimingButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'rehearsalPassReadout', 'rehearsalBeatReadout', 'rehearsalSourceHistoryReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportCompareReadout', 'rehearsalReportImportEvidenceReadout', 'rehearsalReportImportSourceHistoryReadout', 'rehearsalReportImportPassReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'audioSourceHistoryReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
+  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'beatBarReadout', 'beatNextReadout', 'sceneBeatReadout', 'audioCoverageReadout', 'audioBeatTelemetryReadout', 'beatPattern', 'beatScope', 'audioHeadroomReadout', 'audioSessionReadout', 'audioRunProgress', 'audioRunProgressReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'setTimingButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'rehearsalPassReadout', 'rehearsalBeatReadout', 'rehearsalSourceHistoryReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportCompareReadout', 'rehearsalReportImportEvidenceReadout', 'rehearsalReportImportSourceHistoryReadout', 'rehearsalReportImportPassReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'audioSourceHistoryReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
   document.ensure('performanceSetDetailReadout');
   const windowListeners = new Map();
   const fireWindow = (type, event) => { for (const callback of windowListeners.get(type) || []) callback(event); };
@@ -79,8 +79,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('startAudioButton')['aria-label'], 'Start dark techno demo beat', 'primary sound control names the default beat');
   assert.equal(document.getElementById('micButton')['aria-pressed'], 'false', 'microphone source starts inactive');
   assert.equal(document.getElementById('tabAudioButton')['aria-pressed'], 'false', 'tab source starts inactive');
-  assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus beatReadout beatNextReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout audioSourceHistoryReadout', 'file source points to its status, next beat step, beat response, coverage, headroom, run, onset telemetry, and source history');
+  assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus beatReadout beatBarReadout beatNextReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout audioSourceHistoryReadout', 'file source points to its status, beat bar, next beat step, beat response, coverage, headroom, run, onset telemetry, and source history');
   assert.equal(document.getElementById('beatReadout').textContent, 'BEAT IDLE', 'beat readout starts idle');
+  assert.equal(document.getElementById('beatBarReadout').textContent, 'BAR —', 'beat bar readout starts idle');
   assert.equal(document.getElementById('beatNextReadout').textContent, 'NEXT —', 'next-step readout starts idle');
   const beatPattern = document.getElementById('beatPattern');
   const beatPatternCells = () => beatPattern.querySelectorAll('[data-beat-step]');
@@ -1074,6 +1075,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.rehearsalReport().audio.status, 'active', 'report records an active microphone outcome');
   assert.deepEqual(api.rehearsalReport().audio.history.at(-1), { source: 'MIC', status: 'active' }, 'report attributes active microphone history');
   assert.equal(document.getElementById('audioOutcomeReadout').textContent, 'Source active', 'source dock exposes an active microphone outcome');
+  assert.equal(document.getElementById('beatBarReadout').textContent, 'BAR —', 'beat bar readout stays quiet for an external microphone source');
+  assert.equal(document.getElementById('beatBarReadout').dataset.active, 'false', 'beat bar readout is inactive for an external source');
+  assert.equal(document.getElementById('beatBarReadout')['aria-label'], 'Demo bar unavailable for the current source', 'beat bar readout labels external-source behavior');
   assert.equal(document.getElementById('beatNextReadout').textContent, 'NEXT —', 'next-step readout stays quiet for an external microphone source');
   assert.equal(document.getElementById('beatNextReadout').dataset.active, 'false', 'next-step readout is inactive for an external source');
   assert.equal(document.getElementById('beatNextReadout')['aria-label'], 'Next demo step unavailable for the current source', 'next-step readout labels external-source behavior');
@@ -1121,7 +1125,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat/);
   assert.match(document.getElementById('beatReadout').textContent, /^BEAT 01\/16 · KICK\+SUB · 100%$/, 'beat readout names the first kick step and voices');
   assert.equal(document.getElementById('beatNextReadout').textContent, 'NEXT 02/16 · HAT', 'next-step readout names the following hat step');
-  assert.equal(document.getElementById('beatNextReadout')['aria-label'], 'Next demo step 02/16: HAT', 'next-step readout exposes a compact handoff label');
+  assert.equal(document.getElementById('beatNextReadout')['aria-label'], 'Next demo step 02/16: closed hat', 'next-step readout exposes a compact handoff label');
+  assert.equal(document.getElementById('beatBarReadout').textContent, 'BAR 01', 'beat bar readout names the first demo bar');
+  assert.equal(document.getElementById('beatBarReadout')['aria-label'], 'Demo bar 01', 'beat bar readout exposes the current demo bar');
   assert.deepEqual(beatPatternCells().filter((cell) => cell.dataset.active === 'true').map((cell) => cell.dataset.beatStep), ['0'], 'demo pattern monitor highlights exactly the scheduled kick step');
   assert.equal(beatPattern['aria-label'], 'Demo 16-step pattern; step 01 is active', 'demo pattern monitor follows the scheduled step');
   api.setTestBeatPulse(.3, 3);
@@ -1129,8 +1135,13 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('beatNextReadout').textContent, 'NEXT 05/16 · KICK+CLAP+SUB', 'next-step readout advances with the ghost percussion step');
   assert.deepEqual(beatPatternCells().filter((cell) => cell.dataset.active === 'true').map((cell) => cell.dataset.beatStep), ['3'], 'demo pattern monitor moves exactly one active cell to the ghost percussion step');
   assert.equal(beatPattern['aria-label'], 'Demo 16-step pattern; step 04 is active', 'demo pattern monitor follows a ghost percussion step');
-  api.setTestBeatPulse(.3, 15);
-  assert.equal(document.getElementById('beatNextReadout').textContent, 'NEXT 01/16 · KICK+SUB', 'next-step readout wraps from the final step to the first kick');
+  api.setTestBeatPulse(.3, 31);
+  assert.equal(document.getElementById('beatNextReadout').textContent, 'NEXT BAR 03 · 01/16 · KICK+SUB', 'next-step readout names the upcoming bar when wrapping from the final step');
+  assert.equal(document.getElementById('beatNextReadout')['aria-label'], 'Next demo bar 03, step 01: kick and sub', 'next-step readout exposes the upcoming bar boundary');
+  assert.equal(document.getElementById('beatBarReadout').textContent, 'BAR 02', 'beat bar readout advances when the wrapped step belongs to the next bar');
+  api.setTestBeatPulse(.3, Infinity);
+  assert.equal(document.getElementById('beatBarReadout').textContent, 'BAR 01', 'non-finite beat steps fall back to the first demo bar');
+  assert.doesNotMatch(document.getElementById('beatNextReadout').textContent, /NaN|Infinity/, 'non-finite beat steps never leak malformed readout text');
   api.setTestBeatPulse(0, 0);
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS BEAT-LINKED', 'demo beat exposes complete visual coverage');
   const durationBeforeFrameGaps = api.audioPeakSessionTelemetry().durationSeconds;
@@ -1147,6 +1158,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('audioBeatTelemetryReadout').textContent, 'HITS 0 · LAST —', 'stopping music clears the onset readout');
   assert.equal(document.getElementById('rehearsalBeatReadout').textContent, 'BEAT TELEMETRY · 0 HITS · LAST — · diagnostic only', 'stopping music clears the rehearsal onset readout');
   assert.equal(document.getElementById('beatReadout').textContent, 'BEAT IDLE', 'stopping music clears the beat readout');
+  assert.equal(document.getElementById('beatBarReadout').textContent, 'BAR —', 'stopping music clears the beat bar readout');
   assert.equal(document.getElementById('beatNextReadout').textContent, 'NEXT —', 'stopping music clears the next-step readout');
   assert.equal(beatPatternCells().filter((cell) => cell.dataset.active === 'true').length, 0, 'stopping music clears the active pattern step');
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS READY', 'stopping music returns coverage to ready');
