@@ -387,6 +387,7 @@ function syncFocusScaleReadout() {
   if (!(displayWidth > 0) || !(displayHeight > 0) || !(canvas.width > 0) || !(canvas.height > 0)) {
     output.textContent = 'Display scale warming up';
     output.setAttribute('aria-label', 'Display scale is warming up');
+    output.classList.remove('quality-warning');
     syncFocusQualityAction(false);
     return;
   }
@@ -398,7 +399,9 @@ function syncFocusScaleReadout() {
     // Focus can toggle without changing the canvas rect. Keep the correction
     // affordance synchronized even when the scale readout itself is cached.
     const rasterScale = activeRenderState.path === 'cpu' && Number.isInteger(activeRenderState.width) && activeRenderState.width > 0 ? displayWidth / activeRenderState.width : scale;
-    syncFocusQualityAction(scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || rasterScale >= 1.5));
+    const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || rasterScale >= 1.5);
+    output.classList.toggle('quality-warning', showHdHint);
+    syncFocusQualityAction(showHdHint);
     return;
   }
   lastDisplayScaleSignature = signature;
@@ -408,6 +411,7 @@ function syncFocusScaleReadout() {
     const mode = rasterScale > 1.05 ? 'CPU raster upscale' : rasterScale < .95 ? 'CPU raster downscale' : 'native CPU fit';
     const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || Number(roundedRasterScale) >= 1.5);
     const hdHint = showHdHint ? ' · HD available' : '';
+    output.classList.toggle('quality-warning', showHdHint);
     syncFocusQualityAction(showHdHint);
     output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedRasterScale}× ${mode}${hdHint}`;
     output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels, ${roundedRasterScale} times the ${activeRenderState.width} by ${activeRenderState.height} CPU raster; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
@@ -419,6 +423,7 @@ function syncFocusScaleReadout() {
     const mode = backingScale > 1.05 ? 'WebGL backing upscale' : backingScale < .95 ? 'WebGL backing downscale' : 'native WebGL backing fit';
     const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || Number(roundedBackingScale) >= 1.5);
     const hdHint = showHdHint ? ' · HD available' : '';
+    output.classList.toggle('quality-warning', showHdHint);
     syncFocusQualityAction(showHdHint);
     output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedBackingScale}× ${mode}${hdHint}`;
     output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels, ${roundedBackingScale} times the ${activeRenderState.width} by ${activeRenderState.height} WebGL backing surface; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
@@ -428,6 +433,7 @@ function syncFocusScaleReadout() {
   const mode = scale > 1.05 ? 'CSS upscale' : scale < .95 ? 'CSS downscale' : 'native fit';
   const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || Number(roundedScale) >= 1.5);
   const hdHint = showHdHint ? ' · HD available' : '';
+  output.classList.toggle('quality-warning', showHdHint);
   syncFocusQualityAction(showHdHint);
   output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedScale}× ${mode}${hdHint}`;
   output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels, ${roundedScale} times the ${canvas.width} by ${canvas.height} render surface; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);

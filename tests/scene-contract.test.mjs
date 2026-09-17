@@ -206,6 +206,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="focusPerformanceReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'focus mode exposes frame timing');
   assert.match(html, /id="focusScaleReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'focus mode exposes display scale');
   assert.match(html, /id="focusQualityButton"[^>]*hidden[^>]*>Use HD</, 'focus mode exposes an explicit HD action');
+  assert.match(styles, /\.focus-scale-readout\.quality-warning\s*\{[^}]*color:var\(--acid\)/, 'quality warning is visually emphasized');
   assert.match(app, /function syncPerformanceReadouts\(/, 'focus mode mirrors frame timing');
   assert.match(app, /function syncFocusScaleReadout\(/, 'focus mode reports CSS display scaling');
   assert.match(app, /function qualityABRendererText\(measurement\)/, 'quality A\/B readout names the actual renderer backing size');

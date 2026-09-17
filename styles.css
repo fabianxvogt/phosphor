@@ -40,6 +40,7 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .focus-mode .focus-performance-readout { display:inline; }
 .focus-scale-readout { display:none; color:var(--muted); font:10px 'DM Mono',monospace; font-variant-numeric:tabular-nums; }
 .focus-mode .focus-scale-readout { display:inline; }
+.focus-scale-readout.quality-warning { color:var(--acid); }
 .focus-quality-button { pointer-events:auto; border:1px solid var(--acid); border-radius:4px; padding:3px 6px; background:#0b0d08dd; color:var(--acid); font:10px 'DM Mono',monospace; letter-spacing:.02em; }
 .focus-quality-button:hover,.focus-quality-button:focus-visible { background:var(--acid); color:#0d1008; }
 .focus-mode .focus-quality-button:not([hidden]) { display:inline-block; }

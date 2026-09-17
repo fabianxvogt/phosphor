@@ -39,6 +39,8 @@ Julia's display-scale diagnostic now exposes the existing one-click `Use HD` act
 
 Focus-mode Julia now uses a bounded 1440×900 WebGL backing surface when available, or a 640×400 CPU detail pass otherwise, reducing the common 2× enlargement to a bounded 1.5× target while leaving the normal Full output profile unchanged; the renderer readout remains explicit about the extra bounded work.
 
+When that Focus diagnostic detects an enlarged non-HD Julia render, its `HD available` warning is now highlighted so the quality correction reads clearly before a performer opens the selector.
+
 The advanced-renderer import now uses a namespace boundary with a local Julia diagnostics fallback. That keeps a stale browser cache or older static module from aborting the whole instrument before the canvas and beat controls can start.
 
 ## Evidence

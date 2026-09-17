@@ -38,7 +38,7 @@ Drag the stage to look; W/S move forward or reverse, A/D strafe, Q/E descend or 
 
 The environment is a five-level recursive sponge repeating every six world units in all directions, with connected passages. It is not infinite unique geometry. Passage width changes the openings; if narrowing would enclose the camera, the view returns to the entrance. Full mode renders the 3D layer at 480×300 before compositing into 960×600; Low uses 240×150 before compositing into 480×300.
 
-Save/reopen and cue snapshots preserve the viewpoint. Cues restore a stationary camera; start Cruise explicitly for motion. Older v6 sessions load at the new entrance because their scalar travel did not encode a navigable pose. Older fractal frame plans are rejected with a request to re-export. New plans record the current starting pose and constant cruise/turn settings; they do not replay the preceding manual flight. PNG and WebM capture record the currently displayed output.
+Save/reopen and cue snapshots preserve the viewpoint. Cues restore a stationary camera; start Cruise explicitly for motion. Older v6 sessions load at the new entrance because their scalar travel did not encode a navigable pose. Older fractal frame plans are rejected with a request to re-export. New plans record the current starting pose and constant cruise/turn settings; they do not replay the preceding manual flight. PNG and WebM capture record the currently displayed output. In Julia Focus, an enlarged non-HD render now highlights the `HD available` correction in the stage diagnostics before the one-click `Use HD` action.
 
 ## Music
 

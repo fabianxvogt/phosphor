@@ -123,6 +123,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Loaded-report comparison accessibility now repeats the saved Julia quality recommendation, so screen-reader review retains the same quality decision context.
 - Local report-cache reopen now preserves bounded Julia quality A/B evidence and its derived recommendation, keeping a refreshed browser handoff actionable without storing media.
 - Focus now caps the visible Julia output to its profile width (with the existing viewport-height cap), preventing the supersampled 1440×900 Full-profile WebGL backing from being stretched a second time across a larger viewport.
+- Focus quality diagnostics now highlight the `HD available` warning, keeping the one-click correction legible when a Julia render is enlarged.
 - Rehearsal source dock now shows a bounded 20-minute active-audio progress meter plus remaining-time label tied to the pass snapshot and resets on source stop/switch, keeping interrupted runs from appearing continuous.
 - Local Chrome quality A/B evidence now records the Full/HD render paths and visible scale, with a one-click Focus action for the sharper profile; sustained named-device and performer checks remain open.
 - Rehearsal Preflight now runs a bounded three-sample-per-profile Julia Full/HD A/B probe and carries renderer path, display scale, median/p95 timing, and target status into the versioned rehearsal report; it restores the live profile and does not claim certification.
