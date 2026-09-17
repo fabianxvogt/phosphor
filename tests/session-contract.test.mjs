@@ -1028,13 +1028,13 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.rehearsalReport().audio.status, 'empty', 'report records an empty tab-audio outcome');
   assert.deepEqual(api.rehearsalReport().audio.history.at(-1), { source: 'TAB AUDIO', status: 'empty' }, 'report attributes empty tab-audio history');
   assert.equal(document.getElementById('audioOutcomeReadout').textContent, 'Source empty', 'source dock retains the empty tab-audio outcome');
-  assert.equal(document.getElementById('audioSourceHistoryReadout').textContent, 'SOURCE HISTORY · 2 PATHS · MIC · TAB AUDIO', 'source dock marks microphone-to-tab switching in its bounded history');
+  assert.equal(document.getElementById('audioSourceHistoryReadout').textContent, 'SOURCE HISTORY · 2 PATHS · MIC · TAB AUDIO · SWITCHING OBSERVED', 'source dock marks microphone-to-tab switching in its bounded history');
   assert.equal(document.getElementById('audioStatus').textContent, 'No audio was shared · select a browser tab and enable Share tab audio');
   if (api.renderRuntimeState().paused) document.getElementById('pauseButton').click();
   await api.toggleDemo();
   assert.equal(api.audioState().hasDemo, true, 'demo beat becomes the active local source');
   assert.equal(api.audioState().demoStep, 1, 'demo beat schedules the first 16th-note step');
-  assert.equal(document.getElementById('audioSourceHistoryReadout').textContent, 'SOURCE HISTORY · 3 PATHS · MIC · TAB AUDIO · DEMO', 'source dock includes the demo path after source switching');
+  assert.equal(document.getElementById('audioSourceHistoryReadout').textContent, 'SOURCE HISTORY · 3 PATHS · MIC · TAB AUDIO · DEMO · SWITCHING OBSERVED', 'source dock includes the demo path after source switching');
   assert.equal(api.audioState().beat.hits, 1, 'demo kick registers one onset for the first step');
   assert.match(document.getElementById('audioBeatTelemetryReadout').textContent, /^HITS 1 · LAST \d{2}:\d{2}:\d{2}Z · DEMO$/, 'onset readout exposes a compact UTC timestamp and source');
   assert.match(document.getElementById('rehearsalBeatReadout').textContent, /^BEAT TELEMETRY · 1 HIT · LAST \d{2}:\d{2}:\d{2}Z · DEMO · diagnostic only$/, 'rehearsal card mirrors the first onset and source');

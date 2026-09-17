@@ -606,7 +606,7 @@ function syncAudioSourceHistoryReadout() {
   if (!output) return;
   const kinds = audioSourceHistoryKinds();
   const countLabel = `${kinds.length} ${kinds.length === 1 ? 'PATH' : 'PATHS'}`;
-  const detail = kinds.length ? kinds.join(' · ') : 'SWITCHING NOT OBSERVED';
+  const detail = kinds.length > 1 ? `${kinds.join(' · ')} · SWITCHING OBSERVED` : kinds.length ? kinds[0] : 'SWITCHING NOT OBSERVED';
   output.textContent = `SOURCE HISTORY · ${countLabel} · ${detail}`;
   output.setAttribute('aria-label', kinds.length > 1 ? `Source history includes ${kinds.length} paths: ${kinds.join(', ')}. Source switching observed in this local history.` : kinds.length === 1 ? `Source history includes one path: ${kinds[0]}. Source switching is not observed yet.` : 'No connected audio source paths are in history; source switching is not observed yet.');
   output.dataset.paths = String(kinds.length);
