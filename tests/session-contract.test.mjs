@@ -130,6 +130,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.visualAudioCoverage().length, api.sceneDefs.length, 'beat coverage enumerates every visual family');
   assert.equal(api.visualAudioCoverage().every((entry) => entry.mapped), true, 'every visual family has a beat response mapping');
   assert.equal(api.visualAudioCoverage().every((entry) => entry.valid && ['low', 'mid', 'high'].includes(entry.band) && typeof entry.parameter === 'string' && entry.amount > 0 && entry.amount <= 1), true, 'every beat mapping targets a live bounded scene parameter');
+  const juliaDef = api.sceneDefs.find((def) => def.id === 'julia');
+  assert.equal(api.beatMappedParameterValue(juliaDef, 'detail', 64, 1, .08), 71, 'Julia beat detail uses its 24–112 iteration schema instead of a generic 0–1 clamp');
+  assert.equal(api.beatMappedParameterValue(juliaDef, 'detail', 110, 1, .08), 112, 'Julia beat detail stays inside its declared maximum');
+  assert.equal(api.beatMappedParameterValue(juliaDef, 'detail', 64, Number.NaN, .08), 64, 'malformed beat levels leave the authored detail unchanged');
   assert.equal((document.getElementById('beatScope').innerHTML.match(/data-beat-family=/g) || []).length, api.sceneDefs.length, 'beat scope renders one meter for every visual family');
   assert.match(document.getElementById('beatScope').innerHTML, /data-beat-family="acid"/, 'beat scope includes the first visual family');
   assert.deepEqual(api.beatDrivenEffects(), { symmetry: 0, echo: 0, chroma: 0, glow: 0 }, 'effect stack stays authored while the beat is idle');
