@@ -197,6 +197,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual([qualityAB.full.outputProfile, qualityAB.hd.outputProfile], ['960x600', '1920x1200'], 'quality A/B captures Full and HD profiles');
   assert.equal(qualityAB.full.samples.length, 3, 'Full probe is bounded to three samples');
   assert.equal(qualityAB.hd.samples.length, 3, 'HD probe is bounded to three samples');
+  assert.equal(qualityAB.full.display.pixelRatio, 1, 'quality A/B records the display density even on a standard-density test surface');
   assert.equal(document.getElementById('qualityInput').value, '1080', 'quality A/B restores the active quality profile');
   assert.deepEqual(api.rehearsalReport().qualityAB, qualityAB, 'quality A/B evidence carries into rehearsal reports');
   const juliaReportWithQualityAB = api.rehearsalReport();
@@ -204,6 +205,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('qualityABReadout').textContent, /A\/B CPU 720×450→960×600/, 'quality A/B readout names the sharper Focus CPU backing and output dimensions');
   assert.match(document.getElementById('qualityABReadout').textContent, /(HD (HIGHER DETAIL|REDUCES UPSCALE)|FULL HIGHER DETAIL|SAME BACKING DETAIL)/, 'quality A/B readout names the actionable detail outcome');
   assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 960, height: 600 }, display: { width: 2142, height: 1338, scale: 2.231 } }, hd: { renderer: { width: 1920, height: 1200 }, display: { width: 2142, height: 1338, scale: 1.116 } } }), ' · HD REDUCES UPSCALE', 'quality A/B recommends HD when the Full backing is enlarged');
+  assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 960, height: 600 }, display: { width: 960, height: 600, pixelRatio: 2, scale: 1 } }, hd: { renderer: { width: 1920, height: 1200 }, display: { width: 960, height: 600, pixelRatio: 2, scale: .5 } } }), ' · HD REDUCES UPSCALE', 'quality A/B recommends HD when Retina density enlarges a CSS-native Full backing');
   assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 960, height: 600 }, display: { width: 480, height: 300, scale: .5 } }, hd: { renderer: { width: 1920, height: 1200 }, display: { width: 480, height: 300, scale: .25 } } }), ' · HD HIGHER DETAIL', 'quality A/B avoids calling downscaling an upscale reduction');
   assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 640, height: 400 }, display: { width: 960, height: 600, scale: 1 } }, hd: { renderer: { width: 640, height: 400 }, display: { width: 960, height: 600, scale: .5 } } }), ' · SAME BACKING DETAIL', 'quality A/B calls out unchanged CPU backing detail');
   assert.equal(stageWrap.classList.contains('julia-cpu-fit'), true, 'Focus constrains a CPU Julia fallback to a bounded display width');
@@ -589,6 +591,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(api.validateRehearsalReport(juliaReportWithQualityAB).qualityAB, qualityAB, 'quality A/B evidence validates as part of a Julia report');
   assert.deepEqual(api.validateRehearsalReport(juliaReportWithQualityAB).beatResponse, beatResponse, 'beat wiring evidence validates as part of a rehearsal report');
   assert.throws(() => api.validateRehearsalReport({ ...juliaReportWithQualityAB, qualityAB: { ...qualityAB, full: { ...qualityAB.full, width: 320 } } }), /Quality A\/B measurement is malformed/, 'quality A/B rejects dishonest profile dimensions');
+  assert.throws(() => api.validateRehearsalReport({ ...juliaReportWithQualityAB, qualityAB: { ...qualityAB, full: { ...qualityAB.full, display: { ...qualityAB.full.display, pixelRatio: 16 } } } }), /Quality A\/B measurement is malformed/, 'quality A/B rejects impossible display densities');
   assert.throws(() => api.validateRehearsalReport({ ...rehearsalReport, qualityAB }), /inconsistent with the report scene/, 'quality A/B cannot be attached to another scene');
   const changedQualityAB = structuredClone(juliaReportWithQualityAB); changedQualityAB.qualityAB.deviceLabel = 'Reference device';
   assert.equal(api.compareRehearsalReports(juliaReportWithQualityAB, changedQualityAB).sameQualityAB, false, 'report comparison detects a changed quality A/B result');
