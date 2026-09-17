@@ -475,6 +475,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('rehearsalReportReadout').textContent, /Studio Mac · Chrome 152 · reopened$/, 'reopened report metadata names the setup label');
   assert.equal(document.getElementById('preflightChecklist').hidden, false, 'reopened report restores the capability checklist');
   assert.match(document.getElementById('preflightTimestamp').textContent, /^Checked .+/);
+  const reopenedKickWeightInput = document.getElementById('demoKickWeightInput');
+  reopenedKickWeightInput.value = '1.4'; reopenedKickWeightInput.dispatchEvent({ type: 'input' });
+  assert.equal(api.restoreRehearsalReportCache(reportCache), true, 'report cache can be reopened after a kick-weight edit');
+  assert.match(document.getElementById('rehearsalReportReadout').textContent, /state changed$/, 'reopened report becomes stale when cached kick weight differs from the live session');
+  reopenedKickWeightInput.value = '1.15'; reopenedKickWeightInput.dispatchEvent({ type: 'input' });
   const qualityReportCache = structuredClone(reportCache); qualityReportCache.qualityAB = juliaReportWithQualityAB.qualityAB; const qualityCacheSignature = JSON.parse(qualityReportCache.signature); qualityCacheSignature.qualityAB = qualityReportCache.qualityAB; qualityReportCache.signature = JSON.stringify(qualityCacheSignature);
   assert.equal(api.restoreRehearsalReportCache(qualityReportCache), true, 'report cache restores saved quality A/B evidence after reopen');
   assert.match(document.getElementById('qualityABReadout').textContent, /^Saved A\/B /, 'reopened cache surfaces saved quality A/B evidence');
@@ -533,6 +538,12 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: set plan · device$/, 'imported report readout names the differences');
   assert.equal(document.getElementById('rehearsalReportImportCompareReadout').textContent, 'Compare · differs: setup · set', 'compact comparison groups setup and authored-set differences');
   assert.equal(document.getElementById('rehearsalReportImportCompareReadout').dataset.level, 'differs', 'different report comparison carries an attention evidence level');
+  const changedKickImport = structuredClone(rehearsalReport); changedKickImport.audio.demoKickWeight = 1.5;
+  const importedKickDifferent = api.importRehearsalReport(changedKickImport);
+  assert.equal(importedKickDifferent.comparison.sameAudioSource, true, 'imported kick-weight report keeps the audio source match');
+  assert.equal(importedKickDifferent.comparison.sameAudioKickWeight, false, 'imported kick-weight report exposes the changed weight');
+  assert.match(document.getElementById('rehearsalReportImportReadout').textContent, /differs: kick weight$/, 'imported report readout names a kick-weight difference');
+  assert.equal(document.getElementById('rehearsalReportImportCompareReadout').textContent, 'Compare · differs: kick weight', 'compact comparison isolates a kick-weight difference from the source');
   const changedRuntimeReport = structuredClone(rehearsalReport); delete changedRuntimeReport.passSnapshot; changedRuntimeReport.audio.source = 'DEMO'; changedRuntimeReport.audio.status = 'active'; changedRuntimeReport.audio.history = [{ source: 'MIC', status: 'ended' }, { source: 'DEMO', status: 'active' }]; changedRuntimeReport.performance = { sampleCount: 1, medianMs: 20, p95Ms: 20, sceneFrames: 1, status: 'over-target', statusLabel: 'Over target', targetMs: 16.67, heapUsedBytes: null };
   const importedRuntimeDifferent = api.importRehearsalReport(changedRuntimeReport);
   assert.equal(importedRuntimeDifferent.comparison.sameAudio, false, 'imported report detects a different audio source path');
