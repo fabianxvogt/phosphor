@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rotate4, hopfPoint, cubeVertices, cubeEdges, mobius, geodesicPoint, juliaSample, advancedDefaults, advancedRasterSize, juliaGpuSize, juliaRenderState, drawAdvanced } from '../advanced.mjs';
+import { rotate4, hopfPoint, cubeVertices, cubeEdges, mobius, geodesicPoint, juliaSample, juliaEdgeEnhance, advancedDefaults, advancedRasterSize, juliaGpuSize, juliaRenderState, drawAdvanced } from '../advanced.mjs';
 import { topologyLoopPoint, drivenRegimeFieldStep, drivenRegimeTarget } from '../core.mjs';
 import { validateEffects } from '../effects.mjs';
 const norm = v => Math.hypot(...v);
@@ -38,6 +38,19 @@ test('Julia samples distinguish known bounded and escaped orbits without nonfini
   assert.equal(juliaSample(0,0,0,0,80).escaped,false);
   assert.equal(juliaSample(2,0,0,0,80).escaped,true);
   for(let i=0;i<100;i++){ const s=juliaSample(Math.sin(i)*2,Math.cos(i)*2,-.745,.186,112); assert.ok(Number.isFinite(s.smooth)); assert.ok(s.trap>=0&&s.trap<=1); }
+});
+test('Julia edge enhancement restores bounded local contrast without touching alpha', () => {
+  const width = 5, height = 5;
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let index = 0; index < data.length; index += 4) { data[index] = 80; data[index + 1] = 80; data[index + 2] = 80; data[index + 3] = 255; }
+  const center = (2 * width + 2) * 4;
+  data[center] = 180; data[center + 1] = 120; data[center + 2] = 60;
+  const before = data.slice();
+  juliaEdgeEnhance(data, width, height, new Uint8ClampedArray(data.length), .2);
+  assert.ok(data[center] > before[center]);
+  assert.ok(data[center + 1] > before[center + 1]);
+  assert.ok(data[center + 2] > before[center + 2]);
+  assert.deepEqual([...data].filter((_, index) => index % 4 === 3), Array(width * height).fill(255));
 });
 test('Julia raster follows output size instead of stretching a tiny thumbnail', () => {
   assert.deepEqual(advancedRasterSize(960, 600, false), { width: 480, height: 300 });

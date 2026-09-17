@@ -91,6 +91,27 @@ export function juliaRenderState(buffer) {
   const reason = typeof buffer?.__juliaRenderReason === 'string' && buffer.__juliaRenderReason.length <= 120 ? buffer.__juliaRenderReason : null;
   return { path, width, height, reason };
 }
+export function juliaEdgeEnhance(data, width, height, scratch, amount = .16) {
+  const safeWidth = Math.floor(Number(width));
+  const safeHeight = Math.floor(Number(height));
+  if (!(data instanceof Uint8ClampedArray) || !(scratch instanceof Uint8ClampedArray) || safeWidth < 3 || safeHeight < 3 || scratch.length !== data.length || data.length < safeWidth * safeHeight * 4) return data;
+  const strength = Math.min(.28, Math.max(0, Number.isFinite(amount) ? amount : 0));
+  if (strength <= 0) return data;
+  scratch.set(data);
+  const stride = safeWidth * 4;
+  for (let y = 1; y < safeHeight - 1; y += 1) for (let x = 1; x < safeWidth - 1; x += 1) {
+    const index = (y * safeWidth + x) * 4;
+    const up = index - stride; const down = index + stride; const left = index - 4; const right = index + 4;
+    const centerLuma = scratch[index] * .299 + scratch[index + 1] * .587 + scratch[index + 2] * .114;
+    const neighborLuma = (scratch[up] * .299 + scratch[up + 1] * .587 + scratch[up + 2] * .114 + scratch[down] * .299 + scratch[down + 1] * .587 + scratch[down + 2] * .114 + scratch[left] * .299 + scratch[left + 1] * .587 + scratch[left + 2] * .114 + scratch[right] * .299 + scratch[right + 1] * .587 + scratch[right + 2] * .114) * .25;
+    const lift = (centerLuma - neighborLuma) * strength;
+    for (let channel = 0; channel < 3; channel += 1) {
+      const value = scratch[index + channel] + lift;
+      data[index + channel] = value <= 0 ? 0 : value >= 255 ? 255 : Math.round(value);
+    }
+  }
+  return data;
+}
 const juliaVertexShader = `attribute vec2 aPosition;
 varying vec2 vUv;
 void main() {
@@ -213,6 +234,8 @@ export function drawAdvanced(ctx, buffer, id, p, time, palette, low, level = 0, 
       image.data[i + 2] = blue * light * (1 + level * .4);
       image.data[i + 3] = 255;
     }
+    if (!(buffer.__juliaSharpnessScratch instanceof Uint8ClampedArray) || buffer.__juliaSharpnessScratch.length !== image.data.length) buffer.__juliaSharpnessScratch = new Uint8ClampedArray(image.data.length);
+    juliaEdgeEnhance(image.data, w, h, buffer.__juliaSharpnessScratch);
     off.putImageData(image, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(buffer, 0, 0, width, height); setJuliaRenderState(buffer, 'cpu', w, h, buffer.__juliaGpuFailure || 'WebGL unavailable'); return 'cpu';
   }
   ctx.save(); ctx.translate(width / 2, height / 2);

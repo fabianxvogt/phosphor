@@ -28,6 +28,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(advanced, /precision highp float/, 'Julia has a fragment-shader path');
   assert.match(advanced, /__juliaGpuDisabled/, 'Julia shader failure falls back instead of breaking the stage');
   assert.match(advanced, /function juliaRenderState\(/, 'Julia exposes the selected render path for rehearsal evidence');
+  assert.match(advanced, /export function juliaEdgeEnhance\(/, 'Julia exposes a bounded CPU edge-enhancement helper');
+  assert.match(advanced, /juliaEdgeEnhance\(image\.data, w, h, buffer\.__juliaSharpnessScratch\)/, 'Julia CPU fallback applies the bounded edge pass before enlargement');
   assert.match(advanced, /advancedRasterSize\(width, height, low, options\?\.focus === true\)/, 'Julia Focus can request a bounded higher-detail CPU fallback');
   assert.match(advanced, /juliaGpuSize\(width, height, low, options\?\.focus === true\)/, 'Julia Focus can request a bounded higher-resolution WebGL backing surface');
   assert.match(app, /beatResponseLevel\(scene\(\)\.id\), \{ focus: state\.focusMode \}\)/, 'Julia draw receives the live Focus detail option');
