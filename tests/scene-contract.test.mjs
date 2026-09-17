@@ -138,8 +138,14 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(cathedralRenderer, /const beatLoad = state\.demoOn \|\| state\.audioBandsReady/, 'Cathedrals detects active beat load for bounded quality scaling');
   assert.match(app, /function cathedralBeatRasterScale\(profile = outputProfile\(\)\) \{ return profile\?\.workScale >= 2 \? \.95 : 1; \}/, 'Cathedrals centralizes the bounded beat raster rule');
   assert.match(app, /const beatScale = beatLoad \? cathedralBeatRasterScale\(profile\) : 1/, 'Cathedrals keeps native Full/Low detail and a bounded HD active-beat raster');
+  assert.match(app, /function cathedralFocusRasterScale\(profile = outputProfile\(\)\) \{ return state\.focusMode && profile\?\.workScale === 1 \? 1\.5 : 1; \}/, 'Cathedrals reserves a sharper raster allowance for Full Focus');
+  assert.match(app, /const focusScale = beatLoad \? 1 : cathedralFocusRasterScale\(profile\)/, 'Cathedrals keeps the Focus raster allowance out of the beat-loaded path');
+  assert.match(app, /if \(state\.focusMode && profile\?\.workScale === 1\) return 36/, 'Cathedrals bounds the extra Focus raster with a lower idle march budget');
   assert.match(app, /if \(beatLoad\) return profile\?\.workScale < 1 \? 8 : 10/, 'Cathedrals caps beat-loaded ray steps after preserving the sharper raster');
   assert.match(app, /beat raster \$\{beatWidth\}×\$\{beatHeight\}/, 'Cathedrals exposes its beat-time backing size in the renderer readout');
+  assert.match(app, /function marchCathedral\([\s\S]*?cathedralMarchCoverage = 0/, 'Cathedrals resets partial-hit coverage for every ray');
+  assert.match(app, /fieldDistance < \.022/, 'Cathedrals detects a bounded near-surface band for smoother edges');
+  assert.match(cathedralRenderer, /const coverage = cathedralMarchHit \? 1 : clamp\(cathedralMarchCoverage, 0, 1\)/, 'Cathedrals blends near-surface coverage before enlargement');
   assert.doesNotMatch(cathedralRenderer, /rayMarchCorridor\(/, 'Cathedrals avoids per-pixel ray-march result objects');
   assert.doesNotMatch(cathedralRenderer, /const length = Math\.hypot\(nx, ny, dz\)/, 'Cathedrals does not renormalize each direction every frame');
   assert.doesNotMatch(core, /if \(swap\) \[px, py\] = \[py, px\];/, 'Ray marcher swaps folded coordinates without allocating arrays');
