@@ -121,6 +121,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="beatScope"[^>]*role="group"/, 'source dock includes an accessible per-family beat scope');
   assert.match(html, /id="audioHeadroomReadout"[^>]*>PEAK 0% · HEADROOM 100%/, 'source dock starts with explicit headroom');
   assert.match(html, /id="audioRunProgress"[^>]*max="1200"[^>]*value="0"/, 'source dock exposes the bounded sustained audio run target');
+  assert.match(html, /id="audioRunProgressReadout"[^>]*>20:00 LEFT/, 'source dock exposes the remaining sustained audio run time');
   assert.match(app, /progress\.setAttribute\('aria-valuetext'/, 'audio run progress exposes a human-readable elapsed target');
   assert.match(styles, /\.audio-run-progress \{/, 'audio run progress has a bounded source-dock presentation');
   assert.match(app, /data-label-cue/, 'editable cue names');

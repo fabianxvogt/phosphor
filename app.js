@@ -1319,16 +1319,27 @@ function syncAudioPeakSessionReadout(session = audioPeakSessionTelemetry()) {
   const aria = session.sampleCount ? `Audio headroom run ${duration}; maximum held peak ${Math.round(session.holdMax * 100)} percent; ${Math.round(session.headroom * 100)} percent headroom${session.capped ? '; sample cap reached' : ''}` : 'Audio headroom run is warming up; no active source samples yet';
   output.setAttribute('aria-label', aria);
   const progress = $('audioRunProgress');
+  const progressReadout = $('audioRunProgressReadout');
   if (progress) {
     const seconds = clamp(Number(session.durationSeconds) || 0, 0, rehearsalMinimumAudioSeconds);
     const roundedSeconds = Number(seconds.toFixed(2));
+    const remaining = Math.max(0, rehearsalMinimumAudioSeconds - seconds);
+    const complete = seconds >= rehearsalMinimumAudioSeconds;
+    const remainingLabelSeconds = remaining > 0 ? Math.max(1, Math.round(remaining)) : 0;
     progress.max = rehearsalMinimumAudioSeconds;
     progress.value = roundedSeconds;
     progress.setAttribute('aria-valuemin', '0');
     progress.setAttribute('aria-valuemax', String(rehearsalMinimumAudioSeconds));
     progress.setAttribute('aria-valuenow', String(roundedSeconds));
     progress.setAttribute('aria-valuetext', `${formatSetTime(seconds)} of ${formatSetTime(rehearsalMinimumAudioSeconds)}`);
-    progress.dataset.complete = String(seconds >= rehearsalMinimumAudioSeconds);
+    progress.dataset.complete = String(complete);
+    if (progressReadout) {
+      const nextText = complete ? 'AUDIO GATE COMPLETE' : `${formatSetTime(remainingLabelSeconds)} LEFT`;
+      const nextAria = complete ? 'Twenty-minute audio gate complete' : `${formatSetTime(remainingLabelSeconds)} remaining to complete the twenty-minute audio gate`;
+      if (progressReadout.textContent !== nextText) progressReadout.textContent = nextText;
+      if (progressReadout.dataset.ariaLabel !== nextAria) { progressReadout.setAttribute('aria-label', nextAria); progressReadout.dataset.ariaLabel = nextAria; }
+      progressReadout.dataset.complete = String(complete);
+    }
   }
   syncRehearsalReportAudioPeakSessionFreshness(session);
 }

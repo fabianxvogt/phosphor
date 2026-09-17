@@ -144,6 +144,8 @@ select { max-width:100%; background:#171522; border:1px solid #514b64; border-ra
 .audio-headroom-readout[data-level="hot"] { text-shadow:0 0 10px #ff9c6755; }
 .audio-session-readout { flex:0 1 auto; min-width:190px; color:var(--muted); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; font-variant-numeric:tabular-nums; }
 .audio-run-progress { flex:1 1 150px; min-width:150px; width:150px; height:8px; accent-color:var(--acid); }
+.audio-run-progress-readout { flex:0 1 auto; min-width:94px; color:var(--muted); font:10px 'DM Mono',monospace; letter-spacing:.06em; text-transform:uppercase; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.audio-run-progress-readout[data-complete="true"] { color:var(--acid); }
 .audio-outcome-status { flex:0 1 auto; min-width:110px; color:var(--muted); font:10px 'DM Mono',monospace; text-transform:uppercase; letter-spacing:.06em; }
 .music-help { flex:1 1 100%; font-size:12px; color:var(--muted); line-height:1.5; }
 .music-help a { color:#bab2ff; }

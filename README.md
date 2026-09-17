@@ -48,7 +48,7 @@ Music analysis stays on the device. Microphone and shared-tab audio are analysed
 
 ## Output and limits
 
-Saved rehearsal reports include the exact pass snapshot shown on the rehearsal card, so the 20-minute audio gate and 14/14 visual/timing evidence remain visible after export and report reload. The source dock also includes a bounded 20-minute progress meter tied to active-source duration; it resets when the source is stopped, keeping a restarted run from looking continuous.
+Saved rehearsal reports include the exact pass snapshot shown on the rehearsal card, so the 20-minute audio gate and 14/14 visual/timing evidence remain visible after export and report reload. The source dock also includes a bounded 20-minute progress meter and remaining-time label tied to active-source duration; both reset when the source is stopped, keeping a restarted run from looking continuous.
 Loading a report also surfaces that stored pass snapshot in the preflight card, with the same level color and gate wording; pre-snapshot reports stay explicitly labeled as legacy.
 The loaded pass and comparison lines name the same UTC capture time and optional setup label, and mark that historical line stale when the live instrument drifts.
 The adjacent comparison line groups live drift into setup, transport, audio, timing, visuals, evidence, pass, and authored-set buckets so a handoff can see the mismatch at a glance.
