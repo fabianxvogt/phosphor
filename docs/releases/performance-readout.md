@@ -8,6 +8,8 @@ Local Chrome smoke on `http://localhost:48101/` also confirmed the output dock k
 
 Focus mode repeats the renderer, rolling frame-time, and CSS display-scale readouts on the stage overlay, where the output dock is intentionally hidden, so a full-screen rehearsal still exposes whether Julia is using native WebGL or the bounded CPU fallback, whether the measured tail is within target, and whether the viewport is enlarging the render surface. Focus now caps every visual family to its native output width by default, so a 960×600 Canvas 2D scene is not silently stretched across a wall-sized viewport. Full-profile Focus WebGL reports the effective scale of its bounded 1440×900 backing surface; a CPU Julia fallback still constrains the Focus stage to at most twice its internal raster width and reports the effective CPU-raster scale, preventing either path from being silently enlarged across the screen. When a non-HD Julia frame is still being enlarged beyond that bounded fit, the overlay adds an `HD available` hint pointing back to the quality control instead of changing the profile automatically.
 
+The Focus diagnostics are now a separated, translucent card: scene identity remains visible at the top edge while renderer path, frame timing, display scale and the optional `Use HD` action wrap into a bounded two-column grid. This keeps long WebGL/CPU evidence readable at the 960×600 Focus fit and avoids text collisions over the artwork.
+
 The CPU fallback readout names a bounded cause when known (`WebGL unavailable`, shader initialization failure, or context loss). Preflight probes an actual usable WebGL context rather than only checking for a global constructor; it still does not compile the Julia shader or certify a device.
 
 ## Verification

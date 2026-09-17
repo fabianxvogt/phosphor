@@ -62,6 +62,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Local preflight timestamp so performers can tell whether the capability check is current.
 - Rolling per-scene draw-time median/p95 readout (with optional heap usage), scoped to the selected quality profile, makes the open performance-measurement gate visible during rehearsal.
 - The bounded set timing pass now has an expandable per-family detail list with catalog numbers, p95 values, and explicit `within target`/`over target`/`unmeasured` status for all fourteen visual families.
+- Focus diagnostics now sit in a separated, bounded card with a two-column layout, keeping renderer, timing, display-scale and `Use HD` controls readable without covering the scene title.
 - Renderer-path readout and bounded rehearsal-report evidence now name Julia's actual WebGL/CPU path and internal dimensions, so Focus-mode quality comparisons cannot confuse output-canvas size with render size.
 - Exported seeded frame plans preserve the measured p95 status and selected nominal target alongside their existing timing samples, so offline assets retain the same evidence context as the live readout.
 - Versioned, permission-free rehearsal report export preserves the current set/scene/profile, readiness, preflight matrix, audio-band state, and measured performance without saving media or credentials.

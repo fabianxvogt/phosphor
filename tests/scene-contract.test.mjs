@@ -35,6 +35,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /julia-quality-fit/, 'Focus constrains Julia stage width to the visible output cap');
   assert.match(app, /fractalQualityFit/, 'Focus constrains Fractal Flight stage width to its bounded backing');
   assert.match(styles, /\.focus-mode \.stage-wrap\.julia-quality-fit,\.focus-mode \.stage-wrap\.fractal-quality-fit \{ width:min\(100%,var\(--focus-fit-width,960px\),calc\(160dvh - 160px\)\)/, 'Focus stage uses a responsive bounded quality fit for Julia and Fractal Flight');
+  assert.match(styles, /\.focus-mode \.stage-overlay\.top-right \{ top:48px; display:grid; grid-template-columns:minmax\(0,1fr\) auto;/, 'Focus diagnostics use a separated bounded grid instead of colliding inline text');
+  assert.match(styles, /\.focus-mode \.stage-overlay\.top-right \.divider \{ display:none; \}/, 'Focus diagnostics hide decorative dividers inside the card');
   assert.match(styles, /\.focus-mode \.stage-wrap \{ width:min\(100%,var\(--focus-fit-width,960px\),calc\(160dvh - 160px\)\)/, 'Focus stage caps Canvas 2D families to their output width');
   assert.match(app, /function normalizeQuality\(value\)/, 'quality selection normalizes saved values');
   assert.match(app, /id === '1920x1200' \? 'native'/, 'HD output profile maps through report and frame-plan validation');
