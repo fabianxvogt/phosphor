@@ -143,6 +143,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Local dark-techno Demo beat now provides a bounded kick/clap/hat/ghost-percussion pattern, a visible 16-step pattern monitor, stable mute/unmute gain, and a shared beat envelope across all fourteen visual families; voice balance and sustained headroom remain open on a named device.
 - The round Start audio control now starts the local Demo beat when no source is active, preserves connected file, microphone, or tab audio, and names the Demo as a fallback after an empty/ended/failed native source; its pressed state and label make the current source explicit.
 - Demo kick now layers a dedicated low-end body and uses a conservative dynamics compressor when supported, keeping added weight inside a bounded bus level.
+- Open hats now add a short, quiet band-pass resonance beneath their airy tail, making the intentional accent readable on small speakers without extending the high-end wash.
 - Source dock now exposes bounded peak/hold headroom telemetry and rehearsal reports preserve the coarse values without storing media or claiming calibrated loudness.
 - Loaded rehearsal report comparisons now flag a changed peak/headroom envelope separately from source identity, keeping Demo tuning differences legible across passes.
 - Source dock now exposes complete `14/14 VISUALS BEAT-LINKED` coverage while a source is active, making the all-family response contract legible during rehearsal.
