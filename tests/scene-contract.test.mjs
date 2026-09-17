@@ -103,6 +103,12 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(acidRenderer, /const plan = acidRenderPlan\(\)/, 'Acid Mycelium uses the quality-aware raster plan');
   assert.match(acidRenderer, /const edge = Math\.abs\(field -/, 'Acid Mycelium preserves reaction edges during upsampling');
   assert.match(acidRenderer, /const top = b\.v\[y0 \* sourceWidth \+ x0\]/, 'Acid Mycelium bilinearly samples the simulation field');
+  const phaseRenderer = app.match(/function drawPhase\(\) \{[\s\S]*?\nfunction chooseEvolutionChild/)?.[0] || '';
+  assert.match(app, /function phaseRenderPlan\(profile = outputProfile\(\)\)/, 'Phase Transition Theatre derives a bounded quality-aware raster');
+  assert.match(phaseRenderer, /const plan = phaseRenderPlan\(\)/, 'Phase Transition Theatre uses the quality-aware raster plan');
+  assert.match(phaseRenderer, /const sample = \(field, x, y\) =>/, 'Phase Transition Theatre bilinearly samples both comparison fields');
+  assert.match(phaseRenderer, /x >= plan\.width \/ 2 \? b\.compare : b\.values/, 'Phase Transition Theatre keeps the comparison seam aligned to the output divider');
+  assert.match(phaseRenderer, /const edge = Math\.abs\(center -/, 'Phase Transition Theatre preserves threshold edges during upsampling');
   const tapestryRenderer = app.match(/function drawTapestry\(\) \{[\s\S]*?\nfunction drawCathedrals/)?.[0] || '';
   assert.match(tapestryRenderer, /ensureTapestryRasterCache\(width\)/, 'Causal Tapestry reuses its output-width raster cache');
   assert.match(tapestryRenderer, /tapestryColumnMap\[x\]/, 'Causal Tapestry uses a cached source-column lookup');

@@ -25,6 +25,7 @@ State: thirteen-family studio update remains the historical Site version 5 recor
 - Keep the audio run envelope visible during the same pass: verify the heavy kick has useful headroom, watch for hot/near-clip proportions, and save the report from the named setup before changing source or quality.
 - The first local Chrome A/B is recorded in [Julia quality A/B](docs/releases/quality-ab.md): Full is a `1.5×` Focus upscale while HD is a `0.7×` downscale and visibly sharper; the remaining gate is a sustained named-device rehearsal, not speculative shader tuning.
 - Acid Mycelium now uses a bounded quality-aware display raster (120×75 Low, 240×150 Full, 480×300 HD) with edge-preserving upsampling and a stable diffusion coefficient; validate the visible branch detail on the named reference device before tuning other authored rasters.
+- Phase Transition Theatre now uses a bounded quality-aware display raster (128×80 Low, 256×160 Full, 384×240 HD) with bilinear threshold-front sampling; validate its split comparison on the named reference device before tuning another authored raster.
 - Repair failures observed in rehearsal; prioritize expressive controls, discoverability, contrast, reliable transitions and state recovery.
 - Formative continuation gate: three performers observed, at least two independently reusing a saved set, one complete 20–30-minute performance, and no lost project state in the declared workflow. Separate fresh-user usability failures from lack of artistic interest; this small sample does not establish general reliability or market demand.
 - Review after six weeks using finished performances and repeat use. Continue, narrow or replace the focus based on evidence; the owner's sustained practice can independently justify an authored creative lane.
@@ -52,6 +53,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - The active Demo source status repeats the selected kick-weight percentage, keeping the live low-end setting visible while performers tune the groove.
 - Source stop now immediately refreshes the rehearsal pass summary alongside the reset audio run, keeping `NO AUDIO` and the cleared gate aligned in the handoff.
 - Acid Mycelium quality pass keeps the 120×75 simulation deterministic while doubling/quadrupling its display raster for Full/HD, damps the public diffusion ceiling's checkerboard mode, and records 44/44 source verification in [the release note](docs/releases/acid-quality.md).
+- Phase Transition Theatre quality pass keeps its 64×40 deterministic field and comparison divider while using bounded 2×/4×/6× display rasters, with evidence recorded in [the release note](docs/releases/phase-quality.md).
 
 - Fourteen registered scene families, including Julia orbit traps, a 4D tesseract/Hopf instrument, hyperbolic geodesics, and Fractal Flight.
 - Per-scene custom palettes and five color collections isolated from UI colors.

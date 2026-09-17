@@ -12,6 +12,7 @@
 - [Performance readout](releases/performance-readout.md): rolling per-scene frame-time, renderer-path evidence, and optional heap telemetry for rehearsal checks.
 - [Julia quality A/B](releases/quality-ab.md): empirical Full-versus-HD Focus comparison, visible scale evidence, and the remaining reference-device gate.
 - [Acid Mycelium quality](releases/acid-quality.md): bounded quality-aware display raster and edge-preserving upsampling evidence.
+- [Phase Transition Theatre quality](releases/phase-quality.md): bounded field raster and threshold-front interpolation evidence.
 - [Rehearsal report](releases/rehearsal-report.md): permission-free JSON snapshot of the cue plan, preflight (including the accepted WebM MIME detail), readiness, renderer path/dimensions, bounded recording and native audio-source outcomes plus the last eight source transitions, audio bands, measured performance, a bounded local device label and performer notes, and explicitly manual observed-device checks with an evidence status and latest-update time; saved reports can be loaded for read-only comparison of set, source/history, renderer, recording, performance, capability, transport, and observed outcomes, with the captured evidence count shown separately from the live checklist.
 - [Algorithm research](research/README.md): ranked creative directions and falsifiable first experiments, with literature links. Julia's WebGL/CPU split follows the documented CPU-versus-shader comparison path; the CPU fallback remains bounded and explicit.
 
