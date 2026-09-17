@@ -248,6 +248,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function syncPerformanceReadouts\(/, 'focus mode mirrors frame timing');
   assert.match(app, /function displayPixelRatio\(\)/, 'quality diagnostics read the physical display density');
   assert.match(app, /rasterWidth \* 1\.5 \/ pixelRatio/, 'Focus caps supersampled output against device pixel ratio');
+  assert.match(app, /effectivePixelRatio !== lastFocusFitPixelRatio\) syncFocusRenderFit\(\)/, 'paused Focus refreshes its fit when display density changes');
   assert.match(app, /function syncFocusScaleReadout\(/, 'focus mode reports CSS display scaling');
   assert.match(app, /function qualityABRendererText\(measurement\)/, 'quality A\/B readout names the actual renderer backing size');
   assert.match(app, /function qualityABRendererAria\(measurement\)/, 'quality A\/B accessibility text names backing-to-output compositing');

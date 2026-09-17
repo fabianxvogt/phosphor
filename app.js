@@ -241,6 +241,7 @@ let offlineFrameJob = null;
 let lastPerformanceReadoutPaint = -Infinity;
 let lastRehearsalPassReadoutPaint = -Infinity;
 let lastDisplayScaleSignature = '';
+let lastFocusFitPixelRatio = null;
 let metricsProfile = null;
 let lastPreflightReport = null;
 let lastPreflightAt = null;
@@ -419,6 +420,7 @@ function syncFocusRenderFit() {
   const fitWidth = `${Math.max(1, Math.round(fitCap))}px`;
   stageWrap.style.setProperty?.('--focus-fit-width', fitWidth);
   if (!stageWrap.style.setProperty) stageWrap.style['--focus-fit-width'] = fitWidth;
+  lastFocusFitPixelRatio = pixelRatio;
 }
 function syncFocusQualityAction(showHint = false) {
   const button = $('focusQualityButton');
@@ -450,6 +452,8 @@ function syncFocusScaleReadout() {
     return;
   }
   const pixelRatio = displayPixelRatio();
+  const effectivePixelRatio = Math.max(1, pixelRatio);
+  if (effectivePixelRatio !== lastFocusFitPixelRatio) syncFocusRenderFit();
   const densitySuffix = Math.abs(pixelRatio - 1) > .05 ? ` · DPR ${pixelRatio.toFixed(1)}×` : '';
   const scaleX = displayWidth * pixelRatio / canvas.width;
   const scaleY = displayHeight * pixelRatio / canvas.height;
