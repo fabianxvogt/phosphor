@@ -195,7 +195,7 @@ export function rayMarchCorridor(origin, direction, family = 0, recursion = 4, m
       px = Math.abs(((px + .5 * scale) % scale) - .5 * scale) - .16;
       py = Math.abs(((py + .5 * scale) % scale) - .5 * scale) - .16;
       const swap = safeFamily === 1 || (safeFamily === 3 && fold % 2 === 1);
-      if (swap) [px, py] = [py, px];
+      if (swap) { const nextPx = px; px = py; py = nextPx; }
     }
     const radial = Math.hypot(px, py);
     const corridor = safeFamily === 0 ? Math.max(Math.abs(px), Math.abs(py)) - .06 : safeFamily === 1 ? radial - .08 : safeFamily === 2 ? Math.abs(px) + Math.abs(py) - .095 : Math.max(Math.abs(px + py) * .7, Math.abs(px - py) * .7) - .07;

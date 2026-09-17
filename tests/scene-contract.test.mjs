@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
+const core = await readFile(new URL('../core.mjs', import.meta.url), 'utf8');
 const advanced = await readFile(new URL('../advanced.mjs', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
@@ -107,6 +108,17 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(interferenceRenderer, /interferenceRasterCache\[center - stride\]/, 'Interference samples neighbors from one composite field pass');
   assert.doesNotMatch(interferenceRenderer, /interferenceComposite\(nx - 1 \/ width/, 'Interference does not recompute horizontal neighbors per pixel');
   assert.doesNotMatch(interferenceRenderer, /mixColor\(/, 'Interference interpolates output channels without per-pixel color arrays');
+  const cathedralRenderer = app.match(/function drawCathedrals\(\) \{[\s\S]*?\nfunction stepAquarium/)?.[0] || '';
+  assert.match(app, /function ensureCathedralDirectionCache\(width, height\)/, 'Cathedrals keeps a bounded direction cache');
+  assert.match(cathedralRenderer, /ensureCathedralDirectionCache\(width, height\)/, 'Cathedrals reuses its direction cache across frames and profiles');
+  assert.match(cathedralRenderer, /cathedralDirectionCache\[directionIndex\]/, 'Cathedrals reads normalized directions from its cache');
+  assert.match(cathedralRenderer, /marchCathedral\(/, 'Cathedrals uses its allocation-free scalar marcher');
+  assert.match(cathedralRenderer, /const beatLoad = state\.demoOn \|\| state\.audioBandsReady/, 'Cathedrals detects active beat load for bounded quality scaling');
+  assert.match(cathedralRenderer, /const rasterScale = beatLoad \? \.7 : 1/, 'Cathedrals keeps full idle detail and a sharper bounded active-beat raster');
+  assert.match(cathedralRenderer, /const maxSteps = beatLoad \? \(profile\.workScale < 1 \? 10 : 12\)/, 'Cathedrals caps beat-loaded ray steps after preserving the sharper raster');
+  assert.doesNotMatch(cathedralRenderer, /rayMarchCorridor\(/, 'Cathedrals avoids per-pixel ray-march result objects');
+  assert.doesNotMatch(cathedralRenderer, /const length = Math\.hypot\(nx, ny, dz\)/, 'Cathedrals does not renormalize each direction every frame');
+  assert.doesNotMatch(core, /if \(swap\) \[px, py\] = \[py, px\];/, 'Ray marcher swaps folded coordinates without allocating arrays');
   assert.match(app, /function releaseOfflineJob\([\s\S]*scene\(\)\.kind === 'fractal' && state\.focusMode && !state\.renderingLost\) drawPreview\(\)/, 'Fractal Focus repaints at its quality backing after offline rendering restores the session');
   assert.match(app, /function scheduleDemoStep\(/, 'demo source schedules a bounded beat pattern');
   assert.match(app, /Dark techno demo beat · kick, clap, hats/, 'demo source names its techno voices');
