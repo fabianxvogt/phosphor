@@ -187,6 +187,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.deepEqual(api.rehearsalReport().qualityAB, qualityAB, 'quality A/B evidence carries into rehearsal reports');
   const juliaReportWithQualityAB = api.rehearsalReport();
   assert.match(document.getElementById('qualityABReadout').textContent, /^A\/B /, 'quality A/B readout summarizes both profiles');
+  assert.match(document.getElementById('qualityABReadout').textContent, /A\/B CPU 640×400→960×600/, 'quality A/B readout names the Focus CPU backing and output dimensions');
   assert.equal(stageWrap.classList.contains('julia-cpu-fit'), true, 'Focus constrains a CPU Julia fallback to a bounded display width');
   assert.equal(stageWrap.style['--julia-fit-width'], '960px', 'Focus caps CPU Julia at twice its internal raster width');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusScaleReadout();

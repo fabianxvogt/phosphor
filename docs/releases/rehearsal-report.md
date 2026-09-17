@@ -14,7 +14,7 @@ The loaded comparison also checks the captured transport state (live, paused, co
 
 Report validation now treats the output profile as a contract: the profile ID must be one of the known Full, Low, or HD profiles, and its width, height, and cadence must agree with the captured fields. This prevents a hand-edited report from labeling a soft or mismatched frame as HD.
 
-Julia's `Run Full / HD A/B` action is also recorded in the report when captured. The bounded `phosphor-quality-ab-v1` payload stores three preview timings per profile, the actual renderer path and dimensions, the CSS display scale, and target status; it stores no pixels, media, or fingerprint. Loading a report compares this evidence as `quality A/B` alongside renderer and performance, so a new device pass cannot be mistaken for the old one.
+Julia's `Run Full / HD A/B` action is also recorded in the report when captured. The bounded `phosphor-quality-ab-v1` payload stores three preview timings per profile, the actual renderer path and backing dimensions, the CSS display scale, and target status; its compact live summary shows backing-to-output compositing (for example, `CPU 640×400→960×600`) so Focus softness is not hidden behind the output canvas size. It stores no pixels, media, or fingerprint. Loading a report compares this evidence as `quality A/B` alongside renderer and performance, so a new device pass cannot be mistaken for the old one.
 
 ## Evidence
 
