@@ -361,8 +361,8 @@ function syncFocusRenderFit() {
   // output cap avoids stretching that composited surface a second time.
   const fitCap = activeRenderState.path === 'webgl' && fractalQualityFit ? Math.min(canvas.width, rasterWidth * 1.5) : activeRenderState.path === 'webgl' ? canvas.width : Math.min(canvas.width, rasterWidth * 2);
   const fitWidth = `${Math.max(1, Math.round(fitCap))}px`;
-  stageWrap.style.setProperty?.('--julia-fit-width', fitWidth);
-  if (!stageWrap.style.setProperty) stageWrap.style['--julia-fit-width'] = fitWidth;
+  stageWrap.style.setProperty?.('--focus-fit-width', fitWidth);
+  if (!stageWrap.style.setProperty) stageWrap.style['--focus-fit-width'] = fitWidth;
 }
 function syncFocusQualityAction(showHint = false) {
   const button = $('focusQualityButton');

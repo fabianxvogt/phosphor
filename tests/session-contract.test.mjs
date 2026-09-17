@@ -182,7 +182,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   api.setTestBeatPulse(0, 0);
   assert.equal(document.getElementById('sceneBeatReadout').textContent, 'SCENE ACID MYCELIUM · BEAT IDLE', 'selected-scene readout returns to idle after the pulse');
   const stageWrap = document.getElementById('stageWrap');
-  document.getElementById('focusButton').click(); api.switchScene(10, 0); api.drawPreview();
+  document.getElementById('focusButton').click(); assert.equal(stageWrap.style['--focus-fit-width'], '960px', 'Focus caps native Canvas 2D families to the output width'); api.switchScene(10, 0); api.drawPreview();
   assert.equal(document.getElementById('sceneBeatReadout').textContent, 'SCENE JULIA OBSERVATORY · BEAT IDLE', 'selected-scene readout follows scene changes');
   assert.equal(document.getElementById('qualityABButton').disabled, false, 'quality A/B unlocks for Julia');
   assert.equal(document.getElementById('focusQualityButton').hidden, false, 'Focus keeps the HD correction visible for non-HD Julia output');
@@ -202,7 +202,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(api.qualityABRecommendation({ full: { renderer: { width: 640, height: 400 }, display: { width: 960, height: 600, scale: 1 } }, hd: { renderer: { width: 640, height: 400 }, display: { width: 960, height: 600, scale: .5 } } }), ' · SAME BACKING DETAIL', 'quality A/B calls out unchanged CPU backing detail');
   assert.equal(stageWrap.classList.contains('julia-cpu-fit'), true, 'Focus constrains a CPU Julia fallback to a bounded display width');
   assert.equal(stageWrap.classList.contains('julia-quality-fit'), true, 'Focus constrains every Julia renderer to its bounded detail width');
-  assert.equal(stageWrap.style['--julia-fit-width'], '960px', 'Focus caps CPU Julia at twice its internal raster width');
+  assert.equal(stageWrap.style['--focus-fit-width'], '960px', 'Focus caps CPU Julia at twice its internal raster width');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusScaleReadout();
   assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 960×600 · 1.5× CPU raster upscale · HD available', 'Focus reports effective CPU raster scale for the sharper Full fallback');
   assert.equal(document.getElementById('focusScaleReadout').classList.contains('quality-warning'), true, 'Focus highlights the available HD correction');

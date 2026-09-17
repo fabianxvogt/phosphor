@@ -44,7 +44,7 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .focus-quality-button { pointer-events:auto; border:1px solid var(--acid); border-radius:4px; padding:3px 6px; background:#0b0d08dd; color:var(--acid); font:10px 'DM Mono',monospace; letter-spacing:.02em; }
 .focus-quality-button:hover,.focus-quality-button:focus-visible { background:var(--acid); color:#0d1008; }
 .focus-mode .focus-quality-button:not([hidden]) { display:inline-block; }
-.focus-mode .stage-wrap.julia-quality-fit,.focus-mode .stage-wrap.fractal-quality-fit { width:min(100%,var(--julia-fit-width,960px),calc(160dvh - 160px)); margin-left:auto; margin-right:auto; }
+.focus-mode .stage-wrap.julia-quality-fit,.focus-mode .stage-wrap.fractal-quality-fit { width:min(100%,var(--focus-fit-width,960px),calc(160dvh - 160px)); margin-left:auto; margin-right:auto; }
 .recording-status { flex:1 1 180px; min-width:160px; color:var(--muted); font:10px 'DM Mono',monospace; overflow-wrap:anywhere; }
 .cue-footer { flex-wrap:wrap; }
 .preflight-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
@@ -195,7 +195,7 @@ button:focus-visible,select:focus-visible,.file-button:focus-within { outline:2p
 .effect-note { margin:0; padding:0 14px 14px; color:var(--muted); font-size:12px; line-height:1.5; }
 .focus-mode .effects-panel { display:none; }
 .focus-mode .app-shell { display:block; }
-.focus-mode .stage-wrap { width:min(100%,calc(160dvh - 160px)); height:auto; aspect-ratio:8 / 5; margin:12px auto 0; }
+.focus-mode .stage-wrap { width:min(100%,var(--focus-fit-width,960px),calc(160dvh - 160px)); height:auto; aspect-ratio:8 / 5; margin:12px auto 0; }
 @media(min-width:981px) {
   .app-shell { grid-template-areas:'topbar topbar' 'stage workbench' 'palette workbench' 'effects workbench' 'dock dock' 'utility utility' 'footer footer'; }
   .effects-panel { grid-area:effects; margin-top:0; }.workbench { height:920px; }
