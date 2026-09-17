@@ -520,7 +520,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('qualityABReadout').textContent, /^Loaded A\/B /, 'loaded report surfaces saved quality A/B evidence');
   assert.match(document.getElementById('qualityABReadout').textContent, /(HD (HIGHER DETAIL|REDUCES UPSCALE)|FULL HIGHER DETAIL|SAME BACKING DETAIL)/, 'loaded report preserves actionable quality guidance');
   assert.match(document.getElementById('qualityABReadout')['aria-label'], /recommendation (hd higher detail|hd reduces upscale|full higher detail|same backing detail)/, 'loaded quality guidance is accessible');
+  assert.match(document.getElementById('rehearsalReportImportCompareReadout')['aria-label'], /quality A\/B recommendation: (hd higher detail|hd reduces upscale|full higher detail|same backing detail)/, 'loaded comparison accessibility summary carries the quality guidance');
   api.importRehearsalReport(rehearsalReport);
+  assert.doesNotMatch(document.getElementById('rehearsalReportImportCompareReadout')['aria-label'], /quality A\/B recommendation:/, 'comparison accessibility omits quality guidance when the loaded report has no A/B evidence');
   assert.deepEqual(api.validateRehearsalReport(juliaReportWithQualityAB).qualityAB, qualityAB, 'quality A/B evidence validates as part of a Julia report');
   assert.deepEqual(api.validateRehearsalReport(juliaReportWithQualityAB).beatResponse, beatResponse, 'beat wiring evidence validates as part of a rehearsal report');
   assert.throws(() => api.validateRehearsalReport({ ...juliaReportWithQualityAB, qualityAB: { ...qualityAB, full: { ...qualityAB.full, width: 320 } } }), /Quality A\/B measurement is malformed/, 'quality A/B rejects dishonest profile dimensions');
