@@ -458,7 +458,7 @@ function syncFocusQualityAction(showHint = false) {
   button.disabled = Boolean(offlineFrameJob);
   button.setAttribute('aria-label', 'Switch Julia output to HD 1920 by 1200');
 }
-function syncQualityBadgeHint(showHint = false) { const output = $('qualityBadge'); if (!output) return; const base = outputProfile().label; const text = showHint ? `${base} · HD AVAILABLE` : base; if (output.textContent !== text) output.textContent = text; output.setAttribute('aria-label', showHint ? `${base}; HD output is available for sharper Julia detail` : base); }
+function syncQualityBadgeHint(showHint = false) { const output = $('qualityBadge'); if (!output) return; const base = outputProfile().label; const text = showHint ? `${base} · HD AVAILABLE` : base; if (output.textContent !== text) output.textContent = text; output.classList.toggle('quality-warning', showHint); output.title = showHint ? 'HD output is available for sharper Julia detail' : ''; output.setAttribute('aria-label', showHint ? `${base}; HD output is available for sharper Julia detail` : base); }
 function syncPerformanceReadouts(text, ariaLabel) {
   for (const id of ['performanceReadout', 'focusPerformanceReadout']) {
     const output = $(id);

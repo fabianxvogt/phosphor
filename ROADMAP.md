@@ -165,6 +165,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Source dock now exposes a low-cost fourteen-family beat scope, keeping each mapped response visible during rehearsal without adding a second modulation path.
 - Source dock now exposes compact `BAR` and `NEXT` step/voice handoffs beside the live beat line, so a performer can align the looping Demo groove with cue-set bars without changing the pattern or adding another modulation path.
 - Focus mode now mirrors the active Demo beat step and voices in the stage overlay, keeping the performer-facing beat handoff visible when the source dock is hidden; external audio remains a response percentage and idle stays explicit.
+- The stage quality badge now highlights and explains `HD AVAILABLE` for enlarged non-HD Julia Focus renders, making the sharpness correction discoverable before opening the detailed diagnostics.
 - Source dock now calls out the selected scene's bounded beat response and highlights its family meter, making the visual currently on stage legible inside the all-family scope.
 - Beat coverage now validates every mapped parameter against its scene schema before reporting `14/14`, preventing a stale control rename from silently breaking a visual response.
 - Beat coverage also validates each mapped band and modulation amount, failing closed on malformed wiring while preserving the versioned report shape.

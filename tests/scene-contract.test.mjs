@@ -296,6 +296,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="focusQualityButton"[^>]*hidden[^>]*>Use HD</, 'focus mode exposes an explicit HD action');
   assert.match(html, /id="focusAudioButton"[^>]*hidden[^>]*>Start demo beat</, 'focus mode exposes a direct local beat action');
   assert.match(styles, /\.focus-scale-readout\.quality-warning\s*\{[^}]*color:var\(--acid\)/, 'quality warning is visually emphasized');
+  assert.match(styles, /\.stage-overlay #qualityBadge\.quality-warning\s*\{[^}]*color:var\(--acid\)/, 'stage quality badge highlights an available Julia correction');
   assert.match(styles, /\.stage-beat-readout \{ display:none;/, 'stage beat readout stays hidden outside Focus mode');
   assert.match(styles, /\.focus-mode \.stage-beat-readout \{ display:inline;/, 'stage beat readout is visible in Focus mode');
   assert.match(styles, /\.focus-mode \.stage-overlay\.top-right \.stage-beat-readout \{ grid-column:1 \/ -1;/, 'stage beat readout gets a dedicated Focus row');
@@ -309,6 +310,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function qualityABRecommendation\(probe\)/, 'quality A\/B readout gives an actionable profile recommendation');
   assert.match(app, /function qualityABDisplayIsStale\(probe\)/, 'quality A\/B evidence marks viewport or density changes stale');
   assert.match(app, /function syncFocusQualityAction\(/, 'focus mode synchronizes the HD action');
+  assert.match(app, /output\.classList\.toggle\('quality-warning', showHint\)/, 'stage quality badge synchronizes its correction highlight');
+  assert.match(app, /output\.title = showHint \? 'HD output is available for sharper Julia detail' : ''/, 'stage quality badge provides a concise correction hint');
   assert.match(app, /function syncFocusAudioAction\(/, 'focus mode synchronizes its local beat action');
   assert.match(app, /const stageOutput = \$\('stageBeatReadout'\)/, 'Focus stage mirrors the shared beat readout');
   assert.match(app, /stageOutput\.setAttribute\('aria-label', stageAria\)/, 'Focus stage beat readout keeps its accessibility label synchronized');

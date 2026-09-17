@@ -44,6 +44,7 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .focus-scale-readout { display:none; color:var(--muted); font:10px 'DM Mono',monospace; font-variant-numeric:tabular-nums; }
 .focus-mode .focus-scale-readout { display:inline; }
 .focus-scale-readout.quality-warning { color:var(--acid); }
+.stage-overlay #qualityBadge.quality-warning { color:var(--acid); }
 .stage-beat-readout { display:none; color:var(--muted); font:10px 'DM Mono',monospace; font-variant-numeric:tabular-nums; letter-spacing:.04em; }
 .focus-mode .stage-beat-readout { display:inline; }
 .focus-mode .stage-beat-readout[data-active="true"] { color:var(--acid); }
