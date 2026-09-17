@@ -1106,6 +1106,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('demoAudioButton').textContent, 'Stop beat', 'demo source names the beat while active');
   assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat/);
   assert.match(document.getElementById('beatReadout').textContent, /^BEAT 01\/16 · KICK\+SUB · 100%$/, 'beat readout names the first kick step and voices');
+  api.setTestBeatPulse(.3, 3);
+  assert.equal(document.getElementById('beatReadout').textContent, 'BEAT 04/16 · HAT+SUB+PERC · 30%', 'beat readout exposes the restrained ghost percussion step');
+  api.setTestBeatPulse(0, 0);
   assert.equal(document.getElementById('audioCoverageReadout').textContent, '14/14 VISUALS BEAT-LINKED', 'demo beat exposes complete visual coverage');
   const durationBeforeFrameGaps = api.audioPeakSessionTelemetry().durationSeconds;
   api.renderFrame(1000); api.renderFrame(2000);
