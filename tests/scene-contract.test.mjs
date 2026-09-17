@@ -291,10 +291,14 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="focusRendererReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'focus mode exposes renderer path');
   assert.match(html, /id="focusPerformanceReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'focus mode exposes frame timing');
   assert.match(html, /id="focusScaleReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'focus mode exposes display scale');
+  assert.match(html, /id="stageBeatReadout"[^>]*role="status"[^>]*aria-live="off"[^>]*>BEAT IDLE</, 'Focus stage exposes the current beat step when the dock is hidden');
   assert.match(html, /id="qualityBadge"[^>]*role="status"[^>]*aria-live="polite"/, 'stage quality badge announces sharpness guidance');
   assert.match(html, /id="focusQualityButton"[^>]*hidden[^>]*>Use HD</, 'focus mode exposes an explicit HD action');
   assert.match(html, /id="focusAudioButton"[^>]*hidden[^>]*>Start demo beat</, 'focus mode exposes a direct local beat action');
   assert.match(styles, /\.focus-scale-readout\.quality-warning\s*\{[^}]*color:var\(--acid\)/, 'quality warning is visually emphasized');
+  assert.match(styles, /\.stage-beat-readout \{ display:none;/, 'stage beat readout stays hidden outside Focus mode');
+  assert.match(styles, /\.focus-mode \.stage-beat-readout \{ display:inline;/, 'stage beat readout is visible in Focus mode');
+  assert.match(styles, /\.focus-mode \.stage-overlay\.top-right \.stage-beat-readout \{ grid-column:1 \/ -1;/, 'stage beat readout gets a dedicated Focus row');
   assert.match(app, /function syncPerformanceReadouts\(/, 'focus mode mirrors frame timing');
   assert.match(app, /function displayPixelRatio\(\)/, 'quality diagnostics read the physical display density');
   assert.match(app, /rasterWidth \* 1\.5 \/ pixelRatio/, 'Focus caps supersampled output against device pixel ratio');
@@ -306,6 +310,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function qualityABDisplayIsStale\(probe\)/, 'quality A\/B evidence marks viewport or density changes stale');
   assert.match(app, /function syncFocusQualityAction\(/, 'focus mode synchronizes the HD action');
   assert.match(app, /function syncFocusAudioAction\(/, 'focus mode synchronizes its local beat action');
+  assert.match(app, /const stageOutput = \$\('stageBeatReadout'\)/, 'Focus stage mirrors the shared beat readout');
+  assert.match(app, /stageOutput\.setAttribute\('aria-label', stageAria\)/, 'Focus stage beat readout keeps its accessibility label synchronized');
   assert.match(app, /const blocked = Boolean\(offlineFrameJob \|\| audio\.recorder \|\| audio\.recordingStream\)/, 'focus audio action reads offline and recording locks without side effects');
   assert.match(app, /focusAudioButton\?\.addEventListener\('click', startAudioPlayback\)/, 'focus audio action starts the existing local source flow');
   assert.match(app, /const ids = \['focusButton', 'focusAudioButton'/, 'offline render locks the Focus audio action');

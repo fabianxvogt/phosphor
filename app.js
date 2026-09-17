@@ -1746,18 +1746,24 @@ function syncBeatReadout() {
   if (!output) return;
   const barOutput = $('beatBarReadout');
   const nextOutput = $('beatNextReadout');
+  const stageOutput = $('stageBeatReadout');
   const pulse = Math.round(clamp(state.beatPulse, 0, 1) * 20) * 5;
   let next = 'BEAT IDLE';
+  let stageAria = 'Beat idle';
+  let stageActive = false;
   let barReadout = 'BAR —';
   let barActive = false;
   let nextStepReadout = 'NEXT —';
   let nextStepActive = false;
   if (state.demoOn) {
-    const step = darkTechnoStep(state.beatStep); const voices = beatStepVoices(step).map(({ readout }) => readout);
+    const step = darkTechnoStep(state.beatStep); const voiceDetails = beatStepVoices(step); const voices = voiceDetails.map(({ readout }) => readout);
+    const voiceLabels = voiceDetails.map(({ label }) => label).join(' and ') || 'rest';
     const bar = Math.max(0, Math.floor(Number(state.beatBar) || 0)) + 1;
     barReadout = `BAR ${String(bar).padStart(2, '0')}`;
     barActive = true;
     next = `BEAT ${String(state.beatStep + 1).padStart(2, '0')}/16 · ${voices.join('+') || 'REST'} · ${pulse}%`;
+    stageAria = `Current demo beat step ${String(state.beatStep + 1).padStart(2, '0')}/16: ${voiceLabels}; response ${pulse}%`;
+    stageActive = true;
     const nextStepIndex = (state.beatStep + 1) % DARK_TECHNO_PATTERN.length;
     const followingVoices = beatStepVoices(darkTechnoStep(nextStepIndex)).map(({ readout }) => readout);
     const wrapsBar = state.beatStep === DARK_TECHNO_PATTERN.length - 1;
@@ -1765,8 +1771,17 @@ function syncBeatReadout() {
       ? `NEXT BAR ${String(bar + 1).padStart(2, '0')} · ${String(nextStepIndex + 1).padStart(2, '0')}/16 · ${followingVoices.join('+') || 'REST'}`
       : `NEXT ${String(nextStepIndex + 1).padStart(2, '0')}/16 · ${followingVoices.join('+') || 'REST'}`;
     nextStepActive = true;
-  } else if (audioSourceKind() !== 'NO AUDIO' && pulse > 0) next = `BEAT RESPONSE · ${pulse}%`;
+  } else if (audioSourceKind() !== 'NO AUDIO' && pulse > 0) {
+    next = `BEAT RESPONSE · ${pulse}%`;
+    stageAria = `Beat response ${pulse}%`;
+    stageActive = true;
+  }
   if (output.textContent !== next) output.textContent = next;
+  if (stageOutput) {
+    if (stageOutput.textContent !== next) stageOutput.textContent = next;
+    stageOutput.dataset.active = String(stageActive);
+    stageOutput.setAttribute('aria-label', stageAria);
+  }
   if (barOutput) {
     if (barOutput.textContent !== barReadout) barOutput.textContent = barReadout;
     barOutput.dataset.active = String(barActive);
