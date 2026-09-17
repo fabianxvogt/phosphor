@@ -47,6 +47,10 @@ dialog { color:var(--ink); background:#171522; border:1px solid #4c4860; padding
 .focus-quality-button { pointer-events:auto; border:1px solid var(--acid); border-radius:4px; padding:3px 6px; background:#0b0d08dd; color:var(--acid); font:10px 'DM Mono',monospace; letter-spacing:.02em; }
 .focus-quality-button:hover,.focus-quality-button:focus-visible { background:var(--acid); color:#0d1008; }
 .focus-mode .focus-quality-button:not([hidden]) { display:inline-block; }
+.focus-audio-button { pointer-events:auto; border:1px solid var(--acid); border-radius:4px; padding:3px 6px; background:#0b0d08dd; color:var(--acid); font:10px 'DM Mono',monospace; letter-spacing:.02em; }
+.focus-audio-button:hover,.focus-audio-button:focus-visible { background:var(--acid); color:#0d1008; }
+.focus-mode .focus-audio-button:not([hidden]) { display:inline-block; }
+.focus-mode .stage-overlay.top-right .focus-audio-button { grid-column:1 / -1; justify-self:end; }
 .focus-mode .stage-wrap.julia-quality-fit,.focus-mode .stage-wrap.fractal-quality-fit { width:min(100%,var(--focus-fit-width,960px),calc(160dvh - 160px)); margin-left:auto; margin-right:auto; }
 .focus-mode .stage-overlay.top-right { top:48px; display:grid; grid-template-columns:minmax(0,1fr) auto; justify-items:end; gap:4px 8px; width:min(100%,720px); max-width:calc(100% - 24px); padding:6px 8px; border:1px solid #2a2839aa; border-radius:4px; background:#08070dcc; backdrop-filter:blur(6px); text-shadow:none; }
 .focus-mode .stage-overlay.top-right .divider { display:none; }

@@ -291,6 +291,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="focusScaleReadout"[^>]*role="status"[^>]*aria-live="polite"/, 'focus mode exposes display scale');
   assert.match(html, /id="qualityBadge"[^>]*role="status"[^>]*aria-live="polite"/, 'stage quality badge announces sharpness guidance');
   assert.match(html, /id="focusQualityButton"[^>]*hidden[^>]*>Use HD</, 'focus mode exposes an explicit HD action');
+  assert.match(html, /id="focusAudioButton"[^>]*hidden[^>]*>Start demo beat</, 'focus mode exposes a direct local beat action');
   assert.match(styles, /\.focus-scale-readout\.quality-warning\s*\{[^}]*color:var\(--acid\)/, 'quality warning is visually emphasized');
   assert.match(app, /function syncPerformanceReadouts\(/, 'focus mode mirrors frame timing');
   assert.match(app, /function displayPixelRatio\(\)/, 'quality diagnostics read the physical display density');
@@ -302,8 +303,13 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function qualityABRecommendation\(probe\)/, 'quality A\/B readout gives an actionable profile recommendation');
   assert.match(app, /function qualityABDisplayIsStale\(probe\)/, 'quality A\/B evidence marks viewport or density changes stale');
   assert.match(app, /function syncFocusQualityAction\(/, 'focus mode synchronizes the HD action');
+  assert.match(app, /function syncFocusAudioAction\(/, 'focus mode synchronizes its local beat action');
+  assert.match(app, /const blocked = Boolean\(offlineFrameJob \|\| audio\.recorder \|\| audio\.recordingStream\)/, 'focus audio action reads offline and recording locks without side effects');
+  assert.match(app, /focusAudioButton\?\.addEventListener\('click', startAudioPlayback\)/, 'focus audio action starts the existing local source flow');
+  assert.match(app, /const ids = \['focusButton', 'focusAudioButton'/, 'offline render locks the Focus audio action');
   assert.match(app, /setQuality\('native'\)/, 'focus HD action selects the native output profile');
   assert.match(styles, /\.focus-quality-button \{ pointer-events:auto;/, 'focus HD action remains clickable inside the pointer-transparent overlay');
+  assert.match(styles, /\.focus-audio-button \{ pointer-events:auto;/, 'focus audio action remains clickable inside the pointer-transparent overlay');
   assert.match(styles, /\.preflight-quality-ab\[data-level="stale"\]/, 'stale quality A\/B evidence gets a visible warning treatment');
   assert.match(app, /function currentRendererEvidence\(/, 'rehearsal reports capture the actual renderer path');
   assert.match(app, /function usableWebglContext\(/, 'preflight probes a usable WebGL context');
