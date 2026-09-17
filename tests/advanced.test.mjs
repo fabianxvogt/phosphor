@@ -106,6 +106,19 @@ test('Julia Focus CPU fallback uses the bounded higher-detail raster', () => {
   assert.deepEqual(allocation, { width: 720, height: 450 });
   assert.deepEqual(juliaRenderState(buffer), { path: 'cpu', width: 720, height: 450, reason: 'WebGL unavailable' });
 });
+test('Julia iteration detail changes the rendered fallback pixels', () => {
+  const render = detail => {
+    let pixels = null;
+    const off = { createImageData(width, height) { return { data: new Uint8ClampedArray(width * height * 4) }; }, putImageData(image) { pixels = image.data.slice(); } };
+    const ctx = { canvas: { width: 160, height: 100 }, fillRect() {}, drawImage() {} };
+    const buffer = { width: 0, height: 0, __juliaGpuDisabled: true, getContext() { return off; } };
+    drawAdvanced(ctx, buffer, 'julia', { ...advancedDefaults.julia, detail }, 0, { primary: '#d3ff2f', secondary: '#8a5cff', accent: '#ff3f9e' }, false);
+    return pixels;
+  };
+  const idle = render(64); const beat = render(71);
+  const changed = idle.reduce((count, value, index) => count + (value !== beat[index] ? 1 : 0), 0);
+  assert.ok(changed > 100, `iteration detail changes ${changed} rendered channels`);
+});
 test('Julia HD Focus CPU fallback allocates the explicit sharper backing', () => {
   let allocation = null;
   const off = { createImageData(width, height) { allocation = { width, height }; return { data: new Uint8ClampedArray(width * height * 4) }; }, putImageData() {} };
