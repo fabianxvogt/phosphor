@@ -253,6 +253,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function qualityABRendererText\(measurement\)/, 'quality A\/B readout names the actual renderer backing size');
   assert.match(app, /function qualityABRendererAria\(measurement\)/, 'quality A\/B accessibility text names backing-to-output compositing');
   assert.match(app, /function qualityABRecommendation\(probe\)/, 'quality A\/B readout gives an actionable profile recommendation');
+  assert.match(app, /function qualityABDisplayIsStale\(probe\)/, 'quality A\/B evidence marks viewport or density changes stale');
   assert.match(app, /function syncFocusQualityAction\(/, 'focus mode synchronizes the HD action');
   assert.match(app, /setQuality\('native'\)/, 'focus HD action selects the native output profile');
   assert.match(styles, /\.focus-quality-button \{ pointer-events:auto;/, 'focus HD action remains clickable inside the pointer-transparent overlay');

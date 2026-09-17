@@ -219,8 +219,10 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   document.getElementById('stage').rect = { left: 0, top: 0, width: 480, height: 300 }; api.syncFocusScaleReadout();
   assert.equal(stageWrap.style['--focus-fit-width'], '480px', 'Focus caps the CPU raster against a Retina display density');
   assert.equal(document.getElementById('focusScaleReadout').textContent, 'Display 480×300 · 1.3× CPU raster upscale · DPR 2.0× · HD available', 'Focus reports physical pixel density when the display is Retina');
+  assert.match(document.getElementById('qualityABReadout').textContent, /STALE$/, 'quality A/B warns when the live display density no longer matches the capture');
   delete globalThis.devicePixelRatio;
   document.getElementById('stage').rect = { left: 0, top: 0, width: 960, height: 600 }; api.syncFocusRenderFit(); api.syncFocusScaleReadout();
+  assert.doesNotMatch(document.getElementById('qualityABReadout').textContent, /STALE$/, 'quality A/B returns to fresh when the captured display density is restored');
   document.getElementById('stage').rect = { left: 0, top: 0, width: 480, height: 300 }; api.syncFocusScaleReadout(); document.getElementById('focusButton').click(); api.syncFocusScaleReadout();
   assert.equal(document.getElementById('focusQualityButton').hidden, true, 'leaving Focus hides the HD action at native preview scale even when the signature is cached');
   document.getElementById('focusButton').click(); api.syncFocusScaleReadout();
