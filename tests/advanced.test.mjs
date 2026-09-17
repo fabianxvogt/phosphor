@@ -52,6 +52,21 @@ test('Julia edge enhancement restores bounded local contrast without touching al
   assert.ok(data[center + 2] > before[center + 2]);
   assert.deepEqual([...data].filter((_, index) => index % 4 === 3), Array(width * height).fill(255));
 });
+test('Julia edge enhancement keeps beat lifts inside the bounded strength cap', () => {
+  const width = 5, height = 5;
+  const base = new Uint8ClampedArray(width * height * 4);
+  for (let index = 0; index < base.length; index += 4) { base[index] = 80; base[index + 1] = 80; base[index + 2] = 80; base[index + 3] = 255; }
+  const center = (2 * width + 2) * 4;
+  base[center] = 180; base[center + 1] = 120; base[center + 2] = 60;
+  const idle = base.slice(); const beat = base.slice();
+  juliaEdgeEnhance(idle, width, height, new Uint8ClampedArray(idle.length), .16);
+  juliaEdgeEnhance(beat, width, height, new Uint8ClampedArray(beat.length), .24);
+  assert.ok(beat[center] > idle[center]);
+  assert.ok(beat[center + 1] > idle[center + 1]);
+  assert.ok(beat[center + 2] > idle[center + 2]);
+  const capped = base.slice(); juliaEdgeEnhance(capped, width, height, new Uint8ClampedArray(capped.length), 9);
+  assert.ok(capped[center] <= 255 && capped[center + 1] <= 255 && capped[center + 2] <= 255);
+});
 test('Julia raster follows output size instead of stretching a tiny thumbnail', () => {
   assert.deepEqual(advancedRasterSize(960, 600, false), { width: 480, height: 300 });
   assert.deepEqual(advancedRasterSize(960, 600, false, true), { width: 720, height: 450 });

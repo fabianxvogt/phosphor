@@ -235,7 +235,7 @@ export function drawAdvanced(ctx, buffer, id, p, time, palette, low, level = 0, 
       image.data[i + 3] = 255;
     }
     if (!(buffer.__juliaSharpnessScratch instanceof Uint8ClampedArray) || buffer.__juliaSharpnessScratch.length !== image.data.length) buffer.__juliaSharpnessScratch = new Uint8ClampedArray(image.data.length);
-    juliaEdgeEnhance(image.data, w, h, buffer.__juliaSharpnessScratch);
+    juliaEdgeEnhance(image.data, w, h, buffer.__juliaSharpnessScratch, .16 + level * .08);
     off.putImageData(image, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(buffer, 0, 0, width, height); setJuliaRenderState(buffer, 'cpu', w, h, buffer.__juliaGpuFailure || 'WebGL unavailable'); return 'cpu';
   }
   ctx.save(); ctx.translate(width / 2, height / 2);
