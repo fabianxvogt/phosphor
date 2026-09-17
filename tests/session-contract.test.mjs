@@ -300,6 +300,8 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('performanceReadout').textContent, 'Frame timing warming up · 16.7ms target', 'scene changes clear prior-scene timing');
   api.applySession(baseline);
   const beforeSetTiming = api.renderRuntimeState();
+  const beforeSetTimingSession = structuredClone(api.sessionData());
+  const beforeSetTimingFlight = api.flightState();
   const beforeSetTimingAudio = api.audioState();
   const setTiming = api.runSetTimingProbe();
   assert.equal(setTiming.status, 'complete', 'set timing probe completes a bounded pass');
@@ -311,7 +313,11 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const afterSetTiming = api.renderRuntimeState();
   assert.equal(afterSetTiming.sceneIndex, beforeSetTiming.sceneIndex, 'set timing probe restores the active scene');
   assert.equal(afterSetTiming.paused, beforeSetTiming.paused, 'set timing probe restores pause state');
+  assert.deepEqual(api.sessionData(), beforeSetTimingSession, 'set timing probe leaves the authored session unchanged');
+  assert.deepEqual(api.flightState(), beforeSetTimingFlight, 'set timing probe leaves the camera state unchanged');
   assert.deepEqual(api.audioState(), beforeSetTimingAudio, 'set timing probe leaves the audio source and beat state untouched');
+  assert.equal(document.getElementById('setTimingButton').textContent, 'Measure 14 scenes', 'set timing probe restores the button label');
+  assert.equal(document.getElementById('setTimingButton').disabled, false, 'set timing probe re-enables the control after completion');
   window.__phosphorMetrics.reset();
   api.syncSetPerformanceReadout();
   assert.equal(baseline.name, 'Untitled set');

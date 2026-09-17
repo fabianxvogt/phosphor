@@ -680,7 +680,7 @@ function runSetTimingProbe() {
     state.renderingLost = original.renderingLost || state.renderingLost;
     state.transition = original.transition;
     state.gesture = original.gesture;
-    state.lastTime = original.lastTime;
+    state.lastTime = performance.now();
     flightPose = original.flightPose;
     flightCruise = original.flightCruise;
     flightBlocked = original.flightBlocked;
