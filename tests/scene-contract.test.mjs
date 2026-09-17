@@ -246,6 +246,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="focusQualityButton"[^>]*hidden[^>]*>Use HD</, 'focus mode exposes an explicit HD action');
   assert.match(styles, /\.focus-scale-readout\.quality-warning\s*\{[^}]*color:var\(--acid\)/, 'quality warning is visually emphasized');
   assert.match(app, /function syncPerformanceReadouts\(/, 'focus mode mirrors frame timing');
+  assert.match(app, /function displayPixelRatio\(\)/, 'quality diagnostics read the physical display density');
+  assert.match(app, /rasterWidth \* 1\.5 \/ pixelRatio/, 'Focus caps supersampled output against device pixel ratio');
   assert.match(app, /function syncFocusScaleReadout\(/, 'focus mode reports CSS display scaling');
   assert.match(app, /function qualityABRendererText\(measurement\)/, 'quality A\/B readout names the actual renderer backing size');
   assert.match(app, /function qualityABRendererAria\(measurement\)/, 'quality A\/B accessibility text names backing-to-output compositing');

@@ -288,6 +288,7 @@ function scene() { return sceneDefs[state.sceneIndex]; }
 function preset() { return scene().presets[state.presetIndex[state.sceneIndex]]; }
 function offlineJobActive(message = 'Offline frame render owns the instrument') { if (!offlineFrameJob) return false; showToast(message); return true; }
 function recordingBlocksSourceChange() { if (!audio.recorder && !audio.recordingStream) return false; showToast('Stop recording before changing audio source'); return true; }
+function displayPixelRatio() { const ratio = Number(globalThis.devicePixelRatio); return Number.isFinite(ratio) && ratio > 0 ? Math.min(8, Math.max(.1, ratio)) : 1; }
 function rehearsalEnvironment() { const nav = globalThis.navigator; const width = Number(globalThis.innerWidth) || Number(document.documentElement?.clientWidth) || canvas.width; const height = Number(globalThis.innerHeight) || Number(document.documentElement?.clientHeight) || canvas.height; return { userAgent: typeof nav?.userAgent === 'string' ? nav.userAgent.slice(0, 240) : null, language: typeof nav?.language === 'string' ? nav.language.slice(0, 32) : null, viewport: { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) }, devicePixelRatio: Number.isFinite(globalThis.devicePixelRatio) ? Math.max(.1, Math.min(8, Number(globalThis.devicePixelRatio))) : 1, hardwareConcurrency: Number.isInteger(nav?.hardwareConcurrency) ? Math.max(1, Math.min(256, nav.hardwareConcurrency)) : null, maxTouchPoints: Number.isInteger(nav?.maxTouchPoints) ? Math.max(0, Math.min(32, nav.maxTouchPoints)) : null }; }
 function audioSourceKind() { return audio.media ? 'FILE' : audio.micStream ? 'MIC' : audio.tabStream ? 'TAB AUDIO' : state.demoOn ? 'DEMO' : 'NO AUDIO'; }
 function recordAudioSourceEvent(source, status) { if (!audioSourceOutcomes.has(status)) return; const safeSource = rehearsalAudioSources.has(source) ? source : 'NO AUDIO'; const previous = audioSourceEvents.at(-1); if (previous?.source === safeSource && previous.status === status) return; audioSourceEvents.push({ source: safeSource, status }); if (audioSourceEvents.length > maxAudioSourceEvents) audioSourceEvents.shift(); }
@@ -413,7 +414,8 @@ function syncFocusRenderFit() {
   // Keep Focus from enlarging Julia or Fractal output past useful detail.
   // WebGL still renders a supersampled backing into this output canvas; the
   // output cap avoids stretching that composited surface a second time.
-  const fitCap = activeRenderState.path === 'webgl' && fractalQualityFit ? Math.min(canvas.width, rasterWidth * 1.5) : activeRenderState.path === 'webgl' ? canvas.width : Math.min(canvas.width, rasterWidth * 2);
+  const pixelRatio = Math.max(1, displayPixelRatio());
+  const fitCap = activeRenderState.path === 'webgl' && fractalQualityFit ? Math.min(canvas.width, rasterWidth * 1.5 / pixelRatio) : activeRenderState.path === 'webgl' ? Math.min(canvas.width, rasterWidth / pixelRatio) : Math.min(canvas.width, rasterWidth * 4 / 3 / pixelRatio);
   const fitWidth = `${Math.max(1, Math.round(fitCap))}px`;
   stageWrap.style.setProperty?.('--focus-fit-width', fitWidth);
   if (!stageWrap.style.setProperty) stageWrap.style['--focus-fit-width'] = fitWidth;
@@ -447,14 +449,16 @@ function syncFocusScaleReadout() {
     syncFocusQualityAction(false);
     return;
   }
-  const scaleX = displayWidth / canvas.width;
-  const scaleY = displayHeight / canvas.height;
+  const pixelRatio = displayPixelRatio();
+  const densitySuffix = Math.abs(pixelRatio - 1) > .05 ? ` · DPR ${pixelRatio.toFixed(1)}×` : '';
+  const scaleX = displayWidth * pixelRatio / canvas.width;
+  const scaleY = displayHeight * pixelRatio / canvas.height;
   const scale = Math.max(scaleX, scaleY);
-  const signature = `${Math.round(displayWidth)}×${Math.round(displayHeight)}·${scale.toFixed(3)}·${activeRenderState.path}·${activeRenderState.width ?? ''}·${activeRenderState.height ?? ''}`;
+  const signature = `${Math.round(displayWidth)}×${Math.round(displayHeight)}·${pixelRatio.toFixed(3)}·${scale.toFixed(3)}·${activeRenderState.path}·${activeRenderState.width ?? ''}·${activeRenderState.height ?? ''}`;
   if (signature === lastDisplayScaleSignature) {
     // Focus can toggle without changing the canvas rect. Keep the correction
     // affordance synchronized even when the scale readout itself is cached.
-    const rasterScale = activeRenderState.path === 'cpu' && Number.isInteger(activeRenderState.width) && activeRenderState.width > 0 ? displayWidth / activeRenderState.width : scale;
+    const rasterScale = activeRenderState.path === 'cpu' && Number.isInteger(activeRenderState.width) && activeRenderState.width > 0 ? displayWidth * pixelRatio / activeRenderState.width : scale;
     const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || rasterScale >= 1.5);
     output.classList.toggle('quality-warning', showHdHint);
     syncFocusQualityAction(showHdHint);
@@ -462,27 +466,27 @@ function syncFocusScaleReadout() {
   }
   lastDisplayScaleSignature = signature;
   if (activeRenderState.path === 'cpu' && Number.isInteger(activeRenderState.width) && activeRenderState.width > 0) {
-    const rasterScale = displayWidth / activeRenderState.width;
+    const rasterScale = displayWidth * pixelRatio / activeRenderState.width;
     const roundedRasterScale = rasterScale.toFixed(1);
     const mode = rasterScale > 1.05 ? 'CPU raster upscale' : rasterScale < .95 ? 'CPU raster downscale' : 'native CPU fit';
     const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || Number(roundedRasterScale) >= 1.5);
     const hdHint = showHdHint ? ' · HD available' : '';
     output.classList.toggle('quality-warning', showHdHint);
     syncFocusQualityAction(showHdHint);
-    output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedRasterScale}× ${mode}${hdHint}`;
-    output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels, ${roundedRasterScale} times the ${activeRenderState.width} by ${activeRenderState.height} CPU raster; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
+    output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedRasterScale}× ${mode}${densitySuffix}${hdHint}`;
+    output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels${densitySuffix ? ` at device pixel ratio ${pixelRatio.toFixed(1)}` : ''}, ${roundedRasterScale} times the ${activeRenderState.width} by ${activeRenderState.height} CPU raster; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
     return;
   }
   if (activeRenderState.path === 'webgl' && Number.isInteger(activeRenderState.width) && activeRenderState.width > 0 && Number.isInteger(activeRenderState.height) && activeRenderState.height > 0 && (activeRenderState.width !== canvas.width || activeRenderState.height !== canvas.height)) {
-    const backingScale = Math.max(displayWidth / activeRenderState.width, displayHeight / activeRenderState.height);
+    const backingScale = Math.max(displayWidth * pixelRatio / activeRenderState.width, displayHeight * pixelRatio / activeRenderState.height);
     const roundedBackingScale = backingScale.toFixed(1);
     const mode = backingScale > 1.05 ? 'WebGL backing upscale' : backingScale < .95 ? 'WebGL backing downscale' : 'native WebGL backing fit';
     const showHdHint = scene().id === 'julia' && outputProfile().id !== '1920x1200' && (state.focusMode || Number(roundedBackingScale) >= 1.5);
     const hdHint = showHdHint ? ' · HD available' : '';
     output.classList.toggle('quality-warning', showHdHint);
     syncFocusQualityAction(showHdHint);
-    output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedBackingScale}× ${mode}${hdHint}`;
-    output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels, ${roundedBackingScale} times the ${activeRenderState.width} by ${activeRenderState.height} WebGL backing surface; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
+    output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedBackingScale}× ${mode}${densitySuffix}${hdHint}`;
+    output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels${densitySuffix ? ` at device pixel ratio ${pixelRatio.toFixed(1)}` : ''}, ${roundedBackingScale} times the ${activeRenderState.width} by ${activeRenderState.height} WebGL backing surface; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
     return;
   }
   const roundedScale = scale.toFixed(1);
@@ -491,8 +495,8 @@ function syncFocusScaleReadout() {
   const hdHint = showHdHint ? ' · HD available' : '';
   output.classList.toggle('quality-warning', showHdHint);
   syncFocusQualityAction(showHdHint);
-  output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedScale}× ${mode}${hdHint}`;
-  output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels, ${roundedScale} times the ${canvas.width} by ${canvas.height} render surface; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
+  output.textContent = `Display ${Math.round(displayWidth)}×${Math.round(displayHeight)} · ${roundedScale}× ${mode}${densitySuffix}${hdHint}`;
+  output.setAttribute('aria-label', `Displayed at ${Math.round(displayWidth)} by ${Math.round(displayHeight)} CSS pixels${densitySuffix ? ` at device pixel ratio ${pixelRatio.toFixed(1)}` : ''}, ${roundedScale} times the ${canvas.width} by ${canvas.height} render surface; ${mode}${hdHint ? '; HD output is available from the quality control' : ''}`);
 }
 function compositeOutputFrame() { captureCanvas.width = canvas.width; captureCanvas.height = canvas.height; const outputCtx = captureCanvas.getContext('2d'); outputCtx.save(); outputCtx.globalAlpha = 1; outputCtx.globalCompositeOperation = 'source-over'; outputCtx.filter = brightnessFilter(); outputCtx.drawImage(canvas, 0, 0); outputCtx.restore(); return captureCanvas; }
 function fractalDescription() { return fractalError ? `${scene().description} 3D unavailable (${fractalError}). Choose another scene or retry after restoring WebGL.` : scene().description; }
