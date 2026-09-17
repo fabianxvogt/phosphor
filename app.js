@@ -6,6 +6,7 @@ import { createMandelboxFlythroughRenderer } from './mandelbox-flythrough.mjs';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('stage');
+const stageWrap = $('stageWrap');
 const ctx = canvas.getContext('2d', { alpha: false });
 const { advancedDefaults, advancedScenes, drawAdvanced } = advancedModule;
 const fallbackJuliaRenderState = (buffer) => {
@@ -1742,6 +1743,7 @@ function beatStepVoices(step) {
   return voices;
 }
 function syncBeatReadout() {
+  syncStageBeatPulse(state.beatPulse);
   const output = $('beatReadout');
   if (!output) return;
   const barOutput = $('beatBarReadout');
@@ -1949,11 +1951,36 @@ function visualBeatResponseSnapshot() {
     return { ...entry, response: Number(level.toFixed(3)), active: level > .05 };
   });
 }
+function syncStageBeatPulse(pulse = state.beatPulse, onset = 0) {
+  if (!stageWrap) return;
+  const safePulse = clamp(normalizedBeatValue(pulse), 0, 1);
+  const safeOnset = clamp(normalizedBeatValue(onset), 0, 1);
+  const intensity = state.reducedMotion ? 0 : clamp(safePulse * .2 + safeOnset * 1.35, 0, 1);
+  const pulseText = safePulse.toFixed(3);
+  const opacityText = intensity.toFixed(3);
+  const glowText = `${(safePulse * 34).toFixed(1)}px`;
+  if (stageWrap.dataset.beatPulse !== pulseText) {
+    stageWrap.style?.setProperty?.('--beat-pulse', pulseText);
+    stageWrap.dataset.beatPulse = pulseText;
+  }
+  if (stageWrap.dataset.beatVisualOpacity !== opacityText) {
+    stageWrap.style?.setProperty?.('--beat-visual-opacity', opacityText);
+    stageWrap.dataset.beatVisualOpacity = opacityText;
+  }
+  if (stageWrap.dataset.beatGlow !== glowText) {
+    stageWrap.style?.setProperty?.('--beat-glow-radius', glowText);
+    stageWrap.dataset.beatGlow = glowText;
+  }
+  const active = intensity > .025;
+  const activeText = String(active);
+  if (stageWrap.dataset.beatActive !== activeText) stageWrap.dataset.beatActive = activeText;
+}
 function applyBeatVisualPulse() {
   const pulse = clamp(state.beatPulse, 0, 1);
   if (pulse <= beatVisualRearmThreshold) beatVisualArmed = true;
   const onset = beatVisualArmed && pulse >= beatVisualTriggerThreshold ? clamp(pulse - previousBeatVisualPulse, 0, 1) : 0;
   previousBeatVisualPulse = pulse;
+  syncStageBeatPulse(pulse, onset);
   if (onset > .01) beatVisualArmed = false;
   if (state.reducedMotion || onset <= .01) return;
   const kickAccent = state.demoOn && state.beatStep % 4 === 0 ? .025 : 0;
@@ -2367,7 +2394,7 @@ function stagePixelStats() { const data = ctx.getImageData(0, 0, canvas.width, c
 function renderRuntimeState() { return { sceneIndex: state.sceneIndex, paused: state.paused, blackout: state.blackout, renderingLost: state.renderingLost, elapsed: state.elapsed, cadenceAccumulator: state.cadenceAccumulator, currentCue: state.currentCue, setPlaying: state.setPlaying, audioLevel: state.audioLevel, renderer: currentRendererEvidence(), phaseSeed: buffers.phase.seed, phaseValues: Array.from(buffers.phase.values), phaseCompare: Array.from(buffers.phase.compare), topologyPhase: buffers.topology.phase, topologyIntersections: buffers.topology.intersections }; }
 function setTestRenderFlags(flags = {}) { if (Object.hasOwn(flags, 'blackout')) state.blackout = Boolean(flags.blackout); if (Object.hasOwn(flags, 'renderingLost')) state.renderingLost = Boolean(flags.renderingLost); }
 
-window.__phosphorTest = { stepFlight, stopFlight, flightState: () => ({ pose: structuredClone(flightPose), cruise: flightCruise, blocked: flightBlocked, keys: [...flightKeys] }), sceneDefs, performanceScoreCues, PHOSPHOR_FAMILY_CATALOG, audioBandLevels, audioResponseLevel, darkTechnoStep, visualAudioCoverage, visualBeatResponseSnapshot, beatDrivenEffects, applyBeatVisualPulse, runBeatResponseCheck, sanitizeBeatResponseCheck, setCueLabel, setCueDuration, moveCue, previewCue, duplicateCue, clearRehearsalReportImport, stepElementary, reactionDiffusionStep, finiteArray, boundedFeedbackValue, lifecycleStressCheck, qualityProfile, cathedralShading, aquariumFoodStep, evolutionContour, runLifecycleProbe, runQualityABProbe, runSetTimingProbe, sanitizeQualityAB, sessionData, validateSession, applySession, switchScene, stepPhase, phaseMeasurement, startPhaseArc, stopPhaseArc, rehearsePhaseArcs, archivePhaseMeasurement, frameManifest, validateFrameManifest, importFrameManifest, frameDirectoryWriter, renderOfflineFrames, cancelOfflineRender, mutateEvolution, chooseEvolutionChild, promoteEvolution, inject, stepMagnetic, stopMagneticReplay, replayGestureSequence, magneticReplayState: () => ({ index: buffers.magnetic.replay.index, total: buffers.magnetic.replay.events.length, playing: buffers.magnetic.replay.playing }), evolutionRenderState: () => ({ phase: buffers.evolution.phase, siblings: Array.from(buffers.evolution.siblings) }), magneticRenderState: () => ({ phase: buffers.magnetic.phase, particles: Array.from(buffers.magnetic.particles), previous: Array.from(buffers.magnetic.previous), attractors: Array.from(buffers.magnetic.attractors) }), interferenceRenderState: () => ({ phase: buffers.interference.phase }), beatTelemetry, resetBeatTelemetry, recordBeatOnset: recordAudioBeatOnset, stagePixelStats, renderRuntimeState, restoreOfflineSnapshot, setTestRenderFlags, setTestElapsed: (value) => { state.elapsed = Math.max(0, Number(value) || 0); }, setTestAudioLevel: (value) => { state.audioLevel = Math.max(0, Number(value) || 0); }, setTestAudioPeak: (value, hold = value, record = false, elapsedSeconds = 0) => { state.audioPeak = clamp(Number(value) || 0, 0, 1); state.audioPeakHold = clamp(Number(hold) || 0, 0, 1); if (record) recordAudioPeakSample(state.audioPeak, state.audioPeakHold, elapsedSeconds); syncAudioHeadroomReadout(); }, recordAudioPeakSample, audioPeakSessionTelemetry, rehearsalPassSummary, setTestAudioBands: (value) => { state.audioBands = { low: clamp(Number(value?.low), 0, 1), mid: clamp(Number(value?.mid), 0, 1), high: clamp(Number(value?.high), 0, 1) }; state.audioBandsReady = true; }, setTestBeatPulse: (value, step = 0) => { const safeStep = normalizedBeatIndex(step); state.beatPulse = clamp(normalizedBeatValue(value), 0, 1); state.beatStep = ((safeStep % DARK_TECHNO_PATTERN.length) + DARK_TECHNO_PATTERN.length) % DARK_TECHNO_PATTERN.length; state.beatBar = Math.floor(Math.max(0, safeStep) / DARK_TECHNO_PATTERN.length); syncBeatReadout(); }, beatMappedParameterValue };
+window.__phosphorTest = { stepFlight, stopFlight, flightState: () => ({ pose: structuredClone(flightPose), cruise: flightCruise, blocked: flightBlocked, keys: [...flightKeys] }), sceneDefs, performanceScoreCues, PHOSPHOR_FAMILY_CATALOG, audioBandLevels, audioResponseLevel, darkTechnoStep, visualAudioCoverage, visualBeatResponseSnapshot, beatDrivenEffects, syncStageBeatPulse, applyBeatVisualPulse, runBeatResponseCheck, sanitizeBeatResponseCheck, setCueLabel, setCueDuration, moveCue, previewCue, duplicateCue, clearRehearsalReportImport, stepElementary, reactionDiffusionStep, finiteArray, boundedFeedbackValue, lifecycleStressCheck, qualityProfile, cathedralShading, aquariumFoodStep, evolutionContour, runLifecycleProbe, runQualityABProbe, runSetTimingProbe, sanitizeQualityAB, sessionData, validateSession, applySession, switchScene, stepPhase, phaseMeasurement, startPhaseArc, stopPhaseArc, rehearsePhaseArcs, archivePhaseMeasurement, frameManifest, validateFrameManifest, importFrameManifest, frameDirectoryWriter, renderOfflineFrames, cancelOfflineRender, mutateEvolution, chooseEvolutionChild, promoteEvolution, inject, stepMagnetic, stopMagneticReplay, replayGestureSequence, magneticReplayState: () => ({ index: buffers.magnetic.replay.index, total: buffers.magnetic.replay.events.length, playing: buffers.magnetic.replay.playing }), evolutionRenderState: () => ({ phase: buffers.evolution.phase, siblings: Array.from(buffers.evolution.siblings) }), magneticRenderState: () => ({ phase: buffers.magnetic.phase, particles: Array.from(buffers.magnetic.particles), previous: Array.from(buffers.magnetic.previous), attractors: Array.from(buffers.magnetic.attractors) }), interferenceRenderState: () => ({ phase: buffers.interference.phase }), beatTelemetry, resetBeatTelemetry, recordBeatOnset: recordAudioBeatOnset, stagePixelStats, renderRuntimeState, restoreOfflineSnapshot, setTestRenderFlags, setTestElapsed: (value) => { state.elapsed = Math.max(0, Number(value) || 0); }, setTestAudioLevel: (value) => { state.audioLevel = Math.max(0, Number(value) || 0); }, setTestAudioPeak: (value, hold = value, record = false, elapsedSeconds = 0) => { state.audioPeak = clamp(Number(value) || 0, 0, 1); state.audioPeakHold = clamp(Number(hold) || 0, 0, 1); if (record) recordAudioPeakSample(state.audioPeak, state.audioPeakHold, elapsedSeconds); syncAudioHeadroomReadout(); }, recordAudioPeakSample, audioPeakSessionTelemetry, rehearsalPassSummary, setTestAudioBands: (value) => { state.audioBands = { low: clamp(Number(value?.low), 0, 1), mid: clamp(Number(value?.mid), 0, 1), high: clamp(Number(value?.high), 0, 1) }; state.audioBandsReady = true; }, setTestBeatPulse: (value, step = 0) => { const safeStep = normalizedBeatIndex(step); state.beatPulse = clamp(normalizedBeatValue(value), 0, 1); state.beatStep = ((safeStep % DARK_TECHNO_PATTERN.length) + DARK_TECHNO_PATTERN.length) % DARK_TECHNO_PATTERN.length; state.beatBar = Math.floor(Math.max(0, safeStep) / DARK_TECHNO_PATTERN.length); syncBeatReadout(); }, beatMappedParameterValue };
 Object.assign(window.__phosphorTest, { drawPreview, stepAcid, resetAcid, acidRenderPlan, phaseRenderPlan, cathedralRenderPlan, cathedralMaxSteps, acidRenderState: () => ({ u: Array.from(buffers.acid.u), v: Array.from(buffers.acid.v) }), pendingFramePlan: () => pendingFrameManifest, toggleRecord, finishRecording, syncRecordingReadout, updatePerformanceReadout, syncSetPerformanceReadout, syncSetPerformanceDetail, performanceSetSummary: () => metrics.setSummary(), syncFocusScaleReadout, syncFocusRenderFit, rehearsalReport, exportRehearsalReport, validateRehearsalReport, compareRehearsalReports, importRehearsalReport, readRehearsalReportFile, rehearsalReportImport: () => structuredClone(importedRehearsalReport), restoreRehearsalReportCache: restoreRehearsalReportCacheWithQuality, resetObservedChecks, recordingState: () => ({ recorder: audio.recorder, chunks: audio.chunks.length, stream: audio.recordingStream, startedAt: audio.recordingStartedAt }), stepAndDraw, updateAudioLevel, stopAudioSource, toggleDemo, loadLocalAudio, toggleMic, connectTabAudio, preflightReport, runPreflight, assetStem, exportFilename, audioState: () => ({ request: audioRequest, hasSource: Boolean(audio.source), hasDemo: state.demoOn, demoStep: audio.demoStep, demoBar: audio.demoBar, demoKickWeight, hasDemoCompressor: Boolean(audio.demoCompressor), hasMic: Boolean(audio.micStream), hasTab: Boolean(audio.tabStream), sourceOutcome: audioSourceOutcome, sourceHistory: structuredClone(audioSourceEvents), outputGain: audio.gain?.gain.value, bands: structuredClone(state.audioBands), bandsReady: state.audioBandsReady, peak: audioPeakTelemetry(), peakSession: audioPeakSessionTelemetry(), beatPulse: state.beatPulse, beat: beatTelemetry() }) });
 window.__phosphorTest.renderOfflineFrames = renderOfflineFramesWithNamedAssets;
 window.__phosphorTest.demoStepPulse = demoStepPulse;

@@ -166,6 +166,9 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /createDynamicsCompressor\?\.\(\)/, 'demo bus uses a bounded compressor when supported');
   assert.match(app, /compressor\.threshold\.value = -18/, 'demo compressor keeps a concrete headroom threshold');
   assert.match(app, /function applyBeatVisualPulse\(/, 'beat pulse reaches every rendered canvas');
+  assert.match(app, /function syncStageBeatPulse\(/, 'beat pulse also reaches the stage shell');
+  assert.match(app, /--beat-visual-opacity/, 'stage shell exposes a bounded beat halo opacity');
+  assert.match(app, /syncStageBeatPulse\(state\.beatPulse\)/, 'stage halo fades with the shared pulse while paused');
   assert.match(app, /const onset = beatVisualArmed && pulse >= beatVisualTriggerThreshold/, 'stage accent follows a hysteresis-gated beat onset rather than sustained energy');
   assert.match(app, /state\.reducedMotion \|\| onset <= \.01/, 'stage accent respects reduced motion and an onset threshold');
   assert.match(app, /state\.demoOn && state\.beatStep % 4 === 0/, 'kick accent is limited to the Demo pattern');
@@ -208,6 +211,8 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(html, /id="audioRunProgressReadout"[^>]*>20:00 LEFT/, 'source dock exposes the remaining sustained audio run time');
   assert.match(app, /progress\.setAttribute\('aria-valuetext'/, 'audio run progress exposes a human-readable elapsed target');
   assert.match(styles, /\.audio-run-progress \{/, 'audio run progress has a bounded source-dock presentation');
+  assert.match(styles, /\.stage-wrap::before \{[^}]*opacity:var\(--beat-visual-opacity,0\)/, 'stage shell renders a bounded beat halo');
+  assert.match(styles, /box-shadow:inset 0 0 calc\(18px \+ var\(--beat-glow-radius,0px\)\)/, 'stage halo glow radius follows a CSS length token');
   assert.match(app, /data-label-cue/, 'editable cue names');
   assert.match(app, /data-duration-cue/, 'editable cue timing');
   assert.match(app, /data-move-cue/, 'adjacent cue reordering');

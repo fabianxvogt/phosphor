@@ -82,6 +82,7 @@ Parked options; reopen only when they improve the selected performance workflow:
 - Desktop workspace grid now keeps the beat-response row explicit, preventing implicit zero-width tracks from compressing the source/output dock during a live beat pass.
 - Focus quality fitting now accounts for device-pixel ratio, so Retina displays no longer enlarge a bounded Julia backing while the diagnostic incorrectly reports a downscale.
 - Focus quality-fit stages now preserve the 16:10 render aspect ratio while width is capped, removing non-uniform stretching from large displays and following available width on narrow screens.
+- Stage-wide beat halo now mirrors the bounded onset/pulse envelope around every visual family, including Focus, so a quiet scene-specific response remains legible without changing authored effects or render budgets.
 - Focus diagnostics now sit in a separated, bounded card with a two-column layout, keeping renderer, timing, display-scale and `Use HD` controls readable without covering the scene title.
 - Renderer-path readout and bounded rehearsal-report evidence now name Julia's actual WebGL/CPU path and internal dimensions, so Focus-mode quality comparisons cannot confuse output-canvas size with render size.
 - Exported seeded frame plans preserve the measured p95 status and selected nominal target alongside their existing timing samples, so offline assets retain the same evidence context as the live readout.

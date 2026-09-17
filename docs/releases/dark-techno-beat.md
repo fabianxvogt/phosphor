@@ -61,6 +61,8 @@ That guard also bounds the mapped band and modulation amount (`low`/`mid`/`high`
 
 Every active hit now adds a restrained perimeter accent to the rendered stage alongside the existing shared wash. The cue is clamped and disappears at idle, making the beat legible across all families without overpowering the authored image.
 
+Stage-wide halo follow-up — **2026-09-17**: the shared pulse now also drives a bounded CSS halo around the stage shell. A rising onset briefly brightens the perimeter, while the decaying pulse controls a small glow radius; the same shell cue therefore remains visible for every visual family and in Focus, even when a scene's internal modulation is too subtle to read at a glance. The halo is display-only, uses change-only style updates, and is suppressed with Reduced motion or after the pulse returns to idle. It does not alter the saved effect stack or render budgets.
+
 The perimeter cue now keys from a hysteresis-gated rising beat onset rather than a sustained high envelope, so loud external audio does not hold a continuous frame flash; the extra kick accent is limited to the Demo pattern. Reduced motion suppresses both the perimeter cue and the shared transient effect lift while leaving the existing scene-specific mapping available, and the selected-scene status avoids repeating live-region announcements during a steady pulse.
 
 The output dock now keeps a bounded set-level performance summary alongside the selected-scene timing. It counts distinct visual families with retained samples, uses the worst measured scene p95 as the set-level tail, and names the slowest family. Until all fourteen families have samples, the readout says how many remain unmeasured; it is a rehearsal aid, not device certification.
