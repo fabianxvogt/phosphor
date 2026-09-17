@@ -1149,6 +1149,7 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   kickWeightInput.value = '1.4'; kickWeightInput.dispatchEvent({ type: 'input' });
   assert.equal(api.audioState().demoKickWeight, 1.4, 'kick weight control updates the local demo voice');
   assert.equal(document.getElementById('demoKickWeightOutput').textContent, '140%', 'kick weight readout follows the selected value');
+  assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat · kick 140% · clap, hats, perc/, 'active demo status names the selected kick weight');
   assert.equal(api.sessionData().options.demoKickWeight, 1.4, 'kick weight changes travel with portable sets');
   kickWeightInput.value = '99'; kickWeightInput.dispatchEvent({ type: 'input' });
   assert.equal(api.audioState().demoKickWeight, 1.5, 'kick weight input clamps to its upper bound');

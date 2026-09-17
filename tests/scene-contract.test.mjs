@@ -127,7 +127,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function releaseOfflineJob\([\s\S]*scene\(\)\.kind === 'fractal' && state\.focusMode && !state\.renderingLost\) drawPreview\(\)/, 'Fractal Focus repaints at its quality backing after offline rendering restores the session');
   assert.match(app, /function scheduleDemoStep\(/, 'demo source schedules a bounded beat pattern');
   assert.match(app, /function syncBeatPattern\(/, 'demo source exposes the complete 16-step pattern monitor');
-  assert.match(app, /Dark techno demo beat · kick, clap, hats/, 'demo source names its techno voices');
+  assert.match(app, /Dark techno demo beat · kick \$\{Math\.round\(demoKickWeight \* 100\)\}% · clap, hats, perc/, 'demo source names its techno voices and current kick weight');
   assert.match(app, /function playDemoPerc\(start, velocity\)/, 'demo beat includes a bounded ghost percussion voice');
   assert.match(app, /function playDemoKick\(start, velocity, weight = demoKickWeight\)[\s\S]*demoOscillator\(start, \.32/, 'demo kick has a dedicated low-end body');
   assert.match(app, /function playDemoKick\(start, velocity, weight = demoKickWeight\)/, 'demo kick accepts the bounded performer weight');
@@ -214,6 +214,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(app, /function normalizedBeatValue\(value = 0\)/, 'beat pulse values use a throwing-safe numeric guard');
   assert.match(app, /function rehearsalReportWithKickWeight\(\)/, 'rehearsal reports retain the selected Demo kick weight');
   assert.match(app, /function sanitizeRehearsalAudioWithKickWeight\(data\)/, 'rehearsal report audio validates the Demo kick weight');
+  assert.match(app, /function demoAudioStatusLabel\(\)/, 'active Demo status names the selected kick weight');
   assert.match(html, /id="demoKickWeightInput"[^>]*min="\.6"[^>]*max="1\.5"[^>]*value="1\.15"[^>]*title="Adjusts only the local Demo beat"/, 'source dock exposes the bounded Demo-only kick weight control');
   assert.match(app, /function audioSourceHistoryKinds\(/, 'source history derives distinct source paths seen or attempted');
   assert.match(app, /function syncAudioSourceHistoryReadout\(/, 'source switching history is surfaced');
