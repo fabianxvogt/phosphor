@@ -66,7 +66,7 @@ class FakeDocument {
 
 test('session repair validates transactionally, migrates legacy saves, and preserves cue/lineage snapshots', async () => {
   const document = new FakeDocument();
-  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'beatBarReadout', 'beatNextReadout', 'sceneBeatReadout', 'audioCoverageReadout', 'audioBeatTelemetryReadout', 'beatPattern', 'beatScope', 'audioHeadroomReadout', 'audioSessionReadout', 'audioRunProgress', 'audioRunProgressReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'setTimingButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'rehearsalPassReadout', 'rehearsalBeatReadout', 'rehearsalSourceHistoryReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportCompareReadout', 'rehearsalReportImportEvidenceReadout', 'rehearsalReportImportSourceHistoryReadout', 'rehearsalReportImportPassReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'audioSourceHistoryReadout', 'cueCurrentReadout', 'exportButton']) document.ensure(id);
+  for (const id of ['stage', 'stageWrap', 'sceneList', 'sceneControls', 'cueList', 'toast', 'presetStrip', 'qualityBadge', 'transitionBadge', 'focusRendererReadout', 'focusPerformanceReadout', 'focusScaleReadout', 'sceneKicker', 'scenePresetName', 'sceneDescription', 'controlHeading', 'tempoReadout', 'tempoOutput', 'dirtyState', 'saveReadout', 'cueCount', 'reducedMotionInput', 'brightnessInput', 'qualityInput', 'primaryColor', 'secondaryColor', 'accentColor', 'blackoutLabel', 'recordButton', 'recordingStatus', 'demoAudioButton', 'playSetButton', 'transportState', 'readinessReadout', 'modulationReadout', 'beatReadout', 'beatBarReadout', 'beatNextReadout', 'sceneBeatReadout', 'audioCoverageReadout', 'audioBeatTelemetryReadout', 'beatPattern', 'beatScope', 'audioHeadroomReadout', 'audioSessionReadout', 'audioRunProgress', 'audioRunProgressReadout', 'fpsReadout', 'performanceReadout', 'performanceSetReadout', 'rendererReadout', 'startAudioButton', 'pauseButton', 'muteButton', 'micButton', 'importInput', 'audioFileInput', 'helpDialog', 'helpButton', 'themeButton', 'randomButton', 'resetButton', 'addCueButton', 'setNameInput', 'rehearsalDeviceInput', 'rehearsalNotesInput', 'observedMicCheck', 'observedTabCheck', 'observedRecordingCheck', 'observedPngCheck', 'observedPerformanceCheck', 'observedChecksReadout', 'observedChecksTimestamp', 'observedChecksNext', 'clearObservedChecksButton', 'captureButton', 'frameExportButton', 'frameImportInput', 'rehearsalReportInput', 'clearRehearsalReportButton', 'frameCountInput', 'frameRenderButton', 'frameCancelButton', 'setTimingButton', 'frameProgress', 'saveButton', 'preflightButton', 'qualityABButton', 'qualityABReadout', 'beatResponseButton', 'beatResponseReadout', 'rehearsalPassReadout', 'rehearsalBeatReadout', 'rehearsalSourceHistoryReadout', 'preflightReadout', 'preflightTimestamp', 'preflightChecklist', 'rehearsalReportButton', 'rehearsalReportReadout', 'rehearsalReportImportReadout', 'rehearsalReportImportCompareReadout', 'rehearsalReportImportEvidenceReadout', 'rehearsalReportImportSourceHistoryReadout', 'rehearsalReportImportPassReadout', 'recordingMimeReadout', 'audioOutcomeReadout', 'audioSourceHistoryReadout', 'cueCurrentReadout', 'exportButton', 'demoKickWeightInput', 'demoKickWeightOutput']) document.ensure(id);
   document.ensure('performanceSetDetailReadout');
   const windowListeners = new Map();
   const fireWindow = (type, event) => { for (const callback of windowListeners.get(type) || []) callback(event); };
@@ -77,9 +77,13 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.equal(document.getElementById('demoAudioButton')['aria-pressed'], 'false', 'demo source starts inactive');
   assert.equal(document.getElementById('startAudioButton')['aria-pressed'], 'false', 'primary sound control starts inactive');
   assert.equal(document.getElementById('startAudioButton')['aria-label'], 'Start dark techno demo beat', 'primary sound control names the default beat');
+  assert.equal(document.getElementById('demoKickWeightInput').value, '1.15', 'demo kick weight starts at the heavier default');
+  assert.equal(document.getElementById('demoKickWeightOutput').textContent, '115%', 'demo kick weight readout names the default');
+  assert.equal(api.audioState().demoKickWeight, 1.15, 'audio state exposes the bounded demo kick weight');
+  assert.equal(api.sessionData().options.demoKickWeight, 1.15, 'portable sets carry the demo kick weight');
   assert.equal(document.getElementById('micButton')['aria-pressed'], 'false', 'microphone source starts inactive');
   assert.equal(document.getElementById('tabAudioButton')['aria-pressed'], 'false', 'tab source starts inactive');
-  assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus beatReadout beatBarReadout beatNextReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout audioSourceHistoryReadout', 'file source points to its status, beat bar, next beat step, beat response, coverage, headroom, run, onset telemetry, and source history');
+  assert.equal(document.getElementById('audioFileInput')['aria-describedby'], 'audioStatus beatReadout beatBarReadout beatNextReadout audioCoverageReadout audioHeadroomReadout audioSessionReadout audioBeatTelemetryReadout audioSourceHistoryReadout demoKickWeightOutput', 'file source points to its status, beat bar, next beat step, beat response, coverage, headroom, run, onset telemetry, source history, and kick weight');
   assert.equal(document.getElementById('beatReadout').textContent, 'BEAT IDLE', 'beat readout starts idle');
   assert.equal(document.getElementById('beatBarReadout').textContent, 'BAR —', 'beat bar readout starts idle');
   assert.equal(document.getElementById('beatNextReadout').textContent, 'NEXT —', 'next-step readout starts idle');
@@ -799,6 +803,9 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   const hostile = structuredClone(baseline); hostile.params.acid.growth = .63; hostile.evolution = { nodes: [null] };
   assert.throws(() => api.applySession(hostile), /Evolution lineage/);
   assert.deepEqual(api.sessionData(), baseline);
+  const hostileKickWeight = structuredClone(baseline); hostileKickWeight.options.demoKickWeight = 1.6;
+  assert.throws(() => api.applySession(hostileKickWeight), /Session kick weight is malformed/);
+  assert.deepEqual(api.sessionData(), baseline);
 
   const hostilePhase = structuredClone(baseline); hostilePhase.phaseEvents = [{ type: 'start', arc: 9, progress: 0, time: 0, tempo: 92 }];
   assert.throws(() => api.applySession(hostilePhase), /Phase event history/);
@@ -1125,6 +1132,19 @@ test('session repair validates transactionally, migrates legacy saves, and prese
   assert.match(document.getElementById('rehearsalBeatReadout').textContent, /^BEAT TELEMETRY · 1 HIT · LAST \d{2}:\d{2}:\d{2}Z · DEMO · diagnostic only$/, 'rehearsal card mirrors the first onset and source');
   assert.equal(api.audioState().beat.lastOnsetSource, 'DEMO', 'onset telemetry identifies the demo source');
   assert.equal(document.getElementById('demoAudioButton').textContent, 'Stop beat', 'demo source names the beat while active');
+  const kickWeightInput = document.getElementById('demoKickWeightInput');
+  kickWeightInput.value = '1.4'; kickWeightInput.dispatchEvent({ type: 'input' });
+  assert.equal(api.audioState().demoKickWeight, 1.4, 'kick weight control updates the local demo voice');
+  assert.equal(document.getElementById('demoKickWeightOutput').textContent, '140%', 'kick weight readout follows the selected value');
+  assert.equal(api.sessionData().options.demoKickWeight, 1.4, 'kick weight changes travel with portable sets');
+  kickWeightInput.value = '99'; kickWeightInput.dispatchEvent({ type: 'input' });
+  assert.equal(api.audioState().demoKickWeight, 1.5, 'kick weight input clamps to its upper bound');
+  api.applySession(baseline);
+  assert.equal(api.audioState().demoKickWeight, 1.15, 'baseline restore returns the default kick weight');
+  await api.toggleDemo();
+  if (api.renderRuntimeState().paused) document.getElementById('pauseButton').click();
+  await api.toggleDemo();
+  assert.equal(api.audioState().hasDemo, true, 'demo beat restarts after the kick-weight audition');
   assert.match(document.getElementById('audioStatus').textContent, /Dark techno demo beat/);
   assert.match(document.getElementById('beatReadout').textContent, /^BEAT 01\/16 · KICK\+SUB · 100%$/, 'beat readout names the first kick step and voices');
   assert.ok(api.demoStepPulse(api.darkTechnoStep(6)) > api.demoStepPulse(api.darkTechnoStep(2)), 'open-hat step carries a deliberate accent above a closed-hat step');
