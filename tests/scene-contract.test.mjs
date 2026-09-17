@@ -116,6 +116,7 @@ test('new family renderers keep fixed bounded resources in source', () => {
   assert.match(cathedralRenderer, /const beatLoad = state\.demoOn \|\| state\.audioBandsReady/, 'Cathedrals detects active beat load for bounded quality scaling');
   assert.match(cathedralRenderer, /const rasterScale = beatLoad \? \.7 : 1/, 'Cathedrals keeps full idle detail and a sharper bounded active-beat raster');
   assert.match(cathedralRenderer, /const maxSteps = beatLoad \? \(profile\.workScale < 1 \? 10 : 12\)/, 'Cathedrals caps beat-loaded ray steps after preserving the sharper raster');
+  assert.match(app, /beat raster \$\{beatWidth\}×\$\{beatHeight\}/, 'Cathedrals exposes its beat-time backing size in the renderer readout');
   assert.doesNotMatch(cathedralRenderer, /rayMarchCorridor\(/, 'Cathedrals avoids per-pixel ray-march result objects');
   assert.doesNotMatch(cathedralRenderer, /const length = Math\.hypot\(nx, ny, dz\)/, 'Cathedrals does not renormalize each direction every frame');
   assert.doesNotMatch(core, /if \(swap\) \[px, py\] = \[py, px\];/, 'Ray marcher swaps folded coordinates without allocating arrays');

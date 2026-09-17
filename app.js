@@ -376,6 +376,12 @@ function rendererReadoutText() {
   if (path === 'webgl') return `${name} · WebGL${width === canvas.width && height === canvas.height ? ' native' : ''} ${rendered}`;
   if (path === 'cpu') return `${name} · CPU fallback ${rendered} → ${canvas.width}×${canvas.height}${reason ? ` · ${reason}` : ''}`;
   if (path === 'unavailable') return `${name} · renderer unavailable`;
+  if (scene().kind === 'geometry' && (state.demoOn || state.audioBandsReady)) {
+    const profile = outputProfile();
+    const beatWidth = Math.max(1, Math.round(profile.cathedralWidth * .7));
+    const beatHeight = Math.max(1, Math.round(profile.cathedralHeight * .7));
+    return `${name} · ${rendered} · beat raster ${beatWidth}×${beatHeight}`;
+  }
   return `${name} · ${rendered}`;
 }
 function currentRendererEvidence() {
