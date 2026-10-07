@@ -46,6 +46,14 @@ Inspection and synchronized GPU measurement identified a bounded preparation con
 Focused engine review caught the export consumer capturing preparation as movie frames. The exporter now completes preparation with cancellable, yielded `advance(0, true)` calls before counted frame zero. Actual Phase export wrote 120 PNGs plus its manifest; the last frame decoded at 1280×720, GPU error was zero, and the first PNG's SHA-256 exactly matched a separately prepared reset renderer. The reviewer accepted the consumer correction. Native directory-picker UI remained bypassed with a real OPFS handle.
 
 
+## Public deployment
+
+The owner-requested rebuild is live at [GitHub Pages](https://fabianxvogt.github.io/phosphor/), from source `3156858` on [`codex/performance-v2-rebuild`](https://github.com/fabianxvogt/phosphor/tree/codex/performance-v2-rebuild). [Release workflow](https://github.com/fabianxvogt/phosphor/actions/runs/37692022928) passed tests/build/distribution/upload/deploy. Its initial environment branch-policy rejection was corrected by authorizing only the candidate branch. The older ChatGPT Site and `codex/v1` source remain unchanged.
+
+Actual public-site verification: all ten families rendered with GPU error zero and no browser errors; offline reload loaded ten families from 21 cached URLs in revision `b704c71109ee6927`; the 390 px surface had no horizontal overflow and all four tabs were visible. Clean output received muted, playing 1280×720 video, entered fullscreen and hid its controls.
+
+A real 65.8-second public rapid-score run at 120 BPM, one-bar cues, original demo analysis and muted monitoring covered all ten families through normal animation callbacks: 3,923 rendered callbacks, final Balanced quality, frame median 16.7 ms and p95 16.8 ms, no sampled GPU errors, at most two slots/nine textures. These are actual callback timings, not synthetic `advance(1/60)` timings. This is a short hosted smoke, **not** a two-hour soak, a controlled performance comparison, or physical audio/MIDI/projector certification.
+
 ## Interrupted-transition refinement
 
 Actual Acid → Interference half-fade interrupted by Cathedral, 320×180, brightness .72, bloom .2 and kaleidoscope 3. Differences compare the displayed frame immediately before and after interruption.

@@ -1,15 +1,15 @@
 # Roadmap
 
-State: v2 performance rebuild implemented in this checkout; production candidate, not multi-hour live-show certified. Classification: `INCREMENTAL / EMPIRICAL`. This older standalone checkout is distinct from the separately documented public v6 deployment; this task has not replaced or redeployed that app.
+State: v2 performance rebuild publicly deployed at [GitHub Pages](https://fabianxvogt.github.io/phosphor/); production candidate, not multi-hour live-show certified. Classification: `INCREMENTAL / EMPIRICAL`. This older standalone checkout is distinct from the separately documented public v6 deployment; this task has not replaced or redeployed that app.
 
 ## Now
 
 - Rehearse the intended 2–4-hour score on the target laptop, physical MIDI/audio interface and projector. Record frame timing, quality reductions, memory/thermal behavior, output visibility, sleep behavior and recovery.
-- Repeat automated endurance with durable host-side telemetry: the attempted two-hour offline/demo/output run became unrecoverable through browser automation, so it is not a passed soak. A recovered 65-second rapid-score run covered all families without GPU errors but downgraded to Low and had a 358.4 ms sampled p95; smooth sustained presentation remains unproven.
-- Measure cue preparation and transitions on an uncontended target machine. Seed preparation is now callback-budgeted; the shared host became too contended to support a trustworthy latency before/after comparison.
+- Repeat automated endurance with durable host-side telemetry: the attempted two-hour offline/demo/output run became unrecoverable through browser automation, so it is not a passed soak. The final public 65.8-second music/score/output check passed at Balanced quality, median 16.7 ms / p95 16.8 ms; multi-hour smooth presentation remains unproven.
+- Measure cue preparation and transitions on the target machine. Seed preparation is callback-budgeted; the earlier shared-host timings do not support a controlled latency before/after comparison.
 - Verify native chooser/disk workflows and reopening a long recording; use OBS for archival shows.
 - Obtain performer/viewer acceptance for pacing, projection readability, sensitive-viewer suitability and cue ergonomics.
-- Reconcile this candidate with the existing public v6 source before promotion/deployment. Do not overwrite its additional scenes from this older checkout or claim this local rebuild is deployed.
+- Reconcile this candidate with the existing public v6 source before replacing that deployment. Preserve its additional scenes; the separately hosted rebuild is not a silent cutover.
 
 ## Next
 
@@ -35,3 +35,4 @@ State: v2 performance rebuild implemented in this checkout; production candidate
 - Real PNG capture, bounded disk/memory WebM recording with cloned audio ownership, immutable 120-PNG frame export in unique subdirectories and cancellation manifests.
 - Complete content-stamped offline distribution without mixing cache generations or force-activating an update during a show.
 - Actual desktop/narrow browser journeys, all-preset GPU checks, accelerated living-field trajectories, transport/source/export/recovery probes and independent focused integration review. Exact observed limits are retained in the evidence page.
+- Owner-requested public deployment through GitHub Pages on the isolated rebuild branch; hosted all-family GPU checks, offline reload, 390 px layout, muted fullscreen output and a real music-score run pass.
