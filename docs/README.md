@@ -48,11 +48,15 @@ Focused engine review caught the export consumer capturing preparation as movie 
 
 ## Public deployment
 
-The owner-requested rebuild is live at [GitHub Pages](https://fabianxvogt.github.io/phosphor/), from source `3156858` on [`codex/performance-v2-rebuild`](https://github.com/fabianxvogt/phosphor/tree/codex/performance-v2-rebuild). [Release workflow](https://github.com/fabianxvogt/phosphor/actions/runs/37692022928) passed tests/build/distribution/upload/deploy. Its initial environment branch-policy rejection was corrected by authorizing only the candidate branch. The older ChatGPT Site and `codex/v1` source remain unchanged.
+The owner-requested rebuild is live on [Vercel](https://phosphor-performance.vercel.app/), with a [GitHub Pages mirror](https://fabianxvogt.github.io/phosphor/), from [`codex/performance-v2-rebuild`](https://github.com/fabianxvogt/phosphor/tree/codex/performance-v2-rebuild). The Vercel production project is `fabianxvogts-projects/phosphor-performance`, deployed from the reviewed static `dist` directory without a server or Git integration. No paid plan was enabled. The [Pages release workflow](https://github.com/fabianxvogt/phosphor/actions/runs/37693181313) passed tests/build/distribution/upload/deploy using Node24 and supported actions. The older ChatGPT Site and `codex/v1` source remain unchanged.
 
 Actual public-site verification: all ten families rendered with GPU error zero and no browser errors; offline reload loaded ten families from 21 cached URLs in revision `b704c71109ee6927`; the 390 px surface had no horizontal overflow and all four tabs were visible. Clean output received muted, playing 1280×720 video, entered fullscreen and hid its controls.
 
 A real 65.8-second public rapid-score run at 120 BPM, one-bar cues, original demo analysis and muted monitoring covered all ten families through normal animation callbacks: 3,923 rendered callbacks, final Balanced quality, frame median 16.7 ms and p95 16.8 ms, no sampled GPU errors, at most two slots/nine textures. These are actual callback timings, not synthetic `advance(1/60)` timings. This is a short hosted smoke, **not** a two-hour soak, a controlled performance comparison, or physical audio/MIDI/projector certification.
+
+Vercel-specific checks passed against the unauthenticated production alias: all ten families rendered with GPU error zero and no browser errors, offline reload used 21 URLs in revision `b704c71109ee6927`, the 390 px surface had no horizontal overflow, and fullscreen output played muted 1280×720 video with its controls hidden. The 65.8-second timed run above was on the identical GitHub Pages build, not repeated on Vercel.
+
+For manual Vercel updates: `npm run build && npm run check:dist`, then `npx vercel link --yes --project phosphor-performance --scope fabianxvogts-projects --cwd dist` and `npx vercel deploy --prod --yes --scope fabianxvogts-projects --cwd dist`. Builds recreate `dist`, including the upload exclusion policy; re-link after rebuilding. Only deploy reviewed distribution assets. `.env*`, `.vercel`, other-provider metadata and the exclusion file itself are excluded; never publish CLI-generated environment tokens. Git connection is intentionally not required, avoiding an automatic deployment of the separate default-branch instrument.
 
 ## Interrupted-transition refinement
 

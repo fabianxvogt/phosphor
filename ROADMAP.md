@@ -1,6 +1,6 @@
 # Roadmap
 
-State: v2 performance rebuild publicly deployed at [GitHub Pages](https://fabianxvogt.github.io/phosphor/); production candidate, not multi-hour live-show certified. Classification: `INCREMENTAL / EMPIRICAL`. This older standalone checkout is distinct from the separately documented public v6 deployment; this task has not replaced or redeployed that app.
+State: v2 performance rebuild publicly deployed on [Vercel](https://phosphor-performance.vercel.app/) with a [GitHub Pages mirror](https://fabianxvogt.github.io/phosphor/); production candidate, not multi-hour live-show certified. Classification: `INCREMENTAL / EMPIRICAL`. This older standalone checkout is distinct from the separately documented public v6 deployment; this task has not replaced or redeployed that app.
 
 ## Now
 
@@ -36,3 +36,4 @@ State: v2 performance rebuild publicly deployed at [GitHub Pages](https://fabian
 - Complete content-stamped offline distribution without mixing cache generations or force-activating an update during a show.
 - Actual desktop/narrow browser journeys, all-preset GPU checks, accelerated living-field trajectories, transport/source/export/recovery probes and independent focused integration review. Exact observed limits are retained in the evidence page.
 - Owner-requested public deployment through GitHub Pages on the isolated rebuild branch; hosted all-family GPU checks, offline reload, 390 px layout, muted fullscreen output and a real music-score run pass.
+- Owner-requested Vercel production deployment of the same reviewed static build, with public access, all-family rendering, offline reload, responsive layout and clean fullscreen video output verified. Upload exclusions omit environment tokens and provider metadata.

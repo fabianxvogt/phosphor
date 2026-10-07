@@ -27,4 +27,5 @@ await cp(
   resolve(root, ".openai/hosting.json"),
   resolve(dist, ".openai/hosting.json"),
 );
+await cp(resolve(root, ".vercelignore"), resolve(dist, ".vercelignore"));
 console.log(`Built static site in ${dist}`);

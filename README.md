@@ -2,7 +2,7 @@
 
 A local browser instrument for performing ten procedural visual families. This checkout is the v2 performance rebuild: 62 authored looks, complete scene-cue sequencing, GPU simulation, local audio/MIDI, clean projector output, preset breeding, and portable sets.
 
-**Public rebuild:** [fabianxvogt.github.io/phosphor](https://fabianxvogt.github.io/phosphor/). Source: [`codex/performance-v2-rebuild`](https://github.com/fabianxvogt/phosphor/tree/codex/performance-v2-rebuild). The separately maintained 14-family ChatGPT Site is unchanged; this release does not remove its additional scenes.
+**Live on Vercel:** [phosphor-performance.vercel.app](https://phosphor-performance.vercel.app/). [GitHub Pages mirror](https://fabianxvogt.github.io/phosphor/). Source: [`codex/performance-v2-rebuild`](https://github.com/fabianxvogt/phosphor/tree/codex/performance-v2-rebuild). The separately maintained 14-family ChatGPT Site is unchanged; this release does not remove its additional scenes.
 
 **Release state: production candidate, not live-show certified.** Desktop Chromium is the reference runtime. See [verification and remaining gates](docs/README.md) before relying on it for a paid show. No cross-device deterministic replay, biological discovery, automatic BPM detection, or photosensitivity certification is claimed.
 
