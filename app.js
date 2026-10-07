@@ -1,128 +1,1797 @@
-import { boundedFeedbackValue, clamp, finiteArray, lifecycleStressCheck, PHOSPHOR_FAMILY_CATALOG, reactionDiffusionStep, seededRandom, stepElementary } from './core.mjs';
-
+import acid from "./scene-acid.mjs";
+import magnetic from "./scene-magnetic.mjs";
+import cathedral from "./scene-cathedral.mjs";
+import aquarium from "./scene-aquarium.mjs";
+import tapestry from "./scene-tapestry.mjs";
+import feedback from "./scene-feedback.mjs";
+import interference from "./scene-interference.mjs";
+import melt from "./scene-melt.mjs";
+import phase from "./scene-phase.mjs";
+import evolution from "./scene-evolution.mjs";
+import { Engine } from "./engine.mjs";
+import { AudioEngine, MidiInput } from "./audio.mjs";
+import {
+  initialSession,
+  validateSession,
+  presetSnapshot,
+  interpolateSnapshot,
+  migrateLegacy,
+  readSetFile,
+} from "./session.mjs";
+import {
+  createLineage,
+  breedLineage,
+  selectNode,
+  undoGeneration,
+} from "./evolution.mjs";
+const scenes = [
+  acid,
+  magnetic,
+  cathedral,
+  aquarium,
+  tapestry,
+  feedback,
+  interference,
+  melt,
+  phase,
+  evolution,
+];
 const $ = (id) => document.getElementById(id);
-const canvas = $('stage');
-const ctx = canvas.getContext('2d', { alpha: false });
-const sceneList = $('sceneList');
-const controls = $('sceneControls');
-const cueList = $('cueList');
-const toast = $('toast');
-
-const sceneDefs = [
-  { id: 'acid', number: '47', name: 'Acid Mycelium', tagline: 'Fluorescent reaction–diffusion structures that feel grown.', description: 'Slow branching veins with a luminous center.', kind: 'reaction', presets: [
-    ['Mycelial City', 'dense branching streets', 18], ['Vein Cathedral', 'arched membranes', 41], ['Lime Bloom', 'soft radial growth', 73], ['Night Orchard', 'quiet clustered spores', 101], ['Tidal Membrane', 'wide liquid folds', 149], ['Signal Understory', 'fine electric filaments', 211],
-  ], schema: [['growth', 'Growth', 0, 1, .01], ['injection', 'Injection', 0, 1, .01], ['diffusion', 'Diffusion', .2, 1.4, .01], ['contrast', 'Contrast', .5, 2, .01], ['drift', 'Drift', 0, 1, .01]] },
-  { id: 'tapestry', number: '51', name: 'Causal Tapestry', tagline: 'Cellular histories become woven curtains.', description: 'A reversible scroll through a living history buffer.', kind: 'automaton', presets: [
-    ['Nested Orchard', 'rule 90 · nested', 90], ['Periodic Loom', 'rule 54 · periodic', 54], ['Chaos Mantle', 'rule 30 · chaotic', 30], ['Quiet Weave', 'rule 184 · drifting', 184], ['Crown Pattern', 'rule 110 · complex', 110], ['Mirror Canal', 'rule 150 · braided', 150], ['Pulse Brocade', 'rule 22 · granular', 22], ['Night Relay', 'rule 126 · cellular', 126],
-  ], schema: [['rule', 'Rule', 0, 255, 1], ['scroll', 'Scroll', 0, 1, .01], ['weave', 'Weave', 0, 1, .01], ['reversal', 'History playback', 0, 1, .01], ['phrase', 'Phrase length', 2, 16, 1]] },
-  { id: 'feedback', number: '52', name: 'Feedback Chapel', tagline: 'Molten halos retain and dissolve traces of movement.', description: 'A mirrored tunnel that remembers the last gesture.', kind: 'feedback', presets: [
-    ['Molten Halo', 'soft circular persistence', 13], ['Mirror Nave', 'four-fold architecture', 29], ['Glass Tunnel', 'deep receding trace', 47], ['Afterimage Choir', 'layered gesture memory', 71], ['Red Chapel', 'slow ember geometry', 113], ['Clean Recovery', 'bright opening / clear exit', 167],
-  ], schema: [['decay', 'Decay', .72, .99, .005], ['transform', 'Transform', -.06, .06, .001], ['symmetry', 'Symmetry', 1, 6, 1], ['injection', 'Impulse', 0, 1, .01], ['tunnel', 'Tunnel depth', 0, 1, .01]] },
-];
-
-const initialParams = {
-  acid: { growth: .62, injection: .34, diffusion: .82, contrast: 1.2, drift: .25 },
-  tapestry: { rule: 90, scroll: .42, weave: .55, reversal: 0, phrase: 8 },
-  feedback: { decay: .91, transform: .012, symmetry: 4, injection: .55, tunnel: .58 },
+const el = (tag, text, cls) => {
+  const n = document.createElement(tag);
+  if (text !== undefined) n.textContent = text;
+  if (cls) n.className = cls;
+  return n;
 };
-const palette = { primary: '#d5ff5f', secondary: '#5364ff', accent: '#ff5bc8' };
-const state = { sceneIndex: 0, presetIndex: [0, 0, 0], params: structuredClone(initialParams), tempo: 92, paused: false, muted: false, blackout: false, reducedMotion: false, brightness: .92, quality: '1080', currentCue: -1, transition: null, dirty: false, setPlaying: false, lastTime: performance.now(), elapsed: 0, audioLevel: 0, gesture: { x: .5, y: .5, active: false }, demoOn: false };
-const metrics = { frameTimes: [], sceneFrames: [0, 0, 0], reset() { this.frameTimes.length = 0; this.sceneFrames = [0, 0, 0]; } };
-
-const buffers = {
-  acid: { width: 120, height: 75, u: new Float32Array(120 * 75), v: new Float32Array(120 * 75), seed: 1, random: hash(1) },
-  tapestry: { width: 220, height: 120, rows: Array.from({ length: 120 }, () => new Uint8Array(220)), current: new Uint8Array(220), cursor: 0, seed: 1 },
-  feedback: { a: document.createElement('canvas'), b: document.createElement('canvas'), current: 0 },
+const button = (text, action) => {
+  const b = el("button", text);
+  b.type = "button";
+  b.onclick = () => guard(action);
+  return b;
 };
-buffers.feedback.a.width = buffers.feedback.b.width = canvas.width;
-buffers.feedback.a.height = buffers.feedback.b.height = canvas.height;
-const fctx = [buffers.feedback.a.getContext('2d'), buffers.feedback.b.getContext('2d')];
-const renderBuffer = document.createElement('canvas'); renderBuffer.width = canvas.width; renderBuffer.height = canvas.height;
-const renderCtx = renderBuffer.getContext('2d');
-const transitionCanvas = document.createElement('canvas'); transitionCanvas.width = canvas.width; transitionCanvas.height = canvas.height;
-const transitionCtx = transitionCanvas.getContext('2d');
-
-let audio = { context: null, analyser: null, gain: null, recordDestination: null, source: null, demoGain: null, media: null, mediaUrl: null, micStream: null, data: null, recorder: null, recordingStream: null, recordingMime: null, chunks: [] };
-let cueTimer = null;
-let toastTimer = null;
-
-function hash(seed) { return seededRandom(seed); }
-function showToast(message) { toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2400); }
-function scene() { return sceneDefs[state.sceneIndex]; }
-function preset() { return scene().presets[state.presetIndex[state.sceneIndex]]; }
-function markDirty() { state.dirty = true; $('dirtyState').textContent = 'UNSAVED'; scheduleSave(); }
-function announce() { $('sceneKicker').textContent = `${scene().number} / ${scene().name}`; $('scenePresetName').textContent = preset()[0]; $('sceneDescription').textContent = scene().description; $('controlHeading').textContent = `${scene().name.toUpperCase()} / PARAMETERS`; $('transitionBadge').textContent = state.transition ? 'MORPHING' : 'LIVE'; $('tempoReadout').textContent = `♩ ${state.tempo} BPM`; $('tempoOutput').textContent = state.tempo; $('tempoReadout').setAttribute('aria-label', `${state.tempo} beats per minute`); $('qualityBadge').textContent = `${state.quality} / ${state.quality === '720' ? '30' : '60'}`; }
-function colorRgb(hex) { const clean = hex.replace('#', ''); return [parseInt(clean.slice(0, 2), 16), parseInt(clean.slice(2, 4), 16), parseInt(clean.slice(4, 6), 16)]; }
-function mixColor(a, b, amount) { const t = clamp(amount, 0, 1); return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)]; }
-function fillPalette() { document.documentElement.style.setProperty('--acid', palette.primary); document.documentElement.style.setProperty('--blue', palette.secondary); document.documentElement.style.setProperty('--pink', palette.accent); }
-
-function resetAcid(seed = preset()[2]) {
-  const b = buffers.acid; b.seed = seed; const rand = hash(seed); b.random = hash(seed ^ 0x51ac1d); b.u.fill(1); b.v.fill(0);
-  for (let i = 0; i < b.v.length; i += 1) { if (rand() > .965) b.v[i] = rand() * .9; }
-  for (let y = 0; y < 5; y += 1) for (let x = 0; x < 5; x += 1) { const i = (Math.floor(b.height / 2) + y - 2) * b.width + Math.floor(b.width / 2) + x - 2; b.v[i] = .9; }
+let toastTimer;
+function toast(message) {
+  $("toast").textContent = message;
+  $("toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ($("toast").hidden = true), 4500);
 }
-function resetTapestry(seed = preset()[2]) { const b = buffers.tapestry; b.seed = seed; b.cursor = 0; b.current.fill(0); b.rows.forEach((row) => row.fill(0)); const rand = hash(seed); for (let i = 0; i < b.current.length; i += 1) b.current[i] = rand() > .84 ? 1 : 0; b.current[Math.floor(b.width / 2)] = 1; }
-function resetFeedback() { buffers.feedback.current = 0; fctx[0].clearRect(0, 0, canvas.width, canvas.height); fctx[1].clearRect(0, 0, canvas.width, canvas.height); }
-function resetScene() { if (scene().kind === 'reaction') resetAcid(); if (scene().kind === 'automaton') resetTapestry(); if (scene().kind === 'feedback') resetFeedback(); state.elapsed = 0; announce(); showToast('Seed reset · deterministic start restored'); markDirty(); }
-
-function renderScenes() {
-  sceneList.innerHTML = sceneDefs.map((item, i) => `<button class="scene-item ${i === state.sceneIndex ? 'active' : ''}" data-scene="${i}" aria-pressed="${i === state.sceneIndex}"><span class="scene-index">${item.number}</span><span class="scene-name">${item.name}</span><span class="scene-status"></span></button>`).join('');
-  sceneList.querySelectorAll('[data-scene]').forEach((button) => button.addEventListener('click', () => switchScene(Number(button.dataset.scene))));
+async function guard(action) {
+  try {
+    return await action();
+  } catch (e) {
+    toast(e.message || String(e));
+  }
 }
-function renderControls() { const def = scene(); const values = state.params[def.id]; controls.innerHTML = def.schema.map(([key, label, min, max, step]) => `<div class="control"><label for="control-${key}">${label}<output id="output-${key}">${Number(values[key]).toFixed(step < 1 ? 2 : 0)}</output></label><input id="control-${key}" type="range" min="${min}" max="${max}" step="${step}" value="${values[key]}" /></div>`).join(''); def.schema.forEach(([key]) => { const input = $(`control-${key}`); input.addEventListener('input', () => { state.params[def.id][key] = Number(input.value); $(`output-${key}`).value = Number(input.value).toFixed(input.step < 1 ? 2 : 0); markDirty(); }); }); renderPresets(); }
-function renderPresets() { const strip = $('presetStrip'); strip.innerHTML = scene().presets.map((item, i) => `<button class="preset-chip ${i === state.presetIndex[state.sceneIndex] ? 'active' : ''}" data-preset="${i}"><strong>${item[0]}</strong><small>${item[1]}</small></button>`).join(''); strip.querySelectorAll('[data-preset]').forEach((button) => button.addEventListener('click', () => selectPreset(Number(button.dataset.preset)))); }
-function renderCues() { $('cueCount').textContent = `${cues.length.toString().padStart(2, '0')} CUES`; cueList.innerHTML = cues.map((cue, i) => `<div class="cue ${i === state.currentCue ? 'current' : ''}"><span class="cue-num">${String(i + 1).padStart(2, '0')}</span><div class="cue-main"><span class="cue-title">${cue.label}</span><span class="cue-meta">${sceneDefs[cue.scene].number} / ${sceneDefs[cue.scene].name} · ${cue.duration} bars</span></div><button class="cue-remove" data-remove-cue="${i}" aria-label="Remove ${cue.label}">×</button></div>`).join(''); cueList.querySelectorAll('[data-remove-cue]').forEach((button) => button.addEventListener('click', () => { if (cues.length <= 1) return showToast('A set needs at least one cue'); cues.splice(Number(button.dataset.removeCue), 1); state.currentCue = -1; renderCues(); markDirty(); })); }
-const cues = [
-  { label: 'Root / City breathing', scene: 0, preset: 0, duration: 8 }, { label: 'Causal bloom', scene: 1, preset: 2, duration: 12 }, { label: 'Glass remembers', scene: 2, preset: 2, duration: 16 }, { label: 'Clean recovery', scene: 2, preset: 5, duration: 8 },
-];
-
-function switchScene(index, presetIndex = state.presetIndex[index]) { if (index === state.sceneIndex && presetIndex === state.presetIndex[index]) return; transitionCtx.clearRect(0, 0, canvas.width, canvas.height); transitionCtx.drawImage(canvas, 0, 0); state.transition = { from: state.sceneIndex, to: index, progress: 0 }; state.sceneIndex = index; state.presetIndex[index] = clamp(presetIndex, 0, sceneDefs[index].presets.length - 1); if (scene().kind === 'reaction') resetAcid(); if (scene().kind === 'automaton') resetTapestry(); if (scene().kind === 'feedback') resetFeedback(); renderScenes(); renderControls(); announce(); markDirty(); }
-function selectPreset(index) { state.presetIndex[state.sceneIndex] = clamp(index, 0, scene().presets.length - 1); resetScene(); renderPresets(); }
-
-function inject(x = state.gesture.x, y = state.gesture.y, amount = 1) { const def = scene(); if (def.kind === 'reaction') { const b = buffers.acid; const cx = Math.floor(clamp(x, 0, 1) * b.width); const cy = Math.floor(clamp(y, 0, 1) * b.height); const radius = Math.max(2, Math.floor(2 + state.params.acid.injection * 6)); for (let yy = -radius; yy <= radius; yy += 1) for (let xx = -radius; xx <= radius; xx += 1) if (xx * xx + yy * yy <= radius * radius) { const i = ((cy + yy + b.height) % b.height) * b.width + ((cx + xx + b.width) % b.width); b.v[i] = clamp(b.v[i] + .7 * amount, 0, 1); b.u[i] = clamp(b.u[i] - .25 * amount, 0, 1); } } else if (def.kind === 'automaton') { const b = buffers.tapestry; b.current[Math.floor(clamp(x, 0, 1) * b.width)] = 1; } else { state.gesture = { x, y, active: true }; } }
-
-function stepAcid(dt) { const p = state.params.acid; const b = buffers.acid; const speed = state.reducedMotion ? .35 : .7 + p.growth * 2.4; const steps = Math.max(1, Math.min(4, Math.floor(dt * 60 * speed / 16))); for (let i = 0; i < steps; i += 1) { const next = reactionDiffusionStep(b.u, b.v, b.width, b.height, .018 + p.growth * .026, .045 + (1 - p.growth) * .02, p.diffusion); b.u = next.u; b.v = next.v; } if (p.injection > .01 && b.random() < dt * 0.35) inject(.45 + Math.sin(state.elapsed * .3) * .22, .5 + Math.cos(state.elapsed * .23) * .2, p.injection * .25); }
-function drawAcid() { const b = buffers.acid; const p = state.params.acid; const a = colorRgb(palette.primary); const s = colorRgb(palette.secondary); const c = colorRgb(palette.accent); const image = ctx.createImageData(b.width, b.height); for (let i = 0; i < b.v.length; i += 1) { let value = clamp(b.v[i] * p.contrast * 2.6, 0, 1); const m = value < .5 ? mixColor([5, 7, 12], s, value * 2) : mixColor(s, a, (value - .5) * 2); const tint = (Math.sin(i * .021 + state.elapsed * p.drift * 1.5) + 1) * .5; const rgb = mixColor(m, c, tint * value * .28); image.data[i * 4] = rgb[0]; image.data[i * 4 + 1] = rgb[1]; image.data[i * 4 + 2] = rgb[2]; image.data[i * 4 + 3] = 255; } renderBuffer.width = b.width; renderBuffer.height = b.height; renderCtx.putImageData(image, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(renderBuffer, 0, 0, canvas.width, canvas.height); renderBuffer.width = canvas.width; renderBuffer.height = canvas.height; }
-function stepTapestry(dt) { const b = buffers.tapestry; const p = state.params.tapestry; const count = Math.max(1, Math.min(5, Math.floor(dt * 60 * (state.reducedMotion ? .2 : .4 + p.scroll * 1.8)))); for (let n = 0; n < count; n += 1) { b.rows[b.cursor] = b.current.slice(); b.current = stepElementary(b.current, p.rule); b.cursor = (b.cursor + 1) % b.rows.length; } }
-function drawTapestry() { const b = buffers.tapestry; const p = state.params.tapestry; const image = ctx.createImageData(canvas.width, canvas.height); const a = colorRgb(palette.primary); const s = colorRgb(palette.secondary); const c = colorRgb(palette.accent); for (let y = 0; y < canvas.height; y += 1) { const historyY = Math.floor(y / 5); const offset = p.reversal > .5 ? -Math.floor(state.elapsed * 4 * p.scroll) : Math.floor(state.elapsed * 4 * p.scroll); const rowIndex = (b.cursor - historyY * (1 + Math.floor(p.weave * 2)) + offset + b.rows.length * 20) % b.rows.length; const row = b.rows[rowIndex]; for (let x = 0; x < canvas.width; x += 1) { const col = Math.floor((x / canvas.width) * b.width); const on = row[col]; const weave = Math.sin(x * .028 + y * .011 + state.elapsed * (state.reducedMotion ? .05 : .3)) * .5 + .5; const rgb = on ? mixColor(a, weave > .68 ? c : s, weave) : [4 + Math.floor(weave * 6), 5 + Math.floor(weave * 4), 12 + Math.floor(weave * 12)]; const i = (y * canvas.width + x) * 4; image.data[i] = rgb[0]; image.data[i + 1] = rgb[1]; image.data[i + 2] = rgb[2]; image.data[i + 3] = 255; } } ctx.putImageData(image, 0, 0); }
-function stepFeedback() { const p = state.params.feedback; const current = buffers.feedback.current; const next = 1 - current; const source = fctx[current]; const target = fctx[next]; target.setTransform(1, 0, 0, 1, 0, 0); target.globalCompositeOperation = 'source-over'; target.fillStyle = '#04040a'; target.fillRect(0, 0, canvas.width, canvas.height); target.save(); target.translate(canvas.width / 2, canvas.height / 2); target.rotate(p.transform * (state.reducedMotion ? .2 : 1)); target.scale(1 + p.transform * .55, 1 + p.transform * .55); target.translate(-canvas.width / 2, -canvas.height / 2); target.globalAlpha = boundedFeedbackValue(0, 0, p.decay) + boundedFeedbackValue(1, 0, p.decay); target.drawImage(source.canvas, 0, 0); target.restore(); const x = (state.gesture.active ? state.gesture.x : .5 + Math.sin(state.elapsed * .22) * .22) * canvas.width; const y = (state.gesture.active ? state.gesture.y : .5 + Math.cos(state.elapsed * .18) * .22) * canvas.height; const radius = 20 + p.tunnel * 180; const grad = target.createRadialGradient(x, y, 0, x, y, radius); grad.addColorStop(0, `${palette.primary}cc`); grad.addColorStop(.4, `${palette.accent}77`); grad.addColorStop(1, '#0000'); target.globalCompositeOperation = 'lighter'; target.fillStyle = grad; target.beginPath(); target.arc(x, y, radius, 0, Math.PI * 2); target.fill(); const symmetry = Math.round(p.symmetry); for (let n = 1; n < symmetry; n += 1) { target.save(); target.translate(canvas.width / 2, canvas.height / 2); target.rotate((Math.PI * 2 * n) / symmetry); target.translate(-canvas.width / 2, -canvas.height / 2); target.globalAlpha = boundedFeedbackValue(.45, 0, p.decay); target.fillStyle = grad; target.beginPath(); target.arc(x, y, radius * (.72 + n / symmetry * .18), 0, Math.PI * 2); target.fill(); target.restore(); } target.globalCompositeOperation = 'source-over'; buffers.feedback.current = next; state.gesture.active = false; }
-function drawFeedback() { ctx.drawImage(fctx[buffers.feedback.current].canvas, 0, 0); }
-
-function stepAndDraw(dt) { if (scene().kind === 'reaction') { stepAcid(dt); drawAcid(); } else if (scene().kind === 'automaton') { stepTapestry(dt); drawTapestry(); } else { stepFeedback(); drawFeedback(); } }
-function renderFrame(now) { const dt = Math.min(.05, Math.max(0, (now - state.lastTime) / 1000)); state.lastTime = now; if (!state.paused && !state.blackout) { state.elapsed += dt; updateAudioLevel(); stepAndDraw(dt); metrics.frameTimes.push(dt * 1000); if (metrics.frameTimes.length > 3600) metrics.frameTimes.shift(); metrics.sceneFrames[state.sceneIndex] += 1; } else if (state.blackout) { ctx.fillStyle = '#020207'; ctx.fillRect(0, 0, canvas.width, canvas.height); } if (state.transition) { state.transition.progress = Math.min(1, state.transition.progress + dt / 2.6); ctx.save(); ctx.globalAlpha = 1 - state.transition.progress; ctx.drawImage(transitionCanvas, 0, 0); ctx.restore(); if (state.transition.progress >= 1) state.transition = null; } if (!state.blackout && state.brightness < 1) { ctx.save(); ctx.globalAlpha = 1 - state.brightness; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore(); } $('fpsReadout').textContent = `${Math.round(1 / Math.max(.001, dt))} FPS · ${state.quality} / ${state.quality === '720' ? '30' : '60'}`; $('transitionBadge').textContent = state.transition ? 'MORPHING' : state.setPlaying ? 'SET LIVE' : 'LIVE'; requestAnimationFrame(renderFrame); }
-
-function updateAudioLevel() { if (!audio.analyser) { state.audioLevel += (0 - state.audioLevel) * .08; } else { audio.analyser.getByteTimeDomainData(audio.data); let sum = 0; for (const value of audio.data) { const n = (value - 128) / 128; sum += n * n; } const next = Math.sqrt(sum / audio.data.length); state.audioLevel += (next - state.audioLevel) * .08; } const mod = clamp(state.audioLevel * 4, 0, 1); $('modulationReadout').textContent = `AUDIO ${Math.round(mod * 100)}%`; if (!state.paused && !state.blackout && mod > .03) { if (scene().kind === 'reaction') state.params.acid.injection = clamp(state.params.acid.injection + (mod * .18 - state.params.acid.injection) * .003, 0, 1); if (scene().kind === 'feedback') state.params.feedback.decay = clamp(state.params.feedback.decay + (mod * .12 - .05) * .002, .72, .99); } }
-function stopAudioSource() { if (audio.source) { try { audio.source.stop?.(); } catch {} try { audio.source.disconnect(); } catch {} audio.source = null; } if (audio.demoGain) { try { audio.demoGain.disconnect(); } catch {} audio.demoGain = null; } if (audio.media) { audio.media.pause(); audio.media.removeAttribute('src'); audio.media.load(); audio.media = null; } if (audio.mediaUrl) { URL.revokeObjectURL(audio.mediaUrl); audio.mediaUrl = null; } if (audio.micStream) { audio.micStream.getTracks().forEach((track) => track.stop()); audio.micStream = null; } state.demoOn = false; }
-async function ensureAudio() { if (audio.context) { await audio.context.resume(); return; } try { audio.context = new AudioContext(); audio.analyser = audio.context.createAnalyser(); audio.analyser.fftSize = 256; audio.data = new Uint8Array(audio.analyser.fftSize); audio.gain = audio.context.createGain(); audio.gain.gain.value = state.muted ? 0 : .18; audio.recordDestination = audio.context.createMediaStreamDestination(); audio.analyser.connect(audio.gain); audio.gain.connect(audio.context.destination); audio.gain.connect(audio.recordDestination); await audio.context.resume(); $('startAudioButton').textContent = '◉'; showToast('Audio engine ready · local only'); } catch { showToast('Audio could not start in this browser'); } }
-async function toggleDemo() { await ensureAudio(); if (!audio.context) return; if (state.demoOn) { stopAudioSource(); $('demoAudioButton').textContent = 'Demo pulse'; showToast('Demo pulse stopped'); return; } stopAudioSource(); const osc = audio.context.createOscillator(); const gain = audio.context.createGain(); osc.type = 'sine'; osc.frequency.value = 110; gain.gain.value = .0001; osc.connect(gain); gain.connect(audio.analyser); osc.start(); const pulse = () => { if (!state.demoOn || !audio.context) return; const t = audio.context.currentTime; gain.gain.cancelScheduledValues(t); gain.gain.setValueAtTime(.0001, t); gain.gain.linearRampToValueAtTime(.12, t + .03); gain.gain.exponentialRampToValueAtTime(.0001, t + .42); setTimeout(pulse, Math.max(200, (60 / state.tempo) * 1000)); }; audio.source = osc; audio.demoGain = gain; state.demoOn = true; $('demoAudioButton').textContent = 'Stop pulse'; pulse(); showToast('Procedural demo pulse engaged'); }
-async function loadLocalAudio(file) { if (!file) return; if (file.size > 80 * 1024 * 1024) return showToast('Audio is over the 80 MB local limit'); await ensureAudio(); if (!audio.context) return; stopAudioSource(); const url = URL.createObjectURL(file); const media = new Audio(url); media.loop = true; media.volume = .7; const source = audio.context.createMediaElementSource(media); source.connect(audio.analyser); audio.media = media; audio.mediaUrl = url; audio.source = source; try { await media.play(); showToast(`Local audio loaded · ${file.name}`); } catch { stopAudioSource(); showToast('Local audio playback was blocked · use Demo pulse or manual mode'); } }
-async function toggleMic() { await ensureAudio(); if (!audio.context) return; if (audio.micStream) { stopAudioSource(); $('micButton').textContent = 'Mic: off'; return showToast('Microphone released'); } stopAudioSource(); try { audio.micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); const source = audio.context.createMediaStreamSource(audio.micStream); source.connect(audio.analyser); audio.source = source; $('micButton').textContent = 'Mic: on'; showToast('Microphone active · nothing leaves this device'); } catch { $('micButton').textContent = 'Mic: denied'; showToast('Microphone permission denied · manual and demo modes still work'); } }
-
-function startSet() { if (state.setPlaying) { state.setPlaying = false; clearTimeout(cueTimer); $('playSetButton').textContent = '▶ Play set'; state.currentCue = -1; renderCues(); return showToast('Set paused at current scene'); } state.setPlaying = true; $('playSetButton').textContent = 'Ⅱ Pause set'; let index = state.currentCue >= 0 ? state.currentCue : 0; const play = () => { if (!state.setPlaying) return; const cue = cues[index % cues.length]; state.currentCue = index % cues.length; switchScene(cue.scene, cue.preset); renderCues(); const durationMs = cue.duration * 4 * (60 / state.tempo) * 1000; cueTimer = setTimeout(() => { index += 1; play(); }, durationMs); }; play(); showToast('Rehearsed cue set running · 10 transitions remain bounded'); }
-function addCue() { cues.push({ label: `${scene().name} / ${preset()[0]}`, scene: state.sceneIndex, preset: state.presetIndex[state.sceneIndex], duration: 8 }); renderCues(); markDirty(); showToast('Cue added to local set'); }
-
-function sessionData() { return { format: 'phosphor-set-v1', version: 1, savedAt: new Date().toISOString(), activeScene: state.sceneIndex, presetIndex: state.presetIndex, params: state.params, palette, tempo: state.tempo, cues, options: { reducedMotion: state.reducedMotion, brightness: state.brightness, quality: state.quality } }; }
-let saveTimer = null;
-function saveLocal() { try { localStorage.setItem('phosphor-set-v1', JSON.stringify(sessionData())); state.dirty = false; $('dirtyState').textContent = 'SAVED'; $('saveReadout').textContent = 'LOCAL ONLY'; } catch { $('saveReadout').textContent = 'DOWNLOAD'; showToast('Storage is full · use Export JSON for a direct file'); } }
-function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveLocal, 450); }
-function validateSession(data) { if (!data || data.format !== 'phosphor-set-v1' || data.version !== 1) throw new Error('Unsupported Phosphor set format'); if (!Array.isArray(data.presetIndex) || data.presetIndex.length !== sceneDefs.length) throw new Error('Preset list is malformed'); if (!data.params || !data.params.acid || !data.params.tapestry || !data.params.feedback) throw new Error('Parameter state is missing'); for (const def of sceneDefs) for (const [key, label, min, max] of def.schema) { const raw = Number(data.params[def.id][key]); if (!Number.isFinite(raw) || raw < min || raw > max) throw new Error(`Parameter ${def.id}.${key} is outside its ${min}–${max} bound`); } if (!Array.isArray(data.cues) || data.cues.length < 1 || data.cues.length > 64) throw new Error('Cue list must contain 1–64 cues'); for (const cue of data.cues) if (!Number.isInteger(cue.scene) || cue.scene < 0 || cue.scene >= sceneDefs.length || !Number.isInteger(cue.preset) || cue.preset < 0 || cue.preset >= sceneDefs[cue.scene].presets.length) throw new Error('Cue references an unknown scene'); return data; }
-function applySession(data) { const safe = validateSession(data); state.presetIndex = safe.presetIndex.map((n, i) => clamp(Math.round(n), 0, sceneDefs[i].presets.length - 1)); state.params = structuredClone(initialParams); for (const def of sceneDefs) for (const [key] of def.schema) state.params[def.id][key] = clamp(Number(safe.params[def.id][key]), Number(def.schema.find((x) => x[0] === key)[2]), Number(def.schema.find((x) => x[0] === key)[3])); state.tempo = clamp(Number(safe.tempo), 40, 180); if (safe.palette) Object.assign(palette, Object.fromEntries(Object.entries(palette).map(([key, fallback]) => [key, /^#[0-9a-f]{6}$/i.test(safe.palette[key]) ? safe.palette[key] : fallback]))); cues.splice(0, cues.length, ...safe.cues.map((cue) => ({ label: String(cue.label).slice(0, 60), scene: cue.scene, preset: cue.preset, duration: clamp(Number(cue.duration), 1, 64) }))); state.reducedMotion = Boolean(safe.options?.reducedMotion); state.brightness = clamp(Number(safe.options?.brightness ?? .92), .2, 1); state.quality = safe.options?.quality === '720' ? '720' : '1080'; const target = clamp(Number(safe.activeScene), 0, sceneDefs.length - 1); state.sceneIndex = target; fillPalette(); if (scene().kind === 'reaction') resetAcid(); if (scene().kind === 'automaton') resetTapestry(); if (scene().kind === 'feedback') resetFeedback(); renderScenes(); renderControls(); announce(); renderCues(); $('primaryColor').value = palette.primary; $('secondaryColor').value = palette.secondary; $('accentColor').value = palette.accent; $('reducedMotionInput').checked = state.reducedMotion; $('brightnessInput').value = state.brightness * 100; $('qualityInput').value = state.quality; saveLocal(); showToast('Session restored from portable JSON'); }
-function download(blob, filename) { const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 500); }
-function exportSession() { download(new Blob([JSON.stringify(sessionData(), null, 2)], { type: 'application/json' }), 'phosphor-set-v1.json'); showToast('Portable set exported'); }
-function exportFrameManifest() { const manifest = { format: 'phosphor-frame-sequence-v1', version: 1, width: canvas.width, height: canvas.height, frameRate: state.quality === '720' ? 30 : 60, frames: 120, scene: scene().id, preset: preset()[0], seed: preset()[2], params: state.params[scene().id], palette: { ...palette }, note: 'Render locally from these bounded settings; imported audio remains local and is never embedded.' }; download(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }), 'phosphor-frame-sequence.json'); showToast('Offline frame manifest exported'); }
-function captureStill() { canvas.toBlob((blob) => { if (blob) { download(blob, `phosphor-${scene().id}-${Date.now()}.png`); showToast('Still captured'); } else showToast('Still capture is not available'); }, 'image/png'); }
-function finishRecording(saveBlob = false, message = '') { const mime = audio.recordingMime || 'video/webm'; if (saveBlob && audio.chunks.length) download(new Blob(audio.chunks, { type: mime }), `phosphor-${scene().id}-${Date.now()}.webm`); audio.recordingStream?.getTracks().forEach((track) => track.stop()); audio.recordingStream = null; audio.recorder = null; audio.recordingMime = null; audio.chunks = []; $('recordButton').textContent = 'Record'; if (message) showToast(message); }
-function toggleRecord() { if (audio.recorder?.state === 'recording') { audio.recorder.stop(); return; } if (!canvas.captureStream || !window.MediaRecorder) return showToast('Recording is unsupported here · use still or frame export'); const videoType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((type) => !MediaRecorder.isTypeSupported || MediaRecorder.isTypeSupported(type)); if (!videoType) return showToast('No supported WebM recorder · use still or frame export'); const stream = canvas.captureStream(state.quality === '720' ? 30 : 60); if (audio.recordDestination) audio.recordDestination.stream.getAudioTracks().forEach((track) => stream.addTrack(track)); audio.recordingStream = stream; audio.recordingMime = videoType; try { audio.recorder = new MediaRecorder(stream, { mimeType: videoType }); } catch { finishRecording(false); return showToast('Recorder setup failed · use still or frame export'); } audio.chunks = []; audio.recorder.ondataavailable = (event) => { if (event.data.size) audio.chunks.push(event.data); }; audio.recorder.onerror = () => finishRecording(false, 'Recording encoder error · capture cleaned up'); audio.recorder.onabort = () => finishRecording(false, 'Recording aborted · capture cleaned up'); audio.recorder.onstop = () => finishRecording(true, 'Local recording saved'); try { audio.recorder.start(); } catch { finishRecording(false, 'Recording could not start · capture cleaned up'); return; } $('recordButton').textContent = 'Stop'; showToast(audio.recordDestination ? 'Recording locally · audio is mixed when a source is active' : 'Recording locally · no upload'); }
-function runLifecycleProbe() { const saved = { sceneIndex: state.sceneIndex, presetIndex: [...state.presetIndex], params: structuredClone(state.params), elapsed: state.elapsed }; const heapBefore = performance.memory?.usedJSHeapSize ?? null; clearTimeout(saveTimer); state.transition = null; finishRecording(false); stopAudioSource(); const samples = []; for (let i = 0; i < 10; i += 1) { switchScene((state.sceneIndex + 1) % sceneDefs.length, i % sceneDefs[(state.sceneIndex + 1) % sceneDefs.length].presets.length); if (scene().kind === 'reaction') { stepAcid(.016); drawAcid(); } else if (scene().kind === 'automaton') { stepTapestry(.016); drawTapestry(); } else { stepFeedback(); drawFeedback(); } const pixels = ctx.getImageData(0, 0, 24, 24).data; samples.push({ scene: scene().id, nonBlack: pixels.some((value, index) => index % 4 !== 3 && value > 0), finitePixels: [...pixels].every((value) => Number.isFinite(value)) }); finishRecording(false); stopAudioSource(); } const heapAfter = performance.memory?.usedJSHeapSize ?? null; const result = { switches: samples.length, samples, fixedFeedbackBuffers: buffers.feedback.a.width === canvas.width && buffers.feedback.b.width === canvas.width, fixedTapestryRows: buffers.tapestry.rows.length === 120, fixedAcidCells: buffers.acid.u.length === 9000, audioCleared: !audio.source && !audio.demoGain && !audio.media && !audio.mediaUrl && !audio.micStream, captureCleared: !audio.recorder && !audio.recordingStream, heapBytes: heapBefore === null || heapAfter === null ? null : { before: heapBefore, after: heapAfter } }; state.sceneIndex = saved.sceneIndex; state.presetIndex = saved.presetIndex; state.params = saved.params; state.elapsed = saved.elapsed; if (scene().kind === 'reaction') resetAcid(); if (scene().kind === 'automaton') resetTapestry(); if (scene().kind === 'feedback') resetFeedback(); renderScenes(); renderControls(); announce(); renderCues(); state.dirty = false; $('dirtyState').textContent = 'SAVED'; return result; }
-
+let session = initialSession(scenes),
+  engine;
+const audio = new AudioEngine(
+  (message) => ($("audioStatus").textContent = message),
+);
+let beat = 0,
+  paused = false,
+  playing = false,
+  currentCue = -1,
+  selectedCue = 0,
+  cueStart = 0,
+  cueEnd = 0,
+  remainingBeats = 0,
+  pendingCue = null,
+  undo = [],
+  redo = [],
+  saveTimer,
+  selectedLineage = 0,
+  locked = new Set(),
+  midiLearn = null,
+  midiClockAt = 0,
+  midiBeat = 0,
+  midiTempo = 92,
+  midiOffset = 0,
+  midiPausedAt = null,
+  wakeLock = null,
+  recording = null,
+  exportCancelled = false,
+  exporting = false;
+const midiEdges = new Map();
+const recentCues = [];
+let recoveryRaw = null,
+  autosaveBlocked = false,
+  recoveryDownloaded = false,
+  unsavedSet = false;
+function manualOverride() {
+  playing = false;
+  currentCue = -1;
+  pendingCue = null;
+  remainingBeats = 0;
+  renderCues();
+}
+function cueIdentities() {
+  return {
+    current: session.cues[currentCue]?.id,
+    selected: session.cues[selectedCue]?.id,
+    pending: pendingCue ? session.cues[pendingCue.index]?.id : null,
+  };
+}
+function restoreCueIdentities(ids) {
+  currentCue = session.cues.findIndex((c) => c.id === ids.current);
+  selectedCue = Math.max(
+    0,
+    session.cues.findIndex((c) => c.id === ids.selected),
+  );
+  if (pendingCue) {
+    pendingCue.index = session.cues.findIndex((c) => c.id === ids.pending);
+    if (pendingCue.index < 0) pendingCue = null;
+  }
+  if (currentCue < 0) playing = false;
+}
+function togglePause() {
+  paused = !paused;
+  if (paused) midiPausedAt = midiBeat;
+  else if (midiPausedAt !== null) {
+    midiOffset -= midiBeat - midiPausedAt;
+    midiPausedAt = null;
+  }
+  $("pauseButton").textContent = paused ? "Resume visuals" : "Pause visuals";
+}
+const midi = new MidiInput(
+  handleMidi,
+  handleClock,
+  (message) => ($("midiStatus").textContent = message),
+);
+function currentScene() {
+  return scenes.find((s) => s.id === session.active.scene);
+}
+function effectiveTempo(now = performance.now()) {
+  return $("clockInput").checked && midiClockAt && now - midiClockAt < 1500
+    ? midiTempo
+    : session.tempo;
+}
+function checkpoint() {
+  undo.push(structuredClone(session));
+  if (undo.length > 50) undo.shift();
+  redo = [];
+}
+function save() {
+  unsavedSet = true;
+  if (autosaveBlocked) {
+    $("saveReadout").textContent = "Recovery required · original save retained";
+    return;
+  }
+  try {
+    localStorage.setItem("phosphor-set-v2", JSON.stringify(session));
+    unsavedSet = false;
+    $("saveReadout").textContent =
+      "Saved locally · " + new Date().toLocaleTimeString();
+  } catch {
+    $("saveReadout").textContent = "Storage unavailable · export your set";
+    toast("Local storage unavailable. Export set to preserve your work.");
+  }
+}
+function changed() {
+  unsavedSet = true;
+  clearTimeout(saveTimer);
+  $("saveReadout").textContent = "Saving…";
+  saveTimer = setTimeout(save, 400);
+  engine.options = session.options;
+  engine.mappings = session.mappings;
+}
+function loadSnapshot(snapshot, seconds = 0, fromScore = false) {
+  if (!fromScore) manualOverride();
+  session.active = structuredClone(snapshot);
+  engine.load(session.active, seconds);
+  renderScene();
+  changed();
+}
+function updateActive() {
+  manualOverride();
+  engine.setSnapshot(session.active);
+  changed();
+}
+function undoEdit(reverse = false) {
+  const source = reverse ? redo : undo,
+    target = reverse ? undo : redo;
+  if (!source.length) return;
+  target.push(structuredClone(session));
+  session = source.pop();
+  playing = false;
+  pendingCue = null;
+  currentCue = -1;
+  selectedCue = Math.min(selectedCue, session.cues.length - 1);
+  engine.options = session.options;
+  engine.mappings = session.mappings;
+  engine.load(session.active, 0);
+  renderAll();
+  changed();
+}
+function renderScene() {
+  const scene = currentScene();
+  $("sceneName").textContent = `${scene.number} / ${scene.name}`;
+  $("controlHeading").textContent = scene.name;
+  $("sceneDescription").textContent = scene.description;
+  $("sceneList").replaceChildren(
+    ...scenes.map((s) => {
+      const b = button(`${s.number} · ${s.name}`, () => {
+        checkpoint();
+        manualOverride();
+        loadSnapshot(presetSnapshot(s), 2);
+        renderCues();
+      });
+      b.setAttribute("aria-pressed", String(s.id === scene.id));
+      return b;
+    }),
+  );
+  $("presetStrip").replaceChildren(
+    ...scene.presets.map((p, i) => {
+      const b = button(p.name, () => {
+        checkpoint();
+        manualOverride();
+        loadSnapshot(presetSnapshot(scene, i), 1.5);
+      });
+      b.setAttribute("aria-pressed", String(p.name === session.active.preset));
+      return b;
+    }),
+  );
+  $("sceneControls").replaceChildren(
+    ...scene.schema.map((def) => {
+      const box = el("div", undefined, "control"),
+        label = el("label", def.label),
+        number = el("input"),
+        range = el("input");
+      number.type = "number";
+      range.type = "range";
+      number.min = range.min = def.min;
+      number.max = range.max = def.max;
+      number.step = range.step = def.step;
+      number.value = range.value = session.active.params[def.key];
+      number.id = `number-${def.key}`;
+      range.id = `control-${def.key}`;
+      label.htmlFor = range.id;
+      number.setAttribute("aria-label", def.label + " value");
+      label.append(number);
+      const update = (e) => {
+        let v = Number(e.target.value);
+        if (!Number.isFinite(v)) {
+          e.target.value = session.active.params[def.key];
+          return;
+        }
+        v = Math.min(def.max, Math.max(def.min, v));
+        if (def.step === 1) v = Math.round(v);
+        session.active.params[def.key] = v;
+        session.active.preset = "Custom look";
+        number.value = range.value = v;
+        updateActive();
+      };
+      range.onpointerdown = checkpoint;
+      range.onkeydown = (e) => {
+        if (e.key.startsWith("Arrow")) checkpoint();
+      };
+      number.onfocus = checkpoint;
+      range.oninput = update;
+      number.onchange = update;
+      box.append(label, range);
+      return box;
+    }),
+  );
+  $("seedInput").value = session.active.seed;
+  for (const key of ["primary", "secondary", "accent"])
+    $(key + "Color").value = session.active.palette[key];
+  const targets = scene.schema.map((d) => {
+    const o = el("option", d.label);
+    o.value = d.key;
+    return o;
+  });
+  $("mappingTarget").replaceChildren(...targets);
+  $("midiTarget").replaceChildren(
+    ...["go", "blackout", "brightness", "crossfade", "tempo"].map((k) => {
+      const o = el("option", k);
+      o.value = k;
+      return o;
+    }),
+    ...scene.schema.map((d) => {
+      const o = el("option", scene.name + " / " + d.label);
+      o.value = scene.id + "." + d.key;
+      return o;
+    }),
+  );
+}
+function renderOptions() {
+  for (const [id, key] of [
+    ["brightnessInput", "brightness"],
+    ["bloomInput", "bloom"],
+    ["kaleidoInput", "kaleido"],
+    ["qualityInput", "quality"],
+  ])
+    $(id).value = session.options[key];
+  $("reducedMotionInput").checked = session.options.reducedMotion;
+  $("autoQualityInput").checked = session.options.autoQuality;
+  $("autoRecoveryInput").checked = session.options.autoRecovery;
+  $("tempoInput").value = session.tempo;
+  $("setNameInput").value = session.name;
+  $("playSetButton").textContent = playing ? "Pause score" : "Play score";
+}
+function renderCues() {
+  const total = session.cues.reduce(
+    (n, c) => n + (c.bars * 4 * 60) / session.tempo,
+    0,
+  );
+  $("setDuration").textContent =
+    `${session.cues.length} cues · ${(total / 60).toFixed(1)} min / loop`;
+  $("playSetButton").textContent = playing ? "Pause score" : "Play score";
+  $("cueList").replaceChildren(
+    ...session.cues.map((cue, i) => {
+      const row = el(
+        "div",
+        undefined,
+        "cue-row" +
+          (i === currentCue ? " current" : "") +
+          (i === selectedCue ? " selected" : ""),
+      );
+      const name = el("input");
+      name.value = cue.name;
+      name.maxLength = 80;
+      name.className = "cue-name";
+      name.setAttribute("aria-label", `Cue ${i + 1} name`);
+      name.onchange = () => {
+        if (!name.value.trim()) {
+          name.value = cue.name;
+          return;
+        }
+        checkpoint();
+        cue.name = name.value;
+        changed();
+      };
+      const select = button(String(i + 1).padStart(2, "0"), () => {
+        selectedCue = i;
+        renderCues();
+      });
+      select.setAttribute("aria-label", `Select cue ${i + 1}`);
+      const bars = el("input");
+      bars.type = "number";
+      bars.min = 1;
+      bars.max = 256;
+      bars.value = cue.bars;
+      bars.setAttribute("aria-label", `Cue ${i + 1} bars`);
+      bars.onchange = () => {
+        const v = Number(bars.value);
+        if (!Number.isInteger(v) || v < 1 || v > 256) {
+          bars.value = cue.bars;
+          return;
+        }
+        checkpoint();
+        const elapsed =
+          i === currentCue
+            ? Math.max(
+                0,
+                playing ? beat - cueStart : cue.bars * 4 - remainingBeats,
+              )
+            : 0;
+        cue.bars = v;
+        cue.keyframes = cue.keyframes.filter((k) => k.beat <= v * 4);
+        if (i === currentCue) {
+          remainingBeats = Math.max(0, v * 4 - elapsed);
+          if (playing) cueEnd = beat + remainingBeats;
+        }
+        changed();
+        renderCues();
+      };
+      const energyInput = el("input");
+      energyInput.type = "number";
+      energyInput.min = 0;
+      energyInput.max = 1;
+      energyInput.step = 0.05;
+      energyInput.value = cue.energy ?? 0.5;
+      energyInput.setAttribute("aria-label", `Cue ${i + 1} director energy`);
+      energyInput.onchange = () => {
+        const value = Number(energyInput.value);
+        if (!Number.isFinite(value) || value < 0 || value > 1) {
+          energyInput.value = cue.energy ?? 0.5;
+          return;
+        }
+        checkpoint();
+        cue.energy = value;
+        changed();
+      };
+      const fade = el("input");
+      fade.type = "number";
+      fade.min = 0;
+      fade.max = 32;
+      fade.step = 0.5;
+      fade.value = cue.transition;
+      fade.setAttribute("aria-label", `Cue ${i + 1} transition beats`);
+      fade.onchange = () => {
+        const v = Number(fade.value);
+        if (!Number.isFinite(v) || v < 0 || v > 32) {
+          fade.value = cue.transition;
+          return;
+        }
+        checkpoint();
+        cue.transition = v;
+        changed();
+      };
+      const move = (delta) => {
+        checkpoint();
+        const ids = cueIdentities();
+        const j = Math.max(0, Math.min(session.cues.length - 1, i + delta));
+        [session.cues[i], session.cues[j]] = [session.cues[j], session.cues[i]];
+        ids.selected = cue.id;
+        restoreCueIdentities(ids);
+        changed();
+        renderCues();
+      };
+      const field = (text, input) => {
+        const label = el("label", text);
+        label.append(input);
+        return label;
+      };
+      row.append(
+        select,
+        name,
+        el("small", cue.snapshot.scene),
+        field("Bars", bars),
+        field("Fade beats", fade),
+        field("Energy", energyInput),
+        button("GO", () => queueCue(i)),
+        button("Capture", () => {
+          checkpoint();
+          cue.snapshot = structuredClone(session.active);
+          cue.keyframes = [];
+          changed();
+          renderCues();
+        }),
+        button("↑", () => move(-1)),
+        button("↓", () => move(1)),
+        button("Copy", () => {
+          if (session.cues.length >= 256) throw new Error("Cue limit reached");
+          checkpoint();
+          const ids = cueIdentities();
+          const clone = structuredClone(cue);
+          clone.id = crypto.randomUUID();
+          session.cues.splice(i + 1, 0, clone);
+          restoreCueIdentities(ids);
+          changed();
+          renderCues();
+        }),
+        button("Remove", () => {
+          if (session.cues.length === 1)
+            throw new Error("Keep at least one cue");
+          checkpoint();
+          if (currentCue === i) {
+            playing = false;
+            currentCue = -1;
+          } else if (currentCue > i) currentCue--;
+          session.cues.splice(i, 1);
+          selectedCue = Math.min(selectedCue, session.cues.length - 1);
+          pendingCue = null;
+          changed();
+          renderCues();
+        }),
+      );
+      return row;
+    }),
+  );
+  const cue = session.cues[selectedCue];
+  $("keyframeList").replaceChildren(
+    ...cue.keyframes.map((k, i) => {
+      const row = el("div", undefined, "route");
+      row.append(
+        el("span", `Beat ${k.beat} · ${k.snapshot.preset}`),
+        button("Remove", () => {
+          checkpoint();
+          cue.keyframes.splice(i, 1);
+          changed();
+          renderCues();
+        }),
+      );
+      return row;
+    }),
+  );
+}
+function enterCue(index, startBeat = beat) {
+  currentCue = index;
+  selectedCue = index;
+  const cue = session.cues[index];
+  recentCues.push(cue.id);
+  if (recentCues.length > 4) recentCues.shift();
+  cueStart = startBeat;
+  cueEnd = cueStart + cue.bars * 4;
+  remainingBeats = Math.max(0, cueEnd - beat);
+  loadSnapshot(cue.snapshot, (cue.transition * 60) / effectiveTempo(), true);
+  renderCues();
+  pendingCue = null;
+}
+function queueCue(index) {
+  pendingCue = {
+    index,
+    beat: $("quantizeInput").checked ? Math.ceil((beat + 0.001) / 4) * 4 : beat,
+  };
+  if (pendingCue.beat <= beat) enterCue(index);
+  else toast(`Cue ${index + 1} armed for next bar`);
+}
+function directorIndex() {
+  if (session.cues.length <= 1) return 0;
+  const energy = audio.features.energy;
+  const candidates = session.cues
+    .map((cue, index) => ({
+      index,
+      score:
+        Math.abs((cue.energy ?? 0.5) - energy) +
+        (recentCues.includes(cue.id) ? 0.35 : 0) +
+        Math.abs(Math.sin(beat * 0.13 + index * 2.7)) * 0.12,
+    }))
+    .filter((c) => c.index !== currentCue);
+  candidates.sort((a, b) => a.score - b.score);
+  return candidates[0].index;
+}
+function nextCue(direction = 1) {
+  const index =
+    $("autopilotInput").checked && direction > 0
+      ? directorIndex()
+      : currentCue < 0
+        ? direction > 0
+          ? 0
+          : session.cues.length - 1
+        : (currentCue + direction + session.cues.length) % session.cues.length;
+  queueCue(index);
+}
+function toggleScore() {
+  if (playing) {
+    remainingBeats = Math.max(0, cueEnd - beat);
+    playing = false;
+  } else {
+    playing = true;
+    if (currentCue < 0) enterCue(0);
+    else {
+      cueEnd = beat + remainingBeats;
+      cueStart = cueEnd - session.cues[currentCue].bars * 4;
+    }
+  }
+  renderCues();
+}
+function addCue() {
+  if (session.cues.length >= 256) throw new Error("Cue limit reached");
+  checkpoint();
+  session.cues.push({
+    id: crypto.randomUUID(),
+    name: session.active.preset,
+    snapshot: structuredClone(session.active),
+    bars: 32,
+    transition: 4,
+    keyframes: [],
+    energy: 0.5,
+  });
+  selectedCue = session.cues.length - 1;
+  renderCues();
+  changed();
+  toast("Complete look captured as cue");
+}
+function renderRoutes() {
+  $("mappingList").replaceChildren(
+    ...session.mappings.map((m, i) => {
+      const row = el("div", undefined, "route");
+      row.append(
+        el(
+          "span",
+          `${m.source} → ${m.scene}.${m.target} · ${(m.depth * 100).toFixed(0)}%`,
+        ),
+        button("Remove", () => {
+          checkpoint();
+          session.mappings.splice(i, 1);
+          changed();
+          renderRoutes();
+        }),
+      );
+      return row;
+    }),
+  );
+  $("midiList").replaceChildren(
+    ...session.midi.map((m, i) => {
+      const row = el("div", undefined, "route");
+      row.append(
+        el("span", `${m.type} ${m.number} / ch ${m.channel + 1} → ${m.target}`),
+        button("Forget", () => {
+          checkpoint();
+          session.midi.splice(i, 1);
+          changed();
+          renderRoutes();
+        }),
+      );
+      return row;
+    }),
+  );
+}
+function renderGarden() {
+  selectedLineage = Math.min(
+    selectedLineage,
+    Math.max(0, session.lineages.length - 1),
+  );
+  $("lineageInput").replaceChildren(
+    ...session.lineages.map((l, i) => {
+      const o = el("option", l.nodes[0]?.name || `Lineage ${i + 1}`);
+      o.value = i;
+      return o;
+    }),
+  );
+  $("lineageInput").value = selectedLineage;
+  const lineage = session.lineages[selectedLineage];
+  if (!lineage) {
+    $("lockList").replaceChildren();
+    $("lineageList").replaceChildren(
+      el("p", "Start a lineage from any look to breed bounded variations."),
+    );
+    return;
+  }
+  const selected = lineage.nodes.find((n) => n.id === lineage.selectedId),
+    scene = scenes.find((s) => s.id === selected.scene);
+  $("lockList").replaceChildren(
+    ...scene.schema.map((d) => {
+      const label = el("label", "Lock " + d.label),
+        input = el("input");
+      input.type = "checkbox";
+      input.checked = locked.has(d.key);
+      input.onchange = () =>
+        input.checked ? locked.add(d.key) : locked.delete(d.key);
+      label.prepend(input);
+      return label;
+    }),
+  );
+  $("lineageList").replaceChildren(
+    ...lineage.nodes.map((node) => {
+      const box = el(
+          "div",
+          undefined,
+          "node" + (node.id === lineage.selectedId ? " selected" : ""),
+        ),
+        name = el("input");
+      name.value = node.name;
+      name.maxLength = 80;
+      name.setAttribute("aria-label", "Discovery name");
+      name.onchange = () => {
+        if (!name.value.trim()) {
+          name.value = node.name;
+          return;
+        }
+        checkpoint();
+        node.name = name.value;
+        changed();
+      };
+      box.append(
+        name,
+        el(
+          "small",
+          node.parentId === null
+            ? "Root"
+            : `Child of ${lineage.nodes.find((n) => n.id === node.parentId)?.name || "root"}`,
+        ),
+        button("Audition", () => {
+          checkpoint();
+          session.lineages[selectedLineage] = selectNode(lineage, node.id);
+          loadSnapshot(
+            {
+              scene: node.scene,
+              preset: node.name,
+              seed: node.seed,
+              params: node.params,
+              palette: session.active.palette,
+            },
+            1,
+          );
+          renderGarden();
+        }),
+      );
+      return box;
+    }),
+  );
+}
+function startLineage() {
+  if (session.lineages.length >= 20) throw new Error("Lineage limit reached");
+  checkpoint();
+  session.lineages.push(
+    createLineage(currentScene(), {
+      name: session.active.preset,
+      seed: session.active.seed,
+      params: session.active.params,
+    }),
+  );
+  selectedLineage = session.lineages.length - 1;
+  locked.clear();
+  renderGarden();
+  changed();
+  switchTab("garden");
+}
+function breed() {
+  const lineage = session.lineages[selectedLineage];
+  if (!lineage) throw new Error("Start a lineage first");
+  if (lineage.nodes.length > 125)
+    throw new Error(
+      "Lineage is full (128 nodes). Export discoveries before starting another.",
+    );
+  checkpoint();
+  const parentId = lineage.selectedId,
+    scene = scenes.find(
+      (s) => s.id === lineage.nodes.find((n) => n.id === parentId).scene,
+    );
+  let next = lineage;
+  for (let i = 0; i < 3; i++) {
+    next = selectNode(next, parentId);
+    next = breedLineage(next, scene, {
+      seed: randomSeed(),
+      strength: Number($("mutationInput").value),
+      locked: [...locked],
+    });
+  }
+  session.lineages[selectedLineage] = next;
+  renderGarden();
+  changed();
+}
+function randomSeed() {
+  return crypto.getRandomValues(new Uint32Array(1))[0] & 2147483647;
+}
+function renderAll() {
+  renderScene();
+  renderOptions();
+  renderCues();
+  renderRoutes();
+  renderGarden();
+}
+function switchTab(name) {
+  document
+    .querySelectorAll("[data-tab]")
+    .forEach((b) =>
+      b.setAttribute("aria-pressed", String(b.dataset.tab === name)),
+    );
+  for (const tab of ["scenes", "set", "audio", "garden"])
+    $("tab-" + tab).hidden = tab !== name;
+}
+function blackout(value = !engine.blackoutTarget) {
+  engine.blackoutTarget = value ? 1 : 0;
+  $("blackoutButton").textContent = value ? "Recover [B]" : "Blackout [B]";
+}
+function safeLook() {
+  playing = false;
+  pendingCue = null;
+  paused = false;
+  blackout(false);
+  checkpoint();
+  session.options.brightness = 0.65;
+  session.options.bloom = 0;
+  session.options.reducedMotion = true;
+  loadSnapshot(presetSnapshot(interference, 0), 0.4);
+  renderOptions();
+  $("pauseButton").textContent = "Pause visuals";
+  renderCues();
+  toast("Safe look restored · low motion, no strobe");
+}
+function handleClock(event) {
+  if (!$("clockInput").checked) return;
+  if (event.stop) {
+    if (playing) remainingBeats = Math.max(0, cueEnd - beat);
+    playing = false;
+    renderCues();
+    return;
+  }
+  if (event.start) {
+    beat = 0;
+    midiBeat = 0;
+    midiOffset = 0;
+    midiClockAt = performance.now();
+    paused = false;
+    midiPausedAt = null;
+    $("pauseButton").textContent = "Pause visuals";
+    playing = true;
+    enterCue(0);
+  }
+  if (event.resume) {
+    midiOffset = beat - event.beat;
+    if (!playing) toggleScore();
+  }
+  if (event.tempo) {
+    midiTempo = Math.max(40, Math.min(200, event.tempo));
+    if (!midiClockAt) midiOffset = beat - event.beat;
+    midiBeat = event.beat;
+    midiClockAt = performance.now();
+  }
+}
+function handleMidi(message) {
+  const v = message.value;
+  const key = `${message.type}:${message.channel}:${message.number}`;
+  const wasActive = midiEdges.get(key) || false;
+  midiEdges.set(key, v > 0.5);
+  const trigger = message.type === "note" || (v > 0.5 && !wasActive);
+  if (midiLearn) {
+    const maps = session.midi.filter(
+      (m) =>
+        !(
+          m.type === message.type &&
+          m.channel === message.channel &&
+          m.number === message.number
+        ),
+    );
+    if (maps.length >= 64) {
+      toast(
+        "MIDI mapping limit reached. Forget a control before learning another.",
+      );
+      return;
+    }
+    checkpoint();
+    maps.push({
+      type: message.type,
+      channel: message.channel,
+      number: message.number,
+      target: midiLearn,
+    });
+    session.midi = maps;
+    midiLearn = null;
+    $("midiLearnButton").textContent = "Learn next control";
+    changed();
+    renderRoutes();
+    return;
+  }
+  for (const map of session.midi) {
+    if (
+      map.type !== message.type ||
+      map.channel !== message.channel ||
+      map.number !== message.number
+    )
+      continue;
+    if (map.target === "go") {
+      if (trigger) nextCue();
+    } else if (map.target === "blackout") {
+      if (trigger) blackout();
+    } else if (map.target === "brightness") {
+      session.options.brightness = v;
+      engine.options = session.options;
+      $("brightnessInput").value = v;
+      changed();
+    } else if (map.target === "crossfade") setMix(v);
+    else if (map.target === "tempo") {
+      session.tempo = 40 + v * 160;
+      $("tempoInput").value = session.tempo;
+      changed();
+    } else {
+      const [scene, key] = map.target.split(".");
+      if (scene !== session.active.scene) continue;
+      const def = currentScene().schema.find((d) => d.key === key);
+      if (def) {
+        let value = def.min + v * (def.max - def.min);
+        if (def.step === 1) value = Math.round(value);
+        session.active.params[key] = value;
+        updateActive();
+        renderScene();
+      }
+    }
+  }
+}
+function setMix(value) {
+  if (engine.transition) {
+    engine.transition.manual = true;
+    engine.transition.elapsed = value * engine.transition.duration;
+    if (value >= 1) {
+      engine.destroySlot(engine.slots.shift());
+      engine.transition = null;
+    }
+  }
+  $("crossfadeInput").value = value;
+  engine.present();
+}
+async function refreshDevices() {
+  const devices = await audio.devices();
+  $("deviceInput").replaceChildren(
+    el("option", "Default input"),
+    ...devices.map((d) => {
+      const o = el("option", d.name);
+      o.value = d.id;
+      return o;
+    }),
+  );
+  $("deviceInput").firstChild.value = "";
+}
+async function requestWake() {
+  if (!navigator.wakeLock || document.visibilityState !== "visible") return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+  } catch {}
+}
+function resizeQuality() {
+  const dimensions = {
+    high: [1920, 1080],
+    balanced: [1280, 720],
+    low: [960, 540],
+  }[session.options.quality];
+  engine.resize(...dimensions);
+  engine.present();
+}
+function download(blob, name) {
+  const a = el("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+const png = (canvas) =>
+  new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("PNG capture failed"))),
+      "image/png",
+    ),
+  );
+async function importSet(file) {
+  const next = await readSetFile(file, scenes);
+  checkpoint();
+  session = next;
+  playing = false;
+  currentCue = -1;
+  selectedCue = 0;
+  pendingCue = null;
+  engine.options = session.options;
+  engine.mappings = session.mappings;
+  engine.load(session.active, 0);
+  resizeQuality();
+  renderAll();
+  changed();
+  toast("Portable set imported · reattach local audio if needed");
+}
+async function toggleRecord() {
+  if (recording) {
+    if (recording.recorder?.state === "recording") {
+      $("recordButton").disabled = true;
+      $("recordButton").textContent = "Finalizing recording…";
+      recording.recorder.stop();
+    }
+    return;
+  }
+  if (!window.MediaRecorder || !$("stage").captureStream)
+    throw new Error("Recording unsupported. Capture PNG or render frames.");
+  const mime = [
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+  ].find((type) => MediaRecorder.isTypeSupported(type));
+  if (!mime) throw new Error("No supported WebM encoder");
+  const owner = {
+    recorder: null,
+    stream: null,
+    writable: null,
+    chunks: [],
+    bytes: 0,
+    pendingBytes: 0,
+    chain: Promise.resolve(),
+    failed: false,
+  };
+  recording = owner;
+  $("recordButton").disabled = true;
+  try {
+    if (window.showSaveFilePicker) {
+      const handle = await showSaveFilePicker({
+        suggestedName: "phosphor-performance.webm",
+        types: [
+          { description: "WebM video", accept: { "video/webm": [".webm"] } },
+        ],
+      });
+      owner.writable = await handle.createWritable();
+    }
+    await audio.start();
+    owner.stream = $("stage").captureStream(
+      session.options.quality === "low" ? 30 : 60,
+    );
+    for (const track of audio.recordDestination.stream.getAudioTracks())
+      owner.stream.addTrack(track.clone());
+    const recorder = new MediaRecorder(owner.stream, {
+      mimeType: mime,
+      videoBitsPerSecond: 6000000,
+    });
+    owner.recorder = recorder;
+    recorder.ondataavailable = (event) => {
+      const blob = event.data;
+      if (!blob.size || owner.failed) return;
+      owner.bytes += blob.size;
+      if (owner.writable) {
+        owner.pendingBytes += blob.size;
+        owner.chain = owner.chain
+          .then(() => owner.writable.write(blob))
+          .catch((error) => {
+            owner.failed = true;
+            toast("Recording disk error: " + error.message);
+            if (recorder.state === "recording") recorder.stop();
+          })
+          .finally(() => {
+            owner.pendingBytes -= blob.size;
+          });
+        if (
+          owner.pendingBytes > 16 * 1024 * 1024 &&
+          recorder.state === "recording"
+        ) {
+          recorder.stop();
+          toast(
+            "Disk cannot keep up. Recording stopped; buffered data is being finalized.",
+          );
+        }
+      } else if (owner.bytes <= 64 * 1024 * 1024) owner.chunks.push(blob);
+      else if (recorder.state === "recording") {
+        recorder.stop();
+        toast(
+          "64 MB clip limit reached. Use disk recording or OBS for long shows.",
+        );
+      }
+    };
+    recorder.onerror = () => {
+      owner.failed = true;
+      toast("Encoder error. Recording stopped.");
+      if (recorder.state === "recording") recorder.stop();
+    };
+    recorder.onstop = async () => {
+      $("recordButton").disabled = true;
+      $("recordButton").textContent = "Finalizing recording…";
+      try {
+        await owner.chain;
+        if (owner.writable) {
+          if (owner.failed) await owner.writable.abort();
+          else await owner.writable.close();
+        } else if (!owner.failed && owner.chunks.length) {
+          download(
+            new Blob(owner.chunks, { type: mime }),
+            "phosphor-performance.webm",
+          );
+        }
+        if (!owner.failed) toast("Recording finalized. Safe to close the app.");
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        owner.stream.getTracks().forEach((track) => track.stop());
+        owner.chunks = [];
+        if (recording === owner) recording = null;
+        $("recordButton").disabled = false;
+        $("recordButton").textContent = "Record WebM";
+      }
+    };
+    recorder.start(1000);
+    $("recordButton").disabled = false;
+    $("recordButton").textContent = "Stop recording";
+    toast(
+      owner.writable
+        ? "Recording streamed to disk"
+        : "Recording short clip · 64 MB memory cap",
+    );
+  } catch (error) {
+    owner.stream?.getTracks().forEach((track) => track.stop());
+    if (owner.writable) await owner.writable.abort();
+    if (recording === owner) recording = null;
+    $("recordButton").disabled = false;
+    $("recordButton").textContent = "Record WebM";
+    throw error;
+  }
+}
+async function renderFrames() {
+  if (exporting) throw new Error("Frame export already running");
+  if (!window.showDirectoryPicker)
+    throw new Error(
+      "Frame export needs desktop Chromium directory access (HTTPS or localhost)",
+    );
+  exporting = true;
+  exportCancelled = false;
+  const exportState = structuredClone({
+    snapshot: session.active,
+    options: session.options,
+    tempo: session.tempo,
+  });
+  const canvas = document.createElement("canvas");
+  let renderer;
+  let completedFrames = 0;
+  try {
+    const parentDir = await showDirectoryPicker({ mode: "readwrite" });
+    const dir = await parentDir.getDirectoryHandle(
+      `phosphor-frames-${Date.now()}-${crypto.randomUUID()}`,
+      { create: true },
+    );
+    $("cancelExportButton").hidden = false;
+    renderer = new Engine(canvas, scenes);
+    renderer.resize(1280, 720);
+    renderer.options = exportState.options;
+    renderer.mappings = [];
+    renderer.load(exportState.snapshot, 0);
+    renderer.beat = 0;
+    while (renderer.slots.at(-1).warmTicks > 0 && !exportCancelled) {
+      $("saveReadout").textContent = "Preparing scene for frame export";
+      renderer.advance(0, true);
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    for (let i = 0; i < 120; i++) {
+      if (exportCancelled) break;
+      renderer.beat = ((i / 30) * exportState.tempo) / 60;
+      renderer.advance(1 / 30);
+      const file = await dir.getFileHandle(
+        `frame-${String(i).padStart(4, "0")}.png`,
+        { create: true },
+      );
+      const stream = await file.createWritable();
+      await stream.write(await png(canvas));
+      await stream.close();
+      completedFrames++;
+      $("saveReadout").textContent = `Rendering frame ${i + 1} / 120`;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    const file = await dir.getFileHandle("phosphor-sequence.json", {
+        create: true,
+      }),
+      stream = await file.createWritable();
+    await stream.write(
+      JSON.stringify(
+        {
+          format: "phosphor-rendered-sequence-v1",
+          width: 1280,
+          height: 720,
+          fps: 30,
+          snapshot: exportState.snapshot,
+          options: exportState.options,
+          tempo: exportState.tempo,
+          frames: completedFrames,
+          cancelled: exportCancelled,
+          note: "No audio or live modulation; deterministic reset trajectory on this GPU.",
+        },
+        null,
+        2,
+      ),
+    );
+    await stream.close();
+    toast(
+      exportCancelled
+        ? "Export cancelled; completed frames retained"
+        : "120 PNG frames rendered to selected directory",
+    );
+  } finally {
+    renderer?.dispose();
+    exporting = false;
+    $("cancelExportButton").hidden = true;
+    save();
+  }
+}
 function wire() {
-  $('resetButton').addEventListener('click', resetScene); $('randomButton').addEventListener('click', () => { inject(Math.random(), Math.random(), 1); showToast('Growth nudge injected'); }); $('addCueButton').addEventListener('click', addCue); $('playSetButton').addEventListener('click', startSet); $('startAudioButton').addEventListener('click', ensureAudio); $('demoAudioButton').addEventListener('click', toggleDemo); $('micButton').addEventListener('click', toggleMic); $('pauseButton').addEventListener('click', () => { state.paused = !state.paused; $('pauseButton').textContent = state.paused ? 'Resume' : 'Pause'; $('transportState').textContent = state.paused ? 'PAUSED' : 'RUNNING'; }); $('muteButton').addEventListener('click', () => { state.muted = !state.muted; if (audio.gain) audio.gain.gain.value = state.muted ? 0 : .18; $('muteButton').textContent = state.muted ? 'Unmute' : 'Mute'; }); $('tempoInput').addEventListener('input', (event) => { state.tempo = Number(event.target.value); announce(); markDirty(); }); $('captureButton').addEventListener('click', captureStill); $('frameExportButton').addEventListener('click', exportFrameManifest); $('recordButton').addEventListener('click', toggleRecord); $('saveButton').addEventListener('click', () => { saveLocal(); showToast('Set saved locally'); }); $('exportButton').addEventListener('click', exportSession); $('importInput').addEventListener('change', (event) => { const file = event.target.files[0]; if (!file || file.size > 2 * 1024 * 1024) return showToast('Import must be a JSON file under 2 MB'); const reader = new FileReader(); reader.onload = () => { try { applySession(JSON.parse(reader.result)); } catch (error) { showToast(`Import rejected · ${error.message}`); } }; reader.readAsText(file); event.target.value = ''; }); $('audioFileInput').addEventListener('change', (event) => loadLocalAudio(event.target.files[0])); $('primaryColor').addEventListener('input', (event) => { palette.primary = event.target.value; fillPalette(); markDirty(); }); $('secondaryColor').addEventListener('input', (event) => { palette.secondary = event.target.value; fillPalette(); markDirty(); }); $('accentColor').addEventListener('input', (event) => { palette.accent = event.target.value; fillPalette(); markDirty(); }); $('reducedMotionInput').addEventListener('change', (event) => { state.reducedMotion = event.target.checked; markDirty(); }); $('brightnessInput').addEventListener('input', (event) => { state.brightness = Number(event.target.value) / 100; markDirty(); }); $('qualityInput').addEventListener('change', (event) => { state.quality = event.target.value; $('qualityBadge').textContent = `${state.quality} / ${state.quality === '720' ? '30' : '60'}`; markDirty(); }); $('helpButton').addEventListener('click', () => $('helpDialog').showModal()); $('themeButton').addEventListener('click', () => document.body.classList.toggle('high-contrast'));
-  canvas.addEventListener('pointerdown', (event) => { const rect = canvas.getBoundingClientRect(); canvas.setPointerCapture(event.pointerId); state.gesture = { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height, active: true }; inject(); }); canvas.addEventListener('pointermove', (event) => { if (!(event.buttons & 1)) return; const rect = canvas.getBoundingClientRect(); inject((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height, .4); }); window.addEventListener('keydown', (event) => { if (event.target.matches('input,button,select')) return; if (event.code === 'Space') { event.preventDefault(); if (state.blackout) { state.blackout = false; $('blackoutLabel').hidden = true; showToast('Blackout recovered'); } else inject(); } if (event.key.toLowerCase() === 'p') $('pauseButton').click(); if (event.key.toLowerCase() === 'b') { state.blackout = !state.blackout; $('blackoutLabel').hidden = !state.blackout; showToast(state.blackout ? 'Blackout engaged' : 'Blackout recovered'); } if (event.key.toLowerCase() === 'r') resetScene(); if (event.shiftKey && event.key === 'ArrowRight') switchScene((state.sceneIndex + 1) % sceneDefs.length); if (event.shiftKey && event.key === 'ArrowLeft') switchScene((state.sceneIndex + sceneDefs.length - 1) % sceneDefs.length); if (/^[1-3]$/.test(event.key)) switchScene(Number(event.key) - 1); });
-  window.addEventListener('pagehide', () => { if (audio.recorder) { audio.recorder.onstop = null; audio.recorder.onerror = null; audio.recorder.onabort = null; try { if (audio.recorder.state === 'recording') audio.recorder.stop(); } catch {} finishRecording(false); } stopAudioSource(); });
+  document
+    .querySelectorAll("[data-tab]")
+    .forEach((b) => (b.onclick = () => switchTab(b.dataset.tab)));
+  $("helpButton").onclick = () => $("helpDialog").showModal();
+  $("pauseButton").onclick = togglePause;
+  $("blackoutButton").onclick = () => blackout();
+  $("safeButton").onclick = safeLook;
+  $("resetButton").onclick = () => {
+    engine.load(session.active, 0);
+    toast("Seed reset");
+  };
+  $("undoButton").onclick = () => undoEdit();
+  $("redoButton").onclick = () => undoEdit(true);
+  $("seedInput").onchange = () => {
+    const v = Number($("seedInput").value);
+    if (!Number.isInteger(v) || v < 0 || v > 2147483647) {
+      $("seedInput").value = session.active.seed;
+      return;
+    }
+    checkpoint();
+    manualOverride();
+    session.active.seed = v;
+    engine.load(session.active, 0);
+    changed();
+  };
+  $("newSeedButton").onclick = () => {
+    checkpoint();
+    manualOverride();
+    session.active.seed = randomSeed();
+    engine.load(session.active, 0);
+    renderScene();
+    changed();
+  };
+  $("addCueButton").onclick = () => guard(addCue);
+  $("playSetButton").onclick = toggleScore;
+  $("goButton").onclick = () => nextCue();
+  $("previousCueButton").onclick = () => nextCue(-1);
+  $("auditionCueButton").onclick = () => enterCue(selectedCue);
+  $("crossfadeInput").oninput = (e) => setMix(Number(e.target.value));
+  $("setNameInput").onchange = (e) => {
+    if (!e.target.value.trim()) {
+      e.target.value = session.name;
+      return;
+    }
+    checkpoint();
+    session.name = e.target.value;
+    changed();
+  };
+  $("keyframeButton").onclick = () =>
+    guard(() => {
+      const cue = session.cues[selectedCue],
+        offset = Number($("keyframeBeatInput").value);
+      if (session.active.scene !== cue.snapshot.scene)
+        throw new Error("Keyframe must match selected cue family");
+      if (!Number.isFinite(offset) || offset < 0 || offset > cue.bars * 4)
+        throw new Error("Beat offset outside cue duration");
+      if (cue.keyframes.length >= 32) throw new Error("Keyframe limit reached");
+      checkpoint();
+      cue.keyframes = cue.keyframes.filter((k) => k.beat !== offset);
+      cue.keyframes.push({
+        beat: offset,
+        snapshot: structuredClone(session.active),
+      });
+      cue.keyframes.sort((a, b) => a.beat - b.beat);
+      changed();
+      renderCues();
+    });
+  $("tempoInput").onchange = (e) => {
+    const v = Number(e.target.value);
+    if (!Number.isFinite(v) || v < 40 || v > 200) {
+      e.target.value = session.tempo;
+      return;
+    }
+    checkpoint();
+    session.tempo = v;
+    audio.tempo = v;
+    changed();
+    renderCues();
+  };
+  let taps = [];
+  $("tapButton").onclick = () => {
+    const now = performance.now();
+    if (taps.length && now - taps.at(-1) > 2000) taps = [];
+    taps.push(now);
+    if (taps.length > 6) taps.shift();
+    if (taps.length >= 2) {
+      const bpm = 60000 / ((taps.at(-1) - taps[0]) / (taps.length - 1));
+      session.tempo = Math.min(200, Math.max(40, Math.round(bpm)));
+      audio.tempo = session.tempo;
+      $("tempoInput").value = session.tempo;
+      changed();
+      renderCues();
+    }
+  };
+  for (const [id, key] of [
+    ["brightnessInput", "brightness"],
+    ["bloomInput", "bloom"],
+    ["kaleidoInput", "kaleido"],
+  ]) {
+    $(id).onpointerdown = checkpoint;
+    $(id).oninput = (e) => {
+      session.options[key] = Number(e.target.value);
+      engine.options = session.options;
+      engine.present();
+      changed();
+    };
+  }
+  for (const key of ["primary", "secondary", "accent"]) {
+    $(key + "Color").onfocus = checkpoint;
+    $(key + "Color").oninput = (e) => {
+      session.active.palette[key] = e.target.value;
+      updateActive();
+    };
+  }
+  $("qualityInput").onchange = (e) => {
+    if (recording) {
+      e.target.value = session.options.quality;
+      toast("Stop recording before changing output dimensions");
+      return;
+    }
+    checkpoint();
+    session.options.quality = e.target.value;
+    resizeQuality();
+    changed();
+  };
+  $("reducedMotionInput").onchange = (e) => {
+    checkpoint();
+    session.options.reducedMotion = e.target.checked;
+    changed();
+  };
+  $("autoQualityInput").onchange = (e) => {
+    session.options.autoQuality = e.target.checked;
+    changed();
+  };
+  $("autoRecoveryInput").onchange = (event) => {
+    session.options.autoRecovery = event.target.checked;
+    changed();
+  };
+  $("demoAudioButton").onclick = () => guard(() => audio.demo());
+  $("audioFileInput").onchange = (e) =>
+    guard(async () => {
+      if (e.target.files[0]) await audio.file(e.target.files[0]);
+      e.target.value = "";
+    });
+  $("micButton").onclick = () =>
+    guard(async () => {
+      await audio.input($("deviceInput").value);
+      await refreshDevices();
+    });
+  $("stopAudioButton").onclick = () => audio.stop();
+  $("muteButton").onclick = () => {
+    audio.mute(!audio.muted);
+    $("muteButton").textContent = audio.muted
+      ? "Unmute monitoring"
+      : "Mute monitoring";
+  };
+  $("addMappingButton").onclick = () =>
+    guard(() => {
+      if (session.mappings.length >= 64)
+        throw new Error("Mapping limit reached");
+      const depth = Number($("mappingDepth").value);
+      if (!Number.isFinite(depth) || depth < -1 || depth > 1)
+        throw new Error("Depth must be -1 to 1");
+      checkpoint();
+      session.mappings.push({
+        scene: session.active.scene,
+        source: $("mappingSource").value,
+        target: $("mappingTarget").value,
+        depth,
+      });
+      changed();
+      renderRoutes();
+    });
+  $("midiButton").onclick = () => guard(() => midi.connect());
+  $("midiLearnButton").onclick = () => {
+    midiLearn = midiLearn ? null : $("midiTarget").value;
+    $("midiLearnButton").textContent = midiLearn
+      ? "Cancel learn (move a control)"
+      : "Learn next control";
+  };
+  $("breedButton").onclick = () => guard(startLineage);
+  $("newLineageButton").onclick = () => guard(startLineage);
+  $("generationButton").onclick = () => guard(breed);
+  $("lineageInput").onchange = (e) => {
+    selectedLineage = Number(e.target.value);
+    locked.clear();
+    renderGarden();
+  };
+  $("undoGenerationButton").onclick = () =>
+    guard(() => {
+      const l = session.lineages[selectedLineage];
+      if (!l) throw new Error("No lineage");
+      checkpoint();
+      const next = undoGeneration(l);
+      session.lineages[selectedLineage] = next;
+      const n = next.nodes.find((n) => n.id === next.selectedId);
+      loadSnapshot(
+        {
+          scene: n.scene,
+          preset: n.name,
+          seed: n.seed,
+          params: n.params,
+          palette: session.active.palette,
+        },
+        1,
+      );
+      renderGarden();
+    });
+  $("promoteButton").onclick = () =>
+    guard(() => {
+      const l = session.lineages[selectedLineage],
+        n = l?.nodes.find((n) => n.id === l.selectedId);
+      if (!n) throw new Error("Select a discovery");
+      loadSnapshot(
+        {
+          scene: n.scene,
+          preset: n.name,
+          seed: n.seed,
+          params: n.params,
+          palette: session.active.palette,
+        },
+        0,
+      );
+      addCue();
+      switchTab("set");
+    });
+  $("saveButton").onclick = () => {
+    if (autosaveBlocked && !recoveryDownloaded) {
+      toast("Download the recovery backup before saving a new set.");
+      return;
+    }
+    autosaveBlocked = false;
+    $("saveButton").textContent = "Save now";
+    save();
+  };
+  $("recoveryButton").onclick = () =>
+    guard(() => {
+      if (!recoveryRaw) return;
+      download(
+        new Blob([recoveryRaw], { type: "application/json" }),
+        "phosphor-rejected-save.json",
+      );
+      recoveryDownloaded = true;
+      toast(
+        autosaveBlocked
+          ? "Backup requested. Save new set explicitly when your download is safe."
+          : "Original rejected save downloaded for repair.",
+      );
+    });
+  $("exportButton").onclick = () =>
+    guard(() => {
+      const valid = validateSession(session, scenes);
+      download(
+        new Blob([JSON.stringify(valid, null, 2)], {
+          type: "application/json",
+        }),
+        "phosphor-set-v2.json",
+      );
+    });
+  $("importInput").onchange = (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    guard(() => importSet(file));
+  };
+  $("captureButton").onclick = () =>
+    guard(async () =>
+      download(
+        await png($("stage")),
+        "phosphor-" + session.active.scene + ".png",
+      ),
+    );
+  $("recordButton").onclick = () => guard(toggleRecord);
+  $("framesButton").onclick = () => guard(renderFrames);
+  $("cancelExportButton").onclick = () => (exportCancelled = true);
+  $("fullscreenButton").onclick = () =>
+    guard(async () => {
+      await $("stage").parentElement.requestFullscreen();
+      await requestWake();
+    });
+  $("outputButton").onclick = () =>
+    guard(() => {
+      const w = window.open(
+        "output.html",
+        "phosphor-output",
+        "popup,width=1280,height=720",
+      );
+      if (!w) throw new Error("Allow pop-ups to open the clean output");
+      requestWake();
+    });
+  const gesture = (e) => {
+    const rect = $("stage").getBoundingClientRect();
+    engine.gesture = [
+      Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
+      1 - Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+      1,
+    ];
+  };
+  $("stage").onpointerdown = (e) => {
+    $("stage").focus();
+    $("stage").setPointerCapture(e.pointerId);
+    gesture(e);
+  };
+  $("stage").onpointermove = (e) => {
+    if (e.buttons & 1) gesture(e);
+  };
+  $("stage").style.touchAction = "none";
+  window.onkeydown = (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      if (
+        e.key.toLowerCase() === "z" &&
+        !e.target.matches("input,textarea,[contenteditable]")
+      ) {
+        e.preventDefault();
+        undoEdit(e.shiftKey);
+      }
+      return;
+    }
+    if (
+      e.repeat ||
+      e.target.closest("input,select,textarea,[contenteditable]") ||
+      $("helpDialog").open
+    )
+      return;
+    const k = e.key.toLowerCase();
+    if (k === "b") {
+      e.preventDefault();
+      blackout();
+    } else if (k === "p") {
+      e.preventDefault();
+      $("pauseButton").click();
+    } else if (k === "r") {
+      e.preventDefault();
+      $("resetButton").click();
+    } else if (k === "escape") safeLook();
+    else if (e.code === "Space" && !e.target.closest("button")) {
+      e.preventDefault();
+      if (engine.blackoutTarget) blackout(false);
+      else engine.gesture = [0.5, 0.5, 1];
+    } else if (e.key === "Enter" && !e.target.closest("button")) {
+      e.preventDefault();
+      nextCue();
+    } else if (e.shiftKey && ["ArrowLeft", "ArrowRight"].includes(e.key)) {
+      e.preventDefault();
+      const i = scenes.indexOf(currentScene());
+      checkpoint();
+      manualOverride();
+      loadSnapshot(
+        presetSnapshot(
+          scenes[
+            (i + (e.key === "ArrowRight" ? 1 : scenes.length - 1)) %
+              scenes.length
+          ],
+        ),
+        2,
+      );
+    }
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") requestWake();
+  });
+  window.addEventListener("beforeunload", (event) => {
+    if (recording || exporting || unsavedSet) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
+  window.addEventListener("pagehide", () => {
+    save();
+    if (recording?.recorder?.state === "recording") recording.recorder.stop();
+    audio.dispose();
+    midi.dispose();
+    wakeLock?.release();
+  });
 }
-
-function boot() { const saved = localStorage.getItem('phosphor-set-v1'); if (saved) { try { validateSession(JSON.parse(saved)); } catch { localStorage.removeItem('phosphor-set-v1'); } } resetAcid(); resetTapestry(); resetFeedback(); fillPalette(); renderScenes(); renderControls(); renderCues(); announce(); $('qualityBadge').textContent = '1080 / 60'; wire(); if (saved && localStorage.getItem('phosphor-set-v1')) { try { applySession(JSON.parse(saved)); } catch { showToast('Saved session could not be restored; starting clean'); } } if (new URLSearchParams(location.search).has('probe')) setTimeout(() => { window.__phosphorProbeResult = runLifecycleProbe(); showToast(window.__phosphorProbeResult.samples.every((sample) => sample.finitePixels && sample.nonBlack) && window.__phosphorProbeResult.audioCleared && window.__phosphorProbeResult.captureCleared ? 'Lifecycle probe passed' : 'Lifecycle probe found a recovery issue'); }, 350); requestAnimationFrame(renderFrame); }
-
-window.__phosphorTest = { sceneDefs, PHOSPHOR_FAMILY_CATALOG, stepElementary, reactionDiffusionStep, finiteArray, boundedFeedbackValue, lifecycleStressCheck, runLifecycleProbe, sessionData, validateSession };
-window.__phosphorMetrics = metrics;
+let last = performance.now(),
+  lastRender = 0,
+  lastHud = 0,
+  lastGovernor = 0,
+  lastWatchdog = 0,
+  blankCount = 0,
+  slowWindows = 0;
+function frame(now, schedule = true) {
+  if (schedule) requestAnimationFrame(frame);
+  try {
+    const clockDelta = Math.max(0, (now - last) / 1000);
+    const dt = Math.min(0.1, clockDelta);
+    last = now;
+    if (!paused) {
+      if ($("clockInput").checked && midiClockAt && now - midiClockAt < 1500)
+        beat =
+          midiBeat +
+          midiOffset +
+          (((now - midiClockAt) / 1000) * midiTempo) / 60;
+      else {
+        beat += (clockDelta * session.tempo) / 60;
+        if (
+          $("clockInput").checked &&
+          midiClockAt &&
+          now - midiClockAt >= 1500
+        ) {
+          midiClockAt = 0;
+          toast("MIDI clock lost. Continuing at manual tempo.");
+        }
+      }
+      if (pendingCue && beat >= pendingCue.beat)
+        enterCue(pendingCue.index, pendingCue.beat);
+      if (playing && beat >= cueEnd) {
+        if ($("autopilotInput").checked) enterCue(directorIndex());
+        else {
+          const cycle = session.cues.reduce((sum, c) => sum + c.bars * 4, 0);
+          let start = cueEnd + Math.floor((beat - cueEnd) / cycle) * cycle;
+          let index = (currentCue + 1) % session.cues.length;
+          for (
+            let n = 0;
+            n < session.cues.length &&
+            beat >= start + session.cues[index].bars * 4;
+            n++
+          ) {
+            start += session.cues[index].bars * 4;
+            index = (index + 1) % session.cues.length;
+          }
+          enterCue(index, start);
+        }
+      }
+      if (playing && currentCue >= 0) {
+        const cue = session.cues[currentCue],
+          offset = beat - cueStart;
+        if (cue.keyframes.length) {
+          const points = [
+            { beat: 0, snapshot: cue.snapshot },
+            ...cue.keyframes,
+          ];
+          let a = points[0],
+            b = null;
+          for (const p of points) {
+            if (p.beat <= offset) a = p;
+            else {
+              b = p;
+              break;
+            }
+          }
+          engine.setSnapshot(
+            b
+              ? interpolateSnapshot(
+                  a.snapshot,
+                  b.snapshot,
+                  (offset - a.beat) / (b.beat - a.beat),
+                )
+              : a.snapshot,
+          );
+        }
+      }
+    }
+    engine.beat = beat;
+    audio.tempo = effectiveTempo(now);
+    engine.features = audio.sample(dt);
+    if (now - lastRender >= (session.options.quality === "low" ? 32 : 16)) {
+      engine.advance((now - lastRender) / 1000 || dt, paused);
+      lastRender = now;
+    }
+    if (now - lastHud > 250) {
+      const stats = engine.stats();
+      $("status").textContent = paused
+        ? "Paused · clock held"
+        : playing
+          ? "Score live"
+          : currentCue >= 0
+            ? "Score paused"
+            : "Manual performance";
+      $("renderStatus").textContent =
+        `${engine.width}×${engine.height} · ${stats.median ? Math.round(1000 / stats.median) : "—"} fps · ${engine.transition ? "transition" : "live"}`;
+      $("beatReadout").textContent =
+        `${Math.floor(beat / 4) + 1} · ${Math.floor(beat % 4) + 1}${$("clockInput").checked ? ` · ${Math.round(effectiveTempo(now))} BPM` : ""}`;
+      $("cueProgress").textContent =
+        currentCue < 0
+          ? "No cue active"
+          : `Cue ${currentCue + 1} · ${(Math.max(0, playing ? cueEnd - beat : remainingBeats) / 4).toFixed(1)} bars left`;
+      $("crossfadeInput").value = engine.transition
+        ? engine.transition.elapsed / engine.transition.duration
+        : 1;
+      for (const [key, value] of Object.entries(audio.features)) {
+        const meter = $("meter-" + key);
+        if (meter) meter.value = value;
+      }
+      lastHud = now;
+    }
+    if (now - lastGovernor > 10000) {
+      lastGovernor = now;
+      const stats = engine.stats();
+      if (
+        session.options.autoQuality &&
+        !recording &&
+        !exporting &&
+        !engine.transition &&
+        stats.frames > 120
+      ) {
+        slowWindows =
+          stats.p95 > (session.options.quality === "low" ? 45 : 24)
+            ? slowWindows + 1
+            : 0;
+        if (slowWindows >= 2 && session.options.quality !== "low") {
+          session.options.quality =
+            session.options.quality === "high" ? "balanced" : "low";
+          resizeQuality();
+          renderOptions();
+          changed();
+          toast("Adaptive renderer lowered quality to preserve motion");
+          slowWindows = 0;
+        }
+      }
+    }
+    if (
+      now - lastWatchdog > 5000 &&
+      !paused &&
+      !engine.blackoutTarget &&
+      !engine.lost &&
+      !exporting &&
+      session.options.autoRecovery
+    ) {
+      lastWatchdog = now;
+      const health = engine.health();
+      const unusable =
+        health.mean < 0.025 || (health.mean > 250 && health.variance < 1);
+      blankCount =
+        unusable && session.options.brightness > 0.1 ? blankCount + 1 : 0;
+      if (blankCount >= 6) {
+        engine.load(session.active, 0);
+        toast("Dark output watchdog restarted current seed");
+        blankCount = 0;
+      }
+    }
+  } catch (error) {
+    playing = false;
+    paused = true;
+    toast(
+      "Performance paused after an error: " +
+        error.message +
+        ". Use Safe look to recover.",
+    );
+  }
+}
+async function boot() {
+  try {
+    let stored = null;
+    try {
+      stored = localStorage.getItem("phosphor-set-v2");
+      if (stored) session = validateSession(JSON.parse(stored), scenes);
+      else {
+        const legacy = localStorage.getItem("phosphor-set-v1");
+        if (legacy) {
+          stored = legacy;
+          session = migrateLegacy(JSON.parse(legacy), scenes);
+          toast(
+            "v1 set migrated to GPU models. Original local data retained; visuals are intentionally corrected.",
+          );
+        }
+      }
+    } catch (e) {
+      if (stored) {
+        recoveryRaw = stored;
+        try {
+          localStorage.setItem("phosphor-recovery-v2", stored);
+        } catch {
+          autosaveBlocked = true;
+        }
+      }
+      toast(
+        "Saved set rejected: " +
+          e.message +
+          " · original retained; download recovery backup",
+      );
+    }
+    try {
+      recoveryRaw ||= localStorage.getItem("phosphor-recovery-v2");
+    } catch {}
+    $("recoveryButton").hidden = !recoveryRaw;
+    if (autosaveBlocked) {
+      $("saveButton").textContent = "Save new set";
+      $("saveReadout").textContent =
+        "Recovery required · original save retained";
+    }
+    session.options.reducedMotion ||= matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    engine = new Engine($("stage"), scenes, toast);
+    engine.options = session.options;
+    engine.mappings = session.mappings;
+    engine.load(session.active, 0);
+    resizeQuality();
+    $("audioMeters").replaceChildren(
+      ...Object.keys(audio.features).map((key) => {
+        const label = el("label", key, "meter"),
+          meter = el("meter");
+        meter.id = "meter-" + key;
+        meter.min = 0;
+        meter.max = 1;
+        meter.value = 0;
+        label.append(meter);
+        return label;
+      }),
+    );
+    renderAll();
+    wire();
+    guard(refreshDevices);
+    window.__phosphor = {
+      scenes,
+      engine,
+      audio,
+      getSession: () => structuredClone(session),
+      applySession: (value) => {
+        const next = validateSession(value, scenes);
+        manualOverride();
+        session = next;
+        selectedCue = 0;
+        engine.options = session.options;
+        engine.mappings = session.mappings;
+        engine.load(session.active, 0);
+        resizeQuality();
+        renderAll();
+        changed();
+      },
+      outputStream: () => $("stage").captureStream(60),
+      outputFrame: (now) => frame(now, false),
+      stats: () => engine.stats(),
+    };
+    if ("serviceWorker" in navigator)
+      navigator.serviceWorker
+        .register("./sw.js")
+        .then((registration) => {
+          registration.addEventListener("updatefound", () => {
+            registration.installing?.addEventListener("statechange", () => {
+              if (registration.waiting)
+                toast(
+                  "New release cached. Finish recording, close all Phosphor windows, then reopen to update.",
+                );
+            });
+          });
+        })
+        .catch(() =>
+          toast("Offline cache unavailable; keep this page open during a show"),
+        );
+    requestAnimationFrame(frame);
+  } catch (e) {
+    $("fatal").hidden = false;
+    $("fatal").textContent = "Renderer could not start: " + e.message;
+    $("status").textContent = "Renderer unavailable";
+    console.error(e);
+  }
+}
 boot();
