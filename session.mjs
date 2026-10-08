@@ -563,6 +563,10 @@ const bBounds = {
   },
 };
 function bSnapshot(value, index, preset, scenes, cue) {
+  // Only the ten shared families translate. The v6 fractal families now
+  // exist as new GPU scenes with different models; their cues are dropped
+  // and reported, never mapped by name.
+  if (index >= 10) return null;
   const id = B_FAMILIES[index];
   const scene = scenes.find((s) => s.id === (bShared[id] || id));
   if (!scene) return null;

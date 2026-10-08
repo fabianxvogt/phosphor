@@ -10,6 +10,10 @@ import phase from "./scene-phase.mjs";
 import evolution from "./scene-evolution.mjs";
 import pulse from "./scene-pulse.mjs";
 import flight from "./scene-flight.mjs";
+import beams from "./scene-beams.mjs";
+import julia from "./scene-julia.mjs";
+import fourspace from "./scene-fourspace.mjs";
+import hyperbolic from "./scene-hyperbolic.mjs";
 
 export default [
   acid,
@@ -24,4 +28,8 @@ export default [
   evolution,
   pulse,
   flight,
+  beams,
+  julia,
+  fourspace,
+  hyperbolic,
 ];
