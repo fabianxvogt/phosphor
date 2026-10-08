@@ -82,18 +82,34 @@ async function openStage() {
     toast("The stage is already running.");
     return;
   }
-  let features = "popup,width=1280,height=720";
+  // Open first, while the click's user activation is still valid; then move
+  // the window onto the external screen (Window Management API). A pending
+  // permission prompt must never cost the popup.
+  stageWindow = window.open(
+    "stage.html",
+    "phosphor-stage",
+    "popup,width=1280,height=720",
+  );
+  if (!stageWindow) {
+    toast(
+      "The browser blocked the stage window. Allow pop-ups for this site, then click Open stage again.",
+    );
+    return;
+  }
   try {
-    if ("getScreenDetails" in window) {
-      const details = await window.getScreenDetails();
-      const external = details.screens.find((s) => s !== details.currentScreen);
-      if (external)
-        features = `popup,left=${external.availLeft},top=${external.availTop},width=${external.availWidth},height=${external.availHeight}`;
+    if (!("getScreenDetails" in window)) return;
+    const details = await window.getScreenDetails();
+    const external = details.screens.find((s) => s !== details.currentScreen);
+    if (!external) {
+      log("Only one screen found: drag the stage window to the projector.");
+      return;
     }
-  } catch {}
-  stageWindow = window.open("stage.html", "phosphor-stage", features);
-  if (!stageWindow)
-    toast("The browser blocked the stage window. Click Open stage again.");
+    stageWindow.moveTo(external.availLeft, external.availTop);
+    stageWindow.resizeTo(external.availWidth, external.availHeight);
+    log(`Stage placed on ${external.label || "the external screen"}.`);
+  } catch {
+    log("Drag the stage window to the projector screen.");
+  }
 }
 const stageAlive = () => performance.now() - lastStatusAt < 2000;
 window.__phosphorControl = {
