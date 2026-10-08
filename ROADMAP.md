@@ -1,31 +1,74 @@
 # Roadmap
 
-State: production candidate on [Vercel](https://phosphor-performance.vercel.app/), canonical branch `main`. Classification `INCREMENTAL / EMPIRICAL`. Goal (owner, 2026-10-08): the owner's own reliable live instrument; the public URL is a free demo. The Canvas2D v6 instrument (`apps/phosphor`, tag `archive/v6-canvas`) is frozen; its features are ported here. Decisions and evidence: [docs](docs/README.md), [evidence log](docs/EVIDENCE.md).
+State: production candidate; canonical branch `main`; [Vercel](https://phosphor-performance.vercel.app/) is a frozen free demo. Direction set 2026-10-08 in an owner interview, recorded in the [decision log](docs/DECISIONS.md):
 
-## Now — Milestone 1: live-show reliability and art direction
+**Phosphor is the owner's VJ instrument for other people's DJ sets.** One MacBook Pro M3 Pro, Chrome, HDMI straight to whatever screen the venue has, 4–8-hour nights, generative visuals only. Reference: [docs](docs/README.md), [evidence log](docs/EVIDENCE.md).
 
-Reference rig: Apple M3 Pro, Chrome, external 1080p 60 Hz display. Parallel lanes, one writer per file:
+First show: **2026-12-17** (planning placeholder until a real date exists). Feature freeze two weeks before. The date is fixed; scope flexes.
 
-- **App core:** split `app.js` into testable transport/persistence/MIDI/keyboard/governor modules; fix live-show bugs test-first (panic keys under slider focus, duplicate MIDI delivery, NaN keyframes, 120 Hz governor downgrade, undo/autosave/output-window/device hazards); dark-techno demo, tab audio, v6 14-family set import with a visible drop report; runtime telemetry.
-- **Image pipeline:** highlight rolloff, dual-filter bloom, dithering, stochastic 8-bit rounding, shader correctness (seed precision, `pow`, hash growth), flash limiter (default on), echo/chroma effects, generated offline asset list, Melt/Cathedral cost cuts, isolated shader failures.
-- **Test harness:** committed browser smoke, 62-preset contact sheet with art metrics, host-logged soak runner with gate summary, Safari/Firefox render smoke, typecheck/format, CI gate before any deploy.
-- **Then art direction:** art bible (emissive light on true black), per-preset palettes, three signature looks to owner-approved 5/5 (candidates Opal Reliquary, Foil Ribbon Eclipse, Nested linen), one rework of Magnetic and Phase or hide them.
-- **Then performer UX:** stage view with GO/NEXT and bar countdown, pinned blackout strip on narrow screens, preset thumbnails, contrast ≥ 3:1 and visible focus.
-- **Gate:** owner's 30-minute set on the reference rig — frame p95 ≤ 18 ms / p99 ≤ 34 ms at Balanced, zero governor downgrades, GPU errors and non-finite shader inputs, heap growth ≤ 50 MB, one slot/five textures after fades, cue prep ≤ 250 ms, blackout within two frames, export → reload identical.
+## Product shape
 
-## Next — Milestone 2
+- **Play:** 4×8 clip grid on the keyboard (physical key positions, so QWERTZ works), eight pages. Show mode has no editors; Prep mode has everything. Autopilot plays the current page by default; any manual trigger takes over and hands back after 32 idle bars.
+- **Controls:** shared master, energy, speed trim (½×/1×/2×), hue, zoom, mirror and flash (through the limiter); three family controls on stage, all eight in Prep. A clip stores its look, base energy, fade, quantize and autopilot flag.
+- **Timing:** line feed from the DJ mixer. Automatic tempo and beat phase, downbeat by key, builds/drops/breakdowns from loudness. Tap, downbeat and nudge always work alone. Techno/house, 100–150 BPM.
+- **Output:** the output window renders at the screen's native size and shape (≈2.1 MP budget) and owns show state, audio, beat tracking and autopilot; the control window is a remote with a preview. Full restore after a crash in ≤ 10 s.
+- **Visuals:** 16 families, 3–4 structurally distinct types each, every type spanning very low to very high energy (Aquarium is the only calm-only family). Shared kick responses for every family.
 
-- Two-hour soak on the reference rig with host-side telemetry.
-- Port the four v6 families: scene-contract camera input, then Fractal Flight, Julia, Fourth Dimension, Hyperbolic Loom as GPU scenes with six presets each; optional `camera` field in v2 sets. Then archive the v6 checkout.
+## Milestone 1 — first show
 
-## Later
+| Weeks | Dates | Work |
+| --- | --- | --- |
+| 1 | 8–14 Oct | Review and merge `lane/test-harness`, `lane/image-pipeline`, `lane/app-core`. Owner provides 5–10 recorded mixes (outside the repo). Beat-tracker prototype. |
+| 2–3 | 15–28 Oct | Output window becomes renderer and show owner; control window becomes a remote. Scene contract v3: energy curve, beat responses, types, any aspect. Remove linear score, keyframes, WebM/frame export, MIDI clock, manual audio routing. Measure beat tracking on the mixes. |
+| 4–5 | 29 Oct–11 Nov | Grid, keyboard map and pages; Show/Prep; shared controls and energy fader; crash recovery; preflight; bar-count autopilot. Group 1 families start in parallel. |
+| 4–8 | 29 Oct–2 Dec | Families in queue order, owner sign-off weekly. Auto beat tracking and build/drop autopilot if they meet their targets. |
+| 9 | 3–9 Dec | Freeze. 8-hour run, fixes only. |
+| 10 | 10–16 Dec | Second 8-hour run if fixes landed; line check with a real DJ mixer feed. |
 
-- Milestone 3: outside performers (three performers, two independently returning to a saved set).
-- MIDI controller templates once hardware is named; side-by-side bred-variant comparison; higher-precision simulation buffers if contact sheets still show artifacts; parameter-only sharing if a real handoff needs it.
+**Checkpoint 2026-11-11:** if fewer than three group 1 families have passed the family gate, group 2 leaves the first-show scope and Melt and Acid move up.
+
+### Required for the first show
+
+Output-window renderer; keyboard grid; Show/Prep; tap, downbeat and nudge; energy fader and shared beat responses; flash limiter (on by default, locked during a show); crash recovery; preflight; telemetry; every screen shape handled at least by cover-crop; bar-count autopilot. Minimum content: six families through the family gate, at least two strong at peak time.
+
+### Ships only if ready
+
+Automatic beat tracking (lock within 8 beats of a tempo change, phase error < 20 ms, holds through a 32-bar breakdown, on the owner's mixes); autopilot build/drop response; native per-family composition for odd screen shapes.
+
+### Family queue
+
+1. Cathedral, Interference (plus hard-edged peak mode), Feedback, Tapestry
+2. Pulse Geometry (new), Fractal Flight (v6 port)
+3. Melt, Acid (absorbs Evolution Garden as a "garden" type)
+4. Light Beams (new), Particle Swarm (new)
+5. Julia Observatory, Fourth Dimension, Hyperbolic Loom (v6 ports)
+6. Magnetic and Phase reworks, then Aquarium (calm-only)
+
+v6 families are ported as ideas, not Canvas2D code: new GPU scenes on contract v3. Fractal Flight's manual flying becomes authored camera paths, one per type. Families after group 1 join the first show only if they pass the gate before the freeze; the rest continue in order after it.
+
+### Family gate
+
+At least three types that pass the grayscale distinctness sheet (same palette, mid energy; structural metric flags near pairs, including across families) and owner sign-off; an owner-approved energy ladder (0.1 / 0.5 / 0.9) for every type; frame p99 ≤ 34 ms on the reference rig at the 1080p-equivalent budget with the costliest type at full energy; GPU error zero and no non-finite shader inputs; correct at 16:9, ultra-wide and square; kick response through the shared beat layer. A family merges only after it passes.
+
+### Show gate
+
+Eight hours unattended on the M3 Pro (mains power, Chrome, external display at native resolution), recorded mixes through the line input, autopilot on: zero crashes and manual recoveries; frame p99 ≤ 34 ms; no quality downgrade after the first ten minutes; heap growth ≤ 50 MB; blackout reaches the output within two frames, measured at the output; crash drill back on screen in ≤ 10 s with ≤ 2 clicks; beat-tracking targets met if it ships; one line check with a real DJ mixer feed.
+
+### How work runs
+
+Platform changes go one at a time on `main`, because they change contracts every scene depends on. After contract v3, families run in parallel branches, one family per branch. Claude builds, tests and produces contact sheets and ladders; the owner provides mixes, art sign-off and rig runs. CI runs unit tests, synthetic click-track beat tests and a headless render smoke of shipped families; mixes, soaks and ladder sign-off run locally and never enter the repo.
+
+## After the first show
+
+Remaining families in queue order. Optional families: Oscilloscope, Terrain. v6 set import only if the owner has v6 sets worth keeping.
+
+## Cut
+
+Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PNG snapshots stay); MIDI clock and Start/Stop/Continue; manual band-to-parameter audio routing; Safari and Firefox support; Milestone 3 (outside performers); further work on the public demo. MIDI learn for CC/notes stays.
 
 ## Done
 
 - Ten families / 62 looks on one WebGL2 engine; fixed 60 Hz simulation with bounded catch-up; two-slot transitions with interrupted-mix recovery; context-loss rebuild.
 - Cue scores with keyframes, quantized GO, director mode; audio/MIDI routing and clock; clean projector output; PNG/WebM/frame-sequence export; strict portable v2 sets with v1 migration and recovery backup; content-stamped offline cache.
 - Public Vercel release with hosted all-family, offline, 390 px and output checks (see evidence log).
-- 2026-10-08: critical review; `main` became the canonical/default branch; Pages mirror retired; v6 source frozen and tagged.
+- 2026-10-08: critical review; `main` became canonical; Pages mirror retired; v6 source frozen and tagged `archive/v6-canvas`; owner interview set the VJ direction above.

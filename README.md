@@ -2,7 +2,7 @@
 
 A browser visual instrument for live shows: ten GPU-simulated scene families, 62 authored looks, cue scores, audio/MIDI response and a clean projector output. Everything runs locally in the browser.
 
-**Live:** [phosphor-performance.vercel.app](https://phosphor-performance.vercel.app/) · **State:** production candidate; Milestone 1 (live-show reliability + art direction) in progress, see [ROADMAP](ROADMAP.md). Reference runtime: desktop Chrome on an Apple M3 Pro.
+**Live:** [phosphor-performance.vercel.app](https://phosphor-performance.vercel.app/) · **State:** production candidate, being reshaped into a VJ instrument for other people's DJ sets (first show planned for December 2026); see [ROADMAP](ROADMAP.md) and [decisions](docs/DECISIONS.md). Reference runtime: desktop Chrome on an Apple M3 Pro.
 
 ## Run
 

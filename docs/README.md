@@ -1,6 +1,6 @@
 # Phosphor documentation
 
-- [Performer guide](../README.md) · [Roadmap and gates](../ROADMAP.md) · [Evidence log](EVIDENCE.md)
+- [Performer guide](../README.md) · [Roadmap and gates](../ROADMAP.md) · [Decision log](DECISIONS.md) · [Evidence log](EVIDENCE.md)
 - Creative brief: `Development/docs/projects/GAMES_VISUALS_CREATIVE.md`, families 47–56.
 
 ## Classification
