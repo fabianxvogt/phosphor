@@ -4,8 +4,7 @@
   "topic": "Creative tools/Generative art",
   "type": "product",
   "description": "A visual instrument for generative scenes, fractal flight and live performance.",
-  "demo": "https://phosphor-visual-instrument.fabian523417.chatgpt.site",
-  "featured": true
+  "demo": "https://phosphor-visual-instrument.fabian523417.chatgpt.site"
 }
 -->
 
