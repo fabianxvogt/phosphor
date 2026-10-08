@@ -101,7 +101,7 @@ export function readTelemetry() {
     refreshHz: null,
     governorDowngrades: state.governorDowngrades,
     frameIntervalsMs: state.frameIntervalsMs.splice(0),
-    gpuErrors: app.engine.counters?.gpuErrors ?? state.gpuErrors,
+    gpuErrors: (app.engine.counters?.gpuErrors ?? 0) + state.gpuErrors,
     nonFinite: app.engine.counters?.nonFinite ?? state.nonFiniteUploads,
     flashLimited: app.engine.counters?.flashLimited ?? null,
     slots: stats.slots,
