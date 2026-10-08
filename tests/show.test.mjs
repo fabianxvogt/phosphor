@@ -142,3 +142,52 @@ test("audition plays an unsaved clip immediately", () => {
   assert.equal(load.slot, -1);
   assert.equal(show.status(0.3).live.slot, -1);
 });
+
+test("autopilot and keys never schedule a family whose shaders failed", () => {
+  const show = makeShow((set) => (set.autopilot.everyBars = 16));
+  show.disable("acid", 0);
+  assert.deepEqual(show.command({ type: "slot", index: 0 }, 0.6), []); // acid
+  const fired = [];
+  for (let t = 0; t < 400; t += 0.05) fired.push(...loads(show.tick(t)));
+  assert.ok(fired.length > 5);
+  assert.ok(fired.every((a) => a.snapshot.scene !== "acid"));
+  assert.deepEqual(show.status(400).disabled, ["acid"]);
+});
+
+test("a failed family on screen cuts at once to a playable clip on the page", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
+  show.command({ type: "slot", index: 0 }, 0.5); // acid, fires on the beat
+  assert.equal(show.status(0.5).live.slot, 0);
+  const cut = loads(show.disable("acid", 0.7, true));
+  assert.equal(cut.length, 1);
+  assert.equal(cut[0].fadeSeconds, 0);
+  assert.notEqual(cut[0].snapshot.scene, "acid");
+  assert.equal(show.status(0.7).live.slot, cut[0].slot);
+});
+
+test("with the page unplayable the safe look takes over, then any page, then blackout", () => {
+  const show = makeShow((set) => {
+    set.autopilot.enabled = false;
+    const cathedral = set.pages[0].slots[6];
+    for (const page of set.pages)
+      page.slots = page.slots.map((c) =>
+        c?.snapshot.scene === "acid" ? c : null,
+      );
+    for (const page of set.pages.slice(1)) page.slots.fill(null);
+    set.pages[1].slots[4] = cathedral;
+  });
+  show.command({ type: "slot", index: 0 }, 0.5);
+  const safe = show.disable("acid", 1, true);
+  assert.deepEqual(
+    safe.map((a) => a.type),
+    ["safe"],
+  );
+  assert.equal(safe[0].snapshot.scene, "interference");
+  const other = loads(show.disable("interference", 2, true));
+  assert.equal(other[0].snapshot.scene, "cathedral");
+  assert.equal(show.status(2).live.page, 1);
+  assert.deepEqual(show.disable("cathedral", 3, true), [
+    { type: "blackout", on: true },
+  ]);
+  assert.equal(show.blackout, true);
+});

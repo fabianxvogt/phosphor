@@ -14,6 +14,7 @@ import { actionFor } from "./keymap.mjs";
 import { drawPattern } from "./stage-pattern.mjs";
 import { Pacer } from "./pacer.mjs";
 import { Telemetry } from "./telemetry.mjs";
+import { Governor } from "./governor.mjs";
 
 const $ = (id) => document.getElementById(id);
 const channel = new BroadcastChannel("phosphor-show");
@@ -22,10 +23,12 @@ const now = () => performance.now() / 1000;
 const canvas = $("canvas");
 
 const errors = [];
-const engine = new Engine(canvas, scenes, (message) => {
+const engine = new Engine(canvas, scenes, (message, sceneId) => {
   errors.push(message);
   if (errors.length > 20) errors.shift();
   post({ type: "error", message });
+  // Shader failures can surface during construction, before `show` exists.
+  if (sceneId) queueMicrotask(() => isolate(sceneId));
 });
 const { set } = loadSet(localStorage, scenes);
 const safeSnapshot = presetSnapshot(
@@ -42,7 +45,7 @@ const events = new EnergyEvents();
 const telemetry = new Telemetry();
 const pacer = new Pacer();
 let frozen = false;
-let budget = set.options.pixelBudget;
+const governor = new Governor(PIXEL_BUDGETS, set.options.pixelBudget);
 let started = false;
 
 function applyOptions(options) {
@@ -55,6 +58,13 @@ function applyOptions(options) {
   });
 }
 
+// A family whose shaders failed never stops the show: the controller stops
+// scheduling it and, if it is on screen, cuts to a playable clip.
+function isolate(id) {
+  const onScreen = engine.slots.some((s) => s.scene.id === id);
+  apply(show.disable(id, now(), onScreen));
+}
+
 function apply(actions) {
   for (const a of actions)
     switch (a.type) {
@@ -63,11 +73,22 @@ function apply(actions) {
         // Energy crossfades with the picture: the outgoing clip moves toward
         // the new energy while the incoming one starts from the old.
         engine.setLevel(a.energy, a.fadeSeconds);
-        engine.load(a.snapshot, a.fadeSeconds, { energy: a.energy });
+        engine.rayStepBudget = governor.steps(a.snapshot.scene);
+        if (
+          engine.load(a.snapshot, a.fadeSeconds, { energy: a.energy }) === false
+        )
+          isolate(a.snapshot.scene);
         break;
       case "safe":
         engine.setLevel(a.energy, 0);
-        engine.load(a.snapshot, 0.4, { flashExempt: true, energy: a.energy });
+        engine.rayStepBudget = governor.steps(a.snapshot.scene);
+        if (
+          engine.load(a.snapshot, 0.4, {
+            flashExempt: true,
+            energy: a.energy,
+          }) === false
+        )
+          isolate(a.snapshot.scene);
         break;
       case "energy":
         engine.setLevel(a.value, a.seconds);
@@ -102,7 +123,7 @@ function fit() {
   const dpr = window.devicePixelRatio || 1;
   const w = Math.max(1, innerWidth * dpr),
     h = Math.max(1, innerHeight * dpr);
-  const scale = Math.min(1, Math.sqrt((budget * 1e6) / (w * h)));
+  const scale = Math.min(1, Math.sqrt((governor.budget * 1e6) / (w * h)));
   const width = Math.round(w * scale),
     height = Math.round(h * scale);
   if (width !== engine.width || height !== engine.height)
@@ -135,7 +156,6 @@ if (!engine.slots.length) {
 // Render at about 60 Hz whatever the display's refresh rate (pacer.mjs).
 const intervals = new Float32Array(600);
 let intervalCount = 0,
-  slowWindows = 0,
   lastAssess = 0,
   lastStatus = 0,
   lastSave = 0;
@@ -185,12 +205,12 @@ function frame(ms) {
     saveRuntime(localStorage, show.snapshot(t));
   }
 }
-let downgrades = 0;
 function context() {
   const status = audio.status();
   return {
-    budget,
-    downgrades,
+    budget: governor.budget,
+    downgrades: governor.downgrades,
+    stepReductions: governor.stepReductions,
     scene: engine.slots.at(-1)?.scene.id ?? null,
     level: Math.round(engine.level * 100) / 100,
     audio: status.source,
@@ -201,24 +221,31 @@ function context() {
   };
 }
 
-// Downgrade-only pixel budget governor: two consecutive slow 5 s windows
-// (p95 frame interval above 1.6× the 60 Hz budget) step the budget down.
+// Every 5 s outside transitions (governor.mjs).
 function assess(ms) {
   lastAssess = ms;
   const n = Math.min(intervalCount, intervals.length);
   if (n < 120 || engine.transition) return;
   const sorted = Array.from(intervals.subarray(0, n)).sort((a, b) => a - b);
-  const p95 = sorted[Math.floor(n * 0.95)];
-  slowWindows = p95 > (1000 / 60) * 1.6 ? slowWindows + 1 : 0;
-  const index = PIXEL_BUDGETS.indexOf(budget);
-  if (slowWindows >= 2 && index > 0) {
-    budget = PIXEL_BUDGETS[index - 1];
-    slowWindows = 0;
-    downgrades++;
+  const scene = engine.slots.at(-1)?.scene.id ?? null;
+  const rayMarched =
+    engine.programs.get(scene)?.visual?.uniforms?.u_raySteps != null;
+  const change = governor.assess(
+    sorted[Math.floor(n * 0.95)],
+    scene,
+    rayMarched,
+  );
+  if (change?.steps) {
+    engine.rayStepBudget = change.steps;
+    post({
+      type: "error",
+      message: `Frames were slow; ${scene} ray steps lowered to ${change.steps}.`,
+    });
+  } else if (change?.budget) {
     fit();
     post({
       type: "error",
-      message: `Frames were slow; pixel budget lowered to ${budget} MP.`,
+      message: `Frames were slow; pixel budget lowered to ${change.budget} MP.`,
     });
   }
   intervalCount = 0;
@@ -235,13 +262,18 @@ function sendStatus(t, ms) {
       started,
       width: engine.width,
       height: engine.height,
-      budget,
+      budget: governor.budget,
       fps: n ? 1000 / sorted[Math.floor(n / 2)] : null,
       p95: n ? sorted[Math.floor(n * 0.95)] : null,
       level: engine.level,
       scene: engine.slots.at(-1)?.scene.id ?? null,
       counters: { ...engine.counters },
       frozen,
+      // Preflight (D10).
+      fullscreen: !!document.fullscreenElement,
+      external,
+      wakeLock: !!wake && !wake.released,
+      patternShown,
     },
     audio: audio.status(),
   });
@@ -277,8 +309,8 @@ channel.onmessage = async ({ data }) => {
         show.autopilot.handBackBars = next.autopilot.handBackBars;
         if (show.page >= next.pages.length) show.page = 0;
         applyOptions(next.options);
-        if (next.options.pixelBudget !== budget) {
-          budget = next.options.pixelBudget;
+        if (next.options.pixelBudget !== governor.budget) {
+          governor.budget = next.options.pixelBudget;
           fit();
         }
         break;
@@ -300,6 +332,7 @@ channel.onmessage = async ({ data }) => {
       case "pattern":
         document.body.classList.toggle("pattern", !!data.on);
         if (data.on) drawPattern($("pattern"), engine);
+        patternShown ||= !!data.on;
         break;
     }
   } catch (error) {
@@ -317,10 +350,21 @@ for (const kind of ["keydown", "keyup"])
   });
 
 // --- start: one click on the stage starts audio and goes fullscreen -------
-let wake = null;
+let wake = null,
+  external = null, // stage on a non-built-in screen; null when unknown
+  patternShown = false;
 async function awake() {
   try {
     wake = await navigator.wakeLock?.request("screen");
+  } catch {}
+}
+async function watchScreen() {
+  try {
+    const details = await window.getScreenDetails?.();
+    if (!details) return;
+    const update = () => (external = !details.currentScreen.isInternal);
+    update();
+    details.addEventListener("currentscreenchange", update);
   } catch {}
 }
 $("start").onclick = async () => {
@@ -328,6 +372,7 @@ $("start").onclick = async () => {
     await document.documentElement.requestFullscreen?.();
   } catch {}
   await awake();
+  watchScreen();
   try {
     await audio.ensure();
     started = true;
@@ -354,6 +399,7 @@ addEventListener("pagehide", () => {
 window.__phosphorStage = {
   engine,
   show,
+  governor,
   audio,
   scenes,
   attachPreview,

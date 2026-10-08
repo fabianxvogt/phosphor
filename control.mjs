@@ -39,7 +39,7 @@ const stageParams = (scene) =>
 
 let { set, report } = loadSet(localStorage, scenes);
 let status = null; // last stage status
-let lastStatusAt = 0;
+let lastStatusAt = -Infinity; // no stage heard yet (0 would read as alive for 2 s)
 let labels = {};
 let selected = { page: 0, slot: 0 }; // Prep selection
 let draft = null; // clip being edited
@@ -252,6 +252,10 @@ function renderGrid() {
       cell.classList.toggle("empty", !clip);
       cell.classList.toggle("noauto", !!clip && !clip.autopilot);
       cell.classList.toggle(
+        "unavailable",
+        !!clip && !!status?.status.disabled?.includes(clip.snapshot.scene),
+      );
+      cell.classList.toggle(
         "live",
         !!live && live.page === page && live.slot === slot,
       );
@@ -294,22 +298,30 @@ function fader({ key, label, min, max, step }, value, oninput) {
     output,
   );
 }
+// Built once; status updates move the values in place so a fader never
+// disappears under the pointer. A focused fader belongs to the performer.
 function renderShared() {
   const s = status?.status;
-  $("shared").replaceChildren(
-    ...SHARED.map((def) =>
-      fader(
-        def,
-        def.key === "energy"
-          ? (s?.energy ?? 0.5)
-          : (s?.shared[def.key] ?? set.shared[def.key]),
-        (value) =>
+  const value = (key) =>
+    key === "energy" ? (s?.energy ?? 0.5) : (s?.shared[key] ?? set.shared[key]);
+  if (!$("shared").children.length)
+    $("shared").replaceChildren(
+      ...SHARED.map((def) =>
+        fader(def, value(def.key), (v) =>
           def.key === "energy"
-            ? act({ type: "energy", value })
-            : act({ type: "shared", [def.key]: value }),
+            ? act({ type: "energy", value: v })
+            : act({ type: "shared", [def.key]: v }),
+        ),
       ),
-    ),
-  );
+    );
+  for (const def of SHARED) {
+    const input = $(`fader-${def.key}`);
+    if (input === document.activeElement) continue;
+    input.value = value(def.key);
+    input.nextElementSibling.value = Number(input.value).toFixed(
+      def.step < 1 ? 2 : 0,
+    );
+  }
 }
 let familyKey = null;
 function renderFamily() {
@@ -396,10 +408,8 @@ function renderStatus() {
       : `${a.source} · ${a.locked ? (a.coasting ? "holding" : `${a.bpm?.toFixed(1)} BPM`) : "listening"}`;
   $("audioPill").className =
     `pill ${a.source === "off" ? "" : a.locked ? "ok" : "warn"}`;
-  if (!activeIsFader()) {
-    renderShared();
-    renderFamily();
-  }
+  renderShared();
+  if (!activeIsFader()) renderFamily();
   renderGrid();
   if (showMode) renderPages();
   renderChecks();
@@ -772,27 +782,33 @@ const manualChecks = [
   "Projector / LED wall resolution confirmed with the framing pattern",
 ];
 const ticked = new Set();
-function renderChecks() {
-  if (showMode) return;
-  const st = status?.stage,
+// Automatic preflight checks (D10), from the stage's status.
+function preflight() {
+  const st = stageAlive() ? status?.stage : null,
     a = status?.audio;
-  const auto = [
-    ["Stage open and started", stageAlive() && st?.started],
+  return [
+    ["Stage open and started", !!st?.started],
     [
-      "Stage on its own screen at native size",
-      stageAlive() && st && st.width * st.height > 0,
+      "Stage fullscreen on the external screen",
+      !!st?.fullscreen && st.external === true,
     ],
+    ["Screen wake lock held", !!st?.wakeLock],
+    ["Framing pattern shown on the stage", !!st?.patternShown],
     [
       "Microphone permission granted for this site",
       micPermission === "granted",
     ],
-    ["Audio input has signal", a && a.source !== "off" && a.level > 0.02],
+    ["Audio input has signal", !!a && a.source !== "off" && a.level > 0.02],
     [
       "Beat tracker locked (or manual tempo set)",
-      a?.locked || status?.status.clock.mode === "manual",
+      !!(a?.locked || status?.status.clock.mode === "manual"),
     ],
-    ["No GPU errors", st && st.counters.gpuErrors === 0],
+    ["No GPU errors", st?.counters.gpuErrors === 0],
   ];
+}
+function renderChecks() {
+  if (showMode) return;
+  const auto = preflight();
   $("checks").replaceChildren(
     ...auto.map(([label, ok]) =>
       el(
@@ -838,7 +854,15 @@ $("modeButton").onclick = () =>
         setMode(false),
       )
     : confirm(
-        "Enter Show mode? Editors are hidden; the grid and performance controls stay.",
+        [
+          "Enter Show mode? Editors are hidden; the grid and performance controls stay.",
+          ...preflight()
+            .filter(([, ok]) => !ok)
+            .map(([label]) => `Not ok: ${label}.`),
+          ...manualChecks
+            .filter((label) => !ticked.has(label))
+            .map((label) => `Not ticked: ${label}.`),
+        ].join("\n"),
         () => setMode(true),
       );
 

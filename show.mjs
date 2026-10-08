@@ -30,12 +30,16 @@ export class Show {
     this.freeze = false;
     this.flash = false;
     this.lastBar = null;
+    this.disabled = new Set(); // families whose shaders failed
   }
 
   #pool(page = this.page) {
     const pool = [];
     this.set.pages[page].slots.forEach(
-      (clip, slot) => clip && pool.push({ slot, clip }),
+      (clip, slot) =>
+        clip &&
+        !this.disabled.has(clip.snapshot.scene) &&
+        pool.push({ slot, clip }),
     );
     return pool;
   }
@@ -48,7 +52,7 @@ export class Show {
     fade,
     clip = this.set.pages[page]?.slots[slot],
   ) {
-    if (!clip) return [];
+    if (!clip || this.disabled.has(clip.snapshot.scene)) return [];
     const now = this.clock.at(t);
     let at = now.beat;
     if (quantize === "beat") {
@@ -86,6 +90,33 @@ export class Show {
 
   #manual(t) {
     this.autopilot.manual(this.clock.at(t).bar);
+  }
+
+  // A family whose shaders failed is never scheduled again. If it is on
+  // screen, cut to a playable clip on this page, else the safe look, else
+  // any playable clip; with nothing playable left, black out.
+  disable(id, t, onScreen = false) {
+    if (this.disabled.has(id)) return [];
+    this.disabled.add(id);
+    if (this.pending?.clip.snapshot.scene === id) this.pending = null;
+    if (this.live?.clip.snapshot.scene === id) this.live = null;
+    if (!onScreen) return [];
+    const pick = (page) => {
+      const pool = this.#pool(page);
+      return pool.find(({ clip }) => clip.autopilot) ?? pool[0];
+    };
+    const here = pick(this.page);
+    if (here) return this.#schedule(t, this.page, here.slot, "now", 0);
+    if (!this.disabled.has(this.safeSnapshot.scene))
+      return [
+        { type: "safe", snapshot: this.safeSnapshot, energy: this.energy },
+      ];
+    for (let page = 0; page < this.set.pages.length; page++) {
+      const any = pick(page);
+      if (any) return this.#schedule(t, page, any.slot, "now", 0);
+    }
+    this.blackout = true;
+    return [{ type: "blackout", on: true }];
   }
 
   command(action, t) {
@@ -253,6 +284,7 @@ export class Show {
             ? null
             : this.autopilot.nextChange - clock.bar,
       },
+      disabled: [...this.disabled],
       clock,
     };
   }

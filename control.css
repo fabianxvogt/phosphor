@@ -330,6 +330,10 @@ main {
   font-size: 9px;
   color: var(--muted);
 }
+.cell.unavailable {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
 @keyframes blink {
   50% {
     border-color: var(--line);
@@ -441,6 +445,9 @@ kbd {
   padding: 10px 16px;
   background: #2a2410;
   border-bottom: 1px solid var(--pending);
+}
+#confirmText {
+  white-space: pre-line;
 }
 .toast {
   position: fixed;
