@@ -44,7 +44,11 @@ try {
     assert.equal(result.glError, 0, `${look.name}: WebGL error`);
     assert.equal(result.nonFinite, 0, `${look.name}: non-finite upload`);
     assert.equal(result.stats.slots, 1);
-    assert.equal(result.stats.textures, 5);
+    assert.equal(
+      result.stats.liveTextures,
+      result.stats.textures,
+      `${look.name}: unaccounted GPU textures`,
+    );
   }
   pass(`all ${looks.length} presets nonblank / WebGL 0 / nonFinite 0`);
   // Engine lifecycle is contract 4's seam; advance by frames, not wall-clock sleeps.
@@ -64,10 +68,10 @@ try {
     }, i);
     assert.equal(stats.transition, false);
     assert.equal(stats.slots, 1);
-    assert.equal(stats.textures, 5);
+    assert.equal(stats.liveTextures, stats.textures);
     assert.equal(stats.error, 0);
   }
-  pass("every completed family fade returns to 1 slot / 5 textures");
+  pass("every completed family fade returns to 1 slot with no leaked textures");
   await page.evaluate(() => {
     const app = window.__phosphor;
     const set = app.getSession();

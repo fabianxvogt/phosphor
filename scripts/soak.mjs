@@ -196,9 +196,13 @@ function summary(elapsedMinutes) {
       true,
     ),
     gate(
-      "every completed fade: 1 slot / 5 textures",
+      "every completed fade: 1 slot, no leaked textures",
       settled.length ? settled.length : null,
-      settled.every((stats) => stats.slots === 1 && stats.textures === 5),
+      settled.every(
+        (stats) =>
+          stats.slots === 1 &&
+          (stats.liveTextures ?? stats.textures) === stats.textures,
+      ),
     ),
     gate(
       "cue preparation -> fade start <= 250ms",

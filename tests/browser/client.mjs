@@ -64,7 +64,11 @@ export function attachFallback() {
     const slots = engine.slots.length;
     if (state.previousSlots > 1 && slots === 1) {
       const stats = engine.stats();
-      state.settled.push({ slots, textures: stats.textures });
+      state.settled.push({
+        slots,
+        textures: stats.textures,
+        liveTextures: stats.liveTextures,
+      });
     }
     state.previousSlots = slots;
     if (state.preparingAt != null && engine.transition?.elapsed > 0) {

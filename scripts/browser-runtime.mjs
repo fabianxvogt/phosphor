@@ -89,6 +89,12 @@ export async function launch({ rig = false, browserName = "chromium" } = {}) {
         "--enable-unsafe-swiftshader",
       );
   }
+  // Optional override for machines whose Chromium build differs from
+  // playwright-core's pinned revision (for example a preinstalled browser).
+  if (process.env.PHOSPHOR_CHROME) {
+    launchOptions.executablePath = process.env.PHOSPHOR_CHROME;
+    delete launchOptions.channel;
+  }
   const server = await type.launchServer(launchOptions);
   const browser = await type.connect(server.wsEndpoint());
   return {

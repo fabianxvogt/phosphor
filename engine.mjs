@@ -55,6 +55,8 @@ export class Engine {
     this.blackoutTarget = 0;
     this.lost = false;
     this.frames = new Float32Array(1800);
+    // Live GPU textures created by this engine; must equal stats().textures.
+    this.liveTextures = 0;
     this.frameCursor = 0;
     this.frameCount = 0;
     this.width = 960;
@@ -86,6 +88,8 @@ export class Engine {
     const generation = ++this.compileGeneration;
     this.parallelCompile = gl.getExtension("KHR_parallel_shader_compile");
     this.programs.clear();
+    // A restored context has no surviving textures; count from zero again.
+    this.liveTextures = 0;
     this.slots = [];
     this.transition = null;
     this.flashExempt = false;
@@ -200,6 +204,7 @@ export class Engine {
   target(w, h, simulation = false, filter = "nearest") {
     const gl = this.gl;
     const texture = gl.createTexture();
+    this.liveTextures++;
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(
       gl.TEXTURE_2D,
@@ -252,12 +257,16 @@ export class Engine {
   }
   deleteTarget(t) {
     this.gl.deleteTexture(t.texture);
+    this.liveTextures--;
     this.gl.deleteFramebuffer(t.fbo);
   }
   destroySlot(s) {
     for (const t of s.visual) this.deleteTarget(t);
     for (const t of s.sim) this.deleteTarget(t);
-    if (s.geometryTexture) this.gl.deleteTexture(s.geometryTexture);
+    if (s.geometryTexture) {
+      this.gl.deleteTexture(s.geometryTexture);
+      this.liveTextures--;
+    }
   }
   visualSize(scene) {
     const scale = Math.min(
@@ -358,6 +367,7 @@ export class Engine {
       const gl = this.gl;
       slot.geometry = new Float32Array(MELT_POINTS*MELT_ROWS*4);
       slot.geometryTexture = gl.createTexture();
+      this.liveTextures++;
       gl.bindTexture(gl.TEXTURE_2D,slot.geometryTexture);
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,MELT_POINTS,MELT_ROWS,0,gl.RGBA,gl.FLOAT,null);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
@@ -610,6 +620,7 @@ export class Engine {
         (n, s) => n + s.visual.length + s.sim.length + (s.geometryTexture?1:0),
         1 + this.pipeline.targets.length,
       ),
+      liveTextures: this.liveTextures,
     };
   }
   dispose() {
