@@ -119,6 +119,11 @@ void main() {
   float carrier = 0.5 + 0.5 * sum / count;
   float interference = mix(carrier, envelope, 0.62 * hasB);
   float light = smoothstep(0.1, 0.93, interference);
+  // Peak mode: at high show energy the soft field hardens into anti-aliased
+  // bands, so the family reaches peak time (roadmap group 1).
+  float hard = smoothstep(0.65, 0.95, u_level);
+  float edgeAA = max(fwidth(interference), 1e-3);
+  light = mix(light, smoothstep(0.5 - edgeAA, 0.5 + edgeAA, interference), hard);
   float contour = pow(max(0.0, carrier), 3.0);
   float palettePhase = 0.5 + 0.5 * sin(IR_TAU * (u_params[5] + interference * 0.63) + motion * sin(drift * 0.125) * 0.2);
   vec3 pigment = palette(palettePhase);
@@ -141,7 +146,7 @@ export default {
   type: { key: 'composition', values: [0, 1, 2, 3, 4, 5] },
   number: 53,
   name: 'Interference Rituals',
-  description: 'Six analytic wave compositions: moire veils, paired ripples, quasiperiodic gratings, orbit lattices, petal ripples and curved horizons. Combine one to three fields with frequency ratios f:f·r:f·r² and relative phase in turns. Beat lock follows an eight-beat phrase; zero motion freezes evolution. Pixel-footprint filtering fades unresolved carriers while retaining resolvable interference envelopes; this is an artistic scalar-wave model, not an optical simulation.',
+  description: 'Six analytic wave compositions (hardening into crisp bands at high energy): moire veils, paired ripples, quasiperiodic gratings, orbit lattices, petal ripples and curved horizons. Combine one to three fields with frequency ratios f:f·r:f·r² and relative phase in turns. Beat lock follows an eight-beat phrase; zero motion freezes evolution. Pixel-footprint filtering fades unresolved carriers while retaining resolvable interference envelopes; this is an artistic scalar-wave model, not an optical simulation.',
   schema,
   presets,
   fragment,

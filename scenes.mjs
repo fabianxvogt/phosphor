@@ -8,6 +8,7 @@ import interference from "./scene-interference.mjs";
 import melt from "./scene-melt.mjs";
 import phase from "./scene-phase.mjs";
 import evolution from "./scene-evolution.mjs";
+import pulse from "./scene-pulse.mjs";
 
 export default [
   acid,
@@ -20,4 +21,5 @@ export default [
   melt,
   phase,
   evolution,
+  pulse,
 ];

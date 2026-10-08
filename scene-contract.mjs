@@ -7,6 +7,8 @@ precision highp float;
 precision highp int;
 uniform vec2 u_resolution;
 uniform float u_time, u_dt, u_seed, u_energy, u_bass, u_mid, u_high, u_onset, u_beat;
+// Live show energy 0..1 (contract v3): for responses no parameter expresses.
+uniform float u_level;
 uniform highp uint u_seedBits, u_tick;
 uniform float u_raySteps;
 uniform vec3 u_primary, u_secondary, u_accent;

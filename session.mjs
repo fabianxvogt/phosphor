@@ -42,7 +42,7 @@ export function initialSession(scenes) {
         bars: 64,
         transition: 4,
         keyframes: [],
-        energy: [0.35, 0.45, 0.8, 0.3, 0.6, 0.65, 0.5, 0.7, 0.85, 0.25][i],
+        energy: [0.35, 0.45, 0.8, 0.3, 0.6, 0.65, 0.5, 0.7, 0.85, 0.25][i] ?? 0.5,
       };
     }),
     mappings: scenes.flatMap((s) => {

@@ -50,7 +50,10 @@ test("bar quantize waits for the bar line; the latest press wins", () => {
 });
 
 test("empty slots do nothing", () => {
-  const show = makeShow((set) => (set.autopilot.enabled = false));
+  const show = makeShow((set) => {
+    set.autopilot.enabled = false;
+    set.pages[0].slots[31] = null;
+  });
   assert.deepEqual(show.command({ type: "slot", index: 31 }, 0), []);
 });
 

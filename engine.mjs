@@ -537,6 +537,7 @@ export class Engine {
       if (uniform != null) gl.uniform1f(uniform,this.finite(this.features[featureKeys[i]] ?? 0));
     }
     if (u.u_beat != null) gl.uniform1f(u.u_beat,this.finite(this.beat ?? 0)*(this.options.reducedMotion?.25:1));
+    if (u.u_level != null) gl.uniform1f(u.u_level,this.finite(this.level,0.5));
     if (u.u_reset != null) gl.uniform1i(u.u_reset,reset?1:0);
     if (u.u_gesture != null) {
       for (let i=0;i<3;i++) this.gesture[i] = this.finite(this.gesture[i]);
