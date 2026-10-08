@@ -12,7 +12,14 @@ import {
   updateMeltGeometry,
 } from "./melt-geometry.mjs";
 const featureKeys = ["energy", "low", "mid", "high", "onset", "flux"];
-const featureUniforms = ["u_energy", "u_low", "u_mid", "u_high", "u_onset", "u_flux"];
+const featureUniforms = [
+  "u_energy",
+  "u_low",
+  "u_mid",
+  "u_high",
+  "u_onset",
+  "u_flux",
+];
 const paletteKeys = ["primary", "secondary", "accent"];
 const paletteUniforms = ["u_primary", "u_secondary", "u_accent"];
 const noAudioMappings = [];
@@ -51,8 +58,16 @@ export class Engine {
     this.accumulator = 0;
     this.transition = null;
     this.features = {
-      energy: 0, low: 0, mid: 0, high: 0, onset: 0, flux: 0,
-      hit: false, hitId: 0, active: false, locked: false,
+      energy: 0,
+      low: 0,
+      mid: 0,
+      high: 0,
+      onset: 0,
+      flux: 0,
+      hit: false,
+      hitId: 0,
+      active: false,
+      locked: false,
     };
     this.audioHeld = new Float32Array(featureKeys.length);
     this.audioFeatures = {};
@@ -314,13 +329,14 @@ export class Engine {
         // stepping the raw uniforms and bloom lift in one frame.
         this.audioHeld[i] =
           weight < 1
-            ? this.audioHeld[i] + (v - this.audioHeld[i]) * (1 - Math.exp(-dt / 0.04))
+            ? this.audioHeld[i] +
+              (v - this.audioHeld[i]) * (1 - Math.exp(-dt / 0.04))
             : v;
       }
       this.audioFeatures[key] = this.audioHeld[i] * weight;
     }
-    const hit = available && features.hit &&
-      features.hitId !== this.lastAudioHit;
+    const hit =
+      available && features.hit && features.hitId !== this.lastAudioHit;
     this.lastAudioHit = features?.hitId ?? 0;
     this.audioFeatures.hit = hit ? weight : 0;
     for (const slot of this.slots) {
@@ -328,12 +344,15 @@ export class Engine {
       slot.audioOffsets ??= new Float32Array(Math.min(3, mappings.length));
       for (let i = 0; i < Math.min(3, mappings.length); i++) {
         const mapping = mappings[i];
-        const amount = Math.max(-AUDIO_MAPPING_CAP,
-          Math.min(AUDIO_MAPPING_CAP, this.finite(mapping.amount)));
+        const amount = Math.max(
+          -AUDIO_MAPPING_CAP,
+          Math.min(AUDIO_MAPPING_CAP, this.finite(mapping.amount)),
+        );
         const target = (this.audioFeatures[mapping.feature] ?? 0) * amount;
         const value = slot.audioOffsets[i];
         const tau = Math.abs(target) > Math.abs(value) ? 0.04 : 0.18;
-        slot.audioOffsets[i] = value + (target - value) * (1 - Math.exp(-dt / tau));
+        slot.audioOffsets[i] =
+          value + (target - value) * (1 - Math.exp(-dt / tau));
       }
     }
   }
@@ -355,7 +374,8 @@ export class Engine {
     const kickBeat = this.finite(this.beat ?? 0) * this.speed;
     const phase = kickBeat - Math.floor(kickBeat);
     const clockKick = Math.exp(-phase * 7);
-    const kick = clockKick * (1 - this.audioWeight) +
+    const kick =
+      clockKick * (1 - this.audioWeight) +
       Math.max(this.audioFeatures.low, this.audioFeatures.onset * 0.5);
     this.kick = calm ? 0 : kick;
     this.beatFx.punch = 0.06 * weights.punch * response * kick;
@@ -364,10 +384,12 @@ export class Engine {
     this.beatFx.flash = calm
       ? 0
       : Math.max(this.flashHeld ? 1 : 0, auto) *
-        (Math.exp(-phase * 10) * (1 - this.audioWeight) + this.audioFeatures.onset);
+        (Math.exp(-phase * 10) * (1 - this.audioWeight) +
+          this.audioFeatures.onset);
     const index = Math.floor(kickBeat);
     const clockHit = index !== this.lastKickBeat && this.lastKickBeat !== null;
-    const impulse = (clockHit ? 1 - this.audioWeight : 0) + this.audioFeatures.hit;
+    const impulse =
+      (clockHit ? 1 - this.audioWeight : 0) + this.audioFeatures.hit;
     if (impulse > 0 && weights.inject > 0 && response > 0) {
       const event = index + this.lastAudioHit;
       const h = Math.sin(event * 12.9898) * 43758.5453,
@@ -723,7 +745,10 @@ export class Engine {
     for (let i = 0; i < featureKeys.length; i++) {
       const uniform = u[featureUniforms[i]];
       if (uniform != null)
-        gl.uniform1f(uniform, this.finite(this.audioFeatures?.[featureKeys[i]] ?? 0));
+        gl.uniform1f(
+          uniform,
+          this.finite(this.audioFeatures?.[featureKeys[i]] ?? 0),
+        );
     }
     if (u.u_bass != null)
       gl.uniform1f(u.u_bass, this.finite(this.audioFeatures?.low ?? 0));
