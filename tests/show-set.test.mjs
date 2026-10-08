@@ -105,6 +105,44 @@ test("v4 round-trips through JSON unchanged", () => {
   );
 });
 
+test("older v4 sets default grain/vignette without changing any existing field", () => {
+  const old = initialShowSet(scenes);
+  delete old.options.grain;
+  delete old.options.vignette;
+  old.options.bloom = 0.73;
+  old.options.echo = 0.41;
+  old.options.chroma = 0.19;
+  const original = structuredClone(old);
+  const { set, report } = parseShowSet(JSON.parse(JSON.stringify(old)), scenes);
+  assert.deepEqual(report, []);
+  assert.equal(set.options.grain, 0.12);
+  assert.equal(set.options.vignette, 0.15);
+  const withoutDefaults = structuredClone(set);
+  delete withoutDefaults.options.grain;
+  delete withoutDefaults.options.vignette;
+  assert.deepEqual(withoutDefaults, original);
+  assert.deepEqual(old, original, "defaulting does not mutate the source");
+});
+
+test("post ceilings round-trip, including explicit zero, and reject invalid values", () => {
+  for (const value of [0, 0.37, 1]) {
+    const set = initialShowSet(scenes);
+    set.options.grain = value;
+    set.options.vignette = 1 - value;
+    assert.deepEqual(
+      parseShowSet(JSON.parse(JSON.stringify(set)), scenes).set,
+      set,
+    );
+  }
+  for (const key of ["grain", "vignette"]) {
+    for (const value of [-0.01, 1.01, NaN, Infinity, "0.2", null]) {
+      const set = initialShowSet(scenes);
+      set.options[key] = value;
+      assert.throws(() => validateShowSet(set, scenes), new RegExp(key, "i"));
+    }
+  }
+});
+
 test("v3 migration preserves every clip and set field, including hand-set colours", () => {
   const v3 = initialShowSet(scenes);
   v3.format = "phosphor-set-v3";

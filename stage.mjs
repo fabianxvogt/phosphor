@@ -55,6 +55,8 @@ function applyOptions(options) {
     bloom: options.bloom,
     echo: options.echo,
     chroma: options.chroma,
+    grain: options.grain,
+    vignette: options.vignette,
     reducedMotion: options.reducedMotion,
     flashLimit: true, // locked on during a show (D29)
   });

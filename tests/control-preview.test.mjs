@@ -24,6 +24,31 @@ function makeShow() {
   });
 }
 
+test("local preview receives every energy-post ceiling on set edits", () => {
+  const show = makeShow();
+  const engine = { options: {} };
+  const preview = Object.assign(Object.create(ControlPreview.prototype), {
+    show,
+    engine,
+  });
+  const set = initialShowSet(scenes);
+  Object.assign(set.options, {
+    bloom: 0.71,
+    echo: 0.42,
+    chroma: 0.23,
+    grain: 0.14,
+    vignette: 0.05,
+  });
+  preview.updateSet(set);
+  for (const key of ["bloom", "echo", "chroma", "grain", "vignette"])
+    assert.equal(engine.options[key], set.options[key]);
+  Object.assign(set.options, { grain: 0, vignette: 0 });
+  preview.updateSet(set);
+  assert.equal(engine.options.grain, 0);
+  assert.equal(engine.options.vignette, 0);
+  assert.equal(engine.options.flashLimit, true);
+});
+
 test("control↔stage handoff preserves palette colours and finishes an in-flight glide", () => {
   const control = makeShow();
   control.command({ type: "slot", index: 0 }, 0);

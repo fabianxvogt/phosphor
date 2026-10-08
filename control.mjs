@@ -977,9 +977,11 @@ function renderSetFields() {
     field("Page mood", mood),
     field("Autopilot every", every),
     field("Pixel budget", budget),
-    option("bloom", "Bloom"),
-    option("echo", "Echo"),
-    option("chroma", "Chroma"),
+    option("bloom", "Bloom ceiling"),
+    option("echo", "Echo ceiling"),
+    option("chroma", "Chroma ceiling"),
+    option("grain", "Grain ceiling"),
+    option("vignette", "Vignette ceiling"),
     field("Reduced motion", reduced),
   );
 }

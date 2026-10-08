@@ -109,6 +109,8 @@ export class ControlPreview {
       bloom: set.options.bloom,
       echo: set.options.echo,
       chroma: set.options.chroma,
+      grain: set.options.grain,
+      vignette: set.options.vignette,
       reducedMotion: set.options.reducedMotion,
       flashLimit: true,
     });
