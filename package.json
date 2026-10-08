@@ -9,6 +9,17 @@
     "preview": "python3 -m http.server 48101 -d dist",
     "build": "node scripts/build.mjs",
     "check:dist": "node scripts/check-dist.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs tests/browser/*.test.mjs",
+    "test:browser": "node scripts/test-browser.mjs",
+    "contact": "node scripts/contact.mjs",
+    "soak": "node scripts/soak.mjs",
+    "smoke:cross": "node scripts/smoke-cross.mjs",
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check package.json package-lock.json tsconfig.json .prettierrc.json .github tests/browser scripts/browser-runtime.mjs scripts/test-browser.mjs scripts/contact.mjs scripts/soak.mjs scripts/smoke-cross.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.0",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2"
   }
 }
