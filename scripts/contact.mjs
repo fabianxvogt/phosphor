@@ -4,6 +4,10 @@
 //   npm run contact -- --sheet types      grayscale distinctness per family,
 //                                         with the structural distance matrix
 //   npm run contact -- --sheet palettes   library colours across gated families
+//   npm run contact -- --sheet energy     normalized structure + motion at
+//                                         energy 0.1 / 0.9 per declared type
+// Energy options: --samples 24 --stride 2 (24 samples at 30 Hz after warm-up).
+// --family accepts a comma-separated list; --seed fixes both energy runs.
 // Options: --family <id>, --width 480 --height 270, --frames 120, --seed N,
 // --rig (real Chrome and GPU). Output: artifacts/contact/<sheet>/index.html.
 import { mkdir, writeFile } from "node:fs/promises";
@@ -24,6 +28,7 @@ import {
   structureSignature,
   structureDistance,
 } from "../tests/browser/metrics.mjs";
+import { energyDelta } from "./energy-metric.mjs";
 
 const args = options({
   sheet: { type: "string", default: "looks" },
@@ -33,14 +38,26 @@ const args = options({
   frames: { type: "string", default: "120" },
   seed: { type: "string" },
   near: { type: "string", default: "0.25" },
+  samples: { type: "string", default: "24" },
+  stride: { type: "string", default: "2" },
 });
 const sheet = args.sheet;
-if (!["looks", "ladder", "types", "palettes"].includes(sheet))
-  throw new Error("--sheet must be looks, ladder, types or palettes");
+if (!["looks", "ladder", "types", "palettes", "energy"].includes(sheet))
+  throw new Error("--sheet must be looks, ladder, types, palettes or energy");
 const width = Number(args.width),
   height = Number(args.height),
   frames = Number(args.frames),
   near = Number(args.near);
+const energySamples = Number(args.samples);
+const stride = Number(args.stride);
+if (
+  sheet === "energy" &&
+  (!Number.isInteger(energySamples) ||
+    energySamples < 2 ||
+    !Number.isInteger(stride) ||
+    stride < 1)
+)
+  throw new Error("--samples must be an integer >= 2 and --stride >= 1");
 const out = await outputDirectory(`contact/${sheet}`, args.out);
 const escape = (t) =>
   String(t).replace(
@@ -54,10 +71,10 @@ const server = await serve(".", args.port);
 const runtime = await launch({ rig: args.rig });
 try {
   const lab = await openLab(runtime.browser, server.url);
-  // Types sheet: each family's default look with its structural type
-  // selector set to every declared type (D30); otherwise authored looks.
+  // Types and energy sheets cover each declared structural type, rather
+  // than letting a strong authored preset hide another type's weak response.
   let looks =
-    sheet === "types"
+    sheet === "types" || sheet === "energy"
       ? await lab.page.evaluate(() => {
           const { scenes, presetSnapshot } = window.__phosphorLab;
           return scenes.flatMap((scene) =>
@@ -99,9 +116,15 @@ try {
       },
       [...GATED],
     );
-  if (args.family) looks = looks.filter((l) => l.sceneId === args.family);
+  if (args.family)
+    looks = looks.filter((l) => args.family.split(",").includes(l.sceneId));
   if (!looks.length) throw new Error(`No looks for family ${args.family}`);
-  const levels = sheet === "ladder" ? [0.1, 0.5, 0.9] : [0.5];
+  const levels =
+    sheet === "ladder"
+      ? [0.1, 0.5, 0.9]
+      : sheet === "energy"
+        ? [0.1, 0.9]
+        : [0.5];
   const rows = [];
   const findings = [];
   const variants = sheet === "palettes" ? PALETTES : looks;
@@ -115,6 +138,7 @@ try {
             snapshot: { ...family.snapshot, palette: { ...look.colors } },
           }))
         : levels.map((level) => ({ ...look, level }));
+    const sequences = [];
     for (const sample of samples) {
       const r = await lab.page.evaluate(renderLook, {
         ...sample,
@@ -125,6 +149,36 @@ try {
         seed: args.seed === undefined ? null : Number(args.seed),
         gray: sheet === "types",
       });
+      if (sheet === "energy") {
+        const sequence = await lab.page.evaluate(
+          ({ samples, stride, frames }) => {
+            const { engine } = window.__phosphorLab;
+            const canvas = document.createElement("canvas");
+            canvas.width = engine.width;
+            canvas.height = engine.height;
+            const context = canvas.getContext("2d");
+            const sequence = [];
+            for (let sample = 0; sample < samples; sample++) {
+              if (sample)
+                for (let step = 0; step < stride; step++) {
+                  const tick = frames + (sample - 1) * stride + step + 1;
+                  engine.beat = 0.5 + Math.floor(tick / 30);
+                  engine.advance(1 / 60, false);
+                }
+              engine.present();
+              context.drawImage(engine.canvas, 0, 0);
+              sequence.push(
+                Array.from(
+                  context.getImageData(0, 0, canvas.width, canvas.height).data,
+                ),
+              );
+            }
+            return sequence;
+          },
+          { samples: energySamples, stride, frames },
+        );
+        sequences.push(sequence);
+      }
       const file =
         sheet === "palettes"
           ? `${look.id}-${sample.sceneId}.png`
@@ -160,9 +214,19 @@ try {
         nonFinite: r.nonFinite,
       });
     }
-    rows.push({ ...look, cells });
+    const delta =
+      sheet === "energy"
+        ? energyDelta(sequences[0], sequences[1], width, height)
+        : null;
+    rows.push({ ...look, cells, ...(delta ? { energyDelta: delta } : {}) });
     console.log(
-      `${sheet === "palettes" ? look.id : look.sceneId} · ${look.name}`,
+      delta
+        ? JSON.stringify({
+            family: look.sceneId,
+            type: look.name,
+            ...delta,
+          })
+        : `${sheet === "palettes" ? look.id : look.sceneId} · ${look.name}`,
     );
   }
   // Distinctness: pairwise structural distance within each family, and the
@@ -190,7 +254,23 @@ try {
   await writeFile(
     resolve(out, "metrics.json"),
     JSON.stringify(
-      { sheet, width, height, frames, rows: metricsJson, findings },
+      {
+        sheet,
+        width,
+        height,
+        frames,
+        ...(sheet === "energy"
+          ? {
+              samples: energySamples,
+              stride,
+              sampleHz: 60 / stride,
+              levels,
+              baseEnergy: 0.5,
+            }
+          : {}),
+        rows: metricsJson,
+        findings,
+      },
       null,
       1,
     ),
@@ -206,6 +286,7 @@ figure{margin:0}img{display:block;width:${Math.min(width, sheet === "palettes" ?
 table{border-collapse:collapse}td{border:1px solid #303949;padding:3px 6px}.near{color:#ffd166}.swatch{display:inline-block;width:24px;height:16px;margin:6px 2px 2px 0}</style>
 <h1>Phosphor contact sheet · ${sheet}</h1>
 <p>${rows.length} ${sheet === "palettes" ? "palettes across the gated families' first types · energy 0.5" : "looks"} · ${width}×${height} · ${frames} frames${sheet === "ladder" ? " · energy 0.1 / 0.5 / 0.9 (clip base 0.5)" : ""}${sheet === "types" ? " · grayscale; colour cannot make looks distinct" : ""}</p>
+${sheet === "energy" ? `<p>Energy 0.1 / 0.9 · clip base 0.5 · ${energySamples} samples at ${60 / stride} Hz. Grayscale luminance normalized per frame: brightness and uniform tint do not count. Scores are structural/motion proxies, not aesthetic sign-off.</p>` : ""}
 ${sheet === "types" ? `<h2>Near pairs (structural distance &lt; ${near})</h2>${findings.length ? `<table>${findings.map((f) => `<tr class="near"><td>${escape(f.a)}</td><td>${escape(f.b)}</td><td>${f.distance.toFixed(3)}</td><td>${f.sameFamily ? "same family" : "across families"}</td></tr>`).join("")}</table>` : "<p>None.</p>"}` : ""}
 ${sheet === "palettes" ? `<h2>Dim / faulty renders</h2>${findings.length ? `<ul>${findings.map((f) => `<li class="near">${escape(f.palette)} · ${escape(f.family)}: lum ${f.meanLuminance.toFixed(4)}, peak ${f.peak}, GPU errors ${f.glError}, non-finite ${f.nonFinite}</li>`).join("")}</ul>` : "<p>None detected. Artistic keep/reject is the owner's decision.</p>"}` : ""}
 ${families
@@ -224,10 +305,10 @@ ${families
                     )
                     .join("")}<br>${escape(r.moods.join(" / "))}`
                 : ""
-            }</div>${r.cells
+            }${r.energyDelta ? `<br>structure ${r.energyDelta.structuralDelta.toFixed(3)} · motion ${r.energyDelta.motionDelta.toFixed(3)} · score ${r.energyDelta.score.toFixed(3)}` : ""}</div>${r.cells
               .map(
                 (c) =>
-                  `<figure><img src="${c.file}" alt="${escape(r.name)} · ${escape(c.sceneName)} at energy ${c.level}"><figcaption>${sheet === "palettes" ? `${escape(c.sceneName)}<br>` : ""}${sheet === "ladder" ? `energy ${c.level} · ` : ""}lum ${c.metrics.meanLuminance.toFixed(3)} · edges ${c.metrics.edgeDensity.toFixed(3)}</figcaption></figure>`,
+                  `<figure><img src="${c.file}" alt="${escape(r.name)} · ${escape(c.sceneName)} at energy ${c.level}"><figcaption>${sheet === "palettes" ? `${escape(c.sceneName)}<br>` : ""}${sheet === "ladder" || sheet === "energy" ? `energy ${c.level} · ` : ""}lum ${c.metrics.meanLuminance.toFixed(3)} · edges ${c.metrics.edgeDensity.toFixed(3)}</figcaption></figure>`,
               )
               .join("")}</div>`,
         )
