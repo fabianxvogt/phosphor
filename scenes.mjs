@@ -9,6 +9,7 @@ import melt from "./scene-melt.mjs";
 import phase from "./scene-phase.mjs";
 import evolution from "./scene-evolution.mjs";
 import pulse from "./scene-pulse.mjs";
+import flight from "./scene-flight.mjs";
 
 export default [
   acid,
@@ -22,4 +23,5 @@ export default [
   phase,
   evolution,
   pulse,
+  flight,
 ];
