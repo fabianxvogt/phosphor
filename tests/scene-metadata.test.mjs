@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import scenes from "../scenes.mjs";
+import scenes, { GATED } from "../scenes.mjs";
+import { AUDIO_FEATURES, AUDIO_MAPPING_CAP } from "../scene-contract.mjs";
 
 // Contract v3 metadata must reference real parameters with sane values.
 for (const scene of scenes)
@@ -27,6 +28,20 @@ for (const scene of scenes)
           weight <= 2,
         `beat.${name}`,
       );
+    if (GATED.has(scene.id))
+      assert.ok(scene.audio?.length > 0, "gated family has real-audio mappings");
+    const mappings = scene.audio ?? [];
+    assert.ok(mappings.length <= 3, "at most three audio hero parameters");
+    const mapped = new Set();
+    for (const { param, feature, amount } of mappings) {
+      assert.ok(keys.has(param), `audio.${param} is not a parameter`);
+      assert.notEqual(param, scene.type.key, "audio does not change family type");
+      assert.ok(!mapped.has(param), `duplicate audio hero ${param}`);
+      mapped.add(param);
+      assert.ok(AUDIO_FEATURES.includes(feature), `audio feature ${feature}`);
+      assert.ok(Number.isFinite(amount) && Math.abs(amount) <= AUDIO_MAPPING_CAP,
+        `audio.${param} amount cap`);
+    }
     assert.equal(scene.stage.length, 3);
     for (const key of scene.stage) assert.ok(keys.has(key), `stage ${key}`);
     const type = keys.get(scene.type.key);

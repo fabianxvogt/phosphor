@@ -18,6 +18,88 @@ export const DARK_TECHNO_PATTERN = Object.freeze([
   { kick: 0, clap: 0, hat: 0.4, openHat: 0, bass: 0, perc: 0.26 },
 ]);
 
+function followEnvelope(value, target, dt, attack, release) {
+  return value + (target - value) *
+    (1 - Math.exp(-dt / (target > value ? attack : release)));
+}
+
+// D61: one causal, allocation-free feature extractor for every audio source.
+// Spectrum values are unsmoothed AnalyserNode decibels, not byte FFT colours.
+export class AudioFeatureBus {
+  constructor(bins = 1024) {
+    this.previousSpectrum = new Float32Array(bins);
+    this.features = {};
+    this.reset();
+  }
+  reset() {
+    Object.assign(this.features, {
+      energy: 0, low: 0, bass: 0, mid: 0, high: 0, onset: 0, flux: 0,
+      hit: false, hitId: 0, active: false, locked: false,
+    });
+    this.previousSpectrum.fill(0);
+    this.ceiling = 0.1;
+    this.previousEnergy = this.previousLow = 0;
+    this.onsetMean = this.onsetVariance = 0;
+    this.onsetAbove = false;
+    this.lastHit = -Infinity;
+  }
+  sample(samples, spectrum, sampleRate, now, dt = 1 / 60) {
+    const f = this.features;
+    let sum = 0;
+    for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+    const rms = Math.sqrt(sum / samples.length);
+    f.active = rms >= 0.001;
+    this.ceiling = Math.max(0.04, rms, this.ceiling * Math.exp(-dt / 8));
+    const energy = f.active ? Math.min(1, rms / this.ceiling) : 0;
+    let lowPower = 0, midPower = 0, highPower = 0, fluxPower = 0;
+    const binHz = sampleRate / (spectrum.length * 2);
+    for (let i = 1; i < spectrum.length; i++) {
+      const hz = i * binHz;
+      const magnitude = f.active && Number.isFinite(spectrum[i])
+        ? Math.pow(10, spectrum[i] / 20) : 0;
+      const rise = Math.max(0, magnitude - this.previousSpectrum[i]);
+      this.previousSpectrum[i] = magnitude;
+      if (hz < 35 || hz > 12000) continue;
+      fluxPower += rise * rise;
+      if (hz < 250) lowPower += magnitude * magnitude;
+      else if (hz < 2500) midPower += magnitude * magnitude;
+      else highPower += magnitude * magnitude;
+    }
+    // Blackman FFT window compensation, then normalize against the same
+    // slow loudness ceiling. Quiet bands cannot amplify themselves to 1.
+    const scale = 1.6 * Math.SQRT2 / this.ceiling;
+    const low = Math.min(1, Math.sqrt(lowPower) * scale);
+    const mid = Math.min(1, Math.sqrt(midPower) * scale);
+    const high = Math.min(1, Math.sqrt(highPower) * scale);
+    const flux = Math.min(1, Math.sqrt(fluxPower) * scale);
+    const onset = Math.max(0, energy - this.previousEnergy,
+      low - this.previousLow, flux);
+    const threshold = Math.max(0.12,
+      this.onsetMean + 2.5 * Math.sqrt(this.onsetVariance));
+    const above = f.active && onset > threshold;
+    f.hit = above && !this.onsetAbove && now - this.lastHit >= 0.12;
+    if (f.hit) {
+      this.lastHit = now;
+      f.hitId++;
+    }
+    this.onsetAbove = above;
+    const adapt = 1 - Math.exp(-dt / 0.7);
+    const difference = onset - this.onsetMean;
+    this.onsetMean += difference * adapt;
+    this.onsetVariance += (difference * difference - this.onsetVariance) * adapt;
+    this.previousEnergy = energy;
+    this.previousLow = low;
+    f.energy = followEnvelope(f.energy, energy, dt, 0.025, 0.25);
+    f.low = followEnvelope(f.low, low, dt, 0.02, 0.22);
+    f.bass = f.low; // Existing shaders use u_bass for the same low envelope.
+    f.mid = followEnvelope(f.mid, mid, dt, 0.035, 0.24);
+    f.high = followEnvelope(f.high, high, dt, 0.015, 0.16);
+    f.onset = followEnvelope(f.onset, onset, dt, 0.015, 0.18);
+    f.flux = followEnvelope(f.flux, flux, dt, 0.015, 0.2);
+    return f;
+  }
+}
+
 export class AudioEngine {
   constructor(onStatus = () => {}) {
     this.onStatus = onStatus;
@@ -32,10 +114,8 @@ export class AudioEngine {
     this.kind = "silent";
     this.muted = false;
     this.generation = 0;
-    this.features = { energy: 0, bass: 0, mid: 0, high: 0, onset: 0 };
-    this.ceiling = 0.1;
-    this.lastOnset = 0;
-    this.previousEnergy = 0;
+    this.bus = new AudioFeatureBus();
+    this.features = this.bus.features;
     this.tempo = 120; // demo beat (the default source on a fresh stage)
     this.voices = new Set();
     this.noise = null;
@@ -47,9 +127,9 @@ export class AudioEngine {
       this.context = new C();
       this.analyser = this.context.createAnalyser();
       this.analyser.fftSize = 2048;
-      this.analyser.smoothingTimeConstant = 0.65;
+      this.analyser.smoothingTimeConstant = 0; // Envelopes belong to the bus.
       this.samples = new Float32Array(2048);
-      this.spectrum = new Uint8Array(1024);
+      this.spectrum = new Float32Array(1024);
       this.monitor = this.context.createGain();
       this.monitor.gain.value = this.muted ? 0 : 0.65;
       this.monitor.connect(this.context.destination);
@@ -87,9 +167,7 @@ export class AudioEngine {
     if (this.url) URL.revokeObjectURL(this.url);
     this.url = null;
     this.kind = "silent";
-    this.features = { energy: 0, bass: 0, mid: 0, high: 0, onset: 0 };
-    this.ceiling = 0.1;
-    this.previousEnergy = 0;
+    this.bus.reset();
     this.onStatus("Silent / manual tempo");
   }
   mute(value) {
@@ -327,42 +405,11 @@ export class AudioEngine {
     if (!this.analyser || this.kind === "silent") return this.features;
     this.pumpDemo?.();
     this.analyser.getFloatTimeDomainData(this.samples);
-    this.analyser.getByteFrequencyData(this.spectrum);
-    let sum = 0;
-    for (const s of this.samples) sum += s * s;
-    const rms = Math.sqrt(sum / this.samples.length);
-    this.ceiling = Math.max(0.04, rms, this.ceiling * Math.exp(-dt / 8));
-    const energy = Math.min(1, rms / this.ceiling);
-    const band = (low, high) => {
-      const start = Math.max(
-          1,
-          Math.floor((low / this.context.sampleRate) * 2048),
-        ),
-        end = Math.min(
-          1023,
-          Math.ceil((high / this.context.sampleRate) * 2048),
-        );
-      let v = 0;
-      for (let i = start; i <= end; i++) v += this.spectrum[i] / 255;
-      return v / Math.max(1, end - start + 1);
-    };
-    const now = this.context.currentTime;
-    const onset =
-      energy - this.previousEnergy > 0.12 && now - this.lastOnset > 0.18;
-    if (onset) this.lastOnset = now;
-    this.previousEnergy = energy;
-    const blend = 1 - Math.exp(-dt / 0.12);
-    for (const [k, v] of Object.entries({
-      energy,
-      bass: band(35, 250),
-      mid: band(250, 2500),
-      high: band(2500, 12000),
-    }))
-      this.features[k] += (v - this.features[k]) * blend;
-    this.features.onset = onset
-      ? 1
-      : this.features.onset * Math.exp(-dt / 0.15);
-    return this.features;
+    this.analyser.getFloatFrequencyData(this.spectrum);
+    return this.bus.sample(
+      this.samples, this.spectrum, this.context.sampleRate,
+      this.context.currentTime, dt,
+    );
   }
   dispose() {
     this.stop();

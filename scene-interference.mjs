@@ -286,6 +286,11 @@ export default {
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { fields: [1, 3], motion: { mul: [0.08, 2.2] } },
   beat: { punch: 1, pulse: 1.2 },
+  audio: [
+    { param: "ratio", feature: "low", amount: 0.07 },
+    { param: "phase", feature: "mid", amount: 0.12 },
+    { param: "palette", feature: "high", amount: 0.12 },
+  ],
   stage: ["motion", "ratio", "phase"],
   type: { key: "composition", values: [0, 1, 2] },
   number: 53,

@@ -232,9 +232,9 @@ void main() {
   float path = floor(u_params[0] + 0.5);
   vec2 phase = unpack16(texture(u_state, vec2(0.5)));
   float level = clamp(u_level, 0.0, 1.0);
-  // The shared audio bus already smooths the low band with a 120 ms envelope.
-  float bass = smoothstep(0.0, 1.0, clamp(u_bass, 0.0, 1.0));
-  float kick = exp(-fract(u_beat) * 7.0) * smoothstep(0.15, 1.0, level);
+  // D61 envelopes are attack/release smoothed and fade out with beat lock.
+  float bass = smoothstep(0.0, 1.0, clamp(u_low, 0.0, 1.0));
+  float kick = u_kick * smoothstep(0.15, 1.0, level);
   float glowAmount = u_params[5];
   float fog = u_params[6];
   float light = u_params[7];
@@ -313,6 +313,11 @@ export default {
     roll: { mul: [0.4, 2] },
   },
   beat: { punch: 1.3, pulse: 1 },
+  audio: [
+    { param: "glow", feature: "low", amount: 0.16 },
+    { param: "roll", feature: "mid", amount: 0.05 },
+    { param: "light", feature: "high", amount: 0.1 },
+  ],
   stage: ["speed", "roll", "glow"],
   type: { key: "path", values: [0, 1, 2, 3] },
   number: 60,

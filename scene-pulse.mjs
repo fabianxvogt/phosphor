@@ -262,6 +262,11 @@ export default {
     count: [3, 25],
   },
   beat: { punch: 1.2, pulse: 1.2 },
+  audio: [
+    { param: "thickness", feature: "low", amount: 0.16 },
+    { param: "twist", feature: "mid", amount: 0.1 },
+    { param: "glow", feature: "onset", amount: 0.16 },
+  ],
   stage: ["speed", "count", "twist"],
   type: { key: "form", values: [0, 1, 2, 3] },
   number: 57,

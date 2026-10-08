@@ -417,6 +417,11 @@ export default {
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { scroll: [2, 60], paletteDrift: [0.1, 0.6], weave: [0.2, 1] },
   beat: { punch: 0.8, pulse: 1 },
+  audio: [
+    { param: "weave", feature: "low", amount: 0.16 },
+    { param: "scroll", feature: "mid", amount: 0.1 },
+    { param: "paletteDrift", feature: "high", amount: 0.1 },
+  ],
   stage: ["scroll", "weave", "paletteDrift"],
   type: { key: "seedShape", values: [0, 1, 2, 3] },
   number: 51,

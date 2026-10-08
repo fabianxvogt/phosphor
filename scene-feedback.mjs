@@ -286,6 +286,11 @@ export default {
     persistence: [0.98, 0.86],
   },
   beat: { punch: 1.2, pulse: 1, inject: 0.8 },
+  audio: [
+    { param: "injection", feature: "onset", amount: 0.16 },
+    { param: "aperture", feature: "low", amount: 0.08 },
+    { param: "rotation", feature: "mid", amount: 0.06 },
+  ],
   stage: ["zoom", "rotation", "injection"],
   type: { key: "geometry", values: [0, 1, 2, 3] },
   number: 52,

@@ -64,7 +64,10 @@ export async function renderLook({
   if (seed !== null) look.seed = seed;
   if (engine.width !== width || engine.height !== height)
     engine.resize(width, height);
-  engine.features = { energy: 0, bass: 0, mid: 0, high: 0, onset: 0 };
+  engine.features = {
+    energy: 0, low: 0, mid: 0, high: 0, onset: 0, flux: 0,
+    hit: false, hitId: 0, active: false, locked: false,
+  };
   engine.speed = 1;
   engine.view = { hue: 0, zoom: 1 };
   engine.flashHeld = false;
@@ -74,6 +77,7 @@ export async function renderLook({
   engine.options.kaleido = 1;
   engine.beat = 0.5;
   engine.setLevel(level, 0);
+  engine.updatePerformance(2, false); // A look starts outside any audio hand-back.
   engine.load(look, 0, { energy: base });
   // Programs compile in parallel (KHR_parallel_shader_compile); completion
   // only advances between tasks, so a synchronous warm loop would never end.

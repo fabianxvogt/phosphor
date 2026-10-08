@@ -1,12 +1,19 @@
 // Authored seeds (<8192) are unchanged; integer entropy stays in u_seedBits.
 export const reduceSeed = (seed) => seed % 8192;
 
+// D61 mapping amounts are signed fractions of a parameter's schema range.
+export const AUDIO_MAPPING_CAP = 0.18;
+export const AUDIO_FEATURES = Object.freeze([
+  "low", "mid", "high", "onset", "flux", "hit",
+]);
+
 // All scene shaders are GLSL ES 3.00 bodies appended to this shared header.
 export const shaderHeader = `#version 300 es
 precision highp float;
 precision highp int;
 uniform vec2 u_resolution;
 uniform float u_time, u_dt, u_seed, u_energy, u_bass, u_mid, u_high, u_onset, u_beat;
+uniform float u_low, u_flux, u_hit, u_kick;
 // Live show energy 0..1 (contract v3): for responses no parameter expresses.
 uniform float u_level;
 uniform highp uint u_seedBits, u_tick;
@@ -105,6 +112,7 @@ precision highp int;
 uniform sampler2D u_state;
 uniform vec2 u_resolution;
 uniform float u_time, u_beat, u_level;
+uniform float u_energy, u_low, u_bass, u_mid, u_high, u_onset, u_flux, u_hit, u_kick;
 uniform highp uint u_seedBits;
 uniform vec3 u_primary, u_secondary, u_accent;
 uniform float u_params[8];

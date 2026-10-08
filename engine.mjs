@@ -3,6 +3,7 @@ import {
   reduceSeed,
   particleHeader,
   particleFragment,
+  AUDIO_MAPPING_CAP,
 } from "./scene-contract.mjs";
 import { Compositor, AsyncReadback } from "./compositor.mjs";
 import {
@@ -10,11 +11,11 @@ import {
   MELT_ROWS,
   updateMeltGeometry,
 } from "./melt-geometry.mjs";
-const featureKeys = ["energy", "bass", "mid", "high", "onset"];
-const featureUniforms = ["u_energy", "u_bass", "u_mid", "u_high", "u_onset"];
+const featureKeys = ["energy", "low", "mid", "high", "onset", "flux"];
+const featureUniforms = ["u_energy", "u_low", "u_mid", "u_high", "u_onset", "u_flux"];
 const paletteKeys = ["primary", "secondary", "accent"];
 const paletteUniforms = ["u_primary", "u_secondary", "u_accent"];
-const noMappings = [];
+const noAudioMappings = [];
 const programKeys = ["visual", "simulation", "particles"];
 const vertex = `#version 300 es
 layout(location=0) in vec2 position; out vec2 v_uv;
@@ -49,7 +50,15 @@ export class Engine {
     this.time = 0;
     this.accumulator = 0;
     this.transition = null;
-    this.features = { energy: 0, bass: 0, mid: 0, high: 0, onset: 0 };
+    this.features = {
+      energy: 0, low: 0, mid: 0, high: 0, onset: 0, flux: 0,
+      hit: false, hitId: 0, active: false, locked: false,
+    };
+    this.audioHeld = new Float32Array(featureKeys.length);
+    this.audioFeatures = {};
+    this.audioMix = this.audioWeight = 0;
+    this.lastAudioHit = 0;
+    this.kick = 0;
     this.options = {
       brightness: 0.92,
       bloom: 0.15,
@@ -284,10 +293,46 @@ export class Engine {
     this.levelDuration = Math.max(0, this.finite(seconds, 0));
     if (!(this.levelDuration > 0)) this.level = value;
   }
-  // Energy ramp, kick envelope (punch, pulse), flashes and beat injection.
-  // The kick follows the show clock (this.beat) scaled by the speed trim, so
-  // half speed hits every other beat. Responses scale with energy and the
-  // family's declared weights; reduced motion and freeze disable them.
+  // Retain the last trusted features during dropout: multiplying today's
+  // zero samples by a fading gain would still snap every response to zero.
+  updateAudio(dt, calm = false) {
+    const features = this.features;
+    const available = !!features?.active && !!features?.locked && !calm;
+    this.audioHeld ??= new Float32Array(featureKeys.length);
+    this.audioFeatures ??= {};
+    const mix = this.audioMix ?? 0;
+    this.audioMix = available
+      ? Math.min(1, mix + dt / 0.25)
+      : Math.max(0, mix - dt / 2);
+    const weight = this.audioMix * this.audioMix * (3 - 2 * this.audioMix);
+    this.audioWeight = weight;
+    for (let i = 0; i < featureKeys.length; i++) {
+      const key = featureKeys[i];
+      if (available)
+        this.audioHeld[i] = Math.max(0, Math.min(1, this.finite(features[key] ?? 0)));
+      this.audioFeatures[key] = this.audioHeld[i] * weight;
+    }
+    const hit = available && features.hit &&
+      features.hitId !== this.lastAudioHit;
+    this.lastAudioHit = features?.hitId ?? 0;
+    this.audioFeatures.hit = hit ? weight : 0;
+    for (const slot of this.slots) {
+      const mappings = slot.scene.audio ?? noAudioMappings;
+      slot.audioOffsets ??= new Float32Array(Math.min(3, mappings.length));
+      for (let i = 0; i < Math.min(3, mappings.length); i++) {
+        const mapping = mappings[i];
+        const amount = Math.max(-AUDIO_MAPPING_CAP,
+          Math.min(AUDIO_MAPPING_CAP, this.finite(mapping.amount)));
+        const target = (this.audioFeatures[mapping.feature] ?? 0) * amount;
+        const value = slot.audioOffsets[i];
+        const tau = Math.abs(target) > Math.abs(value) ? 0.04 : 0.18;
+        slot.audioOffsets[i] = value + (target - value) * (1 - Math.exp(-dt / tau));
+      }
+    }
+  }
+  // Energy ramp, audio/clock kick envelopes, flashes and beat injection.
+  // Losing source or tracker lock crossfades back to the speed-trimmed clock
+  // over two seconds; reduced motion and freeze disable beat responses.
   updatePerformance(dt, paused) {
     if (this.levelDuration > 0 && this.level !== this.levelTo) {
       this.levelElapsed += dt;
@@ -299,26 +344,32 @@ export class Engine {
     const calm = this.options.reducedMotion || paused;
     const x = Math.max(0, Math.min(1, (this.level - 0.15) / 0.85));
     const response = calm ? 0 : x * x * (3 - 2 * x);
+    this.updateAudio(dt, calm);
     const kickBeat = this.finite(this.beat ?? 0) * this.speed;
     const phase = kickBeat - Math.floor(kickBeat);
-    const kick = Math.exp(-phase * 7);
+    const clockKick = Math.exp(-phase * 7);
+    const kick = clockKick * (1 - this.audioWeight) +
+      Math.max(this.audioFeatures.low, this.audioFeatures.onset * 0.5);
+    this.kick = calm ? 0 : kick;
     this.beatFx.punch = 0.06 * weights.punch * response * kick;
     this.beatFx.pulse = 0.35 * weights.pulse * response * kick;
     const auto = Math.max(0, (this.level - 0.8) / 0.2) * 0.5;
     this.beatFx.flash = calm
       ? 0
-      : Math.max(this.flashHeld ? 1 : 0, auto) * Math.exp(-phase * 10);
+      : Math.max(this.flashHeld ? 1 : 0, auto) *
+        (Math.exp(-phase * 10) * (1 - this.audioWeight) + this.audioFeatures.onset);
     const index = Math.floor(kickBeat);
-    if (index !== this.lastKickBeat) {
-      if (this.lastKickBeat !== null && weights.inject > 0 && response > 0) {
-        const h = Math.sin(index * 12.9898) * 43758.5453,
-          k = Math.sin(index * 78.233) * 12543.123;
-        this.gesture[0] = 0.2 + 0.6 * (h - Math.floor(h));
-        this.gesture[1] = 0.2 + 0.6 * (k - Math.floor(k));
-        this.gesture[2] = weights.inject * response;
-      }
-      this.lastKickBeat = index;
+    const clockHit = index !== this.lastKickBeat && this.lastKickBeat !== null;
+    const impulse = (clockHit ? 1 - this.audioWeight : 0) + this.audioFeatures.hit;
+    if (impulse > 0 && weights.inject > 0 && response > 0) {
+      const event = index + this.lastAudioHit;
+      const h = Math.sin(event * 12.9898) * 43758.5453,
+        k = Math.sin(event * 78.233) * 12543.123;
+      this.gesture[0] = 0.2 + 0.6 * (h - Math.floor(h));
+      this.gesture[1] = 0.2 + 0.6 * (k - Math.floor(k));
+      this.gesture[2] = Math.min(1, impulse) * weights.inject * response;
     }
+    this.lastKickBeat = index;
   }
   finite(value, fallback = 0) {
     if (Number.isFinite(value)) return value;
@@ -509,6 +560,7 @@ export class Engine {
       reset: true,
       visualReset: true,
       params: new Float32Array(8),
+      audioOffsets: new Float32Array(Math.min(3, scene.audio?.length ?? 0)),
     };
     this.prepareSnapshot(slot, snapshot);
     if (scene.id === "melt") {
@@ -632,13 +684,10 @@ export class Engine {
           value *= (a + (b - a) * this.level) / (a + (b - a) * base);
         }
       }
-      for (const mapping of this.mappings || noMappings) {
-        if (mapping.scene === s.scene.id && mapping.target === def.key)
-          value +=
-            (this.features[mapping.source] ?? 0) *
-            mapping.depth *
-            (def.max - def.min);
-      }
+      const mappings = s.scene.audio ?? noAudioMappings;
+      for (let j = 0; j < Math.min(3, mappings.length); j++)
+        if (mappings[j].param === def.key)
+          value += (s.audioOffsets?.[j] ?? 0) * (def.max - def.min);
       value = this.finite(value, def.default);
       value = Math.min(def.max, Math.max(def.min, value));
       s.params[i] = def.step === 1 ? Math.round(value) : value;
@@ -667,8 +716,13 @@ export class Engine {
     for (let i = 0; i < featureKeys.length; i++) {
       const uniform = u[featureUniforms[i]];
       if (uniform != null)
-        gl.uniform1f(uniform, this.finite(this.features[featureKeys[i]] ?? 0));
+        gl.uniform1f(uniform, this.finite(this.audioFeatures?.[featureKeys[i]] ?? 0));
     }
+    if (u.u_bass != null)
+      gl.uniform1f(u.u_bass, this.finite(this.audioFeatures?.low ?? 0));
+    if (u.u_hit != null)
+      gl.uniform1f(u.u_hit, this.finite(this.audioFeatures?.hit ?? 0));
+    if (u.u_kick != null) gl.uniform1f(u.u_kick, this.finite(this.kick));
     if (u.u_beat != null)
       gl.uniform1f(
         u.u_beat,

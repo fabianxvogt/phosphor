@@ -8,6 +8,15 @@ export function postCurve(energy, start = 0) {
   return t * t * (3 - 2 * t);
 }
 
+// Low-band following adds at most 0.06 (12% of the set ceiling), never
+// bypassing the energy onset or exceeding that ceiling.
+export function bloomAmount(ceiling, energy, low = 0) {
+  ceiling = Math.max(0, Math.min(1, ceiling));
+  const curve = postCurve(energy, 0.1);
+  const lift = Math.min(0.06, ceiling * 0.12) * Math.max(0, Math.min(1, low));
+  return Math.min(ceiling, (ceiling + lift) * curve);
+}
+
 // Shared by the picture and bloom passes, so highlights follow the same
 // transition mask. Melt history is the outgoing, ungraded picture only.
 const transitionShader = `
@@ -421,7 +430,10 @@ export class Compositor {
     const level = raw ? 0 : e.finite(e.level ?? 0.5, 0.5);
     const bloom = raw
       ? 0
-      : e.finite(e.options.bloom ?? 0.15, 0) * postCurve(level, 0.1);
+      : bloomAmount(
+          e.finite(e.options.bloom ?? 0.15, 0), level,
+          e.finite(e.audioFeatures?.low ?? 0),
+        );
     // The same two history targets serve echo and melt, never both at once.
     const echo =
       raw || melt

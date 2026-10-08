@@ -66,7 +66,9 @@ export class StageAudio {
     };
   }
   features(dt) {
-    return this.engine.sample(dt);
+    const features = this.engine.sample(dt);
+    features.locked = this.source !== "off" && !!this.tracker?.locked;
+    return features;
   }
   async devices() {
     return this.engine.devices();

@@ -347,9 +347,9 @@ vec3 glassPalette(float t, float material) {
 void main() {
   float bay = bayLength();
   float level = clamp(u_level, 0., 1.);
-  // u_bass is the shared 120 ms low-band envelope, not raw FFT magnitudes.
-  float bass = smoothstep(0., 1., clamp(u_bass, 0., 1.));
-  float kick = exp(-fract(u_beat) * 7.) * smoothstep(.15, 1., level);
+  // D61 envelopes are attack/release smoothed and fade out with beat lock.
+  float bass = smoothstep(0., 1., clamp(u_low, 0., 1.));
+  float kick = u_kick * smoothstep(.15, 1., level);
   vec2 state = fract(unpack16(texture(u_state, vec2(.25, .5))) +
     (unpack16(texture(u_state, vec2(.75, .5))) - .5) / 65535.);
   crystalTurn = state.y * TAU * 100.;
@@ -483,6 +483,11 @@ export default {
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { speed: [0.05, 1.3], recursion: [1, 4] },
   beat: { punch: 1.2, pulse: 1 },
+  audio: [
+    { param: "glow", feature: "low", amount: 0.16 },
+    { param: "scale", feature: "mid", amount: -0.05 },
+    { param: "recursion", feature: "flux", amount: 0.08 },
+  ],
   stage: ["speed", "glow", "scale"],
   type: { key: "geometry", values: [0, 1, 2, 3] },
   number: 49,

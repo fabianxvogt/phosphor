@@ -70,8 +70,13 @@ test(
             const slot = engine.slots.at(-1);
             engine.options.bloom = 0;
             const capture = (bass, beat) => {
-              engine.features.bass = bass;
+              Object.assign(engine.features, {
+                low: bass, active: bass > 0, locked: bass > 0,
+              });
               engine.beat = beat;
+              // Settle both the bounded heroes and the two-second clock
+              // hand-back without advancing the ray-camera simulation.
+              for (let i = 0; i < 60; i++) engine.updatePerformance(0.05, false);
               engine.uniformFrame++;
               engine.drawSlot(slot, 0);
               const target = slot.visual[slot.vi];
