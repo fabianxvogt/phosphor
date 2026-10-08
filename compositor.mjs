@@ -44,7 +44,7 @@ vec3 chromaTint(vec3 c,float angle) {
 void main() {
   if(raw){outColor=vec4(sceneAt(v_uv),1.);return;}
   vec3 c=effectedAt(v_uv);
-  if(historyOnly){outColor=vec4(c,1.);return;}
+  if(historyOnly){emit(vec4(c,1.));return;}
   if(chroma>.01) {
     float shift=chroma*.025;
     vec3 right=chromaTint(effectedAt(v_uv-vec2(shift,0.)),radians(290.));
