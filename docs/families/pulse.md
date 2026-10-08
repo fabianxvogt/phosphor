@@ -34,12 +34,12 @@ This remains one analytic fragment pass: no simulation, history texture, geometr
 
 Compact comparison: **160×90**, seed **17**, clip base **0.5**, energy **0.1 / 0.9**, **120** warm frames followed by **24 samples at 30 Hz**. All four exceed the provisional score **0.15** and the new regression's motion-delta floor **0.01**.
 
-| Form | Structure delta | Motion at 0.1 | Motion at 0.9 | Motion delta | Score |
-| --- | --- | --- | --- | --- | --- |
-| 0 | 0.86973 | 0.00294 | 0.06967 | **0.06673** | **0.87228** |
-| 1 | 0.57686 | 0.00958 | 0.06558 | **0.05600** | **0.57958** |
-| 2 | 0.42113 | 0.00473 | 0.05391 | **0.04919** | **0.42399** |
-| 3 | 0.69683 | 0.00196 | 0.09019 | **0.08822** | **0.70239** |
+| Form | Structure delta | Motion at 0.1 | Motion at 0.9 | Motion delta | Score       |
+| ---- | --------------- | ------------- | ------------- | ------------ | ----------- |
+| 0    | 0.86973         | 0.00294       | 0.06967       | **0.06673**  | **0.87228** |
+| 1    | 0.57686         | 0.00958       | 0.06558       | **0.05600**  | **0.57958** |
+| 2    | 0.42113         | 0.00473       | 0.05391       | **0.04919**  | **0.42399** |
+| 3    | 0.69683         | 0.00196       | 0.09019       | **0.08822**  | **0.70239** |
 
 The minimum motion delta is more than **122×** the reported old ceiling of 0.0004, measured at the same compact resolution. Peak motion exceeds low motion in every form; brightness and uniform tint are normalized out by the shared metric. WebGL errors and non-finite uploads: **0**.
 
@@ -49,14 +49,14 @@ Executed: `npm run contact -- --sheet energy --family pulse --width 160 --height
 
 **480×270**, **120 frames**, energy **0.1 / 0.5 / 0.9**, all six authored presets. The four shapes become denser/subdivided and move faster; luminance does not have to rise.
 
-| Preset | Edge density, low / mid / peak | Mean linear luminance, low / mid / peak |
-| --- | --- | --- |
-| Scanner Bars | 0.00797 / 0.04763 / 0.11618 | 0.05447 / 0.07743 / 0.06785 |
-| Slow Gate | 0.00882 / 0.02544 / 0.11208 | 0.08861 / 0.14366 / 0.12253 |
-| Square Tunnel | 0.01155 / 0.02899 / 0.04204 | 0.02022 / 0.02045 / 0.02369 |
-| Ring Dive | 0.01781 / 0.03460 / 0.03855 | 0.00707 / 0.00960 / 0.01405 |
-| Horizon Grid | 0.01088 / 0.05281 / 0.05122 | 0.08023 / 0.05532 / 0.04201 |
-| Shard Crown | 0.00808 / 0.01964 / 0.05020 | 0.12918 / 0.11952 / 0.07502 |
+| Preset        | Edge density, low / mid / peak | Mean linear luminance, low / mid / peak |
+| ------------- | ------------------------------ | --------------------------------------- |
+| Scanner Bars  | 0.00797 / 0.04763 / 0.11618    | 0.05447 / 0.07743 / 0.06785             |
+| Slow Gate     | 0.00882 / 0.02544 / 0.11208    | 0.08861 / 0.14366 / 0.12253             |
+| Square Tunnel | 0.01155 / 0.02899 / 0.04204    | 0.02022 / 0.02045 / 0.02369             |
+| Ring Dive     | 0.01781 / 0.03460 / 0.03855    | 0.00707 / 0.00960 / 0.01405             |
+| Horizon Grid  | 0.01088 / 0.05281 / 0.05122    | 0.08023 / 0.05532 / 0.04201             |
+| Shard Crown   | 0.00808 / 0.01964 / 0.05020    | 0.12918 / 0.11952 / 0.07502             |
 
 Horizon Grid's fixed-threshold edge proxy flattens slightly from mid to peak as fine perspective cells are filtered; the normalized structural/motion gate passes it, and its moving micro-cells/circuit layer remain the peak cue. This exception is exposed for owner judgement rather than claimed as a monotonic edge series. All 18 captures have WebGL/non-finite **0**.
 
@@ -66,12 +66,12 @@ Executed: `npm run contact -- --sheet ladder --family pulse --port 48202 --out a
 
 **PASS:** one real-GPU run, Apple M3 Pro through ANGLE Metal, **1920×1080**, live energy **0.95**, **30 seconds per form**. The 34 ms p99 limit passes for every form, with GPU errors/non-finite **0**, no step reduction and no quality downgrade.
 
-| Form | Frames | p50 ms | p95 ms | p99 ms | Max ms |
-| --- | --- | --- | --- | --- | --- |
-| 0 | 1801 | 16.7 | 17.5 | **17.6** | 17.7 |
-| 1 | 1802 | 16.7 | 17.5 | **17.6** | 25.1 |
-| 2 | 1801 | 16.7 | 17.6 | **17.6** | 17.7 |
-| 3 | 1802 | 16.7 | 17.5 | **17.6** | 17.7 |
+| Form | Frames | p50 ms | p95 ms | p99 ms   | Max ms |
+| ---- | ------ | ------ | ------ | -------- | ------ |
+| 0    | 1801   | 16.7   | 17.5   | **17.6** | 17.7   |
+| 1    | 1802   | 16.7   | 17.5   | **17.6** | 25.1   |
+| 2    | 1801   | 16.7   | 17.6   | **17.6** | 17.7   |
+| 3    | 1802   | 16.7   | 17.5   | **17.6** | 17.7   |
 
 `mkdir /tmp/phosphor-rig.lock` acquired the atomic lock. The prescribed `pgrep -fl "contact.mjs|test-browser|test.mjs.*--port|timing"` checks were empty immediately before and after the run (exit 1 means no matches); no sibling headless render load was observed. The lock was released with `rmdir /tmp/phosphor-rig.lock`, and the next lane was notified. No timing retry was needed.
 
