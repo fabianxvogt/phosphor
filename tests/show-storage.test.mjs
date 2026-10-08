@@ -9,6 +9,7 @@ import {
   saveRuntime,
   loadRuntime,
   SET_KEY,
+  UNREADABLE_KEY,
 } from "../show-storage.mjs";
 
 const memory = () => {
@@ -35,12 +36,16 @@ test("an existing v2 autosave migrates on first load", () => {
   assert.ok(report[0].includes("Migrated"));
 });
 
-test("a corrupt v3 save falls back to a new set and says so", () => {
+test("a corrupt v3 save falls back to a new set, says so and keeps the original", () => {
   const storage = memory();
   storage.setItem(SET_KEY, "{oops");
   const { set, report } = loadSet(storage, scenes);
   assert.equal(set.format, "phosphor-set-v3");
   assert.ok(report[0].includes("unreadable"));
+  assert.equal(storage.getItem(UNREADABLE_KEY), "{oops");
+  storage.setItem(SET_KEY, "{later");
+  loadSet(storage, scenes);
+  assert.equal(storage.getItem(UNREADABLE_KEY), "{oops"); // the first is kept
 });
 
 test("runtime state expires after twelve hours", () => {

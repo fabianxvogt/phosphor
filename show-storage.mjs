@@ -6,17 +6,27 @@ import { initialShowSet, parseShowSet, validateShowSet } from "./show-set.mjs";
 export const SET_KEY = "phosphor-set-v3";
 export const RUNTIME_KEY = "phosphor-runtime-v3";
 const V2_KEY = "phosphor-set-v2";
+// An unreadable save is never thrown away: the next edit would overwrite it
+// (e.g. a clip whose family narrowed a parameter range). The first one kept.
+export const UNREADABLE_KEY = "phosphor-set-v3-unreadable";
 const RUNTIME_MAX_AGE = 12 * 3600 * 1000;
 
 export function loadSet(storage, scenes) {
+  let raw = null;
   try {
-    const raw = storage.getItem(SET_KEY);
+    raw = storage.getItem(SET_KEY);
     if (raw)
       return { set: validateShowSet(JSON.parse(raw), scenes), report: [] };
   } catch (error) {
+    try {
+      if (!storage.getItem(UNREADABLE_KEY))
+        storage.setItem(UNREADABLE_KEY, raw);
+    } catch {}
     return {
       set: initialShowSet(scenes),
-      report: [`Saved show unreadable: ${error.message}`],
+      report: [
+        `Saved show unreadable: ${error.message}. The original is kept in local storage under "${UNREADABLE_KEY}".`,
+      ],
     };
   }
   try {
