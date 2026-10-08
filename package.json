@@ -15,7 +15,8 @@
     "soak": "node scripts/soak.mjs",
     "smoke:cross": "node scripts/smoke-cross.mjs",
     "typecheck": "tsc --noEmit",
-    "format:check": "prettier --check package.json package-lock.json tsconfig.json .prettierrc.json .github tests/browser scripts/browser-runtime.mjs scripts/test-browser.mjs scripts/contact.mjs scripts/soak.mjs scripts/smoke-cross.mjs"
+    "format:check": "prettier --check package.json package-lock.json tsconfig.json .prettierrc.json .github tests/browser scripts/browser-runtime.mjs scripts/test-browser.mjs scripts/contact.mjs scripts/soak.mjs scripts/smoke-cross.mjs",
+    "beat:eval": "node scripts/beat-eval.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.64.0",
