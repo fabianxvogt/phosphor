@@ -5,23 +5,143 @@
 // are integrated in a one-texel state, so live glides never teleport the view.
 
 const schema = [
-  { key: "path", label: "Path · corridor / spiral / shaft / narrows", min: 0, max: 3, step: 1, default: 0 },
-  { key: "speed", label: "Flight speed", min: 0, max: 2, step: 0.01, default: 0.45 },
-  { key: "detail", label: "Recursion levels", min: 2, max: 5, step: 0.01, default: 3.2 },
-  { key: "opening", label: "Passage width", min: 0.75, max: 1.2, step: 0.01, default: 1 },
+  {
+    key: "path",
+    label: "Path · corridor / spiral / shaft / narrows",
+    min: 0,
+    max: 3,
+    step: 1,
+    default: 0,
+  },
+  {
+    key: "speed",
+    label: "Flight speed",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 0.45,
+  },
+  {
+    key: "detail",
+    label: "Recursion levels",
+    min: 2,
+    max: 5,
+    step: 0.01,
+    default: 3.2,
+  },
+  {
+    key: "opening",
+    label: "Passage width",
+    min: 0.75,
+    max: 1.2,
+    step: 0.01,
+    default: 1,
+  },
   { key: "roll", label: "Roll", min: -1, max: 1, step: 0.01, default: 0.1 },
-  { key: "glow", label: "Edge glow", min: 0, max: 1.5, step: 0.01, default: 0.7 },
+  {
+    key: "glow",
+    label: "Edge glow",
+    min: 0,
+    max: 1.5,
+    step: 0.01,
+    default: 0.7,
+  },
   { key: "fog", label: "Depth fog", min: 0, max: 1, step: 0.01, default: 0.5 },
-  { key: "light", label: "Headlight", min: 0, max: 1.5, step: 0.01, default: 0.8 },
+  {
+    key: "light",
+    label: "Headlight",
+    min: 0,
+    max: 1.5,
+    step: 0.01,
+    default: 0.8,
+  },
 ];
 
 const presets = [
-  { name: "Long Corridor", seed: 6101, params: { path: 0, speed: 0.45, detail: 3.2, opening: 1, roll: 0, glow: 0.6, fog: 0.45, light: 1.1 } },
-  { name: "Corkscrew", seed: 6102, params: { path: 1, speed: 0.5, detail: 3.2, opening: 0.9, roll: 0.15, glow: 0.7, fog: 0.4, light: 1.1 } },
-  { name: "Mine Shaft", seed: 6103, params: { path: 2, speed: 0.45, detail: 3.4, opening: 1, roll: 0, glow: 0.6, fog: 0.4, light: 1.1 } },
-  { name: "Narrows", seed: 6104, params: { path: 3, speed: 0.4, detail: 3.2, opening: 1, roll: 0.05, glow: 0.8, fog: 0.35, light: 1.1 } },
-  { name: "Ember Drift", seed: 6105, params: { path: 0, speed: 0.2, detail: 3.5, opening: 1.1, roll: 0.05, glow: 0.9, fog: 0.6, light: 0.85 } },
-  { name: "Neon Spiral", seed: 6106, params: { path: 1, speed: 0.8, detail: 3, opening: 0.85, roll: 0.3, glow: 1, fog: 0.3, light: 1.2 } },
+  {
+    name: "Long Corridor",
+    seed: 6101,
+    params: {
+      path: 0,
+      speed: 0.45,
+      detail: 3.2,
+      opening: 1,
+      roll: 0,
+      glow: 0.6,
+      fog: 0.45,
+      light: 1.1,
+    },
+  },
+  {
+    name: "Corkscrew",
+    seed: 6102,
+    params: {
+      path: 1,
+      speed: 0.5,
+      detail: 3.2,
+      opening: 0.9,
+      roll: 0.15,
+      glow: 0.7,
+      fog: 0.4,
+      light: 1.1,
+    },
+  },
+  {
+    name: "Mine Shaft",
+    seed: 6103,
+    params: {
+      path: 2,
+      speed: 0.45,
+      detail: 3.4,
+      opening: 1,
+      roll: 0,
+      glow: 0.6,
+      fog: 0.4,
+      light: 1.1,
+    },
+  },
+  {
+    name: "Narrows",
+    seed: 6104,
+    params: {
+      path: 3,
+      speed: 0.4,
+      detail: 3.2,
+      opening: 1,
+      roll: 0.05,
+      glow: 0.8,
+      fog: 0.35,
+      light: 1.1,
+    },
+  },
+  {
+    name: "Ember Drift",
+    seed: 6105,
+    params: {
+      path: 0,
+      speed: 0.2,
+      detail: 3.5,
+      opening: 1.1,
+      roll: 0.05,
+      glow: 0.9,
+      fog: 0.6,
+      light: 0.85,
+    },
+  },
+  {
+    name: "Neon Spiral",
+    seed: 6106,
+    params: {
+      path: 1,
+      speed: 0.8,
+      detail: 3,
+      opening: 0.85,
+      roll: 0.3,
+      glow: 1,
+      fog: 0.3,
+      light: 1.2,
+    },
+  },
 ];
 
 // Bounded phases: the sponge repeats every two units and the paths every
@@ -97,9 +217,24 @@ void ffCamera(float path, float s, out vec3 ro, out vec3 fw, out float extraRoll
   }
 }
 
+// Three SDF samples shade recesses; ray iteration count is not occlusion.
+float ffOcclusion(vec3 p, vec3 n) {
+  float blocked = 0.0, weight = 0.5, tmp;
+  for (int i = 0; i < 3; ++i) {
+    float h = 0.014 * pow(3.0, float(i));
+    blocked += weight * max(0.0, 1.0 - ffMap(p + n * h, tmp) / h);
+    weight *= 0.5;
+  }
+  return clamp(1.0 - blocked * 0.8, 0.25, 1.0);
+}
+
 void main() {
   float path = floor(u_params[0] + 0.5);
   vec2 phase = unpack16(texture(u_state, vec2(0.5)));
+  float level = clamp(u_level, 0.0, 1.0);
+  // The shared audio bus already smooths the low band with a 120 ms envelope.
+  float bass = smoothstep(0.0, 1.0, clamp(u_bass, 0.0, 1.0));
+  float kick = exp(-fract(u_beat) * 7.0) * smoothstep(0.15, 1.0, level);
   float glowAmount = u_params[5];
   float fog = u_params[6];
   float light = u_params[7];
@@ -111,61 +246,79 @@ void main() {
   vec3 rt = normalize(cross(up, fw));
   up = cross(fw, rt);
   vec2 uv = aspectUV() * 2.0;
-  uv = rot2(phase.y * TAU + extraRoll) * uv;
-  vec3 rd = normalize(fw * 1.35 + rt * uv.x + up * uv.y);
+  float bank = level * level * 0.22 * sin(s * TAU / 6.0);
+  uv = rot2(phase.y * TAU + extraRoll + bank) * uv;
+  // A small ray-camera FOV response complements the shared compositor punch.
+  float focal = 1.35 * (1.0 + kick * 0.07);
+  vec3 rd = normalize(fw * focal + rt * uv.x + up * uv.y);
 
   int limit = int(min(float(RAY_CAP), u_raySteps));
-  float t = 0.02, trap = 0.0, edge = 0.0;
-  int steps = 0;
+  float t = 0.02, trap = 0.0, edge = 0.0, scattering = 0.0;
+  float extinction = 0.035 + fog * 0.12;
   bool hit = false;
   for (int i = 0; i < RAY_CAP; ++i) {
     if (i >= limit) break;
-    float d = ffMap(ro + rd * t, trap);
-    // Near-misses along the ray glow: emissive edges on black.
-    edge += exp(-max(d, 0.0) * 90.0) * clamp(d, 0.0, 0.03) * 0.6;
+    vec3 p = ro + rd * t;
+    float d = ffMap(p, trap);
     if (d < 0.0006 * t) { hit = true; break; }
-    t += d * 0.85;
-    steps = i;
-    if (t > 14.0) break;
+    float segment = min(d * 0.85, 14.0 - t);
+    // Reuse the governed march: no second volume ray and no extra SDF calls.
+    // Oblique sheets of light become narrower/more numerous towards peak.
+    float shaft = pow(0.5 + 0.5 * sin(dot(p, vec3(0.4, 3.0, 2.0)) * (1.0 + level * 1.8)), 8.0);
+    float absorbed = 1.0 - exp(-segment * extinction);
+    scattering += exp(-t * extinction) * absorbed * (0.07 + shaft * (0.2 + level * 0.65));
+    edge += exp(-max(d, 0.0) * 90.0) * min(segment, 0.03) * 0.6;
+    t += segment;
+    if (t >= 14.0) break;
   }
-  float depth = clamp(t / 14.0, 0.0, 1.0);
+  vec3 atmosphere = mix(u_secondary, u_primary, 0.25) * 0.12;
   vec3 col = vec3(0.0);
   if (hit) {
     vec3 hp = ro + rd * t;
     float tmp;
-    vec2 e = vec2(0.0008 * max(t, 1.0), 0.0);
-    vec3 n = normalize(vec3(
-      ffMap(hp + e.xyy, tmp) - ffMap(hp - e.xyy, tmp),
-      ffMap(hp + e.yxy, tmp) - ffMap(hp - e.yxy, tmp),
-      ffMap(hp + e.yyx, tmp) - ffMap(hp - e.yyx, tmp)) + vec3(1e-7));
+    vec2 e = vec2(1.0, -1.0) * (0.0008 * max(t, 1.0));
+    vec3 n = normalize(
+      e.xyy * ffMap(hp + e.xyy, tmp) + e.yyx * ffMap(hp + e.yyx, tmp) +
+      e.yxy * ffMap(hp + e.yxy, tmp) + e.xxx * ffMap(hp + e.xxx, tmp) + vec3(1e-7));
     // The map is positive in free space, so its gradient points into the room.
     float diffuse = max(dot(n, -rd), 0.0);
-    float occlusion = 1.0 - 0.35 * float(steps) / float(limit);
+    float occlusion = ffOcclusion(hp, n);
     vec3 material = palette(fract(trap * 0.27 + 0.15));
-    // Contrast pivots around a fixed midtone, rather than energy acting as
-    // a second master. New holes add detail; the shared layer owns the kick.
+    // Contrast pivots around a fixed midtone, rather than becoming a master.
+    // Detail/speed are driven by metadata; the local kick only changes FOV.
     float shade = 0.2 + light * 1.15 * diffuse * diffuse;
     shade = max(0.0, 0.4 + (shade - 0.4) * (0.7 + 1.1 * u_level));
     col = material * shade * occlusion;
+    float rim = pow(max(1.0 - abs(dot(n, -rd)), 0.0), 3.0);
+    col += palette(fract(trap * 0.27 + 0.72)) * rim * glowAmount *
+      (0.08 + level * 0.22 + bass * (0.18 + level * 0.7));
   }
   vec3 glowColour = mix(u_accent, u_primary, 0.5 + 0.5 * sin(s * TAU / 6.0 + trap));
-  col += glowColour * edge * glowAmount;
-  col *= exp(-depth * depth * fog * 6.0);
-  outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+  float transmission = exp(-min(t, 14.0) * extinction);
+  col = mix(atmosphere, col, transmission);
+  col += glowColour * glowAmount * (edge * (1.0 + bass * level) +
+    min(scattering, 0.9) * (0.35 + level * 0.5 + bass * level * 0.6));
+  // Float picture targets retain highlights; RGBA8 fallback clips as before.
+  outColor = vec4(max(col, vec3(0.0)), 1.0);
 }
 `;
 
 export default {
   id: "flight",
   // Contract v3 performance metadata; see scene-acid.mjs.
-  energy: { speed: { mul: [0.08, 1.9] }, detail: [2, 5], fog: [0.6, 0.3], roll: { mul: [0.4, 2] } },
+  energy: {
+    speed: { mul: [0.08, 1.9] },
+    detail: [2, 5],
+    fog: [0.6, 0.3],
+    roll: { mul: [0.4, 2] },
+  },
   beat: { punch: 1.3, pulse: 1 },
   stage: ["speed", "roll", "glow"],
   type: { key: "path", values: [0, 1, 2, 3] },
   number: 60,
   name: "Fractal Flight",
   description:
-    "A flight through an infinite recursive sponge with continuously opening detail. Four authored paths compose square corridor portals, twisted corkscrew walls, a tall falling shaft and level-one inner junctions. A one-texel phase integrator keeps travel and roll smooth under live parameter glides; each camera stays in a guaranteed free-space core. A port of the v6 idea, not its Canvas2D code; the keyboard remains the clip grid.",
+    "A flight through an infinite recursive sponge with continuously opening detail. Four authored paths compose square corridor portals, twisted corkscrew walls, a tall falling shaft and level-one inner junctions. Palette-tinted distance atmosphere, bounded in-scattered light and three-sample SDF occlusion give the passages depth; the smoothed low band excites emissive edges. Energy increases traversal, banking and kick FOV. A one-texel phase integrator keeps travel and roll smooth under live glides; each camera stays in a guaranteed free-space core.",
   maxRenderWidth: 960,
   schema,
   presets,
