@@ -11,7 +11,6 @@ import {
   presets,
 } from "./browser-runtime.mjs";
 import { renderPreset } from "../tests/browser/client.mjs";
-import { imageMetrics } from "../tests/browser/metrics.mjs";
 
 const args = options();
 if (args.rig) throw new Error("Cross-browser smoke is correctness-only");
@@ -67,12 +66,10 @@ try {
         const result = await page.evaluate(renderPreset, {
           ...look,
           seed: 48113,
+          frames: 60,
+          capture: false,
         });
-        assert.ok(
-          imageMetrics(result.rgba, result.width, result.height).meanLuminance >
-            0.00001,
-          `${look.sceneId}: blank`,
-        );
+        assert.ok(result.mean > 0.00001, `${look.sceneId}: blank`);
         assert.equal(result.glError, 0, `${look.sceneId}: WebGL error`);
         assert.equal(result.nonFinite, 0, `${look.sceneId}: non-finite upload`);
       }

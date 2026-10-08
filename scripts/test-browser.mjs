@@ -11,7 +11,6 @@ import {
   presets,
 } from "./browser-runtime.mjs";
 import { renderPreset, readTelemetry } from "../tests/browser/client.mjs";
-import { imageMetrics } from "../tests/browser/metrics.mjs";
 
 const args = options();
 if (args.rig)
@@ -37,12 +36,13 @@ try {
   await pauseForCapture(page);
   const looks = await presets(page);
   for (const look of looks) {
-    const result = await page.evaluate(renderPreset, { ...look, seed: 48113 });
-    const metrics = imageMetrics(result.rgba, result.width, result.height);
-    assert.ok(
-      metrics.meanLuminance > 0.00001,
-      `${look.sceneId}/${look.name} is blank`,
-    );
+    const result = await page.evaluate(renderPreset, {
+      ...look,
+      seed: 48113,
+      frames: 60,
+      capture: false,
+    });
+    assert.ok(result.mean > 0.00001, `${look.sceneId}/${look.name} is blank`);
     assert.equal(result.glError, 0, `${look.name}: WebGL error`);
     assert.equal(result.nonFinite, 0, `${look.name}: non-finite upload`);
     assert.equal(result.stats.slots, 1);

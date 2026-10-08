@@ -114,7 +114,13 @@ export function readTelemetry() {
   };
 }
 
-export async function renderPreset({ sceneId, index, seed, frames = 120 }) {
+export async function renderPreset({
+  sceneId,
+  index,
+  seed,
+  frames = 120,
+  capture = true,
+}) {
   const app = window.__phosphor;
   const { presetSnapshot } = await import("/session.mjs");
   const scene = app.scenes.find((scene) => scene.id === sceneId);
@@ -128,6 +134,16 @@ export async function renderPreset({ sceneId, index, seed, frames = 120 }) {
   while (engine.slots.at(-1).warmTicks > 0) engine.advance(0, true);
   for (let i = 0; i < frames; i++) engine.advance(1 / 60, false);
   engine.present();
+  if (!capture) {
+    const health = engine.health();
+    return {
+      mean: health.mean,
+      glError: engine.gl.getError(),
+      nonFinite:
+        engine.counters?.nonFinite ?? window.__harness.nonFiniteUploads,
+      stats: engine.stats(),
+    };
+  }
   const canvas = document.createElement("canvas");
   canvas.width = engine.canvas.width;
   canvas.height = engine.canvas.height;
