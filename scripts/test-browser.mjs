@@ -57,7 +57,9 @@ try {
       const app = window.__phosphor;
       const { presetSnapshot } = await import("/session.mjs");
       const engine = app.engine;
-      engine.load(presetSnapshot(app.scenes[index % app.scenes.length]), 0.1);
+      const scene = app.scenes[index % app.scenes.length];
+      engine.load(presetSnapshot(scene), 0.1);
+      await engine.ready(scene.id);
       for (let frame = 0; frame < 300 && engine.transition; frame++)
         engine.advance(1 / 60, false);
       return {

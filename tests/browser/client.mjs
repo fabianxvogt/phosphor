@@ -143,6 +143,10 @@ export async function renderPreset({
   engine.gesture = [0.5, 0.5, 0];
   engine.blackout = engine.blackoutTarget = 0;
   engine.load(snapshot, 0);
+  // Programs compile in parallel (KHR_parallel_shader_compile); completion
+  // only advances between tasks, so a synchronous warm loop would never end.
+  if (!(await engine.ready(sceneId)))
+    throw new Error(`${sceneId} failed to compile`);
   while (engine.slots.at(-1).warmTicks > 0) engine.advance(0, true);
   for (let i = 0; i < frames; i++) engine.advance(1 / 60, false);
   engine.present();
