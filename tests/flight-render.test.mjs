@@ -20,7 +20,7 @@ test("flight has a bounded authored look for every camera path", () => {
 });
 
 if (process.argv.includes("--port")) {
-  test("flight software-GPU family probe", { timeout: 1200000 }, async () => {
+  test(process.argv.includes("--matrix") ? "flight grayscale distance report" : process.argv.includes("--beat-only") ? "flight isolated shared kick" : "flight software-GPU family probe", { timeout: 1200000 }, async () => {
   const { options, outputDirectory, serve, launch, openLab } = await import("../scripts/browser-runtime.mjs");
   const { renderLook } = await import("./browser/client.mjs");
   const { shaderHeader } = await import("../scene-contract.mjs");
@@ -31,9 +31,9 @@ void main() {
   ffCamera(u_params[0], v_uv.x * 6.0, ro, fw, extraRoll);
   outColor = vec4(ffMap(ro, trap) > 0.05 ? 1.0 : 0.0, 0.0, 0.0, 1.0);
 }`;
-  const args = options({ matrix: { type: "string" } });
+  const args = options({ matrix: { type: "string" }, "beat-only": { type: "boolean", default: false } });
   assert.equal(args.rig, false, "flight probe is headless only");
-  const out = await outputDirectory(args.matrix ? "contact/flight-distances" : "contact/flight-probe", args.out);
+  const out = await outputDirectory(args.matrix ? "contact/flight-distances" : args["beat-only"] ? "contact/flight-beat" : "contact/flight-probe", args.out);
   const server = await serve(".", args.port);
   const runtime = await launch();
   try {
@@ -73,9 +73,9 @@ void main() {
     const rows = [];
     for (const path of flight.type.values) {
       const preset = flight.presets.find((p) => p.params.path === path);
-      for (const level of [0.1, 0.5, 0.9]) {
+      for (const level of (args["beat-only"] ? [0.9] : [0.1, 0.5, 0.9])) {
         await lab.page.evaluate(renderLook, { sceneId: "flight", index: flight.presets.indexOf(preset), level, frames: 0, width: 320, height: 180, capture: false });
-        const frames = await lab.page.evaluate(({ clearanceSource }) => {
+        const frames = await lab.page.evaluate(({ clearanceSource, beatOnly }) => {
           const { engine } = window.__phosphorLab;
           const slot = engine.slots.at(-1);
           // Exercise the actual shader over a complete bounded path at the
@@ -107,9 +107,9 @@ void main() {
           };
           const result = [];
           let tick = 0;
-          for (const time of [0, 60, 300]) {
+          for (const time of (beatOnly ? [0] : [0, 60, 300])) {
             for (; tick < time * 60; tick++) engine.tickSlot(slot, 1 / 60);
-            for (const steps of [96, 64]) {
+            for (const steps of (beatOnly ? [64] : [96, 64])) {
               engine.rayStepBudget = steps;
               result.push({ time, steps, ...capture() });
             }
@@ -131,12 +131,14 @@ void main() {
           engine.updatePerformance(0, false);
           engine.beat = 0.5;
           engine.updatePerformance(0, false);
+          engine.beatFx.flash = 0; // Prove punch/pulse without the automatic flash.
           const quiet = capture();
           engine.beat = 1;
           engine.updatePerformance(0, false);
+          engine.beatFx.flash = 0;
           const kick = capture();
           return { frames: result, free, drift, quiet, kick, beatFx: { ...engine.beatFx } };
-        }, { clearanceSource });
+        }, { clearanceSource, beatOnly: args["beat-only"] });
         assert.ok(frames.drift <= 1, `path ${path} energy ${level}: speed/roll glide teleports (${frames.drift} byte delta)`);
         assert.ok(frames.free, `path ${path}: camera clearance falls below 0.05 at minimum opening`);
         for (const frame of frames.frames) {
@@ -151,7 +153,12 @@ void main() {
         const kickDistance = structureDistance(structureSignature(frames.quiet.rgba, 320, 180), structureSignature(frames.kick.rgba, 320, 180));
         assert.ok(kickDistance > 0.01, `path ${path}: kick is invisible (${kickDistance})`);
         assert.ok(frames.beatFx.punch > 0 && frames.beatFx.pulse > 0);
-        console.log(`PASS path ${path} energy ${level}: 0/60/300s at 96/64 steps; glide delta ${frames.drift}; kick distance ${kickDistance.toFixed(3)}`);
+        rows.at(-1).beat = { distance: kickDistance, ...frames.beatFx };
+        if (args["beat-only"]) {
+          await writeFile(resolve(out, `flight-${path}-quiet.png`), Buffer.from(frames.quiet.png, "base64"));
+          await writeFile(resolve(out, `flight-${path}-kick.png`), Buffer.from(frames.kick.png, "base64"));
+        }
+        console.log(`PASS path ${path} energy ${level}: ${args["beat-only"] ? "isolated punch/pulse at 64 steps" : "0/60/300s at 96/64 steps"}; glide delta ${frames.drift}; kick distance ${kickDistance.toFixed(3)}`);
       }
     }
     assert.deepEqual(lab.errors, []);
