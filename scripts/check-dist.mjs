@@ -1,20 +1,33 @@
-import { readFile } from 'node:fs/promises';
-import { resolve, relative } from 'node:path';
-const root=resolve(new URL('..',import.meta.url).pathname);
-const dist=resolve(root,'dist');
-const visited=new Set();
-async function verify(file){
-  if(visited.has(file))return;
-  visited.add(file);
-  const sourcePath=resolve(root,file),distPath=resolve(dist,file);
-  if(relative(dist,distPath).startsWith('..'))throw new Error(`Unsafe import: ${file}`);
-  const [source,copy]=await Promise.all([readFile(sourcePath),readFile(distPath)]);
-  if(!source.equals(copy))throw new Error(`Distribution differs: ${file}`);
-  const imports=[...source.toString().matchAll(/\bfrom\s+['"](\.[^'"]+)['"]/g)].map(m=>m[1]);
-  for(const path of imports)await verify(relative(root,resolve(sourcePath,'..',path)));
+import { readFile } from "node:fs/promises";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { walkAssets } from "./build.mjs";
+
+export async function verifyDistribution(root, dist = resolve(root, "dist")) {
+  const files = await walkAssets(root);
+  const worker = await readFile(resolve(dist, "sw.js"), "utf8");
+  if (worker.includes("__BUILD__") || worker.includes("__ASSETS__")) {
+    throw new Error("Offline cache revision/assets not stamped");
+  }
+  const list = worker.match(/const ASSETS\s*=\s*(\[[\s\S]*?\]);/);
+  if (!list) throw new Error("Offline cache asset list missing");
+  const assets = new Set(JSON.parse(list[1]));
+  for (const file of files) {
+    if (!assets.has(`./${file}`)) throw new Error(`Reachable asset not precached: ${file}`);
+    const [source, copy] = await Promise.all([
+      readFile(resolve(root, file)),
+      readFile(resolve(dist, file)),
+    ]);
+    if (!source.equals(copy)) throw new Error(`Distribution differs: ${file}`);
+  }
+  for (const asset of assets) {
+    if (asset !== "./" && (!asset.startsWith("./") || asset.includes(".."))) throw new Error(`Unsafe precache asset: ${asset}`);
+    await readFile(resolve(dist, asset === "./" ? "index.html" : asset.slice(2)));
+  }
+  return files.length;
 }
-for(const file of ['app.js','output.mjs','index.html','output.html','styles.css'])await verify(file);
-const worker=await readFile(resolve(dist,'sw.js'),'utf8');
-if(worker.includes('__BUILD__'))throw new Error('Offline cache revision not stamped');
-for(const path of [...worker.matchAll(/['"]\.\/([^'"]+)['"]/g)].map(m=>m[1]))await readFile(resolve(dist,path));
-console.log(`Verified ${visited.size} distribution assets and revisioned offline cache.`);
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const count = await verifyDistribution(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
+  console.log(`Verified ${count} reachable distribution assets and revisioned offline cache.`);
+}

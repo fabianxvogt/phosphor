@@ -1,13 +1,8 @@
 // Gray–Scott morphogens, rendered as an illustrative flowering garden.
 // Two 16-bit concentrations occupy RG and BA in the RGBA8 simulation texture.
 const chemistry = `
-vec2 unpackMorphogens(vec4 state) {
-  return vec2(dot(state.rg, vec2(256., 1.)), dot(state.ba, vec2(256., 1.))) * (255. / 65535.);
-}
-vec4 packMorphogens(vec2 value) {
-  vec2 bytes = floor(clamp(value, 0., 1.) * 65535. + .5);
-  return vec4(floor(bytes.x / 256.), mod(bytes.x, 256.), floor(bytes.y / 256.), mod(bytes.y, 256.)) / 255.;
-}
+vec2 unpackMorphogens(vec4 state) { return unpack16(state); }
+vec4 packMorphogens(vec2 value) { return pack16(value); }
 `;
 
 const schema = [
@@ -43,7 +38,6 @@ export default {
     fragment: chemistry + `
 vec2 morphogen(vec2 uv) { return unpackMorphogens(texture(u_state, uv)); }
 void main() {
-  vec2 pixel = 1. / u_resolution;
   if (u_reset) {
     float density = u_params[3];
     vec2 cell = floor(v_uv * density);
@@ -57,11 +51,7 @@ void main() {
     return;
   }
   vec2 current = morphogen(v_uv);
-  vec2 lap = -current;
-  lap += .2 * (morphogen(v_uv + vec2(pixel.x, 0.)) + morphogen(v_uv - vec2(pixel.x, 0.))
-             + morphogen(v_uv + vec2(0., pixel.y)) + morphogen(v_uv - vec2(0., pixel.y)));
-  lap += .05 * (morphogen(v_uv + pixel) + morphogen(v_uv - pixel)
-              + morphogen(v_uv + vec2(pixel.x, -pixel.y)) + morphogen(v_uv + vec2(-pixel.x, pixel.y)));
+  vec2 lap = laplacian9(u_state, v_uv);
   float reaction = current.x * current.y * current.y;
   float feed = u_params[0];
   float loss = u_params[1];
@@ -79,19 +69,19 @@ void main() {
 `
   },
   fragment: chemistry + `
-float bloomAt(vec2 uv) { return unpackMorphogens(texture(u_state, uv)).y; }
+float bloomAt(vec2 uv) { return stateBilinear16(uv).y; }
 void main() {
   vec2 uv = v_uv;
   float sway = u_params[5];
   uv += .008 * sway * vec2(sin(u_time * .23 + uv.y * 8.), cos(u_time * .19 + uv.x * 7.));
   vec2 texel = 1. / vec2(textureSize(u_state, 0));
-  vec2 chemical = unpackMorphogens(texture(u_state, uv));
+  vec2 chemical = stateBilinear16(uv);
   float v = chemical.y;
   vec2 gradient = vec2(bloomAt(uv + vec2(texel.x, 0.)) - bloomAt(uv - vec2(texel.x, 0.)),
                        bloomAt(uv + vec2(0., texel.y)) - bloomAt(uv - vec2(0., texel.y)));
   float island = smoothstep(.035, .18, v);
   float crown = smoothstep(.16, .34, v);
-  float edge = exp(-pow((v - .11) * 32., 2.));
+  float edge = exp(-sq((v - .11) * 32.));
   float angle = atan(gradient.y + .00001, gradient.x + .00001);
   float petals = .5 + .5 * cos(angle * 6. + v * 22.);
   float relief = .66 + .34 * tanh(dot(gradient, normalize(vec2(-.6, .8))) * 30.);

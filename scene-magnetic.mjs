@@ -26,18 +26,7 @@ const presets = [
 // RGBA8 rounds concentrations/attractor coordinates to 1/255; deterministic fixed
 // ticks reproduce a seed/control sequence on the same WebGL implementation.
 const simulationFragment = `
-const float TAU = 6.28318530718;
-vec2 dyeAt(vec2 uv) {
-  vec2 size = vec2(textureSize(u_state, 0));
-  vec2 grid = fract(uv) * size - 0.5;
-  vec2 cell = floor(grid);
-  vec2 f = fract(grid);
-  vec2 a = texture(u_state, fract((cell + vec2(0.5, 0.5)) / size)).rg;
-  vec2 b = texture(u_state, fract((cell + vec2(1.5, 0.5)) / size)).rg;
-  vec2 c = texture(u_state, fract((cell + vec2(0.5, 1.5)) / size)).rg;
-  vec2 d = texture(u_state, fract((cell + vec2(1.5, 1.5)) / size)).rg;
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
+vec2 dyeAt(vec2 uv) { return stateBilinear(uv).rg; }
 vec2 turn(vec2 p) { return vec2(-p.y, p.x); }
 vec2 orbit(vec2 d, float radius, float direction) {
   float r = length(d);
@@ -77,7 +66,7 @@ vec2 ringSource(vec2 d, float radius, float phase, float orientation) {
   // Narrow travelling injection windows are carried around the ring by the field.
   vec2 stripe = pow(0.5 + 0.5 * cos(vec2(winding, winding + 2.2)), vec2(12.0));
   float width = 0.012 + 0.008 * u_params[2];
-  float ring = exp(-pow((length(d) - radius) / width, 2.0));
+  float ring = exp(-sq((length(d) - radius) / width));
   return stripe * ring;
 }
 vec2 source(vec2 uv, vec2 center) {
@@ -90,7 +79,7 @@ vec2 source(vec2 uv, vec2 center) {
   float weave = sin(d.y * 12.0 + phase * 0.15) * (0.2 + u_params[7] * 0.5);
   float warp = (d.x * (8.0 + 20.0 * u_params[2]) + weave) * TAU;
   vec2 threads = pow(0.5 + 0.5 * cos(vec2(warp, warp + 2.4)), vec2(20.0));
-  float envelope = exp(-pow(d.x / (0.2 + u_params[4] * 0.4), 4.0));
+  float envelope = exp(-sq(sq(d.x / (0.2 + u_params[4] * 0.4))));
   // Multiple narrow looms keep silk populated while an attractor is moved.
   float loom = 0.22 + 0.78 * pow(0.5 + 0.5 * cos(d.y * 19.0 + phase * 0.2), 10.0);
   vec2 silk = threads * envelope * loom;
@@ -111,7 +100,8 @@ void main() {
   vec2 emission = source(v_uv, center);
   float dose = (u_reset ? 0.7 : dt * 5.0) * (0.3 + 0.7 * u_params[2]);
   concentration += (vec2(1.0) - concentration) * emission * dose;
-  outColor = vec4(clamp(concentration, 0.0, 1.0), clamp(center, 0.0, 1.0));
+  // Dye decays stochastically; byte-exact attractor coordinates must not drift.
+  outColor = vec4(quantize8(vec4(concentration, 0., 1.)).rg, clamp(center, 0., 1.));
 }
 `;
 
@@ -120,14 +110,14 @@ void main() {
   // Flow coordinates match pointer UVs; a wide stage projects the orbits elliptically.
   vec2 uv = v_uv;
   vec2 texel = 1.0 / vec2(textureSize(u_state, 0));
-  vec2 dye = texture(u_state, clamp(uv, texel * 0.5, 1.0 - texel * 0.5)).rg;
+  vec2 dye = stateBilinear(clamp(uv, texel * 0.5, 1.0 - texel * 0.5)).rg;
   float edge = smoothstep(0.0, 0.025, uv.x) * (1.0 - smoothstep(0.975, 1.0, uv.x))
              * smoothstep(0.0, 0.025, uv.y) * (1.0 - smoothstep(0.975, 1.0, uv.y));
   // A small cross filter blooms the actual dye, not an independent analytic image.
-  vec2 glow = texture(u_state, clamp(uv + vec2(texel.x * 2.0, 0.0), 0.0, 1.0)).rg
-            + texture(u_state, clamp(uv - vec2(texel.x * 2.0, 0.0), 0.0, 1.0)).rg
-            + texture(u_state, clamp(uv + vec2(0.0, texel.y * 2.0), 0.0, 1.0)).rg
-            + texture(u_state, clamp(uv - vec2(0.0, texel.y * 2.0), 0.0, 1.0)).rg;
+  vec2 glow = stateBilinear(clamp(uv + vec2(texel.x * 2.0, 0.0), 0.0, 1.0)).rg
+            + stateBilinear(clamp(uv - vec2(texel.x * 2.0, 0.0), 0.0, 1.0)).rg
+            + stateBilinear(clamp(uv + vec2(0.0, texel.y * 2.0), 0.0, 1.0)).rg
+            + stateBilinear(clamp(uv - vec2(0.0, texel.y * 2.0), 0.0, 1.0)).rg;
   float total = dye.r + dye.g;
   vec3 light = u_primary * dye.r * 2.6 + u_secondary * dye.g * 2.6;
   light += (u_primary * glow.r + u_secondary * glow.g) * 0.12;

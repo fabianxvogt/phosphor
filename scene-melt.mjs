@@ -156,52 +156,12 @@ const presets = [
 ];
 
 const fragment = `
-const float TAU_MELT = 6.28318530718;
+#define TAU_MELT TAU
 const int MELT_SEGMENTS = 80;
+uniform highp sampler2D u_geometry;
+vec3 meltPoint(int point,int row) { return texelFetch(u_geometry,ivec2(point,row),0).xyz; }
 
-vec3 meltCurve(float t, int family, float strand, float cycle) {
-  float breath = sin(cycle);
-  float tide = cos(cycle);
-  vec3 p;
-  if (family == 0) {
-    // The (2,3) torus-knot parameterization, with periodic sculptural strain.
-    float r = .70 + (.23 + .045 * breath) * cos(3.0 * t);
-    p = vec3(r * cos(2.0 * t), r * sin(2.0 * t), (.28 + .085 * tide) * sin(3.0 * t));
-  } else if (family == 1) {
-    // Standard trigonometric figure-eight knot, scaled into the same display volume.
-    float r = .60 + .30 * cos(2.0 * t);
-    p = vec3(r * cos(3.0 * t), r * sin(3.0 * t), (.27 + .08 * breath) * sin(4.0 * t));
-  } else if (family == 2) {
-    float r = .82 + .065 * cos(3.0 * t + cycle);
-    p = vec3(r * cos(t), r * sin(t), .12 * sin(2.0 * t + cycle));
-  } else {
-    // Two distinct closed strands wound three times around a toroidal core.
-    float a = 3.0 * t + strand * 3.14159265359 + cycle;
-    float r = .73 + (.17 + .035 * breath) * cos(a);
-    p = vec3(r * cos(t), r * sin(t), (.21 + .03 * tide) * sin(a));
-  }
-  p.x *= 1.0 + .105 * breath;
-  p.y *= 1.0 + .105 * tide;
-  return p;
-}
 
-vec3 meltRibbonAxis(float t, int family, float strand, float cycle) {
-  vec3 radial = vec3(cos(t), sin(t), 0.0);
-  // Half twist closes the Möbius surface with its two edges exchanged.
-  float twist = family == 2 ? .5 * t + cycle : 3.0 * t + strand * 3.14159265359 + cycle;
-  return normalize(radial * cos(twist) + vec3(0.0, 0.0, sin(twist)));
-}
-
-mat3 meltCamera(float yaw, float pitch) {
-  float cy = cos(yaw), sy = sin(yaw), cp = cos(pitch), sp = sin(pitch);
-  mat3 aroundZ = mat3(cy, sy, 0.0, -sy, cy, 0.0, 0.0, 0.0, 1.0);
-  mat3 tiltX = mat3(1.0, 0.0, 0.0, 0.0, cp, sp, 0.0, -sp, cp);
-  return tiltX * aroundZ;
-}
-
-vec2 meltProject(vec3 p) {
-  return p.xy * (1.78 / (4.1 - p.z));
-}
 
 vec3 meltShade(vec3 normal, vec3 position, float along, float strand, float cycle) {
   vec3 n = normal * inversesqrt(max(dot(normal, normal), .00000001));
@@ -210,7 +170,7 @@ vec3 meltShade(vec3 normal, vec3 position, float along, float strand, float cycl
   vec3 view = normalize(vec3(-position.xy, 4.1 - position.z));
   vec3 halfVector = normalize(light + view);
   float diffuse = max(dot(n, light), 0.0);
-  float rim = pow(1.0 - max(dot(n, view), 0.0), 3.0);
+  float rim = pow(max(1.0 - max(dot(n, view), 0.0), 0.0), 3.0);
   float m = floor(u_params[6] + .5);
   float hue = .38 + .22 * sin(along * 2.0 + cycle) + strand * .2;
   vec3 base = palette(clamp(hue, 0.0, 1.0));
@@ -238,16 +198,15 @@ vec3 meltShade(vec3 normal, vec3 position, float along, float strand, float cycl
   return clamp(color, 0.0, 1.0);
 }
 
-void meltTube(vec2 uv, vec3 a, vec3 b, float radius, float along, float cycle,
-              inout float depth, inout vec3 surface, inout float coverage) {
-  vec2 pa = meltProject(a), pb = meltProject(b);
+void meltTube(vec2 uv, vec3 a, vec3 b, vec2 pa, vec2 pb, float radius, float along,
+              inout float depth, inout vec3 normal, inout vec3 position,
+              inout vec2 material, inout float coverage) {
   vec2 ab = pb - pa;
   float h = clamp(dot(uv - pa, ab) / max(dot(ab, ab), .000001), 0.0, 1.0);
   vec3 center = mix(a, b, h);
   float projectedRadius = radius * 1.78 / (4.1 - center.z);
   vec2 delta = uv - mix(pa, pb, h);
-  float distanceToAxis = length(delta);
-  float aa = 1.5 / u_resolution.y;
+  float distanceToAxis = length(delta), aa = 1.5 / u_resolution.y;
   if (distanceToAxis > projectedRadius + aa) return;
   float radial = min(distanceToAxis / projectedRadius, 1.0);
   float front = sqrt(max(0.0, 1.0 - radial * radial));
@@ -259,12 +218,12 @@ void meltTube(vec2 uv, vec3 a, vec3 b, float radius, float along, float cycle,
   n *= inversesqrt(max(dot(n, n), .00000001));
   depth = z;
   coverage = 1.0 - smoothstep(projectedRadius - aa, projectedRadius + aa, distanceToAxis);
-  surface = meltShade(n, center + radius * n, along, 0.0, cycle);
+  normal = n; position = center + radius * n; material = vec2(along,0.);
 }
 
-void meltTriangle(vec2 uv, vec3 a, vec3 b, vec3 c, float along, float strand, float cycle,
-                  inout float depth, inout vec3 surface, inout float coverage) {
-  vec2 pa = meltProject(a), pb = meltProject(b), pc = meltProject(c);
+void meltTriangle(vec2 uv, vec3 a, vec3 b, vec3 c, vec2 pa, vec2 pb, vec2 pc, float along, float strand, bool second,
+                  inout float depth, inout vec3 normal, inout vec3 position,
+                  inout vec2 material, inout float coverage) {
   vec2 e0 = pb - pa, e1 = pc - pa, q = uv - pa;
   float determinant = e0.x * e1.y - e0.y * e1.x;
   if (abs(determinant) < .0000001) return;
@@ -273,14 +232,17 @@ void meltTriangle(vec2 uv, vec3 a, vec3 b, vec3 c, float along, float strand, fl
   bary.z = (e0.x * q.y - e0.y * q.x) / determinant;
   bary.x = 1.0 - bary.y - bary.z;
   if (min(bary.x, min(bary.y, bary.z)) < 0.0) return;
-  // Perspective-correct interpolation keeps crossing ribbons depth-ordered.
-  bary /= vec3(4.1 - a.z, 4.1 - b.z, 4.1 - c.z);
-  bary /= bary.x + bary.y + bary.z;
-  vec3 p = a * bary.x + b * bary.y + c * bary.z;
+  // AA only the two physical ribbon edges, never the internal diagonal.
+  float edge = second ? 1. - 2.*bary.x : 2.*bary.z - 1.;
+  float gradient = second ? length(e0-e1) : length(e0);
+  float aa = max(.000001, 3.*gradient/(abs(determinant)*u_resolution.y));
+  float edgeCoverage = smoothstep(0.,aa,1.-abs(edge));
+  bary /= vec3(4.1-a.z,4.1-b.z,4.1-c.z);
+  bary /= bary.x+bary.y+bary.z;
+  vec3 p = a*bary.x+b*bary.y+c*bary.z;
   if (p.z < depth) return;
-  depth = p.z;
-  coverage = 1.0;
-  surface = meltShade(cross(b - a, c - a), p, along, strand, cycle);
+  depth=p.z; coverage=edgeCoverage;
+  normal=cross(b-a,c-a); position=p; material=vec2(along,strand);
 }
 
 void main() {
@@ -288,39 +250,44 @@ void main() {
   float cycle = TAU_MELT * fract(u_params[3] + floor(u_params[7] + .5) * u_time / max(u_params[2], 4.0));
   int family = int(floor(u_params[0] + .5));
   float thickness = u_params[1];
-  mat3 camera = meltCamera(radians(u_params[4]), radians(u_params[5]));
+  // CPU computes the camera-space geometry once per visual frame.
   float vignette = exp(-1.4 * dot(uv, uv));
   vec3 background = mix(u_secondary * .018, u_primary * .047, vignette);
   // A subtle central plinth of light gives the sculpture a stable visual anchor.
   background += u_secondary * .025 * exp(-28.0 * dot(uv - vec2(0.0, -.32), uv - vec2(0.0, -.32)));
-  vec3 surface = background;
-  float depth = -10.0, coverage = 0.0;
-  if (abs(uv.x) < .68 && abs(uv.y) < .68) {
-    for (int strandIndex = 0; strandIndex < 2; strandIndex++) {
-      if (strandIndex == 1 && family != 3) break;
-      float strand = float(strandIndex);
-      vec3 a = camera * meltCurve(0.0, family, strand, cycle);
-      vec3 axisA = camera * meltRibbonAxis(0.0, family, strand, cycle);
-      for (int i = 0; i < MELT_SEGMENTS; i++) {
-        float t0 = TAU_MELT * float(i) / float(MELT_SEGMENTS);
-        float t1 = TAU_MELT * float(i + 1) / float(MELT_SEGMENTS);
-        vec3 b = camera * meltCurve(t1, family, strand, cycle);
-        if (family < 2) {
-          meltTube(uv, a, b, thickness, .5 * (t0 + t1), cycle, depth, surface, coverage);
+  vec3 normal=vec3(0.,0.,1.), position=vec3(0.);
+  vec2 material=vec2(0.);
+  float depth=-10., coverage=0.;
+  if (abs(uv.x)<.68 && abs(uv.y)<.68) {
+    for (int strandIndex=0; strandIndex<2; strandIndex++) {
+      if (strandIndex==1 && family!=3) break;
+      float strand=float(strandIndex);
+      int offset=strandIndex*81;
+      vec3 a=meltPoint(offset,family<2?0:2);
+      vec2 pa=meltPoint(offset,family<2?1:4).xy;
+      vec3 a1=family<2?vec3(0.):meltPoint(offset,3);
+      vec2 pa1=family<2?vec2(0.):meltPoint(offset,5).xy;
+      for (int i=0; i<MELT_SEGMENTS; i++) {
+        float along=TAU_MELT*(float(i)+.5)/float(MELT_SEGMENTS);
+        int point=offset+i+1;
+        vec3 b=meltPoint(point,family<2?0:2);
+        vec2 pb=meltPoint(point,family<2?1:4).xy;
+        if (family<2) {
+          meltTube(uv,a,b,pa,pb,thickness,along,depth,normal,position,material,coverage);
         } else {
-          vec3 axisB = camera * meltRibbonAxis(t1, family, strand, cycle);
-          float width = family == 2 ? .065 + 1.25 * thickness : .024 + .58 * thickness;
-          vec3 a0 = a - axisA * width, a1 = a + axisA * width;
-          vec3 b0 = b - axisB * width, b1 = b + axisB * width;
-          meltTriangle(uv, a0, b0, b1, .5 * (t0 + t1), strand, cycle, depth, surface, coverage);
-          meltTriangle(uv, a0, b1, a1, .5 * (t0 + t1), strand, cycle, depth, surface, coverage);
-          axisA = axisB;
+          vec3 b1=meltPoint(point,3);
+          vec2 pb1=meltPoint(point,5).xy;
+          meltTriangle(uv,a,b,b1,pa,pb,pb1,along,strand,false,depth,normal,position,material,coverage);
+          meltTriangle(uv,a,b1,a1,pa,pb1,pa1,along,strand,true,depth,normal,position,material,coverage);
+          a1=b1;pa1=pb1;
         }
-        a = b;
+        a=b;
+        pa=pb;
       }
     }
   }
-  outColor = vec4(clamp(mix(background, surface, coverage), 0.0, 1.0), 1.0);
+  vec3 surface=coverage>0. ? meltShade(normal,position,material.x,material.y,cycle) : background;
+  outColor=vec4(clamp(mix(background,surface,coverage),0.,1.),1.);
 }
 `;
 

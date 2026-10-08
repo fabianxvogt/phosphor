@@ -153,20 +153,12 @@ const presets = [
 ];
 
 const fragment = `
-const float FC_PI = 3.14159265359;
-const float FC_TAU = 6.28318530718;
+#define FC_PI PI
+#define FC_TAU TAU
 
-vec2 fcRotate(vec2 p, float a) {
-  float c = cos(a), s = sin(a);
-  return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
-}
+vec2 fcRotate(vec2 p, float a) { return rot2(-a) * p; }
 
-vec2 fcMirror(vec2 p, float sectors) {
-  if (sectors < 1.5) return p;
-  float wedge = FC_TAU / sectors;
-  float angle = abs(mod(atan(p.y, p.x) + 0.5 * wedge, wedge) - 0.5 * wedge);
-  return length(p) * vec2(cos(angle), sin(angle));
-}
+vec2 fcMirror(vec2 p, float sectors) { return fold(p, sectors); }
 
 float fcStroke(float distanceToLine, float width, float aa) {
   return 1.0 - smoothstep(width, width + aa, abs(distanceToLine));
@@ -265,7 +257,7 @@ void main() {
   // Convex injection: return coefficient <= pow(.985, 60 * dt), and pigment
   // <= .86 per channel. It cannot build brightness through additive feedback.
   vec3 color = history * gain * (1.0 - alpha) + pigment * alpha;
-  outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+  emit(vec4(clamp(color, 0.0, 1.0), 1.0));
 }
 `;
 

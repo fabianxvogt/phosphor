@@ -2,29 +2,8 @@ const REVISION = "__BUILD__";
 const CACHE = `phosphor-performance-v2-${REVISION}`;
 // Unstamped development previews must never cache a mutable asset generation.
 const BUILT = /^[a-f0-9]+$/.test(REVISION);
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./engine.mjs",
-  "./audio.mjs",
-  "./session.mjs",
-  "./evolution.mjs",
-  "./scene-contract.mjs",
-  "./scene-acid.mjs",
-  "./scene-magnetic.mjs",
-  "./scene-cathedral.mjs",
-  "./scene-aquarium.mjs",
-  "./scene-tapestry.mjs",
-  "./scene-feedback.mjs",
-  "./scene-interference.mjs",
-  "./scene-melt.mjs",
-  "./scene-phase.mjs",
-  "./scene-evolution.mjs",
-  "./output.html",
-  "./output.mjs",
-];
+// Replaced by build.mjs from the HTML/module import graph. Dev never caches.
+const ASSETS = ["__ASSETS__"];
 self.addEventListener("install", (event) => {
   if (!BUILT) return;
   event.waitUntil(
