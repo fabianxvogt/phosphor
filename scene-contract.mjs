@@ -95,3 +95,36 @@ vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t
 // u_reset is true on first write; u_gesture=(x,y,strength).
 // u_raySteps is an engine budget (default 96), independent of preset params.
 // Use emit for decaying RGBA8 feedback, not byte-exact packed state.
+
+// Contract v3 particles: a scene may declare particles: { vertex } to draw
+// one point per simulation texel. The vertex body reads its particle with
+// particle() and sets gl_Position, gl_PointSize and v_color.
+export const particleHeader = `#version 300 es
+precision highp float;
+precision highp int;
+uniform sampler2D u_state;
+uniform vec2 u_resolution;
+uniform float u_time, u_beat, u_level;
+uniform highp uint u_seedBits;
+uniform vec3 u_primary, u_secondary, u_accent;
+uniform float u_params[8];
+out vec3 v_color;
+float unpack16(vec2 bytes) { return dot(bytes,vec2(256.,1.))*(255./65535.); }
+vec2 unpack16(vec4 bytes) { return vec2(unpack16(bytes.rg),unpack16(bytes.ba)); }
+vec4 particle() {
+  ivec2 size = textureSize(u_state, 0);
+  return texelFetch(u_state, ivec2(gl_VertexID % size.x, gl_VertexID / size.x), 0);
+}
+float particleHash(float n) { return fract(sin(n * 91.345 + float(u_seedBits % 9973u)) * 47453.5453); }
+vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t)),u_accent,smoothstep(.65,1.,t)); }
+`;
+export const particleFragment = `#version 300 es
+precision highp float;
+in vec3 v_color;
+out vec4 outColor;
+void main() {
+  vec2 d = gl_PointCoord * 2.0 - 1.0;
+  float m = exp(-dot(d, d) * 3.0) * step(dot(d, d), 1.0);
+  outColor = vec4(v_color * m, 1.0);
+}
+`;

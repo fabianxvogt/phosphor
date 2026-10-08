@@ -1,4 +1,4 @@
-import { shaderHeader, reduceSeed } from "./scene-contract.mjs";
+import { shaderHeader, reduceSeed, particleHeader, particleFragment } from "./scene-contract.mjs";
 import { Compositor, AsyncReadback } from "./compositor.mjs";
 import { MELT_POINTS, MELT_ROWS, updateMeltGeometry } from "./melt-geometry.mjs";
 const featureKeys = ["energy", "bass", "mid", "high", "onset"];
@@ -6,7 +6,7 @@ const featureUniforms = ["u_energy", "u_bass", "u_mid", "u_high", "u_onset"];
 const paletteKeys = ["primary", "secondary", "accent"];
 const paletteUniforms = ["u_primary", "u_secondary", "u_accent"];
 const noMappings = [];
-const programKeys = ["visual", "simulation"];
+const programKeys = ["visual", "simulation", "particles"];
 const vertex = `#version 300 es
 layout(location=0) in vec2 position; out vec2 v_uv;
 void main(){v_uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
@@ -131,10 +131,10 @@ export class Engine {
     if (window.requestIdleCallback) window.requestIdleCallback(background);
     else setTimeout(background,0);
   }
-  program(source, deferred = false) {
+  program(source, deferred = false, vertexSource = vertex) {
     const gl = this.gl;
     const v = gl.createShader(gl.VERTEX_SHADER), f = gl.createShader(gl.FRAGMENT_SHADER), p = gl.createProgram();
-    gl.shaderSource(v,vertex);gl.compileShader(v);
+    gl.shaderSource(v,vertexSource);gl.compileShader(v);
     gl.shaderSource(f,source);gl.compileShader(f);
     gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);
     gl.deleteShader(v);gl.deleteShader(f);
@@ -158,11 +158,14 @@ export class Engine {
   }
   compileScene(scene) {
     if (!scene || this.programs.has(scene.id)) return;
-    const programs = { visual: null, simulation: null, error: null };
+    const programs = { visual: null, simulation: null, particles: null, error: null };
     this.programs.set(scene.id,programs);
     try {
       programs.visual = this.program(shaderHeader+scene.fragment,true);
       if (scene.simulation) programs.simulation = this.program(shaderHeader+scene.simulation.fragment,true);
+      // Contract v3 particles: one point per simulation texel, drawn
+      // additively over the family's visual pass.
+      if (scene.particles) programs.particles = this.program(scene.particles.fragment ?? particleFragment,true,particleHeader+scene.particles.vertex);
       this.checkScene(scene.id);
     } catch (error) {
       programs.error = error.message;
@@ -600,6 +603,20 @@ export class Engine {
       s.visualReset,
     );
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+    const particles = this.programs.get(s.scene.id).particles;
+    if (particles?.uniforms) {
+      const gl = this.gl;
+      this.bind(particles, target);
+      this.uniforms(particles, s, target, dt, false);
+      const [w, h] = s.scene.simulation.size;
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+      // Points need no vertex attributes; the quad's array would be overrun.
+      gl.disableVertexAttribArray(0);
+      gl.drawArrays(gl.POINTS, 0, w * h);
+      gl.enableVertexAttribArray(0);
+      gl.disable(gl.BLEND);
+    }
     s.vi = 1 - s.vi;
     s.visualReset = false;
   }
@@ -706,8 +723,7 @@ export class Engine {
     for (const s of this.slots) this.destroySlot(s);
     this.deleteTarget(this.healthTarget);
     for (const p of this.programs.values()) {
-      if (p.visual?.p) this.gl.deleteProgram(p.visual.p);
-      if (p.simulation?.p) this.gl.deleteProgram(p.simulation.p);
+      for (const name of programKeys) if (p[name]?.p) this.gl.deleteProgram(p[name].p);
     }
     this.pipeline.dispose();
     this.gl.deleteBuffer(this.quad);
