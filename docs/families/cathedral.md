@@ -42,16 +42,18 @@ Journey trims only the nave; bay scale sets nave/fold spacing and camera periods
 `npm test`: 131 pass, 0 fail, one opt-in browser skip; `node tests/cathedral-render.test.mjs --port 48121 --cross artifacts/contact/cathedral-cross-family`: 2 pass, 0 fail. The wide probe also passed separately (2/2). All six authored presets remain bounded and each type has a preset.
 `npm run build && node scripts/test-browser.mjs --only lab --port 48121`: PASS, 47 built assets; all 104 looks render, WebGL 0, non-finite 0, textures accounted. Every family passes energy extremes, 32:9/square/portrait and fade texture teardown.
 
-## Local review artifacts (absolute paths; PNGs/metrics beside each sheet)
-- Types: `/Users/fabian/Development/phosphor-worktrees/family-cathedral/artifacts/contact/cathedral-types/index.html`
-- Cross-family: `/Users/fabian/Development/phosphor-worktrees/family-cathedral/artifacts/contact/cathedral-cross-family/index.html`
-- Ladder: `/Users/fabian/Development/phosphor-worktrees/family-cathedral/artifacts/contact/cathedral-ladder/index.html`
-- 16:9: `/Users/fabian/Development/phosphor-worktrees/family-cathedral/artifacts/contact/cathedral-640x360/index.html`
-- Wide: `/Users/fabian/Development/phosphor-worktrees/family-cathedral/artifacts/contact/cathedral-1280x360/index.html`
-- Square: `/Users/fabian/Development/phosphor-worktrees/family-cathedral/artifacts/contact/cathedral-480x480/index.html`
-- 64-step probes: `/Users/fabian/Development/phosphor-worktrees/family-cathedral/artifacts/contact/cathedral-probes/metrics.json`
-- Wide 64-step probes: `/Users/fabian/Development/phosphor-worktrees/family-cathedral/artifacts/contact/cathedral-wide-probes/metrics.json`
+## Local review artifacts (absolute paths; copied into the main checkout's `artifacts/` at merge)
+- Types: `/Users/fabian/Development/phosphor/artifacts/contact/cathedral-types/index.html`
+- Cross-family: `/Users/fabian/Development/phosphor/artifacts/contact/cathedral-cross-family/index.html`
+- Ladder: `/Users/fabian/Development/phosphor/artifacts/contact/cathedral-ladder/index.html`
+- 16:9: `/Users/fabian/Development/phosphor/artifacts/contact/cathedral-640x360/index.html`
+- Wide: `/Users/fabian/Development/phosphor/artifacts/contact/cathedral-1280x360/index.html`
+- Square: `/Users/fabian/Development/phosphor/artifacts/contact/cathedral-480x480/index.html`
+- 64-step probes: `/Users/fabian/Development/phosphor/artifacts/contact/cathedral-probes/metrics.json`
+- Wide 64-step probes: `/Users/fabian/Development/phosphor/artifacts/contact/cathedral-wide-probes/metrics.json`
 
 ## Owner decision and limits
 Judge whether the grayscale types are genuinely different, whether each ladder orders instantly and reaches warm-up through peak time, and whether the dark negative space around the reliquary/rose is desirable on venue screens. Headless stills and pixel metrics cannot approve movement, taste or long-show performance. Procedural stained glass is not physical optics; recursion is capped at four generations. The 40-step emergency tier is not an artistic approval target.
 Real-GPU timing is reserved for the parent/owner: `npm run timing -- --rig --family cathedral`, alone on the reference rig; every type must have p99 ≤ 34 ms with no downgrade. No rig command was run in this lane.
+
+**Rig timing PASS (2026-10-08, parent):** Chrome on the M3 Pro (ANGLE Metal, built-in display), 1920×1080, energy 0.95, 30 s per type, with three headless lanes loading the CPU (load average ≈ 41): p50 16.7 ms; p99 17.6 / 19.7 / 17.6 / 17.6 ms for types 0–3; max 24.9 ms; GPU errors 0, non-finite 0, no ray-step reduction or downgrade. Art sign-off has not been executed.
