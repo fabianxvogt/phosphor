@@ -99,7 +99,32 @@ export async function renderLook({
     engine.pollHealth();
     health = engine.lastHealth;
   }
+  // Brightest pixel of a 64×36 downsample (synchronous read; test only):
+  // dim looks with thin bright lines are fine, an all-black frame is not.
+  const gl = engine.gl;
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, engine.healthTarget.fbo);
+  gl.blitFramebuffer(
+    0,
+    0,
+    engine.width,
+    engine.height,
+    0,
+    0,
+    64,
+    36,
+    gl.COLOR_BUFFER_BIT,
+    gl.LINEAR,
+  );
+  gl.bindFramebuffer(gl.FRAMEBUFFER, engine.healthTarget.fbo);
+  const pixels = new Uint8Array(64 * 36 * 4);
+  gl.readPixels(0, 0, 64, 36, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  let peak = 0;
+  for (let i = 0; i < pixels.length; i += 4)
+    peak = Math.max(peak, pixels[i], pixels[i + 1], pixels[i + 2]);
   const result = {
+    peak,
     glError: engine.gl.getError(),
     nonFinite:
       engine.counters.nonFinite + (window.__harness?.nonFiniteUploads ?? 0),
