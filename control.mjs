@@ -76,7 +76,18 @@ function changed() {
     }
   }, 300);
   send({ type: "set", set });
-  render();
+  scheduleRender();
+}
+// Coalesce re-renders to the next frame: rendering synchronously from a
+// change/blur handler would replace the element that is firing the event.
+let renderQueued = false;
+function scheduleRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    render();
+  });
 }
 
 // --- stage window --------------------------------------------------------------
