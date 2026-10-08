@@ -130,8 +130,14 @@ export const LAB = "tests/browser/lab.html";
 function watch(page, name, errors) {
   page.on("pageerror", (error) => errors.push(`${name}: ${error.message}`));
   page.on("console", (message) => {
-    if (message.type() === "error" && !/favicon/.test(message.text()))
-      errors.push(`${name} console: ${message.text()}`);
+    // Browsers request /favicon.ico on their own; that 404 is not ours.
+    if (
+      message.type() === "error" &&
+      !/favicon/.test(message.location()?.url ?? "")
+    )
+      errors.push(
+        `${name} console: ${message.text()} ${message.location()?.url ?? ""}`,
+      );
   });
 }
 
