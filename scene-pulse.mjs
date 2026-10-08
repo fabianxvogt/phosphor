@@ -11,12 +11,12 @@ const schema = [
   { key: "twist", label: "Twist", min: -1, max: 1, step: 0.01, default: 0 },
   { key: "step", label: "Beat stepping · glide → snap", min: 0, max: 1, step: 0.01, default: 0.5 },
   { key: "glow", label: "Glow", min: 0, max: 1, step: 0.01, default: 0.45 },
-  { key: "fill", label: "Fill · outline → solid", min: 0, max: 1, step: 0.01, default: 0.2 },
+  { key: "fill", label: "Fill · cells / blade width", min: 0, max: 1, step: 0.01, default: 0.2 },
 ];
 
 const presets = [
   { name: "Scanner Bars", seed: 7101, params: { form: 0, count: 10, thickness: 0.14, speed: 0.6, twist: 0, step: 0.7, glow: 0.5, fill: 0.1 } },
-  { name: "Slow Gate", seed: 7102, params: { form: 0, count: 4, thickness: 0.32, speed: 0.15, twist: 0.12, step: 0.2, glow: 0.7, fill: 0.6 } },
+  { name: "Slow Gate", seed: 7102, params: { form: 0, count: 4, thickness: 0.32, speed: 0.35, twist: 0.12, step: 0.2, glow: 0.7, fill: 0.6 } },
   { name: "Square Tunnel", seed: 7103, params: { form: 1, count: 9, thickness: 0.12, speed: 0.7, twist: 0.05, step: 0.6, glow: 0.45, fill: 0 } },
   { name: "Ring Dive", seed: 7104, params: { form: 1, count: 16, thickness: 0.08, speed: 1.1, twist: -0.3, step: 0.85, glow: 0.35, fill: 0.15 } },
   { name: "Horizon Grid", seed: 7105, params: { form: 2, count: 12, thickness: 0.06, speed: 0.55, twist: 0, step: 0.4, glow: 0.55, fill: 0 } },
@@ -26,13 +26,13 @@ const presets = [
 const fragment = `
 // Anti-aliased band: 1 inside |x| < w, using the pixel footprint of x.
 float pgBand(float x, float w) {
-  float aa = max(fwidth(x), 1e-4);
+  float aa = max(fwidth(x), w * 0.7 * sq(1.0 - u_level) + 1e-4);
   return 1.0 - smoothstep(w - aa, w + aa, abs(x));
 }
 // Periodic line pattern along coordinate v with \`n\` lines per unit.
 float pgLines(float v, float weight) {
   float f = abs(fract(v) - 0.5) * 2.0; // 0 at line centre, 1 between lines
-  float aa = max(fwidth(v) * 2.0, 1e-4);
+  float aa = max(fwidth(v) * 2.0, weight * 0.7 * sq(1.0 - u_level) + 1e-4);
   return 1.0 - smoothstep(weight - aa, weight + aa, f);
 }
 
@@ -46,12 +46,11 @@ void main() {
   float glow = u_params[6];
   float fill = u_params[7];
 
-  // Motion clock: glide with simulation time, or snap a quarter-cycle on
-  // every beat (the snap eases over the first 12 % of the beat).
+  // Motion clock: glide with simulation time, or ease a quarter-cycle over
+  // the first 30 % of each beat. Shared punch/pulse/flash own the kick light.
   float beat = u_beat;
-  float snap = floor(beat) + smoothstep(0.0, 0.12, fract(beat));
-  float travel = mix(u_time * speed * 0.6, snap * 0.25 * (0.25 + speed), stepAmt);
-  float kick = exp(-fract(beat) * 6.0);
+  float snap = floor(beat) + smoothstep(0.0, 0.3, fract(beat));
+  float travel = mix(u_time * speed * 0.6, snap * 0.25 * speed, stepAmt);
   float seedTurn = fract(u_seed * 0.0137);
 
   vec2 p = aspectUV();
@@ -73,40 +72,39 @@ void main() {
     index = floor(z + 0.5);
     depthFade = smoothstep(0.0, 0.18, d);
   } else if (form < 2.5) {
-    // Grid horizon: perspective floor and ceiling scrolling to the horizon.
+    // Grid horizon: one ground plane beneath a high, offset vanishing point.
+    // The open sky is intentional negative space, not an aspect crop.
     vec2 q = rot2(twist * 0.25) * p;
-    float h = abs(q.y) + 1e-3;
-    float z = 1.0 / h;
-    float lanes = pgLines(q.x * z * count * 0.12, weight * 0.8);
+    float h = 0.22 - q.y;
+    float z = 1.0 / max(h, 0.002);
+    float lanes = pgLines((q.x - 0.18 * aspect) * z * count * 0.12, weight * 0.8);
     float rows = pgLines(z * count * 0.04 + travel, weight);
     mask = max(lanes, rows);
     index = floor(z * count * 0.04 + travel + 0.5);
     depthFade = smoothstep(0.02, 0.35, h);
   } else {
-    // Shards: wedges around the centre with rings pulsing outward.
+    // Shards: solid radial blades with staggered tips, not concentric rings.
+    // Blades extend to the screen edges without stretching their angles.
     float sectors = max(3.0, count);
     float a = atan(p.y, p.x) + twist * travel * 0.7 + seedTurn * TAU;
     float r = length(p);
+    float sector = floor(a / TAU * sectors);
     float wedge = abs(fract(a / TAU * sectors) - 0.5) * 2.0;
-    float edge = pgBand(wedge * r * 3.0, weight * 0.35);
-    float rings = pgLines(r * 3.0 - travel, weight);
-    float lit = step(0.5, fract(floor(a / TAU * sectors) * 0.5 + 0.25 * floor(r * 3.0 - travel)));
-    mask = max(edge, rings * mix(0.35, 1.0, lit));
-    index = floor(a / TAU * sectors) + floor(r * 3.0 - travel);
-    depthFade = smoothstep(0.02, 0.12, r);
+    float tip = 0.08 + 0.22 * (0.5 + 0.5 * sin(sector * 2.4 + travel));
+    float blade = pgBand(wedge, 0.25 + weight + fill * 0.35);
+    mask = blade * smoothstep(tip, tip + max(fwidth(r), 0.003), r);
+    index = sector;
   }
 
   // Solid fill between lines: alternating cells glow faintly.
   float cell = step(0.5, fract(index * 0.5 + 0.25));
-  float body = fill * cell * 0.35;
-  // Emissive colour per line: palette walks across lines; accent on beats.
+  float body = form < 2.5 ? fill * cell * 0.35 : 0.0;
+  // Emissive colour per line; no scene-local brightness or accent strobe.
   float hue = fract(index * 0.137 + seedTurn);
   vec3 ink = palette(hue);
-  vec3 col = ink * (mask * (1.0 + 0.6 * kick * u_level) + body);
+  vec3 col = ink * (mask + body);
   // Glow halo: widen the band softly (no extra passes).
-  col += ink * glow * 0.35 * (1.0 - smoothstep(0.0, 0.6, 1.0 - mask)) * (0.5 + 0.5 * kick);
-  // High energy: accent strobes on the line centres right on the kick.
-  col += u_accent * mask * kick * smoothstep(0.7, 1.0, u_level) * 0.6;
+  col += ink * glow * 0.35 * (1.0 - smoothstep(0.0, 0.6, 1.0 - mask));
   col *= depthFade;
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
@@ -115,14 +113,14 @@ void main() {
 export default {
   id: "pulse",
   // Contract v3 performance metadata; see scene-acid.mjs.
-  energy: { speed: [0.1, 1.6], step: [0.15, 1], thickness: [0.3, 0.07], glow: [0.7, 0.25], count: [5, 20] },
+  energy: { speed: [0.1, 1.6], step: [0.15, 1], thickness: [0.07, 0.16], count: [5, 20] },
   beat: { punch: 1.2, pulse: 1.2 },
   stage: ["speed", "count", "twist"],
   type: { key: "form", values: [0, 1, 2, 3] },
   number: 57,
   name: "Pulse Geometry",
   description:
-    "Hard-edged emissive geometry on black that moves with the beat: sweeping bars, a square tunnel, a perspective grid horizon and radial shards. Lines are anti-aliased from their pixel footprint; beat stepping blends smooth travel with quarter-cycle snaps on every beat; at high energy the line centres flash on the kick (through the flash limiter).",
+    "Hard-edged emissive geometry on black that moves with the beat: sweeping bars, a square tunnel, a perspective grid horizon and solid radial shards with staggered tips. Pixel-footprint anti-aliasing preserves edges at any aspect; beat stepping blends smooth travel with eased quarter-cycle snaps. Kick punch, pulse and limited high-energy flashes come only from the shared layer.",
   schema,
   presets,
   fragment,
