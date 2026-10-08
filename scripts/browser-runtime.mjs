@@ -69,9 +69,14 @@ export async function serve(dist, port) {
       }),
   };
 }
-export async function launch({ rig = false, browserName = "chromium" } = {}) {
+export async function launch({
+  rig = false,
+  browserName = "chromium",
+  headless = !rig,
+  args = [],
+} = {}) {
   const type = { chromium, firefox, webkit }[browserName];
-  const launchOptions = { headless: !rig };
+  const launchOptions = { headless };
   if (browserName === "chromium") {
     launchOptions.channel =
       rig || (!process.env.CI && process.platform === "darwin")
@@ -81,12 +86,14 @@ export async function launch({ rig = false, browserName = "chromium" } = {}) {
       "--autoplay-policy=no-user-gesture-required",
       "--enable-precise-memory-info",
     ];
-    if (!rig)
+    // A headed compositor-output measurement needs the desktop GPU path.
+    if (!rig && headless)
       launchOptions.args.push(
         "--use-gl=angle",
         "--use-angle=swiftshader",
         "--enable-unsafe-swiftshader",
       );
+    launchOptions.args.push(...args);
   }
   // Optional override for machines whose Chromium build differs from
   // playwright-core's pinned revision (for example a preinstalled browser).
