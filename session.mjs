@@ -231,9 +231,25 @@ export function validateSession(value, scenes) {
       target: m.target,
     };
   });
-  if (!Array.isArray(value.lineages) || value.lineages.length > 20)
+  const lineages = validateLineages(value.lineages, scenes);
+  return {
+    format: value.format,
+    version: 2,
+    name,
+    tempo,
+    active,
+    cues,
+    mappings,
+    midi,
+    options,
+    lineages,
+  };
+}
+// Breeding lineages are shared by v2 and v3 sets.
+export function validateLineages(list, scenes) {
+  if (!Array.isArray(list) || list.length > 20)
     throw new Error("Too many lineages");
-  const lineages = value.lineages.map((l) => {
+  return list.map((l) => {
     if (
       !record(l) ||
       !Array.isArray(l.nodes) ||
@@ -282,18 +298,6 @@ export function validateSession(value, scenes) {
     }
     return { nodes, selectedId: l.selectedId };
   });
-  return {
-    format: value.format,
-    version: 2,
-    name,
-    tempo,
-    active,
-    cues,
-    mappings,
-    midi,
-    options,
-    lineages,
-  };
 }
 function activeSceneTargets(scenes) {
   return scenes.flatMap((s) => s.schema.map((d) => `${s.id}.${d.key}`));
