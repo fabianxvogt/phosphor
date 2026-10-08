@@ -64,7 +64,8 @@ Every family below is a draft until it passes (D47). Packets: `docs/families/<id
 | 1 | Causal Tapestry | [packet](docs/families/tapestry.md): four types pass within the family; Cascade has cross-family near pairs (nearest Melt 0.138), the other three are clear; ladder, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
 | 1 | Cathedrals of Error | [packet](docs/families/cathedral.md): four types pass within the family; Crystals and Roses have cross-family near pairs (0.224–0.245), Vaults and Folded are clear; ladder at 64 ray steps, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
 | 1 | Interference Rituals | [packet](docs/families/interference.md): six compositions consolidated into three distinct types (no near pair within or across families); ladder, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
-| 2 | Pulse Geometry, Fractal Flight | in lanes |
+| 2 | Pulse Geometry | [packet](docs/families/pulse.md): four forms pass within the family; the tunnel (form 1) has cross-family near pairs (Hyperbolic 0.168–0.210, Fourth Dimension, Evolution), the other three are clear; ladder, ±12 % drift, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
+| 2 | Fractal Flight | in lane |
 | 3 | Melt, Acid (+ garden type) | draft |
 | 4 | Light Beams, Particle Swarm | draft |
 | 5 | Julia Observatory, Fourth Dimension, Hyperbolic Loom | draft |

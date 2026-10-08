@@ -40,21 +40,21 @@ All four types use height-based isotropic coordinates; line/bar coverage adapts 
 `npm test`: **138/138 passed**. `npm run build`: **passed**, 47 reachable assets.
 `npm run build && node scripts/test-browser.mjs --only lab --port 48125`: **passed** — all 104 looks non-blank, WebGL 0, non-finite 0, textures accounted, extremes/aspects/fades passed. Full Pulse probe and cross-signature extraction passed; its initial 600 s watchdog expired before the compact readback fix (full coverage retained; watchdog now 1800 s).
 
-## Local evidence (absolute paths; generated files are not committed)
+## Local evidence (absolute paths; copied into the main checkout's `artifacts/` at merge; not committed)
 
-- Types: `/Users/fabian/Development/phosphor-worktrees/family-pulse/artifacts/contact/pulse-types/index.html`
-- Ladder: `/Users/fabian/Development/phosphor-worktrees/family-pulse/artifacts/contact/pulse-ladder/index.html`
-- 16:9: `/Users/fabian/Development/phosphor-worktrees/family-pulse/artifacts/contact/pulse-16x9/index.html`
-- Ultra-wide: `/Users/fabian/Development/phosphor-worktrees/family-pulse/artifacts/contact/pulse-ultrawide/index.html`
-- Square: `/Users/fabian/Development/phosphor-worktrees/family-pulse/artifacts/contact/pulse-square/index.html`
-- Cross-family: `/Users/fabian/Development/phosphor-worktrees/family-pulse/artifacts/contact/pulse-cross-types/index.html`
-- Probe: `/Users/fabian/Development/phosphor-worktrees/family-pulse/artifacts/contact/pulse-probe/metrics.json`; drift montage: `/Users/fabian/Development/phosphor-worktrees/family-pulse/artifacts/contact/pulse-probe/drift.png`
-- Pair distances: `/Users/fabian/Development/phosphor-worktrees/family-pulse/artifacts/contact/pulse-probe/distinctness.json`
+- Types: `/Users/fabian/Development/phosphor/artifacts/contact/pulse-types/index.html`
+- Ladder: `/Users/fabian/Development/phosphor/artifacts/contact/pulse-ladder/index.html`
+- 16:9: `/Users/fabian/Development/phosphor/artifacts/contact/pulse-16x9/index.html`
+- Ultra-wide: `/Users/fabian/Development/phosphor/artifacts/contact/pulse-ultrawide/index.html`
+- Square: `/Users/fabian/Development/phosphor/artifacts/contact/pulse-square/index.html`
+- Cross-family: `/Users/fabian/Development/phosphor/artifacts/contact/pulse-cross-types/index.html`
+- Probe: `/Users/fabian/Development/phosphor/artifacts/contact/pulse-probe/metrics.json`; drift montage: `/Users/fabian/Development/phosphor/artifacts/contact/pulse-probe/drift.png`
+- Pair distances: `/Users/fabian/Development/phosphor/artifacts/contact/pulse-probe/distinctness.json`
 
 ## Owner judgement and limits
 
 Judge structural variety (especially the six tunnel cross-family flags), every type's energy ordering, sustained peak-time comfort and drifted looks. Slow Gate is almost dark at 0.1; corner probes are not a long-running Random-mode soak.
-Run `npm run timing -- --rig --family pulse` alone: every type p99 ≤34 ms at the 1080p budget, no downgrade.
+**Rig timing PASS (2026-10-08, parent):** `npm run timing -- --rig --family pulse`, Chrome on the M3 Pro (ANGLE Metal, built-in display), 1920×1080, energy 0.95, 30 s per type, with one headless lane loading the CPU (load average ≈ 39): p50 16.7 ms, p99 17.6 ms for all four forms, max 26.0 ms, GPU errors 0, non-finite 0, no downgrade. Art sign-off has not been executed.
 Contact captures intentionally disable the limiter and stay mid-beat; they cannot approve flash safety or timing.
 The separate limited-output trace is only a short headless, 150 BPM, 1×-trim proxy, not photosensitivity certification.
 No platform, contract, other scene, shared script or root gate-status document was changed.
