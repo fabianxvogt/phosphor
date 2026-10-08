@@ -308,8 +308,15 @@ export class Engine {
     this.audioWeight = weight;
     for (let i = 0; i < featureKeys.length; i++) {
       const key = featureKeys[i];
-      if (available)
-        this.audioHeld[i] = Math.max(0, Math.min(1, this.finite(features[key] ?? 0)));
+      if (available) {
+        const v = Math.max(0, Math.min(1, this.finite(features[key] ?? 0)));
+        // Re-locking mid-fade glides from the held value instead of
+        // stepping the raw uniforms and bloom lift in one frame.
+        this.audioHeld[i] =
+          weight < 1
+            ? this.audioHeld[i] + (v - this.audioHeld[i]) * (1 - Math.exp(-dt / 0.04))
+            : v;
+      }
       this.audioFeatures[key] = this.audioHeld[i] * weight;
     }
     const hit = available && features.hit &&
