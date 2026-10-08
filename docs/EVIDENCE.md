@@ -7,6 +7,7 @@ Append-only, newest first. Each entry records what was executed and observed, la
 - `INCREMENTAL / EMPIRICAL`: the main preview reuses the editor's rendered canvas at 480×270 / 30 Hz while no live stage stream is available. No extra WebGL engine or audio context is created. A connected stage takes over the monitor; closing it restores the selected clip.
 - Installed-Chrome smoke against the source: initial visual visible with only the control window open; selecting Prismatic Nave changed the main preview; opening the stage switched to live video; closing it restored the local preview with no empty overlay. Zero page errors; screenshot inspected.
 - Verification: 144 tests passed, four opt-in browser probes skipped; typecheck, build, distribution/offline verification and format check passed. Distribution revision `f53a4b9398c064a5`.
+- Deployed source `4812543` to [production](https://phosphor-performance.vercel.app/) as Vercel deployment `dpl_28pSHnyVyZE9bUXomugKFvQWWK6m` (READY). The same fresh-Chrome smoke passed against the public URL: initial preview without a stage, selection change, live-stream handoff and local-preview restoration; zero page errors.
 
 ## 2026-10-08 — Current VJ instrument deployed to production
 
