@@ -5,20 +5,23 @@
 // be prevented by a gain-only limiter. Retain completed flashes for 1.05 s:
 // the extra 50 ms is conservative presentation-clock margin, not extra flashes.
 // sRGB8 presentation may shift each mean by <0.005. Track potential flashes
-// at 0.09 / darker <0.81, and cap blocked rises at 0.08: two rounding errors
-// cannot promote an uncounted/blocked excursion into a >=0.1 general flash.
+// at 0.09 / darker <0.81. Once the budget is full, output cannot rise:
+// even a subthreshold rise can enable another full fall to a varying trough.
 const trackingDelta = 0.09;
 const darkerBoundary = 0.81;
-const blockedRise = 0.08;
 export class FlashLimiter {
   constructor() {
     this.events = new Float64Array(3);
     this.count = 0;
-    this.direction = 0;
-    this.anchor = 0; // The presenter starts on black.
-    this.extreme = 0;
+    this.reset(0); // The presenter starts on black.
     this.limitedFrames = 0;
     this.limited = false;
+  }
+  // Rebaseline after an exempt/direct presentation without erasing the budget.
+  reset(mean = null) {
+    this.low = this.high = this.extreme = mean;
+    this.previous = mean;
+    this.direction = 0;
   }
   update(mean, time, enabled = true, exempt = false) {
     let remaining = 0;
@@ -27,42 +30,38 @@ export class FlashLimiter {
     }
     this.count = remaining;
     this.limited = false;
-    if (!enabled || exempt || this.anchor === null) {
-      this.anchor = mean;
-      this.extreme = mean;
-      this.direction = 0;
+    if (!enabled || exempt || this.low === null) {
+      this.reset(mean);
       return 1;
     }
-    let output = mean;
+    let output = this.count >= 3 ? Math.min(mean, this.previous) : mean;
     if (this.direction === 1) {
       this.extreme = Math.max(this.extreme, output);
       if (this.extreme - output >= trackingDelta && output < darkerBoundary) {
         this.events[this.count++] = time;
-        this.anchor = output;
-        this.direction = 0;
+        this.reset(output);
       }
     } else if (this.direction === -1) {
       this.extreme = Math.min(this.extreme, output);
       if (output - this.extreme >= trackingDelta && this.extreme < darkerBoundary) {
-        if (this.count >= 3) output = this.extreme + blockedRise;
-        else {
-          this.events[this.count++] = time;
-          this.anchor = output;
-          this.direction = 0;
-        }
+        this.events[this.count++] = time;
+        this.reset(output);
       }
-    } else if (output - this.anchor >= trackingDelta && this.anchor < darkerBoundary) {
-      if (this.count >= 3) output = this.anchor + blockedRise;
-      else {
+    } else {
+      this.low = Math.min(this.low, output);
+      if (output - this.low >= trackingDelta && this.low < darkerBoundary) {
         this.direction = 1;
         this.extreme = output;
+      } else if (this.high - output >= trackingDelta && output < darkerBoundary) {
+        this.direction = -1;
+        this.extreme = output;
       }
-    } else if (this.anchor - output >= trackingDelta && output < darkerBoundary) {
-      this.direction = -1;
-      this.extreme = output;
+      // Track actual output extrema, including unpaired subthreshold motion.
+      this.high = Math.max(this.high, output);
     }
     this.limited = output < mean;
     if (this.limited) this.limitedFrames++;
+    this.previous = output;
     return mean > 0 ? output / mean : 1;
   }
 }

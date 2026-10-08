@@ -13,11 +13,14 @@ void main(){v_uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
 export class Engine {
   constructor(canvas, scenes, onError = () => {}) {
     this.canvas = canvas;
+    // The unchanged PNG-sequence caller owns a detached HTML canvas. Offline
+    // compilation/readback may block; connected stage/projector canvases may not.
+    this.offline = canvas.isConnected === false;
     this.gl = canvas.getContext("webgl2", {
       alpha: false,
       antialias: false,
       // Keep asynchronous live PNG pickers and captureStream consumers intact.
-      // Private sequence renderers await ready(sceneId,true) for current frames.
+      // Detached export renderers approve their current frame synchronously.
       preserveDrawingBuffer: true,
     });
     if (!this.gl)
@@ -113,12 +116,14 @@ export class Engine {
     gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
     this.pipeline = new Compositor(this);
     this.compositor = this.pipeline.program;
+    this.healthReadback = new AsyncReadback(gl,64*36*4);
+    // A restored context must never cancel the previous context's health fence.
     this.resize(this.width,this.height);
     this.healthTarget = this.target(64,36);
-    this.healthReadback = new AsyncReadback(gl,64*36*4);
     this.lastHealth = { mean: NaN, variance: NaN, pending: true };
-    const activeId = this.active?.scene || this.scenes[0]?.id;
+    const activeId = this.active?.scene || (!this.offline ? this.scenes[0]?.id : undefined);
     if (activeId) this.compileScene(this.scenes.find(s => s.id === activeId));
+    if (this.offline) return;
     let index = 0;
     const background = () => {
       if (generation !== this.compileGeneration || this.disposed || this.lost) return;
@@ -179,7 +184,7 @@ export class Engine {
       for (const name of programKeys) {
         const p = programs[name];
         if (!p || p.uniforms) continue;
-        if (this.parallelCompile && !this.gl.getProgramParameter(p.p,this.parallelCompile.COMPLETION_STATUS_KHR)) return false;
+        if (!this.offline && this.parallelCompile && !this.gl.getProgramParameter(p.p,this.parallelCompile.COMPLETION_STATUS_KHR)) return false;
         this.finishProgram(p);
       }
       return true;
@@ -193,11 +198,12 @@ export class Engine {
       return false;
     }
   }
-  // Exporters await ready(id,true) after advance and before each PNG; live
-  // presentation stays non-blocking. This also covers a lazily compiled visual.
+  // Compile readiness for live callers; optional capture drains the current
+  // connected-stage candidate. Detached sequence callers need neither await.
   async ready(id, capture = false) {
+    if (this.disposed || this.lost || this.gl.isContextLost()) return false;
     this.compileScene(this.scenes.find(s => s.id === id));
-    while (!this.disposed && !this.lost) {
+    while (!this.disposed && !this.lost && !this.gl.isContextLost()) {
       if (this.checkScene(id)) {
         if (capture && this.slots.length) {
           for (const slot of this.slots) if (slot.visualReset) this.drawSlot(slot,0);
@@ -349,7 +355,7 @@ export class Engine {
     // Quality changes must not inherit timing samples from a different budget.
     this.frameCursor = 0;
     this.frameCount = 0;
-    if (this.lost) return;
+    if (this.lost || gl.isContextLost()) return;
     this.canvas.width = w;
     this.canvas.height = h;
     this.pipeline?.resize();
@@ -377,6 +383,7 @@ export class Engine {
       s.vi = 0;
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (this.slots.length) this.present();
   }
   prepareSnapshot(s, snapshot) {
     const previous = s.snapshot;
@@ -621,7 +628,7 @@ export class Engine {
     s.visualReset = false;
   }
   advance(dt, paused = false) {
-    if (this.lost || !this.slots.length) return;
+    if (this.lost || this.gl.isContextLost() || !this.slots.length) return;
     try {
       this.uniformFrame++;
       this.renderTick = (this.renderTick+1) >>> 0;
@@ -671,7 +678,7 @@ export class Engine {
     }
   }
   present(target = null, raw = false) {
-    if (this.lost || !this.slots.length) return;
+    if (this.lost || this.gl.isContextLost() || !this.slots.length) return;
     if (!this.transition) this.flashExempt = false;
     this.pipeline.present(target,raw);
   }
@@ -688,7 +695,7 @@ export class Engine {
     this.lastHealth.pending=false;
   }
   health() {
-    if (this.lost) return this.lastHealth;
+    if (this.lost || this.gl.isContextLost()) return this.lastHealth;
     this.pollHealth();
     const gl = this.gl;
     if (!this.healthReadback.sync) {
