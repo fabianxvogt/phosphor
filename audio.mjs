@@ -1,3 +1,23 @@
+// Pattern only from B core.mjs:16–33; scheduling stays on A's audio clock.
+export const DARK_TECHNO_PATTERN = Object.freeze([
+  { kick: 1, clap: 0, hat: 0, openHat: 0, bass: 1, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.42, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.58, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.36, openHat: 0, bass: 0.55, perc: 0.28 },
+  { kick: 0.82, clap: 1, hat: 0, openHat: 0, bass: 0.78, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.62, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.52, openHat: 0.68, bass: 0.62, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.38, openHat: 0, bass: 0, perc: 0.22 },
+  { kick: 1, clap: 0, hat: 0, openHat: 0, bass: 1, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.46, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.62, openHat: 0, bass: 0.58, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.38, openHat: 0, bass: 0, perc: 0.32 },
+  { kick: 0.9, clap: 1, hat: 0, openHat: 0, bass: 0.82, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.64, openHat: 0, bass: 0, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.54, openHat: 0.74, bass: 0.7, perc: 0 },
+  { kick: 0, clap: 0, hat: 0.4, openHat: 0, bass: 0, perc: 0.26 },
+]);
+
 export class AudioEngine {
   constructor(onStatus = () => {}) {
     this.onStatus = onStatus;
@@ -17,6 +37,8 @@ export class AudioEngine {
     this.lastOnset = 0;
     this.previousEnergy = 0;
     this.tempo = 92;
+    this.voices = new Set();
+    this.noise = null;
   }
   async start() {
     if (!this.context) {
@@ -41,6 +63,13 @@ export class AudioEngine {
     clearInterval(this.timer);
     this.timer = null;
     this.pumpDemo = null;
+    for (const voice of this.voices) {
+      try {
+        voice.stop();
+        voice.disconnect();
+      } catch {}
+    }
+    this.voices.clear();
     if (this.source) {
       try {
         this.source.stop?.();
@@ -74,11 +103,12 @@ export class AudioEngine {
         0.02,
       );
   }
-  async demo() {
+  async demo(mode = "techno") {
     this.stop();
     const token = this.generation;
     await this.start();
     if (token !== this.generation) return;
+    if (mode !== "sine") return this.technoDemo();
     const osc = this.context.createOscillator(),
       gain = this.context.createGain();
     osc.type = "sine";
@@ -106,6 +136,85 @@ export class AudioEngine {
     this.pumpDemo();
     this.timer = setInterval(this.pumpDemo, 25);
     this.onStatus("Original demo pulse");
+  }
+  technoDemo() {
+    const context = this.context;
+    const bus = context.createGain();
+    bus.gain.value = 0.55;
+    bus.connect(this.analyser);
+    bus.connect(this.monitor);
+    this.source = bus;
+    this.kind = "demo";
+    if (!this.noise) {
+      this.noise = context.createBuffer(
+        1,
+        context.sampleRate,
+        context.sampleRate,
+      );
+      const data = this.noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    }
+    let next = context.currentTime,
+      step = 0;
+    const voice = (time, amplitude, frequency, decay, noise = false) => {
+      if (!amplitude) return;
+      const source = noise
+        ? context.createBufferSource()
+        : context.createOscillator();
+      const envelope = context.createGain();
+      let filter;
+      if (noise) {
+        source.buffer = this.noise;
+        filter = context.createBiquadFilter();
+        filter.type = "highpass";
+        filter.frequency.value = frequency;
+        source.connect(filter);
+        filter.connect(envelope);
+      } else {
+        source.type = frequency < 55 ? "sawtooth" : "sine";
+        source.frequency.setValueAtTime(frequency, time);
+        source.frequency.exponentialRampToValueAtTime(
+          Math.max(28, frequency * 0.5),
+          time + decay,
+        );
+        source.connect(envelope);
+      }
+      envelope.connect(bus);
+      envelope.gain.setValueAtTime(0.001, time);
+      envelope.gain.linearRampToValueAtTime(amplitude, time + 0.003);
+      envelope.gain.exponentialRampToValueAtTime(0.001, time + decay);
+      this.voices.add(source);
+      source.onended = () => {
+        this.voices.delete(source);
+        source.disconnect();
+        filter?.disconnect();
+        envelope.disconnect();
+      };
+      source.start(time);
+      source.stop(time + decay + 0.01);
+    };
+    this.pumpDemo = () => {
+      const now = context.currentTime;
+      const duration = 60 / this.tempo / 4;
+      if (next < now - 0.12) {
+        const missed = Math.ceil((now - next) / duration);
+        step += missed;
+        next += missed * duration;
+      }
+      while (next < now + 0.12) {
+        const pattern = DARK_TECHNO_PATTERN[step++ % 16];
+        voice(next, pattern.kick * 0.8, 125, 0.22);
+        voice(next, pattern.bass * 0.14, 49, 0.16);
+        voice(next, pattern.clap * 0.2, 1200, 0.12, true);
+        voice(next, pattern.hat * 0.12, 6500, 0.035, true);
+        voice(next, pattern.openHat * 0.09, 5000, 0.16, true);
+        voice(next, pattern.perc * 0.13, 300, 0.06);
+        next += 60 / this.tempo / 4;
+      }
+    };
+    this.pumpDemo();
+    this.timer = setInterval(this.pumpDemo, 25);
+    this.onStatus("Dark techno · 16-step lookahead");
   }
   async file(file) {
     this.stop();
@@ -158,6 +267,54 @@ export class AudioEngine {
     this.kind = "input";
     this.onStatus("Live input · monitoring disabled");
     stream.getAudioTracks()[0].onended = () => this.stop();
+  }
+  async tab() {
+    this.stop();
+    const token = this.generation;
+    if (!navigator.mediaDevices?.getDisplayMedia)
+      throw new Error(
+        "Tab audio unavailable · desktop Chromium required; try a local audio file.",
+      );
+    let stream;
+    try {
+      this.onStatus("Choose a browser tab and enable Share tab audio");
+      // Invoke the chooser synchronously in the click's user gesture.
+      const pending = navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "browser" },
+        audio: true,
+        selfBrowserSurface: "exclude",
+        monitorTypeSurfaces: "exclude",
+        systemAudio: "exclude",
+      });
+      stream = await pending;
+      stream.getVideoTracks().forEach((track) => track.stop());
+      if (!stream.getAudioTracks().length)
+        throw new Error(
+          "No audio was shared · select a browser tab and enable Share tab audio.",
+        );
+      await this.start();
+      if (token !== this.generation) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      this.stream = stream;
+      this.source = this.context.createMediaStreamSource(stream);
+      this.source.connect(this.analyser); // Analysis and recording only.
+      this.kind = "tab";
+      this.onStatus(
+        "Tab audio active · analysis/recording only · speakers disabled",
+      );
+      stream.getAudioTracks()[0].onended = () => this.stop();
+    } catch (error) {
+      stream?.getTracks().forEach((track) => track.stop());
+      if (token !== this.generation) return;
+      const message =
+        error.name === "NotAllowedError" || error.name === "AbortError"
+          ? "Tab audio sharing denied or cancelled · try a local audio file."
+          : error.message;
+      this.onStatus(message);
+      throw new Error(message);
+    }
   }
   async devices() {
     if (!navigator.mediaDevices?.enumerateDevices) return [];
@@ -224,21 +381,36 @@ export class MidiInput {
     this.onClock = onClock;
     this.onStatus = onStatus;
     this.access = null;
+    this.connecting = null;
+    this.disposed = false;
     this.lastClock = 0;
     this.intervals = [];
     this.pulses = 0;
   }
   async connect() {
+    if (this.access) return this.access;
+    if (this.connecting) return this.connecting;
     if (!navigator.requestMIDIAccess)
-      throw new Error("Web MIDI unavailable in this browser");
-    this.access = await navigator.requestMIDIAccess({ sysex: false });
-    const attach = () => {
-      for (const input of this.access.inputs.values())
-        input.onmidimessage = (e) => this.message(e);
-      this.onStatus(`${this.access.inputs.size} MIDI input(s)`);
-    };
-    this.access.onstatechange = attach;
-    attach();
+      throw new Error("Web MIDI unavailable · Chromium required");
+    this.disposed = false;
+    this.connecting = (async () => {
+      const access = await navigator.requestMIDIAccess({ sysex: false });
+      if (this.disposed) return null;
+      this.access = access;
+      const attach = () => {
+        for (const input of access.inputs.values())
+          input.onmidimessage = (e) => this.message(e);
+        this.onStatus(`${access.inputs.size} MIDI input(s)`);
+      };
+      access.onstatechange = attach;
+      attach();
+      return access;
+    })();
+    try {
+      return await this.connecting;
+    } finally {
+      this.connecting = null;
+    }
   }
   message(event) {
     const [status, a, b] = event.data;
@@ -282,9 +454,11 @@ export class MidiInput {
       });
   }
   dispose() {
+    this.disposed = true;
     if (this.access) {
       this.access.onstatechange = null;
       for (const i of this.access.inputs.values()) i.onmidimessage = null;
     }
+    this.access = null;
   }
 }

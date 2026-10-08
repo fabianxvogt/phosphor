@@ -1,15 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import acid from "../scene-acid.mjs";
-import magnetic from "../scene-magnetic.mjs";
-import cathedral from "../scene-cathedral.mjs";
-import aquarium from "../scene-aquarium.mjs";
-import tapestry, { stepTapestry, seedTapestry } from "../scene-tapestry.mjs";
-import feedback from "../scene-feedback.mjs";
-import interference from "../scene-interference.mjs";
-import melt from "../scene-melt.mjs";
-import phase from "../scene-phase.mjs";
-import evolution from "../scene-evolution.mjs";
+import scenes from "../scenes.mjs";
+import { stepTapestry, seedTapestry } from "../scene-tapestry.mjs";
 import {
   initialSession,
   validateSession,
@@ -27,18 +19,7 @@ import {
   undoGeneration,
 } from "../evolution.mjs";
 import { MidiInput } from "../audio.mjs";
-const scenes = [
-  acid,
-  magnetic,
-  cathedral,
-  aquarium,
-  tapestry,
-  feedback,
-  interference,
-  melt,
-  phase,
-  evolution,
-];
+const [acid, , , , , feedback] = scenes;
 
 test("authored looks can all be captured, exported and reopened without losing parameters", () => {
   for (const scene of scenes)
@@ -190,7 +171,10 @@ test("accepted files export and reopen without retaining oversized unsupported l
   const session = initialSession(scenes);
   const root = createLineage(acid, acid.presets[0]);
   session.lineages = [
-    { ...structuredClone(root), unsupportedPayload: new Array(4_000_000).fill(0) },
+    {
+      ...structuredClone(root),
+      unsupportedPayload: new Array(4_000_000).fill(0),
+    },
   ];
   session.lineages[0].nodes[0].unsupportedNodePayload = {
     privateNote: "not part of the portable schema",

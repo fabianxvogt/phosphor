@@ -1,31 +1,31 @@
+import { OutputConnection } from "./ui-state.mjs";
 const video = document.getElementById("output"),
   message = document.getElementById("message");
-let stream, wake;
+let wake;
+const connection = new OutputConnection(video, (text, connected) => {
+  message.textContent = text;
+  document.getElementById("controls").style.display = connected ? "" : "block";
+});
 async function awake() {
   try {
     wake = await navigator.wakeLock?.request("screen");
   } catch {}
 }
-try {
-  if (!window.opener || window.opener.closed)
-    throw new Error("Open this window with “Open clean output” from Phosphor.");
-  stream = window.opener.__phosphor.outputStream();
-  video.srcObject = stream;
-  await video.play();
+if (!window.opener || window.opener.closed)
   message.textContent =
-    "Move this window to your projector, then enter fullscreen. Audio stays in the control window.";
-} catch (e) {
-  message.textContent = e.message;
-}
+    "Open this window with “Open clean output” from Phosphor.";
 function driveOutput(now) {
   if (window.opener && !window.opener.closed) {
+    connection.refresh(window.opener.__phosphor);
     if (window.opener.document.visibilityState !== "visible") {
-      const parentTime = performance.timeOrigin + now - window.opener.performance.timeOrigin;
+      const parentTime =
+        performance.timeOrigin + now - window.opener.performance.timeOrigin;
       window.opener.__phosphor?.outputFrame(parentTime);
     }
     requestAnimationFrame(driveOutput);
   } else {
-    message.textContent = "Performance window closed. Reopen the instrument to reconnect.";
+    message.textContent =
+      "Performance window closed. Reopen the instrument to reconnect.";
     document.getElementById("controls").style.display = "block";
   }
 }
@@ -42,6 +42,6 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") awake();
 });
 window.addEventListener("pagehide", () => {
-  stream?.getTracks().forEach((t) => t.stop());
+  connection.dispose();
   wake?.release();
 });
