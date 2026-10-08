@@ -11,7 +11,7 @@ const schema = [
   { key: "twist", label: "Twist", min: -1, max: 1, step: 0.01, default: 0 },
   { key: "step", label: "Beat stepping · glide → snap", min: 0, max: 1, step: 0.01, default: 0.5 },
   { key: "glow", label: "Glow", min: 0, max: 1, step: 0.01, default: 0.45 },
-  { key: "fill", label: "Fill · outline → solid", min: 0, max: 1, step: 0.01, default: 0.2 },
+  { key: "fill", label: "Fill · cells / blade width", min: 0, max: 1, step: 0.01, default: 0.2 },
 ];
 
 const presets = [

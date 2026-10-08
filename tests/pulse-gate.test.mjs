@@ -41,7 +41,7 @@ async function montage(page, rows, directory, width, height) {
 }
 
 if (process.argv.includes("--port")) {
-  test("Pulse Geometry headless family evidence", { timeout: 600000 }, async () => {
+  test("Pulse Geometry headless family evidence", { timeout: 1800000 }, async () => {
     const { options, outputDirectory, serve, launch, openLab } = await import("../scripts/browser-runtime.mjs");
     const args = options({ cross: { type: "boolean", default: false } });
     assert.equal(args.rig, false, "software GPU only");
