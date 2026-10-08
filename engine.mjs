@@ -51,6 +51,17 @@ export class Engine {
       chroma: 0,
     };
     this.gesture = [0.5, 0.5, 0];
+    // Contract v3 performance state (decisions D17, D27-D29): live energy
+    // level with ramps, tempo-relative speed, view transform and the shared
+    // beat responses every family receives.
+    this.level = 0.5;
+    this.levelFrom = this.levelTo = 0.5;
+    this.levelElapsed = this.levelDuration = 0;
+    this.speed = 1;
+    this.view = { hue: 0, zoom: 1 };
+    this.flashHeld = false;
+    this.beatFx = { punch: 0, pulse: 0, flash: 0 };
+    this.lastKickBeat = null;
     this.blackout = 0;
     this.blackoutTarget = 0;
     this.lost = false;
@@ -195,6 +206,50 @@ export class Engine {
       await new Promise(resolve => requestAnimationFrame(resolve));
     }
     return false;
+  }
+  setLevel(value, seconds = 0) {
+    value = Math.max(0, Math.min(1, this.finite(value, this.level)));
+    this.levelFrom = this.level;
+    this.levelTo = value;
+    this.levelElapsed = 0;
+    this.levelDuration = Math.max(0, this.finite(seconds, 0));
+    if (!(this.levelDuration > 0)) this.level = value;
+  }
+  // Energy ramp, kick envelope (punch, pulse), flashes and beat injection.
+  // The kick follows the show clock (this.beat) scaled by the speed trim, so
+  // half speed hits every other beat. Responses scale with energy and the
+  // family's declared weights; reduced motion and freeze disable them.
+  updatePerformance(dt, paused) {
+    if (this.levelDuration > 0 && this.level !== this.levelTo) {
+      this.levelElapsed += dt;
+      const t = Math.min(1, this.levelElapsed / this.levelDuration);
+      this.level = this.levelFrom + (this.levelTo - this.levelFrom) * t;
+    }
+    const scene = this.slots.at(-1)?.scene;
+    const weights = { punch: 1, pulse: 1, inject: 0, ...(scene?.beat || {}) };
+    const calm = this.options.reducedMotion || paused;
+    const x = Math.max(0, Math.min(1, (this.level - 0.15) / 0.85));
+    const response = calm ? 0 : x * x * (3 - 2 * x);
+    const kickBeat = this.finite(this.beat ?? 0) * this.speed;
+    const phase = kickBeat - Math.floor(kickBeat);
+    const kick = Math.exp(-phase * 7);
+    this.beatFx.punch = 0.06 * weights.punch * response * kick;
+    this.beatFx.pulse = 0.35 * weights.pulse * response * kick;
+    const auto = Math.max(0, (this.level - 0.8) / 0.2) * 0.5;
+    this.beatFx.flash = calm
+      ? 0
+      : Math.max(this.flashHeld ? 1 : 0, auto) * Math.exp(-phase * 10);
+    const index = Math.floor(kickBeat);
+    if (index !== this.lastKickBeat) {
+      if (this.lastKickBeat !== null && weights.inject > 0 && response > 0) {
+        const h = Math.sin(index * 12.9898) * 43758.5453,
+          k = Math.sin(index * 78.233) * 12543.123;
+        this.gesture[0] = 0.2 + 0.6 * (h - Math.floor(h));
+        this.gesture[1] = 0.2 + 0.6 * (k - Math.floor(k));
+        this.gesture[2] = weights.inject * response;
+      }
+      this.lastKickBeat = index;
+    }
   }
   finite(value, fallback = 0) {
     if (Number.isFinite(value)) return value;
@@ -400,6 +455,7 @@ export class Engine {
       } else this.destroySlot(this.slots.shift());
     }
     const slot = this.createSlot(snapshot);
+    slot.baseLevel = Number.isFinite(opts?.energy) ? opts.energy : this.level;
     this.slots.push(slot);
     this.active = slot.snapshot;
     if (this.slots.length === 2 && seconds > 0)
@@ -440,6 +496,11 @@ export class Engine {
     for (let i=0;i<s.scene.schema.length;i++) {
       const def = s.scene.schema[i];
       let value = s.snapshot.params[def.key];
+      // Energy curve: move from the clip's own base energy along the family's
+      // declared slope, so a clip keeps its character at its own energy.
+      const curve = s.scene.energy?.[def.key];
+      if (curve)
+        value += (curve[1] - curve[0]) * (this.level - (s.baseLevel ?? this.level));
       for (const mapping of this.mappings || noMappings) {
         if (mapping.scene === s.scene.id && mapping.target === def.key) value += (this.features[mapping.source] ?? 0)*mapping.depth*(def.max-def.min);
       }
@@ -540,11 +601,12 @@ export class Engine {
         this.blackout *= 1-Math.min(1,dt*12);
         if (this.blackout < 1/255) this.blackout = 0;
       }
+      this.updatePerformance(Math.min(0.1, dt), paused);
       const incoming = this.slots.at(-1);
       const preparing = incoming.warmTicks > 0;
       if (preparing) this.warmSlot(incoming);
       if (!paused) {
-        this.accumulator += Math.min(0.1, dt);
+        this.accumulator += Math.min(0.1, dt) * this.speed;
         let n = 0;
         while (this.accumulator >= 1 / 60 - 1e-9 && n++ < 6) {
           this.time += 1 / 60;
@@ -560,7 +622,8 @@ export class Engine {
           }
           this.accumulator = Math.max(0, this.accumulator - 1 / 60);
         }
-        for (const s of this.slots) this.drawSlot(s, Math.min(0.1, dt));
+        for (const s of this.slots)
+          this.drawSlot(s, Math.min(0.1, dt) * this.speed);
         if (n > 0) this.gesture[2] = 0;
       } else if (preparing) this.drawSlot(incoming, 1 / 60);
       this.present();

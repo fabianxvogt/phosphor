@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Phosphor · stage</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+      }
+      canvas {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #pattern {
+        display: none;
+      }
+      body.pattern #pattern {
+        display: block;
+      }
+      #overlay {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(0, 0, 0, 0.72);
+        color: #e8f0e8;
+        font:
+          16px/1.4 system-ui,
+          sans-serif;
+        text-align: center;
+        padding: 16px;
+      }
+      #overlay[hidden] {
+        display: none;
+      }
+      #start {
+        font:
+          600 20px system-ui,
+          sans-serif;
+        padding: 18px 28px;
+        border-radius: 10px;
+        border: 1px solid #d5ff5f;
+        background: #172019;
+        color: #d5ff5f;
+        cursor: pointer;
+      }
+      body:fullscreen {
+        cursor: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" aria-label="Phosphor stage output"></canvas>
+    <canvas id="pattern" aria-hidden="true"></canvas>
+    <div id="overlay">
+      <div>
+        <button id="start">Start stage · fullscreen</button>
+        <p id="message">
+          Click once on this screen: it starts audio analysis and goes
+          fullscreen. Keys work here as well as in the control window.
+        </p>
+      </div>
+    </div>
+    <script type="module" src="stage.mjs"></script>
+  </body>
+</html>

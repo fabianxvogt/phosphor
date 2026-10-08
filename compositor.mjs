@@ -9,7 +9,22 @@ export const compositeShader = shaderHeader + colorSpace + `
 uniform sampler2D a,b,glow,history;
 uniform bool singleSlot,hasHistory,raw,historyOnly;
 uniform float mixAmount,brightness,blackout,bloom,kaleido,echo,chroma;
+uniform float hue,zoom,punch,pulse,flash;
 uniform vec2 resolution;
+// Shared view transform: zoom (with the beat punch), mirror-repeat when
+// zoomed out so edges never smear.
+vec2 viewUV(vec2 uv) {
+  uv=(uv-.5)/(zoom*(1.+punch))+.5;
+  return 1.-abs(1.-mod(uv,2.));
+}
+vec3 hueRotate(vec3 c,float turns) {
+  if(turns==0.) return c;
+  float a=turns*TAU,co=cos(a),si=sin(a);
+  return max(vec3(0.),vec3(
+    dot(c,vec3(.213+.787*co-.213*si,.715-.715*co-.715*si,.072-.072*co+.928*si)),
+    dot(c,vec3(.213-.213*co+.143*si,.715+.285*co+.140*si,.072-.072*co-.283*si)),
+    dot(c,vec3(.213-.213*co-.787*si,.715-.715*co+.715*si,.072+.928*co+.072*si))));
+}
 vec3 sceneAt(vec2 uv) {
   vec3 c=texture(a,uv).rgb;
   if (!singleSlot) c=mix(c,texture(b,uv).rgb,mixAmount);
@@ -23,7 +38,7 @@ vec2 foldedUV(vec2 uv) {
   return uv;
 }
 vec3 effectedAt(vec2 screenUV) {
-  vec3 c=sceneAt(foldedUV(screenUV));
+  vec3 c=sceneAt(foldedUV(viewUV(screenUV)));
   if(echo>.01 && hasHistory) {
     vec2 q=rot2(.008*echo)*(screenUV-.5)/1.006+.5;
     c=mix(c,texture(history,q).rgb,echo*.88);
@@ -51,7 +66,10 @@ void main() {
     vec3 left=chromaTint(effectedAt(v_uv+vec2(shift,0.)),radians(130.));
     c=1.-(1.-c)*(1.-right*chroma*.4)*(1.-left*chroma*.4);
   }
-  if(bloom>0.) c+=texture(glow,foldedUV(v_uv)).rgb*bloom;
+  if(bloom>0.) c+=texture(glow,foldedUV(viewUV(v_uv))).rgb*bloom;
+  c=hueRotate(c,hue);
+  c*=1.+pulse;
+  c=mix(c,vec3(1.),clamp(flash,0.,1.));
   c=max(c*brightness,vec3(0.));
   // One shared scale rolls off highlights without per-channel clipping/hue shift.
   float peak=max(c.r,max(c.g,c.b));
@@ -259,6 +277,11 @@ export class Compositor {
     gl.uniform1f(u.echo,echo);
     gl.uniform1f(u.chroma,raw?0:e.finite(e.options.chroma ?? 0,0));
     gl.uniform2f(u.resolution,e.width,e.height);
+    gl.uniform1f(u.hue,raw?0:e.finite(e.view?.hue ?? 0,0));
+    gl.uniform1f(u.zoom,raw?1:Math.max(.25,e.finite(e.view?.zoom ?? 1,1)));
+    gl.uniform1f(u.punch,raw?0:e.finite(e.beatFx?.punch ?? 0,0));
+    gl.uniform1f(u.pulse,raw?0:e.finite(e.beatFx?.pulse ?? 0,0));
+    gl.uniform1f(u.flash,raw?0:Math.min(1,e.finite(e.beatFx?.flash ?? 0,0)));
     gl.uniform1ui(u.u_tick,e.renderTick);
     gl.uniform1ui(u.u_seedBits,e.slots.at(-1).snapshot.seed >>> 0);
     gl.drawArrays(gl.TRIANGLES,0,6);

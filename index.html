@@ -6,371 +6,216 @@
     <meta name="theme-color" content="#0b0d12" />
     <meta
       name="description"
-      content="Phosphor: a local GPU visual instrument for live music performance."
+      content="Phosphor: a local GPU VJ instrument for live DJ sets."
     />
-    <title>Phosphor · visual instrument</title>
-    <link rel="stylesheet" href="styles.css" />
+    <title>Phosphor · control</title>
+    <link rel="stylesheet" href="control.css" />
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="./">✦ PHOSPHOR <small>VISUAL INSTRUMENT</small></a>
-      <div id="status" role="status">Starting renderer…</div>
-      <button id="helpButton">Help / keys</button
-      ><button id="outputButton">Open clean output ↗</button
-      ><button id="fullscreenButton">Fullscreen</button>
+      <span class="brand">✦ PHOSPHOR</span>
+      <span class="set-name" id="setName"></span>
+      <span class="spacer"></span>
+      <span class="pill" id="stagePill">Stage not open</span>
+      <span class="pill" id="audioPill">Audio off</span>
+      <button id="openStage" class="accent">Open stage ↗</button>
+      <button id="modeButton">Enter Show mode</button>
     </header>
+    <div
+      class="confirm"
+      id="confirm"
+      hidden
+      role="alertdialog"
+      aria-labelledby="confirmText"
+    >
+      <span id="confirmText"></span>
+      <button id="confirmYes" class="accent">Yes</button>
+      <button id="confirmNo">Cancel</button>
+    </div>
     <main>
-      <div class="monitor-column">
-        <section class="stage-panel" aria-label="Performance preview">
-          <canvas
-            id="stage"
-            width="960"
-            height="540"
-            tabindex="0"
-            aria-label="Visual stage. Drag to paint a gesture; Space injects."
-          ></canvas>
-          <div class="stage-hud">
-            <span id="sceneName"></span><span id="renderStatus"></span>
+      <div class="column">
+        <section class="panel" aria-label="Stage monitor">
+          <div class="monitor">
+            <div class="preview">
+              <video
+                id="preview"
+                muted
+                playsinline
+                aria-label="Stage preview"
+              ></video>
+              <div class="empty" id="previewEmpty">
+                Open the stage, drag it to the projector and click once on it.
+                The preview appears here.
+              </div>
+            </div>
+            <div class="readouts">
+              <div>
+                <span class="big" id="bpm">—</span>
+                <span id="tempoSource"
+                  ><span class="light"></span>no tempo</span
+                >
+              </div>
+              <div class="beats" id="beats" aria-label="Beat in bar">
+                <i></i><i></i><i></i><i></i>
+              </div>
+              <div class="readout"><span>Bar</span><span id="bar">—</span></div>
+              <div class="readout">
+                <span>Autopilot</span><span id="autopilotReadout">—</span>
+              </div>
+              <div class="readout">
+                <span>Energy</span><span id="energyReadout">—</span>
+              </div>
+              <div class="readout">
+                <span>Speed</span><span id="speedReadout">—</span>
+              </div>
+              <div class="readout">
+                <span>Render</span><span id="renderReadout">—</span>
+              </div>
+            </div>
           </div>
-          <div id="fatal" class="fatal" hidden role="alert"></div>
+          <div class="row" style="margin-top: 10px">
+            <button id="tap">Tap <kbd>Space</kbd></button>
+            <button id="downbeat">Downbeat <kbd>Enter</kbd></button>
+            <button id="nudgeBack" aria-label="Nudge earlier">
+              ◀ <kbd>←</kbd>
+            </button>
+            <button id="nudgeForward" aria-label="Nudge later">
+              <kbd>→</kbd> ▶
+            </button>
+            <span id="latency" class="note"></span>
+            <span class="spacer"></span>
+            <button id="autoClock">Follow audio</button>
+            <label class="row"
+              >BPM
+              <input
+                id="manualBpm"
+                type="number"
+                min="40"
+                max="200"
+                step="0.1"
+                style="width: 80px"
+            /></label>
+          </div>
         </section>
-        <section class="transport panel" aria-label="Performance transport">
-          <button id="pauseButton">Pause visuals</button
-          ><button id="blackoutButton" class="danger">Blackout [B]</button
-          ><button id="safeButton">Safe look</button
-          ><button id="resetButton">Reset seed</button
-          ><label
-            >Manual BPM
-            <input
-              id="tempoInput"
-              type="number"
-              min="40"
-              max="200"
-              step=".1"
-              value="92" /></label
-          ><button id="tapButton">Tap tempo</button
-          ><span id="beatReadout">1 · 1</span
-          ><label><input id="clockInput" type="checkbox" /> MIDI clock</label
-          ><label
-            >Brightness
-            <input
-              id="brightnessInput"
-              type="range"
-              min="0"
-              max="1"
-              step=".01"
-              value=".92" /></label
-          ><label
-            >Quality
-            <select id="qualityInput">
-              <option value="high">1920 × 1080 · 60</option>
-              <option value="balanced" selected>1280 × 720 · 60</option>
-              <option value="low">960 × 540 · 30</option>
-            </select></label
-          ><label
-            ><input id="autoQualityInput" type="checkbox" checked />
-            Adaptive</label
-          >
-          <label
-            ><input id="autoRecoveryInput" type="checkbox" checked />
-            Blank-output recovery</label
-          >
+        <section class="panel" aria-label="Clip grid">
+          <div
+            class="pages"
+            id="pages"
+            role="tablist"
+            aria-label="Pages (Shift + 1–8)"
+          ></div>
+          <div class="grid" id="grid"></div>
+          <p class="note show-only">
+            Keys trigger clips on the current page. Shift + 1–8 switches pages.
+          </p>
+          <p class="note prep-only">
+            Prep: click a slot to edit it. Keys still trigger clips.
+          </p>
         </section>
       </div>
-      <div class="editor-column">
-        <nav class="tabs" aria-label="Workbench">
-          <button data-tab="scenes" aria-pressed="true">
-            Scenes / controls</button
-          ><button data-tab="set" aria-pressed="false">Set / cues</button
-          ><button data-tab="audio" aria-pressed="false">Audio / MIDI</button
-          ><button data-tab="garden" aria-pressed="false">
-            Evolution / favorites
-          </button>
-        </nav>
-        <section id="tab-scenes" class="workbench">
-          <aside class="panel">
-            <h2>Ten living families</h2>
-            <div id="sceneList" class="scene-list"></div>
-          </aside>
-          <section class="panel">
-            <div class="heading">
-              <h2 id="controlHeading">Scene controls</h2>
-              <button id="undoButton">Undo</button
-              ><button id="redoButton">Redo</button>
-            </div>
-            <p id="sceneDescription" class="muted"></p>
-            <div id="presetStrip" class="presets"></div>
-            <div id="sceneControls" class="controls-grid"></div>
-            <div class="row">
-              <label
-                >Seed
-                <input
-                  id="seedInput"
-                  type="number"
-                  min="0"
-                  max="2147483647"
-                  step="1" /></label
-              ><button id="newSeedButton">New seed</button
-              ><button id="addCueButton">Capture as cue</button
-              ><button id="breedButton">Breed this look</button>
-            </div>
-            <div class="row">
-              <label>Primary <input id="primaryColor" type="color" /></label
-              ><label
-                >Secondary <input id="secondaryColor" type="color" /></label
-              ><label>Accent <input id="accentColor" type="color" /></label
-              ><label
-                >Bloom
-                <input
-                  id="bloomInput"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step=".01" /></label
-              ><label
-                >Kaleidoscope
-                <input
-                  id="kaleidoInput"
-                  type="range"
-                  min="1"
-                  max="12"
-                  step="1" /></label
-              ><label
-                ><input id="reducedMotionInput" type="checkbox" /> Reduced
-                motion</label
-              >
-              <label><input id="flashLimitInput" type="checkbox" checked />
-                Flash limiter (mitigation, not certification)</label>
-              <label>Echo <input id="echoInput" type="range" min="0"
-                max="1" step=".01" value="0" /></label>
-              <label>Chroma <input id="chromaInput" type="range" min="0"
-                max="1" step=".01" value="0" /></label>
-            </div>
-          </section>
+      <div class="column">
+        <section class="panel" aria-label="Performance">
+          <h2>Performance</h2>
+          <div class="actions">
+            <button
+              id="blackout"
+              class="danger blackout wide"
+              aria-pressed="false"
+            >
+              Blackout <kbd>Esc</kbd>
+            </button>
+            <button id="safe">Safe look <kbd>⇧Esc</kbd></button>
+            <button id="freeze" aria-pressed="false">
+              Freeze <kbd>O</kbd>
+            </button>
+            <button id="flash" aria-pressed="false">Flash <kbd>L</kbd></button>
+            <button id="autopilot" aria-pressed="false">
+              Autopilot <kbd>P</kbd>
+            </button>
+            <button id="half" aria-pressed="false">½× <kbd>9</kbd></button>
+            <button id="double" aria-pressed="false">2× <kbd>0</kbd></button>
+          </div>
+          <div class="faders" id="shared" style="margin-top: 12px"></div>
         </section>
-        <section id="tab-set" class="panel" hidden>
-          <div class="heading">
-            <h2>Performance score</h2>
-            <label>Set name <input id="setNameInput" maxlength="80" /></label
-            ><span id="setDuration"></span>
-          </div>
-          <div class="row">
-            <button id="playSetButton" class="accent">Play score</button
-            ><button id="previousCueButton">Previous</button
-            ><button id="goButton">GO / next [Enter]</button>
-            <strong id="pendingCue" aria-live="polite"></strong>
-            <label
-              ><input id="quantizeInput" type="checkbox" checked /> Next
-              bar</label
-            ><label
-              ><input id="autopilotInput" type="checkbox" /> Director</label
-            ><label
-              >Transition mix
-              <input
-                id="crossfadeInput"
-                type="range"
-                min="0"
-                max="1"
-                step=".01"
-                value="1" /></label
-            ><span id="cueProgress"></span>
-          </div>
-          <p class="muted">
-            Each cue stores the complete scene, seed, palette and parameters.
-            Director varies the next cue by musical energy, avoiding immediate
-            repetition. Capture controls into the selected cue before
-            performing.
-          </p>
-          <div id="cueList" class="cue-list"></div>
-          <section class="subpanel">
-            <h3>Selected cue · keyframes</h3>
-            <div class="row">
-              <label
-                >Beat offset
-                <input
-                  id="keyframeBeatInput"
-                  type="number"
-                  min="0"
-                  max="1024"
-                  step="1"
-                  value="16" /></label
-              ><button id="keyframeButton">Capture current controls</button
-              ><button id="auditionCueButton">Audition selected cue</button>
-            </div>
-            <div id="keyframeList"></div>
-            <p class="muted">
-              Same-family keyframes interpolate parameters and palette through
-              the cue. Geometry-changing morphs are artistic, not
-              topology-preserving.
-            </p>
-          </section>
+        <section class="panel" aria-label="Family controls">
+          <h2 id="familyTitle">Family</h2>
+          <div class="faders" id="family"></div>
         </section>
-        <section id="tab-audio" class="panel" hidden>
-          <h2>Local audio / analysis</h2>
-          <div class="row">
-            <select id="demoPattern" aria-label="Demo pattern">
-              <option value="techno">Dark techno</option>
-              <option value="sine">Sine pulse</option>
-            </select>
-            <button id="demoAudioButton">Demo pulse</button
-            ><label class="file-button"
-              >Local audio<input
-                id="audioFileInput"
-                type="file"
-                accept="audio/*" /></label
-            ><select id="deviceInput" aria-label="Audio input device">
-              <option value="">Default input</option></select
-            ><button id="micButton">Enable live input</button>
-            <button id="tabAudioButton">Share tab audio</button>
-            <button id="stopAudioButton">Release audio</button
-            ><button id="muteButton">Mute monitoring</button
-            ><span id="audioStatus">Silent / manual tempo</span>
+        <section class="panel prep-only" aria-label="Clip editor">
+          <h2 id="editorTitle">Clip</h2>
+          <canvas
+            id="editorCanvas"
+            class="editor-preview"
+            width="480"
+            height="270"
+          ></canvas>
+          <div class="fields" id="editor" style="margin-top: 10px"></div>
+          <div class="row" style="margin-top: 10px">
+            <button id="saveClip" class="accent">Save to slot</button>
+            <button id="auditionClip">Play on stage</button>
+            <button id="breedClip">Variations</button>
+            <button id="clearClip">Clear slot</button>
           </div>
-          <p class="muted">
-            Live input is never sent to your speakers. Choose a line-in from
-            your mixer; microphone permission is explicit. Imported audio loops
-            locally and must be reattached after reopening.
-          </p>
-          <div id="audioMeters" class="meters"></div>
-          <h3>Modulation routes</h3>
-          <div class="row">
-            <select id="mappingSource" aria-label="Modulation source">
-              <option>energy</option>
-              <option>bass</option>
-              <option>mid</option>
-              <option>high</option>
-              <option>onset</option></select
-            ><select id="mappingTarget" aria-label="Modulation target"></select
-            ><label
-              >Depth
-              <input
-                id="mappingDepth"
-                type="number"
-                min="-1"
-                max="1"
-                step=".01"
-                value=".15" /></label
-            ><button id="addMappingButton">Add route</button>
-          </div>
-          <div id="mappingList"></div>
-          <p class="muted">
-            Routes add bounded offsets. Your saved slider values never drift.
-          </p>
-          <h3>MIDI learn</h3>
-          <div class="row">
-            <button id="midiButton">Connect MIDI</button
-            ><select id="midiTarget" aria-label="MIDI target">
-              <option value="go">GO / next</option>
-              <option value="blackout">Blackout</option>
-              <option value="brightness">Brightness</option>
-              <option value="crossfade">Transition mix</option>
-              <option value="tempo">Tempo</option></select
-            ><button id="midiLearnButton">Learn next control</button
-            ><span id="midiStatus">Not connected</span>
-          </div>
-          <div id="midiList"></div>
+          <div
+            class="grid"
+            id="variations"
+            style="grid-template-columns: repeat(3, 1fr); margin-top: 8px"
+          ></div>
         </section>
-        <section id="tab-garden" class="panel" hidden>
-          <h2>Evolution Garden · persistent discoveries</h2>
-          <div class="row">
-            <button id="newLineageButton">
-              Start lineage from current look</button
-            ><select id="lineageInput" aria-label="Lineage"></select
-            ><label
-              >Mutation strength
-              <input
-                id="mutationInput"
-                type="range"
-                min="0"
-                max="1"
-                step=".01"
-                value=".12" /></label
-            ><button id="generationButton">Breed three siblings</button
-            ><button id="undoGenerationButton">Return to parent</button
-            ><button id="promoteButton">Promote selected to cue</button>
-          </div>
-          <div id="lockList" class="row"></div>
-          <div id="lineageList" class="lineage-list"></div>
-          <p class="muted">
-            Lock controls to preserve them exactly. Select siblings to audition;
-            rename discoveries before capturing them in a score. Each lineage
-            retains up to 128 nodes, including ancestry.
-          </p>
-        </section>
-        <section class="panel storage">
-          <div class="row">
-            <span id="saveReadout" role="status">Local autosave</span
-            ><button id="saveButton">Save now</button
-            ><button id="exportButton">Export set</button
-            ><button id="recoveryButton" hidden>Download recovery backup</button
-            ><label class="file-button"
+        <section class="panel prep-only" aria-label="Set">
+          <h2>Set</h2>
+          <div class="fields" id="setFields"></div>
+          <div class="row" style="margin-top: 10px">
+            <button id="exportSet">Export set</button>
+            <label class="file"
               >Import set<input
-                id="importInput"
+                id="importSet"
                 type="file"
-                accept="application/json,.json" /></label
-            ><button id="captureButton">Capture PNG</button
-            ><button id="recordButton">Record WebM</button
-            ><button id="framesButton">Render frame sequence</button
-            ><button id="cancelExportButton" hidden>Cancel export</button>
-            <span id="exportProgress" role="status" hidden></span>
+                accept="application/json,.json"
+            /></label>
           </div>
-          <section id="importReport" aria-label="Set import report" hidden></section>
-          <p class="muted">
-            Sets and lineages remain on this device. Recording streams to disk
-            where supported; memory fallback stops at 64 MB. Frame export
-            renders 120 deterministic 720p PNGs at 30 fps without audio. No
-            photosensitivity certification; no strobe feature is included.
+          <ul class="log" id="importReport"></ul>
+        </section>
+        <section class="panel prep-only" aria-label="Audio">
+          <h2>Audio</h2>
+          <div class="fields">
+            <label class="field"
+              ><span>Line input</span
+              ><select id="audioDevice"></select
+            ></label>
+          </div>
+          <div class="row" style="margin-top: 8px">
+            <button id="useInput" class="accent">Use input</button>
+            <label class="file"
+              >Rehearse with file<input
+                id="audioFile"
+                type="file"
+                accept="audio/*"
+            /></label>
+            <button id="useDemo">Demo beat</button>
+            <button id="audioOff">Off</button>
+            <label class="row"
+              ><input id="audioMute" type="checkbox" /> Mute file/demo</label
+            >
+          </div>
+          <p class="note">
+            Line input is analysed only and never sent to the speakers.
           </p>
+        </section>
+        <section class="panel prep-only" aria-label="Pre-show check">
+          <h2>Pre-show check</h2>
+          <div id="checks"></div>
+          <div class="row" style="margin-top: 8px">
+            <button id="pattern" aria-pressed="false">Framing pattern</button>
+          </div>
+        </section>
+        <section class="panel" aria-label="Messages">
+          <h2>Messages</h2>
+          <ul class="log" id="log"></ul>
         </section>
       </div>
     </main>
-    <footer>
-      PHOSPHOR · local-first desktop performance instrument · WebGL2 / Chromium
-      recommended · hardware rehearsal required before a show
-    </footer>
-    <dialog id="helpDialog">
-      <form method="dialog">
-        <h2>Performing Phosphor</h2>
-        <p>
-          1. Choose a family and authored preset. Drag the preview to paint.
-        </p>
-        <p>
-          2. Start demo audio or select a local line-in; map bands to controls.
-        </p>
-        <p>
-          3. Capture and arrange cues, then open clean output on your projector.
-        </p>
-        <p>
-          4. Play the score, GO manually, or enable Director. Save/export before
-          your show.
-        </p>
-        <dl>
-          <dt>Space</dt>
-          <dd>Inject / recover blackout</dd>
-          <dt>P</dt>
-          <dd>Pause visuals and cue clock</dd>
-          <dt>B</dt>
-          <dd>Blackout (fade)</dd>
-          <dt>Escape</dt>
-          <dd>Safe look when no dialog is open</dd>
-          <dt>Enter</dt>
-          <dd>GO / next cue (outside form controls)</dd>
-          <dt>Shift ← / →</dt>
-          <dd>Previous / next family</dd>
-          <dt>R</dt>
-          <dd>Reset seed</dd>
-          <dt>Ctrl/Cmd Z</dt>
-          <dd>Undo; Shift for redo</dd>
-        </dl>
-        <p>
-          Shortcuts are disabled while typing, selecting values, or a dialog is
-          open. B/P/R work after clicking buttons. Space activates a focused
-          button normally; focus the stage to inject.
-        </p>
-        <button>Close</button>
-      </form>
-    </dialog>
-    <div id="toast" class="toast" role="status" hidden></div>
-    <script type="module" src="app.js"></script>
+    <div class="toast" id="toast" hidden role="status"></div>
+    <script type="module" src="control.mjs"></script>
   </body>
 </html>

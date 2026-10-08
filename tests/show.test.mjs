@@ -115,3 +115,27 @@ test("crash snapshot restores clip, energy, shared controls and clock", () => {
   assert.equal(s.shared.zoom, 1.5);
   assert.ok(Math.abs(s.clock.bpm - 132) < 0.01);
 });
+
+test("stage faders tweak the live clip without changing the saved set", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
+  show.command({ type: "slot", index: 0 }, 0);
+  const key = Object.keys(show.live.clip.snapshot.params)[0];
+  const before = show.set.pages[0].slots[0].snapshot.params[key];
+  const [action] = show.command(
+    { type: "param", key, value: before + 0.01 },
+    0.1,
+  );
+  assert.equal(action.type, "params");
+  assert.equal(action.snapshot.params[key], before + 0.01);
+  assert.equal(show.set.pages[0].slots[0].snapshot.params[key], before);
+});
+
+test("audition plays an unsaved clip immediately", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
+  const clip = structuredClone(show.set.pages[0].slots[2]);
+  clip.name = "draft";
+  const [load] = show.command({ type: "audition", clip }, 0.3);
+  assert.equal(load.type, "load");
+  assert.equal(load.slot, -1);
+  assert.equal(show.status(0.3).live.slot, -1);
+});

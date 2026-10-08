@@ -12,13 +12,14 @@ test("HTML entrypoints walk nested, side-effect, re-export and literal dynamic i
     await mkdir(join(root, "nested"));
     const files = {
       "index.html": '<link href="./style.css?v=1"><script type="module" src="./main.mjs"></script>',
-      "output.html": '<script src="./output.mjs"></script>',
+      "stage.html": '<script src="./stage.mjs"></script>',
+      "beat-worklet.mjs": "export {};",
       "style.css": "body{}",
       "main.mjs": '// import "./absent-comment.mjs";\nconst text = \'import "./absent-string.mjs";\';\nimport "./nested/side.mjs"; export { x } from "./nested/value.mjs"; import("./lazy.mjs");',
       "nested/side.mjs": 'import { x } from "./value.mjs";',
       "nested/value.mjs": "export const x=1;",
       "lazy.mjs": "export default 1;",
-      "output.mjs": 'import "./main.mjs";',
+      "stage.mjs": 'import "./main.mjs";',
     };
     for (const [name, content] of Object.entries(files)) await writeFile(join(root, name), content);
     assert.deepEqual(await walkAssets(root), Object.keys(files).sort());
@@ -28,7 +29,7 @@ test("HTML entrypoints walk nested, side-effect, re-export and literal dynamic i
     const assets = ["./", ...Object.keys(files).map(name => `./${name}`)];
     const worker = list => `const REVISION="abcdef1234567890"; const ASSETS = ${JSON.stringify(list)};`;
     await writeFile(join(dist, "sw.js"), worker(assets));
-    assert.equal(await verifyDistribution(root, dist), 8);
+    assert.equal(await verifyDistribution(root, dist), 9);
     await writeFile(join(dist, "sw.js"), worker(assets.filter(name => name !== "./lazy.mjs")));
     await assert.rejects(verifyDistribution(root, dist), /not precached: lazy.mjs/);
     await writeFile(join(dist, "sw.js"), worker(assets));

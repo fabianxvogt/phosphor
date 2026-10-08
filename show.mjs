@@ -40,8 +40,14 @@ export class Show {
     return pool;
   }
 
-  #schedule(t, page, slot, quantize, fade) {
-    const clip = this.set.pages[page]?.slots[slot];
+  #schedule(
+    t,
+    page,
+    slot,
+    quantize,
+    fade,
+    clip = this.set.pages[page]?.slots[slot],
+  ) {
     if (!clip) return [];
     const now = this.clock.at(t);
     let at = now.beat;
@@ -90,6 +96,11 @@ export class Show {
         this.#manual(t);
         return this.#schedule(t, this.page, action.index, clip.quantize);
       }
+      case "audition":
+        // Prep: play an unsaved clip on the stage (page/slot -1).
+        if (!action.clip?.snapshot) return [];
+        this.#manual(t);
+        return this.#schedule(t, -1, -1, "now", action.clip.fade, action.clip);
       case "page":
         if (action.index >= 0 && action.index < this.set.pages.length)
           this.page = action.index;
@@ -144,6 +155,25 @@ export class Show {
       case "flash":
         this.flash = !!action.on;
         return [{ type: "flash", on: this.flash }];
+      case "param": {
+        // Live tweak of the playing clip from a stage fader. It changes the
+        // performance, not the saved clip.
+        if (!this.live) return [];
+        this.live = {
+          ...this.live,
+          clip: {
+            ...this.live.clip,
+            snapshot: {
+              ...this.live.clip.snapshot,
+              params: {
+                ...this.live.clip.snapshot.params,
+                [action.key]: action.value,
+              },
+            },
+          },
+        };
+        return [{ type: "params", snapshot: this.live.clip.snapshot }];
+      }
       case "shared": {
         for (const key of ["master", "hue", "zoom", "mirror"])
           if (Number.isFinite(action[key])) this.shared[key] = action[key];
