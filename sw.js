@@ -18,17 +18,41 @@ self.addEventListener("install", (event) => {
 });
 self.addEventListener("activate", (event) =>
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k.startsWith("phosphor-") && (!BUILT || k !== CACHE))
-            .map((k) => caches.delete(k)),
-        ),
-      ),
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => k.startsWith("phosphor-") && (!BUILT || k !== CACHE))
+          .map((k) => caches.delete(k)),
+      );
+      await self.clients.claim();
+    })(),
   ),
 );
+// Activate only from the sole remaining app window. Old control tabs can
+// otherwise keep running stale code and overwrite saved sets on unload.
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "activate-release" || !event.ports[0]) return;
+  event.waitUntil(
+    (async () => {
+      const clients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      const otherAppOpen = clients.some(
+        (client) =>
+          client.id !== event.source?.id &&
+          client.url.startsWith(self.registration.scope),
+      );
+      if (otherAppOpen) {
+        event.ports[0].postMessage({ blocked: true });
+        return;
+      }
+      await self.skipWaiting();
+      event.ports[0].postMessage({ ready: true });
+    })(),
+  );
+});
 self.addEventListener("fetch", (event) => {
   if (
     !BUILT ||

@@ -23,6 +23,7 @@ npm run preview   # http://localhost:48101 (built, offline-capable)
 ```
 
 Microphone, MIDI, the offline cache and screen placement need HTTPS or localhost.
+If an older offline release still shows **Enter Show mode** or **Prep: click a slot to edit it**, save your clip edits and open [Update Phosphor](https://phosphor-performance.vercel.app/update.html) in that same tab. Close the stage and any other Phosphor tabs/windows, keeping the updater open; click **Update and open Phosphor**. Saved sets are retained.
 
 ## Prepare and play
 

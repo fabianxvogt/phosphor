@@ -28,7 +28,7 @@ function moduleImports(text) {
 }
 
 // The beat worklet is loaded by audioWorklet.addModule(), not an import.
-export async function walkAssets(root, entries = ["index.html", "stage.html", "beat-worklet.mjs"]) {
+export async function walkAssets(root, entries = ["index.html", "stage.html", "update.html", "beat-worklet.mjs"]) {
   const visited = new Set();
   async function visit(file) {
     const path = resolve(root, file);

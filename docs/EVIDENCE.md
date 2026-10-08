@@ -2,6 +2,15 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-08 — Cached release blocked local controls and live grid clicks
+
+- `INCREMENTAL / EMPIRICAL`: the reported screenshots showed the older Show/Prep UI. Browser inspection found active cache `d68a4c606536af15`, whose `control.mjs` lacks the local-performance handler, alongside a newer waiting worker. Prior fresh-context smoke checks did not cover upgrading an existing offline client.
+- The exact historical release (`d9fb1de`) reproduced both failures after deploying new assets at the same origin: no-stage Blackout left preview peak RGB 223 instead of zero; clicking Cathedral left the stage on Pulse. No page errors, so exception-only checks could not catch the delivery failure.
+- The standalone updater is reachable through that legacy cache as a new path. It precaches the complete release, requests activation, then navigates only after activation and client claim. It does not clear saved sets or reload another window. The stage-blocking repro kept its original clip rendering. Independent reviews found that other legacy control tabs must also block activation: otherwise their unload handler could overwrite edits made in the new generation. The final guard admits only the requesting updater window.
+- Installed-Chrome checks on current controls measured actual pixels: Hue, Zoom, Mirror and Energy each changed the output; Master zero and Blackout were exact black; Freeze held pixels within one RGB level of temporal grain. Actual simulation speed measured approximately 1.01 / 0.50 / 1.97 for normal / half / double. Held Flash reached a rendered flash envelope of 0.986 and released; Safe look restored a non-black Interference render. Random off kept the renderer's authored snapshot; Random on glided it; Autopilot changed the rendered family to Pulse.
+- The multi-legacy-tab fixture exposed a pre-existing `renderDevices` exception when one old control received another old control's device request. This occurred before cutover in historical `control.mjs`; it is retained in the diagnostic output, not counted as an error of the updated client. New-generation page errors are checked separately.
+- Verification: 144 tests passed, four opt-in probes skipped; typecheck, build, distribution verification and formatting passed. These checks do not close the external-display endurance or real-DJ-mix gates.
+
 ## 2026-10-08 — Unified local/live controls and optional settings lock
 
 - `INCREMENTAL / EMPIRICAL`: local performance reuses `Show` and the existing editor renderer; all performer controls act without a stage. Opening the stage transfers the current performed snapshot, including unsaved parameter tweaks. Configuration remains visible and editable with a stage; **Lock settings** is optional, stage-only, and disables configuration without blocking grid triggers, performer controls, audition or export.

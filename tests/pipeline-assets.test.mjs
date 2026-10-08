@@ -13,6 +13,8 @@ test("HTML entrypoints walk nested, side-effect, re-export and literal dynamic i
     const files = {
       "index.html": '<link href="./style.css?v=1"><script type="module" src="./main.mjs"></script>',
       "stage.html": '<script src="./stage.mjs"></script>',
+      "update.html": '<script type="module" src="./update.mjs"></script>',
+      "update.mjs": 'export {};',
       "beat-worklet.mjs": "export {};",
       "style.css": "body{}",
       "main.mjs": '// import "./absent-comment.mjs";\nconst text = \'import "./absent-string.mjs";\';\nimport "./nested/side.mjs"; export { x } from "./nested/value.mjs"; import("./lazy.mjs");',
@@ -29,7 +31,7 @@ test("HTML entrypoints walk nested, side-effect, re-export and literal dynamic i
     const assets = ["./", ...Object.keys(files).map(name => `./${name}`)];
     const worker = list => `const REVISION="abcdef1234567890"; const ASSETS = ${JSON.stringify(list)};`;
     await writeFile(join(dist, "sw.js"), worker(assets));
-    assert.equal(await verifyDistribution(root, dist), 9);
+    assert.equal(await verifyDistribution(root, dist), 11);
     await writeFile(join(dist, "sw.js"), worker(assets.filter(name => name !== "./lazy.mjs")));
     await assert.rejects(verifyDistribution(root, dist), /not precached: lazy.mjs/);
     await writeFile(join(dist, "sw.js"), worker(assets));

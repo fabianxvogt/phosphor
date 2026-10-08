@@ -1224,8 +1224,8 @@ setInterval(() => {
   syncLocalDemo();
 }, 1000);
 
-// Offline cache: a new release waits until every Phosphor window is closed;
-// never update mid-show.
+// Releases remain pinned mid-show; the explicit updater checks for any other
+// Phosphor window before activating a complete cached generation.
 if ("serviceWorker" in navigator)
   navigator.serviceWorker
     .register("./sw.js")
@@ -1233,7 +1233,7 @@ if ("serviceWorker" in navigator)
       const notify = () => {
         if (registration.waiting && navigator.serviceWorker.controller)
           log(
-            "New release cached. Close all Phosphor windows after the show to update.",
+            "New release cached. Close the stage and other Phosphor tabs/windows, then open Update app in this tab; saved sets are retained.",
           );
       };
       notify();

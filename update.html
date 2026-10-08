@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Update Phosphor</title>
+    <link rel="stylesheet" href="control.css" />
+  </head>
+  <body>
+    <main style="display: block; max-width: 680px; margin: 40px auto">
+      <section class="panel">
+        <h1>Update Phosphor</h1>
+        <p>Install the latest controls without clearing your saved sets.</p>
+        <p>
+          Close other Phosphor tabs and windows, including the stage. Keep this
+          updater open; it will not interrupt another open Phosphor window.
+        </p>
+        <p id="updateStatus" role="status">Ready to check for an update.</p>
+        <button id="applyUpdate" class="accent">
+          Update and open Phosphor
+        </button>
+        <p><a href="./">Back to Phosphor</a></p>
+      </section>
+    </main>
+    <script type="module" src="update.mjs"></script>
+  </body>
+</html>
