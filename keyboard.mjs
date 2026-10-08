@@ -20,14 +20,14 @@ export function shortcutFor(event) {
     target?.isContentEditable ||
     target?.closest?.("textarea,select,[contenteditable]") ||
     (input && textTypes.has(input.type || "text"));
+  if (editing || event.helpOpen) return null;
   const key = event.key.toLowerCase();
   if (event.repeat) return null;
   if (event.ctrlKey || event.metaKey)
-    return key === "z" && !editing ? (event.shiftKey ? "redo" : "undo") : null;
+    return key === "z" ? (event.shiftKey ? "redo" : "undo") : null;
   if (event.altKey) return null;
   if (key === "b") return "blackout";
   if (key === "escape") return "safe";
-  if (editing || event.helpOpen) return null;
   if (key === "p") return "pause";
   if (key === "r") return "reset";
   if (

@@ -22,6 +22,21 @@ test("F3 panic keys work on sliders, checkboxes and colours; ranges keep native 
     null,
   );
   assert.equal(shortcutFor({ key: "p", target: target("text") }), null);
-  assert.equal(shortcutFor({ key: "b", target: target("text") }), "blackout");
-  assert.equal(shortcutFor({ key: "Escape", helpOpen: true }), "safe");
+  assert.equal(shortcutFor({ key: "b", target: target("text") }), null);
+  assert.equal(shortcutFor({ key: "Escape", helpOpen: true }), null);
+});
+test("R1 text entry, select type-ahead and open Help keep native B/Escape", () => {
+  for (const element of [
+    target("text"),
+    target("number"),
+    target(undefined, "TEXTAREA"),
+    target(undefined, "SELECT"),
+    { isContentEditable: true },
+  ]) {
+    for (const key of ["b", "Escape"])
+      assert.equal(shortcutFor({ key, target: element }), null);
+  }
+  for (const key of ["b", "Escape", "p"])
+    assert.equal(shortcutFor({ key, helpOpen: true }), null);
+  assert.equal(shortcutFor({ key: "z", ctrlKey: true, helpOpen: true }), null);
 });

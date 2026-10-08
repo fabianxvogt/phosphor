@@ -565,135 +565,141 @@ function bSnapshot(value, index, preset, scenes, cue) {
   const limits = id === "tapestry" ? 8 : 6;
   if (!Number.isInteger(preset) || preset < 0 || preset >= limits)
     throw new Error("Unknown B preset");
-  const old = cue?.sceneParamsSnapshot || value.params[id];
-  if (!record(old)) throw new Error(`B parameters missing for ${id}`);
-  for (const [key, bounds] of Object.entries(bBounds[id]))
-    finite(old[key], ...bounds, `${id}.${key}`);
   const snapshot = presetSnapshot(
     scene,
     Math.min(preset, scene.presets.length - 1),
   );
-  let updates;
-  switch (id) {
-    case "acid":
-      updates = {
-        feed: 0.018 + old.growth * 0.026,
-        kill: 0.045 + (1 - old.growth) * 0.02,
-        speed: 0.25 + old.growth * 0.75,
-        diffusion: old.diffusion,
-        injection: old.injection,
-        contrast: old.contrast,
-      };
-      break;
-    case "tapestry":
-      updates = {
-        rule: old.rule,
-        scroll: old.scroll * 60,
-        weave: old.weave,
-        playback: old.reversal > 0.5 ? -1 : 1,
-        phrase: Math.round(old.phrase * 4),
-      };
-      break;
-    case "feedback":
-      updates = {
-        persistence: old.decay,
-        zoom: old.transform * 4,
-        rotation: old.transform * 12,
-        symmetry: old.symmetry,
-        injection: old.injection,
-        aperture: 0.12 + old.tunnel * 0.78,
-      };
-      break;
-    case "magnetic":
-      updates = {
-        flow: old.split > 0.65 ? 1 : old.trail > 0.9 ? 2 : 0,
-        motion: old.motion * 2,
-        density: old.density,
-        trails: 0.2 + ((old.trail - 0.72) / 0.26) * 2.8,
-        radius: 0.12 + old.attractor * 0.26,
-        curl: old.attractor * 1.4,
-        separation: 0.14 + old.split * 0.5,
-        weave: old.split,
-      };
-      break;
-    case "cathedrals":
-      updates = {
-        geometry: old.family,
-        journey: old.journey,
-        recursion: old.recursion,
-        scale: old.scale,
-        speed: old.stationary > 0.5 ? 0 : old.traversal * 1.5,
-        material: Math.round(old.material * 5),
-        glow: 0.1 + old.emission * 1.4,
-      };
-      break;
-    case "aquarium":
-      updates = {
-        population: Math.round(old.population * 12),
-        dynamics: (1 - old.extinction) * 1.6,
-        feeding: old.feeding,
-        habitat: old.habitat,
-        form: old.bloom,
-        flow: old.food * 1.5,
-        trails: old.trails,
-      };
-      break;
-    case "interference":
-      updates = {
-        composition: preset % 6,
-        fields: Math.max(
-          1,
-          [old.fieldA, old.fieldB, old.fieldC].filter((v) => v > 0.25).length,
-        ),
-        ratio: old.ratio,
-        phase: old.phase,
-        orientation: old.orientation * 180,
-        palette: old.phase,
-        motion: old.frequency / 4,
-        beatLock: old.tempoLock,
-      };
-      break;
-    case "topology":
-      updates = {
-        family: [3, 0, 1, 2][Math.round(old.family)],
-        thickness: 0.018 + old.thickness * 0.122,
-        duration: 4 + (1 - old.loop) * 86,
-        phase: old.keyframe,
-        yaw: old.camera * 360 - 180,
-        material: Math.round(old.material * 5),
-        motion: old.twist,
-      };
-      break;
-    case "phase":
-      updates = {
-        coupling: old.coupling * 6,
-        noise: old.disturbance,
-        speed: old.tempo * 3,
-        disturbance: old.disturbance * 2,
-        detuning: (1 - old.release) * 2,
-        winding: old.regime,
-        coherence: old.control,
-        arc: old.arc + 1,
-      };
-      break;
-    case "evolution":
-      updates = {
-        feed: 0.025 + old.mutation * 0.023,
-        prune: 0.051 + old.lineage * 0.014,
-        spread: 0.35 + old.focus * 0.3,
-        planting: 3 + old.generation,
-        petals: old.mutation,
-        sway: old.focus,
-        glow: 0.35 + old.lineage * 1.3,
-        growth: 0.2 + old.mutation * 1.3,
-      };
-      break;
-  }
-  for (const field of scene.schema) {
-    if (updates[field.key] === undefined) continue;
-    let next = Math.max(field.min, Math.min(field.max, updates[field.key]));
-    if (field.step === 1) next = Math.round(next);
-    snapshot.params[field.key] = next;
+  const old = cue
+    ? (cue.sceneParamsSnapshot ??
+      (id === "evolution" ? cue.paramsSnapshot : undefined))
+    : value.params[id];
+  // Snapshot-less cues play their own preset, not the export-time live look.
+  if (!cue || old !== undefined) {
+    if (!record(old)) throw new Error(`B parameters missing for ${id}`);
+    for (const [key, bounds] of Object.entries(bBounds[id]))
+      finite(old[key], ...bounds, `${id}.${key}`);
+    let updates;
+    switch (id) {
+      case "acid":
+        updates = {
+          feed: 0.018 + old.growth * 0.026,
+          kill: 0.045 + (1 - old.growth) * 0.02,
+          speed: 0.25 + old.growth * 0.75,
+          diffusion: old.diffusion,
+          injection: old.injection,
+          contrast: old.contrast,
+        };
+        break;
+      case "tapestry":
+        updates = {
+          rule: old.rule,
+          scroll: old.scroll * 60,
+          weave: old.weave,
+          playback: old.reversal > 0.5 ? -1 : 1,
+          phrase: Math.round(old.phrase * 4),
+        };
+        break;
+      case "feedback":
+        updates = {
+          persistence: old.decay,
+          zoom: old.transform * 4,
+          rotation: old.transform * 12,
+          symmetry: old.symmetry,
+          injection: old.injection,
+          aperture: 0.12 + old.tunnel * 0.78,
+        };
+        break;
+      case "magnetic":
+        updates = {
+          flow: old.split > 0.65 ? 1 : old.trail > 0.9 ? 2 : 0,
+          motion: old.motion * 2,
+          density: old.density,
+          trails: 0.2 + ((old.trail - 0.72) / 0.26) * 2.8,
+          radius: 0.12 + old.attractor * 0.26,
+          curl: old.attractor * 1.4,
+          separation: 0.14 + old.split * 0.5,
+          weave: old.split,
+        };
+        break;
+      case "cathedrals":
+        updates = {
+          geometry: old.family,
+          journey: old.journey,
+          recursion: old.recursion,
+          scale: old.scale,
+          speed: old.stationary > 0.5 ? 0 : old.traversal * 1.5,
+          material: Math.round(old.material * 5),
+          glow: 0.1 + old.emission * 1.4,
+        };
+        break;
+      case "aquarium":
+        updates = {
+          population: Math.round(old.population * 12),
+          dynamics: (1 - old.extinction) * 1.6,
+          feeding: old.feeding,
+          habitat: old.habitat,
+          form: old.bloom,
+          flow: old.food * 1.5,
+          trails: old.trails,
+        };
+        break;
+      case "interference":
+        updates = {
+          composition: preset % 6,
+          fields: Math.max(
+            1,
+            [old.fieldA, old.fieldB, old.fieldC].filter((v) => v > 0.25).length,
+          ),
+          ratio: old.ratio,
+          phase: old.phase,
+          orientation: old.orientation * 180,
+          palette: old.phase,
+          motion: old.frequency / 4,
+          beatLock: old.tempoLock,
+        };
+        break;
+      case "topology":
+        updates = {
+          family: [3, 0, 1, 2][Math.round(old.family)],
+          thickness: 0.018 + old.thickness * 0.122,
+          duration: 4 + (1 - old.loop) * 86,
+          phase: old.keyframe,
+          yaw: old.camera * 360 - 180,
+          material: Math.round(old.material * 5),
+          motion: old.twist,
+        };
+        break;
+      case "phase":
+        updates = {
+          coupling: old.coupling * 6,
+          noise: old.disturbance,
+          speed: old.tempo * 3,
+          disturbance: old.disturbance * 2,
+          detuning: (1 - old.release) * 2,
+          winding: old.regime,
+          coherence: old.control,
+          arc: old.arc + 1,
+        };
+        break;
+      case "evolution":
+        updates = {
+          feed: 0.025 + old.mutation * 0.023,
+          prune: 0.051 + old.lineage * 0.014,
+          spread: 0.35 + old.focus * 0.3,
+          planting: 3 + old.generation,
+          petals: old.mutation,
+          sway: old.focus,
+          glow: 0.35 + old.lineage * 1.3,
+          growth: 0.2 + old.mutation * 1.3,
+        };
+        break;
+    }
+    for (const field of scene.schema) {
+      if (updates[field.key] === undefined) continue;
+      let next = Math.max(field.min, Math.min(field.max, updates[field.key]));
+      if (field.step === 1) next = Math.round(next);
+      snapshot.params[field.key] = next;
+    }
   }
   snapshot.palette = {
     ...(cue?.paletteSnapshot ||
@@ -743,10 +749,10 @@ function migrateB(value, scenes) {
     ) || base.cues[0].snapshot;
   base.options.reducedMotion = value.options?.reducedMotion === true;
   base.options.brightness = value.options?.brightness ?? 0.92;
-  base.options.quality =
-    { native: "high", 1080: "high", 720: "balanced", 540: "low" }[
-      value.options?.quality
-    ] || "balanced";
+  const qualityTiers = { native: "high", 1080: "balanced", 720: "low" };
+  base.options.quality = Object.hasOwn(qualityTiers, value.options?.quality)
+    ? qualityTiers[value.options.quality]
+    : "balanced";
   const effects = value.options?.effects;
   if (effects) {
     base.options.echo = effects.echo;

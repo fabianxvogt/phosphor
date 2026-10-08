@@ -1,4 +1,25 @@
 import { breedLineage, selectNode } from "./evolution.mjs";
+export async function runGuarded(
+  action,
+  { clearError, onError },
+  clearStaleError = false,
+) {
+  try {
+    const result = await action();
+    if (clearStaleError) clearError();
+    return result;
+  } catch (error) {
+    onError(error);
+  }
+}
+export function restoredQuality(previous, next, recording) {
+  return recording ? previous.options.quality : next.options.quality;
+}
+export function clockNeedsUI(event, cueIndex) {
+  return Boolean(
+    event.start || event.stop || event.resume || cueIndex !== null,
+  );
+}
 export function manualOverrideUI(transport, render) {
   if (transport.manual()) render();
 }

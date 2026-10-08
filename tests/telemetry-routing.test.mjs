@@ -77,3 +77,44 @@ test("engine F1 governor uses display budget and hysteresis for downgrade/upgrad
     assert.equal(governor.assess(33.4, "balanced"), null);
   assert.equal(governor.assess(33.4, "balanced"), "high");
 });
+test("R4 undrained telemetry retains only the latest 4096 samples with cumulative drop counts", () => {
+  const telemetry = new Telemetry();
+  const engine = {
+    slots: [{ warmTicks: 0 }],
+    blackout: 1,
+    stats: () => ({ slots: 1, textures: 5 }),
+  };
+  for (let i = 0; i < 5000; i++) {
+    telemetry.cueRequested(i);
+    telemetry.blackoutRequested();
+    telemetry.presented(i + 0.5, i + 1, engine);
+  }
+  const drain = () =>
+    telemetry.drain(
+      5000,
+      { options: { quality: "balanced" } },
+      { playing: true, currentCue: 0 },
+      new Governor(),
+      engine,
+    );
+  const first = drain();
+  for (const name of [
+    "frameIntervalsMs",
+    "cuePrepMs",
+    "blackoutLatencyFrames",
+  ]) {
+    assert.equal(first[name].length, 4096);
+    assert.equal(first.droppedSamples[name], 904);
+  }
+  assert.equal(first.frameIntervalsMs[0], 905);
+  assert.equal(first.frameIntervalsMs.at(-1), 5000);
+  assert.equal(first.cuePrepMs[0], 0.5);
+  assert.equal(first.blackoutLatencyFrames[0], 1);
+  const empty = drain();
+  assert.deepEqual(empty.frameIntervalsMs, []);
+  assert.deepEqual(empty.cuePrepMs, []);
+  assert.deepEqual(empty.blackoutLatencyFrames, []);
+  assert.deepEqual(empty.droppedSamples, first.droppedSamples);
+  telemetry.presented(5001, 16, engine);
+  assert.deepEqual(drain().frameIntervalsMs, [16]);
+});

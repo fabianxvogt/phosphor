@@ -54,3 +54,23 @@ test("F8 clean pagehide cannot overwrite another tab; stale storage blocks autos
   persistence.flush(session);
   assert.equal(storage.getItem(SET_KEY), "other-tab");
 });
+test("R10 flush failures notify persistence's error state without losing dirty changes", () => {
+  const failure = new Error("Quota exceeded");
+  const notices = [];
+  const persistence = new Persistence(
+    {
+      getItem: () => null,
+      setItem: () => {
+        throw failure;
+      },
+    },
+    scenes,
+    (state, error) => notices.push({ state, error }),
+  );
+  persistence.dirty = true;
+  assert.doesNotThrow(() =>
+    assert.equal(persistence.flush(initialSession(scenes)), false),
+  );
+  assert.deepEqual(notices, [{ state: "error", error: failure }]);
+  assert.equal(persistence.dirty, true);
+});

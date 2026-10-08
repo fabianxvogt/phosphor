@@ -17,6 +17,9 @@ import { Governor } from "./governor.mjs";
 import { Telemetry } from "./telemetry.mjs";
 import { createCapture } from "./ui-capture.mjs";
 import {
+  runGuarded,
+  restoredQuality,
+  clockNeedsUI,
   manualOverrideUI,
   selectedDevice,
   numberValue,
@@ -55,14 +58,15 @@ function clearError() {
     clearTimeout(toastTimer);
   }
 }
-async function guard(action) {
-  try {
-    const result = await action();
-    clearError();
-    return result;
-  } catch (error) {
-    toast(error.message || String(error), "error");
-  }
+function guard(action, clearStaleError = false) {
+  return runGuarded(
+    action,
+    {
+      clearError,
+      onError: (error) => toast(error.message || String(error), "error"),
+    },
+    clearStaleError,
+  );
 }
 let session = initialSession(scenes),
   engine;
@@ -105,7 +109,7 @@ const capture = createCapture({
   getSession: () => session,
   toast,
   download,
-  flush: () => guard(() => persistence.flush(session)),
+  flush: () => persistence.flush(session),
 });
 const midiEdges = new Map(),
   locked = new Set();
@@ -166,6 +170,11 @@ function undoEdit(reverse = false) {
   const previous = session;
   const next = history.restore(session, reverse);
   if (!next) return;
+  const quality = restoredQuality(previous, next, capture.recording);
+  if (quality !== next.options.quality) {
+    next.options.quality = quality;
+    toast("Stop recording before changing output dimensions", "error");
+  }
   session = validateSession(next, scenes);
   transport.restore(session.cues, ids);
   engine.options = session.options;
@@ -740,11 +749,14 @@ function safeLook() {
 function handleClock(event) {
   if (!$("clockInput").checked) return;
   const requestedAt = performance.now();
-  realizeCue(transport.clock(event, requestedAt, session.cues), requestedAt);
-  $("pauseButton").textContent = transport.paused
-    ? "Resume visuals"
-    : "Pause visuals";
-  deferUI();
+  const cueIndex = transport.clock(event, requestedAt, session.cues);
+  realizeCue(cueIndex, requestedAt);
+  if (clockNeedsUI(event, cueIndex)) {
+    $("pauseButton").textContent = transport.paused
+      ? "Resume visuals"
+      : "Pause visuals";
+    deferUI();
+  }
 }
 function handleMidi(message) {
   for (const action of route(message, session.midi, midiEdges, midiLearn)) {
@@ -1132,11 +1144,11 @@ function wire() {
         "phosphor-set-v2.json",
       );
       toast("Exported phosphor-set-v2.json");
-    });
+    }, true);
   $("importInput").onchange = (event) => {
     const file = event.target.files[0];
     event.target.value = "";
-    guard(() => importSet(file));
+    guard(() => importSet(file), true);
   };
   $("captureButton").onclick = () => guard(capture.capture);
   $("recordButton").onclick = () => guard(capture.toggleRecord);

@@ -107,7 +107,13 @@ export class Persistence {
   }
   flush(session) {
     this.timers.clearTimeout(this.timer);
-    if (this.dirty && !this.blocked) return this.save(session);
+    if (this.dirty && !this.blocked) {
+      try {
+        return this.save(session);
+      } catch (error) {
+        this.notify("error", error);
+      }
+    }
     return false;
   }
   externalChange(event) {

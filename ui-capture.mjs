@@ -8,6 +8,7 @@ export function createCapture({
   toast,
   download,
   flush,
+  createRenderer = (canvas) => new Engine(canvas, scenes),
 }) {
   let recording = null,
     exporting = false,
@@ -174,14 +175,15 @@ export function createCapture({
         { create: true },
       );
       $("cancelExportButton").hidden = false;
-      renderer = new Engine(canvas, scenes);
+      $("exportProgress").hidden = false;
+      renderer = createRenderer(canvas);
       renderer.resize(1280, 720);
       renderer.options = state.options;
       renderer.mappings = [];
       renderer.load(state.snapshot, 0);
       renderer.beat = 0;
       while (renderer.slots.at(-1).warmTicks > 0 && !cancelled) {
-        $("saveReadout").textContent = "Preparing scene for frame export";
+        $("exportProgress").textContent = "Preparing scene for frame export";
         renderer.advance(0, true);
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
@@ -196,7 +198,7 @@ export function createCapture({
         await stream.write(await png(canvas));
         await stream.close();
         completedFrames++;
-        $("saveReadout").textContent = `Rendering frame ${i + 1} / 120`;
+        $("exportProgress").textContent = `Rendering frame ${i + 1} / 120`;
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
       const handle = await dir.getFileHandle("phosphor-sequence.json", {
@@ -231,6 +233,8 @@ export function createCapture({
       renderer?.dispose();
       exporting = false;
       $("cancelExportButton").hidden = true;
+      $("exportProgress").hidden = true;
+      $("exportProgress").textContent = "";
       flush();
     }
   }
