@@ -16,7 +16,7 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 
 ## Now (2026-10-08)
 
-Platform for the first show is implemented on `main` and waits for rig verification: stage renderer and remote control, keyboard grid and pages, Show/Prep, tap/downbeat/nudge, energy and shared beat responses, flash limiter, crash restore, pre-show check, telemetry, cover-crop, bar-count autopilot, failed-family isolation and the ray-step-first governor ([decisions D44–D48](docs/DECISIONS.md#follow-up-interview-2026-10-08)). Group 1 families are in parallel lanes; group 2 follows. Owner inputs pending: 5–10 recorded mixes in `~/Development/phosphor-mixes`, family sign-offs, rig runs with the external display.
+Platform for the first show is implemented on `main` and waits for rig verification: stage renderer and remote control, keyboard grid and pages, Show/Prep, tap/downbeat/nudge, energy and shared beat responses, flash limiter, crash restore, pre-show check, telemetry, cover-crop, bar-count autopilot with the Random default mode (D49, D50), failed-family isolation and the ray-step-first governor ([decisions D44–D50](docs/DECISIONS.md#follow-up-interview-2026-10-08)). All four group 1 families have sign-off packets with technical checks and rig timing passed and **await owner art sign-off**; group 2 is in lanes. Owner inputs pending: 5–10 recorded mixes in `~/Development/phosphor-mixes`, family sign-offs, rig runs with the external display.
 
 ## Milestone 1 — first show
 
@@ -63,7 +63,7 @@ Every family below is a draft until it passes (D47). Packets: `docs/families/<id
 | 1 | Feedback Chapel | [packet](docs/families/feedback.md): types, ladder, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
 | 1 | Causal Tapestry | [packet](docs/families/tapestry.md): four types pass within the family; Cascade has cross-family near pairs (nearest Melt 0.138), the other three are clear; ladder, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
 | 1 | Cathedrals of Error | [packet](docs/families/cathedral.md): four types pass within the family; Crystals and Roses have cross-family near pairs (0.224–0.245), Vaults and Folded are clear; ladder at 64 ray steps, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
-| 1 | Interference Rituals | in lane |
+| 1 | Interference Rituals | [packet](docs/families/interference.md): six compositions consolidated into three distinct types (no near pair within or across families); ladder, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
 | 2 | Pulse Geometry, Fractal Flight | in lanes |
 | 3 | Melt, Acid (+ garden type) | draft |
 | 4 | Light Beams, Particle Swarm | draft |
