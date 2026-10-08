@@ -1,5 +1,5 @@
-// Portable show set, format v4 (D57, D59): pages of a 4×8 clip grid,
-// library palettes, shared mixer controls, autopilot and clock settings.
+// Portable show set, format v4 (D57–D59): pages of a 4×8 clip grid,
+// library palettes, transitions, shared mixer controls, autopilot and clock settings.
 // Older linear scores migrate through v2 and v3 before entering this format.
 import {
   presetSnapshot,
@@ -15,6 +15,7 @@ export const FORMAT = "phosphor-set-v4";
 export const PAGES = 8;
 export const SLOTS = 32; // 4 rows × 8 columns
 export const QUANTIZE = ["beat", "bar", "now"];
+export const TRANSITIONS = ["auto", "crossfade", "cut", "dissolve", "melt"];
 export const SPEEDS = [0.5, 1, 2];
 export const AUTOPILOT_BARS = [16, 32, 64];
 export const PIXEL_BUDGETS = [0.5, 1, 2.1]; // megapixels
@@ -63,7 +64,7 @@ export const DEFAULT_SHARED = Object.freeze({
 
 export function clipFrom(
   snapshot,
-  { id, name, energy = 0.5, palette = "custom" } = {},
+  { id, name, energy = 0.5, palette = "custom", transition = "auto" } = {},
 ) {
   return {
     id,
@@ -75,6 +76,7 @@ export function clipFrom(
     palette,
     energy,
     fade: 4,
+    transition,
     quantize: "beat",
     autopilot: true,
   };
@@ -181,6 +183,11 @@ function validateClip(value, scenes, ids) {
     palette,
     energy: finite(value.energy, 0, 1, "Clip energy"),
     fade: finite(value.fade, 0, 32, "Clip fade beats"),
+    transition: oneOf(
+      value.transition === undefined ? "auto" : value.transition,
+      TRANSITIONS,
+      "Clip transition",
+    ),
     quantize: oneOf(value.quantize, QUANTIZE, "Clip quantize"),
     autopilot: value.autopilot !== false,
   };

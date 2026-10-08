@@ -49,6 +49,33 @@ test("local preview receives every energy-post ceiling on set edits", () => {
   assert.equal(engine.options.flashLimit, true);
 });
 
+test("local preview passes resolved clip transitions to the engine", () => {
+  const show = makeShow();
+  const calls = [];
+  const engine = {
+    setLevel() {},
+    load(snapshot, seconds, options) {
+      calls.push({ snapshot, seconds, options });
+    },
+  };
+  const preview = Object.assign(Object.create(ControlPreview.prototype), {
+    show,
+    engine,
+  });
+  for (const transition of ["crossfade", "cut", "dissolve", "melt"]) {
+    const action = {
+      type: "load",
+      snapshot: show.safeSnapshot,
+      fadeSeconds: 2,
+      energy: 0.7,
+      transition,
+    };
+    preview.apply([action]);
+    assert.equal(calls.at(-1).options.transition, transition);
+    assert.equal(calls.at(-1).seconds, 2);
+  }
+});
+
 test("control↔stage handoff preserves palette colours and finishes an in-flight glide", () => {
   const control = makeShow();
   control.command({ type: "slot", index: 0 }, 0);

@@ -42,6 +42,58 @@ test("a press just after the beat fires immediately", () => {
   assert.equal(loads(show.command({ type: "slot", index: 0 }, 1.02)).length, 1);
 });
 
+test("manual auto resolves to eased crossfade; authored smooth transitions reach load actions", () => {
+  for (const transition of ["auto", "crossfade", "dissolve", "melt"]) {
+    const show = makeShow((set) => {
+      set.autopilot.enabled = false;
+      Object.assign(set.pages[0].slots[1], {
+        transition,
+        quantize: "now",
+        fade: 4,
+      });
+    });
+    const [action] = loads(show.command({ type: "slot", index: 1 }, 0.3));
+    assert.equal(
+      action.transition,
+      transition === "auto" ? "crossfade" : transition,
+    );
+    assert.equal(action.fadeSeconds, 2);
+  }
+});
+
+test("manual cuts wait for the downbeat regardless of clip quantization and ignore fade", () => {
+  for (const quantize of ["now", "beat", "bar"]) {
+    const show = makeShow((set) => {
+      set.autopilot.enabled = false;
+      Object.assign(set.pages[0].slots[1], {
+        transition: "cut",
+        quantize,
+        fade: 8,
+      });
+    });
+    assert.deepEqual(loads(show.command({ type: "slot", index: 1 }, 0.3)), []);
+    assert.deepEqual(loads(show.tick(0.5)), [], "a beat is not a downbeat");
+    assert.deepEqual(loads(show.tick(1.99)), []);
+    const [action] = loads(show.tick(2));
+    assert.equal(action.transition, "cut");
+    assert.equal(action.fadeSeconds, 0);
+  }
+});
+
+test("autopilot's resolved smooth transition survives scheduling a clip authored as cut", () => {
+  const show = makeShow((set) => {
+    set.autopilot.everyBars = 16;
+    set.autopilot.random = false;
+    for (const clip of set.pages[0].slots)
+      if (clip) Object.assign(clip, { transition: "cut", fade: 0 });
+  });
+  show.begin(0);
+  show.tick(0);
+  const [action] = loads(show.tick(32));
+  assert.equal(action.transition, "crossfade");
+  assert.equal(action.fadeSeconds, 4);
+});
+
 test("a trigger keeps the show energy instead of the clip's stored value (D54)", () => {
   const show = makeShow((set) => {
     set.autopilot.enabled = false;

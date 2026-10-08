@@ -74,6 +74,7 @@ export function restorePerformance(show, state, t) {
         type: "load",
         snapshot: clip.snapshot,
         fadeSeconds: 0,
+        transition: "crossfade",
         energy: state.runtime.energy,
         baseEnergy: clip.energy,
       });
@@ -182,6 +183,7 @@ export class ControlPreview {
           this.engine.setLevel(action.energy, action.fadeSeconds ?? 0);
           this.engine.load(action.snapshot, action.fadeSeconds ?? 0.4, {
             energy: action.baseEnergy ?? action.energy,
+            transition: action.transition,
             flashExempt: action.type === "safe",
           });
           break;

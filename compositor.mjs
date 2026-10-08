@@ -8,6 +8,46 @@ export function postCurve(energy, start = 0) {
   return t * t * (3 - 2 * t);
 }
 
+// Shared by the picture and bloom passes, so highlights follow the same
+// transition mask. Melt history is the outgoing, ungraded picture only.
+const transitionShader = `
+uniform highp sampler2D a,b,history;
+uniform bool singleSlot,hasHistory;
+uniform int transitionKind;
+uniform float mixAmount,transitionTime,transitionDelta;
+uniform float aspectA,aspectB,targetAspect;
+vec2 cover(vec2 uv,float aspect) {
+  return (uv-.5)*vec2(min(1.,targetAspect/aspect),min(1.,aspect/targetAspect))+.5;
+}
+float dissolveNoise(vec2 p) {
+  vec2 cell=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(hash(cell),hash(cell+vec2(1.,0.)),f.x),
+    mix(hash(cell+vec2(0.,1.)),hash(cell+vec2(1.,1.)),f.x),f.y);
+}
+vec3 outgoingAt(vec2 uv) {
+  if(transitionKind!=2 || !hasHistory) return texture(a,cover(uv,aspectA)).rgb;
+  float stepTime=transitionDelta*sin(PI*mixAmount);
+  vec2 p=(uv-.5)*vec2(targetAspect,1.);
+  p=rot2(stepTime*.28)*p/(1.+stepTime*.24);
+  p+=stepTime*.06*vec2(sin(p.y*9.+transitionTime*1.7),
+    cos(p.x*8.-transitionTime*1.3));
+  vec2 q=p/vec2(targetAspect,1.)+.5;
+  q=1.-abs(1.-mod(q,2.));
+  return texture(history,q).rgb;
+}
+vec3 sceneAt(vec2 uv) {
+  vec3 c=outgoingAt(uv);
+  if(singleSlot) return c;
+  float amount=smoothstep(0.,1.,mixAmount);
+  if(transitionKind==1) {
+    vec2 p=(uv-.5)*vec2(targetAspect,1.)*34.;
+    float noise=dissolveNoise(p+vec2(transitionTime*.8,-transitionTime*.55));
+    // Threshold extends past the noise range for exact, clean endpoints.
+    amount=smoothstep(noise-.065,noise+.065,mixAmount*1.13-.065);
+  }
+  return mix(c,texture(b,cover(uv,aspectB)).rgb,amount);
+}
+`;
 const colorSpace = `
 vec3 linearRGB(vec3 c) { return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c)); }
 vec3 displayRGB(vec3 c) { c=max(c,vec3(0.)); return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(vec3(.0031308),c)); }
@@ -15,16 +55,11 @@ vec3 displayRGB(vec3 c) { c=max(c,vec3(0.)); return mix(c*12.92,1.055*pow(c,vec3
 export const compositeShader =
   shaderHeader +
   colorSpace +
+  transitionShader +
   `
-uniform highp sampler2D a,b,glow,history;
-uniform bool singleSlot,hasHistory,raw,historyOnly;
-// Cover-crop each slot whose frame aspect differs from the target (D7):
-// fixed-aspect families render 16:9 frames that are cropped to the screen.
-uniform float aspectA,aspectB,targetAspect;
-vec2 cover(vec2 uv,float aspect) {
-  return (uv-.5)*vec2(min(1.,targetAspect/aspect),min(1.,aspect/targetAspect))+.5;
-}
-uniform float mixAmount,brightness,blackout,bloom,kaleido,echo,chroma,grain,vignette;
+uniform highp sampler2D glow;
+uniform bool raw,historyOnly;
+uniform float brightness,blackout,bloom,kaleido,echo,chroma,grain,vignette;
 uniform float hue,zoom,punch,pulse,flash;
 uniform vec2 resolution;
 // Shared view transform: zoom (with the beat punch), mirror-repeat when
@@ -40,11 +75,6 @@ vec3 hueRotate(vec3 c,float turns) {
     dot(c,vec3(.213+.787*co-.213*si,.715-.715*co-.715*si,.072-.072*co+.928*si)),
     dot(c,vec3(.213-.213*co+.143*si,.715+.285*co+.140*si,.072-.072*co-.283*si)),
     dot(c,vec3(.213-.213*co-.787*si,.715-.715*co+.715*si,.072+.928*co+.072*si))));
-}
-vec3 sceneAt(vec2 uv) {
-  vec3 c=texture(a,cover(uv,aspectA)).rgb;
-  if (!singleSlot) c=mix(c,texture(b,cover(uv,aspectB)).rgb,mixAmount);
-  return c;
 }
 vec2 foldedUV(vec2 uv) {
   if(kaleido>1.) {
@@ -73,6 +103,7 @@ vec3 chromaTint(vec3 c,float angle) {
     dot(c,vec3(.213-.213*co-.787*si,.715-.715*co+.715*si,.072+.928*co+.072*si))),0.,1.);
 }
 void main() {
+  if(historyOnly && transitionKind==2){outColor=vec4(outgoingAt(v_uv),1.);return;}
   if(raw){outColor=vec4(sceneAt(v_uv),1.);return;}
   vec3 c=effectedAt(v_uv);
   if(historyOnly){emit(vec4(c,1.));return;}
@@ -107,18 +138,13 @@ void main() {
 `;
 const bloomShader =
   shaderHeader +
+  transitionShader +
   `
-uniform highp sampler2D source,a,b;
+uniform highp sampler2D source;
 uniform int mode;
-uniform bool singleSlot;
-uniform float mixAmount,aspectA,aspectB,targetAspect;
-vec2 cover(vec2 uv,float aspect) {
-  return (uv-.5)*vec2(min(1.,targetAspect/aspect),min(1.,aspect/targetAspect))+.5;
-}
 vec3 sampleAt(vec2 uv) {
   if(mode!=0) return texture(source,uv).rgb;
-  vec3 c=texture(a,cover(uv,aspectA)).rgb;
-  if(!singleSlot)c=mix(c,texture(b,cover(uv,aspectB)).rgb,mixAmount);
+  vec3 c=sceneAt(uv);
   float peak=max(c.r,max(c.g,c.b));
   // A .8 highlight threshold with a .4 soft knee: HDR values keep their
   // excess radiance through the float pyramid instead of clipping at one.
@@ -269,6 +295,8 @@ export class Compositor {
     this.echoTarget = null;
     this.echoNextTarget = null;
     this.echoValid = false;
+    this.meltTransition = null;
+    this.meltElapsed = 0;
     this.displayValid = false;
     this.canvasValid = false;
     this.blackoutActive = false;
@@ -291,6 +319,8 @@ export class Compositor {
     this.echoNextTarget = null;
     this.echoValid = this.displayValid = false;
     this.canvasValid = false;
+    this.meltTransition = null;
+    this.meltElapsed = 0;
   }
   texture(program, name, unit, target) {
     const gl = this.gl;
@@ -310,6 +340,30 @@ export class Compositor {
       b = last.visual[last.vi];
     this.texture(program, "a", 0, a);
     this.texture(program, "b", 1, b);
+    this.texture(program, "history", 3, this.echoTarget || a);
+    if (u.hasHistory != null)
+      gl.uniform1i(u.hasHistory, this.echoValid ? 1 : 0);
+    if (u.transitionKind != null)
+      gl.uniform1i(
+        u.transitionKind,
+        e.transition?.kind === "dissolve"
+          ? 1
+          : e.transition?.kind === "melt"
+            ? 2
+            : 0,
+      );
+    if (u.transitionTime != null)
+      gl.uniform1f(u.transitionTime, e.transition?.elapsed ?? 0);
+    if (u.transitionDelta != null)
+      gl.uniform1f(
+        u.transitionDelta,
+        Math.max(
+          0,
+          Math.min(0.1, (e.transition?.elapsed ?? 0) - this.meltElapsed),
+        ),
+      );
+    if (u.u_seedBits != null)
+      gl.uniform1ui(u.u_seedBits, last.snapshot.seed >>> 0);
     if (u.aspectA != null) gl.uniform1f(u.aspectA, a.w / a.h);
     if (u.aspectB != null) gl.uniform1f(u.aspectB, b.w / b.h);
     if (u.targetAspect != null)
@@ -355,19 +409,30 @@ export class Compositor {
       gl = this.gl,
       p = this.program,
       u = p.uniforms;
+    const melt = e.transition?.kind === "melt";
+    if (melt && this.meltTransition !== e.transition) {
+      this.meltTransition = e.transition;
+      this.meltElapsed = 0;
+      this.echoValid = false;
+    } else if (!melt && this.meltTransition) {
+      this.meltTransition = null;
+      this.echoValid = false;
+    }
     const level = raw ? 0 : e.finite(e.level ?? 0.5, 0.5);
     const bloom = raw
       ? 0
       : e.finite(e.options.bloom ?? 0.15, 0) * postCurve(level, 0.1);
-    const echo = raw
-      ? 0
-      : e.finite(e.options.echo ?? 0, 0) * postCurve(level, 0.15);
-    const glow = bloom > 0 ? this.bloom() : e.slots[0].visual[e.slots[0].vi];
-    if (echo > 0.01 && !this.echoTarget) {
+    // The same two history targets serve echo and melt, never both at once.
+    const echo =
+      raw || melt
+        ? 0
+        : e.finite(e.options.echo ?? 0, 0) * postCurve(level, 0.15);
+    if ((echo > 0.01 || melt) && !this.echoTarget) {
       this.echoTarget = this.target(e.width, e.height);
       this.echoNextTarget = this.target(e.width, e.height);
     }
-    if (echo <= 0.01) this.echoValid = false;
+    if (echo <= 0.01 && !melt) this.echoValid = false;
+    const glow = bloom > 0 ? this.bloom() : e.slots[0].visual[e.slots[0].vi];
     e.bind(p, target);
     this.scenes(p, target);
     this.texture(p, "glow", 2, glow);
@@ -413,7 +478,7 @@ export class Compositor {
     gl.uniform1ui(u.u_tick, e.renderTick);
     gl.uniform1ui(u.u_seedBits, e.slots.at(-1).snapshot.seed >>> 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
-    if (echo > 0.01 && !raw) {
+    if ((echo > 0.01 || melt) && !raw) {
       e.bind(p, this.echoNextTarget);
       gl.uniform1i(u.historyOnly, 1);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -421,6 +486,7 @@ export class Compositor {
       this.echoTarget = this.echoNextTarget;
       this.echoNextTarget = previous;
       this.echoValid = true;
+      if (melt) this.meltElapsed = e.transition.elapsed;
     }
   }
   mean(target) {

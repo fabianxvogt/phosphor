@@ -81,6 +81,7 @@ function apply(actions) {
         if (
           engine.load(a.snapshot, a.fadeSeconds, {
             energy: a.baseEnergy ?? a.energy,
+            transition: a.transition,
           }) === false
         )
           isolate(a.snapshot.scene);

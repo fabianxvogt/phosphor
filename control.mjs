@@ -13,6 +13,7 @@ import {
   addMissingFamilies,
   SLOTS,
   QUANTIZE,
+  TRANSITIONS,
   AUTOPILOT_BARS,
   PIXEL_BUDGETS,
   MIDI_TARGETS,
@@ -763,6 +764,23 @@ function renderEditor() {
     onchange: () =>
       (draft.fade = Math.max(0, Math.min(32, Number(fade.value) || 0))),
   });
+  const transition = el(
+    "select",
+    { onchange: () => (draft.transition = transition.value) },
+    ...TRANSITIONS.map((kind) =>
+      el("option", {
+        value: kind,
+        textContent: {
+          auto: "Auto",
+          crossfade: "Crossfade",
+          cut: "Cut (downbeat, manual only)",
+          dissolve: "Noise dissolve",
+          melt: "Feedback melt",
+        }[kind],
+        selected: kind === (draft.transition ?? "auto"),
+      }),
+    ),
+  );
   const quantize = el(
     "select",
     { onchange: () => (draft.quantize = quantize.value) },
@@ -793,6 +811,7 @@ function renderEditor() {
       : []),
     energy,
     field("Fade (beats)", fade),
+    field("Transition", transition),
     field("Starts on", quantize),
     field("Autopilot may play", autopilot),
   );

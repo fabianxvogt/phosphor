@@ -6,7 +6,7 @@
 // Random mode (owner direction 2026-10-08, default on): regular changes pick
 // a random clip and the live clip's parameters drift smoothly; off, changes
 // walk the page in slot order and parameters stay put. Autopilot changes
-// always crossfade.
+// are always smooth: context chooses a transition, never a hard cut (D50, D58).
 import { PALETTES, paletteById } from "./palettes.mjs";
 
 const HISTORY = 6;
@@ -69,6 +69,7 @@ export class Autopilot {
     this.handBackBars = handBackBars;
     this.random = rng(seed);
     this.paletteRandom = rng(seed ^ 0x50414c);
+    this.transitionRandom = rng(seed ^ 0x545241);
     this.nextPalette = null;
     this.paletteHistory = [];
     this.nextChange = null;
@@ -185,6 +186,16 @@ export class Autopilot {
     return from[Math.floor(this.random() * from.length)];
   }
 
+  #transition(clip, event) {
+    const requested = clip.transition ?? "auto";
+    if (requested === "cut") return "crossfade";
+    if (requested !== "auto") return requested;
+    if (event === "drop") return "melt";
+    if (this.breakdownSince !== null)
+      return this.transitionRandom() < 0.5 ? "melt" : "dissolve";
+    return "crossfade";
+  }
+
   // Called once per clock update. Returns actions for the show.
   // event: "build" | "drop" | "breakdown" | null (from loudness analysis).
   update({
@@ -223,6 +234,7 @@ export class Autopilot {
         slot: choice.slot,
         fade,
         quantize: "bar",
+        transition: this.#transition(choice.clip, event),
       });
       this.played(choice.clip.id);
       this.nextChange = bar + this.everyBars;

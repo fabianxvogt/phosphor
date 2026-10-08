@@ -105,6 +105,34 @@ test("v4 round-trips through JSON unchanged", () => {
   );
 });
 
+test("v4 clip transitions default to auto and round-trip every authored choice", () => {
+  const old = initialShowSet(scenes);
+  for (const page of old.pages)
+    for (const clip of page.slots) if (clip) delete clip.transition;
+  const original = structuredClone(old);
+  const defaulted = parseShowSet(JSON.parse(JSON.stringify(old)), scenes).set;
+  for (const page of defaulted.pages)
+    for (const clip of page.slots)
+      if (clip) assert.equal(clip.transition, "auto");
+  assert.deepEqual(old, original, "defaulting does not mutate the source");
+  for (const transition of ["auto", "crossfade", "cut", "dissolve", "melt"]) {
+    const set = initialShowSet(scenes);
+    set.pages[0].slots[0].transition = transition;
+    assert.deepEqual(
+      parseShowSet(JSON.parse(JSON.stringify(set)), scenes).set,
+      set,
+    );
+  }
+});
+
+test("unknown or non-string clip transitions are rejected", () => {
+  for (const transition of ["wipe", "", null, 0, false, {}]) {
+    const set = initialShowSet(scenes);
+    set.pages[0].slots[0].transition = transition;
+    assert.throws(() => validateShowSet(set, scenes), /Clip transition/);
+  }
+});
+
 test("older v4 sets default grain/vignette without changing any existing field", () => {
   const old = initialShowSet(scenes);
   delete old.options.grain;
@@ -153,6 +181,7 @@ test("v3 migration preserves every clip and set field, including hand-set colour
     for (const [s, clip] of page.slots.entries()) {
       if (!clip) continue;
       delete clip.palette;
+      delete clip.transition;
       clip.name = `Authored ${p}:${s}`;
       clip.snapshot.seed = 1000 + p * SLOTS + s;
       clip.snapshot.palette = {
@@ -208,6 +237,8 @@ test("v3 migration preserves every clip and set field, including hand-set colour
       if (!clip) continue;
       assert.equal(clip.palette, "custom");
       delete clip.palette;
+      assert.equal(clip.transition, "auto");
+      delete clip.transition;
     }
   }
   assert.deepEqual(roundTrip, original);

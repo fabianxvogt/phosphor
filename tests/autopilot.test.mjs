@@ -90,7 +90,7 @@ test("manual input takes over and control returns after the hand-back", () => {
   assert.ok(triggers.includes(42));
 });
 
-test("drop crossfades fast to a higher-energy clip; breakdown lowers energy and halves speed", () => {
+test("drop melts fast to a higher-energy clip; breakdown lowers energy and halves speed", () => {
   const log = play(new Autopilot({ everyBars: 64 }), 40, {
     events: { 4: "breakdown", 20: "drop" },
   });
@@ -108,6 +108,7 @@ test("drop crossfades fast to a higher-energy clip; breakdown lowers energy and 
   assert.ok(lift && Math.abs(lift.value - 0.8) < 1e-9);
   const trigger = drop.find((a) => a.type === "trigger");
   assert.ok(trigger && trigger.fade === 4); // smooth, never a hard cut
+  assert.equal(trigger.transition, "melt");
   assert.ok(pool[trigger.slot].clip.energy >= 0.5);
 });
 
@@ -169,6 +170,59 @@ test("in-order mode walks the page in slot order and never drifts", () => {
     [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3],
   );
   assert.ok(!log.some((a) => a.type === "drift"));
+});
+
+test("auto uses crossfade normally, both smooth breakdown choices, and one-bar melt on drops (D58)", () => {
+  const log = play(new Autopilot({ everyBars: 16, seed: 5 }), 100, {
+    events: { 4: "breakdown", 90: "drop" },
+  }).filter((action) => action.type === "trigger");
+  assert.equal(log[0].transition, "crossfade");
+  const breakdowns = log.filter((action) => action.bar > 4 && action.bar < 90);
+  assert.deepEqual(
+    new Set(breakdowns.map((action) => action.transition)),
+    new Set(["melt", "dissolve"]),
+  );
+  assert.ok(breakdowns.every((action) => action.fade >= 8));
+  const drop = new Autopilot({ seed: 5 })
+    .update({ bar: 90, pool, current: pool[0], energy: 0.5, event: "drop" })
+    .find((action) => action.type === "trigger");
+  assert.equal(drop.transition, "melt");
+  assert.equal(drop.fade, 4);
+});
+
+test("autopilot honours smooth clip choices but never cuts, including breakdowns and drops (D50)", () => {
+  for (const transition of ["crossfade", "dissolve", "melt", "cut"]) {
+    const choices = pool.map((entry) => ({
+      ...entry,
+      clip: { ...entry.clip, transition, fade: 0 },
+    }));
+    const pilot = new Autopilot({ everyBars: 16, seed: 9 });
+    let current = null;
+    const triggers = [];
+    for (let bar = 0; bar < 100; bar++) {
+      const event = bar === 4 ? "breakdown" : bar === 70 ? "drop" : null;
+      for (const action of pilot.update({
+        bar,
+        pool: choices,
+        current,
+        energy: 0.5,
+        event,
+      }))
+        if (action.type === "trigger") {
+          triggers.push(action);
+          current = choices[action.slot];
+        }
+    }
+    assert.ok(triggers.length > 3);
+    assert.ok(
+      triggers.every(
+        (action) =>
+          action.transition ===
+            (transition === "cut" ? "crossfade" : transition) &&
+          action.fade >= 4,
+      ),
+    );
+  }
 });
 
 test("no drift while a performer has taken over", () => {

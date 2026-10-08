@@ -31,7 +31,7 @@ export class Show {
     this.live = null; // { page, slot, clip, base } — base: authored params
     this.drift = null; // { keys, from, to, t0, seconds } while params glide
     this.scenes = new Map(scenes.map((s) => [s.id, s]));
-    this.pending = null; // { page, slot, clip, at, fade }
+    this.pending = null; // { page, slot, clip, at, fade, transition }
     this.energy = 0.5;
     this.palette = null; // library ID or custom colours; the glide's target
     this.paletteColors = null; // actual colours currently on screen
@@ -153,8 +153,15 @@ export class Show {
     fade,
     clip = this.set.pages[page]?.slots[slot],
     adoptPalette = true,
+    transition = clip?.transition === "auto"
+      ? "crossfade"
+      : (clip?.transition ?? "crossfade"),
   ) {
     if (!clip || this.disabled.has(clip.snapshot.scene)) return [];
+    if (transition === "cut") {
+      quantize = "bar";
+      fade = 0;
+    }
     const now = this.clock.at(t);
     let at = now.beat;
     if (quantize === "beat") {
@@ -171,6 +178,7 @@ export class Show {
       at,
       fade: fade ?? clip.fade,
       adoptPalette,
+      transition,
     };
     return this.#fire(t);
   }
@@ -210,6 +218,7 @@ export class Show {
         type: "load",
         snapshot: this.live.clip.snapshot,
         fadeSeconds: (p.fade * 60) / now.bpm,
+        transition: p.transition,
         energy: this.energy,
         // Authored at the clip's stored energy: the family's energy curves
         // move parameters from there to the show energy.
@@ -257,7 +266,16 @@ export class Show {
       ? from[Math.floor(this.autopilot.random() * from.length)]
       : from[0];
     if (fresh) this.energy = pick.clip.energy;
-    return this.#schedule(t, this.page, pick.slot, "now", 0, pick.clip, fresh);
+    return this.#schedule(
+      t,
+      this.page,
+      pick.slot,
+      "now",
+      0,
+      pick.clip,
+      fresh,
+      "crossfade",
+    );
   }
 
   // Random mode: glide the live clip's continuous parameters (never its type
@@ -309,12 +327,22 @@ export class Show {
         0,
         here.clip,
         false,
+        "crossfade",
       );
     if (!this.disabled.has(this.safeSnapshot.scene)) return [this.safe(t)];
     for (let page = 0; page < this.set.pages.length; page++) {
       const any = pick(page);
       if (any)
-        return this.#schedule(t, page, any.slot, "now", 0, any.clip, false);
+        return this.#schedule(
+          t,
+          page,
+          any.slot,
+          "now",
+          0,
+          any.clip,
+          false,
+          "crossfade",
+        );
     }
     this.blackout = true;
     return [{ type: "blackout", on: true }];
@@ -462,6 +490,7 @@ export class Show {
               a.fade,
               undefined,
               false,
+              a.transition,
             ),
           );
         else if (a.type === "energy") {
@@ -609,6 +638,7 @@ export class Show {
         type: "load",
         snapshot: this.live.clip.snapshot,
         fadeSeconds: 0,
+        transition: "crossfade",
         energy: this.energy,
         baseEnergy: clip.energy,
         page: saved.live.page,

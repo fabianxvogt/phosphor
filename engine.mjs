@@ -538,6 +538,7 @@ export class Engine {
     if (!scene) throw new Error("Unknown scene");
     this.compileScene(scene);
     if (this.programs.get(scene.id)?.error) return false;
+    if (opts?.transition === "cut") seconds = 0;
     this.flashExempt =
       opts?.flashExempt === true && seconds > 0 && this.slots.length > 0;
     if (this.lost) {
@@ -565,9 +566,22 @@ export class Engine {
     slot.baseLevel = Number.isFinite(opts?.energy) ? opts.energy : this.level;
     this.slots.push(slot);
     this.active = slot.snapshot;
-    if (this.slots.length === 2 && seconds > 0)
-      this.transition = { elapsed: 0, duration: seconds };
-    else {
+    if (this.slots.length === 2 && seconds > 0) {
+      this.transition = {
+        elapsed: 0,
+        duration: seconds,
+        kind:
+          opts?.transition === "dissolve" || opts?.transition === "melt"
+            ? opts.transition
+            : "crossfade",
+      };
+      // Melt transports a captured outgoing picture; shading or simulating
+      // that old family again cannot affect its feedback history.
+      if (this.transition.kind === "melt") {
+        this.slots[0].frozen = true;
+        this.slots[0].warmTicks = 0;
+      }
+    } else {
       while (this.slots.length > 1) this.destroySlot(this.slots.shift());
       this.transition = null;
       this.flashExempt = false;
