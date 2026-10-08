@@ -7,10 +7,11 @@ import { SLOTS } from "./show-set.mjs";
 
 const LATE = 0.1; // a press this soon after a beat or bar line fires on it
 const ENERGY_STEP = 0.1;
+const DRIFT_SPAN = 0.12; // drift targets stay within ±12 % of each range
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
 export class Show {
-  constructor({ set, safeSnapshot, now = 0, seed = 1 }) {
+  constructor({ set, safeSnapshot, scenes = [], now = 0, seed = 1 }) {
     this.set = set;
     this.safeSnapshot = safeSnapshot;
     this.clock = new ShowClock({
@@ -21,7 +22,9 @@ export class Show {
     });
     this.autopilot = new Autopilot({ ...set.autopilot, seed });
     this.page = 0;
-    this.live = null; // { page, slot, clip }
+    this.live = null; // { page, slot, clip, base } — base: authored params
+    this.drift = null; // { keys, from, to, t0, seconds } while params glide
+    this.scenes = new Map(scenes.map((s) => [s.id, s]));
     this.pending = null; // { page, slot, clip, at, fade }
     this.energy = 0.5;
     this.speed = 1;
@@ -72,7 +75,13 @@ export class Show {
     const now = this.clock.at(t);
     if (now.beat + 1e-9 < p.at) return [];
     this.pending = null;
-    this.live = { page: p.page, slot: p.slot, clip: p.clip };
+    this.live = {
+      page: p.page,
+      slot: p.slot,
+      clip: p.clip,
+      base: p.clip.snapshot.params,
+    };
+    this.drift = null;
     this.energy = p.clip.energy;
     this.autopilot.played(p.clip.id);
     return [
@@ -92,6 +101,50 @@ export class Show {
     this.autopilot.manual(this.clock.at(t).bar);
   }
 
+  // First picture on a fresh stage (not a performer action): a random
+  // autopilot clip in Random mode, else the page's first clip.
+  begin(t) {
+    const pool = this.#pool();
+    const allowed = pool.filter((p) => p.clip.autopilot);
+    const from = allowed.length ? allowed : pool;
+    if (!from.length)
+      return [{ type: "safe", snapshot: this.safeSnapshot, energy: 0.15 }];
+    const pick = this.autopilot.randomMode
+      ? from[Math.floor(this.autopilot.random() * from.length)]
+      : from[0];
+    return this.#schedule(t, this.page, pick.slot, "now", 0);
+  }
+
+  // Random mode: glide the live clip's continuous parameters (never its type
+  // or stepped fields) to a random target near its authored values. The
+  // set's clip stays untouched; the glide works on a private copy.
+  #startDrift(t, bars, bpm) {
+    const scene = this.live && this.scenes.get(this.live.clip.snapshot.scene);
+    if (!scene) return;
+    if (!this.live.own)
+      this.live = {
+        ...this.live,
+        clip: structuredClone(this.live.clip),
+        own: true,
+      };
+    const params = this.live.clip.snapshot.params;
+    const keys = [],
+      from = [],
+      to = [];
+    for (const field of scene.schema) {
+      if (field.key === scene.type?.key || field.step >= 1) continue;
+      if (!(field.max > field.min)) continue;
+      const span = (field.max - field.min) * DRIFT_SPAN;
+      const target =
+        this.live.base[field.key] + (this.autopilot.random() * 2 - 1) * span;
+      keys.push(field.key);
+      from.push(params[field.key]);
+      to.push(Math.max(field.min, Math.min(field.max, target)));
+    }
+    if (keys.length)
+      this.drift = { keys, from, to, t0: t, seconds: (bars * 4 * 60) / bpm };
+  }
+
   // A family whose shaders failed is never scheduled again. If it is on
   // screen, cut to a playable clip on this page, else the safe look, else
   // any playable clip; with nothing playable left, black out.
@@ -99,7 +152,7 @@ export class Show {
     if (this.disabled.has(id)) return [];
     this.disabled.add(id);
     if (this.pending?.clip.snapshot.scene === id) this.pending = null;
-    if (this.live?.clip.snapshot.scene === id) this.live = null;
+    if (this.live?.clip.snapshot.scene === id) this.live = this.drift = null;
     if (!onScreen) return [];
     const pick = (page) => {
       const pool = this.#pool(page);
@@ -180,6 +233,11 @@ export class Show {
         this.set.autopilot.enabled = this.autopilot.enabled;
         if (this.autopilot.enabled) this.autopilot.manualUntil = -Infinity;
         return [];
+      case "random":
+        this.autopilot.randomMode = action.on ?? !this.autopilot.randomMode;
+        this.set.autopilot.random = this.autopilot.randomMode;
+        if (!this.autopilot.randomMode) this.drift = null;
+        return [];
       case "freeze":
         this.freeze = action.on ?? !this.freeze;
         return [{ type: "freeze", on: this.freeze }];
@@ -190,6 +248,7 @@ export class Show {
         // Live tweak of the playing clip from a stage fader. It changes the
         // performance, not the saved clip.
         if (!this.live) return [];
+        this.drift = null; // the performer's fader wins over a glide
         this.live = {
           ...this.live,
           clip: {
@@ -246,11 +305,18 @@ export class Show {
         } else if (a.type === "speed") {
           this.speed = a.value;
           actions.push({ type: "speed", value: a.value });
-        } else if (a.type === "mirror") {
-          this.shared.mirror = a.value;
-          actions.push({ type: "shared", shared: { ...this.shared } });
-        }
+        } else if (a.type === "drift") this.#startDrift(t, a.bars, now.bpm);
       }
+    }
+    if (this.drift && this.live) {
+      const d = this.drift;
+      const x = Math.min(1, Math.max(0, (t - d.t0) / d.seconds));
+      const k = x * x * (3 - 2 * x);
+      const params = this.live.clip.snapshot.params;
+      for (let i = 0; i < d.keys.length; i++)
+        params[d.keys[i]] = d.from[i] + (d.to[i] - d.from[i]) * k;
+      if (x >= 1) this.drift = null;
+      actions.push({ type: "params", snapshot: this.live.clip.snapshot });
     }
     return actions;
   }
@@ -277,6 +343,7 @@ export class Show {
       flash: this.flash,
       autopilot: {
         enabled: this.autopilot.enabled,
+        random: this.autopilot.randomMode,
         active: this.autopilot.active(clock.bar),
         handBackIn: Math.max(0, this.autopilot.manualUntil - clock.bar),
         nextChangeIn:
@@ -328,7 +395,12 @@ export class Show {
     const clip =
       saved.live && this.set.pages[saved.live.page]?.slots[saved.live.slot];
     if (clip) {
-      this.live = { page: saved.live.page, slot: saved.live.slot, clip };
+      this.live = {
+        page: saved.live.page,
+        slot: saved.live.slot,
+        clip,
+        base: clip.snapshot.params,
+      };
       actions.unshift({
         type: "load",
         snapshot: clip.snapshot,

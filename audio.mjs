@@ -36,7 +36,7 @@ export class AudioEngine {
     this.ceiling = 0.1;
     this.lastOnset = 0;
     this.previousEnergy = 0;
-    this.tempo = 92;
+    this.tempo = 120; // demo beat (the default source on a fresh stage)
     this.voices = new Set();
     this.noise = null;
   }

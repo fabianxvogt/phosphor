@@ -11,14 +11,19 @@ import {
   SLOTS,
 } from "../show-set.mjs";
 
-test("initial v3 set validates and fills page 1 with authored looks", () => {
+test("initial v3 set validates; page 1 holds every family, the rest follow", () => {
   const set = validateShowSet(initialShowSet(scenes), scenes);
   assert.equal(set.pages.length, PAGES);
   assert.ok(set.pages.every((p) => p.slots.length === SLOTS));
-  const filled = set.pages[0].slots.filter(Boolean);
-  assert.ok(filled.length >= 20);
-  assert.equal(new Set(filled.map((c) => c.id)).size, filled.length);
-  assert.ok(set.pages.slice(1).every((p) => p.slots.every((c) => c === null)));
+  const families = new Set(
+    set.pages[0].slots.filter(Boolean).map((c) => c.snapshot.scene),
+  );
+  assert.equal(families.size, scenes.length);
+  const all = set.pages.flatMap((p) => p.slots).filter(Boolean);
+  assert.equal(new Set(all.map((c) => c.id)).size, all.length);
+  assert.ok(all.length <= scenes.length * 3);
+  assert.ok(set.autopilot.enabled && set.autopilot.random);
+  assert.equal(set.clock.manualBpm, 120);
 });
 
 test("v3 round-trips through JSON unchanged", () => {

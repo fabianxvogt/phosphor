@@ -91,7 +91,7 @@ test("manual input takes over and control returns after the hand-back", () => {
   assert.ok(triggers.includes(42));
 });
 
-test("drop cuts to a higher-energy clip; breakdown lowers energy and halves speed", () => {
+test("drop crossfades fast to a higher-energy clip; breakdown lowers energy and halves speed", () => {
   const log = play(new Autopilot({ everyBars: 64 }), 40, {
     events: { 4: "breakdown", 20: "drop" },
   });
@@ -105,11 +105,11 @@ test("drop cuts to a higher-energy clip; breakdown lowers energy and halves spee
   const drop = at(20);
   assert.ok(drop.some((a) => a.type === "speed" && a.value === 1));
   const trigger = drop.find((a) => a.type === "trigger");
-  assert.ok(trigger && trigger.fade === 1);
+  assert.ok(trigger && trigger.fade === 4); // smooth, never a hard cut
   assert.ok(pool[trigger.slot].clip.energy >= 0.5);
 });
 
-test("never touches master, blackout, flash or page", () => {
+test("never touches master, mirror, blackout, flash or page", () => {
   const log = play(new Autopilot({ everyBars: 16, seed: 9 }), 2000, {
     events: Object.fromEntries(
       Array.from({ length: 100 }, (_, i) => [
@@ -120,5 +120,45 @@ test("never touches master, blackout, flash or page", () => {
   });
   const types = new Set(log.map((a) => a.type));
   for (const type of types)
-    assert.ok(["trigger", "energy", "speed", "mirror"].includes(type), type);
+    assert.ok(["trigger", "energy", "speed", "drift"].includes(type), type);
+});
+
+test("random mode: regular changes are random, crossfade at least two bars and drift between changes", () => {
+  const log = play(new Autopilot({ everyBars: 16, seed: 5 }), 16 * 40);
+  const triggers = log.filter((a) => a.type === "trigger");
+  assert.ok(triggers.every((a) => a.fade >= 8));
+  const steps = triggers.slice(1).map((a, i) => a.slot - triggers[i].slot);
+  assert.ok(
+    steps.some((s) => s !== 1 && s !== -7),
+    "not just page order",
+  );
+  assert.ok(new Set(triggers.map((a) => a.slot)).size === pool.length);
+  // Drift starts once the 2-bar fade is over, then every 8 bars.
+  const drifts = log.filter((a) => a.type === "drift").map((a) => a.bar);
+  assert.deepEqual(drifts.slice(0, 3), [2, 10, 18]);
+});
+
+test("in-order mode walks the page in slot order and never drifts", () => {
+  const log = play(new Autopilot({ everyBars: 16, random: false }), 16 * 12);
+  assert.deepEqual(
+    log.filter((a) => a.type === "trigger").map((a) => a.slot),
+    [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3],
+  );
+  assert.ok(!log.some((a) => a.type === "drift"));
+});
+
+test("no drift while a performer has taken over", () => {
+  const pilot = new Autopilot({ everyBars: 64, handBackBars: 32 });
+  const current = pool[2];
+  const drifts = [];
+  for (let bar = 0; bar < 80; bar++) {
+    if (bar === 20) pilot.manual(bar);
+    for (const a of pilot.update({ bar, pool, current, energy: 0.5 }))
+      if (a.type === "drift") drifts.push(bar);
+  }
+  assert.ok(drifts.length > 2);
+  assert.ok(
+    drifts.every((bar) => bar < 20 || bar >= 52),
+    drifts.join(),
+  );
 });

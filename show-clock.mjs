@@ -14,7 +14,7 @@ const clampBpm = (bpm) => Math.max(MIN_BPM, Math.min(MAX_BPM, bpm));
 const mod = (x, n) => ((x % n) + n) % n;
 
 export class ShowClock {
-  constructor({ bpm = 124, mode = "auto", latencyMs = 0, now = 0 } = {}) {
+  constructor({ bpm = 120, mode = "auto", latencyMs = 0, now = 0 } = {}) {
     this.mode = mode;
     this.latencyMs = latencyMs;
     this.base = 60 / clampBpm(bpm); // target seconds per beat

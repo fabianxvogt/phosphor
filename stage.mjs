@@ -37,6 +37,7 @@ const safeSnapshot = presetSnapshot(
 const show = new Show({
   set,
   safeSnapshot,
+  scenes,
   now: now(),
   seed: Date.now() >>> 0,
 });
@@ -138,19 +139,26 @@ apply([{ type: "shared", shared: { ...show.shared } }]);
 fit();
 const saved = loadRuntime(localStorage);
 if (saved) apply(show.restore(saved, now()));
-if (!engine.slots.length) {
-  const first = set.pages[show.page].slots.find(Boolean);
-  apply([
-    first
-      ? {
-          type: "load",
-          snapshot: first.snapshot,
-          fadeSeconds: 0,
-          energy: first.energy,
-        }
-      : { type: "safe", snapshot: safeSnapshot, energy: 0.15 },
-  ]);
+if (!engine.slots.length) apply(show.begin(now()));
+
+// Audio (D21). The last chosen source survives a reload; a fresh stage
+// starts on the demo beat at 120 BPM. Chrome keeps audio suspended until
+// the first click or key on this window; until then the picture pulses on
+// the show clock, which also starts at 120 BPM.
+let audioChoice = saved?.audio ?? { source: "demo" };
+let audioStart = null;
+function startAudio() {
+  audio.context?.resume().catch(() => {}); // inside a gesture this unblocks
+  audioStart ??= audio.use(audioChoice).catch((error) => {
+    audioStart = null;
+    post({ type: "error", message: `Audio: ${error.message}` });
+  });
+  return audioStart;
 }
+const runtime = (t) => ({ ...show.snapshot(t), audio: audioChoice });
+startAudio();
+for (const kind of ["pointerdown", "keydown"])
+  addEventListener(kind, startAudio, { capture: true });
 
 // --- frame loop ------------------------------------------------------------
 // Render at about 60 Hz whatever the display's refresh rate (pacer.mjs).
@@ -202,7 +210,7 @@ function frame(ms) {
   if (ms - lastStatus > 100) sendStatus(t, ms);
   if (ms - lastSave > 1000) {
     lastSave = ms;
-    saveRuntime(localStorage, show.snapshot(t));
+    saveRuntime(localStorage, runtime(t));
   }
 }
 function context() {
@@ -307,6 +315,7 @@ channel.onmessage = async ({ data }) => {
         show.set = next;
         show.autopilot.everyBars = next.autopilot.everyBars;
         show.autopilot.handBackBars = next.autopilot.handBackBars;
+        show.autopilot.randomMode = next.autopilot.random;
         if (show.page >= next.pages.length) show.page = 0;
         applyOptions(next.options);
         if (next.options.pixelBudget !== governor.budget) {
@@ -321,7 +330,17 @@ channel.onmessage = async ({ data }) => {
           show.clock.setManualBpm(t, data.bpm);
         break;
       case "audio":
-        await audio.use(data);
+        // A file cannot be reopened after a reload; the demo stands in.
+        audioChoice =
+          data.source === "file"
+            ? { source: "demo", muted: !!data.muted }
+            : {
+                source: data.source,
+                deviceId: data.deviceId ?? "",
+                muted: !!data.muted,
+              };
+        audioStart = audio.use(data);
+        await audioStart;
         break;
       case "devices":
         post({ type: "devices", devices: await audio.devices() });
@@ -373,12 +392,8 @@ $("start").onclick = async () => {
   } catch {}
   await awake();
   watchScreen();
-  try {
-    await audio.ensure();
-    started = true;
-  } catch (error) {
-    post({ type: "error", message: `Audio: ${error.message}` });
-  }
+  startAudio(); // this click lets the audio context run
+  started = true;
   $("overlay").hidden = true;
   post({ type: "stage-started" });
 };
@@ -390,7 +405,7 @@ document.addEventListener("fullscreenchange", () => {
 });
 addEventListener("resize", fit);
 addEventListener("pagehide", () => {
-  saveRuntime(localStorage, show.snapshot(now()));
+  saveRuntime(localStorage, runtime(now()));
   for (const track of previewTracks) track.stop();
   wake?.release();
   audio.dispose();

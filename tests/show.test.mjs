@@ -13,7 +13,12 @@ function makeShow(mutate) {
   set.clock.mode = "manual";
   set.clock.manualBpm = 120; // 0.5 s per beat, 2 s per bar
   mutate?.(set);
-  return new Show({ set: validateShowSet(set, scenes), safeSnapshot, now: 0 });
+  return new Show({
+    set: validateShowSet(set, scenes),
+    safeSnapshot,
+    scenes,
+    now: 0,
+  });
 }
 const loads = (actions) => actions.filter((a) => a.type === "load");
 
@@ -168,7 +173,9 @@ test("a failed family on screen cuts at once to a playable clip on the page", ()
 test("with the page unplayable the safe look takes over, then any page, then blackout", () => {
   const show = makeShow((set) => {
     set.autopilot.enabled = false;
-    const cathedral = set.pages[0].slots[6];
+    const cathedral = set.pages[0].slots.find(
+      (c) => c?.snapshot.scene === "cathedral",
+    );
     for (const page of set.pages)
       page.slots = page.slots.map((c) =>
         c?.snapshot.scene === "acid" ? c : null,
@@ -190,4 +197,87 @@ test("with the page unplayable the safe look takes over, then any page, then bla
     { type: "blackout", on: true },
   ]);
   assert.equal(show.blackout, true);
+});
+
+test("random mode glides the live clip's continuous parameters near its authored values", () => {
+  const show = makeShow((set) => (set.autopilot.everyBars = 64));
+  const actions = [];
+  for (let t = 0; t <= 60; t += 1 / 60) actions.push(...show.tick(t));
+  const live = show.status(60).live;
+  const clip = show.set.pages[live.page].slots[live.slot];
+  const scene = scenes.find((s) => s.id === clip.snapshot.scene);
+  const glide = actions.filter(
+    (a) => a.type === "params" && a.snapshot.scene === scene.id,
+  );
+  assert.ok(glide.length > 600, "params move every frame while drifting");
+  const drifting = scene.schema.filter(
+    (f) => f.key !== scene.type?.key && !(f.step >= 1) && f.max > f.min,
+  );
+  assert.ok(drifting.length);
+  const params = show.live.clip.snapshot.params;
+  let moved = false;
+  for (const f of scene.schema) {
+    const base = clip.snapshot.params[f.key];
+    if (!drifting.includes(f)) assert.equal(params[f.key], base, f.key);
+    else {
+      moved ||= params[f.key] !== base;
+      assert.ok(
+        Math.abs(params[f.key] - base) <= 0.12 * (f.max - f.min) + 1e-9,
+      );
+      assert.ok(params[f.key] >= f.min && params[f.key] <= f.max);
+    }
+  }
+  assert.ok(moved, "at least one parameter drifted");
+  assert.notEqual(show.live.clip, clip, "the set's clip is never modified");
+});
+
+test("a drift glide never jumps, and a stage fader stops it", () => {
+  const show = makeShow((set) => (set.autopilot.everyBars = 64));
+  let previous = null,
+    jump = 0;
+  for (let t = 0; t <= 40; t += 1 / 60)
+    for (const a of show.tick(t))
+      if (a.type === "params") {
+        const p = a.snapshot.params;
+        if (previous && previous.scene === a.snapshot.scene)
+          for (const k of Object.keys(p))
+            jump = Math.max(jump, Math.abs(p[k] - previous.params[k]));
+        previous = { scene: a.snapshot.scene, params: { ...p } };
+      }
+  const scene = scenes.find((s) => s.id === previous.scene);
+  const widest = Math.max(...scene.schema.map((f) => f.max - f.min));
+  assert.ok(jump < widest * 0.01, `largest per-frame step ${jump}`);
+  assert.ok(show.drift);
+  show.command({ type: "param", key: scene.schema[0].key, value: 0 }, 40);
+  assert.equal(show.drift, null);
+  assert.ok(!show.tick(40.02).some((a) => a.type === "params"));
+});
+
+test("random off: autopilot walks the page in order and parameters stay put", () => {
+  const show = makeShow((set) => {
+    set.autopilot.everyBars = 16;
+    set.autopilot.random = false;
+  });
+  const slots = [];
+  for (let t = 0; t <= 140; t += 1 / 30)
+    for (const a of show.tick(t)) {
+      assert.notEqual(a.type, "params");
+      if (a.type === "load") slots.push(a.slot);
+    }
+  assert.deepEqual(slots, [0, 1, 2, 3, 4]);
+  show.command({ type: "random" }, 140);
+  assert.equal(show.status(140).autopilot.random, true);
+  assert.equal(show.set.autopilot.random, true);
+});
+
+test("a fresh stage begins on a random autopilot clip; autopilot then waits a full period", () => {
+  const show = makeShow((set) => (set.autopilot.everyBars = 16));
+  const first = loads(show.begin(0));
+  assert.equal(first.length, 1);
+  assert.equal(first[0].fadeSeconds, 0);
+  assert.equal(show.status(0).live.slot, first[0].slot);
+  const later = [];
+  for (let t = 0; t < 40; t += 1 / 30) later.push(...loads(show.tick(t)));
+  assert.equal(later.length, 1);
+  assert.ok(later[0].fadeSeconds >= 4); // two bars at 120 BPM
 });

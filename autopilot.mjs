@@ -1,11 +1,17 @@
 // Autopilot (decision D15). Plays autopilot-allowed clips on the current
 // page, changes every N bars on a bar line, avoids the last six clips, and
 // reacts to loudness events. Manual input takes over; control returns after
-// `handBackBars` idle bars. It may change the clip, energy, speed trim and
-// mirror — never master, blackout, flash or page.
+// `handBackBars` idle bars. It may change the clip, energy and speed trim —
+// never master, mirror, blackout, flash or page (a mirror jump is not smooth).
+// Random mode (owner direction 2026-10-08, default on): regular changes pick
+// a random clip and the live clip's parameters drift smoothly; off, changes
+// walk the page in slot order and parameters stay put. Autopilot changes
+// always crossfade.
 
 const HISTORY = 6;
-const MIRRORS = [1, 1, 1, 2, 3, 4, 6];
+const FADE_BEATS = 8; // regular and breakdown changes: at least two bars
+const DROP_FADE_BEATS = 4; // drops land fast but never as a hard cut
+export const DRIFT_BARS = 8; // one parameter glide, then the next
 
 function rng(seed) {
   return () => {
@@ -19,15 +25,18 @@ function rng(seed) {
 export class Autopilot {
   constructor({
     enabled = true,
+    random = true,
     everyBars = 32,
     handBackBars = 32,
     seed = 1,
   } = {}) {
     this.enabled = enabled;
+    this.randomMode = random;
     this.everyBars = everyBars;
     this.handBackBars = handBackBars;
     this.random = rng(seed);
     this.nextChange = null;
+    this.nextDrift = null;
     this.manualUntil = -Infinity;
     this.history = [];
     this.breakdownSince = null;
@@ -72,6 +81,20 @@ export class Autopilot {
     return best;
   }
 
+  // Regular change: a random allowed clip not played recently (random mode)
+  // or the next allowed clip in page order.
+  #next(pool, current) {
+    const allowed = pool.filter(
+      (p) => p.clip.autopilot && p.clip.id !== current?.clip.id,
+    );
+    if (!allowed.length) return null;
+    if (!this.randomMode)
+      return allowed.find((p) => p.slot > (current?.slot ?? -1)) ?? allowed[0];
+    const fresh = allowed.filter((p) => !this.history.includes(p.clip.id));
+    const from = fresh.length ? fresh : allowed;
+    return from[Math.floor(this.random() * from.length)];
+  }
+
   // Called once per clock update. Returns actions for the show.
   // event: "build" | "drop" | "breakdown" | null (from loudness analysis).
   update({ bar, pool, current, energy, event = null }) {
@@ -92,6 +115,7 @@ export class Autopilot {
       });
       this.played(choice.clip.id);
       this.nextChange = bar + this.everyBars;
+      this.nextDrift = bar + Math.ceil(fade / 4); // drift once the fade is over
     };
     if (event === "build") {
       actions.push({
@@ -105,7 +129,7 @@ export class Autopilot {
       if (wasBreakdown) actions.push({ type: "speed", value: 1 });
       const choice = this.#pick(pool, current, Math.min(1, energy + 0.3));
       if (choice && choice.clip.energy >= (current?.clip.energy ?? 0))
-        trigger(choice, 1);
+        trigger(choice, DROP_FADE_BEATS);
       return actions;
     } else if (event === "breakdown" && this.breakdownSince === null) {
       this.breakdownSince = bar;
@@ -124,21 +148,24 @@ export class Autopilot {
     ) {
       this.calmerTaken = true;
       const choice = this.#pick(pool, current, Math.max(0, energy - 0.3));
-      if (choice) trigger(choice, choice.clip.fade);
+      if (choice) trigger(choice, Math.max(FADE_BEATS, choice.clip.fade));
       return actions;
     }
     if (this.nextChange === null)
       this.nextChange = current ? bar + this.everyBars : bar;
     if (bar >= this.nextChange) {
-      const choice = this.#pick(pool, current, energy);
+      const choice = this.#next(pool, current);
       if (choice) {
-        trigger(choice, choice.clip.fade);
-        if (this.random() < 0.25)
-          actions.push({
-            type: "mirror",
-            value: MIRRORS[Math.floor(this.random() * MIRRORS.length)],
-          });
-      } else this.nextChange = bar + this.everyBars;
+        trigger(choice, Math.max(FADE_BEATS, choice.clip.fade));
+        return actions;
+      }
+      this.nextChange = bar + this.everyBars;
+    }
+    // Random mode: the live clip's parameters glide to a new nearby target
+    // every DRIFT_BARS bars (the show computes and interpolates the target).
+    if (this.randomMode && current && bar >= (this.nextDrift ?? bar)) {
+      actions.push({ type: "drift", bars: DRIFT_BARS });
+      this.nextDrift = bar + DRIFT_BARS;
     }
     return actions;
   }

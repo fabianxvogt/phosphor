@@ -8,15 +8,22 @@ export class StageAudio {
     this.engine = new AudioEngine(onStatus);
     this.onStatus = onStatus;
     this.node = null;
+    this.ready = null; // one worklet setup, however many callers race
     this.tracker = null;
     this.source = "off";
   }
   get context() {
     return this.engine.context;
   }
-  async ensure() {
+  ensure() {
+    this.ready ??= this.#setup().catch((error) => {
+      this.ready = null;
+      throw error;
+    });
+    return this.ready;
+  }
+  async #setup() {
     await this.engine.start();
-    if (this.node) return;
     const context = this.engine.context;
     await context.audioWorklet.addModule(
       new URL("./beat-worklet.mjs", import.meta.url),
@@ -77,6 +84,6 @@ export class StageAudio {
   }
   dispose() {
     this.engine.dispose();
-    this.node = null;
+    this.node = this.ready = null;
   }
 }

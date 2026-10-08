@@ -144,6 +144,7 @@ channel.onmessage = ({ data }) => {
       // and autopilot; keep the set in step so a later edit doesn't undo them.
       set.shared = { ...data.status.shared };
       set.autopilot.enabled = data.status.autopilot.enabled;
+      set.autopilot.random = data.status.autopilot.random;
       renderStatus();
       break;
     case "stage-ready":
@@ -383,7 +384,7 @@ function renderStatus() {
   $("autopilotReadout").textContent = !ap.enabled
     ? "off"
     : ap.active
-      ? `on · next in ${ap.nextChangeIn ?? "—"} bars`
+      ? `${ap.random ? "random" : "in order"} · next in ${ap.nextChangeIn ?? "—"} bars`
       : `paused · back in ${ap.handBackIn} bars`;
   $("energyReadout").textContent = s.energy.toFixed(2);
   $("speedReadout").textContent = `${s.speed}×`;
@@ -399,6 +400,7 @@ function renderStatus() {
   $("freeze").ariaPressed = String(s.freeze);
   $("flash").ariaPressed = String(s.flash);
   $("autopilot").ariaPressed = String(ap.enabled);
+  $("random").ariaPressed = String(ap.random);
   $("half").ariaPressed = String(s.speed === 0.5);
   $("double").ariaPressed = String(s.speed === 2);
   const a = status.audio;
@@ -798,7 +800,10 @@ function preflight() {
       "Microphone permission granted for this site",
       micPermission === "granted",
     ],
-    ["Audio input has signal", !!a && a.source !== "off" && a.level > 0.02],
+    [
+      "Live audio input has signal (not the demo or a file)",
+      !!a && a.source === "input" && a.level > 0.02,
+    ],
     [
       "Beat tracker locked (or manual tempo set)",
       !!(a?.locked || status?.status.clock.mode === "manual"),
@@ -879,6 +884,7 @@ $("blackout").onclick = () => act({ type: "blackout" });
 $("safe").onclick = () => act({ type: "safe" });
 $("freeze").onclick = () => act({ type: "freeze" });
 $("autopilot").onclick = () => act({ type: "autopilot" });
+$("random").onclick = () => act({ type: "random" });
 $("half").onclick = () => act({ type: "speed", value: 0.5 });
 $("double").onclick = () => act({ type: "speed", value: 2 });
 $("flash").onpointerdown = () => act({ type: "flash", on: true });

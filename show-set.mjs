@@ -72,32 +72,34 @@ export function clipFrom(snapshot, { id, name, energy = 0.5 } = {}) {
 }
 
 export function initialShowSet(scenes) {
-  const slots = Array(SLOTS).fill(null);
-  let n = 0;
-  // Page 1: every family's authored looks, one family per column pair.
-  for (const scene of scenes)
-    scene.presets.slice(0, 3).forEach((_, index) => {
-      if (n < SLOTS)
-        slots[n] = clipFrom(presetSnapshot(scene, index), {
-          id: `clip-${n}`,
-          energy: 0.5,
-        });
-      n++;
-    });
+  // Every family's authored looks, round-robin (each family's first look,
+  // then each second look, …), up to three per family. Page 1 therefore
+  // holds every family, so random autopilot shows them all.
+  const clips = [];
+  for (let round = 0; round < 3; round++)
+    for (const scene of scenes)
+      if (round < scene.presets.length)
+        clips.push(
+          clipFrom(presetSnapshot(scene, round), {
+            id: `clip-${clips.length}`,
+            energy: 0.5,
+          }),
+        );
+  const pages = Array.from({ length: PAGES }, (_, p) => ({
+    name: `Page ${p + 1}`,
+    slots: Array.from(
+      { length: SLOTS },
+      (_, s) => clips[p * SLOTS + s] ?? null,
+    ),
+  }));
   return {
     format: FORMAT,
     version: 3,
     name: "New show",
-    pages: [
-      { name: "Page 1", slots },
-      ...Array.from({ length: PAGES - 1 }, (_, i) => ({
-        name: `Page ${i + 2}`,
-        slots: Array(SLOTS).fill(null),
-      })),
-    ],
+    pages,
     shared: { ...DEFAULT_SHARED },
-    autopilot: { enabled: true, everyBars: 32, handBackBars: 32 },
-    clock: { mode: "auto", manualBpm: 124, latencyMs: 0 },
+    autopilot: { enabled: true, random: true, everyBars: 32, handBackBars: 32 },
+    clock: { mode: "auto", manualBpm: 120, latencyMs: 0 },
     options: {
       pixelBudget: 2.1,
       bloom: 0.15,
@@ -165,6 +167,7 @@ export function validateShowSet(value, scenes) {
     },
     autopilot: {
       enabled: autopilot.enabled !== false,
+      random: autopilot.random !== false,
       everyBars: oneOf(autopilot.everyBars, AUTOPILOT_BARS, "Autopilot bars"),
       handBackBars: finite(autopilot.handBackBars, 4, 256, "Hand-back bars"),
     },
