@@ -4,23 +4,31 @@
 // WAV (PCM 16/24/32-bit or float) is read natively; other formats need
 // ffmpeg on PATH. --clicks writes artifacts/beat/<name>.clicks.wav: the mix
 // with a click on every predicted beat, for listening checks.
-// Phase: each predicted beat (not coasting) is compared with the strongest
-// low-band attack within ±120 ms (1 ms log-energy flux through the tracker's
-// 150 Hz filters). A heuristic reference, not annotated beats: busy
-// basslines can pull it off the kick, so listen to the clicks as well.
+// Phase: each predicted beat (not coasting) is paired with the strongest
+// 150–2000 Hz attack within ±120 ms — the band where house and techno kicks
+// stand out from sub basslines and off-beat hats. Single attacks are noisy,
+// so the score is the most common offset (4 ms kernel) over ±8 beats; windows
+// whose attacks disagree are reported as unscored, not guessed.
+// --constant-tempo (produced tracks, not DJ mixes): also fits one tempo grid
+// to the agreeing attacks and scores every beat against it.
 import { open, mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { basename, extname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { BeatTracker } from "../beat-tracker.mjs";
 
-function lowpass150(sampleRate) {
-  const w = (2 * Math.PI * 150) / sampleRate,
+// The attack reference lags a true onset by about this much (measured on the
+// synthetic kicks, whose onset times are known).
+const REFERENCE_LAG_MS = 8;
+
+function biquad(type, frequency, sampleRate) {
+  const w = (2 * Math.PI * frequency) / sampleRate,
     cos = Math.cos(w),
     alpha = Math.sin(w) / (2 * Math.SQRT1_2),
     a0 = 1 + alpha;
-  const b0 = (1 - cos) / 2 / a0,
-    b1 = (1 - cos) / a0,
+  const low = type === "lowpass";
+  const b0 = (low ? 1 - cos : 1 + cos) / 2 / a0,
+    b1 = (low ? 1 - cos : -(1 + cos)) / a0,
     a1 = (-2 * cos) / a0,
     a2 = (1 - alpha) / a0;
   let x1 = 0,
@@ -37,12 +45,11 @@ function lowpass150(sampleRate) {
   };
 }
 
-// Signed ms from each beat to the strongest attack near it.
-function phaseErrors(beats, logEnergy) {
-  const errors = [];
-  for (const time of beats) {
+// Signed ms from each beat to the strongest attack near it (null if none).
+function attackErrors(beats, logEnergy) {
+  return beats.map((time) => {
     const c = Math.round(time * 1000);
-    let best = -1,
+    let best = null,
       peak = 0.5; // log-flux floor, as the tracker's MIN_ONSET
     for (
       let i = Math.max(10, c - 120);
@@ -52,13 +59,86 @@ function phaseErrors(beats, logEnergy) {
       const flux = logEnergy[i] - logEnergy[i - 10];
       if (flux > peak) {
         peak = flux;
-        best = i;
+        best = c - i;
       }
     }
-    if (best >= 0) errors.push(c - best);
-  }
-  return errors;
+    return best;
+  });
 }
+
+// Most common value (4 ms Gaussian kernel) and the share of values near it.
+function mode(values) {
+  let best = -Infinity,
+    at = 0;
+  for (let c = -120; c <= 120; c++) {
+    let density = 0;
+    for (const v of values) density += Math.exp(-((v - c) ** 2) / 32);
+    if (density > best) {
+      best = density;
+      at = c;
+    }
+  }
+  return { at, share: best / values.length };
+}
+
+// Local phase offset per beat (ms, lag-corrected), null where unscored.
+function localOffsets(errors) {
+  return errors.map((_, i) => {
+    const near = errors
+      .slice(Math.max(0, i - 8), i + 9)
+      .filter((e) => e !== null);
+    if (near.length < 8) return null;
+    const m = mode(near);
+    return m.share < 0.5 ? null : m.at + REFERENCE_LAG_MS;
+  });
+}
+
+// One tempo grid through the agreeing attacks (most attacks within ±4 ms),
+// then refined by least squares. Returns per-beat |error| in ms.
+function constantGrid(beats, errors, offsets, bpm) {
+  const anchors = [];
+  beats.forEach((t, i) => {
+    if (offsets[i] !== null && errors[i] !== null)
+      anchors.push(t - (errors[i] + REFERENCE_LAG_MS) / 1000);
+  });
+  if (anchors.length < 16) return null;
+  let best = { inliers: -1 };
+  for (let b = bpm - 0.4; b <= bpm + 0.4; b += 0.0005) {
+    const P = 60 / b,
+      bins = Math.round(P * 1000),
+      hist = new Int32Array(bins);
+    for (const a of anchors) hist[Math.floor(((a % P) / P) * bins) % bins]++;
+    for (let c = 0; c < bins; c++) {
+      let n = 0;
+      for (let d = -4; d <= 4; d++) n += hist[(c + d + bins) % bins];
+      if (n > best.inliers) best = { inliers: n, P, phi: (c / bins) * P };
+    }
+  }
+  let { P, phi } = best;
+  const near = (a) => {
+    const d = (a - phi) / P;
+    return Math.abs(d - Math.round(d)) * P;
+  };
+  const inliers = anchors.filter((a) => near(a) < 0.006);
+  const n = inliers.map((a) => Math.round((a - phi) / P));
+  const mx = n.reduce((s, v) => s + v, 0) / n.length,
+    my = inliers.reduce((s, v) => s + v, 0) / n.length;
+  let sxy = 0,
+    sxx = 0;
+  for (let i = 0; i < n.length; i++) {
+    sxy += (n[i] - mx) * (inliers[i] - my);
+    sxx += (n[i] - mx) ** 2;
+  }
+  P = sxy / sxx;
+  phi = my - P * mx;
+  return {
+    bpm: 60 / P,
+    anchors: inliers.length,
+    errors: beats.map((t) => near(t) * 1000),
+  };
+}
+
+const quantile = (sorted, q) => sorted[Math.floor(q * (sorted.length - 1))];
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -67,6 +147,7 @@ const { values, positionals } = parseArgs({
     clicks: { type: "boolean", default: false },
     "min-bpm": { type: "string", default: "100" },
     "max-bpm": { type: "string", default: "150" },
+    "constant-tempo": { type: "boolean", default: false },
   },
 });
 if (!positionals.length) {
@@ -244,7 +325,12 @@ for (const path of positionals) {
     lastClick = -Infinity;
   const tempos = [];
   const clickLength = Math.round(0.02 * sampleRate);
-  const low = [lowpass150(sampleRate), lowpass150(sampleRate)];
+  const body = [
+    biquad("highpass", 150, sampleRate),
+    biquad("highpass", 150, sampleRate),
+    biquad("lowpass", 2000, sampleRate),
+    biquad("lowpass", 2000, sampleRate),
+  ];
   const perMs = Math.round(sampleRate / 1000);
   const logEnergy = [],
     beats = [];
@@ -256,7 +342,7 @@ for (const path of positionals) {
       const block = samples.subarray(i, Math.min(samples.length, i + 128));
       tracker.process(block);
       for (let j = 0; j < block.length; j++) {
-        const v = low[1](low[0](block[j]));
+        const v = body[3](body[2](body[1](body[0](block[j]))));
         energy += v * v;
         if (++inMs === perMs) {
           logEnergy.push(Math.log(energy / perMs + 1e-7));
@@ -308,12 +394,25 @@ for (const path of positionals) {
   if (writer) await writer.close();
   const minutes = position / sampleRate / 60;
   tempos.sort((a, b) => a - b);
-  const errors = phaseErrors(beats, logEnergy);
-  const abs = errors.map(Math.abs).sort((a, b) => a - b);
-  const phase = abs.length
-    ? `phase vs kick attack: median |error| ${abs[Math.floor(abs.length / 2)]} ms, p90 ${abs[Math.floor(0.9 * abs.length)]} ms, within 20 ms ${((100 * abs.filter((e) => e <= 20).length) / abs.length).toFixed(0)}% of ${abs.length} beats`
-    : "phase: no locked beats";
+  const errors = attackErrors(beats, logEnergy);
+  const offsets = localOffsets(errors);
+  const scored = offsets
+    .filter((o) => o !== null)
+    .map(Math.abs)
+    .sort((a, b) => a - b);
+  const within = (list) =>
+    `${((100 * list.filter((e) => e <= 20).length) / list.length).toFixed(0)}%`;
+  let phase = scored.length
+    ? `phase vs kick (±8-beat mode): median ${quantile(scored, 0.5)} ms, p90 ${quantile(scored, 0.9)} ms, ≤ 20 ms ${within(scored)} of ${scored.length} beats (${offsets.length - scored.length} unscored)`
+    : "phase: no scorable beats";
+  if (values["constant-tempo"] && tempos.length) {
+    const grid = constantGrid(beats, errors, offsets, quantile(tempos, 0.5));
+    const e = grid?.errors.sort((a, b) => a - b);
+    phase += grid
+      ? ` · vs one ${grid.bpm.toFixed(3)} BPM grid (${grid.anchors} anchors): median ${quantile(e, 0.5).toFixed(1)} ms, p90 ${quantile(e, 0.9).toFixed(1)} ms, ≤ 20 ms ${within(e)}`
+      : " · constant grid: too few agreeing attacks";
+  }
   console.log(
-    `${basename(path)}: ${minutes.toFixed(1)} min · first lock ${firstLock === null ? "never" : firstLock.toFixed(1) + " s"} · locked ${((100 * lockedBlocks) / blocks).toFixed(1)}% (coasting ${((100 * coastBlocks) / Math.max(1, lockedBlocks)).toFixed(1)}% of that) · tempo jumps >1 BPM: ${jumps} · tempo p10/p50/p90 ${[0.1, 0.5, 0.9].map((q) => tempos[Math.floor(q * (tempos.length - 1))]?.toFixed(1) ?? "—").join("/")} · ${phase}`,
+    `${basename(path)}: ${minutes.toFixed(1)} min · first lock ${firstLock === null ? "never" : firstLock.toFixed(1) + " s"} · locked ${((100 * lockedBlocks) / blocks).toFixed(1)}% (coasting ${((100 * coastBlocks) / Math.max(1, lockedBlocks)).toFixed(1)}% of that) · tempo jumps >1 BPM: ${jumps} · tempo p10/p50/p90 ${[0.1, 0.5, 0.9].map((q) => quantile(tempos, q)?.toFixed(1) ?? "—").join("/")} · ${phase}`,
   );
 }

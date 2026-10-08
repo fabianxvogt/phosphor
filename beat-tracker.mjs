@@ -2,10 +2,11 @@
 // Pure DSP with no Web Audio dependency, so it runs in an AudioWorklet,
 // in the page, or in Node tests. Feed mono samples; read tempo and phase.
 //
-// Pipeline: two band filters (kick body, hats/claps) → per-hop log-energy
-// flux as an onset function → periodically, a harmonic autocorrelation
-// picks the tempo inside [minBpm, maxBpm) (half/double tempos fold in) →
-// a phase-locked loop follows the beat and coasts through breakdowns.
+// Pipeline: three band filters (kick body 150–2000 Hz, sub, hats) → per-hop
+// log-energy flux as an onset function → periodically, a harmonic
+// autocorrelation picks the tempo inside [minBpm, maxBpm) (half/double tempos
+// fold in) → a comb-averaged phase-locked loop follows the beat and coasts
+// through breakdowns.
 // Times are in seconds of the input stream (sample index / sampleRate).
 
 const HOP_SECONDS = 0.01;
@@ -18,6 +19,19 @@ const ESTIMATE_EVERY = 25; // hops between tempo estimates (~0.25 s)
 const MIN_ONSET = 0.5;
 // Normalised harmonic autocorrelation needed to trust a tempo estimate.
 const MIN_PERIODICITY = 0.12;
+// Phase loop: comb over the last beats, then proportional corrections.
+const COMB_BEATS = 8;
+const COMB_DECAY = 0.8;
+const PHASE_GAIN = 0.5;
+const PERIOD_GAIN = 0.02; // until MIN_OBSERVED beats are observed
+const MIN_OBSERVED = 8;
+const TEMPO_BEATS = 32; // strong beats in the tempo regression
+// Onset weights per band. In house and techno the sub band carries off-beat
+// and rolling basslines and the top band off-beat hats; the kick's body and
+// attack stand out between 150 Hz and 2 kHz (measured on the owner's tracks).
+const BODY_WEIGHT = 1;
+const SUB_WEIGHT = 0.5;
+const HAT_WEIGHT = 0.15;
 
 class Biquad {
   constructor(type, frequency, sampleRate, q = Math.SQRT1_2) {
@@ -70,18 +84,25 @@ export class BeatTracker {
       new Biquad("highpass", 3000, sampleRate),
       new Biquad("highpass", 3000, sampleRate),
     ];
+    this.body = [
+      new Biquad("highpass", 150, sampleRate),
+      new Biquad("highpass", 150, sampleRate),
+      new Biquad("lowpass", 2000, sampleRate),
+      new Biquad("lowpass", 2000, sampleRate),
+    ];
     this.size = Math.round(HISTORY_SECONDS * this.rate);
     this.odf = new Float32Array(this.size);
     this.frame = 0; // completed onset frames
-    this.accLow = this.accHigh = 0;
+    this.accLow = this.accHigh = this.accBody = 0;
     this.inHop = 0;
-    this.prevLow = this.prevHigh = null;
+    this.prevLow = this.prevHigh = this.prevBody = null;
     this.level = 0; // slow loudness follower (linear RMS)
     this.period = 0; // frames per beat, 0 until a tempo is found
     this.nextBeat = 0; // predicted frame of the next beat
     this.beats = 0; // beats passed since lock (monotonic)
-    this.window = null; // { best, at } search around nextBeat
+    this.window = null; // { best }: strongest onset near nextBeat
     this.hits = [];
+    this.observed = []; // [beat index, frame] of recent strong beats
     this.periodicity = 0;
     this.pending = null; // candidate tempo awaiting confirmation
   }
@@ -93,31 +114,40 @@ export class BeatTracker {
       if (!Number.isFinite(x)) continue;
       const l = this.low[1].step(this.low[0].step(x));
       const h = this.high[1].step(this.high[0].step(x));
+      const b = this.body[3].step(
+        this.body[2].step(this.body[1].step(this.body[0].step(x))),
+      );
       this.accLow += l * l;
       this.accHigh += h * h;
+      this.accBody += b * b;
       if (++this.inHop === this.hop) this.#endHop();
     }
   }
 
   #endHop() {
     const eLow = this.accLow / this.hop,
-      eHigh = this.accHigh / this.hop;
-    this.accLow = this.accHigh = 0;
+      eHigh = this.accHigh / this.hop,
+      eBody = this.accBody / this.hop;
+    this.accLow = this.accHigh = this.accBody = 0;
     this.inHop = 0;
     const floor = 1e-7;
     const lLow = Math.log(eLow + floor),
-      lHigh = Math.log(eHigh + floor);
+      lHigh = Math.log(eHigh + floor),
+      lBody = Math.log(eBody + floor);
     let value = 0;
     if (this.prevLow !== null) {
       value =
-        Math.max(0, lLow - this.prevLow) +
-        0.3 * Math.max(0, lHigh - this.prevHigh);
+        BODY_WEIGHT * Math.max(0, lBody - this.prevBody) +
+        SUB_WEIGHT * Math.max(0, lLow - this.prevLow) +
+        HAT_WEIGHT * Math.max(0, lHigh - this.prevHigh);
     }
     this.prevLow = lLow;
     this.prevHigh = lHigh;
-    this.level = 0.995 * this.level + 0.005 * Math.sqrt(eLow + eHigh);
+    this.prevBody = lBody;
+    const rms = Math.sqrt(eLow + eHigh + eBody);
+    this.level = 0.995 * this.level + 0.005 * rms;
     // Gate onsets far below the running loudness: silence must not lock.
-    if (Math.sqrt(eLow + eHigh) < 1e-4) value = 0;
+    if (rms < 1e-4) value = 0;
     const t = this.frame++;
     this.odf[t % this.size] = value;
     this.#trackPhase(t, value);
@@ -200,24 +230,30 @@ export class BeatTracker {
     } else this.pending = null; // fine tempo is the phase loop's job
   }
 
-  // Place the beat grid at the offset that best explains recent onsets.
-  #acquire(period, now, keepLock) {
+  // Place the beat grid at the period (within ±1 % of the estimate, which is
+  // coarse at 10 ms frames) and offset that best explain recent onsets.
+  #acquire(estimate, now, keepLock) {
     const span = Math.min(this.frame, Math.round(4 * this.rate));
     let bestOffset = 0,
-      bestScore = -Infinity;
-    const steps = Math.ceil(period * 4);
-    for (let s = 0; s < steps; s++) {
-      const offset = (s / steps) * period;
-      let score = 0;
-      for (let k = 0; k * period + offset < span; k++) {
-        const pos = now - offset - k * period;
-        const i = Math.floor(pos),
-          f = pos - i;
-        score += this.#odfAt(i) * (1 - f) + this.#odfAt(i + 1) * f;
-      }
-      if (score > bestScore) {
-        bestScore = score;
-        bestOffset = offset;
+      bestScore = -Infinity,
+      period = estimate;
+    for (let j = -20; j <= 20; j++) {
+      const p = estimate * (1 + j * 0.0005);
+      const steps = Math.ceil(p * 4);
+      for (let s = 0; s < steps; s++) {
+        const offset = (s / steps) * p;
+        let score = 0;
+        for (let k = 0; k * p + offset < span; k++) {
+          const pos = now - offset - k * p;
+          const i = Math.floor(pos),
+            f = pos - i;
+          score += this.#odfAt(i) * (1 - f) + this.#odfAt(i + 1) * f;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestOffset = offset;
+          period = p;
+        }
       }
     }
     const lastBeat = now - bestOffset;
@@ -226,6 +262,7 @@ export class BeatTracker {
     while (this.nextBeat - 0.25 * period <= now) this.nextBeat += period;
     this.window = null;
     this.hits = [];
+    this.observed = [];
     this.confirmed = keepLock;
   }
 
@@ -234,31 +271,30 @@ export class BeatTracker {
     const P = this.period,
       reach = 0.2 * P;
     if (t >= this.nextBeat - reach && t <= this.nextBeat + reach) {
-      if (!this.window) this.window = { best: 0, at: -1, prev: 0, next: 0 };
-      const w = this.window;
-      if (value > w.best) {
-        w.best = value;
-        w.at = t;
-        w.prev = this.#odfAt(t - 1);
-        w.next = 0;
-      } else if (t === w.at + 1) w.next = value;
+      // Strongest onset near the predicted beat: decides hit or coast.
+      if (!this.window) this.window = { best: 0 };
+      if (value > this.window.best) this.window.best = value;
     }
     if (t > this.nextBeat + reach) {
       const w = this.window;
       const typical = this.#typicalPeak();
       const strong = w && w.best > Math.max(MIN_ONSET, 0.3 * typical);
       if (strong) {
-        // Parabolic interpolation around the peak frame.
-        const d = w.prev - 2 * w.best + w.next;
-        const delta = d < 0 ? (0.5 * (w.prev - w.next)) / d : 0;
-        const error =
-          w.at + Math.max(-0.5, Math.min(0.5, delta)) - this.nextBeat;
+        const error = this.#combError(P, reach);
         // Weak onsets (hats in half-time material) correct less.
         const weight = typical > 0 ? Math.min(1, w.best / typical) : 1;
-        this.nextBeat += P + 0.35 * weight * error;
+        this.observed.push([this.beats, this.nextBeat + error]);
+        if (this.observed.length > TEMPO_BEATS) this.observed.shift();
+        this.nextBeat += P + PHASE_GAIN * weight * error;
+        // Tempo from a straight line through the observed beats: exact
+        // enough to coast a 32-bar breakdown and land on the beat.
+        const slope =
+          this.observed.length >= MIN_OBSERVED
+            ? this.#slope()
+            : P + PERIOD_GAIN * weight * error;
         this.period = Math.max(
           (60 * this.rate) / this.maxBpm,
-          Math.min((60 * this.rate) / this.minBpm, P + 0.05 * weight * error),
+          Math.min((60 * this.rate) / this.minBpm, P + 0.3 * (slope - P)),
         );
       } else this.nextBeat += P; // coast: keep tempo and phase
       this.hits.push(strong ? 1 : 0);
@@ -275,6 +311,55 @@ export class BeatTracker {
       )
         this.confirmed = true;
     }
+  }
+
+  // Phase error (frames) from the beat-synchronous sum of the onset function
+  // over the last COMB_BEATS beats, recent beats weighted most. The kick
+  // lands at the same phase every beat; basslines, fills and claps do not,
+  // so they average out instead of pulling single beats around.
+  #combError(P, reach) {
+    const steps = Math.ceil(reach * 4); // quarter-frame resolution
+    const scores = new Float64Array(2 * steps + 1);
+    let best = 0;
+    for (let s = -steps; s <= steps; s++) {
+      let sum = 0,
+        weight = 1;
+      for (let k = 0; k < COMB_BEATS; k++, weight *= COMB_DECAY) {
+        const pos = this.nextBeat - k * P + s / 4;
+        const i = Math.floor(pos),
+          f = pos - i;
+        sum += weight * (this.#odfAt(i) * (1 - f) + this.#odfAt(i + 1) * f);
+      }
+      scores[s + steps] = sum;
+      if (sum > scores[best]) best = s + steps;
+    }
+    let delta = 0;
+    if (best > 0 && best < scores.length - 1) {
+      const a = scores[best - 1],
+        b = scores[best],
+        c = scores[best + 1];
+      const d = a - 2 * b + c;
+      if (d < 0) delta = (0.5 * (a - c)) / d;
+    }
+    return (best - steps + delta) / 4;
+  }
+
+  // Least-squares frames per beat through the observed beats.
+  #slope() {
+    const n = this.observed.length;
+    let mx = 0,
+      my = 0;
+    for (const [x, y] of this.observed) {
+      mx += x / n;
+      my += y / n;
+    }
+    let sxy = 0,
+      sxx = 0;
+    for (const [x, y] of this.observed) {
+      sxy += (x - mx) * (y - my);
+      sxx += (x - mx) * (x - mx);
+    }
+    return sxx > 0 ? sxy / sxx : this.period;
   }
 
   #typicalPeak() {

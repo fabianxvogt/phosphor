@@ -2,6 +2,21 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-08 — Beat tracker follows the kick, not the bassline
+
+- `EMPIRICAL` Diagnosis on the owner's tracks: once the bassline enters, beat-synchronous flux per band (against a fitted constant-tempo grid) peaks on the beat only between 150 Hz and 2 kHz; below 150 Hz it peaks on the off-beat (Track C) or a sixteenth before the beat (Track A), above 2 kHz on the off-beat (open hats). The old tracker listened mostly below 150 Hz and slid half a beat (Track C after a re-acquisition at 95 s) or wandered (Track A).
+- Change (`beat-tracker.mjs`): onsets weighted toward a 150–2000 Hz kick-body band (sub 0.5, hats 0.15); phase corrections from a comb over the last eight beats instead of the single strongest onset; tempo from a straight line through the last 32 observed beats; acquisition searches tempo ±1 % jointly with phase (the autocorrelation estimate is coarse at 10 ms frames: 130.45 for a 131 BPM click track).
+- `EMPIRICAL` Same evaluator before → after (`npm run beat:eval -- songs/*.mp3 --constant-tempo`; one-grid fit to the agreeing kick attacks, ≥ 497 anchors per track after the change):
+
+  | Track | Tempo jumps > 1 BPM | Phase vs constant grid: median | ≤ 20 ms |
+  | --- | --- | --- | --- |
+  | Track A (126 BPM) | 29 → 0 | 120 → 1.1 ms | 27 % → 100 % |
+  | Track B (124 BPM) | 8 → 0 | 13 → 2.9 ms | 71 % → 94 % |
+  | Track C (129 BPM) | 14 → 0 | 226 → 1.5 ms | 15 % → 99 % |
+
+  Tempo p10/p50/p90 is now exactly 126.0 / 124.0 / 129.0; first lock ~7 s unchanged. Synthetic suite 12/12 (tempo changes relock within 8 beats, 32-bar breakdown coasts within ±6 ms, 44.1 kHz, noise never locks). The demo beat rendered offline locks at 120.00 BPM with 0 ms phase error; in installed Chrome the stage locked the demo at 120.0 BPM within 8 s. In headless SwiftShader under heavy machine load the demo did not lock (timer-driven demo scheduling starves); not a tracker result.
+- Still untested: DJ mixes (tempo changes between tracks, long breakdowns on real music, line input). Auto tracking meets its phase target on three produced tracks only.
+
 ## 2026-10-08 — Owner sign-off and first real-music beat check
 
 - Owner approved all six group 1–2 packets (D51); with rig timing passed, Feedback, Tapestry, Cathedral, Interference, Pulse Geometry and Fractal Flight pass the family gate.
