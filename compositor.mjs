@@ -448,7 +448,13 @@ export class Compositor {
   }
   approve() {
     const e = this.engine;
-    const mean = this.meanView.getFloat32(0); // Shader stores RGBA in big-endian byte order.
+    let mean = this.meanView.getFloat32(0); // Shader stores RGBA in big-endian byte order.
+    // A non-finite pixel in the float path must not disable the limiter:
+    // treat it as the brightest possible frame and count it.
+    if (!Number.isFinite(mean)) {
+      e.counters.nonFinite++;
+      mean = 1;
+    }
     this.gain = this.limiter.update(mean, performance.now() / 1000);
     if (this.limiter.limited) e.counters.flashLimited++;
     const old = this.frames[0];

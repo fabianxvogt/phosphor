@@ -115,7 +115,8 @@ export class Engine {
     this.pictureHeader = this.floatPicture
       ? shaderHeader.replace(
           "outColor = quantize8(value);",
-          "outColor = vec4(max(value.rgb, vec3(0.)), clamp(value.a, 0., 1.));",
+          // Capped well below half-float max so bloom/shoulder never see Inf.
+          "outColor = vec4(min(max(value.rgb, vec3(0.)), vec3(64.)), clamp(value.a, 0., 1.));",
         )
       : shaderHeader;
     this.programs.clear();
