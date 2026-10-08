@@ -51,9 +51,9 @@ export function actionFor(event) {
   const { code, shiftKey } = event;
   if (event.ctrlKey || event.metaKey || event.altKey) return null;
   if (event.repeat && event.type !== "keyup") return null; // held keys must not toggle
-  if (code === "Escape") return { type: shiftKey ? "safe" : "blackout" };
   if (event.type === "keyup")
     return code === "KeyL" ? { type: "flash", on: false } : null;
+  if (code === "Escape") return { type: shiftKey ? "safe" : "blackout" };
   if (isTextEntry(event.target)) return null;
   if (shiftKey && /^Digit[1-8]$/.test(code))
     return { type: "page", index: Number(code.slice(5)) - 1 };

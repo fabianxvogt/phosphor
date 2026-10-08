@@ -68,6 +68,8 @@ test("flash is held: down on keydown, off on keyup", () => {
     on: false,
   });
   assert.equal(actionFor({ type: "keyup", code: "KeyQ" }), null);
+  // Releasing Esc must not toggle blackout back off.
+  assert.equal(actionFor({ type: "keyup", code: "Escape" }), null);
 });
 
 test("repeats and browser shortcuts are ignored", () => {
