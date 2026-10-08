@@ -76,7 +76,7 @@ void main() {
       // Crossfire: two banks from the lower corners crossing in the middle.
       float side = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
       o = vec2(side * aspect * 0.5, -0.5 + 0.08 * floor(fi * 0.5));
-      angle = 1.5708 - side * (0.55 + 0.35 * spread * sin(t + fi * 0.6)) + tilt * 0.4;
+      angle = 1.5708 + side * (0.55 + 0.35 * spread * sin(t + fi * 0.6)) + tilt * 0.4;
     } else {
       // Starburst: rays radiating from the centre, rotating.
       o = vec2(0.0);
