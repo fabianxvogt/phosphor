@@ -291,7 +291,10 @@ void main() {
   int back = reset ? 0 : readInt(2);
   float clock = reset ? 0. : float(readInt(3)) / 65535.;
   float playback = clamp(u_params[5], -1., 1.);
-  if (!reset) clock += clamp(u_params[3], 0., 60.) * u_dt * abs(playback);
+  // The circular loom winds slowly at calm energy and fills history at peak.
+  // Keep the other three looms' authored evolution rates unchanged.
+  float growth = shape == 3 ? mix(.5, 1., smoothstep(.1, .9, u_level)) : 1.;
+  if (!reset) clock += clamp(u_params[3], 0., 60.) * growth * u_dt * abs(playback);
   bool tick = clock >= 1.;
   if (tick) clock -= 1.;
   bool cue = !reset && phrase > 0 && playback > 0. && back == 0
@@ -362,9 +365,13 @@ void main() {
   } else if (shape == 3) {
     // A circular loom winds generations into concentric, rotating annuli.
     float radius = length(p);
-    cloth = vec2(fract(atan(p.y, p.x) / TAU + .5 + u_time * .012
-      * (.15 + u_level)), 1. - radius * 1.65);
-    mask = smoothstep(.1, .14, radius) * (1. - smoothstep(.43, .48, radius));
+    float activity = smoothstep(.1, .9, u_level);
+    cloth = vec2(fract(atan(p.y, p.x) / TAU + .5 + u_time
+      * mix(.003, .06, activity)), 1. - radius * 1.65);
+    // Growth opens the annulus, rather than brightening a fixed silhouette.
+    float outerRadius = mix(.30, .48, activity);
+    mask = smoothstep(.1, .14, radius)
+      * (1. - smoothstep(outerRadius - .05, outerRadius, radius));
   }
   // Relief bends the textile without modifying stored cells.
   float envelope = sin(cloth.x * PI);
@@ -391,9 +398,11 @@ void main() {
   float tone = fract(.35 + cloth.x * .26 + float(ageIndex) * .0022
     + u_time * u_params[7] * .018);
   vec3 ink = palette(tone);
+  // Lift palette midtones on the yarn only; the dark ground stays fixed.
+  ink = mix(ink, sqrt(max(ink, vec3(0.))), .4);
   vec3 ground = u_secondary * .045 + vec3(.006, .008, .014);
   // Contrast grows around a fixed midtone; energy is never a brightness gain.
-  vec3 color = mix(ink * .18, mix(ground, ink * relief, cell),
+  vec3 color = mix(ink * .24, mix(ground, ink * relief, cell),
     .3 + .7 * u_level);
   color = mix(ground, color, mask);
   if (!available) color = ground;

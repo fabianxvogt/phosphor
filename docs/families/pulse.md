@@ -32,16 +32,16 @@ This remains one analytic fragment pass: no simulation, history texture, geometr
 
 ## Structural energy evidence
 
-Compact comparison: **160×90**, seed **17**, clip base **0.5**, energy **0.1 / 0.9**, **120** warm frames followed by **24 samples at 30 Hz**. All four exceed the provisional score **0.15** and the new regression's motion-delta floor **0.01**.
+Compact comparison: **160×90**, seed **17**, clip base **0.5**, energy **0.1 / 0.9**, **60** warm frames followed by **12 samples at 30 Hz**. All four exceed the provisional score **0.15** and the new regression's motion-delta floor **0.01**.
 
 | Form | Structure delta | Motion at 0.1 | Motion at 0.9 | Motion delta | Score       |
 | ---- | --------------- | ------------- | ------------- | ------------ | ----------- |
-| 0    | 0.86973         | 0.00294       | 0.06967       | **0.06673**  | **0.87228** |
-| 1    | 0.57686         | 0.00958       | 0.06558       | **0.05600**  | **0.57958** |
-| 2    | 0.42113         | 0.00473       | 0.05391       | **0.04919**  | **0.42399** |
-| 3    | 0.69683         | 0.00196       | 0.09019       | **0.08822**  | **0.70239** |
+| 0    | 0.87181         | 0.00177       | 0.06415       | **0.06237**  | **0.87404** |
+| 1    | 0.68837         | 0.00578       | 0.05685       | **0.05107**  | **0.69026** |
+| 2    | 0.39954         | 0.00911       | 0.04910       | **0.03999**  | **0.40154** |
+| 3    | 0.68450         | 0.00218       | 0.08556       | **0.08338**  | **0.68956** |
 
-The minimum motion delta is more than **122×** the reported old ceiling of 0.0004, measured at the same compact resolution. Peak motion exceeds low motion in every form; brightness and uniform tint are normalized out by the shared metric. WebGL errors and non-finite uploads: **0**.
+The minimum motion delta is more than **99×** the reported old ceiling of 0.0004, measured at the same compact resolution. Peak motion exceeds low motion in every form; brightness and uniform tint are normalized out by the shared metric. WebGL errors and non-finite uploads: **0**.
 
 Executed: `npm run contact -- --sheet energy --family pulse --width 160 --height 90 --seed 17 --port 48200 --out artifacts/contact/pulse-rework-energy`.
 
