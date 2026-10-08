@@ -128,10 +128,15 @@ export async function newInstrument(
   });
   await context.addInitScript(installProbes);
   const page = await context.newPage();
-  const errors = [];
+  const errors = [],
+    consoleDiagnostics = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
+    if (message.type() === "error") {
+      const diagnostic = { message: message.text(), ...message.location() };
+      consoleDiagnostics.push(diagnostic);
+      console.warn(`Browser console diagnostic: ${JSON.stringify(diagnostic)}`);
+    }
   });
   page.on("dialog", (dialog) => dialog.accept());
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -151,11 +156,17 @@ export async function newInstrument(
   if (await page.locator("#fatal").isVisible()) {
     const message = await page.locator("#fatal").textContent();
     if (capability && /WebGL2.*required|WebGL2.*support/i.test(message))
-      return { context, page, errors, capabilityMessage: message };
+      return {
+        context,
+        page,
+        errors,
+        consoleDiagnostics,
+        capabilityMessage: message,
+      };
     throw new Error(message);
   }
   const source = await page.evaluate(attachFallback);
-  return { context, page, errors, source };
+  return { context, page, errors, consoleDiagnostics, source };
 }
 export async function pauseForCapture(page) {
   await page.locator("#autoQualityInput").uncheck();

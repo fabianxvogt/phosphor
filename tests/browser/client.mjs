@@ -10,6 +10,7 @@ export function installProbes() {
     previousSlots: 0,
     governorDowngrades: 0,
     previousQuality: null,
+    restoreUniforms: [],
   };
   window.__harness = state;
   for (const proto of new Set([
@@ -33,6 +34,7 @@ export function installProbes() {
         }
         return original.call(this, location, ...values);
       };
+      state.restoreUniforms.push(() => (proto[name] = original));
     }
   }
 }
@@ -42,6 +44,10 @@ export function attachFallback() {
   const app = window.__phosphor,
     state = window.__harness,
     engine = app.engine;
+  if (typeof engine.counters?.nonFinite === "number") {
+    for (const restore of state.restoreUniforms) restore();
+    state.restoreUniforms.length = 0;
+  }
   const load = engine.load;
   if (!native)
     engine.load = function (...args) {
@@ -129,6 +135,8 @@ export async function renderPreset({
   const engine = app.engine;
   engine.mappings = [];
   engine.features = { energy: 0, bass: 0, mid: 0, high: 0, onset: 0 };
+  engine.beat = 0;
+  engine.gesture = [0.5, 0.5, 0];
   engine.blackout = engine.blackoutTarget = 0;
   engine.load(snapshot, 0);
   while (engine.slots.at(-1).warmTicks > 0) engine.advance(0, true);

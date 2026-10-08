@@ -25,10 +25,8 @@ const pass = (name) => {
 };
 try {
   runtime = await launch();
-  const { context, page, errors, source } = await newInstrument(
-    runtime.browser,
-    server.url,
-  );
+  const { context, page, errors, consoleDiagnostics, source } =
+    await newInstrument(runtime.browser, server.url);
   console.log(
     `Chrome ${runtime.version}; software GPU; ${source}; no timing gates`,
   );
@@ -246,7 +244,7 @@ try {
   assert.equal(telemetry.gpuErrors, 0);
   assert.equal(telemetry.nonFinite, 0);
   assert.deepEqual(errors, []);
-  pass("no browser errors");
+  pass("no unhandled page exceptions");
   await writeFile(
     resolve(out, "summary.json"),
     JSON.stringify(
@@ -256,6 +254,7 @@ try {
         source,
         timingGates: false,
         passes,
+        consoleDiagnostics,
       },
       null,
       2,
