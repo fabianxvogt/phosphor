@@ -101,32 +101,42 @@ uniform sampler2D source;
 uniform float gain;
 void main(){vec3 c=texture(source,v_uv).rgb;outColor=vec4(gain==1.?c:displayRGB(linearRGB(c)*gain),1.);}
 `;
-const meanShader = shaderHeader + colorSpace + `
+// RGBA8 stores IEEE float bits exactly. Unlike fixed-point contributions this
+// remains precise when a quarter-resolution cell contributes very little.
+const meanCodec = `
+vec4 encodeMean(float value){
+  uint bits=floatBitsToUint(value);
+  return vec4(uvec4(bits>>24u,bits>>16u,bits>>8u,bits)&uvec4(255u))/255.;
+}
+float decodeMean(vec4 value){
+  uvec4 bits=uvec4(floor(value*255.+.5));
+  return uintBitsToFloat((bits.x<<24u)|(bits.y<<16u)|(bits.z<<8u)|bits.w);
+}
+`;
+const meanFirstShader = shaderHeader + colorSpace + meanCodec + `
 uniform sampler2D source;
-uniform bool first;
-uniform vec2 originalSize;
-uniform float span;
-float decodeMean(vec3 c){return dot(floor(c*255.+.5),vec3(65536.,256.,1.))/16777215.;}
-vec3 encodeMean(float value){float n=floor(clamp(value,0.,1.)*16777215.+.5);return vec3(floor(n/65536.),mod(floor(n/256.),256.),mod(n,256.))/255.;}
+uniform float pixelCount;
 void main(){
-  ivec2 size=textureSize(source,0),outSize=max(size/2,ivec2(1));
-  ivec2 base=ivec2(gl_FragCoord.xy)*2;
-  float sum=0.,weight=0.;
-  for(int y=0;y<3;y++)for(int x=0;x<3;x++){
+  ivec2 size=textureSize(source,0),base=ivec2(gl_FragCoord.xy)*4;
+  float sum=0.;
+  for(int y=0;y<4;y++)for(int x=0;x<4;x++){
     ivec2 p=base+ivec2(x,y);
-    if(any(greaterThanEqual(p,size)))continue;
-    // Odd tails belong to the last output cell; earlier cells take 2x2.
-    if(x==2 && int(gl_FragCoord.x)!=outSize.x-1)continue;
-    if(y==2 && int(gl_FragCoord.y)!=outSize.y-1)continue;
-    vec2 count=min(vec2(span),originalSize-vec2(p)*span);
-    if(p.x==size.x-1)count.x=originalSize.x-float(p.x)*span;
-    if(p.y==size.y-1)count.y=originalSize.y-float(p.y)*span;
-    float w=count.x*count.y;
-    vec3 c=texelFetch(source,p,0).rgb;
-    float v=first?dot(linearRGB(c),vec3(.2126,.7152,.0722)):decodeMean(c);
-    sum+=v*w;weight+=w;
+    if(all(lessThan(p,size)))
+      sum+=dot(linearRGB(texelFetch(source,p,0).rgb),vec3(.2126,.7152,.0722));
   }
-  outColor=vec4(encodeMean(sum/max(weight,1.)),1.);
+  outColor=encodeMean(sum/pixelCount);
+}
+`;
+const meanShader = shaderHeader + meanCodec + `
+uniform sampler2D source;
+void main(){
+  ivec2 size=textureSize(source,0),base=ivec2(gl_FragCoord.xy)*8;
+  float sum=0.;
+  for(int y=0;y<8;y++)for(int x=0;x<8;x++){
+    ivec2 p=base+ivec2(x,y);
+    if(all(lessThan(p,size)))sum+=decodeMean(texelFetch(source,p,0));
+  }
+  outColor=encodeMean(sum);
 }
 `;
 
@@ -141,22 +151,22 @@ export class AsyncReadback {
     this.sync = null;
   }
   begin(target) {
-    if (this.sync) return false;
+    if (this.sync || this.gl.isContextLost()) return false;
     const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buffer);
     gl.readPixels(0, 0, target.w, target.h, gl.RGBA, gl.UNSIGNED_BYTE, 0);
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
     this.sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-    gl.flush();
     return true;
   }
   poll() {
     if (!this.sync) return null;
     const gl = this.gl;
+    if (gl.isContextLost()) { this.cancel(); return null; }
     const status = gl.clientWaitSync(this.sync, 0, 0);
     if (status === gl.TIMEOUT_EXPIRED) return null;
-    if (status === gl.WAIT_FAILED) throw new Error("GPU readback fence failed");
+    if (status === gl.WAIT_FAILED) { this.cancel(); return null; }
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buffer);
     gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, this.pixels);
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
@@ -164,8 +174,16 @@ export class AsyncReadback {
     this.sync = null;
     return this.pixels;
   }
+  read(target) {
+    this.cancel();
+    const gl=this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER,target.fbo);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
+    gl.readPixels(0,0,target.w,target.h,gl.RGBA,gl.UNSIGNED_BYTE,this.pixels);
+    return this.pixels;
+  }
   cancel() {
-    if (this.sync) this.gl.deleteSync(this.sync);
+    if (this.sync && !this.gl.isContextLost()) this.gl.deleteSync(this.sync);
     this.sync = null;
   }
   dispose() { this.cancel(); this.gl.deleteBuffer(this.buffer); }
@@ -178,8 +196,10 @@ export class Compositor {
     this.program = engine.program(compositeShader);
     this.bloomProgram = engine.program(bloomShader);
     this.outputProgram = engine.program(outputShader);
+    this.meanFirstProgram = engine.program(meanFirstShader);
     this.meanProgram = engine.program(meanShader);
     this.readback = new AsyncReadback(this.gl, 4);
+    this.meanView = new DataView(this.readback.pixels.buffer);
     this.limiter = new FlashLimiter();
     this.targets = [];
     this.bloomTargets = [];
@@ -189,6 +209,8 @@ export class Compositor {
     this.echoNextTarget = null;
     this.echoValid = false;
     this.displayValid = false;
+    this.canvasValid = false;
+    this.blackoutActive = false;
     this.gain = 1;
   }
   target(w, h) {
@@ -203,6 +225,7 @@ export class Compositor {
     this.echoTarget = null;
     this.echoNextTarget = null;
     this.echoValid = this.displayValid = false;
+    this.canvasValid = false;
   }
   texture(program, name, unit, target) {
     const gl = this.gl;
@@ -272,69 +295,100 @@ export class Compositor {
       this.echoValid=true;
     }
   }
-  mean(target) {
-    const e=this.engine,gl=this.gl,p=this.meanProgram;
+  mean(target, synchronous=false) {
+    const e=this.engine,gl=this.gl;
     if(!this.meanTargets.length) {
-      let w=e.width,h=e.height;
-      do { w=Math.max(1,Math.floor(w/2));h=Math.max(1,Math.floor(h/2));this.meanTargets.push(this.target(w,h)); } while(w>1||h>1);
+      let w=Math.max(1,Math.ceil(e.width/4)),h=Math.max(1,Math.ceil(e.height/4));
+      this.meanTargets.push(this.target(w,h));
+      while(w>1||h>1) {
+        w=Math.max(1,Math.ceil(w/8));h=Math.max(1,Math.ceil(h/8));
+        this.meanTargets.push(this.target(w,h));
+      }
     }
-    let span=1;
     for(let i=0;i<this.meanTargets.length;i++) {
+      const p=i===0?this.meanFirstProgram:this.meanProgram;
       e.bind(p,this.meanTargets[i]);
       this.texture(p,"source",0,i===0?target:this.meanTargets[i-1]);
-      gl.uniform1i(p.uniforms.first,i===0?1:0);
-      gl.uniform2f(p.uniforms.originalSize,e.width,e.height);
-      gl.uniform1f(p.uniforms.span,span);
+      if(i===0)gl.uniform1f(p.uniforms.pixelCount,e.width*e.height);
       gl.drawArrays(gl.TRIANGLES,0,6);
-      span*=2;
     }
-    this.readback.begin(this.meanTargets.at(-1));
+    const last=this.meanTargets.at(-1);
+    return synchronous?this.readback.read(last):this.readback.begin(last);
+  }
+  approve() {
+    const e=this.engine;
+    const mean=this.meanView.getFloat32(0); // Shader stores RGBA in big-endian byte order.
+    this.gain=this.limiter.update(mean,e.offline?e.time:performance.now()/1000);
+    if(this.limiter.limited)e.counters.flashLimited++;
+    const old=this.frames[0];this.frames[0]=this.frames[1];this.frames[1]=old;
+    this.displayValid=true;
+    this.lastMean=mean;
   }
   output(target, gain) {
     const e=this.engine,gl=this.gl,p=this.outputProgram;
+    if(gain===1) {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER,target.fbo);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,null);
+      gl.blitFramebuffer(0,0,target.w,target.h,0,0,e.width,e.height,gl.COLOR_BUFFER_BIT,gl.NEAREST);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      this.canvasValid=true;
+      return;
+    }
     e.bind(p,null);
     this.texture(p,"source",0,target);
     gl.uniform1f(p.uniforms.gain,gain);
     gl.drawArrays(gl.TRIANGLES,0,6);
+    this.canvasValid=true;
   }
   present(target=null,raw=false) {
     const e=this.engine;
     const exempt=e.flashExempt || e.blackoutTarget>0;
-    if(raw || target || e.options.flashLimit===false || exempt) {
+    if(this.blackoutActive && e.blackoutTarget<=0)this.canvasValid=false;
+    this.blackoutActive=e.blackoutTarget>0;
+    // An offscreen freeze does not invalidate the independently approved canvas.
+    if(raw || target) {
+      this.render(target,raw);
+      return;
+    }
+    if(e.options.flashLimit===false || exempt) {
       this.readback.cancel();
       this.displayValid=false;
-      this.limiter.anchor=null;
+      this.limiter.reset(e.blackoutTarget>0?0:null);
       this.render(target,raw);
+      this.canvasValid=true;
       return;
     }
     if(!this.frames.length) {
       this.frames.push(this.target(e.width,e.height),this.target(e.width,e.height));
     }
-    if(!this.displayValid && !this.readback.sync) {
-      this.limiter.anchor=0;
-      this.limiter.extreme=0;
-      this.limiter.direction=0;
+    if(e.offline) {
+      this.render(this.frames[1],false);
+      this.mean(this.frames[1],true);
+      this.approve();
+      this.candidateTick=e.renderTick;
+      this.output(this.frames[0],this.gain);
+      return;
     }
     const pixels=this.readback.poll();
-    if(pixels) {
-      const mean=(pixels[0]*65536+pixels[1]*256+pixels[2])/16777215;
-      this.gain=this.limiter.update(mean,performance.now()/1000);
-      if(this.limiter.limited)e.counters.flashLimited++;
-      const old=this.frames[0];this.frames[0]=this.frames[1];this.frames[1]=old;
-      this.displayValid=true;
-      this.lastMean=mean;
-    }
+    if(pixels)this.approve();
     if(!this.readback.sync) {
       this.render(this.frames[1],false);
       this.mean(this.frames[1]);
       this.candidateTick=e.renderTick;
     }
-    // Present only the exact frame whose mean has completed; never apply a
-    // stale mean to a different image. While pending, repeat the approved frame.
-    this.output(this.frames[0],this.displayValid?this.gain:0);
+    // Preserve the actual canvas while the first approval is pending. A resize
+    // clears it, so bootstrap that canvas from the direct candidate, never from
+    // an uninitialised target with a sentinel gain of zero.
+    if(this.displayValid)this.output(this.frames[0],this.gain);
+    else if(!this.canvasValid)this.output(this.frames[1],1);
+    else this.gl.flush(); // Submit a first approval while preserving a direct canvas.
   }
   async capture() {
     const e=this.engine;
+    if(e.offline) {
+      if(!this.displayValid || this.candidateTick!==e.renderTick)this.present();
+      return;
+    }
     if(e.options.flashLimit===false || e.flashExempt || e.blackoutTarget>0) {
       this.present();
       return;
@@ -344,27 +398,20 @@ export class Compositor {
     }
     if(!this.readback.sync || this.candidateTick!==e.renderTick) {
       this.readback.cancel();
-      if(!this.displayValid) {
-        this.limiter.anchor=0;this.limiter.extreme=0;this.limiter.direction=0;
-      }
       this.render(this.frames[1],false);
       this.mean(this.frames[1]);
       this.candidateTick=e.renderTick;
     }
     let pixels;
-    while(!e.lost && !e.disposed && !(pixels=this.readback.poll())) {
+    while(!e.lost && !e.gl.isContextLost() && !e.disposed && !(pixels=this.readback.poll())) {
       await new Promise(resolve=>requestAnimationFrame(resolve));
     }
     if(!pixels)return;
-    const mean=(pixels[0]*65536+pixels[1]*256+pixels[2])/16777215;
-    this.gain=this.limiter.update(mean,performance.now()/1000);
-    if(this.limiter.limited)e.counters.flashLimited++;
-    const old=this.frames[0];this.frames[0]=this.frames[1];this.frames[1]=old;
-    this.displayValid=true;this.lastMean=mean;
+    this.approve();
     this.output(this.frames[0],this.gain);
   }
   dispose() {
     this.resize();this.readback.dispose();
-    for(const p of [this.program,this.bloomProgram,this.outputProgram,this.meanProgram])this.gl.deleteProgram(p.p);
+    for(const p of [this.program,this.bloomProgram,this.outputProgram,this.meanFirstProgram,this.meanProgram])this.gl.deleteProgram(p.p);
   }
 }
