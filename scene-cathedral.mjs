@@ -172,7 +172,7 @@ void main() {
   float pitch = mix(.16, .36 + .08 * sin(phase * .125), max(journey - 1., 0.));
   vec3 forward = normalize(vec3(-ro.x * .055, pitch, 1.));
   if (family > .5 && family < 1.5) {
-    float orbit = phase * .16 + seedPhase;
+    float orbit = phase * .5 + seedPhase;
     ro = vec3(5.8 * sin(orbit), .8 + .3 * sin(orbit * .7), -5.8 * cos(orbit));
     forward = normalize(vec3(0., .5, 0.) - ro);
   } else if (family > 1.5 && family < 2.5) {
@@ -241,13 +241,13 @@ void main() {
     float diffuse = .28 + .72 * max(dot(n, lightDirection), 0.);
     float rim = pow(max(1. - abs(dot(n, -rd)), 0.), 3.);
     float specular = pow(max(dot(reflect(-lightDirection, n), -rd), 0.), mix(20., 65., isCrystal));
-    // Energy widens dark lead/light-pane separation, never an exposure gain.
-    float transmission = mix(.55, glass.x, .25 + .75 * level);
+    // Contrast pivots around the typical pane coverage, not a brightness gain.
+    float transmission = clamp(.72 + (glass.x - .86) * (.25 + .75 * level), .02, 1.);
     vec3 glassColor = base * (.35 + diffuse * .4 + transmission * glow * 2.5);
     glassColor *= mix(.04, 1., transmission);
     if (isCrystal > .5) {
-      float engraving = sin(p.y * (2. + 10. * level) + p.x * 3.);
-      glassColor = base * (.2 + diffuse * 2.4) * (1. + engraving * level * .45);
+      float engraving = smoothstep(-.08, .08, sin(p.y * (2. + 10. * level) + p.x * 3.)) * 2. - 1.;
+      glassColor = base * (.2 + diffuse * 2.4) * (1. + engraving * level * .85);
     }
     vec3 stone = mix(vec3(.085, .09, .105), base * .31, .5) * diffuse;
     color = mix(glassColor, stone, max(isStructure, isFloor));
