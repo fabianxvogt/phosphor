@@ -27,6 +27,8 @@ const presets = [
 
 export default {
   id: 'evolution',
+  // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
+  aspect: 16 / 9,
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { growth: [0.5, 1.4], sway: [0.1, 0.8], glow: [0.6, 1.4] },
   beat: { punch: 0.5, pulse: 1, inject: 0.8 },

@@ -86,6 +86,32 @@ try {
       }
     pass("every family stays finite at the energy extremes");
 
+    for (const sceneId of families)
+      for (const [width, height] of [
+        [640, 180], // 32:9 LED strip
+        [240, 240], // square wall
+        [180, 320], // portrait
+      ]) {
+        const r = await lab.page.evaluate(renderLook, {
+          sceneId,
+          frames,
+          width,
+          height,
+          capture: false,
+        });
+        assert.ok(
+          !r.health.pending && r.health.mean > 0.5,
+          `${sceneId} ${width}×${height} is blank`,
+        );
+        assert.equal(
+          r.glError,
+          0,
+          `${sceneId} ${width}×${height}: WebGL error`,
+        );
+        assert.equal(r.stats.liveTextures, r.stats.textures);
+      }
+    pass("every family renders on 32:9, square and portrait screens");
+
     for (const sceneId of families) {
       const stats = await lab.page.evaluate(async (id) => {
         const { engine, scenes, presetSnapshot } = window.__phosphorLab;

@@ -132,6 +132,8 @@ void main() {
 
 export default {
   id: 'magnetic',
+  // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
+  aspect: 16 / 9,
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { motion: [0.2, 1.8], curl: [0.2, 1.2], trails: [2.4, 0.8] },
   beat: { punch: 0.8, pulse: 1, inject: 0.6 },

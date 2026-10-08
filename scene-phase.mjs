@@ -152,6 +152,8 @@ void main() {
 
 export default {
   id: 'phase',
+  // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
+  aspect: 16 / 9,
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { speed: [0.3, 2.2], noise: [0.02, 0.4] },
   beat: { punch: 0.8, pulse: 1, inject: 0.5 },

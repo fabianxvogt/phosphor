@@ -8,6 +8,12 @@ vec3 displayRGB(vec3 c) { c=max(c,vec3(0.)); return mix(c*12.92,1.055*pow(c,vec3
 export const compositeShader = shaderHeader + colorSpace + `
 uniform sampler2D a,b,glow,history;
 uniform bool singleSlot,hasHistory,raw,historyOnly;
+// Cover-crop each slot whose frame aspect differs from the target (D7):
+// fixed-aspect families render 16:9 frames that are cropped to the screen.
+uniform float aspectA,aspectB,targetAspect;
+vec2 cover(vec2 uv,float aspect) {
+  return (uv-.5)*vec2(min(1.,targetAspect/aspect),min(1.,aspect/targetAspect))+.5;
+}
 uniform float mixAmount,brightness,blackout,bloom,kaleido,echo,chroma;
 uniform float hue,zoom,punch,pulse,flash;
 uniform vec2 resolution;
@@ -26,8 +32,8 @@ vec3 hueRotate(vec3 c,float turns) {
     dot(c,vec3(.213-.213*co-.787*si,.715-.715*co+.715*si,.072+.928*co+.072*si))));
 }
 vec3 sceneAt(vec2 uv) {
-  vec3 c=texture(a,uv).rgb;
-  if (!singleSlot) c=mix(c,texture(b,uv).rgb,mixAmount);
+  vec3 c=texture(a,cover(uv,aspectA)).rgb;
+  if (!singleSlot) c=mix(c,texture(b,cover(uv,aspectB)).rgb,mixAmount);
   return c;
 }
 vec2 foldedUV(vec2 uv) {
@@ -86,11 +92,14 @@ const bloomShader = shaderHeader + `
 uniform sampler2D source,a,b;
 uniform int mode;
 uniform bool singleSlot;
-uniform float mixAmount;
+uniform float mixAmount,aspectA,aspectB,targetAspect;
+vec2 cover(vec2 uv,float aspect) {
+  return (uv-.5)*vec2(min(1.,targetAspect/aspect),min(1.,aspect/targetAspect))+.5;
+}
 vec3 sampleAt(vec2 uv) {
   if(mode!=0) return texture(source,uv).rgb;
-  vec3 c=texture(a,uv).rgb;
-  if(!singleSlot)c=mix(c,texture(b,uv).rgb,mixAmount);
+  vec3 c=texture(a,cover(uv,aspectA)).rgb;
+  if(!singleSlot)c=mix(c,texture(b,cover(uv,aspectB)).rgb,mixAmount);
   float peak=max(c.r,max(c.g,c.b));
   float knee=clamp(peak-.2,0.,.4);
   float contribution=max(peak-.4,knee*knee/.8)/max(peak,.00001);
@@ -230,11 +239,16 @@ export class Compositor {
     gl.bindTexture(gl.TEXTURE_2D, target.texture);
     gl.uniform1i(uniform, unit);
   }
-  scenes(program) {
+  scenes(program, target = null) {
     const e = this.engine, gl = this.gl, u = program.uniforms;
     const first = e.slots[0], last = e.slots.at(-1);
-    this.texture(program, "a", 0, first.visual[first.vi]);
-    this.texture(program, "b", 1, last.visual[last.vi]);
+    const a = first.visual[first.vi], b = last.visual[last.vi];
+    this.texture(program, "a", 0, a);
+    this.texture(program, "b", 1, b);
+    if (u.aspectA != null) gl.uniform1f(u.aspectA, a.w / a.h);
+    if (u.aspectB != null) gl.uniform1f(u.aspectB, b.w / b.h);
+    if (u.targetAspect != null)
+      gl.uniform1f(u.targetAspect, target ? target.w / target.h : e.width / e.height);
     if (u.singleSlot != null) gl.uniform1i(u.singleSlot, first === last ? 1 : 0);
     if (u.mixAmount != null) gl.uniform1f(u.mixAmount, e.transition ? Math.min(1, e.transition.elapsed / e.transition.duration) : 1);
   }
@@ -264,7 +278,7 @@ export class Compositor {
     }
     if(echo<=.01)this.echoValid=false;
     e.bind(p,target);
-    this.scenes(p);
+    this.scenes(p,target);
     this.texture(p,"glow",2,glow);
     this.texture(p,"history",3,this.echoTarget || glow);
     gl.uniform1i(u.hasHistory,this.echoValid?1:0);

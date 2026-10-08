@@ -324,13 +324,19 @@ export class Engine {
     }
   }
   visualSize(scene) {
-    const scale = Math.min(
-      1,
-      (scene.maxRenderWidth || this.width) / this.width,
-    );
+    let w = this.width,
+      h = this.height;
+    // Fixed-aspect families (simulations authored for 16:9) render a frame
+    // of their own aspect that covers the screen; the compositor crops it
+    // (D7). Other families compose natively at the screen's aspect.
+    if (scene.aspect) {
+      if (w / h > scene.aspect) h = w / scene.aspect;
+      else w = h * scene.aspect;
+    }
+    const scale = Math.min(1, (scene.maxRenderWidth || w) / w);
     return [
-      Math.max(1, Math.round(this.width * scale)),
-      Math.max(1, Math.round(this.height * scale)),
+      Math.max(1, Math.round(w * scale)),
+      Math.max(1, Math.round(h * scale)),
     ];
   }
   resize(w, h) {

@@ -139,6 +139,8 @@ void main() {
 
 export default {
   id: "acid",
+  // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
+  aspect: 16 / 9,
   // Contract v3 performance metadata (D17, D18, D27, D28, D30): energy
   // slopes (additive [at 0, at 1] or {mul}), beat-response weights, the three
   // stage faders and the structural type selector. First pass; tuned with
