@@ -16,7 +16,20 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 
 ## Now (2026-10-08)
 
-Platform for the first show is implemented on `main` and waits for rig verification: stage renderer and remote control, keyboard grid and pages, unified local/live performance with an optional settings lock (D52), tap/downbeat/nudge, energy and shared beat responses, flash limiter, crash restore, pre-show check, telemetry, cover-crop, bar-count autopilot with the Random default mode (D49, D50), failed-family isolation and the ray-step-first governor ([decisions](docs/DECISIONS.md#follow-up-interview-2026-10-08)). **Six families have passed the family gate** (groups 1 and 2, owner sign-off D51): the first-show minimum; "two strong at peak time" is judged at the rig rehearsal. Automatic beat tracking now meets its phase target on the owner's three produced tracks (94–100 % of beats within 20 ms, tempo exact; [evidence](docs/EVIDENCE.md)); it still needs DJ mixes with tempo changes and breakdowns before it can ship (D24). Owner inputs pending: such mixes in `songs/` (ignored by Git), rig runs with the external display.
+Platform for the first show is implemented on `main` and waits for rig verification: stage renderer and remote control, keyboard grid and pages, unified local/live performance with an optional settings lock (D52), tap/downbeat/nudge, energy and shared beat responses, flash limiter, crash restore, pre-show check, telemetry, cover-crop, bar-count autopilot with the Random default mode (D49, D50), failed-family isolation and the ray-step-first governor ([decisions](docs/DECISIONS.md#follow-up-interview-2026-10-08)). **Six families have passed the family gate** (groups 1 and 2, owner sign-off D51): the first-show minimum; "two strong at peak time" is judged at the rig rehearsal. Automatic beat tracking meets its phase target on the three produced tracks in `songs/` (94–100 % of beats within 20 ms, tempo exact; [evidence](docs/EVIDENCE.md)); the owner provides no mixes, so it is measured next on Creative-Commons DJ mixes (D63).
+
+### Review plan (D53–D63, 2026-10-08)
+
+A live test and review found show bugs and a visual layer weaker than the platform: one palette for every clip, one linear transition, 8-bit banding, peak energy barely different from mid, four gated families deaf to the music. Platform steps run one at a time on `main`, each verified, pushed and redeployed:
+
+1. **Bug batch (D53–D55):** energy survives clip triggers; Escape keyboard-locked on the stage, no venue-screen UI on fullscreen loss; drafts on a lab page autopilot skips; demo-start click does not pause autopilot; **Add missing families**.
+2. **Set v4 (D59):** palettes by id, per-clip transition, energy-driven post; lossless v3 migration.
+3. **Float picture path and energy-driven post (D56).**
+4. **Palette library and palette autopilot (D57).**
+5. **Transitions (D58):** eased crossfade, downbeat cut (manual only), noise dissolve, feedback melt.
+6. **Audio feature bus (D61).**
+
+Then, in parallel family branches: structural energy gate and re-gating of the six (D60), Flight and Cathedral headliners (D62), Pulse and Interference reworks (D60). Evidence runs alongside (D63): CC-mix beat evaluation, output-measured blackout latency, first 8-hour external-display run by 2026-10-31, USB line check before the freeze.
 
 ## Milestone 1 — first show
 
@@ -37,7 +50,7 @@ Output-window renderer; keyboard grid; optional settings lock; tap, downbeat and
 
 ### Ships only if ready
 
-Automatic beat tracking (lock within 8 beats of a tempo change, phase error < 20 ms, holds through a 32-bar breakdown, on the owner's mixes); autopilot build/drop response; native per-family composition for odd screen shapes.
+Automatic beat tracking (lock within 8 beats of a tempo change, phase error < 20 ms, holds through a 32-bar breakdown, on Creative-Commons DJ mixes plus `songs/`, D63; otherwise off by default and the show runs tap-first); autopilot build/drop response; native per-family composition for odd screen shapes.
 
 ### Family queue
 
@@ -52,7 +65,7 @@ v6 families are ported as ideas, not Canvas2D code: new GPU scenes on contract v
 
 ### Family gate
 
-At least three types that pass the grayscale distinctness sheet (same palette, mid energy; structural metric flags near pairs, including across families) and owner sign-off; an owner-approved energy ladder (0.1 / 0.5 / 0.9) for every type; frame p99 ≤ 34 ms on the reference rig at the 1080p-equivalent budget with the costliest type at full energy; GPU error zero and no non-finite shader inputs; correct at 16:9, ultra-wide and square; kick response through the shared beat layer. A family merges only after it passes.
+At least three types that pass the grayscale distinctness sheet (same palette, mid energy; structural metric flags near pairs, including across families) and owner sign-off; an owner-approved energy ladder (0.1 / 0.5 / 0.9) for every type with an automated minimum structural difference between 0.1 and 0.9 (D60, applied retroactively to gated families); frame p99 ≤ 34 ms on the reference rig at the 1080p-equivalent budget with the costliest type at full energy; GPU error zero and no non-finite shader inputs; correct at 16:9, ultra-wide and square; kick response through the shared beat layer; at most three audio-mapped hero parameters, smoothed and capped (D61). A family merges only after it passes.
 
 ### Family gate status
 
@@ -87,7 +100,7 @@ Remaining families in queue order. Optional families: Oscilloscope, Terrain. v6 
 
 ## Cut
 
-Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PNG snapshots stay); MIDI clock and Start/Stop/Continue; manual band-to-parameter audio routing; Safari and Firefox support; Milestone 3 (outside performers); further work on the public demo. MIDI learn for CC/notes stays.
+Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PNG snapshots stay); MIDI clock and Start/Stop/Continue; manual band-to-parameter audio routing; Safari and Firefox support; Milestone 3 (outside performers); separate public-demo polish (verified platform steps are still redeployed, D63). MIDI learn for CC/notes stays.
 
 ## Done
 
