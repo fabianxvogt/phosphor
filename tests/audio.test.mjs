@@ -20,7 +20,6 @@ test("F1 MIDI connect shares pending and completed access without duplicate deli
   const midi = new MidiInput(
     (m) => controls.push(m),
     () => {},
-    () => {},
   );
   try {
     await Promise.all([midi.connect(), midi.connect()]);
@@ -76,7 +75,7 @@ test("B dark techno is the default lookahead demo, with sine remaining selectabl
     audio.stop();
   }
 });
-test("B tab audio stops video and routes only to analysis/recording, never the monitor", async () => {
+test("B tab audio stops video and routes only to analysis, never the monitor", async () => {
   const prior = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   let videoStopped = 0;
   const video = { stop: () => videoStopped++ };

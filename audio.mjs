@@ -53,8 +53,6 @@ export class AudioEngine {
       this.monitor = this.context.createGain();
       this.monitor.gain.value = this.muted ? 0 : 0.65;
       this.monitor.connect(this.context.destination);
-      this.recordDestination = this.context.createMediaStreamDestination();
-      this.analyser.connect(this.recordDestination);
     }
     await this.context.resume();
   }
@@ -299,10 +297,10 @@ export class AudioEngine {
       }
       this.stream = stream;
       this.source = this.context.createMediaStreamSource(stream);
-      this.source.connect(this.analyser); // Analysis and recording only.
+      this.source.connect(this.analyser); // Analysis only.
       this.kind = "tab";
       this.onStatus(
-        "Tab audio active · analysis/recording only · speakers disabled",
+        "Tab audio active · analysis only · speakers disabled",
       );
       stream.getAudioTracks()[0].onended = () => this.stop();
     } catch (error) {
@@ -372,20 +370,16 @@ export class AudioEngine {
     this.context = null;
     this.analyser = null;
     this.monitor = null;
-    this.recordDestination = null;
   }
 }
+// MIDI learn input (D5). MIDI clock and transport are not used (D35).
 export class MidiInput {
-  constructor(onControl, onClock, onStatus) {
+  constructor(onControl, onStatus = () => {}) {
     this.onControl = onControl;
-    this.onClock = onClock;
     this.onStatus = onStatus;
     this.access = null;
     this.connecting = null;
     this.disposed = false;
-    this.lastClock = 0;
-    this.intervals = [];
-    this.pulses = 0;
   }
   async connect() {
     if (this.access) return this.access;
@@ -414,43 +408,27 @@ export class MidiInput {
   }
   message(event) {
     const [status, a, b] = event.data;
-    if (status === 248) {
-      const now = event.timeStamp;
-      if (this.lastClock) {
-        const d = now - this.lastClock;
-        if (d > 2 && d < 100) {
-          this.intervals.push(d);
-          if (this.intervals.length > 48) this.intervals.shift();
-        }
-      }
-      this.lastClock = now;
-      this.pulses++;
-      if (this.intervals.length >= 12) {
-        const sorted = [...this.intervals].sort((a, b) => a - b);
-        this.onClock({
-          tempo: 60000 / (sorted[Math.floor(sorted.length / 2)] * 24),
-          beat: this.pulses / 24,
-        });
-      }
-    } else if (status === 250) {
-      this.pulses = 0;
-      this.onClock({ start: true, beat: 0 });
-    } else if (status === 251) {
-      this.onClock({ resume: true, beat: this.pulses / 24 });
-    } else if (status === 252) this.onClock({ stop: true });
-    else if ((status & 240) === 176)
+    const kind = status & 240;
+    if (kind === 176)
       this.onControl({
         type: "cc",
         channel: status & 15,
         number: a,
         value: b / 127,
       });
-    else if ((status & 240) === 144 && b > 0)
+    else if (kind === 144 && b > 0)
       this.onControl({
         type: "note",
         channel: status & 15,
         number: a,
         value: b / 127,
+      });
+    else if (kind === 128 || (kind === 144 && b === 0))
+      this.onControl({
+        type: "note",
+        channel: status & 15,
+        number: a,
+        value: 0,
       });
   }
   dispose() {

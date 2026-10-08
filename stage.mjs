@@ -12,6 +12,8 @@ import { EnergyEvents } from "./energy-events.mjs";
 import { loadSet, saveRuntime, loadRuntime } from "./show-storage.mjs";
 import { actionFor } from "./keymap.mjs";
 import { drawPattern } from "./stage-pattern.mjs";
+import { Pacer } from "./pacer.mjs";
+import { Telemetry } from "./telemetry.mjs";
 
 const $ = (id) => document.getElementById(id);
 const channel = new BroadcastChannel("phosphor-show");
@@ -37,6 +39,8 @@ const show = new Show({
 });
 const audio = new StageAudio((text) => post({ type: "audio-status", text }));
 const events = new EnergyEvents();
+const telemetry = new Telemetry();
+const pacer = new Pacer();
 let frozen = false;
 let budget = set.options.pixelBudget;
 let started = false;
@@ -55,6 +59,7 @@ function apply(actions) {
   for (const a of actions)
     switch (a.type) {
       case "load":
+        telemetry.clipRequested(performance.now());
         // Energy crossfades with the picture: the outgoing clip moves toward
         // the new energy while the incoming one starts from the old.
         engine.setLevel(a.energy, a.fadeSeconds);
@@ -77,6 +82,7 @@ function apply(actions) {
         engine.view.zoom = a.shared.zoom;
         break;
       case "blackout":
+        if (a.on && !engine.blackoutTarget) telemetry.blackoutRequested();
         engine.blackoutTarget = a.on ? 1 : 0;
         break;
       case "freeze":
@@ -126,11 +132,7 @@ if (!engine.slots.length) {
 }
 
 // --- frame loop ------------------------------------------------------------
-// Render at 60 Hz even on 120 Hz displays: pace by an accumulated phase,
-// not a per-callback threshold (the old 16 ms gate misread 120 Hz).
-let last = null,
-  phase = 0,
-  lastRender = null;
+// Render at about 60 Hz whatever the display's refresh rate (pacer.mjs).
 const intervals = new Float32Array(600);
 let intervalCount = 0,
   slowWindows = 0,
@@ -139,16 +141,11 @@ let intervalCount = 0,
   lastSave = 0;
 function frame(ms) {
   requestAnimationFrame(frame);
+  const interval = pacer.frame(ms);
+  if (!interval) return;
   const t = ms / 1000;
-  if (last === null) last = lastRender = ms;
-  const delta = ms - last;
-  last = ms;
-  phase += delta;
-  if (phase + 4 < 1000 / 60) return;
-  phase = Math.max(0, phase - 1000 / 60);
-  const dt = Math.min(0.1, (ms - lastRender) / 1000);
-  intervals[intervalCount++ % intervals.length] = ms - lastRender;
-  lastRender = ms;
+  const dt = Math.min(0.1, interval / 1000);
+  intervals[intervalCount++ % intervals.length] = interval;
   try {
     const tracker = audio.trackerNow();
     const clock = show.clock.at(t);
@@ -164,6 +161,7 @@ function frame(ms) {
     engine.beat = show.clock.at(t).beat;
     engine.features = audio.features(dt);
     engine.advance(dt, frozen);
+    telemetry.presented(ms, interval, engine);
   } catch (error) {
     // Never freeze the show on one bad frame: fall back to the safe look.
     post({
@@ -174,12 +172,33 @@ function frame(ms) {
       apply(show.command({ type: "safe" }, t));
     } catch {}
   }
+  telemetry.summarize(
+    ms,
+    context(),
+    engine,
+    performance.memory?.usedJSHeapSize ?? null,
+  );
   if (ms - lastAssess > 5000) assess(ms);
   if (ms - lastStatus > 100) sendStatus(t, ms);
   if (ms - lastSave > 1000) {
     lastSave = ms;
     saveRuntime(localStorage, show.snapshot(t));
   }
+}
+let downgrades = 0;
+function context() {
+  const status = audio.status();
+  return {
+    budget,
+    downgrades,
+    scene: engine.slots.at(-1)?.scene.id ?? null,
+    level: Math.round(engine.level * 100) / 100,
+    audio: status.source,
+    locked: status.locked,
+    bpm: status.bpm && Math.round(status.bpm * 10) / 10,
+    width: engine.width,
+    height: engine.height,
+  };
 }
 
 // Downgrade-only pixel budget governor: two consecutive slow 5 s windows
@@ -195,6 +214,7 @@ function assess(ms) {
   if (slowWindows >= 2 && index > 0) {
     budget = PIXEL_BUDGETS[index - 1];
     slowWindows = 0;
+    downgrades++;
     fit();
     post({
       type: "error",
@@ -274,6 +294,9 @@ channel.onmessage = async ({ data }) => {
       case "devices":
         post({ type: "devices", devices: await audio.devices() });
         break;
+      case "log":
+        post({ type: "log", rows: telemetry.log });
+        break;
       case "pattern":
         document.body.classList.toggle("pattern", !!data.on);
         if (data.on) drawPattern($("pattern"), engine);
@@ -327,7 +350,22 @@ addEventListener("pagehide", () => {
   wake?.release();
   audio.dispose();
 });
-window.__phosphorStage = { engine, show, audio, attachPreview };
+// Harness and soak-runner hooks (tests/browser, scripts/soak.mjs).
+window.__phosphorStage = {
+  engine,
+  show,
+  audio,
+  scenes,
+  attachPreview,
+  telemetry: () =>
+    telemetry.drain(
+      performance.now(),
+      context(),
+      engine,
+      performance.memory?.usedJSHeapSize ?? null,
+    ),
+  log: () => telemetry.log,
+};
 post({ type: "stage-ready" });
 attachPreview();
 requestAnimationFrame(frame);

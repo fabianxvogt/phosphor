@@ -1,7 +1,10 @@
+// Stage telemetry (D36): bounded sample buffers drained by the harness, and
+// a per-minute rehearsal log the owner can export after a rig run.
+
 // Fixed storage even when a live show never drains telemetry.
 class Samples {
-  constructor() {
-    this.values = new Float64Array(4096);
+  constructor(size = 4096) {
+    this.values = new Float64Array(size);
     this.count = 0;
     this.next = 0;
     this.dropped = 0;
@@ -24,34 +27,42 @@ class Samples {
   }
 }
 
+const quantile = (sorted, q) =>
+  sorted.length
+    ? sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]
+    : null;
+
 export class Telemetry {
   constructor() {
     this.frameIntervalsMs = new Samples();
-    this.cuePrepMs = new Samples();
+    this.clipPrepMs = new Samples();
     this.blackoutLatencyFrames = new Samples();
     this.frames = 0;
-    this.cueRequestedAt = null;
+    this.clipRequestedAt = null;
     this.blackoutRequestedFrame = null;
+    this.minute = { intervals: [], start: null };
+    this.log = [];
   }
-  cueRequested(now) {
-    this.cueRequestedAt = now;
+  clipRequested(now) {
+    this.clipRequestedAt = now;
   }
   blackoutRequested() {
     this.blackoutRequestedFrame = this.frames;
   }
-  blackoutCancelled() {
-    this.blackoutRequestedFrame = null;
-  }
+  // Call after each presented frame.
   presented(now, interval, engine) {
     this.frames++;
-    if (interval > 0) this.frameIntervalsMs.push(interval);
+    if (interval > 0) {
+      this.frameIntervalsMs.push(interval);
+      this.minute.intervals.push(interval);
+    }
     if (
-      this.cueRequestedAt !== null &&
+      this.clipRequestedAt !== null &&
       !engine.slots.at(-1)?.warmTicks &&
       (!engine.transition || engine.transition.elapsed > 0)
     ) {
-      this.cuePrepMs.push(Math.max(0, now - this.cueRequestedAt));
-      this.cueRequestedAt = null;
+      this.clipPrepMs.push(Math.max(0, now - this.clipRequestedAt));
+      this.clipRequestedAt = null;
     }
     if (this.blackoutRequestedFrame !== null && engine.blackout >= 1 - 1e-6) {
       this.blackoutLatencyFrames.push(
@@ -60,31 +71,50 @@ export class Telemetry {
       this.blackoutRequestedFrame = null;
     }
   }
-  drain(now, session, transport, governor, engine, heapBytes = null) {
+  // Once a minute: one compact rehearsal-log row (8 h ≈ 480 rows).
+  summarize(now, context, engine, heapBytes = null) {
+    if (this.minute.start === null) this.minute.start = now;
+    if (now - this.minute.start < 60000) return null;
+    const sorted = this.minute.intervals.sort((a, b) => a - b);
+    const row = {
+      t: Math.round(now),
+      frames: sorted.length,
+      p50: quantile(sorted, 0.5),
+      p95: quantile(sorted, 0.95),
+      p99: quantile(sorted, 0.99),
+      max: sorted.at(-1) ?? null,
+      gpuErrors: engine.counters?.gpuErrors ?? null,
+      nonFinite: engine.counters?.nonFinite ?? null,
+      flashLimited: engine.counters?.flashLimited ?? null,
+      heapMB: heapBytes === null ? null : Math.round(heapBytes / 1e5) / 10,
+      ...context,
+    };
+    this.minute = { intervals: [], start: now };
+    this.log.push(row);
+    if (this.log.length > 1440) this.log.shift(); // 24 h
+    return row;
+  }
+  drain(now, context, engine, heapBytes = null) {
     const stats = engine.stats();
-    const result = {
-      v: 1,
+    return {
+      v: 2,
       now,
-      quality: session.options.quality,
-      refreshHz: 1000 / governor.refreshMs,
-      governorDowngrades: governor.downgrades,
+      ...context,
       frameIntervalsMs: this.frameIntervalsMs.drain(),
+      clipPrepMs: this.clipPrepMs.drain(),
+      blackoutLatencyFrames: this.blackoutLatencyFrames.drain(),
       gpuErrors: engine.counters?.gpuErrors ?? null,
       nonFinite: engine.counters?.nonFinite ?? null,
       flashLimited: engine.counters?.flashLimited ?? null,
       slots: stats.slots,
       textures: stats.textures,
-      cuePrepMs: this.cuePrepMs.drain(),
-      blackoutLatencyFrames: this.blackoutLatencyFrames.drain(),
+      liveTextures: stats.liveTextures,
       droppedSamples: {
         frameIntervalsMs: this.frameIntervalsMs.dropped,
-        cuePrepMs: this.cuePrepMs.dropped,
+        clipPrepMs: this.clipPrepMs.dropped,
         blackoutLatencyFrames: this.blackoutLatencyFrames.dropped,
       },
       heapBytes,
-      playing: transport.playing,
-      currentCue: transport.currentCue,
     };
-    return result;
   }
 }

@@ -39,143 +39,96 @@ export function installProbes() {
   }
 }
 
-export function attachFallback() {
-  const native = typeof window.__phosphor.telemetry === "function";
-  const app = window.__phosphor,
-    state = window.__harness,
-    engine = app.engine;
-  if (typeof engine.counters?.nonFinite === "number") {
-    for (const restore of state.restoreUniforms) restore();
-    state.restoreUniforms.length = 0;
-  }
-  const load = engine.load;
-  if (!native)
-    engine.load = function (...args) {
-      state.preparingAt = performance.now();
-      return load.apply(this, args);
-    };
-  function sample(now) {
-    if (!native && state.previousFrame !== null) {
-      state.frameIntervalsMs.push(now - state.previousFrame);
-      if (state.frameIntervalsMs.length > 10000)
-        state.frameIntervalsMs.splice(0, 5000);
-    }
-    state.previousFrame = now;
-    const slots = engine.slots.length;
-    if (state.previousSlots > 1 && slots === 1) {
-      const stats = engine.stats();
-      state.settled.push({
-        slots,
-        textures: stats.textures,
-        liveTextures: stats.liveTextures,
-      });
-    }
-    state.previousSlots = slots;
-    if (state.preparingAt != null && engine.transition?.elapsed > 0) {
-      state.cuePrepMs.push(now - state.preparingAt);
-      state.preparingAt = null;
-    }
-    const quality = document.getElementById("qualityInput").value;
-    const rank = { low: 0, balanced: 1, high: 2 };
-    if (state.previousQuality && rank[quality] < rank[state.previousQuality])
-      state.governorDowngrades++;
-    state.previousQuality = quality;
-    requestAnimationFrame(sample);
-  }
-  requestAnimationFrame(sample);
-  return native
-    ? "contract-5"
-    : "fallback: own rAF callbacks (not presentation), sampled gl.getError, observed uniform uploads";
-}
-
-export function readTelemetry() {
-  const app = window.__phosphor,
-    state = window.__harness;
-  const settled = state.settled.splice(0);
-  if (typeof app.telemetry === "function")
-    return { source: "contract-5", ...app.telemetry(), settled };
-  const error = app.engine.gl.getError();
-  if (error) state.gpuErrors++;
-  const stats = app.engine.stats();
-  return {
-    source: "fallback",
-    v: 1,
-    now: performance.now(),
-    quality: app.getSession().options.quality,
-    refreshHz: null,
-    governorDowngrades: state.governorDowngrades,
-    frameIntervalsMs: state.frameIntervalsMs.splice(0),
-    gpuErrors: (app.engine.counters?.gpuErrors ?? 0) + state.gpuErrors,
-    nonFinite: app.engine.counters?.nonFinite ?? state.nonFiniteUploads,
-    flashLimited: app.engine.counters?.flashLimited ?? null,
-    slots: stats.slots,
-    textures: stats.textures,
-    cuePrepMs: state.cuePrepMs.splice(0),
-    blackoutLatencyFrames: [],
-    heapBytes: performance.memory?.usedJSHeapSize ?? null,
-    playing: /Pause score/.test(
-      document.getElementById("playSetButton").textContent,
-    ),
-    currentCue:
-      document.querySelector(".cue-row.current")?.querySelector("input")
-        ?.value ?? null,
-    settled,
-    lastGlError: error,
-  };
-}
-
-export async function renderPreset({
+// Runs in the lab page: render one look and return pixels and checks.
+// level/base: live energy and the clip's base energy (energy curves move
+// parameters by the slope times level − base). Captured mid-beat so the
+// kick envelope does not dominate a still.
+export async function renderLook({
   sceneId,
-  index,
-  seed,
-  frames = 120,
+  index = 0,
+  snapshot = null,
+  seed = null,
+  frames = 60,
+  level = 0.5,
+  base = 0.5,
+  width = 320,
+  height = 180,
   capture = true,
+  gray = false,
 }) {
-  const app = window.__phosphor;
-  const { presetSnapshot } = await import("/session.mjs");
-  const scene = app.scenes.find((scene) => scene.id === sceneId);
-  const snapshot = presetSnapshot(scene, index);
-  snapshot.seed = seed;
-  const engine = app.engine;
-  engine.mappings = [];
+  const { engine, scenes, presetSnapshot } = window.__phosphorLab;
+  const scene = scenes.find((s) => s.id === sceneId);
+  const look = snapshot
+    ? structuredClone(snapshot)
+    : presetSnapshot(scene, index);
+  if (seed !== null) look.seed = seed;
+  if (engine.width !== width || engine.height !== height)
+    engine.resize(width, height);
   engine.features = { energy: 0, bass: 0, mid: 0, high: 0, onset: 0 };
-  engine.beat = 0;
+  engine.speed = 1;
+  engine.view = { hue: 0, zoom: 1 };
+  engine.flashHeld = false;
   engine.gesture = [0.5, 0.5, 0];
   engine.blackout = engine.blackoutTarget = 0;
-  engine.load(snapshot, 0);
+  engine.options.flashLimit = false;
+  engine.options.kaleido = 1;
+  engine.beat = 0.5;
+  engine.setLevel(level, 0);
+  engine.load(look, 0, { energy: base });
   // Programs compile in parallel (KHR_parallel_shader_compile); completion
   // only advances between tasks, so a synchronous warm loop would never end.
   if (!(await engine.ready(sceneId)))
     throw new Error(`${sceneId} failed to compile`);
   while (engine.slots.at(-1).warmTicks > 0) engine.advance(0, true);
-  for (let i = 0; i < frames; i++) engine.advance(1 / 60, false);
-  engine.present();
-  if (!capture) {
-    const health = engine.health();
-    return {
-      mean: health.mean,
-      glError: engine.gl.getError(),
-      nonFinite:
-        engine.counters?.nonFinite ?? window.__harness.nonFiniteUploads,
-      stats: engine.stats(),
-    };
+  for (let i = 0; i < frames; i++) {
+    engine.beat = 0.5 + Math.floor((i + 1) / 30); // stays mid-beat
+    engine.advance(1 / 60, false);
   }
+  engine.present();
+  const result = {
+    glError: engine.gl.getError(),
+    nonFinite:
+      engine.counters.nonFinite + (window.__harness?.nonFiniteUploads ?? 0),
+    stats: engine.stats(),
+    health: engine.health(),
+  };
+  if (!capture) return result;
   const canvas = document.createElement("canvas");
   canvas.width = engine.canvas.width;
   canvas.height = engine.canvas.height;
   const context = canvas.getContext("2d");
   context.drawImage(engine.canvas, 0, 0);
-  const rgba = Array.from(
-    context.getImageData(0, 0, canvas.width, canvas.height).data,
-  );
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  if (gray) {
+    const d = image.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const y = Math.round(
+        0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2],
+      );
+      d[i] = d[i + 1] = d[i + 2] = y;
+    }
+    context.putImageData(image, 0, 0);
+  }
   return {
+    ...result,
     png: canvas.toDataURL("image/png").split(",")[1],
-    rgba,
+    rgba: Array.from(image.data),
     width: canvas.width,
     height: canvas.height,
-    glError: engine.gl.getError(),
-    nonFinite: engine.counters?.nonFinite ?? window.__harness.nonFiniteUploads,
-    stats: engine.stats(),
-    snapshot,
+    snapshot: look,
+  };
+}
+
+// Runs in the stage page.
+export function readStage() {
+  const stage = window.__phosphorStage;
+  return {
+    telemetry: stage.telemetry(),
+    status: stage.show.status(performance.now() / 1000),
+    blackout: stage.engine.blackout,
+    blackoutTarget: stage.engine.blackoutTarget,
+    scene: stage.engine.slots.at(-1)?.scene.id ?? null,
+    level: stage.engine.level,
+    frames: stage.engine.frameCount,
   };
 }

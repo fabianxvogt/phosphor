@@ -13,9 +13,8 @@
     "test:browser": "node scripts/test-browser.mjs",
     "contact": "node scripts/contact.mjs",
     "soak": "node scripts/soak.mjs",
-    "smoke:cross": "node scripts/smoke-cross.mjs",
     "typecheck": "tsc --noEmit",
-    "format:check": "prettier --check package.json package-lock.json tsconfig.json .prettierrc.json .github tests/browser scripts/browser-runtime.mjs scripts/test-browser.mjs scripts/contact.mjs scripts/soak.mjs scripts/smoke-cross.mjs",
+    "format:check": "prettier --check package.json tsconfig.json .prettierrc.json .github tests/browser scripts/browser-runtime.mjs scripts/test-browser.mjs scripts/contact.mjs scripts/soak.mjs",
     "beat:eval": "node scripts/beat-eval.mjs"
   },
   "devDependencies": {

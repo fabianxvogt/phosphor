@@ -16,6 +16,9 @@ import {
 import { loadSet, saveSet } from "./show-storage.mjs";
 import { actionFor, keyLabels, GRID_CODES } from "./keymap.mjs";
 import { mutatePreset } from "./evolution.mjs";
+import { MidiInput } from "./audio.mjs";
+import { routeMidi } from "./midi-map.mjs";
+import { MIDI_TARGETS } from "./show-set.mjs";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...children) => {
@@ -145,6 +148,16 @@ channel.onmessage = ({ data }) => {
     case "error":
       log(data.message);
       toast(data.message);
+      break;
+    case "log":
+      download(
+        `phosphor-rehearsal-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.json`,
+        JSON.stringify(
+          { exported: new Date().toISOString(), rows: data.rows },
+          null,
+          1,
+        ),
+      );
       break;
     case "audio-status":
       log(`Audio: ${data.text}`);
@@ -846,16 +859,84 @@ $("clearClip").onclick = () =>
     changed();
     selectSlot(selected.page, selected.slot);
   });
-$("exportSet").onclick = () => {
-  const blob = new Blob([JSON.stringify(set, null, 2)], {
-    type: "application/json",
-  });
-  const a = el("a", {
-    href: URL.createObjectURL(blob),
-    download: `${set.name.replace(/[^\w-]+/g, "_") || "phosphor"}.phosphor.json`,
-  });
+function download(name, text) {
+  const blob = new Blob([text], { type: "application/json" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: name });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$("exportSet").onclick = () =>
+  download(
+    `${set.name.replace(/[^\w-]+/g, "_") || "phosphor"}.phosphor.json`,
+    JSON.stringify(set, null, 2),
+  );
+$("exportLog").onclick = () => send({ type: "log" });
+
+// --- MIDI learn (D5) ---------------------------------------------------------------
+const midiEdges = new Map();
+let midiLearn = null;
+const midi = new MidiInput(
+  (message) => {
+    const live = status?.status.live;
+    const clip = live && set.pages[live.page]?.slots[live.slot];
+    const scene = clip && sceneById(clip.snapshot.scene);
+    const familyParam = (i, v) => {
+      const key = scene && stageParams(scene)[i];
+      const def = key && scene.schema.find((d) => d.key === key);
+      if (!def) return null;
+      const value = def.min + v * (def.max - def.min);
+      return { key, value: def.step === 1 ? Math.round(value) : value };
+    };
+    const result = routeMidi(
+      message,
+      set.midi,
+      midiEdges,
+      midiLearn,
+      familyParam,
+    );
+    if (result.error) toast(result.error);
+    if (result.maps) {
+      set.midi = result.maps;
+      toast(`Learnt ${message.type} ${message.number} → ${midiLearn}`);
+      midiLearn = null;
+      $("midiLearn").textContent = "Learn next control";
+      changed();
+      renderMidi();
+    }
+    for (const action of result.actions) act(action);
+  },
+  (text) => log(`MIDI: ${text}`),
+);
+function renderMidi() {
+  if (!$("midiTarget").children.length)
+    $("midiTarget").replaceChildren(
+      ...MIDI_TARGETS.map((t) => el("option", { value: t, textContent: t })),
+    );
+  $("midiMaps").replaceChildren(
+    ...set.midi.map((m, i) =>
+      el(
+        "li",
+        {},
+        `${m.type} ${m.channel + 1}/${m.number} → ${m.target} `,
+        el("button", {
+          textContent: "Forget",
+          onclick: () => {
+            set.midi.splice(i, 1);
+            changed();
+            renderMidi();
+          },
+        }),
+      ),
+    ),
+  );
+}
+$("midiConnect").onclick = () =>
+  midi.connect().catch((error) => toast(error.message));
+$("midiLearn").onclick = () => {
+  midiLearn = midiLearn ? null : $("midiTarget").value;
+  $("midiLearn").textContent = midiLearn
+    ? `Move a control for ${midiLearn}…`
+    : "Learn next control";
 };
 $("importSet").onchange = async () => {
   const file = $("importSet").files[0];
@@ -916,6 +997,7 @@ function render() {
     renderEditor();
     renderSetFields();
     renderChecks();
+    renderMidi();
   }
 }
 window.addEventListener("beforeunload", () => {

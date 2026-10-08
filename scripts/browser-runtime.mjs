@@ -3,7 +3,7 @@ import { readFile, mkdir, stat } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
 import { parseArgs } from "node:util";
 import { chromium, firefox, webkit } from "playwright-core";
-import { installProbes, attachFallback } from "../tests/browser/client.mjs";
+import { installProbes } from "../tests/browser/client.mjs";
 
 export const root = resolve(new URL("..", import.meta.url).pathname);
 export const artifactRoot = resolve(root, "artifacts");
@@ -122,10 +122,44 @@ export function deadline(promise, milliseconds, label) {
     }),
   ]).finally(() => clearTimeout(timer));
 }
-export async function newInstrument(
+// The repository root is served: the built app at /dist/ and the render
+// lab at /tests/browser/lab.html.
+export const APP = "dist/";
+export const LAB = "tests/browser/lab.html";
+
+function watch(page, name, errors) {
+  page.on("pageerror", (error) => errors.push(`${name}: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error" && !/favicon/.test(message.text()))
+      errors.push(`${name} console: ${message.text()}`);
+  });
+}
+
+// The render lab: one Engine on a canvas, no UI (tests/browser/lab.mjs).
+export async function openLab(browser, url) {
+  const context = await browser.newContext({
+    viewport: { width: 640, height: 400 },
+    deviceScaleFactor: 1,
+  });
+  await context.addInitScript(installProbes);
+  const page = await context.newPage();
+  const errors = [];
+  watch(page, "lab", errors);
+  await page.goto(url + LAB, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForFunction(() => !!window.__phosphorLab, null, {
+    timeout: 60000,
+  });
+  return { context, page, errors };
+}
+
+// The show: control window plus the stage popup, started with one click.
+export async function openShow(
   browser,
   url,
-  { viewport = { width: 1440, height: 900 }, capability = false } = {},
+  {
+    viewport = { width: 1440, height: 900 },
+    stageViewport = { width: 320, height: 180 },
+  } = {},
 ) {
   const context = await browser.newContext({
     viewport,
@@ -133,60 +167,37 @@ export async function newInstrument(
     acceptDownloads: true,
   });
   await context.addInitScript(installProbes);
-  const page = await context.newPage();
-  const errors = [],
-    consoleDiagnostics = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      const diagnostic = { message: message.text(), ...message.location() };
-      consoleDiagnostics.push(diagnostic);
-      console.warn(`Browser console diagnostic: ${JSON.stringify(diagnostic)}`);
-    }
+  const control = await context.newPage();
+  const errors = [];
+  watch(control, "control", errors);
+  await control.goto(url + APP, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
   });
-  page.on("dialog", (dialog) => dialog.accept());
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForFunction(
-    () => {
-      const app = window.__phosphor;
-      return (
-        (app &&
-          (app.ready === true ||
-            (app.ready === undefined && app.engine && app.getSession))) ||
-        !document.getElementById("fatal").hidden
-      );
-    },
+  await control.waitForFunction(() => !!window.__phosphorControl, null, {
+    timeout: 60000,
+  });
+  const [stage] = await Promise.all([
+    context.waitForEvent("page", { timeout: 60000 }),
+    control.click("#openStage", { noWaitAfter: true }),
+  ]);
+  watch(stage, "stage", errors);
+  await stage.setViewportSize(stageViewport);
+  await stage.waitForFunction(() => !!window.__phosphorStage, null, {
+    timeout: 60000,
+  });
+  await stage.click("#start", { noWaitAfter: true, timeout: 60000 });
+  await stage.waitForFunction(
+    () => document.getElementById("overlay").hidden,
     null,
     { timeout: 60000 },
   );
-  if (await page.locator("#fatal").isVisible()) {
-    const message = await page.locator("#fatal").textContent();
-    if (capability && /WebGL2.*required|WebGL2.*support/i.test(message))
-      return {
-        context,
-        page,
-        errors,
-        consoleDiagnostics,
-        capabilityMessage: message,
-      };
-    throw new Error(message);
-  }
-  const source = await page.evaluate(attachFallback);
-  return { context, page, errors, consoleDiagnostics, source };
+  return { context, control, stage, errors };
 }
-export async function pauseForCapture(page) {
-  await page.locator("#autoQualityInput").uncheck();
-  await page.locator("#autoRecoveryInput").uncheck();
-  if (/Pause visuals/.test(await page.locator("#pauseButton").textContent()))
-    await page.locator("#pauseButton").click();
-  await page.waitForFunction(() =>
-    /Resume/.test(document.getElementById("pauseButton").textContent),
-  );
-  await page.evaluate(() => window.__phosphor.engine.resize(640, 360));
-}
-export async function presets(page) {
+
+export async function lookList(page) {
   return page.evaluate(() =>
-    window.__phosphor.scenes.flatMap((scene) =>
+    window.__phosphorLab.scenes.flatMap((scene) =>
       scene.presets.map((preset, index) => ({
         sceneId: scene.id,
         sceneName: scene.name,

@@ -254,24 +254,12 @@ test("legacy scores migrate labels, rules, palettes and durations without mutati
   assert.throws(() => migrateLegacy(old, scenes));
 });
 
-test("MIDI parser preserves clock phase across Continue and restarts on Start", () => {
-  const events = [],
-    controls = [];
-  const input = new MidiInput(
-    (message) => controls.push(message),
-    (clock) => events.push(clock),
-    () => {},
-  );
+test("MIDI input reports CCs, notes and note-offs; clock and transport are ignored", () => {
+  const controls = [];
+  const input = new MidiInput((message) => controls.push(message));
   input.message({ data: [250], timeStamp: 0 });
-  for (let i = 1; i <= 24; i++)
-    input.message({ data: [248], timeStamp: i * 20.833333 });
-  const clock = events.at(-1);
-  assert.ok(Math.abs(clock.tempo - 120) < 0.001);
-  assert.equal(clock.beat, 1);
-  input.message({ data: [252], timeStamp: 510 });
-  assert.deepEqual(events.at(-1), { stop: true });
-  input.message({ data: [251], timeStamp: 520 });
-  assert.deepEqual(events.at(-1), { resume: true, beat: 1 });
+  input.message({ data: [248], timeStamp: 1 });
+  assert.equal(controls.length, 0);
   input.message({ data: [178, 19, 127], timeStamp: 530 });
   assert.deepEqual(controls.at(-1), {
     type: "cc",
@@ -279,6 +267,13 @@ test("MIDI parser preserves clock phase across Continue and restarts on Start", 
     number: 19,
     value: 1,
   });
-  input.message({ data: [250], timeStamp: 540 });
-  assert.deepEqual(events.at(-1), { start: true, beat: 0 });
+  input.message({ data: [144, 36, 64], timeStamp: 531 });
+  assert.equal(controls.at(-1).value, 64 / 127);
+  input.message({ data: [128, 36, 0], timeStamp: 532 });
+  assert.deepEqual(controls.at(-1), {
+    type: "note",
+    channel: 0,
+    number: 36,
+    value: 0,
+  });
 });

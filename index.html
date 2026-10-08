@@ -207,7 +207,17 @@
           <div id="checks"></div>
           <div class="row" style="margin-top: 8px">
             <button id="pattern" aria-pressed="false">Framing pattern</button>
+            <button id="exportLog">Export rehearsal log</button>
           </div>
+        </section>
+        <section class="panel prep-only" aria-label="MIDI">
+          <h2>MIDI</h2>
+          <div class="row">
+            <button id="midiConnect">Connect MIDI</button>
+            <select id="midiTarget" aria-label="Learn target"></select>
+            <button id="midiLearn">Learn next control</button>
+          </div>
+          <ul class="log" id="midiMaps"></ul>
         </section>
         <section class="panel" aria-label="Messages">
           <h2>Messages</h2>

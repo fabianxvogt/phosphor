@@ -1,5 +1,10 @@
-import assert from "node:assert/strict";
-import { open, readFile, writeFile } from "node:fs/promises";
+// Show-gate soak runner (D38): drives the real control + stage for N minutes
+// with autopilot on, samples stage telemetry every minute, then checks
+// blackout latency and crash recovery, and writes artifacts/soak/summary.json.
+//   npm run soak -- --rig --minutes 480 [--audio path/to/mix.wav]
+// --rig uses installed Chrome with the real GPU (required for the gate);
+// without it this is a headless smoke of the runner itself.
+import { open, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -7,17 +12,18 @@ import {
   outputDirectory,
   serve,
   launch,
-  newInstrument,
-  pauseForCapture,
+  openShow,
   deadline,
 } from "./browser-runtime.mjs";
-import { readTelemetry } from "../tests/browser/client.mjs";
+import { readStage } from "../tests/browser/client.mjs";
 import { percentile, heapEvidence } from "../tests/browser/metrics.mjs";
 
-const args = options({ minutes: { type: "string", default: "30" } });
+const args = options({
+  minutes: { type: "string", default: "30" },
+  audio: { type: "string" },
+});
 const minutes = Number(args.minutes);
-if (!Number.isFinite(minutes) || minutes <= 0)
-  throw new Error("--minutes must be positive");
+if (!(minutes > 0)) throw new Error("--minutes must be positive");
 const out = await outputDirectory("soak", args.out);
 const log = await open(resolve(out, "telemetry.jsonl"), "w");
 const append = async (record) => {
@@ -26,300 +32,150 @@ const append = async (record) => {
   );
   await log.sync();
 };
-const server = await serve(args.dist, args.port);
-let runtime, page, errors, set, source;
-const samples = [],
-  watchdogs = [],
-  sources = new Set();
-let exportEqual = false,
-  blackoutFrames = null;
-async function start() {
-  runtime = await launch({ rig: args.rig });
-  const instrument = await newInstrument(runtime.browser, server.url);
-  ({ page, errors, source } = instrument);
-  sources.add(source);
-  const renderer = await page.evaluate(() => {
-    const gl = window.__phosphor.engine.gl;
+const server = await serve(".", args.port);
+const runtime = await launch({ rig: args.rig });
+const intervals = [],
+  heaps = [],
+  prep = [];
+let summary;
+try {
+  const viewport = args.rig ? { width: 1600, height: 1000 } : undefined;
+  const show = await openShow(
+    runtime.browser,
+    server.url,
+    args.rig ? { viewport, stageViewport: { width: 1920, height: 1080 } } : {},
+  );
+  const { control, stage } = show;
+  const renderer = await stage.evaluate(() => {
+    const gl = window.__phosphorStage.engine.gl;
     const debug = gl.getExtension("WEBGL_debug_renderer_info");
     return gl.getParameter(debug?.UNMASKED_RENDERER_WEBGL ?? gl.RENDERER);
   });
   if (args.rig && /swiftshader|llvmpipe|software/i.test(renderer))
-    throw new Error(`--rig requires the real GPU, received ${renderer}`);
-  if (!set)
-    set = await page.evaluate(async () => {
-      const app = window.__phosphor;
-      const { presetSnapshot } = await import("/session.mjs");
-      const set = app.getSession();
-      set.name = "M1 all-preset real-time rehearsal";
-      set.tempo = 92;
-      set.options.quality = "balanced";
-      set.options.autoQuality = true;
-      set.options.autoRecovery = true;
-      set.cues = app.scenes.flatMap((scene) =>
-        scene.presets.map((preset, index) => {
-          const snapshot = presetSnapshot(scene, index);
-          snapshot.seed = 48113;
-          return {
-            id: `${scene.id}-${index}`,
-            name: `${scene.name} / ${preset.name}`,
-            snapshot,
-            bars: 1,
-            transition: 0.5,
-            keyframes: [],
-            energy: 0.5,
-          };
-        }),
-      );
-      set.active = set.cues[0].snapshot;
-      return set;
-    });
-  await page.evaluate((set) => window.__phosphor.applySession(set), set);
-  await page.locator('[data-tab="set"]').click();
-  await page.locator("#playSetButton").click();
-  const popupPromise = page.waitForEvent("popup");
-  await page.locator("#outputButton").click();
-  const popup = await popupPromise;
-  await popup.waitForFunction(
-    () => document.getElementById("output")?.videoWidth > 0,
-  );
-  await page.bringToFront();
+    throw new Error(`--rig requires the real GPU, got ${renderer}`);
+  if (args.audio) await control.setInputFiles("#audioFile", args.audio);
+  else await control.click("#useDemo");
+  await stage.evaluate(() => {
+    const s = window.__phosphorStage.show;
+    if (!s.autopilot.enabled)
+      s.command({ type: "autopilot", on: true }, performance.now() / 1000);
+    s.autopilot.manualUntil = -Infinity;
+  });
   await append({
-    event: "score-start",
-    source,
-    browser: runtime.version,
+    event: "start",
     renderer,
-    rig: args.rig,
-    cueCount: set.cues.length,
+    minutes,
+    audio: args.audio ?? "demo",
   });
-}
-async function probes() {
-  // Freeze the clock and adaptive options before comparing one exported set.
-  await pauseForCapture(page);
-  const downloadPromise = page.waitForEvent("download");
-  await page.locator("#exportButton").click();
-  const download = await downloadPromise;
-  const file = resolve(out, "rehearsal-set.json");
-  await download.saveAs(file);
-  const exported = JSON.parse(await readFile(file, "utf8"));
-  await page.locator("#saveButton").click();
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => !!window.__phosphor?.getSession);
-  assert.deepEqual(
-    await page.evaluate(() => window.__phosphor.getSession()),
-    exported,
-  );
-  exportEqual = true;
-  await page.waitForFunction(
-    () => window.__phosphor.engine.health().mean > 0.001,
-  );
-  await page.evaluate(() => {
-    window.__harness.blackoutResult = null;
-    window.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key.toLowerCase() !== "b") return;
-        let frames = 0;
-        function measure() {
-          frames++;
-          if (window.__phosphor.engine.health().mean < 0.0001 || frames >= 240)
-            window.__harness.blackoutResult = frames;
-          else requestAnimationFrame(measure);
-        }
-        requestAnimationFrame(measure);
-      },
-      { once: true },
+  const end = Date.now() + minutes * 60000;
+  while (Date.now() < end) {
+    await delay(Math.min(60000, end - Date.now()));
+    const sample = await deadline(
+      stage.evaluate(readStage),
+      30000,
+      "telemetry poll",
     );
-  });
-  await page.locator("#stage").focus();
-  await page.keyboard.press("b");
-  await page.waitForFunction(() => window.__harness.blackoutResult != null);
-  blackoutFrames = await page.evaluate(() => window.__harness.blackoutResult);
-  await page.keyboard.press("b");
-  await page.waitForFunction(
-    () => window.__phosphor.engine.health().mean > 0.001,
+    intervals.push(...sample.telemetry.frameIntervalsMs);
+    prep.push(...sample.telemetry.clipPrepMs);
+    if (sample.telemetry.heapBytes) heaps.push(sample.telemetry.heapBytes);
+    const { frameIntervalsMs, clipPrepMs, ...rest } = sample.telemetry;
+    await append({
+      event: "minute",
+      p95: percentile(frameIntervalsMs, 0.95),
+      p99: percentile(frameIntervalsMs, 0.99),
+      frames: frameIntervalsMs.length,
+      scene: sample.scene,
+      live: sample.status.live,
+      bpm: sample.status.clock.bpm,
+      source: sample.status.clock.source,
+      ...rest,
+    });
+  }
+  // Blackout latency at the end of the run.
+  await control.locator("body").press("Escape");
+  await stage.waitForFunction(
+    () => window.__phosphorStage.engine.blackout === 1,
+    null,
+    { timeout: 5000 },
   );
-  await append({
-    event: "preflight",
-    exportEqual,
-    blackoutFrames,
-    note: "Blackout measured in observer rAF callbacks; rig only gate",
-  });
-  // Restart on a fresh browser so preflight/output reload cannot contaminate score samples.
-  await runtime.stop();
-  await start();
-}
-function summary(elapsedMinutes) {
-  const intervals = samples.flatMap((sample) => sample.frameIntervalsMs ?? []);
-  const prep = samples.flatMap((sample) => sample.cuePrepMs ?? []);
-  const blackout = [
-    ...(blackoutFrames == null ? [] : [blackoutFrames]),
-    ...samples.flatMap((sample) => sample.blackoutLatencyFrames ?? []),
-  ];
-  const heaps = samples
-    .map((sample) => sample.heapBytes)
-    .filter((value) => typeof value === "number");
+  const blackout = (await stage.evaluate(readStage)).telemetry
+    .blackoutLatencyFrames;
+  await control.locator("body").press("Escape");
+  // Crash drill: reload the stage; time until it renders the restored clip.
+  const t0 = Date.now();
+  await stage.reload();
+  await stage.waitForFunction(
+    () => window.__phosphorStage?.engine.frameCount > 10,
+    null,
+    { timeout: 30000 },
+  );
+  const recoverySeconds = (Date.now() - t0) / 1000;
+  const final = await stage.evaluate(readStage);
   const heap = heapEvidence(heaps);
-  const settled = samples.flatMap((sample) => sample.settled ?? []);
-  const max = (key) => {
-    const values = samples
-      .map((sample) => sample[key])
-      .filter((value) => typeof value === "number");
-    return values.length ? Math.max(...values) : null;
-  };
-  const gate = (name, value, passed, timing = false) => ({
-    name,
-    status:
-      timing && !args.rig
-        ? "SKIP (non-rig timing)"
-        : value == null
-          ? "INCONCLUSIVE"
-          : passed
-            ? "PASS"
-            : "FAIL",
-    value,
-  });
+  const gate = (name, value, ok) => ({ name, value, ok: !!ok });
   const p95 = percentile(intervals, 0.95),
-    p99 = percentile(intervals, 0.99),
-    downgrades = max("governorDowngrades"),
-    gpu = max("gpuErrors"),
-    nonFinite = max("nonFinite");
+    p99 = percentile(intervals, 0.99);
   const gates = [
-    gate("frame interval p95 <= 18ms", p95, p95 <= 18, true),
-    gate("frame interval p99 <= 34ms", p99, p99 <= 34, true),
-    gate("zero governor downgrades", downgrades, downgrades === 0, true),
-    gate("zero GPU errors", gpu, gpu === 0),
-    gate("zero non-finite inputs", nonFinite, nonFinite === 0),
+    gate("frame interval p95 ≤ 18 ms", p95, p95 !== null && p95 <= 18),
+    gate("frame interval p99 ≤ 34 ms", p99, p99 !== null && p99 <= 34),
     gate(
-      "heap growth <= 50MB without upward trend",
+      "no pixel-budget downgrade",
+      final.telemetry.downgrades,
+      final.telemetry.downgrades === 0,
+    ),
+    gate(
+      "zero GPU errors",
+      final.telemetry.gpuErrors,
+      final.telemetry.gpuErrors === 0,
+    ),
+    gate(
+      "zero non-finite inputs",
+      final.telemetry.nonFinite,
+      final.telemetry.nonFinite === 0,
+    ),
+    gate(
+      "heap growth ≤ 50 MB, no upward trend",
       heap,
       heap && heap.growthMB <= 50 && !heap.upwardTrend,
-      true,
     ),
     gate(
-      "every completed fade: 1 slot, no leaked textures",
-      settled.length ? settled.length : null,
-      settled.every(
-        (stats) =>
-          stats.slots === 1 &&
-          (stats.liveTextures ?? stats.textures) === stats.textures,
-      ),
-    ),
-    gate(
-      "cue preparation -> fade start <= 250ms",
+      "clip preparation ≤ 250 ms",
       prep.length ? Math.max(...prep) : null,
-      prep.every((value) => value <= 250),
-      true,
+      prep.every((v) => v <= 250),
     ),
     gate(
       "blackout within 2 frames",
-      blackout.length ? Math.max(...blackout) : null,
-      blackout.every((value) => value <= 2),
-      true,
+      blackout,
+      blackout.length && blackout.every((f) => f <= 2),
     ),
-    gate("export -> reload identical", exportEqual, exportEqual),
     gate(
-      "responsive page / no browser errors",
-      watchdogs.length + errors.length,
-      watchdogs.length === 0 && errors.length === 0,
+      "crash drill back on screen ≤ 10 s (stage reload)",
+      recoverySeconds,
+      recoverySeconds <= 10,
     ),
+    gate("no page errors", show.errors, show.errors.length === 0),
   ];
-  return {
-    rig: args.rig,
-    requestedMinutes: minutes,
-    elapsedMinutes,
-    source: [...sources],
-    limitations: [
-      "Headless/software GPU never clears reference-rig timing gates.",
-      "Fallback rAF measures callbacks, not physical presentation; fallback gl.getError is sampled, not an all-time GPU-error proof.",
-      "This host rehearsal is not owner artistic approval or a physical projector/refresh-rate certification.",
-    ],
-    sampleCount: samples.length,
-    cueCoverage: [
-      ...new Set(
-        samples.map((sample) => sample.currentCue).filter((cue) => cue != null),
-      ),
-    ],
-    watchdogs,
-    gates,
-    passed: gates.every(
-      (gate) => gate.status === "PASS" || gate.status.startsWith("SKIP"),
-    ),
-  };
-}
-let started;
-try {
-  await append({
-    event: "begin",
+  summary = {
+    renderer,
     minutes,
-    rig: args.rig,
-    pollMs: 4000,
-    watchdogMs: 2500,
-    dist: args.dist,
-  });
-  await start();
-  await probes();
-  started = performance.now();
-  console.log(
-    `RUN ${minutes}-minute ${args.rig ? "headed real-GPU rig" : "headless software-GPU"} score; ${source}`,
-  );
-  console.log(`Host-side JSONL: ${resolve(out, "telemetry.jsonl")}`);
-  if (args.rig)
-    console.log(
-      "Preflight finished. Move the clean-output window to the external 60Hz display; enter fullscreen there.",
-    );
-  const end = started + minutes * 60000;
-  let due = started;
-  while (performance.now() < end) {
-    if (performance.now() < due) await delay(due - performance.now());
-    await append({
-      event: "poll-start",
-      elapsedMs: performance.now() - started,
-    });
-    try {
-      const sample = await deadline(
-        page.evaluate(readTelemetry),
-        2500,
-        "telemetry poll",
-      );
-      samples.push(sample);
-      await append({
-        event: "sample",
-        elapsedMs: performance.now() - started,
-        ...sample,
-      });
-    } catch (error) {
-      const record = {
-        elapsedMs: performance.now() - started,
-        error: error.message,
-      };
-      watchdogs.push(record);
-      await append({ event: "watchdog", ...record });
-      // Kill only this harness's browser process if CDP shutdown is also hung.
-      await runtime.stop();
-      await deadline(start(), 60000, "browser recovery");
-      await append({
-        event: "recovered",
-        elapsedMs: performance.now() - started,
-      });
-    }
-    due += 4000;
-    if (due < performance.now()) due = performance.now();
-  }
-  const result = summary((performance.now() - started) / 60000);
-  await append({ event: "summary", ...result });
-  await writeFile(
-    resolve(out, "summary.json"),
-    JSON.stringify(result, null, 2),
-  );
-  for (const gate of result.gates)
-    console.log(`${gate.status} ${gate.name}: ${JSON.stringify(gate.value)}`);
-  console.log(`Host-side JSONL: ${resolve(out, "telemetry.jsonl")}`);
-  if (!result.passed) process.exitCode = 1;
-} catch (error) {
-  await append({ event: "fatal", error: error.message });
-  throw error;
+    rig: !!args.rig,
+    gates,
+    passed: gates.every((g) => g.ok),
+  };
+  await append({ event: "end", ...summary });
 } finally {
-  await runtime?.stop();
-  await server.close();
   await log.close();
+  if (summary)
+    await writeFile(
+      resolve(out, "summary.json"),
+      JSON.stringify(summary, null, 2),
+    );
+  await runtime.stop();
+  await server.close();
 }
+for (const g of summary?.gates ?? [])
+  console.log(
+    `${g.ok ? "PASS" : "FAIL"} ${g.name}: ${JSON.stringify(g.value)}`,
+  );
+console.log(summary?.passed ? "Soak gate passed." : "Soak gate NOT passed.");
+if (args.rig && !summary?.passed) process.exitCode = 1;
