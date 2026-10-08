@@ -78,7 +78,7 @@ const schema = [
   },
   {
     key: "seedShape",
-    label: "Seed shape · island / pair / stripe / noise",
+    label: "Loom · cascade / cross / rails / rosette",
     min: 0,
     max: 3,
     step: 1,
@@ -338,18 +338,46 @@ void main() {
   int head = readInt(0);
   int count = readInt(1);
   int back = readInt(2);
+  int shape = int(floor(u_params[1] + .5));
   float weave = u_params[4];
+  vec2 p = aspectUV();
   vec2 cloth = v_uv;
-  // Geometry and lighting bend the textile; the stored cells remain unmodified.
-  float envelope = sin(cloth.x * 3.14159265);
+  float mask = 1.;
+  // Each seed arrangement owns a different loom, not just a different row.
+  // All looms address the same exact binary history; none changes the rule.
+  if (shape == 1) {
+    // Opposed horizontal shuttles meet at the centre of a four-way cross.
+    vec2 q = abs(p);
+    bool horizontal = q.x > q.y;
+    cloth = vec2(.5 + (horizontal ? p.y : p.x) * .55,
+      1. - (horizontal ? q.x : q.y) * 1.1);
+    mask = 1. - smoothstep(.18, .22, min(q.x, q.y));
+  } else if (shape == 2) {
+    // Parallel warp rails: generations travel sideways, cells run vertically.
+    float rail = floor((p.y + .5) * 5.);
+    cloth = vec2(fract((p.y + .5) * 5.),
+      fract(v_uv.x + mod(rail, 2.) * .5));
+    mask = smoothstep(0., .035, cloth.x)
+      * smoothstep(0., .035, 1. - cloth.x);
+  } else if (shape == 3) {
+    // A circular loom winds generations into concentric, rotating annuli.
+    float radius = length(p);
+    cloth = vec2(fract(atan(p.y, p.x) / TAU + .5 + u_time * .012
+      * (.15 + u_level)), 1. - radius * 1.65);
+    mask = smoothstep(.1, .14, radius) * (1. - smoothstep(.43, .48, radius));
+  }
+  // Relief bends the textile without modifying stored cells.
+  float envelope = sin(cloth.x * PI);
   cloth.x += weave * .008 * envelope * sin(cloth.y * 17. + u_time * .14);
-  cloth.x += u_bass * weave * .002 * sin(cloth.y * 35. - u_time * .8);
   float column = clamp(cloth.x, 0., .999999) * 512.;
-  float age = (1. - cloth.y) * float(max(32, min(510, count - back - 1))) + float(back);
+  float span = float(max(32, min(510, count - back - 1)));
+  float age = clamp(1. - cloth.y, 0., 1.) * span + float(back);
   int ageIndex = int(floor(age));
   int row = wrapRow(head - ageIndex);
   bool available = ageIndex < count;
   float cell = available ? texelFetch(u_state, ivec2(int(column), row + 1), 0).r : 0.;
+  // Cross and annulus use cut-out yarn: zero cells are the solid fabric.
+  if (shape == 1 || shape == 3) cell = 1. - cell;
   vec2 thread = fract(vec2(column, age));
   vec2 aa = max(fwidth(vec2(column, age)), vec2(.015));
   float warpThread = smoothstep(0., min(.4, aa.x + .1), thread.x)
@@ -358,18 +386,17 @@ void main() {
     * smoothstep(0., min(.4, aa.y + .08), 1. - thread.y);
   float overUnder = mod(floor(column) + float(ageIndex), 2.);
   float filament = mix(warpThread, weftThread, overUnder);
-  float ridge = .78 + .22 * cos(cloth.x * 38. + .25 * sin(cloth.y * 12.));
-  float relief = mix(1., ridge * (.62 + .38 * filament), weave);
-  float tone = fract(.15 + cloth.x * .26 + float(ageIndex) * .0022
+  float ridge = .86 + .14 * cos(cloth.x * 38. + .25 * sin(cloth.y * 12.));
+  float relief = mix(1., ridge * (.75 + .25 * filament), weave * u_level);
+  float tone = fract(.35 + cloth.x * .26 + float(ageIndex) * .0022
     + u_time * u_params[7] * .018);
   vec3 ink = palette(tone);
-  vec3 ground = u_secondary * .055 + vec3(.007, .009, .018);
-  vec3 color = mix(ground, ink * (.72 + .2 * u_energy), cell);
-  color *= relief;
-  // A selvedge frames the huge binary curtain without hiding its cell pattern.
-  float edge = smoothstep(0., .015, cloth.x) * smoothstep(0., .015, 1. - cloth.x);
-  color *= .35 + .65 * edge;
-  if (!available) color = ground * (.32 + .15 * warpThread);
+  vec3 ground = u_secondary * .045 + vec3(.006, .008, .014);
+  // Contrast grows around a fixed midtone; energy is never a brightness gain.
+  vec3 color = mix(ink * .18, mix(ground, ink * relief, cell),
+    .3 + .7 * u_level);
+  color = mix(ground, color, mask);
+  if (!available) color = ground;
   outColor = vec4(clamp(color, 0., 1.), 1.);
 }
 `;
@@ -379,14 +406,14 @@ export default {
   // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
   aspect: 16 / 9,
   // Contract v3 performance metadata; see scene-acid.mjs.
-  energy: { scroll: [8, 60], paletteDrift: [0.1, 0.6], weave: [0.9, 0.5] },
+  energy: { scroll: [2, 60], paletteDrift: [0.1, 0.6], weave: [0.2, 1] },
   beat: { punch: 0.8, pulse: 1 },
   stage: ["scroll", "weave", "paletteDrift"],
   type: { key: "seedShape", values: [0, 1, 2, 3] },
   number: 51,
   name: "Causal Tapestry",
   description:
-    "Exact elementary automata woven into a 511-row curtain. Negative playback revisits recorded history, never inverse dynamics. Seed shape and fill edit the initial row; phrase cues insert fresh seeded rows.",
+    "Exact elementary automata on cascade, cross, rail and circular looms. Negative playback revisits recorded history, never inverse dynamics. Seed shape selects the loom and initial row; phrase cues insert fresh seeded rows.",
   schema,
   presets,
   fragment,
