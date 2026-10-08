@@ -1,4 +1,4 @@
-// Conservative signed-distance architecture; all journeys stay in the clear aisle.
+// Conservative signed-distance architecture with four bounded camera grammars.
 const schema = [
   { key: 'geometry', label: 'Architecture', min: 0, max: 3, step: 1, default: 0 },
   { key: 'recursion', label: 'Detail generations', min: 1, max: 4, step: 1, default: 3 },
@@ -13,10 +13,10 @@ const schema = [
 const presets = [
   { name: 'Prismatic Nave', seed: 4901, params: { geometry: 0, recursion: 3, scale: 1, speed: 0.28, journey: 0, material: 0, glow: 0.8, steps: 80 } },
   { name: 'Brass Procession', seed: 4923, params: { geometry: 0, recursion: 2, scale: 1.4, speed: 0.52, journey: 1, material: 1, glow: 0.48, steps: 80 } },
-  { name: 'Opal Reliquary', seed: 4947, params: { geometry: 1, recursion: 4, scale: 0.85, speed: 0.22, journey: 2, material: 2, glow: 1.05, steps: 96 } },
-  { name: 'Midnight Rose', seed: 4961, params: { geometry: 2, recursion: 4, scale: 1.15, speed: 0.18, journey: 1, material: 3, glow: 1.2, steps: 96 } },
-  { name: 'Enamel Still', seed: 4981, params: { geometry: 3, recursion: 3, scale: 0.75, speed: 0, journey: 0, material: 4, glow: 0.62, steps: 80 } },
-  { name: 'Ember Vault', seed: 4999, params: { geometry: 3, recursion: 4, scale: 1.5, speed: 0.7, journey: 2, material: 5, glow: 1.3, steps: 96 } },
+  { name: 'Opal Reliquary', seed: 4947, params: { geometry: 1, recursion: 3, scale: 0.85, speed: 0.22, journey: 2, material: 2, glow: 1.05, steps: 96 } },
+  { name: 'Midnight Rose', seed: 4961, params: { geometry: 2, recursion: 3, scale: 1.15, speed: 0.18, journey: 1, material: 3, glow: 1.2, steps: 96 } },
+  { name: 'Enamel Glide', seed: 4981, params: { geometry: 3, recursion: 3, scale: 0.75, speed: 0.26, journey: 0, material: 4, glow: 0.62, steps: 80 } },
+  { name: 'Ember Vault', seed: 4999, params: { geometry: 3, recursion: 3, scale: 1.5, speed: 0.7, journey: 2, material: 5, glow: 1.3, steps: 96 } },
 ];
 
 const fragment = `
@@ -38,12 +38,12 @@ vec2 familySDF(vec3 p, float family) {
   float bay = bayLength();
   vec3 q = p;
   q.z = mod(p.z + .5 * bay, bay) - .5 * bay;
-  // An enclosed, infinite corridor prevents accidental empty-space camera cuts.
-  float enclosure = min(abs(abs(p.x) - 3.28), abs(p.y + 1.8));
-  enclosure = min(enclosure, abs(p.y - 4.42)) - .07;
-  vec2 result = vec2(enclosure, 0.);
   float generations = clamp(u_params[1], 1., 4.);
+  vec2 result = vec2(64., 0.);
   if (family < .5) {
+    // Only the nave shares an enclosure; other types have their own silhouettes.
+    float enclosure = min(abs(abs(p.x) - 3.28), abs(p.y + 1.8));
+    result = vec2(min(enclosure, abs(p.y - 4.42)) - .07, 0.);
     // Two intersecting circles make a pointed Gothic arch, joined to columns.
     float arch = max(length(vec2(q.x - 1.65, q.y - .12)),
                      length(vec2(q.x + 1.65, q.y - .12))) - 4.;
@@ -59,46 +59,66 @@ vec2 familySDF(vec3 p, float family) {
       result = nearer(result, vec2(thinArch, 1.));
     }
   } else if (family < 1.5) {
-    // A recursive crown of octahedral crystals grows inward from each side wall.
-    vec3 c = vec3(abs(q.x) - 3.05, q.y - .35, q.z);
-    result = nearer(result, vec2(crystalSDF(c, 1.42), 2.));
+    // A free-standing reliquary and orbiting facet clusters, not another aisle.
+    vec3 c = p - vec3(0., .5, 0.);
+    float turn = u_time * clamp(u_params[3], 0., 1.5) * .22;
+    c.xz = rot2(turn) * c.xz;
+    c.xy = rot2(.35) * c.xy;
+    result = vec2(crystalSDF(c, 1.85), 2.);
     for (int i = 0; i < GENERATION_CAP; ++i) {
       if (float(i) >= generations) break;
-      float k = float(i);
-      float size = .78 * pow(.65, k);
-      vec3 branch = vec3(abs(q.x) - (2.67 + .12 * k), q.y - (1.25 + .48 * k), abs(q.z) - (.68 + .32 * k));
-      result = nearer(result, vec2(crystalSDF(branch, size), 2.));
-      vec3 root = vec3(abs(q.x) - 2.88, q.y + 1.24, abs(q.z) - .72);
-      result = nearer(result, vec2(crystalSDF(root, .55), 2.));
+      float k = float(i), angle = k * 2.4 + turn * .7;
+      vec3 center = vec3(2.15 * cos(angle), .8 * sin(angle * 1.7), 1.4 * sin(angle));
+      vec3 branch = c - center;
+      branch.yz = rot2(angle) * branch.yz;
+      result = nearer(result, vec2(crystalSDF(branch, .75 - .09 * k), 2.));
     }
-    float crown = max(abs(length(vec2(q.x, q.y - .9)) - 2.95) - .07, abs(q.z) - .07);
-    result = nearer(result, vec2(crown, 1.));
+    // Wide walls reveal a faceted chamber instead of empty lateral margins.
+    if (u_resolution.x / u_resolution.y > 2.2) {
+      vec2 wall = abs(p.xz);
+      float chamber = max(max(wall.x, wall.y), (wall.x + wall.y) * .70710678118) - 9.;
+      result = nearer(result, vec2(abs(chamber) - .08, 2.));
+    }
+    result = nearer(result, vec2(abs(p.y + 2.1) - .06, 0.));
   } else if (family < 2.5) {
-    // Round cloister arches with actual nested rose-window rings at the walls.
-    float arch = max(abs(length(vec2(q.x, q.y - .75)) - 2.63) - .105, abs(q.z) - .12);
-    result = nearer(result, vec2(arch, 1.));
+    // A frontal rose disk, nested raised rings and a radial mullion pattern.
+    vec3 rose = p - vec3(0., .6, 1.);
+    if (u_resolution.x / u_resolution.y > 2.2) rose.x = mod(rose.x + 3.4, 6.8) - 3.4;
+    float radius = length(rose.xy);
+    result = vec2(max(radius - 2.55, abs(rose.z) - .09), 3.);
+    float frame = max(abs(radius - 2.62) - .13, abs(rose.z) - .2);
+    result = nearer(result, vec2(frame, 1.));
     for (int i = 0; i < GENERATION_CAP; ++i) {
       if (float(i) >= generations) break;
       float k = float(i);
-      float ring = abs(length(vec2(q.y - 1.25, q.z)) - (1.5 - .29 * k)) - .035;
-      result = nearer(result, vec2(max(ring, abs(abs(q.x) - 3.16) - .09), 1.));
-      float tracery = max(abs(length(vec2(q.x, q.y - .75)) - (2.72 + .12 * k)) - .025,
-                          abs(abs(q.z) - bay * (.18 + .05 * k)) - .04);
-      result = nearer(result, vec2(tracery, 1.));
+      float ring = max(abs(radius - (2.05 - .42 * k)) - .045, abs(rose.z + .12) - .08);
+      result = nearer(result, vec2(ring, 1.));
     }
+    // Side lancets carry the composition onto wide walls without stretching it.
+    vec3 side = vec3(abs(p.x) - 4.3, p.y - .6, p.z - 1.5);
+    float lancet = max(max(abs(side.x) - .62, abs(side.y) - 2.5), abs(side.z) - .1);
+    result = nearer(result, vec2(lancet, 0.));
   } else {
-    // A folded diamond vault: planar rib facets and successively inset folds.
-    float fold = (abs(q.x) + abs(q.y - 1.05) - 4.05) * .70710678118;
-    result = nearer(result, vec2(max(abs(fold) - .11, abs(q.z) - .12), 1.));
-    for (int i = 0; i < GENERATION_CAP; ++i) {
-      if (float(i) >= generations) break;
-      float k = float(i);
-      float inset = max(abs(fold + .12 * (k + 1.)) - .03,
-                        abs(abs(q.z) - bay * (.15 + .06 * k)) - .035);
-      result = nearer(result, vec2(inset, 1.));
+    // A zigzag gallery of broad folded planes, viewed obliquely from below.
+    float shell = (abs(p.x) + abs(p.y - .9) - 5.) * .70710678118;
+    result = vec2(abs(shell) - .07, 0.);
+    // Evaluate both staggered rows: no discontinuous nearest-bay side switch.
+    for (int row = 0; row < 2; ++row) {
+      float side = float(row) * 2. - 1.;
+      float z = mod(p.z - float(row) * bay + bay, 2. * bay) - bay;
+      vec3 panel = vec3(p.x - side * 2.15, p.y - .9, z);
+      panel.xy = rot2(side * .62) * panel.xy;
+      result = nearer(result, vec2(boxSDF(panel, vec3(2., 3.5, .14)), 0.));
+      float seam = boxSDF(vec3(abs(panel.x) - 1.97, panel.y, panel.z), vec3(.06, 3.55, .2));
+      result = nearer(result, vec2(seam, 1.));
+      for (int i = 0; i < GENERATION_CAP; ++i) {
+        if (float(i) >= generations) break;
+        float k = float(i);
+        vec3 rib = vec3(panel.x, panel.y - (k - 1.5) * 1.2, panel.z);
+        result = nearer(result, vec2(boxSDF(rib, vec3(2.05, .045, .22)), 1.));
+      }
     }
-    float pier = boxSDF(vec3(abs(q.x) - 2.82, q.y + .45, q.z), vec3(.1, 1.28, .2));
-    result = nearer(result, vec2(pier, 1.));
+    result = nearer(result, vec2(abs(p.y + 2.) - .06, 0.));
   }
   return result;
 }
@@ -146,21 +166,35 @@ vec3 glassPalette(float t, float material) {
 void main() {
   float bay = bayLength();
   float speed = clamp(u_params[3], 0., 1.5);
-  float travel = mod(max(u_time, 0.) * speed * .7, bay * 256.);
-  float phase = travel / bay * 2. * PI;
+  float elapsed = max(u_time, 0.) * speed * .7;
+  float travel = mod(elapsed, bay * 256.);
+  // Wrapping position must not reset the orbit/glide's non-integer harmonics.
+  float phase = elapsed / bay * 2. * PI;
   float seedPhase = hash(vec2(4., 9.)) * 2. * PI;
   float journey = clamp(u_params[4], 0., 2.);
-  // All camera paths lie within x +/- .42 and y [.12,.56], clear of every family.
+  // The nave/folds traverse; the reliquary orbits; the rose holds a frontal view.
   vec3 aisle = vec3(.08 * sin(phase * .125 + seedPhase), .24, travel);
   vec3 glide = vec3(.42 * sin(phase * .125 + seedPhase), .31 + .09 * sin(phase * .25), travel);
   vec3 vault = vec3(.18 * sin(phase * .25 + seedPhase), .4 + .16 * sin(phase * .125), travel);
   vec3 ro = journey < 1. ? mix(aisle, glide, journey) : mix(glide, vault, journey - 1.);
-  // Stationary means a fixed position AND fixed orientation; audio may still light it.
+  float family = clamp(u_params[0], 0., 3.);
   float pitch = mix(.16, .36 + .08 * sin(phase * .125), max(journey - 1., 0.));
   vec3 forward = normalize(vec3(-ro.x * .055, pitch, 1.));
+  if (family > .5 && family < 1.5) {
+    float orbit = phase * .5 + seedPhase;
+    ro = vec3(5.8 * sin(orbit), .8 + .3 * sin(orbit * .7), -5.8 * cos(orbit));
+    forward = normalize(vec3(0., .5, 0.) - ro);
+  } else if (family > 1.5 && family < 2.5) {
+    ro = vec3(.18 * sin(phase * .3), .6, -4.8);
+    forward = normalize(vec3(0., .6, 1.) - ro);
+  } else if (family > 2.5) {
+    ro.x = .35 * sin(phase * .35);
+    ro.y = -.5;
+    forward = normalize(vec3(.22 * sin(phase * .2), .2, 1.));
+  }
   vec3 right = normalize(cross(vec3(0., 1., 0.), forward));
   vec3 up = normalize(cross(forward, right));
-  // Vertical field of view is fixed; width follows actual render-target aspect.
+  // Fixed vertical field of view preserves circles/facets at every aspect.
   vec2 screen = aspectUV() * 2.;
   vec3 rd = normalize(forward + right * screen.x * .62 + up * screen.y * .62);
   int limit = int(min(clamp(u_params[7], 32., float(RAY_CAP)), u_raySteps));
@@ -185,32 +219,46 @@ void main() {
   if (hit > .5) {
     vec3 p = ro + rd * distance;
     vec3 n = surfaceNormal(p, .002 + distance * .00015);
-    vec2 uv = abs(n.x) > .55 ? vec2(p.z, p.y) : vec2(p.x, p.z);
+    vec3 dominant = abs(n);
+    vec2 uv = dominant.x > dominant.y && dominant.x > dominant.z ? p.zy
+            : dominant.y > dominant.z ? p.xz : p.xy;
     uv.x = mod(uv.x, bay);
-    vec2 glass = glassCells(uv * (1.3 + .27 * clamp(u_params[1], 1., 4.)));
-    float family = clamp(u_params[0], 0., 3.);
-    if (family > 1.5 && family < 2.5 && abs(n.x) > .55) {
-      vec2 rose = vec2(p.y - 1.25, mod(p.z + .5 * bay, bay) - .5 * bay);
-      float spokes = abs(sin(atan(rose.y, rose.x) * 8.));
-      float rings = abs(sin(length(rose) * 7.));
-      glass.x *= smoothstep(.025, .1, spokes) * smoothstep(.02, .1, rings);
-      glass.y = fract(atan(rose.y, rose.x) / (2. * PI) + length(rose) * .16);
+    float level = clamp(u_level, 0., 1.);
+    vec2 glass;
+    if (family > 1.5 && family < 2.5 && surface.y > 2.5) {
+      vec2 rose = p.xy - vec2(0., .6);
+      if (u_resolution.x / u_resolution.y > 2.2) rose.x = mod(rose.x + 3.4, 6.8) - 3.4;
+      float angle = atan(rose.y, rose.x);
+      float spokes = abs(sin(angle * (6. + 2. * clamp(u_params[1], 1., 4.))));
+      float rings = abs(sin(length(rose) * (3. + 6. * level)));
+      glass.x = smoothstep(.04, .12 + .12 * level, spokes) * smoothstep(.03, .1 + .1 * level, rings);
+      glass.y = .5 + .5 * sin(angle * 8. + length(rose) * 4.);
     } else if (family > 2.5) {
-      vec2 lattice = uv * 1.6;
+      vec2 lattice = uv * (.65 + 2.4 * level);
       float seam = min(abs(fract(lattice.x + lattice.y) - .5), abs(fract(lattice.x - lattice.y) - .5));
-      glass.x *= smoothstep(.012, .055, seam);
+      glass.x = smoothstep(.02, .08, seam);
       glass.y = fract(floor(lattice.x + lattice.y) * .37 + floor(lattice.x - lattice.y) * .61);
+    } else if (family > .5 && family < 1.5) {
+      glass = vec2(1., .5 + .25 * n.y + .2 * n.x);
+    } else {
+      glass = glassCells(uv * (.65 + 2.4 * level));
     }
     vec3 base = glassPalette(glass.y, material);
     float isStructure = smoothstep(.4, .9, surface.y) * (1. - smoothstep(1.3, 1.8, surface.y));
-    float isCrystal = smoothstep(1.3, 1.8, surface.y);
+    float isCrystal = smoothstep(1.3, 1.8, surface.y) * (1. - smoothstep(2.3, 2.8, surface.y));
     float isFloor = 1. - smoothstep(-1.65, -1.5, p.y);
     vec3 lightDirection = normalize(vec3(-1.7, 3.8, -2.));
     float diffuse = .28 + .72 * max(dot(n, lightDirection), 0.);
     float rim = pow(max(1. - abs(dot(n, -rd)), 0.), 3.);
     float specular = pow(max(dot(reflect(-lightDirection, n), -rd), 0.), mix(20., 65., isCrystal));
-    vec3 glassColor = base * (.18 + diffuse * .23 + glass.x * glow * (.6 + .16 * clamp(u_bass, 0., 1.)));
-    glassColor *= mix(.14, 1., glass.x);
+    // Contrast pivots around the typical pane coverage, not a brightness gain.
+    float transmission = clamp(.72 + (glass.x - .86) * (.25 + .75 * level), .02, 1.);
+    vec3 glassColor = base * (.35 + diffuse * .4 + transmission * glow * 2.5);
+    glassColor *= mix(.04, 1., transmission);
+    if (isCrystal > .5) {
+      float engraving = smoothstep(-.08, .08, sin(p.y * (2. + 10. * level) + p.x * 3.)) * 2. - 1.;
+      glassColor = base * (.2 + diffuse * 2.4) * (1. + engraving * level * .85);
+    }
     vec3 stone = mix(vec3(.085, .09, .105), base * .31, .5) * diffuse;
     color = mix(glassColor, stone, max(isStructure, isFloor));
     color += base * rim * (.15 + .5 * isCrystal) * glow;
@@ -230,14 +278,14 @@ void main() {
 export default {
   id: 'cathedral',
   // Contract v3 performance metadata; see scene-acid.mjs.
-  energy: { speed: [0.05, 1.3], glow: [0.5, 1.4] },
+  energy: { speed: [0.05, 1.3], recursion: [1, 4] },
   beat: { punch: 1.2, pulse: 1 },
   stage: ['speed', 'glow', 'scale'],
   type: { key: 'geometry', values: [0, 1, 2, 3] },
   number: 49,
   name: 'Cathedrals of Error',
   maxRenderWidth: 1280,
-  description: 'Recursive SDF Gothic naves, octahedral reliquaries, rose cloisters and folded vaults. Three bounded aisle journeys; speed zero holds the camera still. Procedural stained glass, not a physical optics simulation.',
+  description: 'Bounded SDF Gothic naves, orbiting octahedral reliquaries, frontal rose windows and zigzag folded galleries. Three journey trims; speed zero holds the camera still. Procedural stained glass, not a physical optics simulation.',
   schema,
   presets,
   fragment,
