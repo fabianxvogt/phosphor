@@ -7,16 +7,15 @@
 
 **INCREMENTAL / EMPIRICAL.** A product rebuild, not a research novelty claim. All ten scene modules are implemented; none is a placeholder. Mathematical/biological discovery, topology preservation, automatic musical understanding and cross-device exact replay are not claimed. State: production candidate; the Milestone 1 rig rehearsal and multi-hour endurance gates remain open.
 
-## Workflow details
+## How a show runs
 
-1. Choose **Scenes / controls**, then an authored look. On desktop, the sticky preview/transport sits beside the editor so you can watch changes while scrolling controls; narrow screens stack the same controls. Parameters, seed, palette, bloom and kaleidoscope share one editor. Click the stage to inject; pause holds simulation and clock. Reset starts the current seed again. Undo/redo covers edits, not the simulated field.
-2. In **Set / cues**, capture complete scene snapshots, name/reorder/duplicate them, set bars and fade beats, and add same-family parameter/palette keyframes. Cue snapshots include scene, preset, seed, parameters and palette; brightness, bloom, kaleidoscope and quality remain global output-bus controls. GO arms the next bar unless quantization is off. **Play score** loops the set; pause/resume preserves remaining cue time. Manual scene/preset changes stop the old score rather than letting it overwrite your performance.
-3. The opening score is ten 64-bar cues: approximately 27.8 minutes at 92 BPM. Repeat it, build longer arcs, or use up to 256 cues. **Director** matches normalized audio energy to editable cue energy, penalizes recent repeats, and adds bounded variation. It is not a music-section classifier. Sequence mode preserves cue position even after a long callback gap; director mode makes a fresh selection after a gap.
-4. In **Audio / MIDI**, choose the original demo pulse, local looping audio, or an explicit live input. Live input is never sent to speakers; browser echo/noise/gain processing is disabled. Local/demo monitoring can be muted independently of analysis and recording. Route energy, bass, mid, high or onset to bounded controls. Set/tap manual tempo or enable MIDI clock; the current tempo then controls beat fades and the demo pulse, with manual fallback after clock loss. There is no automatic BPM guess. MIDI Start restarts the score, Stop pauses, and Continue resumes.
-5. Open **clean output**, move its window to the projector, then enter fullscreen. It receives the exact rendered canvas, not a second independently evolving simulation. Its visible animation loop can drive the control window when that window is hidden. Fullscreen removes output controls. Keep both windows open; OBS/projector capture should target clean output.
-6. Export the set before rehearsal and again before the show. Reattach local audio after reopening: session JSON intentionally excludes media, permissions and device assignments. Keep a known-safe look and blackout ready.
+The **stage** window owns the show: renderer, show controller, clock, autopilot, audio input and the beat tracker (AudioWorklet). The **control** window is a remote over a BroadcastChannel: it edits the set, sends performer actions and shows the stage's state and a preview. Either window can reload without stopping the other; the stage saves its runtime state every second and restores the current clip, energy, speed, shared controls and tempo after a reload.
 
-Keyboard: **B** blackout, **P** pause, **R** reset, **Esc** safe look, **Shift + arrows** scene change, **Enter** next cue when not on a button. **Space** injects while the stage/non-button surface is focused; buttons retain native keyboard behavior. Shortcuts do not hijack text fields, selects, or the help dialog.
+- **Sets (v3):** 8 pages × 32 slots. A clip stores family, parameters, seed, palette, base energy, fade (beats), start quantization (beat / bar / immediately) and whether autopilot may play it. Shared controls — master, hue, zoom, mirror — and the speed trim are a mixer strip, not part of clips. v1/v2 files (including v6 14-family sets) import through the v2 migration; cues become clips, and keyframes, audio routings and score-only MIDI targets are reported as dropped.
+- **Clock:** one monotonic beat. Following audio, it steers toward the tracker with slew-limited, forward-only corrections and holds tempo and phase through breakdowns; nudges set a latency offset. Taps switch to manual tempo. Enter marks beat 1 of the bar. Beat tracking assumes 4/4 at 100–150 BPM (half and double tempo fold in).
+- **Autopilot:** plays allowed clips on the current page every 16/32/64 bars, never repeats the last six, and on loudness events raises energy (build), cuts to a higher-energy clip on the downbeat (drop) or lowers energy, halves speed and later moves to a calmer clip (breakdown). It never changes master, blackout, flash or page.
+- **Energy:** each family declares how its parameters move from calm to intense (additive or multiplicative slopes from the clip's own base energy) and which shared beat responses it takes: zoom punch and brightness pulse on the kick, optional injection into simulations. Flashes unlock above energy 0.8 and always pass the flash limiter.
+- **Screens:** the stage renders at the screen's native size within a pixel budget (2.1 / 1 / 0.5 MP). Math and raymarched families compose natively; simulation families render a 16:9 frame that is cover-cropped to any other shape. Frames are paced at about 60 Hz whatever the display's refresh rate; the budget only steps down after two slow five-second windows.
 
 ## Scene families
 
@@ -35,37 +34,19 @@ Keyboard: **B** blackout, **P** pause, **R** reset, **Esc** safe look, **Shift +
 
 ## Performance and recovery
 
-| Quality  | Output / presentation target |
-| -------- | ---------------------------- |
-| High     | 1920×1080 / 60 fps           |
-| Balanced | 1280×720 / 60 fps            |
-| Low      | 960×540 / 30 fps             |
+Simulation runs on a fixed 60 Hz clock with at most six catch-up ticks per frame; the speed trim scales it (½×, 2×). Crossfades keep at most two slots, then dispose the old one; the engine counts every texture it creates and the harness checks none leak. Each family compiles in parallel; one failed shader disables that family only. A frame error loads the safe look instead of stopping the show. WebGL context loss rebuilds resources and restarts the latest seed.
 
-Simulation runs on a fixed 60 Hz clock independently of presentation, with at most six catch-up ticks per callback. Slow callbacks cannot create an unbounded backlog. Crossfades retain at most two scene slots/nine textures, then dispose the old slot. Simulation grids do not grow with output resolution. Melt's internal visual shading is capped at 960×540 for the ribbon GPU budget; final output/capture still uses the chosen resolution. Adaptive quality lowers output after sustained slow windows; it never silently increases quality. Reduced motion slows simulation, clock-driven visual motion and beat effects; it is not a guarantee that every composition is comfortable for every viewer.
+## Save and export
 
-Stateful looks prepare their seeded field in batches of at most six simulation ticks per callback, rather than submitting all 120 preparation ticks during a cue change. Automatic fades hold the outgoing look until preparation completes; expect a short preparation delay before the requested fade. Preparation continues when paused after explicitly loading a new look. PNG sequences finish this preparation before counted frame zero.
-
-Optional blank-output recovery samples the whole image, waits through six bad checks, and resets the seed. Disable it for intentionally almost-black work. Blackout is excluded from recovery. WebGL context restoration rebuilds resources and restarts the latest seed; it cannot restore a lost GPU field exactly. Resize preserves the displayed history rather than erasing a paused look.
-
-## Save, capture and export
-
-- **Portable sets:** strict `phosphor-set-v2` JSON up to 32 MB, complete scene cue/keyframe snapshots, options, modulation/MIDI mappings and lineages. Autosave is local and subject to storage quota; failed/pending saves trigger a closing warning, and export backups are still required. v1 imports/local saves migrate labels, duration, palettes and preset intent to corrected models; old unstable trajectories are not preserved. The original v1 local key remains intact. Rejected saves retain a downloadable raw recovery backup; if storage cannot hold that backup, autosave stays blocked to preserve the original until you download it and explicitly save a new set.
-  Migration supports this checkout's original three-family v1 format, not every export from the separately maintained public v6 instrument.
-- **PNG capture:** current rendered output.
-- **WebM:** real canvas plus a separate audio-recording branch. Chromium file-system support streams to disk and stops if pending writes exceed a 16 MB backlog threshold; native encoder chunks can overshoot that threshold. Stop and wait for finalization before closing. Without file-system support, retained in-memory clips stop at 64 MB. For hours-long archival capture, use OBS and verify its audio routing. Browser encoder/container seeking and recovery after a crash are not guaranteed; recording is not a substitute for a set backup.
-- **Frame sequence:** 120 real 1280×720 PNG frames at 30 fps plus a manifest, in a new timestamped subdirectory. Captures a frozen look/options/tempo, no audio or live modulation. Cancellation retains completed frames. Seed replay is for the same GPU/runtime, not bit-identical across devices. This is a four-second scene export, not an offline renderer for an entire multi-hour score.
-- **Offline:** all distribution assets are precached as one content-stamped generation. Finish recording, close every Phosphor window, then reopen to activate an update. Do not update/redeploy mid-show. Offline caching is available only after a successful online load and remains subject to browser storage eviction.
+- **Sets:** saved locally on every edit (never during playback) and exported as `.phosphor.json`. Export before rehearsal and before the show.
+- **Rehearsal log:** per-minute frame timing (p50/p95/p99), errors, memory, budget, scene and tempo lock, exported from the pre-show panel.
+- **Contact sheets** (`npm run contact`): looks, energy ladders (`--sheet ladder`) and grayscale distinctness of each family's types (`--sheet types`).
+- **Offline:** all assets are precached as one content-stamped generation. A new release waits until every Phosphor window is closed. Never update mid-show.
 
 ## Release operations
 
 Vercel production (`fabianxvogts-projects/phosphor-performance`) is the only public deployment, published from reviewed `dist` at checkpoints, never mid-show. The GitHub Pages mirror was retired on 2026-10-08. For manual Vercel updates: `npm run build && npm run check:dist`, then `npx vercel link --yes --project phosphor-performance --scope fabianxvogts-projects --cwd dist` and `npx vercel deploy --prod --yes --scope fabianxvogts-projects --cwd dist`. Builds recreate `dist`, including the upload exclusion policy; re-link after rebuilding. Only deploy reviewed distribution assets. `.env*`, `.vercel`, other-provider metadata and the exclusion file itself are excluded; never publish CLI-generated environment tokens. Git connection is intentionally not required, avoiding an automatic deployment of the separate default-branch instrument.
 
-## Show acceptance checklist — not yet executed
+## Show acceptance
 
-1. Run the intended set for its full 2–4-hour duration on the target laptop, browser, audio interface and projector. Include every fade, quiet look and highest-cost combination; log observed frame timing, quality reductions, memory and thermal behavior. Prevent OS sleep; Wake Lock alone is not authority over OS power settings.
-2. Exercise real MIDI controller routing/clock, Start/Stop/Continue and disconnection, real line input at representative levels, permission denial, source changes and monitoring. Confirm there is no speaker feedback; simulated MIDI messages do not establish physical compatibility.
-3. Verify native file pickers, disk space/write throughput, finalization and reopening the full recording. Use OBS for long archival capture; browser container seeking/crash recovery is not certified.
-4. Repeat offline/fullscreen checks on the physical show machine, including browser restart/storage retention. Rehearse updates only after all old windows close. Deploy the complete distribution atomically; never mix partial uploads or update mid-show.
-5. Performer/viewer review: cue ergonomics, readability at projection distance, pacing, fatigue, color/black levels, reduced-motion behavior and sensitive-viewer suitability. No strobe is bundled, but no photosensitivity safety claim follows from that.
-
-New families follow the [roadmap](../ROADMAP.md): the frozen v6 instrument's Fractal Flight, Julia, Fourth Dimension and Hyperbolic Loom are ported in Milestone 2, after the Milestone 1 reliability and art-direction gates.
+The show gate is in the [roadmap](../ROADMAP.md): an eight-hour unattended run on the reference rig with recorded mixes through the line input (`npm run soak -- --rig --minutes 480 --audio mix.wav`), blackout latency, a crash drill and a line check with a real DJ mixer. Not yet executed.

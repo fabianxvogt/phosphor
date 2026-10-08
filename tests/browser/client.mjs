@@ -85,11 +85,19 @@ export async function renderLook({
     engine.advance(1 / 60, false);
   }
   engine.present();
-  // The health mean (0–255) arrives through an asynchronous readback.
+  // The health mean (0–255) arrives through an asynchronous readback. Drain
+  // any readback still in flight from earlier frames, then measure this one.
+  const frame = () => new Promise((done) => requestAnimationFrame(done));
+  for (let i = 0; i < 60 && engine.healthReadback.sync; i++) {
+    await frame();
+    engine.pollHealth();
+  }
+  engine.lastHealth.pending = true;
   let health = engine.health();
   for (let i = 0; i < 60 && health.pending; i++) {
-    await new Promise((done) => requestAnimationFrame(done));
-    health = engine.health();
+    await frame();
+    engine.pollHealth();
+    health = engine.lastHealth;
   }
   const result = {
     glError: engine.gl.getError(),
