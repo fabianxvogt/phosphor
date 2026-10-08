@@ -60,8 +60,9 @@ Every family below is a draft until it passes (D47). Packets: `docs/families/<id
 
 | Group | Family | Status |
 | --- | --- | --- |
-| 1 | Cathedral, Interference, Feedback, Tapestry | in lanes |
-| 2 | Pulse Geometry, Fractal Flight | draft; lanes start as group 1 lanes finish |
+| 1 | Feedback Chapel | [packet](docs/families/feedback.md): types, ladder, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
+| 1 | Cathedral, Interference, Tapestry | in lanes |
+| 2 | Pulse Geometry, Fractal Flight | in lanes |
 | 3 | Melt, Acid (+ garden type) | draft |
 | 4 | Light Beams, Particle Swarm | draft |
 | 5 | Julia Observatory, Fourth Dimension, Hyperbolic Loom | draft |

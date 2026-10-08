@@ -56,5 +56,7 @@ Convex feedback: pigment ≤ .86/channel, history/injection weights sum to ≤ 1
 
 ## Owner-only acceptance and known limits
 
-Judge four different structures, correctly ordered ladders (especially Portal low/mid), musical usefulness, and wide/square framing including the ultra-wide near pair. Parent runs `npm run timing -- --rig --family feedback` alone on the reserved rig: require p99 ≤ 34 ms and no downgrade/errors. Neither owner-only acceptance has been executed.
+Judge four different structures, correctly ordered ladders (especially Portal low/mid), musical usefulness, and wide/square framing including the ultra-wide near pair. Art sign-off has not been executed.
+
+**Rig timing PASS (2026-10-08, parent):** `npm run timing -- --rig --family feedback`, Chrome on the M3 Pro (ANGLE Metal, built-in display), 1920×1080, energy 0.95, 30 s per type, while four headless lanes loaded the CPU (load average ≈ 22): p50 16.7 ms and p99 17.6 / 18.0 / 17.6 / 17.7 ms for types 0–3, max 25.5 ms, GPU errors 0, non-finite 0, no step reduction or downgrade.
 Headless software rendering is correctness evidence, not art approval, rig timing, endurance or photosensitivity certification. Cuts deliberately start fresh; fades mix independent histories. Historical geometry 3 is now Procession, not the former radial mixed-stroke look. No engine/compositor/contract changes were needed.
