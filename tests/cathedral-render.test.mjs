@@ -27,12 +27,17 @@ test('cathedral renders at 64 steps with ordered motion and shared kick response
   skip: !browserRequested,
   timeout: 600000,
 }, async () => {
-  const args = options({ cross: { type: 'string' } });
+  const args = options({
+    cross: { type: 'string' },
+    width: { type: 'string', default: '320' },
+    height: { type: 'string', default: '180' },
+  });
+  const width = Number(args.width), height = Number(args.height);
   assert.equal(args.rig, false, 'family probes are headless only');
   const out = await outputDirectory('contact/cathedral-probes', args.out);
   const server = await serve('.', args.port);
   const runtime = await launch();
-  const evidence = { raySteps: 64, types: [], distinctness: null };
+  const evidence = { raySteps: 64, width, height, types: [], distinctness: null };
   try {
     const lab = await openLab(runtime.browser, server.url);
     await lab.page.evaluate(() => {
@@ -44,7 +49,7 @@ test('cathedral renders at 64 steps with ordered motion and shared kick response
       const levels = [];
       for (const level of [0.1, 0.5, 0.9]) {
         const r = await lab.page.evaluate(renderLook, {
-          sceneId: 'cathedral', index, level, frames: 60, width: 320, height: 180,
+          sceneId: 'cathedral', index, level, frames: 60, width, height,
         });
         assert.ok(r.peak > 8, `geometry ${geometry} at ${level} is blank`);
         assert.equal(r.glError, 0);

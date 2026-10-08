@@ -73,10 +73,17 @@ vec2 familySDF(vec3 p, float family) {
       branch.yz = rot2(angle) * branch.yz;
       result = nearer(result, vec2(crystalSDF(branch, .75 - .09 * k), 2.));
     }
+    // Wide walls reveal a faceted chamber instead of empty lateral margins.
+    if (u_resolution.x / u_resolution.y > 2.2) {
+      vec2 wall = abs(p.xz);
+      float chamber = max(max(wall.x, wall.y), (wall.x + wall.y) * .70710678118) - 9.;
+      result = nearer(result, vec2(abs(chamber) - .08, 2.));
+    }
     result = nearer(result, vec2(abs(p.y + 2.1) - .06, 0.));
   } else if (family < 2.5) {
     // A frontal rose disk, nested raised rings and a radial mullion pattern.
     vec3 rose = p - vec3(0., .6, 1.);
+    if (u_resolution.x / u_resolution.y > 2.2) rose.x = mod(rose.x + 3.4, 6.8) - 3.4;
     float radius = length(rose.xy);
     result = vec2(max(radius - 2.55, abs(rose.z) - .09), 3.);
     float frame = max(abs(radius - 2.62) - .13, abs(rose.z) - .2);
@@ -159,8 +166,10 @@ vec3 glassPalette(float t, float material) {
 void main() {
   float bay = bayLength();
   float speed = clamp(u_params[3], 0., 1.5);
-  float travel = mod(max(u_time, 0.) * speed * .7, bay * 256.);
-  float phase = travel / bay * 2. * PI;
+  float elapsed = max(u_time, 0.) * speed * .7;
+  float travel = mod(elapsed, bay * 256.);
+  // Wrapping position must not reset the orbit/glide's non-integer harmonics.
+  float phase = elapsed / bay * 2. * PI;
   float seedPhase = hash(vec2(4., 9.)) * 2. * PI;
   float journey = clamp(u_params[4], 0., 2.);
   // The nave/folds traverse; the reliquary orbits; the rose holds a frontal view.
@@ -218,6 +227,7 @@ void main() {
     vec2 glass;
     if (family > 1.5 && family < 2.5 && surface.y > 2.5) {
       vec2 rose = p.xy - vec2(0., .6);
+      if (u_resolution.x / u_resolution.y > 2.2) rose.x = mod(rose.x + 3.4, 6.8) - 3.4;
       float angle = atan(rose.y, rose.x);
       float spokes = abs(sin(angle * (6. + 2. * clamp(u_params[1], 1., 4.))));
       float rings = abs(sin(length(rose) * (3. + 6. * level)));
