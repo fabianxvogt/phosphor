@@ -2,6 +2,13 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-08 — Demo sound without opening the stage
+
+- `INCREMENTAL / EMPIRICAL`: the control window reuses `AudioEngine` for the 120 BPM demo, activated by the first click or key press. No audio context is created before interaction and no microphone is requested. Stage opening/status stops local sources, including an in-flight startup; the demo resumes after stage closure if still selected. Off persists across further gestures and the heartbeat; Demo beat re-enables it; local mute uses the existing monitor gain.
+- Installed-Chrome smoke measured the real signal at nodes connected to `AudioContext.destination`, not just UI flags: local demo RMS 0.0713 with only the control window open; Off yielded exact zero and stayed silent after another grid click; mute reduced destination RMS below 0.00001; unmute restored signal. Repeated activation reused one local context.
+- Stage handoff: local destination signal was zero while the stage produced RMS 0.0106; after closing the stage, the local demo resumed. Zero page errors. Measurement confirms a live speaker-output signal, not physical speaker volume or a human listening assessment.
+- Verification: 144 tests passed, four opt-in browser probes skipped; typecheck, build, distribution/offline verification and format check passed. Distribution revision `d68a4c606536af15`.
+
 ## 2026-10-08 — Selected visual preview without a stage
 
 - `INCREMENTAL / EMPIRICAL`: the main preview reuses the editor's rendered canvas at 480×270 / 30 Hz while no live stage stream is available. No extra WebGL engine or audio context is created. A connected stage takes over the monitor; closing it restores the selected clip.

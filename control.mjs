@@ -16,7 +16,7 @@ import {
 import { loadSet, saveSet } from "./show-storage.mjs";
 import { actionFor, keyLabels, GRID_CODES } from "./keymap.mjs";
 import { mutatePreset } from "./evolution.mjs";
-import { MidiInput } from "./audio.mjs";
+import { AudioEngine, MidiInput } from "./audio.mjs";
 import { routeMidi } from "./midi-map.mjs";
 import { MIDI_TARGETS } from "./show-set.mjs";
 
@@ -110,6 +110,7 @@ async function openStage() {
     );
     return;
   }
+  stopLocalDemo();
   try {
     if (!("getScreenDetails" in window)) return;
     const details = await window.getScreenDetails();
@@ -126,6 +127,57 @@ async function openStage() {
   }
 }
 const stageAlive = () => performance.now() - lastStatusAt < 2000;
+
+// Audition the demo locally until the stage takes ownership of audio.
+const demoAudio = new AudioEngine(() => renderLocalAudio());
+let demoRequested = true;
+let demoStarting = false;
+function renderLocalAudio() {
+  if (stageAlive()) return;
+  const playing =
+    demoAudio.kind === "demo" && demoAudio.context?.state === "running";
+  $("audioPill").textContent = playing
+    ? demoAudio.muted
+      ? "Demo · muted"
+      : "Demo · 120 BPM"
+    : demoRequested
+      ? "Demo · click to hear"
+      : "Audio off";
+  $("audioPill").className = `pill ${playing && !demoAudio.muted ? "ok" : ""}`;
+}
+function stopLocalDemo() {
+  if (demoStarting || demoAudio.kind !== "silent") demoAudio.stop();
+}
+function syncLocalDemo() {
+  if (!demoRequested || stageAlive() || (stageWindow && !stageWindow.closed)) {
+    stopLocalDemo();
+    return;
+  }
+  if (!navigator.userActivation?.hasBeenActive || demoStarting) return;
+  if (demoAudio.kind === "demo") {
+    demoAudio.context
+      .resume()
+      .then(renderLocalAudio)
+      .catch(() => {});
+    return;
+  }
+  demoStarting = true;
+  demoAudio.mute($("audioMute").checked);
+  demoAudio
+    .demo()
+    .catch((error) => {
+      demoRequested = false;
+      toast(`Demo audio: ${error.message}`);
+    })
+    .finally(() => {
+      demoStarting = false;
+      renderLocalAudio();
+    });
+}
+// Do not ask for microphone access or create an audio context on page load.
+for (const kind of ["click", "keydown"]) addEventListener(kind, syncLocalDemo);
+addEventListener("pagehide", () => demoAudio.dispose());
+renderLocalAudio();
 function updatePreview() {
   const live =
     stageAlive() &&
@@ -155,6 +207,7 @@ channel.onmessage = ({ data }) => {
     case "status":
       status = data;
       lastStatusAt = performance.now();
+      stopLocalDemo();
       // The stage may change shared controls and autopilot from its own keys
       // and autopilot; keep the set in step so a later edit doesn't undo them.
       set.shared = { ...data.status.shared };
@@ -164,6 +217,7 @@ channel.onmessage = ({ data }) => {
       break;
     case "stage-ready":
       log("Stage opened.");
+      stopLocalDemo();
       send({ type: "set", set });
       break;
     case "stage-started":
@@ -381,6 +435,7 @@ function renderStatus() {
     `pill ${alive ? (status.stage.started ? "ok" : "warn") : "bad"}`;
   $("openStage").disabled = alive;
   updatePreview();
+  if (!alive) renderLocalAudio();
   if (!s) return;
   const clock = s.clock;
   $("bpm").textContent = clock.bpm.toFixed(1);
@@ -1020,6 +1075,9 @@ $("importSet").onchange = async () => {
   }
 };
 $("useInput").onclick = async () => {
+  demoRequested = false;
+  stopLocalDemo();
+  renderLocalAudio();
   try {
     // Ask here (Prep) so the stage never shows a permission prompt (D10).
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1033,17 +1091,33 @@ $("useInput").onclick = async () => {
 };
 $("audioFile").onchange = () => {
   const file = $("audioFile").files[0];
-  if (file)
+  if (file) {
+    demoRequested = false;
+    stopLocalDemo();
+    renderLocalAudio();
     send({
       type: "audio",
       source: "file",
       file,
       muted: $("audioMute").checked,
     });
+  }
 };
-$("useDemo").onclick = () =>
+$("useDemo").onclick = () => {
+  demoRequested = true;
+  syncLocalDemo();
   send({ type: "audio", source: "demo", muted: $("audioMute").checked });
-$("audioOff").onclick = () => send({ type: "audio", source: "off" });
+};
+$("audioOff").onclick = () => {
+  demoRequested = false;
+  stopLocalDemo();
+  renderLocalAudio();
+  send({ type: "audio", source: "off" });
+};
+$("audioMute").onchange = () => {
+  demoAudio.mute($("audioMute").checked);
+  renderLocalAudio();
+};
 $("pattern").onclick = () => {
   const on = $("pattern").ariaPressed !== "true";
   $("pattern").ariaPressed = String(on);
@@ -1074,6 +1148,7 @@ setInterval(() => {
     $("preview").srcObject = null;
     renderStatus();
   }
+  syncLocalDemo();
 }, 1000);
 
 // Offline cache: a new release waits until every Phosphor window is closed;
