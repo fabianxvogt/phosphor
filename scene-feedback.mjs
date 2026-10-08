@@ -33,7 +33,7 @@ const schema = [
   },
   {
     key: "geometry",
-    label: "Geometry: ring / polygon / lines / mixed",
+    label: "Geometry: halo / portal / weave / procession",
     min: 0,
     max: 3,
     step: 0.01,
@@ -158,8 +158,6 @@ const fragment = `
 
 vec2 fcRotate(vec2 p, float a) { return rot2(-a) * p; }
 
-vec2 fcMirror(vec2 p, float sectors) { return fold(p, sectors); }
-
 float fcStroke(float distanceToLine, float width, float aa) {
   return 1.0 - smoothstep(width, width + aa, abs(distanceToLine));
 }
@@ -171,13 +169,14 @@ float fcPolygon(vec2 p, float sides, float radius) {
 }
 
 void main() {
-  float dtFrames = clamp(u_dt, 0.0, 0.1) * 60.0;
+  float dt = clamp(u_dt, 0.0, 0.1);
+  float dtFrames = dt * 60.0;
   float persistence = clamp(u_params[0], 0.15, 0.985);
   float gain = pow(persistence, dtFrames);
   float zoom = clamp(u_params[1], -0.22, 0.22);
   float rotation = clamp(u_params[2], -0.8, 0.8);
   float sectors = floor(clamp(u_params[3], 1.0, 12.0) + 0.5);
-  float geometry = clamp(u_params[4], 0.0, 3.0);
+  float geometry = floor(clamp(u_params[4], 0.0, 3.0) + 0.5);
   float injection = clamp(u_params[5], 0.0, 1.0);
   float aperture = clamp(u_params[6], 0.12, 0.9);
   float audio = clamp(u_params[7], 0.0, 1.0);
@@ -185,77 +184,92 @@ void main() {
   float mid = clamp(u_mid, 0.0, 1.0) * audio;
   float high = clamp(u_high, 0.0, 1.0) * audio;
   float onset = clamp(u_onset, 0.0, 1.0) * audio;
-  float energy = clamp(u_energy, 0.0, 1.0) * audio;
+  float level = clamp(u_level, 0.0, 1.0);
   float aspect = u_resolution.x / max(u_resolution.y, 1.0);
   vec2 p = (v_uv - 0.5) * vec2(aspect, 1.0);
   float aa = 1.5 / max(u_resolution.y, 1.0);
   float phase = hash(vec2(52.0, 19.0)) * FC_TAU;
-
-  // Low persistence is a stable recovery cue: freeze the injector's motion too.
-  float movement = smoothstep(0.2, 0.9, persistence);
-  float clock = u_time * movement;
+  // Energy drives the injector even when an authored transport is stationary.
+  // Persistence controls trails, not whether the high-energy look can move.
+  float clock = u_time * mix(0.06, 1.8, level * level);
   float spin = clamp(rotation * (1.0 + 0.3 * mid), -0.8, 0.8);
   float dilation = clamp(zoom + bass * 0.035 * sign(zoom), -0.22, 0.22);
-  vec2 source = fcRotate(p, -spin * clamp(u_dt, 0.0, 0.1));
-  source *= exp(-dilation * clamp(u_dt, 0.0, 0.1));
-  source = fcMirror(source, sectors);
+  vec2 source = fcRotate(p, -spin * dt);
+  source *= exp(-dilation * dt);
+  if (geometry == 0.0) source = fold(source, sectors);
+  else if (geometry == 2.0) source.x += 0.012 * sin(p.y * 8.0 + clock) * dt;
+  else if (geometry == 3.0) source.y -= 0.08 * dt;
   vec2 sourceUV = source / vec2(aspect, 1.0) + 0.5;
   vec3 history = vec3(0.0);
   if (!u_reset && all(greaterThanEqual(sourceUV, vec2(0.0))) && all(lessThanEqual(sourceUV, vec2(1.0)))) {
     history = texture(u_previous, sourceUV).rgb;
   }
 
-  // Narrow signed-distance strokes inject geometry, never filled white disks.
-  float radius = aperture * 0.46 * (1.0 + 0.065 * sin(clock * 0.43 + phase) + 0.09 * bass);
-  vec2 q = fcRotate(p, 0.09 * clock + phase + audio * 0.015 * sin(u_beat * FC_PI));
-  float r = length(q);
-  float angle = atan(q.y, q.x);
-  float width = 0.003 + 0.003 * injection + 0.0012 * high;
-  float ring = fcStroke(r - radius, width, aa);
-  float outer = fcStroke(r - radius * (1.32 + 0.04 * sin(clock * 0.29)), width * 0.65, aa);
-  float ringGap = 0.3 + 0.7 * smoothstep(-0.55, 0.2, sin(angle * 3.0 + clock * 0.21 + phase));
-  float rings = ring + 0.46 * outer * ringGap * movement;
-  float sides = max(3.0, sectors);
-  float polygon = fcStroke(fcPolygon(q, sides, radius), width, aa);
-  float polygonInner = fcStroke(fcPolygon(fcRotate(q, 0.2 + clock * 0.035), sides, radius * 0.67), width * 0.65, aa);
-  float polygons = polygon + 0.55 * polygonInner;
-  vec2 folded = fcMirror(q, max(3.0, sectors));
-  float spoke = fcStroke(folded.y, width * 0.7, aa);
-  spoke *= smoothstep(radius * 0.28, radius * 0.42, r) * (1.0 - smoothstep(radius * 1.35, radius * 1.5, r));
-  float chord = fcStroke(folded.x - radius * 0.76, width, aa);
-  chord *= 1.0 - smoothstep(radius * 0.48, radius * 0.61, abs(folded.y));
-  float lines = max(spoke, chord);
+  float width = mix(0.025, 0.009, level) + 0.002 * high;
+  float ink = 0.0;
+  float colorPhase = 0.0;
+  if (geometry == 0.0) {
+    // A breathing central halo; satellites fill wide walls without stretching.
+    float spacing = 0.92;
+    vec2 q = p;
+    q.x -= spacing * floor(q.x / spacing + 0.5);
+    float radius = 0.16 + aperture * 0.22 + 0.018 * sin(clock + phase) + 0.025 * bass;
+    float r = length(q);
+    float rings = 1.0 + floor(level * 5.0);
+    float band = (r - radius) * (8.0 + rings * 2.0);
+    float envelope = 1.0 - smoothstep(0.09 + level * 0.18, 0.12 + level * 0.18, abs(r - radius));
+    ink = fcStroke(fract(band - clock * 0.08) - 0.5, 0.16, aa * (8.0 + rings * 2.0)) * envelope;
+    colorPhase = atan(q.y, q.x) / FC_TAU + r;
+  } else if (geometry == 1.0) {
+    // Off-axis nested triangular portals, travelling into a dark vanishing point.
+    vec2 q = fcRotate(p - vec2(-0.22, 0.06), 0.13 * sin(clock * 0.5 + phase));
+    float d = fcPolygon(q, 3.0, 0.0);
+    float count = 3.0 + floor(level * 9.0);
+    float bands = log(max(d, 0.025) / (0.08 + aperture * 0.15)) * count - clock * 0.4;
+    ink = fcStroke(fract(bands) - 0.5, 0.28, aa * count / max(d, 0.025));
+    ink *= smoothstep(0.035, 0.07, d);
+    colorPhase = floor(bands) * 0.17;
+  } else if (geometry == 2.0) {
+    // Full-frame interlaced horizontal and vertical ribbons, not radial spokes.
+    float count = 6.0 + floor(level * 22.0) + sectors * 0.3;
+    vec2 q = p * count;
+    q.x += 0.35 * sin(p.y * 9.0 + clock + phase);
+    q.y += 0.35 * sin(p.x * 7.0 - clock * 0.7);
+    vec2 cell = floor(q);
+    vec2 ribbon = abs(fract(q) - 0.5);
+    float warp = fcStroke(ribbon.x, 0.1, aa * count);
+    float weft = fcStroke(ribbon.y, 0.1, aa * count);
+    float over = mod(cell.x + cell.y, 2.0);
+    ink = max(warp * mix(0.45, 1.0, over), weft * mix(1.0, 0.45, over));
+    colorPhase = (cell.x + cell.y) * 0.07;
+  } else {
+    // Staggered vertical processions of broad votive tiles with hollow centres.
+    float count = 2.0 + floor(level * 5.0);
+    vec2 q = p * vec2(count, count * 1.6);
+    float column = floor(q.x);
+    q.y += mod(column, 2.0) * 0.5 + clock * (0.18 + 0.06 * sin(column + phase));
+    vec2 cell = abs(fract(q) - 0.5);
+    float tile = max(cell.x / 0.42, cell.y / 0.43);
+    float outside = 1.0 - smoothstep(0.92, 1.0 + aa * count, tile);
+    float inside = smoothstep(0.22 + aperture * 0.2, 0.3 + aperture * 0.2, tile);
+    ink = outside * inside;
+    colorPhase = column * 0.13 + floor(q.y) * 0.21;
+  }
 
-  float ringWeight = max(1.0 - geometry, 0.0) + max(geometry - 2.0, 0.0) * 0.55;
-  float polygonWeight = max(1.0 - abs(geometry - 1.0), 0.0) + max(geometry - 2.0, 0.0) * 0.65;
-  float lineWeight = max(1.0 - abs(geometry - 2.0), 0.0) + max(geometry - 2.0, 0.0) * 0.35;
-  float ringInk = rings * ringWeight;
-  float polygonInk = polygons * polygonWeight;
-  float lineInk = lines * lineWeight;
-
-  // Gesture deposits a finite brush stroke that enters the same feedback path.
+  // Gesture and shared beat injection use the same bounded history path.
   vec2 gesture = (u_gesture.xy - 0.5) * vec2(aspect, 1.0);
-  float brushRadius = 0.016 + 0.012 * bass;
+  float brushRadius = 0.03 + 0.012 * bass;
   float brushDistance = length(p - gesture);
   float brush = (1.0 - smoothstep(brushRadius * 0.35, brushRadius, brushDistance)) * clamp(u_gesture.z, 0.0, 1.0);
   float brushRim = fcStroke(brushDistance - brushRadius * 1.7, width, aa) * clamp(u_gesture.z, 0.0, 1.0);
-  float total = ringInk + polygonInk + lineInk + brush + brushRim;
-  vec3 ringColor = mix(u_primary, u_secondary, 0.25 + 0.2 * sin(angle + clock * 0.15));
-  ringColor = mix(ringColor, u_accent, 0.12 + 0.1 * sin(angle * 3.0 - clock * 0.13));
-  vec3 polygonColor = mix(u_secondary, u_accent, 0.25 + 0.2 * sin(clock * 0.23 + phase));
-  polygonColor = mix(polygonColor, u_primary, 0.12 + 0.08 * cos(angle * 2.0));
-  vec3 lineColor = mix(mix(u_accent, u_primary, 0.35), u_secondary, 0.18 + 0.1 * cos(clock * 0.19 + angle));
-  vec3 pigment = ringInk * ringColor + polygonInk * polygonColor + lineInk * lineColor;
-  pigment += brush * u_accent + brushRim * u_secondary;
-  pigment = 0.86 * clamp(pigment / max(total, 0.00001), 0.0, 1.0);
-
-  float geometryCoverage = clamp(ringInk + polygonInk + lineInk, 0.0, 1.0) * injection;
-  float coverage = clamp(geometryCoverage + brush + 0.6 * brushRim, 0.0, 1.0);
-  float inkRate = mix(0.75, 0.22, smoothstep(0.2, 0.9, persistence));
-  float alphaAt60 = coverage * (inkRate + 0.06 * energy + 0.06 * onset);
+  vec3 pigment = mix(u_primary, u_secondary, 0.5 + 0.35 * sin(colorPhase * FC_TAU + phase));
+  pigment = mix(pigment, u_accent, 0.2 + 0.15 * cos(colorPhase * FC_TAU - clock * 0.2));
+  pigment = 0.86 * clamp(mix(pigment, u_accent, brush), 0.0, 1.0);
+  float coverage = clamp(ink * injection + brush + 0.6 * brushRim, 0.0, 1.0);
+  float alphaAt60 = clamp(coverage * (0.72 + 0.08 * onset), 0.0, 0.9);
   float alpha = 1.0 - pow(1.0 - alphaAt60, dtFrames);
   // Convex injection: return coefficient <= pow(.985, 60 * dt), and pigment
-  // <= .86 per channel. It cannot build brightness through additive feedback.
+  // <= .86 per channel. Neither cuts nor fades feed the graded output back.
   vec3 color = history * gain * (1.0 - alpha) + pigment * alpha;
   emit(vec4(clamp(color, 0.0, 1.0), 1.0));
 }
@@ -271,13 +285,13 @@ export default {
     injection: [0.3, 0.95],
     persistence: [0.98, 0.86],
   },
-  beat: { punch: 1.2, pulse: 1 },
+  beat: { punch: 1.2, pulse: 1, inject: 0.8 },
   stage: ["zoom", "rotation", "injection"],
   type: { key: "geometry", values: [0, 1, 2, 3] },
   number: 52,
   name: "Feedback Chapel",
   description:
-    "Mirrored video-feedback halos, polygon tunnels and woven rays. Paint an impulse; sculpt trace persistence. Rehearse Quiet Apse → Molten Reliquary → Evolving Tunnel → Clean Recovery for a deliberate opening and ending.",
+    "Bounded feedback halos, off-axis polygon portals, interlaced ribbons and votive processions. Paint an impulse; sculpt transport and trace persistence. Energy adds motion and detail without additive brightness.",
   schema,
   presets,
   fragment,
