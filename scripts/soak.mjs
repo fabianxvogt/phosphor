@@ -8,6 +8,7 @@ import {
   serve,
   launch,
   newInstrument,
+  pauseForCapture,
   deadline,
 } from "./browser-runtime.mjs";
 import { readTelemetry } from "../tests/browser/client.mjs";
@@ -92,6 +93,8 @@ async function start() {
   });
 }
 async function probes() {
+  // Freeze the clock and adaptive options before comparing one exported set.
+  await pauseForCapture(page);
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#exportButton").click();
   const download = await downloadPromise;
