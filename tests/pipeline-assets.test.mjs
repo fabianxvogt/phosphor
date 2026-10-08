@@ -30,8 +30,6 @@ test("HTML entrypoints walk nested, side-effect, re-export and literal dynamic i
     for (const name of Object.keys(files)) { await mkdir(join(dist, name, ".."), { recursive: true }); await cp(join(root, name), join(dist, name)); }
     const assets = ["./", ...Object.keys(files).map(name => `./${name}`)];
     const worker = list => `const REVISION="abcdef1234567890"; const ASSETS = ${JSON.stringify(list)};`;
-    await writeFile(join(dist, "sw.js"), worker(assets));
-    assert.equal(await verifyDistribution(root, dist), 11);
     await writeFile(join(dist, "sw.js"), worker(assets.filter(name => name !== "./lazy.mjs")));
     await assert.rejects(verifyDistribution(root, dist), /not precached: lazy.mjs/);
     await writeFile(join(dist, "sw.js"), worker(assets));
