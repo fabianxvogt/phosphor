@@ -83,6 +83,8 @@ Platform changes go one at a time on `main`, because they change contracts every
 
 Remaining families in queue order. Optional families: Oscilloscope, Terrain. v6 set import only if the owner has v6 sets worth keeping.
 
+**Idea, owner 2026-10-08 — image collage family (maybe later, not scheduled):** random images layered and morphed into each other for trippy, uncanny pictures. Not decided: the image source. Live Google Images does not fit a show (mostly copyrighted images in public display, image rights of people shown, unvetted content, no free random-image API, no CORS for WebGL, venue may be offline). Candidate sources: the owner's own folder (rights held or CC0), or random public-domain/CC0 packs from open archives that allow cross-origin use (Wikimedia Commons and the Met's image hosts sent `Access-Control-Allow-Origin: *` in a spot check), fetched in Prep, reviewed and cached offline. Building it reverses D25 (generative only) and needs a decision entry first.
+
 ## Cut
 
 Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PNG snapshots stay); MIDI clock and Start/Stop/Continue; manual band-to-parameter audio routing; Safari and Firefox support; Milestone 3 (outside performers); further work on the public demo. MIDI learn for CC/notes stays.
