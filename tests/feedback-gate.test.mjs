@@ -13,7 +13,6 @@ import {
 } from "../scripts/browser-runtime.mjs";
 import {
   imageMetrics,
-  structureSignature,
   structureDistance,
 } from "./browser/metrics.mjs";
 
@@ -205,7 +204,8 @@ test("feedback contact sheets retain distinct structures", {
     if (args.cross) {
       const directory = resolve(args.cross);
       const contacts = JSON.parse(await readFile(resolve(directory, "metrics.json"), "utf8"));
-      const images = await lab.page.evaluate(async (rows) => {
+      const signatures = await lab.page.evaluate(async (rows) => {
+        const { structureSignature } = await import("/tests/browser/metrics.mjs");
         const result = [];
         for (const row of rows) {
           const image = await createImageBitmap(await (await fetch(row.url)).blob());
@@ -214,15 +214,14 @@ test("feedback contact sheets retain distinct structures", {
           canvas.height = image.height;
           const context = canvas.getContext("2d");
           context.drawImage(image, 0, 0);
-          result.push({ ...row, width: image.width, height: image.height,
-            rgba: Array.from(context.getImageData(0, 0, image.width, image.height).data) });
+          const rgba = context.getImageData(0, 0, image.width, image.height).data;
+          result.push({ ...row,
+            signature: structureSignature(rgba, image.width, image.height) });
           image.close();
         }
         return result;
       }, contacts.rows.map((row) => ({ sceneId: row.sceneId, name: row.name,
         url: `/${args.cross}/${row.cells[0].file}` })));
-      const signatures = images.map((image) => ({ ...image,
-        signature: structureSignature(image.rgba, image.width, image.height) }));
       const feedback = signatures.filter((row) => row.sceneId === "feedback");
       for (let i = 0; i < feedback.length; i++) {
         for (let j = i + 1; j < feedback.length; j++)
