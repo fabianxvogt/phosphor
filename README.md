@@ -27,13 +27,13 @@ Microphone, MIDI, the offline cache and screen placement need HTTPS or localhost
 ## Prepare (Prep mode)
 
 1. **Fill the grid.** Click a slot, pick a family and look, tune it in the editor (its preview runs beside you), set its energy, fade, when it starts (next beat, next bar, immediately) and whether autopilot may play it, then **Save to slot**. **Variations** breeds six nearby looks to pick from. Use pages as moods for the night — warm-up, peak, closing.
-2. **Open stage.** It opens on the second screen when Chrome may place windows; otherwise drag it to the projector. **Click once on the stage**: that starts audio analysis and goes fullscreen.
-3. **Audio.** **Use input** for the line feed from the DJ mixer (booth or record out into a USB interface) — analysed only, never played. **Rehearse with file** or **Demo beat** at home.
+2. **Open stage.** It opens on the second screen when Chrome may place windows; otherwise drag it to the projector. A fresh stage plays straight away in the default mode: the **demo beat at 120 BPM**, autopilot on, **Random** on. Chrome holds the sound until the first click or key on the stage — **click once on the stage**: that also goes fullscreen.
+3. **Audio.** **Use input** for the line feed from the DJ mixer (booth or record out into a USB interface) — analysed only, never played. **Rehearse with file** or **Demo beat** at home. The stage remembers the source across reloads; mute the demo or switch to the line input before doors.
 4. **Pre-show check** — tick the list, show the **framing pattern** on the venue screen, and **export the set**.
 
 ## Play (Show mode)
 
-Autopilot plays the clips on the current page, changes every 32 bars on a bar line and reacts to breakdowns, builds and drops. Anything you trigger takes over; control returns after 32 bars without input. Switching pages steers the night.
+Autopilot plays the clips on the current page, changes every 32 bars on a bar line and reacts to breakdowns, builds and drops. Its changes always crossfade (at least two bars; drops one bar). With **Random** on (default) it picks a random clip and lets the playing clip's parameters glide slowly around their saved values; off, it walks the page in slot order and leaves parameters alone. Anything you trigger takes over; control returns after 32 bars without input. Switching pages steers the night.
 
 | Keys | |
 | --- | --- |
@@ -52,7 +52,7 @@ Keys work in the control window and on the stage. Tempo follows the audio when l
 
 ## Families
 
-Acid Mycelium · Magnetic Choir · Cathedrals of Error · Alien Aquarium · Causal Tapestry · Feedback Chapel · Interference Rituals · Topological Melt · Phase Transition Theatre · Evolution Garden. Models, energy behaviour and limits: [docs](docs/README.md).
+Acid Mycelium · Magnetic Choir · Cathedrals of Error · Alien Aquarium · Causal Tapestry · Feedback Chapel · Interference Rituals · Topological Melt · Phase Transition Theatre · Evolution Garden · Pulse Geometry · Light Beams · Julia Observatory · Fractal Flight · Fourth Dimension · Hyperbolic Loom · Particle Swarm. A new set holds every family on page 1. Models, energy behaviour and limits: [docs](docs/README.md).
 
 ## Source
 

@@ -8,7 +8,7 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 
 ## Product shape
 
-- **Play:** 4×8 clip grid on the keyboard (physical key positions, so QWERTZ works), eight pages. Show mode has no editors; Prep mode has everything. Autopilot plays the current page by default; any manual trigger takes over and hands back after 32 idle bars.
+- **Play:** 4×8 clip grid on the keyboard (physical key positions, so QWERTZ works), eight pages. Show mode has no editors; Prep mode has everything. A fresh stage plays at once: demo beat at 120 BPM, autopilot in Random mode (random clips, parameters gliding around their saved values, every change crossfaded; D49, D50). Any manual trigger takes over and hands back after 32 idle bars.
 - **Controls:** shared master, energy, speed trim (½×/1×/2×), hue, zoom, mirror and flash (through the limiter); three family controls on stage, all eight in Prep. A clip stores its look, base energy, fade, quantize and autopilot flag.
 - **Timing:** line feed from the DJ mixer. Automatic tempo and beat phase, downbeat by key, builds/drops/breakdowns from loudness. Tap, downbeat and nudge always work alone. Techno/house, 100–150 BPM.
 - **Output:** the output window renders at the screen's native size and shape (≈2.1 MP budget) and owns show state, audio, beat tracking and autopilot; the control window is a remote with a preview. Full restore after a crash in ≤ 10 s.

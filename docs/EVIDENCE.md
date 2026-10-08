@@ -2,6 +2,12 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-08 — Default mode: demo beat, Random autopilot
+
+- `EMPIRICAL` Installed Chrome 154 on the M3 Pro, no autoplay flag, fresh profile: clicking only **Open stage** in the control left the stage's audio context running with the demo beat playing (input level 0.054); four seconds after the stage click the tracker reported 120.0 BPM, locked, confidence 1. Chrome needs that one click: no page can start sound on load alone.
+- `EMPIRICAL` Headless smoke (SwiftShader, 124 s, fresh profile): demo source and 120 BPM clock before any stage click; autopilot Random on; a regular change crossfaded over 4 s (8 beats at 120 BPM); within one 40 s Acid run seven continuous parameters drifted (e.g. feed 0.0285 → 0.0268, injection 0.345 → 0.253) while the type parameter stayed fixed; page errors 0.
+- `EMPIRICAL` 137/137 unit tests, including: random changes are not page order and crossfade at least 8 beats, drift starts after the fade and repeats every 8 bars, no drift during a manual take-over, in-order mode walks slots 0–7 without drift, drift stays within ±12 % of each range and never moves stepped or type fields, largest per-frame step < 1 % of the widest range, a stage fader stops a glide, a fresh stage begins on a random clip and waits a full period before the next change.
+
 ## 2026-10-08 — Platform integration for the first show
 
 - `EMPIRICAL` Merged `lane/image-pipeline` review fixes R1–R6 (flash tracking, black frames, context-loss fence, readback order); dead frame-sequence/offline export path removed (D35). 130/130 unit tests, typecheck, build and `check:dist` (46 assets) pass.
