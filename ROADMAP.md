@@ -23,9 +23,9 @@ Platform for the first show is implemented on `main` and waits for rig verificat
 A live test and review found show bugs and a visual layer weaker than the platform: one palette for every clip, one linear transition, 8-bit banding, peak energy barely different from mid, four gated families deaf to the music. Platform steps run one at a time on `main`, each verified, pushed and redeployed:
 
 1. **Bug batch (D53–D55):** done 2026-10-08 — energy survives clip triggers (bounded autopilot chains); Escape keyboard-locked on the stage, no venue-screen UI on fullscreen loss; drafts on a Lab page autopilot skips; demo-start click does not pause autopilot; **Add missing families**; line input starts tap-first (D63). Gated families' rig timing must be re-run (runner now applies energy curves).
-2. **Set v4 (D59):** palettes by id, per-clip transition, energy-driven post; lossless v3 migration.
+2. **Set v4 and palettes (D57, D59):** done 2026-10-08 — 24 mood-tagged palettes, show-level palette with four-beat glides, palette autopilot, page moods, lossless v3 migration; owner keep/reject sheet pending. Stage ownership no longer depends on status cadence (D64). Transition/post fields join v4 later.
 3. **Float picture path and energy-driven post (D56).**
-4. **Palette library and palette autopilot (D57).**
+4. **Palette library and palette autopilot (D57):** landed with step 2.
 5. **Transitions (D58):** eased crossfade, downbeat cut (manual only), noise dissolve, feedback melt.
 6. **Audio feature bus (D61).**
 

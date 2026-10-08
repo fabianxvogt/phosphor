@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import scenes, { GATED } from "../scenes.mjs";
 import { initialSession } from "../session.mjs";
+import { PALETTES, paletteById } from "../palettes.mjs";
 import {
   initialShowSet,
   validateShowSet,
   migrateV2,
+  migrateV3,
   parseShowSet,
   addMissingFamilies,
   missingFamilies,
@@ -45,6 +47,15 @@ test("initial set: page 1 plays only gated families; drafts wait on the lab page
   assert.deepEqual(missingFamilies(set, scenes), []);
   assert.ok(set.autopilot.enabled && set.autopilot.random);
   assert.equal(set.clock.manualBpm, 120);
+  assert.equal(set.pages[0].mood, null);
+  const paletteIds = set.pages[0].slots.filter(Boolean).map((c) => c.palette);
+  assert.ok(new Set(paletteIds).size >= 12, "page 1 is visibly varied");
+  for (const family of GATED) {
+    const clips = set.pages[0].slots.filter(
+      (c) => c?.snapshot.scene === family,
+    );
+    assert.equal(new Set(clips.map((c) => c.palette)).size, clips.length);
+  }
 });
 
 test("add missing families fills empty lab slots and never touches existing clips", () => {
@@ -86,12 +97,113 @@ test("add missing families reports what does not fit a full lab page", () => {
   assert.equal(skipped.length, scenes.length - GATED.size);
 });
 
-test("v3 round-trips through JSON unchanged", () => {
+test("v4 round-trips through JSON unchanged", () => {
   const set = validateShowSet(initialShowSet(scenes), scenes);
   assert.deepEqual(
     validateShowSet(JSON.parse(JSON.stringify(set)), scenes),
     set,
   );
+});
+
+test("v3 migration preserves every clip and set field, including hand-set colours", () => {
+  const v3 = initialShowSet(scenes);
+  v3.format = "phosphor-set-v3";
+  v3.version = 3;
+  v3.name = "Owner's eight-page show";
+  for (const [p, page] of v3.pages.entries()) {
+    delete page.mood;
+    for (const [s, clip] of page.slots.entries()) {
+      if (!clip) continue;
+      delete clip.palette;
+      clip.name = `Authored ${p}:${s}`;
+      clip.snapshot.seed = 1000 + p * SLOTS + s;
+      clip.snapshot.palette = {
+        primary: "#aB1234",
+        secondary: "#456789",
+        accent: "#fedCbA",
+      };
+      clip.energy = s / SLOTS;
+      clip.fade = s;
+      clip.quantize = ["now", "beat", "bar"][s % 3];
+      clip.autopilot = s % 2 === 0;
+    }
+  }
+  v3.pages[3].slots[17] = structuredClone(v3.pages[0].slots[1]);
+  v3.pages[3].slots[17].id = "second-page";
+  v3.shared = { master: 0.7, hue: -0.2, zoom: 1.2, mirror: 3 };
+  v3.clock = { mode: "manual", manualBpm: 137, latencyMs: -40 };
+  v3.autopilot = {
+    enabled: false,
+    random: false,
+    everyBars: 64,
+    handBackBars: 48,
+  };
+  v3.options = { ...v3.options, bloom: 0.7, echo: 0.4, chroma: 0.2 };
+  v3.midi = [{ type: "note", channel: 2, number: 40, target: "slot.17" }];
+  const snapshot = v3.pages[0].slots[0].snapshot;
+  v3.lineages = [
+    {
+      selectedId: "owner-root",
+      nodes: [
+        {
+          id: "owner-root",
+          parentId: null,
+          name: snapshot.preset,
+          scene: snapshot.scene,
+          seed: snapshot.seed,
+          params: { ...snapshot.params },
+        },
+      ],
+    },
+  ];
+  const original = structuredClone(v3);
+  const { set, report } = migrateV3(v3, scenes);
+  assert.deepEqual(report, [], "v3 has no dropped fields");
+  assert.equal(set.version, 4);
+  assert.ok(set.pages.every((page) => page.mood === null));
+  const roundTrip = parseShowSet(JSON.parse(JSON.stringify(set)), scenes).set;
+  roundTrip.format = original.format;
+  roundTrip.version = 3;
+  for (const page of roundTrip.pages) {
+    delete page.mood;
+    for (const clip of page.slots) {
+      if (!clip) continue;
+      assert.equal(clip.palette, "custom");
+      delete clip.palette;
+    }
+  }
+  assert.deepEqual(roundTrip, original);
+  assert.deepEqual(v3, original, "migration does not mutate the source");
+  assert.deepEqual(parseShowSet(v3, scenes).set, set);
+});
+
+test("library IDs normalise colours; custom palettes retain their authored colours", () => {
+  const set = initialShowSet(scenes);
+  const clip = set.pages[0].slots[0];
+  clip.palette = "ember";
+  clip.snapshot.palette = {
+    primary: "#123456",
+    secondary: "#654321",
+    accent: "#abcdef",
+  };
+  const custom = set.pages[0].slots[1];
+  custom.palette = "custom";
+  custom.snapshot.palette = { ...clip.snapshot.palette };
+  const validated = validateShowSet(set, scenes);
+  assert.deepEqual(
+    validated.pages[0].slots[0].snapshot.palette,
+    paletteById("ember").colors,
+  );
+  assert.deepEqual(
+    validated.pages[0].slots[1].snapshot.palette,
+    custom.snapshot.palette,
+  );
+  assert.notDeepEqual(
+    clip.snapshot.palette,
+    paletteById("ember").colors,
+    "validation is non-mutating",
+  );
+  assert.equal(PALETTES.length, 24);
 });
 
 test("invalid values are rejected before anything is applied", () => {
@@ -101,6 +213,8 @@ test("invalid values are rejected before anything is applied", () => {
     (s) => (s.pages[0].slots[0].energy = 2),
     (s) => (s.pages[0].slots[0].quantize = "phrase"),
     (s) => (s.pages[0].slots[1].id = s.pages[0].slots[0].id),
+    (s) => (s.pages[0].slots[0].palette = "unknown"),
+    (s) => (s.pages[0].mood = "unknown"),
     (s) => (s.shared.zoom = 9),
     (s) => (s.autopilot.everyBars = 12),
     (s) => (s.clock.mode = "midi"),
@@ -137,12 +251,20 @@ test("v2 score migrates cues to clips in order and reports what is dropped", () 
   assert.ok(report.some((line) => /"go" dropped/.test(line)));
 });
 
-test("parseShowSet accepts v3 and v2 files", () => {
-  const v3 = validateShowSet(initialShowSet(scenes), scenes);
+test("parseShowSet routes v4 and v2 files to v4", () => {
+  const v4 = validateShowSet(initialShowSet(scenes), scenes);
   assert.deepEqual(
-    parseShowSet(JSON.parse(JSON.stringify(v3)), scenes).set,
-    v3,
+    parseShowSet(JSON.parse(JSON.stringify(v4)), scenes).set,
+    v4,
   );
   const v2 = JSON.parse(JSON.stringify(initialSession(scenes)));
-  assert.equal(parseShowSet(v2, scenes).set.format, "phosphor-set-v3");
+  const migrated = parseShowSet(v2, scenes).set;
+  assert.equal(migrated.format, "phosphor-set-v4");
+  assert.ok(migrated.pages.every((page) => page.mood === null));
+  assert.ok(
+    migrated.pages
+      .flatMap((page) => page.slots)
+      .filter(Boolean)
+      .every((clip) => clip.palette === "custom"),
+  );
 });

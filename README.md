@@ -29,7 +29,7 @@ If an older offline release still shows **Enter Show mode** or **Prep: click a s
 
 1. **Fill the grid.** The main preview animates the selected visual immediately, without opening the stage. All performance controls work locally: master, energy, hue, zoom, mirror, family faders, speed, autopilot, Random, blackout, safe look, freeze, flash and tempo. Click a slot, pick a family and look, tune it in the editor, set its energy, fade, when it starts (next beat, next bar, immediately) and whether autopilot may play it, then **Save to slot**. **Variations** breeds six nearby looks to pick from. Use pages as moods for the night — warm-up, peak, closing.
    **Hear the demo:** the control window starts the 120 BPM demo after your first click or key press; no stage is needed. **Off** keeps it silent until you choose **Demo beat** again; **Mute file/demo** mutes the local demo. Opening the stage stops the local demo so only the stage owns audio. Closing the stage resumes the local demo if it was still selected.
-2. **Open stage.** It opens on the second screen when Chrome may place windows; otherwise drag it to the projector. It takes over your local playing look and performance controls, including unsaved live tweaks. The main preview switches to live output; the editor stays available. Click once on the stage to enable its audio and go fullscreen. Closing the stage resumes local performance from its last reported state.
+2. **Open stage.** It opens on the second screen when Chrome may place windows; otherwise drag it to the projector. It takes over your local playing look and performance controls, including unsaved live tweaks. The main preview switches to live output; the editor stays available. Click once on the stage to enable its audio and go fullscreen. Missed status reports during a slow frame do not redirect performer controls to the local preview: the open stage keeps ownership, including after a control reload. Closing the stage resumes local performance from its last reported state.
 3. **Audio.** **Use input** for the line feed from the DJ mixer (booth or record out into a USB interface) — analysed only, never played. Automatic beat tracking did not meet its targets on real DJ mixes, so choosing the line input switches to tap tempo at the current BPM: tap Space, mark the downbeat with Enter; **Follow audio** turns tracking back on. **Rehearse with file** or **Demo beat** at home. The stage remembers the source across reloads; mute the demo or switch to the line input before doors.
 4. **Pre-show check** — tick the list, show the **framing pattern** on the venue screen, and **export the set**.
 
@@ -39,16 +39,20 @@ Grid clicks and keys trigger clips on the stage whenever it is connected. Clip, 
 
 Autopilot plays the clips on the current page, changes every 32 bars on a bar line and reacts to breakdowns, builds and drops. Energy belongs to the show, not the clip: a trigger keeps the current energy, so builds and drops carry across clip changes. Its changes always crossfade (at least two bars; drops one bar). With **Random** on (default) it picks a random clip and lets the playing clip's parameters glide slowly around their saved values; off, it walks the page in slot order and leaves parameters alone. Anything you trigger takes over; control returns after 32 bars without input. Switching pages steers the night.
 
-| Keys | |
-| --- | --- |
-| `1`–`8`, `Q`–`I`, `A`–`K`, `Z/Y`–`,` | the 32 grid slots, by key position (QWERTZ works) |
-| `Shift` + `1`–`8` | page |
-| `Esc` / `Shift`+`Esc` | blackout / safe look — work even with a slider focused; on the fullscreen stage Esc is locked to blackout (hold Esc to leave fullscreen) |
-| `Space` / `Enter` | tap tempo / this is beat 1 of the bar |
-| `←` `→` | nudge the beat (adjusts latency while following audio) |
-| `↑` `↓` | energy |
-| `9` / `0` | half / double speed (again for normal) |
-| `P` / `O` / hold `L` | autopilot / freeze / flash (through the limiter) |
+**Colour:** each clip chooses one of 24 mood-tagged palettes, or **Custom** to reveal the three colour inputs. Set a page's **mood** to warm, cold, acid, mono, deep or peak (or **Any palette**). Manual triggers adopt the clip's colours; autopilot clip changes keep the show's palette for continuity. In both Random and in-order modes, autopilot picks a fresh palette every 64–128 bars and a contrasting one on drops, always gliding over four beats. Manual input pauses both clip and palette autopilot. New v4 sets start with varied palettes; importing or loading v3 preserves every authored colour as Custom.
+
+For owner curation, `npm run contact -- --sheet palettes` writes every library palette across the six gated families' first types at energy 0.5 to `artifacts/contact/palettes/index.html`, with PNGs and dim/faulty-render findings.
+
+| Keys                                 |                                                                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `1`–`8`, `Q`–`I`, `A`–`K`, `Z/Y`–`,` | the 32 grid slots, by key position (QWERTZ works)                                                                                        |
+| `Shift` + `1`–`8`                    | page                                                                                                                                     |
+| `Esc` / `Shift`+`Esc`                | blackout / safe look — work even with a slider focused; on the fullscreen stage Esc is locked to blackout (hold Esc to leave fullscreen) |
+| `Space` / `Enter`                    | tap tempo / this is beat 1 of the bar                                                                                                    |
+| `←` `→`                              | nudge the beat (adjusts latency while following audio)                                                                                   |
+| `↑` `↓`                              | energy                                                                                                                                   |
+| `9` / `0`                            | half / double speed (again for normal)                                                                                                   |
+| `P` / `O` / hold `L`                 | autopilot / freeze / flash (through the limiter)                                                                                         |
 
 Keys work in the control window and on the stage. Tempo follows the audio when locked (green light), holds through breakdowns (amber) or follows your taps (blue); **Follow audio** switches back from taps.
 

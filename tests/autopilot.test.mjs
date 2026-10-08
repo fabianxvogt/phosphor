@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Autopilot } from "../autopilot.mjs";
+import { PALETTES, paletteById } from "../palettes.mjs";
 
 const clip = (id, energy, autopilot = true) => ({
   id,
@@ -140,7 +141,10 @@ test("never touches master, mirror, blackout, flash or page", () => {
   });
   const types = new Set(log.map((a) => a.type));
   for (const type of types)
-    assert.ok(["trigger", "energy", "speed", "drift"].includes(type), type);
+    assert.ok(
+      ["trigger", "energy", "speed", "drift", "palette"].includes(type),
+      type,
+    );
 });
 
 test("random mode: regular changes are random, crossfade at least two bars and drift between changes", () => {
@@ -181,4 +185,106 @@ test("no drift while a performer has taken over", () => {
     drifts.every((bar) => bar < 20 || bar >= 52),
     drifts.join(),
   );
+});
+
+function paletteSteps(
+  pilot,
+  { bars = 2000, mood = null, events = {}, manualAt = null } = {},
+) {
+  let palette = "phosphor";
+  const steps = [];
+  for (let bar = 0; bar <= bars; bar++) {
+    if (bar === manualAt) pilot.manual(bar);
+    for (const action of pilot.update({
+      bar,
+      pool,
+      current: pool[0],
+      energy: 0.5,
+      palette,
+      mood,
+      event: events[bar] ?? null,
+    })) {
+      if (action.type !== "palette") continue;
+      steps.push({ bar, from: palette, ...action });
+      palette = action.id;
+    }
+  }
+  return steps;
+}
+
+test("both autopilot modes step palettes every 64–128 bars using the seeded RNG", () => {
+  for (const random of [true, false]) {
+    const options = { random, seed: 23 };
+    const steps = paletteSteps(new Autopilot(options));
+    assert.ok(steps.length >= 15);
+    let previous = 0;
+    for (const step of steps) {
+      assert.ok(
+        step.bar - previous >= 64 && step.bar - previous <= 128,
+        `${random}: ${step.bar - previous} bars`,
+      );
+      assert.notEqual(step.id, step.from);
+      assert.ok(step.beats > 0, "every palette step glides");
+      previous = step.bar;
+    }
+    for (let i = 0; i < steps.length; i++)
+      for (let j = Math.max(0, i - 3); j < i; j++)
+        assert.notEqual(steps[i].id, steps[j].id);
+    assert.deepEqual(paletteSteps(new Autopilot(options)), steps);
+    assert.notDeepEqual(
+      paletteSteps(new Autopilot({ ...options, seed: 24 })),
+      steps,
+    );
+  }
+});
+
+test("palette steps stay in the page mood pool, including small monochrome pools", () => {
+  for (const mood of ["warm", "cold", "acid", "mono", "deep", "peak"]) {
+    const steps = paletteSteps(new Autopilot({ seed: 5 }), { mood });
+    assert.ok(steps.length > 10);
+    assert.ok(steps.every((step) => paletteById(step.id).moods.includes(mood)));
+    for (let i = 0; i < steps.length; i++)
+      for (let j = Math.max(0, i - 3); j < i; j++)
+        assert.notEqual(steps[i].id, steps[j].id, mood);
+  }
+});
+
+test("a drop chooses a contrasting palette in both modes, without waiting for its cadence", () => {
+  for (const random of [true, false]) {
+    const pilot = new Autopilot({ random, seed: 7 });
+    const source = paletteById("ember");
+    const actions = pilot.update({
+      bar: 4,
+      pool,
+      current: pool[2],
+      energy: 0.5,
+      palette: source.id,
+      event: "drop",
+    });
+    const step = actions.find((action) => action.type === "palette");
+    assert.ok(step && step.beats > 0);
+    const next = paletteById(step.id);
+    assert.notEqual(next.id, source.id);
+    // Ember's three hues all lie between 11° and 42°. A different main mood
+    // or a blue/violet/green stop is independently visible contrast.
+    const farHue = Object.values(next.colors).some((hex) => {
+      const [r, g, b] = hex
+        .slice(1)
+        .match(/../g)
+        .map((channel) => parseInt(channel, 16));
+      return b > r || (g > r && g > b);
+    });
+    assert.ok(next.moods[0] !== source.moods[0] || farHue, next.id);
+  }
+  assert.ok(PALETTES.every((palette) => palette.colors.primary !== "#000000"));
+});
+
+test("manual input pauses palette steps and drops until the hand-back", () => {
+  const steps = paletteSteps(new Autopilot({ seed: 4, handBackBars: 32 }), {
+    bars: 250,
+    manualAt: 60,
+    events: { 61: "drop", 80: "drop", 92: "drop" },
+  });
+  assert.ok(steps.every((step) => step.bar < 60 || step.bar >= 92));
+  assert.ok(steps.some((step) => step.bar === 92));
 });

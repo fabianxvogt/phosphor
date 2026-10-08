@@ -1,17 +1,50 @@
 // Autopilot (decision D15). Plays autopilot-allowed clips on the current
 // page, changes every N bars on a bar line, avoids the last six clips, and
 // reacts to loudness events. Manual input takes over; control returns after
-// `handBackBars` idle bars. It may change the clip, energy and speed trim —
+// `handBackBars` idle bars. It may change the clip, palette, energy and speed —
 // never master, mirror, blackout, flash or page (a mirror jump is not smooth).
 // Random mode (owner direction 2026-10-08, default on): regular changes pick
 // a random clip and the live clip's parameters drift smoothly; off, changes
 // walk the page in slot order and parameters stay put. Autopilot changes
 // always crossfade.
+import { PALETTES, paletteById } from "./palettes.mjs";
 
 const HISTORY = 6;
 const FADE_BEATS = 8; // regular and breakdown changes: at least two bars
 const DROP_FADE_BEATS = 4; // drops land fast but never as a hard cut
 export const DRIFT_BARS = 8; // one parameter glide, then the next
+const PALETTE_HISTORY = 3;
+const PALETTE_BEATS = 4;
+
+function hue(hex) {
+  const value = parseInt(hex.slice(1), 16);
+  const r = (value >> 16) & 255,
+    g = (value >> 8) & 255,
+    b = value & 255;
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b),
+    span = max - min;
+  if (!span) return null;
+  const sector =
+    max === r
+      ? (g - b) / span
+      : max === g
+        ? (b - r) / span + 2
+        : (r - g) / span + 4;
+  return (sector * 60 + 360) % 360;
+}
+
+function hueDistance(a, b) {
+  let distance = 0;
+  for (const key of ["primary", "secondary", "accent"]) {
+    const from = hue(a[key]),
+      to = hue(b[key]);
+    if (from === null || to === null) continue;
+    const delta = Math.abs(from - to);
+    distance = Math.max(distance, Math.min(delta, 360 - delta));
+  }
+  return distance;
+}
 
 function rng(seed) {
   return () => {
@@ -35,6 +68,9 @@ export class Autopilot {
     this.everyBars = everyBars;
     this.handBackBars = handBackBars;
     this.random = rng(seed);
+    this.paletteRandom = rng(seed ^ 0x50414c);
+    this.nextPalette = null;
+    this.paletteHistory = [];
     this.nextChange = null;
     this.nextDrift = null;
     this.manualUntil = -Infinity;
@@ -58,6 +94,55 @@ export class Autopilot {
     this.history = this.history.filter((id) => id !== clipId);
     this.history.push(clipId);
     if (this.history.length > HISTORY) this.history.shift();
+  }
+
+  palettePlayed(id) {
+    if (!paletteById(id)) return;
+    this.paletteHistory = this.paletteHistory.filter(
+      (previous) => previous !== id,
+    );
+    this.paletteHistory.push(id);
+    if (this.paletteHistory.length > PALETTE_HISTORY)
+      this.paletteHistory.shift();
+  }
+
+  #paletteInterval() {
+    return 64 + Math.floor(this.paletteRandom() * 65);
+  }
+
+  #palette(palette, mood, contrast) {
+    const source = paletteById(palette);
+    const colors =
+      source?.colors ?? (typeof palette === "object" ? palette : null);
+    let pool = PALETTES.filter(
+      (candidate) =>
+        candidate.id !== palette &&
+        (mood === null || candidate.moods.includes(mood)),
+    );
+    if (contrast && colors) {
+      const contrasting = pool.filter(
+        (candidate) =>
+          (source && candidate.moods[0] !== source.moods[0]) ||
+          hueDistance(colors, candidate.colors) >= 60,
+      );
+      if (contrasting.length) pool = contrasting;
+      else {
+        const largest = Math.max(
+          ...pool.map((candidate) => hueDistance(colors, candidate.colors)),
+        );
+        pool = pool.filter(
+          (candidate) => hueDistance(colors, candidate.colors) === largest,
+        );
+      }
+    }
+    const fresh = pool.filter(
+      (candidate) => !this.paletteHistory.includes(candidate.id),
+    );
+    const choices = fresh.length ? fresh : pool;
+    if (!choices.length) return null;
+    const choice = choices[Math.floor(this.paletteRandom() * choices.length)];
+    this.palettePlayed(choice.id);
+    return { type: "palette", id: choice.id, beats: PALETTE_BEATS };
   }
 
   active(bar) {
@@ -102,15 +187,35 @@ export class Autopilot {
 
   // Called once per clock update. Returns actions for the show.
   // event: "build" | "drop" | "breakdown" | null (from loudness analysis).
-  update({ bar, pool, current, energy, event = null }) {
+  update({
+    bar,
+    pool,
+    current,
+    energy,
+    palette = null,
+    mood = null,
+    event = null,
+  }) {
     const actions = [];
+    if (typeof palette === "string" && this.paletteHistory.at(-1) !== palette)
+      this.palettePlayed(palette);
+    if (this.nextPalette === null)
+      this.nextPalette = bar + this.#paletteInterval();
     if (!this.active(bar)) {
       // Resume on a bar line after hand-back, not immediately.
       if (this.nextChange === null || this.nextChange < this.manualUntil)
         this.nextChange = Math.max(bar + 1, this.manualUntil);
+      if (this.nextPalette < this.manualUntil)
+        this.nextPalette = this.manualUntil;
       this.breakdownSince = null;
       this.chainFrom = this.settle = null; // the performer's level is the new anchor
       return actions;
+    }
+    // Colour cadence is independent of clip order and parameter drift (D57).
+    if (current && (event === "drop" || bar >= this.nextPalette)) {
+      const step = this.#palette(palette, mood, event === "drop");
+      if (step) actions.push(step);
+      this.nextPalette = bar + this.#paletteInterval();
     }
     const trigger = (choice, fade) => {
       actions.push({

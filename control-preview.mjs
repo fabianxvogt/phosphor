@@ -14,6 +14,8 @@ export function performanceState(show, t) {
       manualUntil: show.autopilot.manualUntil,
       nextChange: show.autopilot.nextChange,
       nextDrift: show.autopilot.nextDrift,
+      nextPalette: show.autopilot.nextPalette,
+      paletteHistory: [...show.autopilot.paletteHistory],
     },
     disabled: [...show.disabled],
     clip: show.live ? structuredClone(show.live.clip) : null,
@@ -35,39 +37,49 @@ export function restorePerformance(show, state, t) {
   show.drift = null;
   show.disabled = new Set(state.disabled);
   Object.assign(show.autopilot, state.autopilot);
-  const actions = show.restore(state.runtime, t);
+  const runtime = state.clip
+    ? {
+        ...state.runtime,
+        palette:
+          state.runtime.palette ??
+          (state.clip.palette === "custom"
+            ? state.clip.snapshot.palette
+            : state.clip.palette),
+        paletteColors:
+          state.runtime.paletteColors ?? state.clip.snapshot.palette,
+      }
+    : state.runtime;
+  const actions = show.restore(runtime, t);
   show.lastBar = show.clock.at(t).bar;
   // Include unsaved auditions and live parameter tweaks, not just the saved
   // slot. Transferring ownership must not silently replace the current look.
   if (state.clip) {
+    const clip = structuredClone(state.clip);
+    clip.snapshot.palette = show.paletteColors;
+    show.safeShowing = false;
     show.live = {
       page: state.runtime.live?.page ?? -1,
       slot: state.runtime.live?.slot ?? -1,
-      clip: state.clip,
-      base: state.clip.snapshot.params,
-      own: true,
+      clip,
+      base: clip.snapshot.params,
     };
     const load = actions.find((a) => a.type === "load");
     if (load)
       Object.assign(load, {
-        snapshot: state.clip.snapshot,
-        baseEnergy: state.clip.energy,
+        snapshot: clip.snapshot,
+        baseEnergy: clip.energy,
       });
     else
       actions.unshift({
         type: "load",
-        snapshot: state.clip.snapshot,
+        snapshot: clip.snapshot,
         fadeSeconds: 0,
         energy: state.runtime.energy,
-        baseEnergy: state.clip.energy,
+        baseEnergy: clip.energy,
       });
   } else {
-    show.live = null;
-    actions.unshift({
-      type: "safe",
-      snapshot: show.safeSnapshot,
-      energy: state.runtime.energy,
-    });
+    if (!actions.some((action) => action.type === "safe"))
+      actions.unshift(show.safe(t, state.runtime.energy));
   }
   actions.push(
     ...show.command({ type: "freeze", on: !!state.freeze }, t),
@@ -130,10 +142,18 @@ export class ControlPreview {
       ...this.show.live,
       clip: copy,
       base: copy.snapshot.params,
-      own: true,
     };
     this.show.drift = null;
-    this.engine.setSnapshot(clip.snapshot);
+    this.apply(
+      this.show.command(
+        {
+          type: "palette",
+          value:
+            clip.palette === "custom" ? clip.snapshot.palette : clip.palette,
+        },
+        t,
+      ),
+    );
   }
   command(action, t) {
     this.apply(this.show.command(action, t));
@@ -181,9 +201,11 @@ export class ControlPreview {
         case "flash":
           this.engine.flashHeld = action.on;
           break;
-        case "params":
-          this.engine.setSnapshot(action.snapshot);
+        case "params": {
+          const snapshot = this.show.currentSnapshot();
+          if (snapshot) this.engine.setSnapshot(snapshot);
           break;
+        }
         // Freeze is owned by Show and applied in tick, including safe reset.
       }
     }

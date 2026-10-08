@@ -4,16 +4,22 @@
 import { ShowClock } from "./show-clock.mjs";
 import { Autopilot } from "./autopilot.mjs";
 import { SLOTS } from "./show-set.mjs";
+import { paletteById } from "./palettes.mjs";
 
 const LATE = 0.1; // a press this soon after a beat or bar line fires on it
 const ENERGY_STEP = 0.1;
 const DRIFT_SPAN = 0.12; // drift targets stay within ±12 % of each range
+const PALETTE_BEATS = 4;
+const PALETTE_KEYS = ["primary", "secondary", "accent"];
+const PARAMS = Object.freeze({ type: "params" });
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
 export class Show {
   constructor({ set, safeSnapshot, scenes = [], now = 0, seed = 1 }) {
     this.set = set;
     this.safeSnapshot = safeSnapshot;
+    this.safeFrame = structuredClone(safeSnapshot);
+    this.safeShowing = false;
     this.clock = new ShowClock({
       bpm: set.clock.manualBpm,
       mode: set.clock.mode,
@@ -27,6 +33,12 @@ export class Show {
     this.scenes = new Map(scenes.map((s) => [s.id, s]));
     this.pending = null; // { page, slot, clip, at, fade }
     this.energy = 0.5;
+    this.palette = null; // library ID or custom colours; the glide's target
+    this.paletteColors = null; // actual colours currently on screen
+    this.paletteGlide = null; // { to, t0, seconds }
+    this.paletteValues = new Uint32Array(3);
+    this.paletteFrom = new Uint32Array(3);
+    this.paletteTo = new Uint32Array(3);
     this.resumeEnergy = null; // energy to resume after the safe look
     this.speed = 1;
     this.shared = { ...set.shared };
@@ -48,6 +60,91 @@ export class Show {
     return pool;
   }
 
+  #snapshot(snapshot) {
+    return this.paletteColors
+      ? { ...snapshot, palette: this.paletteColors }
+      : snapshot;
+  }
+
+  #rememberColors() {
+    for (let i = 0; i < PALETTE_KEYS.length; i++)
+      this.paletteValues[i] = parseInt(
+        this.paletteColors[PALETTE_KEYS[i]].slice(1),
+        16,
+      );
+  }
+
+  #glideTo(colors, t, seconds) {
+    this.paletteFrom.set(this.paletteValues);
+    for (let i = 0; i < PALETTE_KEYS.length; i++)
+      this.paletteTo[i] = parseInt(colors[PALETTE_KEYS[i]].slice(1), 16);
+    return { to: { ...colors }, t0: t, seconds };
+  }
+
+  #writePalette(t, colors = this.paletteColors, values = this.paletteValues) {
+    const glide = this.paletteGlide;
+    const x = clamp01((t - glide.t0) / glide.seconds);
+    const k = x * x * (3 - 2 * x);
+    let changed = false;
+    for (let i = 0; i < PALETTE_KEYS.length; i++) {
+      let rgb = 0;
+      for (let shift = 16; shift >= 0; shift -= 8) {
+        const a = (this.paletteFrom[i] >> shift) & 255;
+        const b = (this.paletteTo[i] >> shift) & 255;
+        rgb |= Math.round(a + (b - a) * k) << shift;
+      }
+      // Endpoints are parsed once; unchanged 8-bit colours need neither
+      // new strings nor another renderer upload.
+      if (rgb !== values[i]) {
+        values[i] = rgb;
+        colors[PALETTE_KEYS[i]] = `#${rgb.toString(16).padStart(6, "0")}`;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  #colorsAt(t) {
+    if (!this.paletteGlide) return this.paletteColors;
+    const colors = { ...this.paletteColors };
+    this.#writePalette(t, colors, this.paletteValues.slice());
+    return colors;
+  }
+
+  #advancePalette(t) {
+    if (!this.paletteGlide) return false;
+    const changed = this.#writePalette(t);
+    if (t >= this.paletteGlide.t0 + this.paletteGlide.seconds)
+      this.paletteGlide = null;
+    return changed;
+  }
+
+  #setPalette(palette, t, beats = PALETTE_BEATS) {
+    const colors =
+      typeof palette === "string" ? paletteById(palette)?.colors : palette;
+    if (!colors) return;
+    const same =
+      typeof palette === "string"
+        ? palette === this.palette
+        : typeof this.palette === "object" &&
+          this.palette &&
+          Object.keys(colors).every((key) => colors[key] === this.palette[key]);
+    this.#advancePalette(t);
+    if (same && this.paletteColors) return;
+    this.palette = typeof palette === "string" ? palette : { ...palette };
+    this.autopilot.palettePlayed(palette);
+    if (!this.paletteColors) {
+      this.paletteColors = { ...colors };
+      this.#rememberColors();
+      return;
+    }
+    this.paletteGlide = this.#glideTo(
+      colors,
+      t,
+      (beats * 60) / this.clock.at(t).bpm,
+    );
+  }
+
   #schedule(
     t,
     page,
@@ -55,6 +152,7 @@ export class Show {
     quantize,
     fade,
     clip = this.set.pages[page]?.slots[slot],
+    adoptPalette = true,
   ) {
     if (!clip || this.disabled.has(clip.snapshot.scene)) return [];
     const now = this.clock.at(t);
@@ -66,7 +164,14 @@ export class Show {
       const barStart = now.beat - now.beatInBar;
       at = now.beatInBar <= LATE ? now.beat : barStart + 4;
     }
-    this.pending = { page, slot, clip, at, fade: fade ?? clip.fade };
+    this.pending = {
+      page,
+      slot,
+      clip,
+      at,
+      fade: fade ?? clip.fade,
+      adoptPalette,
+    };
     return this.#fire(t);
   }
 
@@ -76,13 +181,22 @@ export class Show {
     const now = this.clock.at(t);
     if (now.beat + 1e-9 < p.at) return [];
     this.pending = null;
+    this.#advancePalette(t);
+    if (p.adoptPalette || this.palette === null)
+      this.#setPalette(
+        p.clip.palette === "custom" ? p.clip.snapshot.palette : p.clip.palette,
+        t,
+      );
+    const clip = structuredClone(p.clip);
+    clip.snapshot = this.#snapshot(clip.snapshot);
     this.live = {
       page: p.page,
       slot: p.slot,
-      clip: p.clip,
+      clip,
       base: p.clip.snapshot.params,
     };
     this.drift = null;
+    this.safeShowing = false;
     // Energy is show state (D54): a trigger keeps the fader and autopilot's
     // build/breakdown/drop moves; only a fresh show starts from a clip's value.
     // Leaving the safe look resumes the energy from before it.
@@ -94,7 +208,7 @@ export class Show {
     return [
       {
         type: "load",
-        snapshot: p.clip.snapshot,
+        snapshot: this.live.clip.snapshot,
         fadeSeconds: (p.fade * 60) / now.bpm,
         energy: this.energy,
         // Authored at the clip's stored energy: the family's energy curves
@@ -109,6 +223,25 @@ export class Show {
 
   #manual(t) {
     this.autopilot.manual(this.clock.at(t).bar);
+    this.drift = null;
+  }
+
+  // Params are resolved after loads: a rejected family can leave the previous
+  // engine slot on screen without a live Show clip to update.
+  currentSnapshot() {
+    return (
+      this.live?.clip.snapshot ?? (this.safeShowing ? this.safeFrame : null)
+    );
+  }
+
+  safe(t, energy = this.energy) {
+    this.pending = null;
+    this.live = this.drift = null;
+    this.safeShowing = true;
+    this.#advancePalette(t);
+    if (!this.paletteColors) this.#setPalette(this.safeSnapshot.palette, t);
+    this.safeFrame.palette = this.paletteColors;
+    return { type: "safe", snapshot: this.safeFrame, energy };
   }
 
   // First picture on a stage with nothing on screen (not a performer
@@ -119,13 +252,12 @@ export class Show {
     const pool = this.#pool();
     const allowed = pool.filter((p) => p.clip.autopilot);
     const from = allowed.length ? allowed : pool;
-    if (!from.length)
-      return [{ type: "safe", snapshot: this.safeSnapshot, energy: 0.15 }];
+    if (!from.length) return [this.safe(t, 0.15)];
     const pick = this.autopilot.randomMode
       ? from[Math.floor(this.autopilot.random() * from.length)]
       : from[0];
     if (fresh) this.energy = pick.clip.energy;
-    return this.#schedule(t, this.page, pick.slot, "now", 0);
+    return this.#schedule(t, this.page, pick.slot, "now", 0, pick.clip, fresh);
   }
 
   // Random mode: glide the live clip's continuous parameters (never its type
@@ -134,12 +266,6 @@ export class Show {
   #startDrift(t, bars, bpm) {
     const scene = this.live && this.scenes.get(this.live.clip.snapshot.scene);
     if (!scene) return;
-    if (!this.live.own)
-      this.live = {
-        ...this.live,
-        clip: structuredClone(this.live.clip),
-        own: true,
-      };
     const params = this.live.clip.snapshot.params;
     const keys = [],
       from = [],
@@ -162,24 +288,33 @@ export class Show {
   // screen, cut to a playable clip on this page, else the safe look, else
   // any playable clip; with nothing playable left, black out.
   disable(id, t, onScreen = false) {
+    if (this.live?.clip.snapshot.scene === id) this.live = this.drift = null;
+    if (this.safeShowing && this.safeSnapshot.scene === id)
+      this.safeShowing = false;
     if (this.disabled.has(id)) return [];
     this.disabled.add(id);
     if (this.pending?.clip.snapshot.scene === id) this.pending = null;
-    if (this.live?.clip.snapshot.scene === id) this.live = this.drift = null;
     if (!onScreen) return [];
     const pick = (page) => {
       const pool = this.#pool(page);
       return pool.find(({ clip }) => clip.autopilot) ?? pool[0];
     };
     const here = pick(this.page);
-    if (here) return this.#schedule(t, this.page, here.slot, "now", 0);
-    if (!this.disabled.has(this.safeSnapshot.scene))
-      return [
-        { type: "safe", snapshot: this.safeSnapshot, energy: this.energy },
-      ];
+    if (here)
+      return this.#schedule(
+        t,
+        this.page,
+        here.slot,
+        "now",
+        0,
+        here.clip,
+        false,
+      );
+    if (!this.disabled.has(this.safeSnapshot.scene)) return [this.safe(t)];
     for (let page = 0; page < this.set.pages.length; page++) {
       const any = pick(page);
-      if (any) return this.#schedule(t, page, any.slot, "now", 0);
+      if (any)
+        return this.#schedule(t, page, any.slot, "now", 0, any.clip, false);
     }
     this.blackout = true;
     return [{ type: "blackout", on: true }];
@@ -217,7 +352,7 @@ export class Show {
         this.speed = 1;
         Object.assign(this.shared, { hue: 0, zoom: 1, mirror: 1 });
         return [
-          { type: "safe", snapshot: this.safeSnapshot, energy: this.energy },
+          this.safe(t),
           { type: "speed", value: 1 },
           { type: "shared", shared: { ...this.shared } },
           { type: "blackout", on: false },
@@ -241,6 +376,12 @@ export class Show {
             this.energy + ENERGY_STEP * Math.sign(action.direction),
         );
         return [{ type: "energy", value: this.energy, seconds: 0.25 }];
+      case "palette":
+        this.#manual(t);
+        this.#setPalette(action.value, t);
+        if (this.live) this.live.clip.snapshot.palette = this.paletteColors;
+        if (this.safeShowing) this.safeFrame.palette = this.paletteColors;
+        return this.currentSnapshot() ? [PARAMS] : [];
       case "speed":
         this.#manual(t);
         this.speed = this.speed === action.value ? 1 : action.value;
@@ -265,7 +406,7 @@ export class Show {
         // Live tweak of the playing clip from a stage fader. It changes the
         // performance, not the saved clip.
         if (!this.live) return [];
-        this.drift = null; // the performer's fader wins over a glide
+        this.#manual(t);
         this.live = {
           ...this.live,
           clip: {
@@ -279,7 +420,7 @@ export class Show {
             },
           },
         };
-        return [{ type: "params", snapshot: this.live.clip.snapshot }];
+        return [PARAMS];
       }
       case "shared": {
         for (const key of ["master", "hue", "zoom", "mirror"])
@@ -296,6 +437,7 @@ export class Show {
   // event: "build" | "drop" | "breakdown" from loudness analysis.
   tick(t, { tracker = null, event = null } = {}) {
     if (tracker) this.clock.track(t, tracker);
+    let paramsChanged = this.#advancePalette(t);
     const actions = this.#fire(t);
     const now = this.clock.at(t);
     if (now.bar !== this.lastBar || event) {
@@ -306,11 +448,21 @@ export class Show {
         current: this.live?.page === this.page ? this.live : null,
         energy: this.energy,
         event,
+        palette: this.palette,
+        mood: this.set.pages[this.page].mood,
       });
       for (const a of auto) {
         if (a.type === "trigger")
           actions.push(
-            ...this.#schedule(t, this.page, a.slot, a.quantize, a.fade),
+            ...this.#schedule(
+              t,
+              this.page,
+              a.slot,
+              a.quantize,
+              a.fade,
+              undefined,
+              false,
+            ),
           );
         else if (a.type === "energy") {
           this.energy = clamp01(a.value);
@@ -322,7 +474,8 @@ export class Show {
         } else if (a.type === "speed") {
           this.speed = a.value;
           actions.push({ type: "speed", value: a.value });
-        } else if (a.type === "drift") this.#startDrift(t, a.bars, now.bpm);
+        } else if (a.type === "palette") this.#setPalette(a.id, t, a.beats);
+        else if (a.type === "drift") this.#startDrift(t, a.bars, now.bpm);
       }
     }
     if (this.drift && this.live) {
@@ -333,8 +486,9 @@ export class Show {
       for (let i = 0; i < d.keys.length; i++)
         params[d.keys[i]] = d.from[i] + (d.to[i] - d.from[i]) * k;
       if (x >= 1) this.drift = null;
-      actions.push({ type: "params", snapshot: this.live.clip.snapshot });
+      paramsChanged = true;
     }
+    if (paramsChanged && this.currentSnapshot()) actions.push(PARAMS);
     return actions;
   }
 
@@ -353,6 +507,10 @@ export class Show {
         beats: Math.max(0, this.pending.at - clock.beat),
       },
       energy: this.energy,
+      palette:
+        typeof this.palette === "string"
+          ? this.palette
+          : this.palette && { ...this.palette },
       speed: this.speed,
       shared: { ...this.shared },
       blackout: this.blackout,
@@ -376,10 +534,21 @@ export class Show {
   // Runtime state for crash recovery (decision D9), separate from the set.
   snapshot(t) {
     const clock = this.clock.at(t);
+    const paletteColors = this.#colorsAt(t);
     return {
       page: this.page,
       live: this.live && { page: this.live.page, slot: this.live.slot },
+      safeShowing: this.safeShowing,
       energy: this.energy,
+      palette: structuredClone(this.palette),
+      paletteColors: paletteColors && { ...paletteColors },
+      paletteGlide: this.paletteGlide && {
+        to: { ...this.paletteGlide.to },
+        seconds: Math.max(
+          0,
+          this.paletteGlide.seconds - (t - this.paletteGlide.t0),
+        ),
+      },
       speed: this.speed,
       shared: { ...this.shared },
       blackout: this.blackout,
@@ -396,6 +565,17 @@ export class Show {
   restore(saved, t) {
     this.page = saved.page;
     this.energy = saved.energy;
+    this.palette = structuredClone(saved.palette ?? null);
+    this.paletteColors = saved.paletteColors
+      ? { ...saved.paletteColors }
+      : null;
+    if (this.paletteColors) this.#rememberColors();
+    this.paletteGlide =
+      saved.paletteGlide?.seconds > 0 && this.paletteColors
+        ? this.#glideTo(saved.paletteGlide.to, t, saved.paletteGlide.seconds)
+        : null;
+    this.live = this.drift = null;
+    this.safeShowing = false;
     this.speed = saved.speed;
     this.shared = { ...saved.shared };
     this.blackout = saved.blackout;
@@ -412,15 +592,22 @@ export class Show {
     const clip =
       saved.live && this.set.pages[saved.live.page]?.slots[saved.live.slot];
     if (clip) {
+      if (this.palette === null)
+        this.#setPalette(
+          clip.palette === "custom" ? clip.snapshot.palette : clip.palette,
+          t,
+        );
+      const liveClip = structuredClone(clip);
+      liveClip.snapshot = this.#snapshot(liveClip.snapshot);
       this.live = {
         page: saved.live.page,
         slot: saved.live.slot,
-        clip,
+        clip: liveClip,
         base: clip.snapshot.params,
       };
       actions.unshift({
         type: "load",
-        snapshot: clip.snapshot,
+        snapshot: this.live.clip.snapshot,
         fadeSeconds: 0,
         energy: this.energy,
         baseEnergy: clip.energy,
@@ -428,7 +615,7 @@ export class Show {
         slot: saved.live.slot,
         clipId: clip.id,
       });
-    }
+    } else if (saved.safeShowing) actions.unshift(this.safe(t));
     return actions;
   }
 }

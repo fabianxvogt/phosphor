@@ -1,6 +1,6 @@
-// Portable show set, format v3 (decisions D11–D19): pages of a 4×8 clip
-// grid, shared mixer controls, autopilot and clock settings. Replaces the
-// v2 linear cue score; v1/v2 files migrate through session.mjs to v2 first.
+// Portable show set, format v4 (D57, D59): pages of a 4×8 clip grid,
+// library palettes, shared mixer controls, autopilot and clock settings.
+// Older linear scores migrate through v2 and v3 before entering this format.
 import {
   presetSnapshot,
   validateSnapshot,
@@ -9,8 +9,9 @@ import {
   validateSession,
 } from "./session.mjs";
 import { GATED } from "./scenes.mjs";
+import { MOODS, PALETTES, paletteById } from "./palettes.mjs";
 
-export const FORMAT = "phosphor-set-v3";
+export const FORMAT = "phosphor-set-v4";
 export const PAGES = 8;
 export const SLOTS = 32; // 4 rows × 8 columns
 export const QUANTIZE = ["beat", "bar", "now"];
@@ -60,11 +61,18 @@ export const DEFAULT_SHARED = Object.freeze({
   mirror: 1, // kaleidoscope sectors
 });
 
-export function clipFrom(snapshot, { id, name, energy = 0.5 } = {}) {
+export function clipFrom(
+  snapshot,
+  { id, name, energy = 0.5, palette = "custom" } = {},
+) {
   return {
     id,
     name: name ?? snapshot.preset,
-    snapshot: structuredClone(snapshot),
+    snapshot: {
+      ...structuredClone(snapshot),
+      palette: { ...(paletteById(palette)?.colors ?? snapshot.palette) },
+    },
+    palette,
     energy,
     fade: 4,
     quantize: "beat",
@@ -93,13 +101,16 @@ function roundRobin(scenes, rounds, { autopilot, idFrom }) {
   const clips = [];
   for (let round = 0; round < rounds; round++)
     scenes.forEach((scene, s) => {
-      if (round < orders[s].length && clips.length < SLOTS)
+      if (round < orders[s].length && clips.length < SLOTS) {
+        const palette = PALETTES[(clips.length + round) % PALETTES.length];
         clips.push({
           ...clipFrom(presetSnapshot(scene, orders[s][round]), {
             id: `clip-${idFrom + clips.length}`,
+            palette: palette.id,
           }),
           autopilot,
         });
+      }
     });
   return clips;
 }
@@ -119,6 +130,7 @@ export function initialShowSet(scenes, gated = GATED) {
   );
   const pages = Array.from({ length: PAGES }, (_, p) => ({
     name: p === LAB_PAGE ? "Lab" : `Page ${p + 1}`,
+    mood: null,
     slots: Array.from(
       { length: SLOTS },
       (_, s) => (p === 0 ? show[s] : p === LAB_PAGE ? lab[s] : null) ?? null,
@@ -126,7 +138,7 @@ export function initialShowSet(scenes, gated = GATED) {
   }));
   return {
     format: FORMAT,
-    version: 3,
+    version: 4,
     name: "New show",
     pages,
     shared: { ...DEFAULT_SHARED },
@@ -151,10 +163,20 @@ function validateClip(value, scenes, ids) {
   const id = text(value.id, "Clip id");
   if (ids.has(id)) throw new Error("Duplicate clip id");
   ids.add(id);
+  const palette = value.palette;
+  if (palette !== "custom" && !paletteById(palette))
+    throw new Error("Unknown clip palette");
+  const snapshot = validateSnapshot(
+    palette === "custom"
+      ? value.snapshot
+      : { ...value.snapshot, palette: paletteById(palette).colors },
+    scenes,
+  );
   return {
     id,
     name: text(value.name, "Clip name"),
-    snapshot: validateSnapshot(value.snapshot, scenes),
+    snapshot,
+    palette,
     energy: finite(value.energy, 0, 1, "Clip energy"),
     fade: finite(value.fade, 0, 32, "Clip fade beats"),
     quantize: oneOf(value.quantize, QUANTIZE, "Clip quantize"),
@@ -163,8 +185,8 @@ function validateClip(value, scenes, ids) {
 }
 
 export function validateShowSet(value, scenes) {
-  if (!record(value) || value.format !== FORMAT || value.version !== 3)
-    throw new Error("Expected a Phosphor v3 set");
+  if (!record(value) || value.format !== FORMAT || value.version !== 4)
+    throw new Error("Expected a Phosphor v4 set");
   if (!Array.isArray(value.pages) || value.pages.length !== PAGES)
     throw new Error(`A set has exactly ${PAGES} pages`);
   const ids = new Set();
@@ -177,6 +199,7 @@ export function validateShowSet(value, scenes) {
       throw new Error(`Page ${p + 1} must have ${SLOTS} slots`);
     return {
       name: text(page.name, "Page name", 40),
+      mood: page.mood === null ? null : oneOf(page.mood, MOODS, "Page mood"),
       slots: page.slots.map((clip) => validateClip(clip, scenes, ids)),
     };
   });
@@ -188,7 +211,7 @@ export function validateShowSet(value, scenes) {
     throw new Error("Invalid MIDI mappings");
   return {
     format: FORMAT,
-    version: 3,
+    version: 4,
     name: text(value.name, "Set name"),
     pages,
     shared: {
@@ -238,6 +261,9 @@ export function validateShowSet(value, scenes) {
 // targets and MIDI clock have no v3 equivalent and are reported as dropped.
 export function migrateV2(v2, scenes) {
   const set = initialShowSet(scenes);
+  set.format = "phosphor-set-v3";
+  set.version = 3;
+  for (const page of set.pages) delete page.mood;
   const report = [];
   set.name = v2.name;
   for (const page of set.pages) page.slots.fill(null);
@@ -279,7 +305,27 @@ export function migrateV2(v2, scenes) {
     else report.push(`MIDI mapping to "${m.target}" dropped.`);
   }
   set.lineages = structuredClone(v2.lineages);
-  return { set: validateShowSet(set, scenes), report };
+  const migrated = migrateV3(set, scenes);
+  return { set: migrated.set, report: [...report, ...migrated.report] };
+}
+
+// v3 → v4 is lossless: a library ID must never reinterpret authored colours.
+export function migrateV3(v3, scenes) {
+  if (!record(v3) || v3.format !== "phosphor-set-v3" || v3.version !== 3)
+    throw new Error("Expected a Phosphor v3 set");
+  const next = structuredClone(v3);
+  next.format = FORMAT;
+  next.version = 4;
+  if (Array.isArray(next.pages))
+    for (const page of next.pages) {
+      if (!record(page)) continue;
+      page.mood = null;
+      if (Array.isArray(page.slots))
+        page.slots = page.slots.map((clip) =>
+          record(clip) ? { ...clip, palette: "custom" } : clip,
+        );
+    }
+  return { set: validateShowSet(next, scenes), report: [] };
 }
 
 // Any supported file → { set, report }. v1 (including v6 14-family sets)
@@ -287,6 +333,7 @@ export function migrateV2(v2, scenes) {
 export function parseShowSet(parsed, scenes) {
   if (parsed?.format === FORMAT)
     return { set: validateShowSet(parsed, scenes), report: [] };
+  if (parsed?.format === "phosphor-set-v3") return migrateV3(parsed, scenes);
   const v2 =
     parsed?.format === "phosphor-set-v1"
       ? migrateLegacy(parsed, scenes)

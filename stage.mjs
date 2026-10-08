@@ -116,9 +116,11 @@ function apply(actions) {
       case "flash":
         engine.flashHeld = a.on;
         break;
-      case "params":
-        engine.setSnapshot(a.snapshot);
+      case "params": {
+        const snapshot = show.currentSnapshot();
+        if (snapshot) engine.setSnapshot(snapshot);
         break;
+      }
     }
 }
 
@@ -300,7 +302,7 @@ function attachPreview() {
   for (const track of previewTracks) track.stop();
   const stream = canvas.captureStream(20);
   previewTracks = stream.getTracks();
-  api.attachPreview(stream);
+  api.attachPreview(stream, window);
 }
 
 channel.onmessage = async ({ data }) => {

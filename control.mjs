@@ -4,6 +4,7 @@ import scenes from "./scenes.mjs";
 import { Engine } from "./engine.mjs";
 import { ControlPreview } from "./control-preview.mjs";
 import { presetSnapshot, DEFAULT_PALETTE } from "./session.mjs";
+import { MOODS, PALETTES, paletteById } from "./palettes.mjs";
 import {
   validateShowSet,
   parseShowSet,
@@ -132,7 +133,11 @@ async function openStage() {
     log("Drag the stage window to the projector screen.");
   }
 }
-const stageAlive = () => performance.now() - lastStatusAt < 2000;
+// Status cadence is not window liveness: a slow frame must never hand venue
+// controls back to the local preview. Reconnected previews recover this proxy.
+const stageAlive = () =>
+  !!status &&
+  (stageWindow ? !stageWindow.closed : performance.now() - lastStatusAt < 2000);
 const now = () => performance.now() / 1000;
 function resumeLocalPerformance() {
   if (stageAlive() || !status) return false;
@@ -223,7 +228,8 @@ function updatePreview() {
   $("previewEmpty").hidden = !!live || !!editorEngine;
 }
 window.__phosphorControl = {
-  attachPreview(stream) {
+  attachPreview(stream, stage) {
+    stageWindow = stage;
     const video = $("preview");
     video.srcObject = stream;
     video.play().catch(() => {});
@@ -512,6 +518,8 @@ function renderStatus() {
       ? `${ap.random ? "random" : "in order"} · next in ${ap.nextChangeIn ?? "—"} bars`
       : `paused · back in ${ap.handBackIn} bars`;
   $("energyReadout").textContent = s.energy.toFixed(2);
+  $("paletteReadout").textContent =
+    paletteById(s.palette)?.name ?? (s.palette ? "Custom" : "—");
   $("speedReadout").textContent = `${s.speed}×`;
   const st = alive
     ? status.stage
@@ -692,7 +700,7 @@ function renderEditor() {
       previewDraft();
     },
   });
-  const palette = el(
+  const customColors = el(
     "div",
     { className: "palette" },
     ...Object.keys(DEFAULT_PALETTE).map((key) =>
@@ -706,6 +714,33 @@ function renderEditor() {
         },
       }),
     ),
+  );
+  const palette = el(
+    "select",
+    {
+      id: "clipPalette",
+      ariaLabel: "Clip palette",
+      onchange: () => {
+        draft.palette = palette.value;
+        if (draft.palette !== "custom")
+          draft.snapshot.palette = { ...paletteById(draft.palette).colors };
+        editDraft();
+        renderEditor();
+        updateSettingsLock();
+      },
+    },
+    ...PALETTES.map((entry) =>
+      el("option", {
+        value: entry.id,
+        textContent: `${entry.name} · ${entry.moods.join(" / ")}`,
+        selected: entry.id === draft.palette,
+      }),
+    ),
+    el("option", {
+      value: "custom",
+      textContent: "Custom",
+      selected: draft.palette === "custom",
+    }),
   );
   const energy = fader(
     { key: "clip-energy", label: "Energy", min: 0, max: 1, step: 0.01 },
@@ -753,6 +788,9 @@ function renderEditor() {
     ...params,
     field("Seed", seed),
     field("Palette", palette),
+    ...(draft.palette === "custom"
+      ? [field("Custom colours", customColors)]
+      : []),
     energy,
     field("Fade (beats)", fade),
     field("Starts on", quantize),
@@ -861,6 +899,29 @@ function renderSetFields() {
       changed();
     },
   });
+  const mood = el(
+    "select",
+    {
+      id: "pageMood",
+      ariaLabel: "Page mood",
+      onchange: () => {
+        set.pages[page].mood = mood.value || null;
+        changed();
+      },
+    },
+    el("option", {
+      value: "",
+      textContent: "Any palette",
+      selected: set.pages[page].mood === null,
+    }),
+    ...MOODS.map((value) =>
+      el("option", {
+        value,
+        textContent: value,
+        selected: set.pages[page].mood === value,
+      }),
+    ),
+  );
   const every = el(
     "select",
     {
@@ -913,6 +974,7 @@ function renderSetFields() {
   $("setFields").replaceChildren(
     field("Show name", name),
     field(`Page ${page + 1} name`, pageName),
+    field("Page mood", mood),
     field("Autopilot every", every),
     field("Pixel budget", budget),
     option("bloom", "Bloom"),

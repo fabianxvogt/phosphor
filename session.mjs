@@ -42,7 +42,8 @@ export function initialSession(scenes) {
         bars: 64,
         transition: 4,
         keyframes: [],
-        energy: [0.35, 0.45, 0.8, 0.3, 0.6, 0.65, 0.5, 0.7, 0.85, 0.25][i] ?? 0.5,
+        energy:
+          [0.35, 0.45, 0.8, 0.3, 0.6, 0.65, 0.5, 0.7, 0.85, 0.25][i] ?? 0.5,
       };
     }),
     mappings: scenes.flatMap((s) => {
@@ -245,7 +246,7 @@ export function validateSession(value, scenes) {
     lineages,
   };
 }
-// Breeding lineages are shared by v2 and v3 sets.
+// Breeding lineages are shared by v2, v3 and v4 sets.
 export function validateLineages(list, scenes) {
   if (!Array.isArray(list) || list.length > 20)
     throw new Error("Too many lineages");
@@ -302,28 +303,30 @@ export function validateLineages(list, scenes) {
 function activeSceneTargets(scenes) {
   return scenes.flatMap((s) => s.schema.map((d) => `${s.id}.${d.key}`));
 }
+export function interpolatePalette(a, b, t) {
+  t = Number.isNaN(t) || t === -Infinity ? 0 : Math.max(0, Math.min(1, t));
+  const result = {};
+  for (const key of Object.keys(DEFAULT_PALETTE)) {
+    const from = parseInt(a[key].slice(1), 16);
+    const to = parseInt(b[key].slice(1), 16);
+    let color = 0;
+    for (let shift = 16; shift >= 0; shift -= 8) {
+      const channel = (from >> shift) & 255;
+      color |=
+        Math.round(channel + (((to >> shift) & 255) - channel) * t) << shift;
+    }
+    result[key] = `#${color.toString(16).padStart(6, "0")}`;
+  }
+  return result;
+}
+
 export function interpolateSnapshot(a, b, t) {
   t = Number.isNaN(t) || t === -Infinity ? 0 : Math.max(0, Math.min(1, t));
   if (a.scene !== b.scene) return t < 1 ? a : b;
   const result = structuredClone(a);
   for (const key of Object.keys(a.params))
     result.params[key] = a.params[key] + (b.params[key] - a.params[key]) * t;
-  for (const key of Object.keys(a.palette)) {
-    const colour = (hex) =>
-      hex
-        .slice(1)
-        .match(/../g)
-        .map((x) => parseInt(x, 16));
-    result.palette[key] =
-      "#" +
-      colour(a.palette[key])
-        .map((v, i) =>
-          Math.round(v + (colour(b.palette[key])[i] - v) * t)
-            .toString(16)
-            .padStart(2, "0"),
-        )
-        .join("");
-  }
+  result.palette = interpolatePalette(a.palette, b.palette, t);
   return result;
 }
 

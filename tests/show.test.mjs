@@ -4,6 +4,7 @@ import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { initialShowSet, validateShowSet } from "../show-set.mjs";
 import { Show } from "../show.mjs";
+import { paletteById } from "../palettes.mjs";
 
 const safeSnapshot = presetSnapshot(
   scenes.find((s) => s.id === "interference"),
@@ -157,7 +158,7 @@ test("stage faders tweak the live clip without changing the saved set", () => {
     0.1,
   );
   assert.equal(action.type, "params");
-  assert.equal(action.snapshot.params[key], before + 0.01);
+  assert.equal(show.currentSnapshot().params[key], before + 0.01);
   assert.equal(show.set.pages[0].slots[0].snapshot.params[key], before);
 });
 
@@ -228,25 +229,28 @@ test("with the page unplayable the safe look takes over, then any page, then bla
     ["safe"],
   );
   assert.equal(safe[0].snapshot.scene, "interference");
+  assert.equal(show.currentSnapshot().scene, "interference");
   const other = loads(show.disable("interference", 2, true));
   assert.equal(other[0].snapshot.scene, "cathedral");
   assert.equal(show.status(2).live.page, 1);
+  assert.equal(show.currentSnapshot().scene, "cathedral");
   assert.deepEqual(show.disable("cathedral", 3, true), [
     { type: "blackout", on: true },
   ]);
   assert.equal(show.blackout, true);
+  assert.equal(show.currentSnapshot(), null);
 });
 
 test("random mode glides the live clip's continuous parameters near its authored values", () => {
   const show = makeShow((set) => (set.autopilot.everyBars = 64));
-  const actions = [];
-  for (let t = 0; t <= 60; t += 1 / 60) actions.push(...show.tick(t));
+  const snapshots = [];
+  for (let t = 0; t <= 60; t += 1 / 60)
+    if (show.tick(t).some((action) => action.type === "params"))
+      snapshots.push(structuredClone(show.currentSnapshot()));
   const live = show.status(60).live;
   const clip = show.set.pages[live.page].slots[live.slot];
   const scene = scenes.find((s) => s.id === clip.snapshot.scene);
-  const glide = actions.filter(
-    (a) => a.type === "params" && a.snapshot.scene === scene.id,
-  );
+  const glide = snapshots.filter((snapshot) => snapshot.scene === scene.id);
   assert.ok(glide.length > 600, "params move every frame while drifting");
   const drifting = scene.schema.filter(
     (f) => f.key !== scene.type?.key && !(f.step >= 1) && f.max > f.min,
@@ -276,11 +280,12 @@ test("a drift glide never jumps, and a stage fader stops it", () => {
   for (let t = 0; t <= 40; t += 1 / 60)
     for (const a of show.tick(t))
       if (a.type === "params") {
-        const p = a.snapshot.params;
-        if (previous && previous.scene === a.snapshot.scene)
+        const snapshot = show.currentSnapshot();
+        const p = snapshot.params;
+        if (previous && previous.scene === snapshot.scene)
           for (const k of Object.keys(p))
             jump = Math.max(jump, Math.abs(p[k] - previous.params[k]));
-        previous = { scene: a.snapshot.scene, params: { ...p } };
+        previous = { scene: snapshot.scene, params: { ...p } };
       }
   const scene = scenes.find((s) => s.id === previous.scene);
   const widest = Math.max(...scene.schema.map((f) => f.max - f.min));
@@ -299,7 +304,11 @@ test("random off: autopilot walks the page in order and parameters stay put", ()
   const slots = [];
   for (let t = 0; t <= 140; t += 1 / 30)
     for (const a of show.tick(t)) {
-      assert.notEqual(a.type, "params");
+      if (a.type === "params")
+        assert.deepEqual(
+          show.currentSnapshot().params,
+          show.set.pages[show.live.page].slots[show.live.slot].snapshot.params,
+        );
       if (a.type === "load") slots.push(a.slot);
     }
   assert.deepEqual(slots, [0, 1, 2, 3, 4]);
@@ -318,4 +327,185 @@ test("a fresh stage begins on a random autopilot clip; autopilot then waits a fu
   for (let t = 0; t < 40; t += 1 / 30) later.push(...loads(show.tick(t)));
   assert.equal(later.length, 1);
   assert.ok(later[0].fadeSeconds >= 4); // two bars at 120 BPM
+});
+
+test("manual triggers adopt the clip palette with a glide; autopilot keeps the show palette", () => {
+  const show = makeShow((set) => {
+    set.autopilot.random = false;
+    set.autopilot.everyBars = 16;
+    set.pages[0].slots[0].palette = "ember";
+    set.pages[0].slots[1].palette = "glacier";
+    set.pages[0].slots[2].palette = "toxic";
+  });
+  show.begin(0);
+  show.tick(0);
+  assert.equal(show.status(0).palette, "ember");
+  const auto = loads(show.tick(32))[0];
+  assert.equal(auto.slot, 1);
+  assert.deepEqual(auto.snapshot.palette, paletteById("ember").colors);
+  assert.equal(show.status(32).palette, "ember");
+  const manual = loads(show.command({ type: "slot", index: 2 }, 34))[0];
+  assert.equal(show.status(34).palette, "toxic");
+  assert.deepEqual(
+    manual.snapshot.palette,
+    paletteById("ember").colors,
+    "the new colour starts at the current colour, not a cut",
+  );
+  const middle = show.tick(35).find((action) => action.type === "params");
+  assert.ok(middle);
+  assert.notDeepEqual(
+    show.currentSnapshot().palette,
+    paletteById("ember").colors,
+  );
+  assert.notDeepEqual(
+    show.currentSnapshot().palette,
+    paletteById("toxic").colors,
+  );
+  show.tick(36);
+  assert.deepEqual(
+    show.live.clip.snapshot.palette,
+    paletteById("toxic").colors,
+  );
+  assert.deepEqual(
+    show.set.pages[0].slots[0].snapshot.palette,
+    paletteById("ember").colors,
+  );
+});
+
+test("palette changes interpolate each frame and a manual palette change wins over a drop", () => {
+  const show = makeShow((set) => {
+    set.autopilot.random = false;
+    set.pages[0].slots[0].palette = "ember";
+  });
+  show.begin(0);
+  const original = { ...show.live.clip.snapshot.palette };
+  show.tick(2, { event: "drop" });
+  const dropPalette = show.status(2).palette;
+  assert.notEqual(dropPalette, "ember");
+  assert.deepEqual(show.live.clip.snapshot.palette, original);
+  let previous = original;
+  let changedFrames = 0;
+  for (let t = 2 + 1 / 60; t < 3; t += 1 / 60) {
+    const action = show.tick(t).find((a) => a.type === "params");
+    if (!action) continue; // Frames that quantise to the same colour need no upload.
+    const colors = { ...show.currentSnapshot().palette };
+    for (const key of Object.keys(colors)) {
+      const channels = (hex) =>
+        hex
+          .slice(1)
+          .match(/../g)
+          .map((c) => parseInt(c, 16));
+      const a = channels(previous[key]),
+        b = channels(colors[key]);
+      assert.ok(
+        b.every((channel, i) => Math.abs(channel - a[i]) <= 4),
+        "no per-frame colour jump",
+      );
+    }
+    if (JSON.stringify(colors) !== JSON.stringify(previous)) changedFrames++;
+    previous = colors;
+  }
+  assert.ok(changedFrames > 30);
+  show.command({ type: "palette", value: "silver" }, 3);
+  assert.equal(show.status(3).palette, "silver");
+  show.tick(3.1, { event: "drop" });
+  assert.equal(show.status(3.1).palette, "silver");
+  show.tick(5);
+  assert.deepEqual(
+    show.live.clip.snapshot.palette,
+    paletteById("silver").colors,
+  );
+});
+
+test("crash restore preserves a custom show palette and continues an interrupted glide", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
+  show.command({ type: "slot", index: 0 }, 0);
+  const custom = {
+    primary: "#ffffff",
+    secondary: "#112233",
+    accent: "#ff4400",
+  };
+  show.command({ type: "palette", value: custom }, 1);
+  show.tick(2);
+  const current = { ...show.live.clip.snapshot.palette };
+  const saved = JSON.parse(JSON.stringify(show.snapshot(2)));
+  const restored = makeShow((set) => (set.autopilot.enabled = false));
+  const [load] = restored.restore(saved, 10);
+  assert.deepEqual(restored.status(10).palette, custom);
+  assert.deepEqual(load.snapshot.palette, current);
+  restored.tick(10.5);
+  assert.notDeepEqual(restored.live.clip.snapshot.palette, current);
+  restored.tick(11);
+  assert.deepEqual(restored.live.clip.snapshot.palette, custom);
+});
+
+test("mixer-strip changes leave clip, drift and palette autopilot running", () => {
+  const show = makeShow((set) => (set.autopilot.everyBars = 16));
+  show.begin(0);
+  show.tick(0);
+  const drift = show.drift;
+  const nextPalette = show.autopilot.nextPalette;
+  for (let t = 0.1; t < 4; t += 0.1)
+    show.command(
+      { type: "shared", master: 0.4, hue: 0.2, zoom: 1.2, mirror: 3 },
+      t,
+    );
+  assert.equal(show.autopilot.active(2), true);
+  assert.equal(show.drift, drift, "mixer trims do not cancel parameter drift");
+  assert.equal(show.autopilot.nextPalette, nextPalette);
+  assert.equal(
+    loads(show.tick(32)).length,
+    1,
+    "the next clip still fires on schedule",
+  );
+  assert.deepEqual(show.shared, {
+    master: 0.4,
+    hue: 0.2,
+    zoom: 1.2,
+    mirror: 3,
+  });
+});
+
+test("palette frames emit only changed 8-bit colours using the same live buffer", () => {
+  const from = { primary: "#101010", secondary: "#101010", accent: "#101010" };
+  const to = { primary: "#111111", secondary: "#111111", accent: "#111111" };
+  const show = makeShow((set) => {
+    set.autopilot.enabled = false;
+    const clip = set.pages[0].slots[0];
+    clip.palette = "custom";
+    clip.snapshot.palette = from;
+  });
+  show.command({ type: "slot", index: 0 }, 0);
+  const buffer = show.currentSnapshot().palette;
+  show.command({ type: "palette", value: to }, 1);
+  assert.ok(!show.tick(1.00001).some((action) => action.type === "params"));
+  assert.ok(!show.tick(1.25).some((action) => action.type === "params"));
+  assert.ok(show.tick(2).some((action) => action.type === "params"));
+  assert.equal(show.currentSnapshot().palette, buffer);
+  assert.deepEqual(buffer, to);
+  assert.ok(!show.tick(2.1).some((action) => action.type === "params"));
+  assert.ok(!show.tick(3).some((action) => action.type === "params"));
+  assert.equal(show.paletteGlide, null);
+});
+
+test("palette params require an actual clip or explicitly loaded safe look", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
+  assert.deepEqual(show.command({ type: "palette", value: "ember" }, 0), []);
+  assert.equal(show.currentSnapshot(), null);
+  show.command({ type: "safe" }, 0.1);
+  show.command({ type: "palette", value: "glacier" }, 0.2);
+  assert.ok(show.tick(1).some((action) => action.type === "params"));
+  assert.equal(show.currentSnapshot().scene, safeSnapshot.scene);
+  const restored = makeShow((set) => (set.autopilot.enabled = false));
+  restored.restore(show.snapshot(1), 10);
+  assert.equal(restored.currentSnapshot().scene, safeSnapshot.scene);
+  show.disable(safeSnapshot.scene, 1, false);
+  assert.equal(show.currentSnapshot(), null);
+  assert.ok(!show.tick(1.1).some((action) => action.type === "params"));
+  const empty = makeShow((set) => {
+    set.autopilot.enabled = false;
+    for (const page of set.pages) page.slots.fill(null);
+  });
+  assert.equal(empty.begin(0)[0].type, "safe");
+  assert.equal(empty.currentSnapshot().scene, safeSnapshot.scene);
 });

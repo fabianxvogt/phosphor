@@ -259,6 +259,79 @@ try {
     "preview reattached",
   );
   pass("control reload: stage keeps playing, control and preview reconnect");
+  // A slow GPU can miss status reports without closing the stage. Exercise
+  // the real key/channel path beyond the old 2 s lease, after control reload
+  // has also discarded the original window.open() return value.
+  await control.evaluate(() => {
+    const channel = new BroadcastChannel("phosphor-show");
+    const probe = { last: performance.now(), channel };
+    channel.onmessage = ({ data }) => {
+      if (data?.type === "status") probe.last = performance.now();
+    };
+    window.__stageStatusProbe = probe;
+  });
+  await stage.evaluate(() => {
+    const original = BroadcastChannel.prototype.postMessage;
+    window.__resumeStageStatus = () => {
+      BroadcastChannel.prototype.postMessage = original;
+    };
+    BroadcastChannel.prototype.postMessage = function (data) {
+      if (data?.type !== "status") return original.call(this, data);
+    };
+  });
+  try {
+    await waitFor(
+      control,
+      () => performance.now() - window.__stageStatusProbe.last > 2500,
+      null,
+      "stage status reports are paused",
+    );
+    const state = await stage.evaluate(() => ({
+      blackout: window.__phosphorStage.engine.blackoutTarget,
+      autopilot: window.__phosphorStage.show.autopilot.enabled,
+    }));
+    await control.locator("#fader-master").focus();
+    await control.keyboard.press("Escape");
+    await waitFor(
+      stage,
+      (was) => window.__phosphorStage.engine.blackoutTarget !== was,
+      state.blackout,
+      "Esc reaches the open stage without status reports",
+    );
+    await control.keyboard.press("Escape");
+    await waitFor(
+      stage,
+      (was) => window.__phosphorStage.engine.blackoutTarget === was,
+      state.blackout,
+      "Esc recovers the open stage without status reports",
+    );
+    await control.locator("body").press("KeyP");
+    await waitFor(
+      stage,
+      (was) => window.__phosphorStage.show.autopilot.enabled !== was,
+      state.autopilot,
+      "P reaches the open stage without status reports",
+    );
+    await control.locator("body").press("KeyP");
+    await waitFor(
+      stage,
+      (was) => window.__phosphorStage.show.autopilot.enabled === was,
+      state.autopilot,
+      "P recovers the open stage without status reports",
+    );
+    pass(
+      "Esc and P keep reaching the open stage through missed status reports",
+    );
+  } finally {
+    await stage.evaluate(() => {
+      window.__resumeStageStatus();
+      delete window.__resumeStageStatus;
+    });
+    await control.evaluate(() => {
+      window.__stageStatusProbe.channel.close();
+      delete window.__stageStatusProbe;
+    });
+  }
 
   // Stage reload: runtime state restores the clip, energy and shared controls.
   await control.evaluate(() => {
@@ -303,8 +376,37 @@ try {
   );
   assert.equal(counters.gpuErrors, 0);
   assert.equal(counters.nonFinite, 0);
-  assert.deepEqual(show.errors, []);
   pass("no GPU errors, non-finite inputs or page errors");
+
+  // Presence-based ownership must still release the preview on real closure,
+  // including the window proxy recovered after control and stage reloads.
+  await control.locator("#settingsLock").check();
+  await stage.close();
+  await waitFor(
+    control,
+    () =>
+      document.getElementById("stagePill").textContent === "Stage not open" &&
+      document.getElementById("settingsLock").disabled &&
+      !document.getElementById("settingsLock").checked,
+    null,
+    "stage closure resumes local performance and unlocks settings",
+  );
+  await control.keyboard.press("Escape");
+  await waitFor(
+    control,
+    () => document.getElementById("blackout").ariaPressed === "true",
+    null,
+    "Esc controls the local preview after stage closure",
+  );
+  await control.keyboard.press("Escape");
+  await waitFor(
+    control,
+    () => document.getElementById("blackout").ariaPressed === "false",
+    null,
+    "Esc recovers the local preview after stage closure",
+  );
+  assert.deepEqual(show.errors, []);
+  pass("closing the stage resumes local keys and unlocks settings");
 } finally {
   await runtime?.stop();
   await server.close();

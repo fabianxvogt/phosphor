@@ -1,44 +1,54 @@
-// Local persistence for v3 shows (decision D9). The set is saved by the
-// control window on edits only; the stage saves its runtime state (current
-// clip, energy, shared controls, clock) every second for crash recovery.
+// Local persistence (D9): the control saves v4 sets on edits; the stage
+// saves runtime state each second. Old set entries remain as migration backups.
 import { initialShowSet, parseShowSet, validateShowSet } from "./show-set.mjs";
 
-export const SET_KEY = "phosphor-set-v3";
+export const SET_KEY = "phosphor-set-v4";
 export const RUNTIME_KEY = "phosphor-runtime-v3";
-const V2_KEY = "phosphor-set-v2";
+const OLD_SET_KEYS = ["phosphor-set-v3", "phosphor-set-v2"];
 // An unreadable save is never thrown away: the next edit would overwrite it
 // (e.g. a clip whose family narrowed a parameter range). The first one kept.
-export const UNREADABLE_KEY = "phosphor-set-v3-unreadable";
+export const UNREADABLE_KEY = "phosphor-set-v4-unreadable";
 const RUNTIME_MAX_AGE = 12 * 3600 * 1000;
 
 export function loadSet(storage, scenes) {
-  let raw = null;
-  try {
-    raw = storage.getItem(SET_KEY);
-    if (raw)
-      return { set: validateShowSet(JSON.parse(raw), scenes), report: [] };
-  } catch (error) {
+  for (const key of [SET_KEY, ...OLD_SET_KEYS]) {
+    let raw = null;
+    let loaded;
     try {
-      if (!storage.getItem(UNREADABLE_KEY))
-        storage.setItem(UNREADABLE_KEY, raw);
-    } catch {}
-    return {
-      set: initialShowSet(scenes),
-      report: [
-        `Saved show unreadable: ${error.message}. The original is kept in local storage under "${UNREADABLE_KEY}".`,
-      ],
-    };
-  }
-  try {
-    const old = storage.getItem(V2_KEY);
-    if (old) {
-      const migrated = parseShowSet(JSON.parse(old), scenes);
+      raw = storage.getItem(key);
+      if (!raw) continue;
+      loaded = parseShowSet(JSON.parse(raw), scenes);
+    } catch (error) {
+      const backup = key === SET_KEY ? UNREADABLE_KEY : `${key}-unreadable`;
+      let preservedAt = key;
+      try {
+        const previous = storage.getItem(backup);
+        if (raw && (!previous || previous === raw)) {
+          if (!previous) storage.setItem(backup, raw);
+          preservedAt = backup;
+        }
+      } catch {}
       return {
-        ...migrated,
-        report: ["Migrated the saved v2 set.", ...migrated.report],
+        set: initialShowSet(scenes),
+        report: [
+          `Saved show unreadable: ${error.message}. The original is kept in local storage under "${preservedAt}".`,
+        ],
       };
     }
-  } catch {}
+    if (key !== SET_KEY) {
+      loaded.report.unshift(
+        `Migrated the saved ${key.endsWith("v3") ? "v3" : "v2"} set.`,
+      );
+      try {
+        saveSet(storage, loaded.set);
+      } catch (error) {
+        loaded.report.push(
+          `Could not save the migrated set (${error.message}); the original is still kept under "${key}".`,
+        );
+      }
+    }
+    return loaded;
+  }
   return { set: validateShowSet(initialShowSet(scenes), scenes), report: [] };
 }
 
