@@ -124,6 +124,11 @@ if (process.argv.includes("--port")) {
         }
         evidence.ladder = ladder.rows.map(row => ({ preset: row.name,
           cells: row.cells.map(cell => ({ level: cell.level, ...cell.metrics })) }));
+        for (const row of evidence.ladder) {
+          assert.ok(row.cells[0].edgeDensity < row.cells[1].edgeDensity &&
+            row.cells[1].edgeDensity < row.cells[2].edgeDensity,
+            `${row.preset}: edge detail must rise across the energy ladder`);
+        }
         for (const preset of pulse.presets) {
           for (const direction of [-1, 1]) {
             const cells = evidence.drift.filter(row => row.preset === preset.name && row.direction === direction);

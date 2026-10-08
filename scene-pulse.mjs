@@ -72,11 +72,12 @@ void main() {
     index = floor(z + 0.5);
     depthFade = smoothstep(0.0, 0.18, d);
   } else if (form < 2.5) {
-    // Grid horizon: perspective floor and ceiling scrolling to the horizon.
+    // Grid horizon: one ground plane beneath a high, offset vanishing point.
+    // The open sky is intentional negative space, not an aspect crop.
     vec2 q = rot2(twist * 0.25) * p;
-    float h = abs(q.y) + 1e-3;
-    float z = 1.0 / h;
-    float lanes = pgLines(q.x * z * count * 0.12, weight * 0.8);
+    float h = 0.22 - q.y;
+    float z = 1.0 / max(h, 0.002);
+    float lanes = pgLines((q.x - 0.18 * aspect) * z * count * 0.12, weight * 0.8);
     float rows = pgLines(z * count * 0.04 + travel, weight);
     mask = max(lanes, rows);
     index = floor(z * count * 0.04 + travel + 0.5);
