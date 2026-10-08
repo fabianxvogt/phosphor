@@ -4,11 +4,61 @@
 // WAV (PCM 16/24/32-bit or float) is read natively; other formats need
 // ffmpeg on PATH. --clicks writes artifacts/beat/<name>.clicks.wav: the mix
 // with a click on every predicted beat, for listening checks.
+// Phase: each predicted beat (not coasting) is compared with the strongest
+// low-band attack within ±120 ms (1 ms log-energy flux through the tracker's
+// 150 Hz filters). A heuristic reference, not annotated beats: busy
+// basslines can pull it off the kick, so listen to the clicks as well.
 import { open, mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { basename, extname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { BeatTracker } from "../beat-tracker.mjs";
+
+function lowpass150(sampleRate) {
+  const w = (2 * Math.PI * 150) / sampleRate,
+    cos = Math.cos(w),
+    alpha = Math.sin(w) / (2 * Math.SQRT1_2),
+    a0 = 1 + alpha;
+  const b0 = (1 - cos) / 2 / a0,
+    b1 = (1 - cos) / a0,
+    a1 = (-2 * cos) / a0,
+    a2 = (1 - alpha) / a0;
+  let x1 = 0,
+    x2 = 0,
+    y1 = 0,
+    y2 = 0;
+  return (x) => {
+    const y = b0 * x + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1;
+    x1 = x;
+    y2 = y1;
+    y1 = y;
+    return y;
+  };
+}
+
+// Signed ms from each beat to the strongest attack near it.
+function phaseErrors(beats, logEnergy) {
+  const errors = [];
+  for (const time of beats) {
+    const c = Math.round(time * 1000);
+    let best = -1,
+      peak = 0.5; // log-flux floor, as the tracker's MIN_ONSET
+    for (
+      let i = Math.max(10, c - 120);
+      i <= Math.min(logEnergy.length - 1, c + 120);
+      i++
+    ) {
+      const flux = logEnergy[i] - logEnergy[i - 10];
+      if (flux > peak) {
+        peak = flux;
+        best = i;
+      }
+    }
+    if (best >= 0) errors.push(c - best);
+  }
+  return errors;
+}
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -194,12 +244,35 @@ for (const path of positionals) {
     lastClick = -Infinity;
   const tempos = [];
   const clickLength = Math.round(0.02 * sampleRate);
+  const low = [lowpass150(sampleRate), lowpass150(sampleRate)];
+  const perMs = Math.round(sampleRate / 1000);
+  const logEnergy = [],
+    beats = [];
+  let energy = 0,
+    inMs = 0,
+    lastBeat = -Infinity;
   for await (const { samples } of source) {
     for (let i = 0; i < samples.length && position < limit; i += 128) {
       const block = samples.subarray(i, Math.min(samples.length, i + 128));
       tracker.process(block);
+      for (let j = 0; j < block.length; j++) {
+        const v = low[1](low[0](block[j]));
+        energy += v * v;
+        if (++inMs === perMs) {
+          logEnergy.push(Math.log(energy / perMs + 1e-7));
+          energy = inMs = 0;
+        }
+      }
       const state = tracker.state();
       const now = (position + block.length) / sampleRate;
+      // The prediction shown at the moment the beat lands.
+      if (
+        state.locked &&
+        !state.coasting &&
+        now >= state.nextBeatTime &&
+        state.nextBeatTime > lastBeat
+      )
+        beats.push((lastBeat = state.nextBeatTime));
       blocks++;
       if (state.locked) {
         lockedBlocks++;
@@ -235,7 +308,12 @@ for (const path of positionals) {
   if (writer) await writer.close();
   const minutes = position / sampleRate / 60;
   tempos.sort((a, b) => a - b);
+  const errors = phaseErrors(beats, logEnergy);
+  const abs = errors.map(Math.abs).sort((a, b) => a - b);
+  const phase = abs.length
+    ? `phase vs kick attack: median |error| ${abs[Math.floor(abs.length / 2)]} ms, p90 ${abs[Math.floor(0.9 * abs.length)]} ms, within 20 ms ${((100 * abs.filter((e) => e <= 20).length) / abs.length).toFixed(0)}% of ${abs.length} beats`
+    : "phase: no locked beats";
   console.log(
-    `${basename(path)}: ${minutes.toFixed(1)} min · first lock ${firstLock === null ? "never" : firstLock.toFixed(1) + " s"} · locked ${((100 * lockedBlocks) / blocks).toFixed(1)}% (coasting ${((100 * coastBlocks) / Math.max(1, lockedBlocks)).toFixed(1)}% of that) · tempo jumps >1 BPM: ${jumps} · tempo p10/p50/p90 ${[0.1, 0.5, 0.9].map((q) => tempos[Math.floor(q * (tempos.length - 1))]?.toFixed(1) ?? "—").join("/")}`,
+    `${basename(path)}: ${minutes.toFixed(1)} min · first lock ${firstLock === null ? "never" : firstLock.toFixed(1) + " s"} · locked ${((100 * lockedBlocks) / blocks).toFixed(1)}% (coasting ${((100 * coastBlocks) / Math.max(1, lockedBlocks)).toFixed(1)}% of that) · tempo jumps >1 BPM: ${jumps} · tempo p10/p50/p90 ${[0.1, 0.5, 0.9].map((q) => tempos[Math.floor(q * (tempos.length - 1))]?.toFixed(1) ?? "—").join("/")} · ${phase}`,
   );
 }

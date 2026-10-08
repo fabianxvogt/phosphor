@@ -1,5 +1,7 @@
 # Feedback Chapel sign-off packet
 
+**Gate: PASSED — owner art sign-off 2026-10-08 (D51), rig timing passed.** The lane's record below is unchanged.
+
 2026-10-08 · `family/feedback` · **INCREMENTAL / EMPIRICAL** · Technical checks complete; draft until owner art approval and real-GPU timing.
 
 ## Types and authored looks

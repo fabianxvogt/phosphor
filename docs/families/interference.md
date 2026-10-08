@@ -1,5 +1,7 @@
 # Interference Rituals — family sign-off packet
 
+**Gate: PASSED — owner art sign-off 2026-10-08 (D51), rig timing passed.** The lane's record below is unchanged.
+
 2026-10-08 · `family/interference` · scene commit `d5495dc` · **INCREMENTAL / EMPIRICAL**; no formal optical-model claim.
 Draft awaiting owner art approval and isolated real-GPU timing; technical evidence is recorded below.
 

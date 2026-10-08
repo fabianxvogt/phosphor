@@ -1,5 +1,7 @@
 # Pulse Geometry — family sign-off packet (2026-10-08)
 
+**Gate: PASSED — owner art sign-off 2026-10-08 (D51), rig timing passed.** The lane's record below is unchanged.
+
 **INCREMENTAL / EMPIRICAL; draft, not show-approved.** Worktree branch: `family/pulse`.
 Owner art approval and real-GPU timing remain separate requirements (D26–D31, D44–D48).
 

@@ -11,3 +11,5 @@ dist/
 .env.*
 !.env.example
 artifacts/
+# Owner's local music for beat-tracker evaluation; never committed (D41).
+songs/

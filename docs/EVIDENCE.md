@@ -2,6 +2,20 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-08 — Owner sign-off and first real-music beat check
+
+- Owner approved all six group 1–2 packets (D51); with rig timing passed, Feedback, Tapestry, Cathedral, Interference, Pulse Geometry and Fractal Flight pass the family gate.
+- `EMPIRICAL` `npm run beat:eval` on the owner's three produced tracks (MP3 via ffmpeg, local only, `songs/` ignored by Git). Tempos are steady and right; phase is not yet good enough:
+
+  | Track | Length | First lock | Locked | Tempo p10/p50/p90 | Phase vs kick: median / p90 | ≤ 20 ms |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Track A (house) | 5.9 min | 6.8 s | 98.1 % | 125.4 / 126.0 / 126.8 | 53 / 107 ms | 26 % |
+  | Track B (deep house) | 7.3 min | 6.9 s | 98.4 % | 123.8 / 124.0 / 124.2 | 10 / 74 ms | 68 % |
+  | Track C (house) | 6.3 min | 7.1 s | 98.1 % | 128.7 / 129.0 / 129.4 | 27 / 99 ms | 41 % |
+  | Synthetic kicks, 126 BPM (control) | 1.9 min | 6.7 s | 94.2 % | 126.0 | 8 / 11 ms | 99 % |
+
+  Phase is measured against the strongest low-band attack within ±120 ms of each predicted beat, a heuristic reference (busy basslines can pull it off the kick); the synthetic control shows its own offset is ~8 ms. Tempo jumps above 1 BPM: 29, 8 and 14. Against the < 20 ms target, automatic tracking does not yet qualify (D24); listening files: `artifacts/beat/*.clicks.wav`. These are produced tracks, not DJ mixes: relock after tempo changes and holding through a 32-bar breakdown are not tested by them.
+
 ## 2026-10-08 — Groups 1 and 2: family-gate packets
 
 - `EMPIRICAL` Six parallel lanes (Codex Sol 6.1 xhigh, one branch and worktree per family, headless SwiftShader, own ports) rebuilt failing types and wrote packets in `docs/families/`. Within-family grayscale distinctness at 480×270 (threshold 0.25), before → after: Feedback all six pairs 0.031–0.099 → min 0.288; Tapestry 3 near pairs → min 0.454; Cathedral 5 → min 0.262; Interference 2 → three types, min 0.331 (six compositions consolidated); Pulse 1 (0.238) → min 0.334; Flight 6 → min 0.377.

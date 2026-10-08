@@ -1,5 +1,7 @@
 # Cathedrals of Error — family sign-off packet
 
+**Gate: PASSED — owner art sign-off 2026-10-08 (D51), rig timing passed.** The lane's record below is unchanged.
+
 2026-10-08 · **INCREMENTAL / EMPIRICAL** · family/cathedral. Headless evidence is not owner approval or rig timing; the family remains a draft until both owner gates pass.
 
 ## Structural types

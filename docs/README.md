@@ -5,7 +5,7 @@
 
 ## Classification
 
-**INCREMENTAL / EMPIRICAL.** A product rebuild, not a research novelty claim. Seventeen scene modules are implemented (the sixteen planned families plus Evolution Garden until Acid absorbs it); none is a placeholder, and none has passed the family gate yet ([status](../ROADMAP.md#family-gate-status)). Mathematical/biological discovery, topology preservation, automatic musical understanding and cross-device exact replay are not claimed. State: production candidate; rig rehearsal and multi-hour endurance gates remain open.
+**INCREMENTAL / EMPIRICAL.** A product rebuild, not a research novelty claim. Seventeen scene modules are implemented (the sixteen planned families plus Evolution Garden until Acid absorbs it); none is a placeholder. Six have passed the family gate (Feedback, Tapestry, Cathedral, Interference, Pulse Geometry, Fractal Flight; [status](../ROADMAP.md#family-gate-status)); the rest are drafts. Mathematical/biological discovery, topology preservation, automatic musical understanding and cross-device exact replay are not claimed. State: production candidate; rig rehearsal and multi-hour endurance gates remain open.
 
 ## How a show runs
 
@@ -51,6 +51,7 @@ Simulation runs on a fixed 60 Hz clock with at most six catch-up ticks per frame
 - **Rehearsal log:** per-minute frame timing (p50/p95/p99), errors, memory, budget, scene and tempo lock, exported from the pre-show panel.
 - **Contact sheets** (`npm run contact`): looks, energy ladders (`--sheet ladder`) and grayscale distinctness of each family's types (`--sheet types`).
 - **Family timing** (`npm run timing -- --rig --family <id>`): every type at energy 0.95 for 30 s on the real stage at 1920×1080 (2.1 MP); per-type frame p50/p95/p99, GPU errors, non-finite inputs and governor steps. Passes only on the real GPU with every p99 ≤ 34 ms and no downgrade. Run it alone: other GPU load corrupts the timing.
+- **Beat tracking check** (`npm run beat:eval -- songs/*.mp3 [--clicks]`): first lock, share of time locked, tempo spread, tempo jumps and phase against the nearest kick attack (a heuristic reference that reads ~8 ms on synthetic kicks). `--clicks` writes the music with a click on every predicted beat to `artifacts/beat/` for listening. Put music in `songs/`; Git ignores it.
 - **Offline:** all assets are precached as one content-stamped generation. A new release waits until every Phosphor window is closed. Never update mid-show.
 
 ## Release operations

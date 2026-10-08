@@ -1,5 +1,7 @@
 # Causal Tapestry — family sign-off packet
 
+**Gate: PASSED — owner art sign-off 2026-10-08 (D51), rig timing passed.** The lane's record below is unchanged.
+
 **2026-10-08 · INCREMENTAL / EMPIRICAL · draft until owner art approval and isolated real-GPU timing.** Headless captures are correctness/art-review evidence, not performance evidence or artistic sign-off. Scope: `scene-tapestry.mjs` and `tests/tapestry-gate.test.mjs`; exact CA evolution and recorded-history reverse playback are unchanged.
 
 ## Structural types (`scene.type`: `seedShape` 0–3)
