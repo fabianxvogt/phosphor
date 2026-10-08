@@ -16,7 +16,10 @@ import {
 } from "./browser-runtime.mjs";
 import { renderLook, readStage } from "../tests/browser/client.mjs";
 
-const args = options({ frames: { type: "string", default: "20" } });
+const args = options({
+  frames: { type: "string", default: "20" },
+  only: { type: "string" }, // "lab" or "show" while iterating
+});
 if (args.rig)
   throw new Error("test:browser is always headless correctness-only");
 await outputDirectory("browser", args.out);
@@ -35,70 +38,81 @@ try {
   runtime = await launch();
   console.log(`Chrome ${runtime.version}; software GPU; no timing gates`);
 
-  // --- render lab ---------------------------------------------------------
-  const lab = await openLab(runtime.browser, server.url);
-  const looks = await lookList(lab.page);
-  for (const look of looks) {
-    const r = await deadline(
-      lab.page.evaluate(renderLook, { ...look, frames, capture: false }),
-      180000,
-      look.name,
-    );
-    assert.ok(
-      !r.health.pending && r.health.mean > 0.5,
-      `${look.sceneId}/${look.name} is blank (${r.health.mean})`,
-    );
-    assert.equal(r.glError, 0, `${look.name}: WebGL error`);
-    assert.equal(r.nonFinite, 0, `${look.name}: non-finite input`);
-    assert.equal(
-      r.stats.liveTextures,
-      r.stats.textures,
-      `${look.name}: unaccounted textures`,
-    );
-  }
-  pass(
-    `all ${looks.length} looks render · WebGL 0 · non-finite 0 · textures accounted`,
-  );
-
-  const families = [...new Set(looks.map((l) => l.sceneId))];
-  for (const sceneId of families)
-    for (const level of [0.05, 0.95]) {
-      const r = await lab.page.evaluate(renderLook, {
-        sceneId,
-        level,
-        frames,
-        capture: false,
-      });
-      assert.equal(r.nonFinite, 0, `${sceneId} at energy ${level}: non-finite`);
-      assert.equal(r.glError, 0, `${sceneId} at energy ${level}: WebGL error`);
+  if (args.only !== "show") {
+    // --- render lab ---------------------------------------------------------
+    const lab = await openLab(runtime.browser, server.url);
+    const looks = await lookList(lab.page);
+    for (const look of looks) {
+      const r = await deadline(
+        lab.page.evaluate(renderLook, { ...look, frames, capture: false }),
+        180000,
+        look.name,
+      );
+      assert.ok(
+        !r.health.pending && r.health.mean > 0.5,
+        `${look.sceneId}/${look.name} is blank (${r.health.mean})`,
+      );
+      assert.equal(r.glError, 0, `${look.name}: WebGL error`);
+      assert.equal(r.nonFinite, 0, `${look.name}: non-finite input`);
+      assert.equal(
+        r.stats.liveTextures,
+        r.stats.textures,
+        `${look.name}: unaccounted textures`,
+      );
     }
-  pass("every family stays finite at the energy extremes");
-
-  for (const sceneId of families) {
-    const stats = await lab.page.evaluate(async (id) => {
-      const { engine, scenes, presetSnapshot } = window.__phosphorLab;
-      engine.load(presetSnapshot(scenes.find((s) => s.id === id)), 0.1);
-      await engine.ready(id);
-      for (let i = 0; i < 400 && engine.transition; i++)
-        engine.advance(1 / 60, false);
-      return {
-        ...engine.stats(),
-        transition: !!engine.transition,
-        error: engine.gl.getError(),
-      };
-    }, sceneId);
-    assert.equal(stats.transition, false, `${sceneId}: fade never finished`);
-    assert.equal(stats.slots, 1);
-    assert.equal(
-      stats.liveTextures,
-      stats.textures,
-      `${sceneId}: leaked textures after fade`,
+    pass(
+      `all ${looks.length} looks render · WebGL 0 · non-finite 0 · textures accounted`,
     );
-    assert.equal(stats.error, 0);
+
+    const families = [...new Set(looks.map((l) => l.sceneId))];
+    for (const sceneId of families)
+      for (const level of [0.05, 0.95]) {
+        const r = await lab.page.evaluate(renderLook, {
+          sceneId,
+          level,
+          frames,
+          capture: false,
+        });
+        assert.equal(
+          r.nonFinite,
+          0,
+          `${sceneId} at energy ${level}: non-finite`,
+        );
+        assert.equal(
+          r.glError,
+          0,
+          `${sceneId} at energy ${level}: WebGL error`,
+        );
+      }
+    pass("every family stays finite at the energy extremes");
+
+    for (const sceneId of families) {
+      const stats = await lab.page.evaluate(async (id) => {
+        const { engine, scenes, presetSnapshot } = window.__phosphorLab;
+        engine.load(presetSnapshot(scenes.find((s) => s.id === id)), 0.1);
+        await engine.ready(id);
+        for (let i = 0; i < 400 && engine.transition; i++)
+          engine.advance(1 / 60, false);
+        return {
+          ...engine.stats(),
+          transition: !!engine.transition,
+          error: engine.gl.getError(),
+        };
+      }, sceneId);
+      assert.equal(stats.transition, false, `${sceneId}: fade never finished`);
+      assert.equal(stats.slots, 1);
+      assert.equal(
+        stats.liveTextures,
+        stats.textures,
+        `${sceneId}: leaked textures after fade`,
+      );
+      assert.equal(stats.error, 0);
+    }
+    pass("every family fade returns to one slot with no leaked textures");
+    assert.deepEqual(lab.errors, []);
+    await lab.context.close();
   }
-  pass("every family fade returns to one slot with no leaked textures");
-  assert.deepEqual(lab.errors, []);
-  await lab.context.close();
+  if (args.only === "lab") process.exit(0);
 
   // --- show: control + stage ------------------------------------------------
   const show = await openShow(runtime.browser, server.url);
