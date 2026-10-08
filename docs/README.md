@@ -5,7 +5,7 @@
 
 ## Classification
 
-**INCREMENTAL / EMPIRICAL.** A product rebuild, not a research novelty claim. All ten scene modules are implemented; none is a placeholder. Mathematical/biological discovery, topology preservation, automatic musical understanding and cross-device exact replay are not claimed. State: production candidate; the Milestone 1 rig rehearsal and multi-hour endurance gates remain open.
+**INCREMENTAL / EMPIRICAL.** A product rebuild, not a research novelty claim. Seventeen scene modules are implemented (the sixteen planned families plus Evolution Garden until Acid absorbs it); none is a placeholder, and none has passed the family gate yet ([status](../ROADMAP.md#family-gate-status)). Mathematical/biological discovery, topology preservation, automatic musical understanding and cross-device exact replay are not claimed. State: production candidate; rig rehearsal and multi-hour endurance gates remain open.
 
 ## How a show runs
 
@@ -15,7 +15,8 @@ The **stage** window owns the show: renderer, show controller, clock, autopilot,
 - **Clock:** one monotonic beat. Following audio, it steers toward the tracker with slew-limited, forward-only corrections and holds tempo and phase through breakdowns; nudges set a latency offset. Taps switch to manual tempo. Enter marks beat 1 of the bar. Beat tracking assumes 4/4 at 100–150 BPM (half and double tempo fold in).
 - **Autopilot:** plays allowed clips on the current page every 16/32/64 bars, never repeats the last six, and on loudness events raises energy (build), cuts to a higher-energy clip on the downbeat (drop) or lowers energy, halves speed and later moves to a calmer clip (breakdown). It never changes master, blackout, flash or page.
 - **Energy:** each family declares how its parameters move from calm to intense (additive or multiplicative slopes from the clip's own base energy) and which shared beat responses it takes: zoom punch and brightness pulse on the kick, optional injection into simulations. Flashes unlock above energy 0.8 and always pass the flash limiter.
-- **Screens:** the stage renders at the screen's native size within a pixel budget (2.1 / 1 / 0.5 MP). Math and raymarched families compose natively; simulation families render a 16:9 frame that is cover-cropped to any other shape. Frames are paced at about 60 Hz whatever the display's refresh rate; the budget only steps down after two slow five-second windows.
+- **Screens:** the stage renders at the screen's native size within a pixel budget (2.1 / 1 / 0.5 MP). Math and raymarched families compose natively; simulation families render a 16:9 frame that is cover-cropped to any other shape. Frames are paced at about 60 Hz whatever the display's refresh rate. Two consecutive slow five-second windows first lower a raymarched family's step budget (96 → 64 → 40, remembered per family), then the pixel budget; nothing steps back up during a night, and the rehearsal log counts both.
+- **Pre-show check:** the stage reports whether it is started, fullscreen on an external screen, holding a wake lock and has shown the framing pattern; the control adds microphone permission, input signal, beat lock or manual tempo and GPU errors, plus a manual list (mains power, Do Not Disturb, sleep, Chrome's quit warning, screen resolution). Entering Show mode lists every item not yet ok in its confirmation.
 
 ## Scene families
 
@@ -31,16 +32,24 @@ The **stage** window owns the show: renderer, show controller, clock, autopilot,
 | 54 Topological Melt         | Projected parametric knots and ribbons with periodic motion, static mode and six materials; crossings can occur, knot preservation is not claimed.       |
 | 55 Phase Transition Theatre | Encoded Kuramoto phase lattice with six regimes and three authored arcs; no fabricated hysteresis or phase-transition theorem.                           |
 | 56 Evolution Garden         | Gray–Scott garden plus shared immutable preset breeding: deterministic bounded mutation, exact parameter locks, ancestry, selection and generation undo. |
+| 57 Pulse Geometry           | Hard-edged emissive geometry: sweeping bars, square tunnel, perspective grid horizon, radial shards; beat-stepped travel with quarter-cycle snaps.          |
+| 58 Light Beams              | Laser fans and searchlights in haze: fan from below, floor pillars, corner crossfire, rotating starburst; beat chase switches beams as energy rises.      |
+| 59 Julia Observatory        | Julia filaments whose parameter travels the Mandelbrot boundary; quadratic, cubic, burning-ship and four-fold mirror maps. Port of the v6 idea.          |
+| 60 Fractal Flight           | Flight through a recursive sponge along four authored camera paths (corridor, corkscrew, shaft, inner tunnels); capped ray steps. Port of the v6 idea.   |
+| 61 Fourth Dimension         | Tesseract, 16-cell, 24-cell and 6×6 duoprism wireframes rotating in four planes, projected 4D → 2D; colour follows w. Port of the v6 idea.              |
+| 62 Hyperbolic Loom          | {7,3}, {5,4}, {4,5} and {3,8} tilings in the Poincaré disk under Möbius drift, by reflection folding. Port of the v6 idea.                               |
+| 63 Particle Swarm           | 65,536 GPU particles over fading trails: curl-noise flock, de Jong attractor cloud, sheared galaxy, kick bursts; 16-bit packed positions.                 |
 
 ## Performance and recovery
 
-Simulation runs on a fixed 60 Hz clock with at most six catch-up ticks per frame; the speed trim scales it (½×, 2×). Crossfades keep at most two slots, then dispose the old one; the engine counts every texture it creates and the harness checks none leak. Each family compiles in parallel; one failed shader disables that family only. A frame error loads the safe look instead of stopping the show. WebGL context loss rebuilds resources and restarts the latest seed.
+Simulation runs on a fixed 60 Hz clock with at most six catch-up ticks per frame; the speed trim scales it (½×, 2×). Crossfades keep at most two slots, then dispose the old one; the engine counts every texture it creates and the harness checks none leak. Each family compiles in parallel. A family whose shaders fail is isolated, not fatal: the show never schedules it again, the control grid strikes its clips through, and if it was on screen the stage cuts to a playable clip on the page (else the safe look, else any page; with nothing playable, blackout). A frame error loads the safe look instead of stopping the show. WebGL context loss rebuilds resources and restarts the latest seed.
 
 ## Save and export
 
 - **Sets:** saved locally on every edit (never during playback) and exported as `.phosphor.json`. Export before rehearsal and before the show.
 - **Rehearsal log:** per-minute frame timing (p50/p95/p99), errors, memory, budget, scene and tempo lock, exported from the pre-show panel.
 - **Contact sheets** (`npm run contact`): looks, energy ladders (`--sheet ladder`) and grayscale distinctness of each family's types (`--sheet types`).
+- **Family timing** (`npm run timing -- --rig --family <id>`): every type at energy 0.95 for 30 s on the real stage at 1920×1080 (2.1 MP); per-type frame p50/p95/p99, GPU errors, non-finite inputs and governor steps. Passes only on the real GPU with every p99 ≤ 34 ms and no downgrade. Run it alone: other GPU load corrupts the timing.
 - **Offline:** all assets are precached as one content-stamped generation. A new release waits until every Phosphor window is closed. Never update mid-show.
 
 ## Release operations

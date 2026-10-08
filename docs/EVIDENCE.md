@@ -2,6 +2,15 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-08 — Platform integration for the first show
+
+- `EMPIRICAL` Merged `lane/image-pipeline` review fixes R1–R6 (flash tracking, black frames, context-loss fence, readback order); dead frame-sequence/offline export path removed (D35). 130/130 unit tests, typecheck, build and `check:dist` (46 assets) pass.
+- `EMPIRICAL` Headless Chrome 156 (SwiftShader) `test:browser`: every look renders non-blank with WebGL error 0, non-finite 0 and textures accounted; every family fade returns to one slot; all 10 show checks pass. Two defects found and fixed on the way: Light Beams "Crossfire" aimed both banks off-screen (peak 6/255 before, 211 after; also failing at `aef4269`), and the control rebuilt the shared faders on every status message, so a slider could vanish under focus or pointer (the Esc-under-slider check timed out at `aef4269` too).
+- `EMPIRICAL` Throwaway stage smoke (SwiftShader): a forced link failure of the on-screen Acid clip disabled Acid, cut the stage to a Magnetic clip on the same page, struck Acid's three cells through in the grid, and a later press on an Acid key scheduled nothing; page errors 0. Shader introspection marks only Cathedral and Fractal Flight as raymarched; a per-family step budget of 40 reached the engine on load. The stage reported fullscreen, wake lock and framing-pattern facts; the Show-mode confirmation listed every check not ok.
+- `EMPIRICAL` Real GPU (Chrome, ANGLE Metal, M3 Pro, built-in display, other apps running): `npm run timing -- --rig --family cathedral --seconds 10` at 1920×1080, energy 0.95: all four geometry types p50 16.7 ms, p99 17.6 ms, GPU errors 0, no step reduction or downgrade. A 10 s smoke of the runner, not the 30 s gate run; Cathedral's types may still change in its lane.
+- `EMPIRICAL` The stage/control soak runner (`6ab5c33` onward) judged GPU errors, non-finite inputs and downgrades after its crash-drill reload, i.e. on a fresh page; it now reads them before the reload. Soaks from that runner before this fix verified those counters only for the post-reload seconds.
+- `EMPIRICAL` On the real GPU the control reported "stage already running" for the first two seconds after load (its status clock started at 0), so a quick Open stage click did nothing; fixed. Chrome logs repeated "READ-usage buffer was written, then fenced, but written again before being read back" performance warnings from the control window's preview engine; not yet investigated.
+
 ## 2026-10-08 — Milestone 1 start
 
 - `EMPIRICAL` Critical review in four independent lanes (fork comparison, app code review, engine/shader review, live browser audit): 12/12 unit tests, build and `check:dist` pass; 24 presets inspected live on Chrome 154 / ANGLE Metal / M3 Pro with no console errors and WebGL error 0. Artist scores: Cathedral 4/5, Magnetic and Phase 2/5, the rest 3/5; no look is a finished hero look.

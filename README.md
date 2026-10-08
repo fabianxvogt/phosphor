@@ -1,3 +1,14 @@
+<!-- portfolio
+{
+  "title": "Phosphor",
+  "topic": "Creative tools/Generative art",
+  "type": "product",
+  "description": "A browser VJ instrument for DJ sets: generative GPU families on a keyboard clip grid with a beat-following autopilot. The linked demo is a frozen earlier build.",
+  "demo": "https://phosphor-performance.vercel.app/",
+  "featured": true
+}
+-->
+
 # Phosphor
 
 A browser VJ instrument for other people's DJ sets: GPU-simulated generative families on a 4×8 keyboard clip grid, an autopilot that follows the music, beat tracking from the booth feed, and a stage window that keeps playing if the controls crash. Everything runs locally in Chrome.

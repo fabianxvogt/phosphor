@@ -65,3 +65,11 @@ Decisions from the owner interview on 2026-10-08. Each entry records the decisio
 - **D41 · Process:** platform changes one at a time on `main`; after contract v3, families in parallel branches, each merged only after passing its gate. CI covers unit tests, synthetic beat tests and headless render smoke; mixes, soaks and sign-off stay local. *Why:* platform contracts must settle before families build on them.
 - **D42 · Schedule:** as in the roadmap, with a checkpoint on 2026-11-11 (fewer than three group 1 families passing → group 2 leaves first-show scope; Melt and Acid move up).
 - **D43 · v6 set import:** only if the owner has v6 sets worth keeping; otherwise skipped.
+
+## Follow-up interview, 2026-10-08
+
+- **D44 · Flash-limiter cost:** the earlier 0.3 ms/frame target is dropped; the family gate's frame p99 ≤ 34 ms on the rig is the binding limit, and the limiter is optimized only if a family misses it. *Why:* the limiter costs 0.8–1.0 ms but every family still renders in ≤ ~6 ms; the gate measures what the audience sees.
+- **D45 · Governor order:** a raymarched family lowers its ray steps (96 → 64 → 40, per family) before the pixel budget drops; both count as downgrades under the show gate. *Why:* fewer steps are less visible on an LED wall than a softer picture.
+- **D46 · Failed families are skipped:** a family whose shaders fail is never scheduled again and is cut away from if on screen; the show keeps playing. *Why:* one driver or shader fault must not end the night.
+- **D47 · Ungated families stay as drafts:** families committed before passing the gate stay in the tree; gate status is tracked in the roadmap and only gated families go into the show set. *Why:* status decides what plays, not branch location; no branch churn.
+- **D48 · Family lanes:** group 1 runs as four parallel lanes (one branch and worktree per family); a lane may rebuild failing types until at least three pass, then sends the owner a sign-off packet; group 2 follows in queue order, at most five lanes at once. Real-GPU timing runs one at a time on the rig. *Why:* families are independent once contract v3 is on `main`; GPU timing is only valid without competing load.

@@ -14,6 +14,10 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 - **Output:** the output window renders at the screen's native size and shape (≈2.1 MP budget) and owns show state, audio, beat tracking and autopilot; the control window is a remote with a preview. Full restore after a crash in ≤ 10 s.
 - **Visuals:** 16 families, 3–4 structurally distinct types each, every type spanning very low to very high energy (Aquarium is the only calm-only family). Shared kick responses for every family.
 
+## Now (2026-10-08)
+
+Platform for the first show is implemented on `main` and waits for rig verification: stage renderer and remote control, keyboard grid and pages, Show/Prep, tap/downbeat/nudge, energy and shared beat responses, flash limiter, crash restore, pre-show check, telemetry, cover-crop, bar-count autopilot, failed-family isolation and the ray-step-first governor ([decisions D44–D48](docs/DECISIONS.md#follow-up-interview-2026-10-08)). Group 1 families are in parallel lanes; group 2 follows. Owner inputs pending: 5–10 recorded mixes in `~/Development/phosphor-mixes`, family sign-offs, rig runs with the external display.
+
 ## Milestone 1 — first show
 
 | Weeks | Dates | Work |
@@ -50,13 +54,26 @@ v6 families are ported as ideas, not Canvas2D code: new GPU scenes on contract v
 
 At least three types that pass the grayscale distinctness sheet (same palette, mid energy; structural metric flags near pairs, including across families) and owner sign-off; an owner-approved energy ladder (0.1 / 0.5 / 0.9) for every type; frame p99 ≤ 34 ms on the reference rig at the 1080p-equivalent budget with the costliest type at full energy; GPU error zero and no non-finite shader inputs; correct at 16:9, ultra-wide and square; kick response through the shared beat layer. A family merges only after it passes.
 
+### Family gate status
+
+Every family below is a draft until it passes (D47). Packets: `docs/families/<id>.md`.
+
+| Group | Family | Status |
+| --- | --- | --- |
+| 1 | Cathedral, Interference, Feedback, Tapestry | in lanes |
+| 2 | Pulse Geometry, Fractal Flight | draft; lanes start as group 1 lanes finish |
+| 3 | Melt, Acid (+ garden type) | draft |
+| 4 | Light Beams, Particle Swarm | draft |
+| 5 | Julia Observatory, Fourth Dimension, Hyperbolic Loom | draft |
+| 6 | Magnetic, Phase (reworks), Aquarium | draft |
+
 ### Show gate
 
 Eight hours unattended on the M3 Pro (mains power, Chrome, external display at native resolution), recorded mixes through the line input, autopilot on: zero crashes and manual recoveries; frame p99 ≤ 34 ms; no quality downgrade after the first ten minutes; heap growth ≤ 50 MB; blackout reaches the output within two frames, measured at the output; crash drill back on screen in ≤ 10 s with ≤ 2 clicks; beat-tracking targets met if it ships; one line check with a real DJ mixer feed.
 
 ### How work runs
 
-Platform changes go one at a time on `main`, because they change contracts every scene depends on. After contract v3, families run in parallel branches, one family per branch. Claude builds, tests and produces contact sheets and ladders; the owner provides mixes, art sign-off and rig runs. CI runs unit tests, synthetic click-track beat tests and a headless render smoke of shipped families; mixes, soaks and ladder sign-off run locally and never enter the repo.
+Platform changes go one at a time on `main`, because they change contracts every scene depends on. After contract v3, families run in parallel branches, one family per branch. Claude builds, tests and produces contact sheets, ladders and headless correctness; real-GPU family timing (`npm run timing -- --rig`) runs one family at a time on the rig; the owner provides mixes, art sign-off and show-gate rig runs. CI runs unit tests, synthetic click-track beat tests and a headless render smoke of shipped families; mixes, soaks and ladder sign-off run locally and never enter the repo.
 
 ## After the first show
 
@@ -72,3 +89,4 @@ Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PN
 - Cue scores with keyframes, quantized GO, director mode; audio/MIDI routing and clock; clean projector output; PNG/WebM/frame-sequence export; strict portable v2 sets with v1 migration and recovery backup; content-stamped offline cache.
 - Public Vercel release with hosted all-family, offline, 390 px and output checks (see evidence log).
 - 2026-10-08: critical review; `main` became canonical; Pages mirror retired; v6 source frozen and tagged `archive/v6-canvas`; owner interview set the VJ direction above.
+- 2026-10-08: lanes merged (test harness, image pipeline incl. review fixes R1–R6, app core); show core, stage/control split and contract v3; beat tracker with synthetic tests; seven new or ported families as drafts; failed-family isolation, ray-step-first governor, pre-show facts, family timing runner; soak counters judged before the crash drill; leftover frame-sequence export code removed. Evidence: [log](docs/EVIDENCE.md).
