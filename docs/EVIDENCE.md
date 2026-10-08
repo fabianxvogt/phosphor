@@ -8,6 +8,7 @@ Append-only, newest first. Each entry records what was executed and observed, la
 - Installed-Chrome smoke measured the real signal at nodes connected to `AudioContext.destination`, not just UI flags: local demo RMS 0.0713 with only the control window open; Off yielded exact zero and stayed silent after another grid click; mute reduced destination RMS below 0.00001; unmute restored signal. Repeated activation reused one local context.
 - Stage handoff: local destination signal was zero while the stage produced RMS 0.0106; after closing the stage, the local demo resumed. Zero page errors. Measurement confirms a live speaker-output signal, not physical speaker volume or a human listening assessment.
 - Verification: 144 tests passed, four opt-in browser probes skipped; typecheck, build, distribution/offline verification and format check passed. Distribution revision `d68a4c606536af15`.
+- Deployed source `d9fb1de` to [production](https://phosphor-performance.vercel.app/) as `dpl_YEGG67up52aGtdpcdvhpdoPSMo3h` (READY). Fresh-Chrome public-URL smoke passed the same activation, Off, mute, stage-handoff and resume checks: local RMS 0.1513, stage RMS 0.0936, local silence during stage ownership, zero page errors.
 
 ## 2026-10-08 — Selected visual preview without a stage
 
