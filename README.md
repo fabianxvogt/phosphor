@@ -24,15 +24,17 @@ npm run preview   # http://localhost:48101 (built, offline-capable)
 
 Microphone, MIDI, the offline cache and screen placement need HTTPS or localhost.
 
-## Prepare (Prep mode)
+## Prepare and play
 
-1. **Fill the grid.** The main preview animates the selected visual immediately, without opening the stage. Click a slot, pick a family and look, tune it in the editor, set its energy, fade, when it starts (next beat, next bar, immediately) and whether autopilot may play it, then **Save to slot**. Once the stage opens, the main preview shows its live output; the editor keeps its own preview. Closing the stage restores the selected visual in the main preview. **Variations** breeds six nearby looks to pick from. Use pages as moods for the night — warm-up, peak, closing.
+1. **Fill the grid.** The main preview animates the selected visual immediately, without opening the stage. All performance controls work locally: master, energy, hue, zoom, mirror, family faders, speed, autopilot, Random, blackout, safe look, freeze, flash and tempo. Click a slot, pick a family and look, tune it in the editor, set its energy, fade, when it starts (next beat, next bar, immediately) and whether autopilot may play it, then **Save to slot**. **Variations** breeds six nearby looks to pick from. Use pages as moods for the night — warm-up, peak, closing.
    **Hear the demo:** the control window starts the 120 BPM demo after your first click or key press; no stage is needed. **Off** keeps it silent until you choose **Demo beat** again; **Mute file/demo** mutes the local demo. Opening the stage stops the local demo so only the stage owns audio. Closing the stage resumes the local demo if it was still selected.
-2. **Open stage.** It opens on the second screen when Chrome may place windows; otherwise drag it to the projector. A fresh stage plays straight away in the default mode: the **demo beat at 120 BPM**, autopilot on, **Random** on. Chrome holds the sound until the first click or key on the stage — **click once on the stage**: that also goes fullscreen.
+2. **Open stage.** It opens on the second screen when Chrome may place windows; otherwise drag it to the projector. It takes over your local playing look and performance controls, including unsaved live tweaks. The main preview switches to live output; the editor stays available. Click once on the stage to enable its audio and go fullscreen. Closing the stage resumes local performance from its last reported state.
 3. **Audio.** **Use input** for the line feed from the DJ mixer (booth or record out into a USB interface) — analysed only, never played. **Rehearse with file** or **Demo beat** at home. The stage remembers the source across reloads; mute the demo or switch to the line input before doors.
 4. **Pre-show check** — tick the list, show the **framing pattern** on the venue screen, and **export the set**.
 
-## Play (Show mode)
+## Performance and settings lock
+
+Grid clicks and keys trigger clips on the stage whenever it is connected. Clip, set, audio and MIDI configuration stays editable with or without a stage. **Lock settings** in the top bar is optional, available only while a stage is connected and off by default. It disables configuration without hiding it; the grid, performance controls, **Play selected clip**, set export and pre-show checklist remain usable. Unlock it whenever you need to edit. Closing the stage automatically unlocks settings.
 
 Autopilot plays the clips on the current page, changes every 32 bars on a bar line and reacts to breakdowns, builds and drops. Its changes always crossfade (at least two bars; drops one bar). With **Random** on (default) it picks a random clip and lets the playing clip's parameters glide slowly around their saved values; off, it walks the page in slot order and leaves parameters alone. Anything you trigger takes over; control returns after 32 bars without input. Switching pages steers the night.
 

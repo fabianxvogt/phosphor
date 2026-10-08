@@ -216,7 +216,7 @@ try {
   );
   pass("P toggles autopilot");
 
-  // Set edits in Prep reach the stage.
+  // Set edits remain available while the stage is connected.
   const name = `Harness ${Date.now()}`;
   await control.locator("#setFields input").first().fill(name);
   await control.locator("#setFields input").first().dispatchEvent("change");
@@ -226,7 +226,7 @@ try {
     name,
     "set edit reaches the stage",
   );
-  pass("Prep edits reach the stage");
+  pass("configuration edits reach the stage");
 
   // Control reload: the stage keeps rendering and the control reconnects.
   // Leave the text field: typing there must not trigger clips.

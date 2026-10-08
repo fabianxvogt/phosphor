@@ -5,6 +5,7 @@
 import scenes from "./scenes.mjs";
 import { Engine } from "./engine.mjs";
 import { Show } from "./show.mjs";
+import { performanceState, restorePerformance } from "./control-preview.mjs";
 import { validateShowSet, PIXEL_BUDGETS } from "./show-set.mjs";
 import { presetSnapshot } from "./session.mjs";
 import { StageAudio } from "./stage-audio.mjs";
@@ -266,6 +267,7 @@ function sendStatus(t, ms) {
   post({
     type: "status",
     status: show.status(t),
+    performance: performanceState(show, t),
     stage: {
       started,
       width: engine.width,
@@ -305,6 +307,10 @@ channel.onmessage = async ({ data }) => {
     switch (data?.type) {
       case "hello":
         attachPreview();
+        sendStatus(t, performance.now());
+        break;
+      case "preview-state":
+        apply(restorePerformance(show, data.state, t));
         sendStatus(t, performance.now());
         break;
       case "action":

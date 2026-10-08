@@ -19,7 +19,13 @@
       <span class="pill" id="stagePill">Stage not open</span>
       <span class="pill" id="audioPill">Audio off</span>
       <button id="openStage" class="accent">Open stage ↗</button>
-      <button id="modeButton">Enter Show mode</button>
+      <label
+        class="settings-lock"
+        title="Lock clip, set, audio and MIDI configuration while the stage is connected"
+      >
+        <input id="settingsLock" type="checkbox" role="switch" disabled />
+        Lock settings
+      </label>
     </header>
     <div
       class="confirm"
@@ -111,11 +117,9 @@
             aria-label="Pages (Shift + 1–8)"
           ></div>
           <div class="grid" id="grid"></div>
-          <p class="note show-only">
-            Keys trigger clips on the current page. Shift + 1–8 switches pages.
-          </p>
-          <p class="note prep-only">
-            Prep: click a slot to edit it. Keys still trigger clips.
+          <p class="note">
+            Click a slot to preview it here; with the stage open, it also plays
+            live. Settings stay editable unless you enable Lock settings.
           </p>
         </section>
       </div>
@@ -154,7 +158,7 @@
           <h2 id="familyTitle">Family</h2>
           <div class="faders" id="family"></div>
         </section>
-        <section class="panel prep-only" aria-label="Clip editor">
+        <section class="panel settings-controls" aria-label="Clip editor">
           <h2 id="editorTitle">Clip</h2>
           <canvas
             id="editorCanvas"
@@ -165,7 +169,7 @@
           <div class="fields" id="editor" style="margin-top: 10px"></div>
           <div class="row" style="margin-top: 10px">
             <button id="saveClip" class="accent">Save to slot</button>
-            <button id="auditionClip">Play on stage</button>
+            <button id="auditionClip">Play selected clip</button>
             <button id="breedClip">Variations</button>
             <button id="clearClip">Clear slot</button>
           </div>
@@ -175,7 +179,7 @@
             style="grid-template-columns: repeat(3, 1fr); margin-top: 8px"
           ></div>
         </section>
-        <section class="panel prep-only" aria-label="Set">
+        <section class="panel settings-controls" aria-label="Set">
           <h2>Set</h2>
           <div class="fields" id="setFields"></div>
           <div class="row" style="margin-top: 10px">
@@ -189,7 +193,7 @@
           </div>
           <ul class="log" id="importReport"></ul>
         </section>
-        <section class="panel prep-only" aria-label="Audio">
+        <section class="panel settings-controls" aria-label="Audio">
           <h2>Audio</h2>
           <div class="fields">
             <label class="field"
@@ -215,7 +219,7 @@
             Line input is analysed only and never sent to the speakers.
           </p>
         </section>
-        <section class="panel prep-only" aria-label="Pre-show check">
+        <section class="panel" aria-label="Pre-show check">
           <h2>Pre-show check</h2>
           <div id="checks"></div>
           <div class="row" style="margin-top: 8px">
@@ -223,7 +227,7 @@
             <button id="exportLog">Export rehearsal log</button>
           </div>
         </section>
-        <section class="panel prep-only" aria-label="MIDI">
+        <section class="panel settings-controls" aria-label="MIDI">
           <h2>MIDI</h2>
           <div class="row">
             <button id="midiConnect">Connect MIDI</button>

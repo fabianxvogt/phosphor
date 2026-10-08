@@ -466,9 +466,17 @@ kbd {
   padding: 10px 14px;
   z-index: 10;
 }
-body.show-mode .prep-only {
-  display: none !important;
+.settings-lock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12px;
 }
-body:not(.show-mode) .show-only {
-  display: none !important;
+.settings-lock:has(input:disabled) {
+  color: var(--muted);
+}
+.settings-controls input:disabled,
+.settings-controls select:disabled {
+  opacity: 0.55;
 }

@@ -8,15 +8,15 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 
 ## Product shape
 
-- **Play:** 4×8 clip grid on the keyboard (physical key positions, so QWERTZ works), eight pages. Show mode has no editors; Prep mode has everything. A fresh stage plays at once: demo beat at 120 BPM, autopilot in Random mode (random clips, parameters gliding around their saved values, every change crossfaded; D49, D50). Any manual trigger takes over and hands back after 32 idle bars.
-- **Controls:** shared master, energy, speed trim (½×/1×/2×), hue, zoom, mirror and flash (through the limiter); three family controls on stage, all eight in Prep. A clip stores its look, base energy, fade, quantize and autopilot flag.
+- **Play:** 4×8 clip grid on the keyboard (physical key positions, so QWERTZ works), eight pages. Configuration stays accessible; an optional stage-only settings lock protects it without disabling performance (D52). Local preview plays at 120 BPM with autopilot and Random on; opening the stage transfers the current performance. Autopilot changes always crossfade (D49, D50). Any manual trigger takes over and hands back after 32 idle bars.
+- **Controls:** shared master, energy, speed trim (½×/1×/2×), hue, zoom, mirror and flash (through the limiter); three live family faders and all parameters in the editor. Performance controls work on the local preview without a stage and on live output with one. A clip stores its look, base energy, fade, quantize and autopilot flag.
 - **Timing:** line feed from the DJ mixer. Automatic tempo and beat phase, downbeat by key, builds/drops/breakdowns from loudness. Tap, downbeat and nudge always work alone. Techno/house, 100–150 BPM.
 - **Output:** the output window renders at the screen's native size and shape (≈2.1 MP budget) and owns show state, audio, beat tracking and autopilot; the control window is a remote with a preview. Full restore after a crash in ≤ 10 s.
 - **Visuals:** 16 families, 3–4 structurally distinct types each, every type spanning very low to very high energy (Aquarium is the only calm-only family). Shared kick responses for every family.
 
 ## Now (2026-10-08)
 
-Platform for the first show is implemented on `main` and waits for rig verification: stage renderer and remote control, keyboard grid and pages, Show/Prep, tap/downbeat/nudge, energy and shared beat responses, flash limiter, crash restore, pre-show check, telemetry, cover-crop, bar-count autopilot with the Random default mode (D49, D50), failed-family isolation and the ray-step-first governor ([decisions D44–D51](docs/DECISIONS.md#follow-up-interview-2026-10-08)). **Six families have passed the family gate** (groups 1 and 2, owner sign-off D51): the first-show minimum; "two strong at peak time" is judged at the rig rehearsal. Automatic beat tracking now meets its phase target on the owner's three produced tracks (94–100 % of beats within 20 ms, tempo exact; [evidence](docs/EVIDENCE.md)); it still needs DJ mixes with tempo changes and breakdowns before it can ship (D24). Owner inputs pending: such mixes in `songs/` (ignored by Git), rig runs with the external display.
+Platform for the first show is implemented on `main` and waits for rig verification: stage renderer and remote control, keyboard grid and pages, unified local/live performance with an optional settings lock (D52), tap/downbeat/nudge, energy and shared beat responses, flash limiter, crash restore, pre-show check, telemetry, cover-crop, bar-count autopilot with the Random default mode (D49, D50), failed-family isolation and the ray-step-first governor ([decisions](docs/DECISIONS.md#follow-up-interview-2026-10-08)). **Six families have passed the family gate** (groups 1 and 2, owner sign-off D51): the first-show minimum; "two strong at peak time" is judged at the rig rehearsal. Automatic beat tracking now meets its phase target on the owner's three produced tracks (94–100 % of beats within 20 ms, tempo exact; [evidence](docs/EVIDENCE.md)); it still needs DJ mixes with tempo changes and breakdowns before it can ship (D24). Owner inputs pending: such mixes in `songs/` (ignored by Git), rig runs with the external display.
 
 ## Milestone 1 — first show
 
@@ -24,7 +24,7 @@ Platform for the first show is implemented on `main` and waits for rig verificat
 | --- | --- | --- |
 | 1 | 8–14 Oct | Review and merge `lane/test-harness`, `lane/image-pipeline`, `lane/app-core`. Owner provides 5–10 recorded mixes (outside the repo). Beat-tracker prototype. |
 | 2–3 | 15–28 Oct | Output window becomes renderer and show owner; control window becomes a remote. Scene contract v3: energy curve, beat responses, types, any aspect. Remove linear score, keyframes, WebM/frame export, MIDI clock, manual audio routing. Measure beat tracking on the mixes. |
-| 4–5 | 29 Oct–11 Nov | Grid, keyboard map and pages; Show/Prep; shared controls and energy fader; crash recovery; preflight; bar-count autopilot. Group 1 families start in parallel. |
+| 4–5 | 29 Oct–11 Nov | Grid, keyboard map and pages; optional settings lock; shared controls and energy fader; crash recovery; preflight; bar-count autopilot. Group 1 families start in parallel. |
 | 4–8 | 29 Oct–2 Dec | Families in queue order, owner sign-off weekly. Auto beat tracking and build/drop autopilot if they meet their targets. |
 | 9 | 3–9 Dec | Freeze. 8-hour run, fixes only. |
 | 10 | 10–16 Dec | Second 8-hour run if fixes landed; line check with a real DJ mixer feed. |
@@ -33,7 +33,7 @@ Platform for the first show is implemented on `main` and waits for rig verificat
 
 ### Required for the first show
 
-Output-window renderer; keyboard grid; Show/Prep; tap, downbeat and nudge; energy fader and shared beat responses; flash limiter (on by default, locked during a show); crash recovery; preflight; telemetry; every screen shape handled at least by cover-crop; bar-count autopilot. Minimum content: six families through the family gate, at least two strong at peak time.
+Output-window renderer; keyboard grid; optional settings lock; tap, downbeat and nudge; energy fader and shared beat responses; flash limiter (on by default, locked during a show); crash recovery; preflight; telemetry; every screen shape handled at least by cover-crop; bar-count autopilot. Minimum content: six families through the family gate, at least two strong at peak time.
 
 ### Ships only if ready
 
@@ -99,3 +99,4 @@ Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PN
 - 2026-10-08: owner-requested production deployment of the complete current VJ instrument (`166ffbe`, distribution revision `5bf07cc48a03e25f`); live Chrome smoke verified demo beat lock, keyboard clip selection, blackout/recovery and remote preview. Show acceptance gates remain open.
 - 2026-10-08: main preview now animates the selected clip before opening the stage; reuses the editor renderer, switches to live stage video and restores the selected visual after the stage closes.
 - 2026-10-08: control-window demo audio starts after the first interaction without a stage; Off and local mute work; opening the stage stops local sound, and closing it resumes the selected demo.
+- 2026-10-08: unified local/live performance controls; grid clicks also trigger the connected stage; clip/set/audio/MIDI settings stay editable by default. Optional **Lock settings** is stage-only and never blocks the grid or performer controls. Local Chrome smoke covered rendered blackout/master/freeze, live editing, lock/unlock, state handoff and control reload with zero page errors.

@@ -1,8 +1,8 @@
-// Control window (decisions D8, D13–D19): a remote for the stage. It owns
-// the set and its editing (Prep mode), sends performer actions to the stage,
-// and shows the stage's state. If it reloads, the stage keeps playing.
+// Control window: owns set editing and local performance until a stage connects.
+// The stage owns live playback once open; control reloads never stop the show.
 import scenes from "./scenes.mjs";
 import { Engine } from "./engine.mjs";
+import { ControlPreview } from "./control-preview.mjs";
 import { presetSnapshot, DEFAULT_PALETTE } from "./session.mjs";
 import {
   validateShowSet,
@@ -28,7 +28,6 @@ const el = (tag, props = {}, ...children) => {
 };
 const channel = new BroadcastChannel("phosphor-show");
 const send = (message) => channel.postMessage(message);
-const act = (action) => send({ type: "action", action });
 const sceneById = (id) => scenes.find((s) => s.id === id);
 const stageParams = (scene) =>
   scene.stage ??
@@ -41,9 +40,12 @@ let { set, report } = loadSet(localStorage, scenes);
 let status = null; // last stage status
 let lastStatusAt = -Infinity; // no stage heard yet (0 would read as alive for 2 s)
 let labels = {};
-let selected = { page: 0, slot: 0 }; // Prep selection
+let selected = { page: 0, slot: 0 };
 let draft = null; // clip being edited
-let showMode = false;
+let draftTarget = null; // editor destination; the stage may change the grid page
+let settingsLocked = false;
+let localPerformance = null;
+let handoffPending = false;
 let stageWindow = null;
 let saveTimer = null;
 
@@ -67,6 +69,7 @@ for (const line of report) log(line);
 // --- set persistence: save on edits only (D9) -------------------------------
 function changed() {
   set = validateShowSet(set, scenes);
+  localPerformance?.updateSet(set);
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
@@ -110,6 +113,7 @@ async function openStage() {
     );
     return;
   }
+  handoffPending = true;
   stopLocalDemo();
   try {
     if (!("getScreenDetails" in window)) return;
@@ -127,6 +131,34 @@ async function openStage() {
   }
 }
 const stageAlive = () => performance.now() - lastStatusAt < 2000;
+const now = () => performance.now() / 1000;
+function resumeLocalPerformance() {
+  if (stageAlive() || !status) return false;
+  if (status.performance) localPerformance?.restore(status.performance, now());
+  status = null;
+  $("preview").srcObject = null;
+  return true;
+}
+function performanceStatus() {
+  resumeLocalPerformance();
+  return stageAlive() ? status?.status : localPerformance?.status(now());
+}
+function act(action) {
+  resumeLocalPerformance();
+  if (stageAlive()) send({ type: "action", action });
+  else localPerformance?.command(action, now());
+  if (action.type === "slot" && set.pages[selected.page]?.slots[action.index])
+    selectSlot(selected.page, action.index, false);
+  renderStatus();
+}
+function setClock(mode, bpm) {
+  resumeLocalPerformance();
+  if (stageAlive()) send({ type: "clock", mode, bpm });
+  else if (mode === "auto") localPerformance?.show.clock.resumeAuto(now());
+  else if (Number.isFinite(bpm))
+    localPerformance?.show.clock.setManualBpm(now(), bpm);
+  renderStatus();
+}
 
 // Audition the demo locally until the stage takes ownership of audio.
 const demoAudio = new AudioEngine(() => renderLocalAudio());
@@ -208,6 +240,7 @@ channel.onmessage = ({ data }) => {
       status = data;
       lastStatusAt = performance.now();
       stopLocalDemo();
+      selected.page = data.status.page;
       // The stage may change shared controls and autopilot from its own keys
       // and autopilot; keep the set in step so a later edit doesn't undo them.
       set.shared = { ...data.status.shared };
@@ -217,6 +250,10 @@ channel.onmessage = ({ data }) => {
       break;
     case "stage-ready":
       log("Stage opened.");
+      if (handoffPending && localPerformance) {
+        send({ type: "preview-state", state: localPerformance.state(now()) });
+        handoffPending = false;
+      }
       stopLocalDemo();
       send({ type: "set", set });
       break;
@@ -250,6 +287,12 @@ channel.onmessage = ({ data }) => {
 for (const kind of ["keydown", "keyup"])
   window.addEventListener(kind, (event) => {
     if (!$("confirm").hidden) return;
+    // Space belongs to a focused native checkbox, not the tap-tempo shortcut.
+    if (
+      event.code === "Space" &&
+      event.target?.matches?.('input[type="checkbox"], input[type="radio"]')
+    )
+      return;
     const action = actionFor(event);
     if (!action) return;
     event.preventDefault();
@@ -261,13 +304,13 @@ for (const kind of ["keydown", "keyup"])
 
 // --- rendering: grid, pages, readouts -----------------------------------------
 function renderPages() {
-  const livePage = status?.status.page ?? 0;
+  const livePage = performanceStatus()?.page ?? selected.page;
   $("pages").replaceChildren(
     ...set.pages.map((page, i) =>
       el("button", {
         textContent: `${i + 1} · ${page.name}`,
         role: "tab",
-        ariaSelected: String(i === (showMode ? livePage : selected.page)),
+        ariaSelected: String(i === selected.page),
         ariaPressed: String(i === livePage),
         onclick: () => {
           selected.page = i;
@@ -279,9 +322,10 @@ function renderPages() {
   );
 }
 function renderGrid() {
-  const page = showMode ? (status?.status.page ?? 0) : selected.page;
-  const live = status?.status.live;
-  const pending = status?.status.pending;
+  const page = selected.page;
+  const state = performanceStatus();
+  const live = state?.live;
+  const pending = state?.pending;
   $("grid").replaceChildren(
     ...set.pages[page].slots.map((clip, slot) => {
       const scene = clip && sceneById(clip.snapshot.scene);
@@ -293,13 +337,12 @@ function renderGrid() {
             ? `Slot ${labels[GRID_CODES[slot]]}: ${clip.name}`
             : `Slot ${labels[GRID_CODES[slot]]}: empty`,
           onclick: () => {
-            if (showMode) {
-              if (clip) {
-                if ((status?.status.page ?? 0) !== page)
-                  act({ type: "page", index: page });
-                act({ type: "slot", index: slot });
-              }
-            } else selectSlot(page, slot);
+            selectSlot(page, slot);
+            if (stageAlive() && clip) {
+              if (performanceStatus().page !== page)
+                act({ type: "page", index: page });
+              act({ type: "slot", index: slot });
+            }
           },
         },
         el("span", {
@@ -323,7 +366,7 @@ function renderGrid() {
       cell.classList.toggle("noauto", !!clip && !clip.autopilot);
       cell.classList.toggle(
         "unavailable",
-        !!clip && !!status?.status.disabled?.includes(clip.snapshot.scene),
+        !!clip && !!state?.disabled?.includes(clip.snapshot.scene),
       );
       cell.classList.toggle(
         "live",
@@ -335,7 +378,7 @@ function renderGrid() {
       );
       cell.classList.toggle(
         "selected",
-        !showMode && selected.page === page && selected.slot === slot,
+        draftTarget?.page === page && draftTarget?.slot === slot,
       );
       return cell;
     }),
@@ -371,7 +414,7 @@ function fader({ key, label, min, max, step }, value, oninput) {
 // Built once; status updates move the values in place so a fader never
 // disappears under the pointer. A focused fader belongs to the performer.
 function renderShared() {
-  const s = status?.status;
+  const s = performanceStatus();
   const value = (key) =>
     key === "energy" ? (s?.energy ?? 0.5) : (s?.shared[key] ?? set.shared[key]);
   if (!$("shared").children.length)
@@ -395,10 +438,13 @@ function renderShared() {
 }
 let familyKey = null;
 function renderFamily() {
-  const live = status?.status.live;
-  const clip = live && set.pages[live.page]?.slots[live.slot];
+  const live = performanceStatus()?.live;
+  const clip = stageAlive()
+    ? (status?.performance?.clip ??
+      (live && set.pages[live.page]?.slots[live.slot]))
+    : localPerformance?.show.live?.clip;
   const scene = clip && sceneById(clip.snapshot.scene);
-  const key = scene ? `${scene.id}:${live.page}:${live.slot}` : null;
+  const key = scene ? `${scene.id}:${live?.page}:${live?.slot}` : null;
   if (key === familyKey) return;
   familyKey = key;
   $("familyTitle").textContent = scene ? scene.name : "Family";
@@ -424,7 +470,7 @@ function renderFamily() {
 const activeIsFader = () => document.activeElement?.type === "range";
 
 function renderStatus() {
-  const s = status?.status;
+  const s = performanceStatus();
   const alive = stageAlive();
   $("stagePill").textContent = alive
     ? status.stage.started
@@ -434,6 +480,7 @@ function renderStatus() {
   $("stagePill").className =
     `pill ${alive ? (status.stage.started ? "ok" : "warn") : "bad"}`;
   $("openStage").disabled = alive;
+  updateSettingsLock();
   updatePreview();
   if (!alive) renderLocalAudio();
   if (!s) return;
@@ -459,7 +506,13 @@ function renderStatus() {
       : `paused · back in ${ap.handBackIn} bars`;
   $("energyReadout").textContent = s.energy.toFixed(2);
   $("speedReadout").textContent = `${s.speed}×`;
-  const st = status.stage;
+  const st = alive
+    ? status.stage
+    : {
+        width: editorEngine?.width ?? 480,
+        height: editorEngine?.height ?? 270,
+        fps: 30,
+      };
   $("renderReadout").textContent =
     `${st.width}×${st.height} · ${st.fps ? Math.round(st.fps) : "—"} fps`;
   $("latency").textContent =
@@ -474,21 +527,23 @@ function renderStatus() {
   $("random").ariaPressed = String(ap.random);
   $("half").ariaPressed = String(s.speed === 0.5);
   $("double").ariaPressed = String(s.speed === 2);
-  const a = status.audio;
-  $("audioPill").textContent =
-    a.source === "off"
-      ? "Audio off"
-      : `${a.source} · ${a.locked ? (a.coasting ? "holding" : `${a.bpm?.toFixed(1)} BPM`) : "listening"}`;
-  $("audioPill").className =
-    `pill ${a.source === "off" ? "" : a.locked ? "ok" : "warn"}`;
+  if (alive) {
+    const a = status.audio;
+    $("audioPill").textContent =
+      a.source === "off"
+        ? "Audio off"
+        : `${a.source} · ${a.locked ? (a.coasting ? "holding" : `${a.bpm?.toFixed(1)} BPM`) : "listening"}`;
+    $("audioPill").className =
+      `pill ${a.source === "off" ? "" : a.locked ? "ok" : "warn"}`;
+  }
   renderShared();
   if (!activeIsFader()) renderFamily();
   renderGrid();
-  if (showMode) renderPages();
+  renderPages();
   renderChecks();
 }
 
-// --- Prep: clip editor ---------------------------------------------------------
+// --- clip editor ------------------------------------------------------------
 let editorEngine = null;
 try {
   editorEngine = new Engine($("editorCanvas"), scenes, (m) =>
@@ -498,15 +553,28 @@ try {
 } catch (error) {
   log(`Editor preview unavailable: ${error.message}`);
 }
+if (editorEngine)
+  localPerformance = new ControlPreview(editorEngine, set, scenes, now());
 const localPreviewContext = $("localPreview").getContext("2d");
 updatePreview();
 function previewDraft() {
   if (!editorEngine || !draft) return;
-  editorEngine.setLevel(draft.energy, 0);
-  editorEngine.load(draft.snapshot, 0, { energy: draft.energy });
+  resumeLocalPerformance();
+  if (stageAlive()) {
+    editorEngine.setLevel(draft.energy, 0);
+    editorEngine.load(draft.snapshot, 0, { energy: draft.energy });
+  } else
+    localPerformance.select(draftTarget.page, draftTarget.slot, draft, now());
 }
-function selectSlot(page, slot) {
+function editDraft() {
+  if (!editorEngine || !draft) return;
+  resumeLocalPerformance();
+  if (stageAlive()) editorEngine.setSnapshot(draft.snapshot);
+  else localPerformance.edit(draftTarget.page, draftTarget.slot, draft, now());
+}
+function selectSlot(page, slot, preview = true) {
   selected = { page, slot };
+  draftTarget = { page, slot };
   const clip = set.pages[page].slots[slot];
   draft = clip
     ? structuredClone(clip)
@@ -514,9 +582,10 @@ function selectSlot(page, slot) {
         id: `clip-${Date.now().toString(36)}`,
       });
   draft.isNew = !clip;
-  previewDraft();
+  if (preview) previewDraft();
   renderEditor();
   renderGrid();
+  updateSettingsLock();
 }
 function field(label, input) {
   return el(
@@ -527,8 +596,9 @@ function field(label, input) {
   );
 }
 function renderEditor() {
+  const { page, slot } = draftTarget ?? selected;
   $("editorTitle").textContent =
-    `Clip · page ${selected.page + 1} · slot ${labels[GRID_CODES[selected.slot]] ?? selected.slot + 1}${draft?.isNew ? " (new)" : ""}`;
+    `Clip · page ${page + 1} · slot ${labels[GRID_CODES[slot]] ?? slot + 1}${draft?.isNew ? " (new)" : ""}`;
   if (!draft) {
     $("editor").replaceChildren(
       el("p", { className: "note", textContent: "Select a slot." }),
@@ -589,7 +659,7 @@ function renderEditor() {
       draft.snapshot.params[def.key],
       (value) => {
         draft.snapshot.params[def.key] = value;
-        editorEngine?.setSnapshot(draft.snapshot);
+        editDraft();
       },
     ),
   );
@@ -617,7 +687,7 @@ function renderEditor() {
         ariaLabel: `${key} colour`,
         oninput: (event) => {
           draft.snapshot.palette[key] = event.target.value;
-          editorEngine?.setSnapshot(draft.snapshot);
+          editDraft();
         },
       }),
     ),
@@ -627,7 +697,11 @@ function renderEditor() {
     draft.energy,
     (value) => {
       draft.energy = value;
-      editorEngine?.setLevel(value, 0);
+      if (stageAlive()) editorEngine?.setLevel(value, 0);
+      else {
+        editDraft();
+        act({ type: "energy", value });
+      }
     },
   );
   const fade = el("input", {
@@ -671,15 +745,15 @@ function renderEditor() {
   );
 }
 function saveDraft() {
-  if (!draft) return;
+  if (!draft || settingsLocked) return;
   const { isNew, ...clip } = draft;
-  set.pages[selected.page].slots[selected.slot] = structuredClone(clip);
+  set.pages[draftTarget.page].slots[draftTarget.slot] = structuredClone(clip);
   draft.isNew = false;
   changed();
   toast("Clip saved.");
 }
 async function breed() {
-  if (!draft) return;
+  if (!draft || settingsLocked) return;
   const scene = sceneById(draft.snapshot.scene);
   const parent = { seed: draft.snapshot.seed, params: draft.snapshot.params };
   const children = Array.from({ length: 6 }, () =>
@@ -734,26 +808,28 @@ async function breed() {
   previewDraft();
 }
 let editorLoop = 0;
+let lastLocalStatus = 0;
 function animateEditor(ms) {
   requestAnimationFrame(animateEditor);
-  if (
-    (showMode && $("localPreview").hidden) ||
-    !editorEngine ||
-    document.hidden ||
-    ms - editorLoop < 1000 / 30
-  )
-    return;
+  if (!editorEngine || document.hidden || ms - editorLoop < 1000 / 30) return;
   const dt = Math.min(0.1, (ms - editorLoop) / 1000);
   editorLoop = ms;
-  editorEngine.beat =
-    (stageAlive() ? status?.status.clock.beat : null) ?? ms / 500;
-  editorEngine.advance(dt, false);
+  resumeLocalPerformance();
+  if (stageAlive()) {
+    editorEngine.beat = status.status.clock.beat;
+    editorEngine.advance(dt, false);
+  } else localPerformance?.tick(ms / 1000, dt);
   if (!$("localPreview").hidden)
     localPreviewContext.drawImage($("editorCanvas"), 0, 0);
+  if (!stageAlive() && ms - lastLocalStatus >= 200) {
+    lastLocalStatus = ms;
+    renderStatus();
+  }
 }
 
-// --- Prep: set, audio, checks --------------------------------------------------------
+// --- set, audio, checks ------------------------------------------------------
 function renderSetFields() {
+  const page = selected.page;
   const name = el("input", {
     value: set.name,
     maxLength: 80,
@@ -763,11 +839,10 @@ function renderSetFields() {
     },
   });
   const pageName = el("input", {
-    value: set.pages[selected.page].name,
+    value: set.pages[page].name,
     maxLength: 40,
     onchange: () => {
-      set.pages[selected.page].name =
-        pageName.value || `Page ${selected.page + 1}`;
+      set.pages[page].name = pageName.value || `Page ${page + 1}`;
       changed();
     },
   });
@@ -822,7 +897,7 @@ function renderSetFields() {
   });
   $("setFields").replaceChildren(
     field("Show name", name),
-    field(`Page ${selected.page + 1} name`, pageName),
+    field(`Page ${page + 1} name`, pageName),
     field("Autopilot every", every),
     field("Pixel budget", budget),
     option("bloom", "Bloom"),
@@ -888,7 +963,6 @@ function preflight() {
   ];
 }
 function renderChecks() {
-  if (showMode) return;
   const auto = preflight();
   $("checks").replaceChildren(
     ...auto.map(([label, ok]) =>
@@ -912,7 +986,7 @@ function renderChecks() {
   );
 }
 
-// --- mode switch (deliberate, D16) ---------------------------------------------------
+// --- optional settings lock --------------------------------------------------
 function confirm(text, yes) {
   $("confirmText").textContent = text;
   $("confirm").hidden = false;
@@ -923,29 +997,26 @@ function confirm(text, yes) {
   $("confirmNo").onclick = () => ($("confirm").hidden = true);
   $("confirmYes").focus();
 }
-function setMode(show) {
-  showMode = show;
-  document.body.classList.toggle("show-mode", show);
-  $("modeButton").textContent = show ? "Back to Prep" : "Enter Show mode";
-  render();
+function updateSettingsLock() {
+  const alive = stageAlive();
+  if (!alive) settingsLocked = false;
+  $("settingsLock").disabled = !alive;
+  $("settingsLock").checked = settingsLocked;
+  for (const input of document.querySelectorAll(
+    ".settings-controls input, .settings-controls select, .settings-controls button",
+  ))
+    input.disabled =
+      settingsLocked && !["exportSet", "auditionClip"].includes(input.id);
+  // A MIDI learn started before locking must not alter the mappings later.
+  if (settingsLocked) {
+    midiLearn = null;
+    $("midiLearn").textContent = "Learn next control";
+  }
 }
-$("modeButton").onclick = () =>
-  showMode
-    ? confirm("Leave Show mode? Editors will be visible again.", () =>
-        setMode(false),
-      )
-    : confirm(
-        [
-          "Enter Show mode? Editors are hidden; the grid and performance controls stay.",
-          ...preflight()
-            .filter(([, ok]) => !ok)
-            .map(([label]) => `Not ok: ${label}.`),
-          ...manualChecks
-            .filter((label) => !ticked.has(label))
-            .map((label) => `Not ticked: ${label}.`),
-        ].join("\n"),
-        () => setMode(true),
-      );
+$("settingsLock").onchange = () => {
+  settingsLocked = stageAlive() && $("settingsLock").checked;
+  updateSettingsLock();
+};
 
 // --- wiring ---------------------------------------------------------------------------
 $("openStage").onclick = openStage;
@@ -953,9 +1024,9 @@ $("tap").onclick = () => act({ type: "tap" });
 $("downbeat").onclick = () => act({ type: "downbeat" });
 $("nudgeBack").onclick = () => act({ type: "nudge", direction: -1 });
 $("nudgeForward").onclick = () => act({ type: "nudge", direction: 1 });
-$("autoClock").onclick = () => send({ type: "clock", mode: "auto" });
+$("autoClock").onclick = () => setClock("auto");
 $("manualBpm").onchange = () =>
-  send({ type: "clock", mode: "manual", bpm: Number($("manualBpm").value) });
+  setClock("manual", Number($("manualBpm").value));
 $("blackout").onclick = () => act({ type: "blackout" });
 $("safe").onclick = () => act({ type: "safe" });
 $("freeze").onclick = () => act({ type: "freeze" });
@@ -970,12 +1041,15 @@ $("saveClip").onclick = saveDraft;
 $("auditionClip").onclick = () =>
   draft && act({ type: "audition", clip: (({ isNew, ...c }) => c)(draft) });
 $("breedClip").onclick = breed;
-$("clearClip").onclick = () =>
+$("clearClip").onclick = () => {
+  const { page, slot } = draftTarget;
   confirm("Clear this slot?", () => {
-    set.pages[selected.page].slots[selected.slot] = null;
+    if (settingsLocked) return;
+    set.pages[page].slots[slot] = null;
     changed();
-    selectSlot(selected.page, selected.slot);
+    selectSlot(page, slot);
   });
+};
 function download(name, text) {
   const blob = new Blob([text], { type: "application/json" });
   const a = el("a", { href: URL.createObjectURL(blob), download: name });
@@ -994,8 +1068,11 @@ const midiEdges = new Map();
 let midiLearn = null;
 const midi = new MidiInput(
   (message) => {
-    const live = status?.status.live;
-    const clip = live && set.pages[live.page]?.slots[live.slot];
+    const live = performanceStatus()?.live;
+    const clip = stageAlive()
+      ? (status?.performance?.clip ??
+        (live && set.pages[live.page]?.slots[live.slot]))
+      : localPerformance?.show.live?.clip;
     const scene = clip && sceneById(clip.snapshot.scene);
     const familyParam = (i, v) => {
       const key = scene && stageParams(scene)[i];
@@ -1079,7 +1156,7 @@ $("useInput").onclick = async () => {
   stopLocalDemo();
   renderLocalAudio();
   try {
-    // Ask here (Prep) so the stage never shows a permission prompt (D10).
+    // Ask in the controls so the stage never shows a permission prompt (D10).
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((t) => t.stop());
   } catch (error) {
@@ -1129,12 +1206,12 @@ function render() {
   renderPages();
   renderGrid();
   renderShared();
-  if (!showMode) {
-    renderEditor();
-    renderSetFields();
-    renderChecks();
-    renderMidi();
-  }
+  renderEditor();
+  renderSetFields();
+  renderChecks();
+  renderMidi();
+  renderStatus();
+  updateSettingsLock();
 }
 window.addEventListener("beforeunload", () => {
   clearTimeout(saveTimer);
@@ -1143,11 +1220,7 @@ window.addEventListener("beforeunload", () => {
   } catch {}
 });
 setInterval(() => {
-  if (!stageAlive() && status) {
-    status = null;
-    $("preview").srcObject = null;
-    renderStatus();
-  }
+  if (resumeLocalPerformance()) renderStatus();
   syncLocalDemo();
 }, 1000);
 
