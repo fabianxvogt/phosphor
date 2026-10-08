@@ -263,6 +263,17 @@ void main() {
 
 export default {
   id: "feedback",
+  // Contract v3 performance metadata; see scene-acid.mjs. Signed motions
+  // scale their magnitude with energy instead of shifting.
+  energy: {
+    rotation: { mul: [0.3, 2.5] },
+    zoom: { mul: [0.4, 2.5] },
+    injection: [0.3, 0.95],
+    persistence: [0.98, 0.86],
+  },
+  beat: { punch: 1.2, pulse: 1 },
+  stage: ["zoom", "rotation", "injection"],
+  type: { key: "geometry", values: [0, 1, 2, 3] },
   number: 52,
   name: "Feedback Chapel",
   description:

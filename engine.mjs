@@ -499,8 +499,14 @@ export class Engine {
       // Energy curve: move from the clip's own base energy along the family's
       // declared slope, so a clip keeps its character at its own energy.
       const curve = s.scene.energy?.[def.key];
-      if (curve)
-        value += (curve[1] - curve[0]) * (this.level - (s.baseLevel ?? this.level));
+      if (curve) {
+        const base = s.baseLevel ?? this.level;
+        if (Array.isArray(curve)) value += (curve[1] - curve[0]) * (this.level - base);
+        else if (curve.mul) {
+          const [a, b] = curve.mul;
+          value *= (a + (b - a) * this.level) / (a + (b - a) * base);
+        }
+      }
       for (const mapping of this.mappings || noMappings) {
         if (mapping.scene === s.scene.id && mapping.target === def.key) value += (this.features[mapping.source] ?? 0)*mapping.depth*(def.max-def.min);
       }

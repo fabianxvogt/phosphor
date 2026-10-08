@@ -293,6 +293,12 @@ void main() {
 
 export default {
   id: "melt",
+  // Contract v3 performance metadata; see scene-acid.mjs. Shorter loops
+  // move faster.
+  energy: { duration: { mul: [2, 0.35] } },
+  beat: { punch: 1, pulse: 0.8 },
+  stage: ["duration", "thickness", "yaw"],
+  type: { key: "family", values: [0, 1, 2, 3] },
   number: 54,
   name: "Topological Melt",
   // Keep ribbon rasterization within the live-show GPU budget, independent of output.

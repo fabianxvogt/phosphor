@@ -139,6 +139,14 @@ void main() {
 
 export default {
   id: "acid",
+  // Contract v3 performance metadata (D17, D18, D27, D28, D30): energy
+  // slopes (additive [at 0, at 1] or {mul}), beat-response weights, the three
+  // stage faders and the structural type selector. First pass; tuned with
+  // energy-ladder sheets and owner review.
+  energy: { speed: [0.35, 1], injection: [0.1, 0.8], contrast: [0.9, 1.7], audio: [0.1, 0.8] },
+  beat: { punch: 0.6, pulse: 1, inject: 1 },
+  stage: ["speed", "injection", "contrast"],
+  type: { key: "composition", values: [0, 1, 2, 3, 4, 5] },
   number: 47,
   name: "Acid Mycelium",
   description:

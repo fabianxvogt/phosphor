@@ -134,6 +134,11 @@ void main() {
 
 export default {
   id: 'interference',
+  // Contract v3 performance metadata; see scene-acid.mjs.
+  energy: { motion: [0.05, 0.9], beatLock: [0, 1] },
+  beat: { punch: 1, pulse: 1.2 },
+  stage: ['motion', 'ratio', 'phase'],
+  type: { key: 'composition', values: [0, 1, 2, 3, 4, 5] },
   number: 53,
   name: 'Interference Rituals',
   description: 'Six analytic wave compositions: moire veils, paired ripples, quasiperiodic gratings, orbit lattices, petal ripples and curved horizons. Combine one to three fields with frequency ratios f:f·r:f·r² and relative phase in turns. Beat lock follows an eight-beat phrase; zero motion freezes evolution. Pixel-footprint filtering fades unresolved carriers while retaining resolvable interference envelopes; this is an artistic scalar-wave model, not an optical simulation.',

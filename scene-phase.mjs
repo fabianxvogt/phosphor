@@ -152,6 +152,11 @@ void main() {
 
 export default {
   id: 'phase',
+  // Contract v3 performance metadata; see scene-acid.mjs.
+  energy: { speed: [0.3, 2.2], noise: [0.02, 0.4] },
+  beat: { punch: 0.8, pulse: 1, inject: 0.5 },
+  stage: ['speed', 'coupling', 'noise'],
+  type: { key: 'arc', values: [1, 2, 3] },
   number: 55,
   name: 'Phase Transition Theatre',
   description: 'A toroidal nearest-neighbor Kuramoto lattice: seeded domains, winding waves, and three 24-second build / interruption / release scores. Coupling aligns phases; frequency spread and noise compete with it. Reset seeds the disturbance; drag to drive a local wave. Artistic oscillator dynamics, not a claim of thermodynamic transitions or hysteresis.',

@@ -132,6 +132,11 @@ void main() {
 
 export default {
   id: 'magnetic',
+  // Contract v3 performance metadata; see scene-acid.mjs.
+  energy: { motion: [0.2, 1.8], curl: [0.2, 1.2], trails: [2.4, 0.8] },
+  beat: { punch: 0.8, pulse: 1, inject: 0.6 },
+  stage: ['motion', 'curl', 'density'],
+  type: { key: 'flow', values: [0, 1, 2] },
   number: 48,
   name: 'Magnetic Choir',
   description: 'Two luminous dye-thread layers advect through breathing torus, split-vortex and liquid-silk fields. Drag to place a persistent attractor; density, motion and trail persistence shape the flow. A bounded artistic flow simulation, not discrete particles or physical magnetism.',

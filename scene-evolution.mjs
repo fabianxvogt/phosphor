@@ -27,6 +27,11 @@ const presets = [
 
 export default {
   id: 'evolution',
+  // Contract v3 performance metadata; see scene-acid.mjs.
+  energy: { growth: [0.5, 1.4], sway: [0.1, 0.8], glow: [0.6, 1.4] },
+  beat: { punch: 0.5, pulse: 1, inject: 0.8 },
+  stage: ['growth', 'sway', 'glow'],
+  type: { key: 'planting', values: [3, 6, 9, 12] },
   number: 56,
   name: 'Evolution Garden',
   description: 'A Gray–Scott morphogen garden: diffusing concentrations become budding islands and petal relief. Breed any scene’s bounded parameters in the lineage instrument; this is an artistic reaction–diffusion model, not a botanical simulation.',

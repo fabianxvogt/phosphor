@@ -229,6 +229,11 @@ void main() {
 
 export default {
   id: 'cathedral',
+  // Contract v3 performance metadata; see scene-acid.mjs.
+  energy: { speed: [0.05, 1.3], glow: [0.5, 1.4] },
+  beat: { punch: 1.2, pulse: 1 },
+  stage: ['speed', 'glow', 'scale'],
+  type: { key: 'geometry', values: [0, 1, 2, 3] },
   number: 49,
   name: 'Cathedrals of Error',
   maxRenderWidth: 1280,

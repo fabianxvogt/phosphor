@@ -51,7 +51,30 @@ const server = await serve(".", args.port);
 const runtime = await launch({ rig: args.rig });
 try {
   const lab = await openLab(runtime.browser, server.url);
-  let looks = await lookList(lab.page);
+  // Types sheet: each family's default look with its structural type
+  // selector set to every declared type (D30); otherwise authored looks.
+  let looks =
+    sheet === "types"
+      ? await lab.page.evaluate(() => {
+          const { scenes, presetSnapshot } = window.__phosphorLab;
+          return scenes.flatMap((scene) =>
+            (scene.type?.values ?? [null]).map((value, index) => {
+              const snapshot = presetSnapshot(scene, 0);
+              if (value !== null) snapshot.params[scene.type.key] = value;
+              return {
+                sceneId: scene.id,
+                sceneName: scene.name,
+                index,
+                name:
+                  value === null
+                    ? snapshot.preset
+                    : `${scene.type.key} ${value}`,
+                snapshot,
+              };
+            }),
+          );
+        })
+      : await lookList(lab.page);
   if (args.family) looks = looks.filter((l) => l.sceneId === args.family);
   if (!looks.length) throw new Error(`No looks for family ${args.family}`);
   const levels = sheet === "ladder" ? [0.1, 0.5, 0.9] : [0.5];

@@ -183,6 +183,13 @@ void main() {
 
 export default {
   id: 'aquarium',
+  // Contract v3 performance metadata; see scene-acid.mjs. The one family
+  // allowed to stay calm (D26).
+  energy: { dynamics: [0.3, 0.9], flow: [0.1, 0.6] },
+  beat: { punch: 0.3, pulse: 0.5, inject: 0.4 },
+  stage: ['dynamics', 'flow', 'trails'],
+  type: { key: 'habitat', values: [0, 1, 2] },
+  calm: true,
   number: 50,
   name: 'Alien Aquarium',
   description: 'A Lenia-inspired continuous density field: 24-sample annular growth, nutrient consumption, and transported membranes. Six seeded organisms inhabit lagoon, tide, or gyre. Feed locally with the pointer; population sets inocula and carrying capacity, not a measured creature count. Zero supply starves; zero capacity extinguishes. An artistic model, with no biological realism or artificial-life discovery claims.',

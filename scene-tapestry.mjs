@@ -376,6 +376,11 @@ void main() {
 
 export default {
   id: "tapestry",
+  // Contract v3 performance metadata; see scene-acid.mjs.
+  energy: { scroll: [8, 60], paletteDrift: [0.1, 0.6], weave: [0.9, 0.5] },
+  beat: { punch: 0.8, pulse: 1 },
+  stage: ["scroll", "weave", "paletteDrift"],
+  type: { key: "seedShape", values: [0, 1, 2, 3] },
   number: 51,
   name: "Causal Tapestry",
   description:
