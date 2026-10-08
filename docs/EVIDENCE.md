@@ -1,0 +1,88 @@
+# Phosphor evidence log
+
+Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
+
+## 2026-10-08 — Milestone 1 start
+
+- `EMPIRICAL` Critical review in four independent lanes (fork comparison, app code review, engine/shader review, live browser audit): 12/12 unit tests, build and `check:dist` pass; 24 presets inspected live on Chrome 154 / ANGLE Metal / M3 Pro with no console errors and WebGL error 0. Artist scores: Cathedral 4/5, Magnetic and Phase 2/5, the rest 3/5; no look is a finished hero look.
+- `EMPIRICAL` Balanced 1280×720 on a 120 Hz panel, Adaptive off, 10 s per look: Opal Reliquary presentation median/p95 16.7/24.6 ms, Foil Ribbon Eclipse 16.7/17.4 ms. With Adaptive on, idle playback dropped Balanced → Low: the 16 ms render gate misreads 120 Hz callbacks (fix in Milestone 1).
+- `EMPIRICAL` Confirmed in source: panic keys ignored while a slider has focus; repeated MIDI connect duplicates message delivery; unclamped keyframe offset can produce NaN snapshots; float seed upload erases seed variation above ~4.85e7; `pow()` on negative bases in Aquarium/Evolution/Magnetic. All scheduled in Milestone 1.
+- Release topology: `codex/performance-v2-rebuild` renamed to `main` and made the GitHub default branch; the GitHub Pages mirror and its workflow are retired (Vercel is canonical); the Canvas2D v6 source (`apps/phosphor`) is frozen and tagged `archive/v6-canvas`.
+
+## 2026-09-07 — v2 rebuild release
+
+Recorded at the original release; Pages references are historical.
+
+### Executed evidence
+
+Reference browser: headless Chromium 150, ANGLE Metal on Apple M3 Pro, macOS arm64. Tests used real WebGL2 and readback, not a mocked renderer. Headless timings are not a physical-display/projector guarantee.
+
+- Twelve Node contract/regression tests pass: all 62 authored scene snapshots survive portable-set roundtrip; full-capacity 256-cue/32-keyframe files reopen beyond the old 2 MB limit; imported ancestry drops unsupported properties so compact imports cannot expand into self-rejecting exports; invalid nested values reject before application; keyframe boundaries and palette interpolation; exact elementary-CA fixtures/wrap; deterministic bounded mutation with exact locks; ancestry/select/undo/cap128 and portable default-generated seeds; v1 migration without changing the backup; MIDI clock and Start/Stop/Continue parser behavior.
+- Static build and recursive distribution check: 20 distribution assets, local imports, complete versioned offline asset list and substituted cache stamp.
+- Actual browser rendering of all 62 looks at 1920×1080 output: no GPU errors, no blank output at the sampled checkpoint. This is not a proof that every parameter combination remains aesthetically useful forever.
+- All 18 Acid/Aquarium/Evolution presets ran 300 seconds of accelerated fixed model time each. Endpoint images remained structured/nonblank/nonflat, GPU error zero. This is 90 minutes of aggregate model trajectories, **not** 90 minutes of real-time app endurance, thermal load, or recording.
+- Six stateful families produced identical GPU state hashes after equivalent two-second trajectories presented at 60 and 120 Hz on the same GPU. Feedback intentionally depends on presentation history and is not included in that equality claim.
+- Actual CA90 GPU history matched its CPU reference at all 512 cells, including seeds 97, 16,777,217 and 2,147,483,647. The maximum seed previously produced 16 incorrect cells because float transport rounded it; a dedicated unsigned uniform now preserves the full integer. Reverse playback increased history offset by 17 while leaving the generated head/count unchanged.
+- Melt periodic endpoint images differed at zero pixels on the tested GPU with fixed options/palette; static mode and analytic model do not imply portable bit-exact video.
+- Twenty-five cross-scene changes returned to one slot/five textures after completed fades; transitions are bounded to two slots/nine textures. Texture counts are engine-owned targets, not all browser/encoder allocations.
+- Thirty rapid interrupted fades followed by completion returned to one slot/five textures with GPU error zero. Interruptions now freeze the current ungraded mix in an existing back buffer instead of snapping to the previous incoming scene; global effects still apply once. Mixed 960/1280 shading budgets introduce small localized resampling differences, not pixel-exact continuity.
+- Pause held the output; quality resize preserved it. Blackout reached black and recovered. Source parameters stayed unchanged while demo audio modulated live features. Audio recorded through a separate branch remained live after recording stopped.
+- Actual portable import of an HTML-like cue name remained literal text, produced no injected image/handler, and stayed inert after reload. Locked CA rule survived sibling breeding, save and reload with ancestry.
+- A synthetic two-hour wall-clock jump in sequential playback landed at the correct cue and remaining duration, rather than restarting the next cue. It tests clock catch-up, **not** a two-hour live set.
+- Context-loss extension: latest cue loaded while lost, then restoration rebuilt it with structured output and GPU error zero. Restoration restarts the seed; lost evolving state is not recovered.
+- Actual clean-output window received 1280×720 muted video from the control canvas. Simulated hidden-parent visibility produced 116 output-driven callbacks in two seconds. The headless browser did not naturally hide the opener, so OS/window/projector throttling still needs rehearsal.
+- Actual file-system writes through an OPFS directory/file handle: 120 PNG frames plus a frozen manifest, PNG dimensions 1280×720; real WebM approximately 2.88 MB decoded 1280×720 and left the main audio context/record track live. Cancellation retained one PNG and a one-frame manifest in a unique directory; its brightness stayed .92 while live brightness changed to .24. **Native chooser UI was bypassed**; user selection, external-disk behavior and permission persistence remain unobserved.
+- All four editor tabs are fully visible in a two-column grid at 390 px, without horizontal document overflow. Cue labels/inputs wrap as associated groups rather than splitting “Energy” from its value. Desktop canvas aspect ratio remained 16:9 without stretching.
+- Desktop workstation layout keeps preview/transport visible beside controls while scrolling. Built offline reload loaded all ten families from 21 cached URLs with GPU error zero; clean-output fullscreen hid its controls and continued 1280×720 video.
+- Rejected-save loss was reproduced before correction. After correction, malformed raw data survived edits in a downloadable recovery key; a synthetic quota failure blocked autosave and retained the original. Paused cue duration editing preserved elapsed time: 7.7 bars remaining became 11.7 after adding four bars, then resumed at 11.6. Injected MIDI protocol messages exercised the app transport and shared-control edge path; this is not physical MIDI verification.
+- Shortening an already-paused cue past its elapsed time then resuming advanced immediately to the next cue; a legitimate zero remaining duration no longer restarts that cue.
+- At external 200 BPM versus manual 92, a four-beat fade now lasts 1.2 seconds and both demo scheduling/readout follow 200; clock loss returns to 92. With the demo interval deliberately disabled, frame-driven scheduling maintained real analyser energy/onsets rather than decaying to silence. These are runtime clock/scheduler probes, not physical MIDI or hidden-window certification.
+- A valid 5,135,572-byte exported score was rejected by the old 2 MB import limit. The shared file reader now accepts the bounded schema up to 32 MB; actual import preserved all 256 cues/32 keyframes, including the last snapshot and offset. Filling native local storage until `QuotaExceededError`, then editing a cue, produced a clear export-required status and prevented a cancelable unload event. Native closing-dialog presentation was not exercised.
+
+### Endurance and preparation limits
+
+An actual two-hour offline/demo/clean-output run was started against cache generation `7096c69c59d0a941`, with a 92 BPM looping score and monitoring muted. After the elapsed-time barrier, CDP evaluation failed, diagnostics hung and killed the managed tab, and a fresh tab initially also timed out. Its in-page minute samples were not recoverable. **This is an inconclusive/failed verification attempt, not a passed two-hour soak.** Browser/tooling/shared-host failure versus application failure is unresolved; no frame, memory or scene-coverage totals are claimed.
+
+After restarting the owned automation browser, a real 65-second rapid-score run covered all ten families: zero sampled GPU errors, at most two slots/nine textures, final Low quality, 33.4 ms frame median and 358.4 ms p95. Those timings do not clear the smooth-show gate. Native UI/browser/build operations also became substantially slower on the shared host; resource contention does not excuse an unverified show.
+
+Inspection and synchronized GPU measurement identified a bounded preparation concern: `load` submitted 120 simulation ticks synchronously (Acid measured 149.8 ms in that probe). Preparation now submits at most six ticks per callback and holds automatic fading until ready; actual GPU checks exercised 114 remaining ticks → 19 paused callbacks → ready, then fade advancement on the next live tick. All 62 looks compile/render without GPU errors; feedback starts dim and evolves rather than being prewarmed as a field. Thirty rapid interruptions plus completion returned to one slot/five textures. Later host timings were incomparable, so no numerical latency improvement is claimed.
+Focused engine review caught the export consumer capturing preparation as movie frames. The exporter now completes preparation with cancellable, yielded `advance(0, true)` calls before counted frame zero. Actual Phase export wrote 120 PNGs plus its manifest; the last frame decoded at 1280×720, GPU error was zero, and the first PNG's SHA-256 exactly matched a separately prepared reset renderer. The reviewer accepted the consumer correction. Native directory-picker UI remained bypassed with a real OPFS handle.
+
+### Public deployment
+
+The owner-requested rebuild is live on [Vercel](https://phosphor-performance.vercel.app/), with a [GitHub Pages mirror](https://fabianxvogt.github.io/phosphor/), from [`codex/performance-v2-rebuild`](https://github.com/fabianxvogt/phosphor/tree/codex/performance-v2-rebuild). The Vercel production project is `fabianxvogts-projects/phosphor-performance`, deployed from the reviewed static `dist` directory without a server or Git integration. No paid plan was enabled. The [Pages release workflow](https://github.com/fabianxvogt/phosphor/actions/runs/37693181313) passed tests/build/distribution/upload/deploy using Node24 and supported actions. The older ChatGPT Site and `codex/v1` source remain unchanged.
+
+Actual public-site verification: all ten families rendered with GPU error zero and no browser errors; offline reload loaded ten families from 21 cached URLs in revision `b704c71109ee6927`; the 390 px surface had no horizontal overflow and all four tabs were visible. Clean output received muted, playing 1280×720 video, entered fullscreen and hid its controls.
+
+A real 65.8-second public rapid-score run at 120 BPM, one-bar cues, original demo analysis and muted monitoring covered all ten families through normal animation callbacks: 3,923 rendered callbacks, final Balanced quality, frame median 16.7 ms and p95 16.8 ms, no sampled GPU errors, at most two slots/nine textures. These are actual callback timings, not synthetic `advance(1/60)` timings. This is a short hosted smoke, **not** a two-hour soak, a controlled performance comparison, or physical audio/MIDI/projector certification.
+
+Vercel-specific checks passed against the unauthenticated production alias: all ten families rendered with GPU error zero and no browser errors, offline reload used 21 URLs in revision `b704c71109ee6927`, the 390 px surface had no horizontal overflow, and fullscreen output played muted 1280×720 video with its controls hidden. The 65.8-second timed run above was on the identical GitHub Pages build, not repeated on Vercel.
+
+### Interrupted-transition refinement
+
+Actual Acid → Interference half-fade interrupted by Cathedral, 320×180, brightness .72, bloom .2 and kaleidoscope 3. Differences compare the displayed frame immediately before and after interruption.
+
+| Metric, channel range 0–255  | Before | After |
+| ---------------------------- | -----: | ----: |
+| Mean absolute channel change | 18.192 | 0.132 |
+| Maximum channel change       |     80 |     1 |
+
+### Measured ribbon refinement
+
+Synchronized render-plus-readback cost, 1920×1080 output. Before: 12 samples per look. After: 60 samples after warmup; ribbons shade at 960×540 and upscale through the shared compositor. Different sample sizes and transient scheduling limit comparison; these are not sustained FPS claims.
+
+| Look                | Before median ms | After median ms | After p95 ms |
+| ------------------- | ---------------: | --------------: | -----------: |
+| Velvet Woven Orbit  |             38.2 |             8.2 |         10.7 |
+| Foil Ribbon Eclipse |             29.7 |             8.4 |         10.9 |
+
+Other measured default looks had lower median synchronized costs than the uncapped ribbons; preset warmup and competing GPU work produced transient spikes. Keep Balanced as the default, retain the adaptive governor, and rehearse the actual cue sequence rather than extrapolating a microbenchmark into a guarantee.
+
+The isolated live Foil Ribbon Eclipse run at 1920×1080 output delivered 888 rendered callbacks over 15 seconds: median interval 16.7 ms, p95 16.8 ms, no adaptive downgrade or GPU error. This short real-time run is not a thermal or multi-hour endurance result. Quality changes now reset timing history rather than inheriting measurements from the old budget.
+
+### Independent review
+
+Ten owner-requested Sol 6.1 medium workers implemented one scene each against a shared contract. Separate engine/offline/output and workflow reviews identified integration defects; fixes cover cue identity, manual override, clock/edge semantics, source ownership, recording bounds, export snapshots, cache generations, context recovery, hidden output and responsive layout. Focused final reviews reported no additional findings in interrupted-transition buffer ownership/global grading, shading budgets, source-worker cache behavior, effective tempo, demo scheduling/teardown and recording setup. Workflow review also exposed transport edges; runtime verification and fixes followed. Review is bounded evidence, not proof that the entire application contains no defects.
+
+Final persistence review found retained, unsupported lineage properties could inflate pretty-printed exports beyond the import bound. Canonical field whitelisting fixes it; the regression failed before and passed after. Actual browser File/DOM ingestion of an 8 MB synthetic extension produced an 8,454-byte canonical set that reopened successfully, with structured output and GPU error zero. A separate security review reported no evidence-backed finding in its bounded import/DOM/audio/output/cache read set; this is not a security certification.
+
