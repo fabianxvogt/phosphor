@@ -21,7 +21,6 @@ if (!Number.isInteger(trials) || trials < 1 || trials > 1000)
 if (!Number.isInteger(screenIndex) || screenIndex < 0)
   throw new Error("--screen must be a zero-based non-negative integer");
 const flags = [
-  `--auto-select-desktop-capture-source=Screen ${screenIndex + 1}`,
   "--use-fake-ui-for-media-stream",
   "--allow-http-screen-capture",
   "--window-size=1200,800",
@@ -45,6 +44,46 @@ const stats = (values) => ({
 let server, runtime, capture, summary;
 const pageErrors = [];
 const out = await outputDirectory("blackout", args.out);
+async function discoverScreens(url) {
+  const discovery = await launch({ rig: args.rig, headless: false });
+  try {
+    const context = await discovery.browser.newContext({ viewport: null });
+    const page = await context.newPage();
+    const cdp = await context.newCDPSession(page);
+    const { targetInfo } = await cdp.send("Target.getTargetInfo");
+    await cdp.send("Browser.setPermission", {
+      permission: { name: "window-management" },
+      setting: "granted",
+      origin: url,
+      browserContextId: targetInfo.browserContextId,
+    });
+    const discoveryUrl = url + "__blackout-screens.html";
+    await page.route(discoveryUrl, (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<!doctype html><title>Screen discovery</title>",
+      }),
+    );
+    await page.goto(discoveryUrl);
+    return await deadline(
+      page.evaluate(async () => {
+        const details = await window.getScreenDetails();
+        return details.screens.map((s) => ({
+          label: s.label,
+          left: s.left,
+          top: s.top,
+          width: s.width,
+          height: s.height,
+          isInternal: s.isInternal,
+        }));
+      }),
+      15000,
+      "Screen enumeration; allow Chrome window-management permission",
+    );
+  } finally {
+    await discovery.stop();
+  }
+}
 try {
   try {
     server = await serve(args.dist, args.port);
@@ -53,6 +92,22 @@ try {
       `Cannot serve ${args.dist}: ${error.message}. Run npm run build first, or select a built app with --dist <directory>.`,
     );
   }
+  // Chrome calls a sole capture source "Entire screen", not "Screen 1".
+  // Resolve the source before launching the browser that owns the capture.
+  const screens = await discoverScreens(server.url);
+  console.log("Screens (zero-based):", JSON.stringify(screens));
+  const screen = screens[screenIndex];
+  if (!screen)
+    throw new Error(
+      `--screen ${screenIndex} does not exist; choose 0–${screens.length - 1}.`,
+    );
+  if (args.rig && screen.isInternal)
+    throw new Error(
+      "--rig requires an external output. Select its index with --screen <index>; omit --rig for the built-in-display smoke.",
+    );
+  const captureSource =
+    screens.length === 1 ? "Entire screen" : `Screen ${screenIndex + 1}`;
+  flags.push(`--auto-select-desktop-capture-source=${captureSource}`);
   // Even the non-rig smoke needs a real desktop: headless capture is not output.
   runtime = await launch({ rig: args.rig, headless: false, args: flags });
   // The app worker must not intercept the harness-only capture document.
@@ -91,27 +146,6 @@ try {
       `Built control page did not initialize: ${error.message}. ${pageErrors.join("; ")} Rebuild with npm run build and check that Chrome can create WebGL2 contexts.`,
     );
   }
-  const screens = await control.evaluate(async () => {
-    const details = await window.getScreenDetails();
-    return details.screens.map((s) => ({
-      label: s.label,
-      left: s.left,
-      top: s.top,
-      width: s.width,
-      height: s.height,
-      isInternal: s.isInternal,
-    }));
-  });
-  console.log("Screens (zero-based):", JSON.stringify(screens));
-  const screen = screens[screenIndex];
-  if (!screen)
-    throw new Error(
-      `--screen ${screenIndex} does not exist; choose 0–${screens.length - 1}.`,
-    );
-  if (args.rig && screen.isInternal)
-    throw new Error(
-      "--rig requires an external output. Select its index with --screen <index>; omit --rig for the built-in-display smoke.",
-    );
   let stage;
   try {
     [stage] = await Promise.all([
@@ -383,9 +417,9 @@ try {
   );
   const displayIntervalMs = quantile(displayIntervals, 0.5);
   const calibrationStats = stats(calibration.map((t) => t.latencyMs));
-  // Calibrated maximum includes DOM/compositor scheduling and capture delivery.
-  // It is deliberately explicit and is NEVER silently subtracted from trials.
-  const allowanceMs = calibrationStats.max;
+  // Use the typical pipeline delay; an isolated stalled calibration frame
+  // must not expand the blackout gate. Report its maximum separately.
+  const allowanceMs = calibrationStats.median;
   const limitMs = 2 * displayIntervalMs + allowanceMs;
   await stage.evaluate(() =>
     document.getElementById("captureCalibration").remove(),
@@ -478,6 +512,7 @@ try {
       trials: calibration,
       latencyMs: calibrationStats,
       allowanceMs,
+      allowanceStatistic: "median",
     },
     limit: { displayFrames: 2, allowanceMs, totalMs: limitMs },
     latencyMs: latency,
