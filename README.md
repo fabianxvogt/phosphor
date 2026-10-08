@@ -11,6 +11,8 @@
 
 # Phosphor
 
+> **Frozen (2026-10-08).** This Canvas2D v6 checkout is read-only reference, tagged `archive/v6-canvas`. Phosphor development continues on the WebGL2 instrument on [`main`](https://github.com/fabianxvogt/phosphor/tree/main) ([live on Vercel](https://phosphor-performance.vercel.app/)). Its four extra families (Fractal Flight, Julia, Fourth Dimension, Hyperbolic Loom), dark-techno demo, tab audio, echo/chroma effects and 14-family set import are being ported there; no further changes land here.
+
 A browser instrument for psychedelic generative visuals. Fourteen scene families share live controls, per-scene colors, layered effects, music response, portable sets, and visual export.
 
 [Open the public preview](https://phosphor-visual-instrument.fabian523417.chatgpt.site/). The public Site remains version 6. This checkout contains an unreleased recursive-passage and camera repair; see [flight repair evidence](docs/releases/recursive-passages.md). Historical deployment evidence is in [the v6 record](docs/releases/performance-score.md).
