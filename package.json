@@ -13,8 +13,9 @@
     "test:browser": "node scripts/test-browser.mjs",
     "contact": "node scripts/contact.mjs",
     "soak": "node scripts/soak.mjs",
+    "timing": "node scripts/family-timing.mjs",
     "typecheck": "tsc --noEmit",
-    "format:check": "prettier --check package.json tsconfig.json .prettierrc.json .github tests/browser scripts/browser-runtime.mjs scripts/test-browser.mjs scripts/contact.mjs scripts/soak.mjs",
+    "format:check": "prettier --check package.json tsconfig.json .prettierrc.json .github tests/browser scripts/browser-runtime.mjs scripts/test-browser.mjs scripts/contact.mjs scripts/soak.mjs scripts/family-timing.mjs",
     "beat:eval": "node scripts/beat-eval.mjs"
   },
   "devDependencies": {

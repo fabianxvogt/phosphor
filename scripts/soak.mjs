@@ -98,8 +98,9 @@ try {
     null,
     { timeout: 5000 },
   );
-  const blackout = (await stage.evaluate(readStage)).telemetry
-    .blackoutLatencyFrames;
+  // Counters are per page lifetime: judge the run before the drill reloads it.
+  const run = (await stage.evaluate(readStage)).telemetry;
+  const blackout = run.blackoutLatencyFrames;
   await control.locator("body").press("Escape");
   // Crash drill: reload the stage; time until it renders the restored clip.
   const t0 = Date.now();
@@ -110,7 +111,6 @@ try {
     { timeout: 30000 },
   );
   const recoverySeconds = (Date.now() - t0) / 1000;
-  const final = await stage.evaluate(readStage);
   const heap = heapEvidence(heaps);
   const gate = (name, value, ok) => ({ name, value, ok: !!ok });
   const p95 = percentile(intervals, 0.95),
@@ -119,20 +119,12 @@ try {
     gate("frame interval p95 ≤ 18 ms", p95, p95 !== null && p95 <= 18),
     gate("frame interval p99 ≤ 34 ms", p99, p99 !== null && p99 <= 34),
     gate(
-      "no pixel-budget downgrade",
-      final.telemetry.downgrades,
-      final.telemetry.downgrades === 0,
+      "no quality downgrade (pixel budget or ray steps)",
+      { downgrades: run.downgrades, stepReductions: run.stepReductions },
+      run.downgrades === 0 && run.stepReductions === 0,
     ),
-    gate(
-      "zero GPU errors",
-      final.telemetry.gpuErrors,
-      final.telemetry.gpuErrors === 0,
-    ),
-    gate(
-      "zero non-finite inputs",
-      final.telemetry.nonFinite,
-      final.telemetry.nonFinite === 0,
-    ),
+    gate("zero GPU errors", run.gpuErrors, run.gpuErrors === 0),
+    gate("zero non-finite inputs", run.nonFinite, run.nonFinite === 0),
     gate(
       "heap growth ≤ 50 MB, no upward trend",
       heap,
