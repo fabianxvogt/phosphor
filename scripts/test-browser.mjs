@@ -229,6 +229,8 @@ try {
   pass("Prep edits reach the stage");
 
   // Control reload: the stage keeps rendering and the control reconnects.
+  // Leave the text field: typing there must not trigger clips.
+  await control.evaluate(() => document.activeElement?.blur());
   await control.keyboard.press("KeyE"); // slot 10
   await waitFor(
     stage,
