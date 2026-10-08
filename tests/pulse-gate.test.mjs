@@ -4,7 +4,7 @@ import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import pulse from "../scene-pulse.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
-import { imageMetrics, structureSignature, structureDistance } from "./browser/metrics.mjs";
+import { imageMetrics, structureDistance } from "./browser/metrics.mjs";
 import { renderLook } from "./browser/client.mjs";
 
 // The browser seam is opt-in: node tests/pulse-gate.test.mjs --port 48125.
@@ -56,15 +56,16 @@ if (process.argv.includes("--port")) {
         const sheet = JSON.parse(await readFile(resolve(out, "../pulse-cross-types/metrics.json"), "utf8"));
         const signatures = [];
         for (const row of sheet.rows) {
-          const rgba = await lab.page.evaluate(async (file) => {
+          const signature = await lab.page.evaluate(async (file) => {
+            const { structureSignature } = await import("/tests/browser/metrics.mjs");
             const image = await createImageBitmap(await (await fetch(file)).blob());
             const canvas = document.createElement("canvas");
             canvas.width = image.width; canvas.height = image.height;
             const context = canvas.getContext("2d");
             context.drawImage(image, 0, 0);
-            return Array.from(context.getImageData(0, 0, image.width, image.height).data);
+            return structureSignature(context.getImageData(0, 0, image.width, image.height).data, image.width, image.height);
           }, `/artifacts/contact/pulse-cross-types/${row.cells[0].file}`);
-          signatures.push(structureSignature(rgba, sheet.width, sheet.height));
+          signatures.push(signature);
         }
         for (let i = 0; i < sheet.rows.length; i++) {
           const row = sheet.rows[i];
@@ -80,7 +81,7 @@ if (process.argv.includes("--port")) {
               candidates.push({ family: other.sceneId, type: other.name, distance });
           }
           candidates.sort((a, b) => a.distance - b.distance);
-          evidence.nearest.push({ type: row.name, ...candidates[0] });
+          evidence.nearest.push({ form: row.name, ...candidates[0] });
         }
         for (const pair of evidence.distances)
           assert.ok(pair.distance >= 0.25, `${pair.a}/${pair.b}: ${pair.distance}`);
@@ -94,9 +95,14 @@ if (process.argv.includes("--port")) {
                 snapshot.params[def.key] = Math.max(def.min, Math.min(def.max,
                   snapshot.params[def.key] + direction * 0.12 * (def.max - def.min)));
               }
-              const r = await lab.page.evaluate(renderLook, {
-                sceneId: "pulse", snapshot, level, frames: 30, width: 320, height: 180,
-              });
+              const r = await lab.page.evaluate(async (args) => {
+                const { renderLook } = await import("/tests/browser/client.mjs");
+                const { imageMetrics } = await import("/tests/browser/metrics.mjs");
+                const result = await renderLook(args);
+                const metrics = imageMetrics(result.rgba, result.width, result.height);
+                delete result.rgba; // Only the PNG and measured summaries cross the browser boundary.
+                return { ...result, metrics };
+              }, { sceneId: "pulse", snapshot, level, frames: 30, width: 320, height: 180 });
               assert.ok(r.peak > 8, `${index}/${level}/${direction}: blank drift`);
               assert.equal(r.glError, 0); assert.equal(r.nonFinite, 0);
               assert.equal(r.stats.liveTextures, r.stats.textures);
@@ -105,7 +111,7 @@ if (process.argv.includes("--port")) {
               const params = await lab.page.evaluate(() =>
                 Array.from(window.__phosphorLab.engine.slots.at(-1).params));
               evidence.drift.push({ preset: pulse.presets[index].name, level, direction,
-                file, params, metrics: imageMetrics(r.rgba, r.width, r.height) });
+                file, params, metrics: r.metrics });
             }
           }
         }
@@ -148,41 +154,56 @@ if (process.argv.includes("--port")) {
             const read = () => {
               gl.bindFramebuffer(gl.FRAMEBUFFER, null);
               gl.readPixels(0, 0, engine.width, engine.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-              return Array.from(pixels);
+              return pixels;
+            };
+            // A mean-only trace needs neither frame serialization nor the
+            // shared metric's unused edges/saturation/percentile work per frame.
+            const linear = new Float64Array(256);
+            for (let byte = 0; byte < 256; byte++) {
+              const value = byte / 255;
+              linear[byte] = value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+            }
+            const mean = (rgba) => {
+              let sum = 0;
+              for (let i = 0; i < rgba.length; i += 4)
+                sum += 0.2126 * linear[rgba[i]] + 0.7152 * linear[rgba[i + 1]] + 0.0722 * linear[rgba[i + 2]];
+              return sum / (rgba.length / 4);
             };
             engine.beat = 0;
             engine.updatePerformance(0, false);
             engine.beatFx.flash = 0; // Isolate the declared shared punch/pulse.
             engine.present();
-            const kick = read(), weights = { ...engine.beatFx };
+            const kick = Array.from(read()), weights = { ...engine.beatFx };
             engine.beatFx.punch = engine.beatFx.pulse = 0;
             engine.present();
-            const neutral = read();
+            const neutral = Array.from(read());
             engine.options.flashLimit = true;
             const samples = [], requests = [];
-            let previousBeat = -1;
+            let previousBeat = -1, previousTime = 0;
             const start = performance.now();
             while (performance.now() - start < 6000) {
               await new Promise(requestAnimationFrame);
               const time = (performance.now() - start) / 1000;
               engine.beat = time * 2.5; // Worst show tempo: 150 BPM, 1x trim.
-              engine.advance(1 / 60, false);
+              engine.advance(time - previousTime, false);
+              previousTime = time;
               const beat = Math.floor(engine.beat);
               if (beat !== previousBeat) requests.push(time);
               previousBeat = beat;
-              samples.push({ time, rgba: read() });
+              samples.push({ time, y: mean(read()) });
             }
             engine.options.flashLimit = false;
-            return { kick, neutral, weights, samples, requests, glError: gl.getError(),
-              nonFinite: engine.counters.nonFinite, stats: engine.stats() };
+            return { kick, neutral, meanKick: mean(kick), weights, samples, requests,
+              glError: gl.getError(), nonFinite: engine.counters.nonFinite, stats: engine.stats() };
           });
           let difference = 0;
           for (let i = 0; i < result.kick.length; i += 4)
             for (let c = 0; c < 3; c++)
               difference += Math.abs(result.kick[i + c] - result.neutral[i + c]) / 255;
           difference /= result.kick.length * 0.75;
-          const samples = result.samples.map(({ time, rgba }) => ({ time,
-            y: imageMetrics(rgba, 160, 90).meanLuminance }));
+          assert.ok(Math.abs(result.meanKick - imageMetrics(result.kick, 160, 90).meanLuminance) < 1e-12,
+            "mean-only readback must match the shared luminance metric");
+          const samples = result.samples;
           const transitions = [];
           let start = samples[0].y, previous = start, sign = 0, counted = false;
           for (const { time, y } of samples.slice(1)) {
