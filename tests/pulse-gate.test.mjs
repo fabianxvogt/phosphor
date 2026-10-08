@@ -19,6 +19,27 @@ test("every Pulse Geometry type has a portable authored look", () => {
   }
 });
 
+async function montage(page, rows, directory, width, height) {
+  return page.evaluate(async ({ rows, directory, width, height }) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = rows[0].cells.length * width; canvas.height = rows.length * (height + 24);
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#101018"; context.fillRect(0, 0, canvas.width, canvas.height);
+    context.font = "16px sans-serif";
+    for (let row = 0; row < rows.length; row++) {
+      for (let col = 0; col < rows[row].cells.length; col++) {
+        const cell = rows[row].cells[col];
+        const image = await createImageBitmap(await (await fetch(
+          `/artifacts/contact/${directory}/${cell.file}`)).blob());
+        context.fillStyle = "white";
+        context.fillText(`${rows[row].name} · ${cell.level}`, col * width + 8, row * (height + 24) + 18);
+        context.drawImage(image, col * width, row * (height + 24) + 24);
+      }
+    }
+    return canvas.toDataURL("image/png").split(",")[1];
+  }, { rows, directory, width, height });
+}
+
 if (process.argv.includes("--port")) {
   test("Pulse Geometry headless family evidence", { timeout: 600000 }, async () => {
     const { options, outputDirectory, serve, launch, openLab } = await import("../scripts/browser-runtime.mjs");
@@ -90,25 +111,17 @@ if (process.argv.includes("--port")) {
         }
         const { readFile } = await import("node:fs/promises");
         const ladder = JSON.parse(await readFile(resolve(out, "../pulse-ladder/metrics.json"), "utf8"));
-        const montage = await lab.page.evaluate(async (rows) => {
-          const canvas = document.createElement("canvas");
-          canvas.width = 1440; canvas.height = rows.length * 294;
-          const context = canvas.getContext("2d");
-          context.fillStyle = "#101018"; context.fillRect(0, 0, canvas.width, canvas.height);
-          context.font = "16px sans-serif";
-          for (let row = 0; row < rows.length; row++) {
-            for (let col = 0; col < 3; col++) {
-              const cell = rows[row].cells[col];
-              const image = await createImageBitmap(await (await fetch(
-                `/artifacts/contact/pulse-ladder/${cell.file}`)).blob());
-              context.fillStyle = "white";
-              context.fillText(`${rows[row].name} · ${cell.level}`, col * 480 + 8, row * 294 + 18);
-              context.drawImage(image, col * 480, row * 294 + 24);
-            }
-          }
-          return canvas.toDataURL("image/png").split(",")[1];
-        }, ladder.rows);
-        await writeFile(resolve(out, "ladder.png"), Buffer.from(montage, "base64"));
+        const ladderPng = await montage(lab.page, ladder.rows, "pulse-ladder", 480, 270);
+        await writeFile(resolve(out, "ladder.png"), Buffer.from(ladderPng, "base64"));
+        const driftRows = pulse.presets.map(preset => ({ name: preset.name,
+          cells: evidence.drift.filter(row => row.preset === preset.name) }));
+        const driftPng = await montage(lab.page, driftRows, "pulse-probe", 320, 180);
+        await writeFile(resolve(out, "drift.png"), Buffer.from(driftPng, "base64"));
+        for (const name of ["pulse-16x9", "pulse-ultrawide", "pulse-square"]) {
+          const sheet = JSON.parse(await readFile(resolve(out, `../${name}/metrics.json`), "utf8"));
+          const png = await montage(lab.page, sheet.rows, name, sheet.width, sheet.height);
+          await writeFile(resolve(out, `${name}.png`), Buffer.from(png, "base64"));
+        }
         evidence.ladder = ladder.rows.map(row => ({ preset: row.name,
           cells: row.cells.map(cell => ({ level: cell.level, ...cell.metrics })) }));
         for (const preset of pulse.presets) {

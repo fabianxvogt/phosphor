@@ -16,7 +16,7 @@ const schema = [
 
 const presets = [
   { name: "Scanner Bars", seed: 7101, params: { form: 0, count: 10, thickness: 0.14, speed: 0.6, twist: 0, step: 0.7, glow: 0.5, fill: 0.1 } },
-  { name: "Slow Gate", seed: 7102, params: { form: 0, count: 4, thickness: 0.32, speed: 0.15, twist: 0.12, step: 0.2, glow: 0.7, fill: 0.6 } },
+  { name: "Slow Gate", seed: 7102, params: { form: 0, count: 4, thickness: 0.32, speed: 0.35, twist: 0.12, step: 0.2, glow: 0.7, fill: 0.6 } },
   { name: "Square Tunnel", seed: 7103, params: { form: 1, count: 9, thickness: 0.12, speed: 0.7, twist: 0.05, step: 0.6, glow: 0.45, fill: 0 } },
   { name: "Ring Dive", seed: 7104, params: { form: 1, count: 16, thickness: 0.08, speed: 1.1, twist: -0.3, step: 0.85, glow: 0.35, fill: 0.15 } },
   { name: "Horizon Grid", seed: 7105, params: { form: 2, count: 12, thickness: 0.06, speed: 0.55, twist: 0, step: 0.4, glow: 0.55, fill: 0 } },
