@@ -13,14 +13,11 @@ void main(){v_uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
 export class Engine {
   constructor(canvas, scenes, onError = () => {}) {
     this.canvas = canvas;
-    // The unchanged PNG-sequence caller owns a detached HTML canvas. Offline
-    // compilation/readback may block; connected stage/projector canvases may not.
-    this.offline = canvas.isConnected === false;
     this.gl = canvas.getContext("webgl2", {
       alpha: false,
       antialias: false,
-      // Keep asynchronous live PNG pickers and captureStream consumers intact.
-      // Detached export renderers approve their current frame synchronously.
+      // The control preview (captureStream) and clip thumbnails read the
+      // canvas after the frame has been presented.
       preserveDrawingBuffer: true,
     });
     if (!this.gl)
@@ -121,9 +118,8 @@ export class Engine {
     this.resize(this.width,this.height);
     this.healthTarget = this.target(64,36);
     this.lastHealth = { mean: NaN, variance: NaN, pending: true };
-    const activeId = this.active?.scene || (!this.offline ? this.scenes[0]?.id : undefined);
+    const activeId = this.active?.scene || this.scenes[0]?.id;
     if (activeId) this.compileScene(this.scenes.find(s => s.id === activeId));
-    if (this.offline) return;
     let index = 0;
     const background = () => {
       if (generation !== this.compileGeneration || this.disposed || this.lost) return;
@@ -174,7 +170,7 @@ export class Engine {
       this.checkScene(scene.id);
     } catch (error) {
       programs.error = error.message;
-      this.onError(`${scene.name} disabled: ${error.message}`);
+      this.onError(`${scene.name} disabled: ${error.message}`, scene.id);
     }
   }
   checkScene(id) {
@@ -184,7 +180,7 @@ export class Engine {
       for (const name of programKeys) {
         const p = programs[name];
         if (!p || p.uniforms) continue;
-        if (!this.offline && this.parallelCompile && !this.gl.getProgramParameter(p.p,this.parallelCompile.COMPLETION_STATUS_KHR)) return false;
+        if (this.parallelCompile && !this.gl.getProgramParameter(p.p,this.parallelCompile.COMPLETION_STATUS_KHR)) return false;
         this.finishProgram(p);
       }
       return true;
@@ -194,23 +190,16 @@ export class Engine {
         if (programs[name]?.p) this.gl.deleteProgram(programs[name].p);
         if (programs[name]) programs[name].p = null;
       }
-      this.onError(`${id} disabled: ${error.message}`);
+      this.onError(`${id} disabled: ${error.message}`, id);
       return false;
     }
   }
-  // Compile readiness for live callers; optional capture drains the current
-  // connected-stage candidate. Detached sequence callers need neither await.
-  async ready(id, capture = false) {
+  // Resolves true once the family's programs are compiled and linked.
+  async ready(id) {
     if (this.disposed || this.lost || this.gl.isContextLost()) return false;
     this.compileScene(this.scenes.find(s => s.id === id));
     while (!this.disposed && !this.lost && !this.gl.isContextLost()) {
-      if (this.checkScene(id)) {
-        if (capture && this.slots.length) {
-          for (const slot of this.slots) if (slot.visualReset) this.drawSlot(slot,0);
-          await this.pipeline.capture();
-        }
-        return true;
-      }
+      if (this.checkScene(id)) return true;
       if (this.programs.get(id)?.error || !this.programs.has(id)) return false;
       await new Promise(resolve => requestAnimationFrame(resolve));
     }

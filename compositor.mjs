@@ -201,14 +201,6 @@ export class AsyncReadback {
     this.sync = null;
     return this.pixels;
   }
-  read(target) {
-    this.cancel();
-    const gl=this.gl;
-    gl.bindFramebuffer(gl.FRAMEBUFFER,target.fbo);
-    gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
-    gl.readPixels(0,0,target.w,target.h,gl.RGBA,gl.UNSIGNED_BYTE,this.pixels);
-    return this.pixels;
-  }
   cancel() {
     if (this.sync && !this.gl.isContextLost()) this.gl.deleteSync(this.sync);
     this.sync = null;
@@ -332,7 +324,7 @@ export class Compositor {
       this.echoValid=true;
     }
   }
-  mean(target, synchronous=false) {
+  mean(target) {
     const e=this.engine,gl=this.gl;
     if(!this.meanTargets.length) {
       let w=Math.max(1,Math.ceil(e.width/4)),h=Math.max(1,Math.ceil(e.height/4));
@@ -350,12 +342,12 @@ export class Compositor {
       gl.drawArrays(gl.TRIANGLES,0,6);
     }
     const last=this.meanTargets.at(-1);
-    return synchronous?this.readback.read(last):this.readback.begin(last);
+    return this.readback.begin(last);
   }
   approve() {
     const e=this.engine;
     const mean=this.meanView.getFloat32(0); // Shader stores RGBA in big-endian byte order.
-    this.gain=this.limiter.update(mean,e.offline?e.time:performance.now()/1000);
+    this.gain=this.limiter.update(mean,performance.now()/1000);
     if(this.limiter.limited)e.counters.flashLimited++;
     const old=this.frames[0];this.frames[0]=this.frames[1];this.frames[1]=old;
     this.displayValid=true;
@@ -398,20 +390,11 @@ export class Compositor {
     if(!this.frames.length) {
       this.frames.push(this.target(e.width,e.height),this.target(e.width,e.height));
     }
-    if(e.offline) {
-      this.render(this.frames[1],false);
-      this.mean(this.frames[1],true);
-      this.approve();
-      this.candidateTick=e.renderTick;
-      this.output(this.frames[0],this.gain);
-      return;
-    }
     const pixels=this.readback.poll();
     if(pixels)this.approve();
     if(!this.readback.sync) {
       this.render(this.frames[1],false);
       this.mean(this.frames[1]);
-      this.candidateTick=e.renderTick;
     }
     // Preserve the actual canvas while the first approval is pending. A resize
     // clears it, so bootstrap that canvas from the direct candidate, never from
@@ -419,33 +402,6 @@ export class Compositor {
     if(this.displayValid)this.output(this.frames[0],this.gain);
     else if(!this.canvasValid)this.output(this.frames[1],1);
     else this.gl.flush(); // Submit a first approval while preserving a direct canvas.
-  }
-  async capture() {
-    const e=this.engine;
-    if(e.offline) {
-      if(!this.displayValid || this.candidateTick!==e.renderTick)this.present();
-      return;
-    }
-    if(e.options.flashLimit===false || e.flashExempt || e.blackoutTarget>0) {
-      this.present();
-      return;
-    }
-    if(!this.frames.length) {
-      this.frames.push(this.target(e.width,e.height),this.target(e.width,e.height));
-    }
-    if(!this.readback.sync || this.candidateTick!==e.renderTick) {
-      this.readback.cancel();
-      this.render(this.frames[1],false);
-      this.mean(this.frames[1]);
-      this.candidateTick=e.renderTick;
-    }
-    let pixels;
-    while(!e.lost && !e.gl.isContextLost() && !e.disposed && !(pixels=this.readback.poll())) {
-      await new Promise(resolve=>requestAnimationFrame(resolve));
-    }
-    if(!pixels)return;
-    this.approve();
-    this.output(this.frames[0],this.gain);
   }
   dispose() {
     this.resize();this.readback.dispose();
