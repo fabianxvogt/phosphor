@@ -65,7 +65,7 @@ export class OutputConnection {
     this.dispose();
     if (!api?.outputStream || api.ready === false) {
       this.api = null;
-      this.status("Waiting for the performance window to reconnect…");
+      this.status("Waiting for the performance window to reconnect…", false);
       return;
     }
     this.connecting = true;
@@ -74,11 +74,14 @@ export class OutputConnection {
       this.stream = api.outputStream();
       this.video.srcObject = this.stream;
       await this.video.play();
-      this.status("Live output connected. Audio stays in the control window.");
+      this.status(
+        "Live output connected. Audio stays in the control window.",
+        true,
+      );
     } catch (error) {
       this.dispose();
       this.api = null;
-      this.status("Output reconnect failed: " + error.message);
+      this.status("Output reconnect failed: " + error.message, false);
     } finally {
       this.connecting = false;
     }

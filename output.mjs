@@ -2,8 +2,9 @@ import { OutputConnection } from "./ui-state.mjs";
 const video = document.getElementById("output"),
   message = document.getElementById("message");
 let wake;
-const connection = new OutputConnection(video, (text) => {
+const connection = new OutputConnection(video, (text, connected) => {
   message.textContent = text;
+  document.getElementById("controls").style.display = connected ? "" : "block";
 });
 async function awake() {
   try {

@@ -108,3 +108,21 @@ test("F16 update notice requires an existing controller and detects an already-w
   assert.equal(updateWaiting({ waiting: {} }, {}), true);
   assert.equal(updateWaiting({ waiting: null }, {}), false);
 });
+test("F11 reconnect failures explicitly expose status even on a fullscreen output", async () => {
+  const states = [];
+  const connection = new OutputConnection(
+    { play: async () => {} },
+    (text, connected) => states.push({ text, connected }),
+  );
+  await connection.refresh(null);
+  assert.equal(states.at(-1).connected, false);
+  await connection.refresh({
+    outputStream: () => {
+      throw new Error("capture ended");
+    },
+  });
+  assert.equal(states.at(-1).connected, false);
+  assert.ok(states.at(-1).text.includes("capture ended"));
+  await connection.refresh({ outputStream: () => ({ getTracks: () => [] }) });
+  assert.equal(states.at(-1).connected, true);
+});
