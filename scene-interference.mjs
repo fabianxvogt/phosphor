@@ -19,12 +19,9 @@ const presets = [
 ];
 
 const fragment = `
-const float IR_TAU = 6.28318530718;
+#define IR_TAU TAU
 
-vec2 irRotate(vec2 p, float angle) {
-  float c = cos(angle), s = sin(angle);
-  return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
-}
+vec2 irRotate(vec2 p, float angle) { return rot2(-angle) * p; }
 
 float irSinc(float x) {
   return abs(x) < 0.001 ? 1.0 - x * x / 6.0 : sin(x) / x;

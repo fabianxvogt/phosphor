@@ -1,17 +1,8 @@
 // Gray–Scott art model, not a biological realism claim. Only this scene owns
 // these two chemicals: U is nutrient and V is the autocatalytic activator.
 const stateCodec = `
-vec2 chemicals(vec2 uv) {
-  vec4 packedState = texture(u_state, uv);
-  return vec2(dot(packedState.rg, vec2(256., 1.)),
-              dot(packedState.ba, vec2(256., 1.))) / 257.;
-}
-vec4 encodeChemicals(vec2 concentration) {
-  vec2 bits = floor(clamp(concentration, 0., 1.) * 65535. + .5);
-  vec2 upper = floor(bits / 256.);
-  vec2 lower = bits - upper * 256.;
-  return vec4(upper.x, lower.x, upper.y, lower.y) / 255.;
-}
+vec2 chemicals(vec2 uv) { return unpack16(texture(u_state, uv)); }
+vec4 encodeChemicals(vec2 concentration) { return pack16(concentration); }
 `;
 
 const simulationFragment = `${stateCodec}
@@ -80,17 +71,9 @@ void main() {
     outColor = encodeChemicals(mix(vec2(1., 0.), vec2(.48, .29), seedMask));
     return;
   }
-  vec2 texel = 1. / vec2(textureSize(u_state, 0));
   vec2 c = chemicals(v_uv);
   // Nine-point isotropic Laplacian: center -1, axial .2, diagonal .05.
-  vec2 lap = -c;
-  lap += .2 * (chemicals(v_uv + vec2(texel.x, 0.))
-             + chemicals(v_uv - vec2(texel.x, 0.))
-             + chemicals(v_uv + vec2(0., texel.y))
-             + chemicals(v_uv - vec2(0., texel.y)));
-  lap += .05 * (chemicals(v_uv + texel) + chemicals(v_uv - texel)
-              + chemicals(v_uv + vec2(texel.x, -texel.y))
-              + chemicals(v_uv + vec2(-texel.x, texel.y)));
+  vec2 lap = laplacian9(u_state, v_uv);
   float audio = clamp(u_params[7], 0., 1.);
   float feed = clamp(u_params[0] + .0012 * audio * clamp(u_bass, 0., 1.), .024, .055);
   float kill = clamp(u_params[1] + .0007 * audio * clamp(u_high, 0., 1.), .050, .067);
@@ -127,18 +110,7 @@ void main() {
 `;
 
 const fragment = `${stateCodec}
-// Decode BEFORE interpolating: packed low bytes are not linear concentrations.
-vec2 smoothChemicals(vec2 uv) {
-  vec2 size = vec2(textureSize(u_state, 0));
-  vec2 pixel = uv * size - .5;
-  vec2 base = floor(pixel);
-  vec2 f = fract(pixel);
-  vec2 a = chemicals((base + .5) / size);
-  vec2 b = chemicals((base + vec2(1.5, .5)) / size);
-  vec2 c = chemicals((base + vec2(.5, 1.5)) / size);
-  vec2 d = chemicals((base + 1.5) / size);
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
+vec2 smoothChemicals(vec2 uv) { return stateBilinear16(uv); }
 void main() {
   vec2 texel = 1. / vec2(textureSize(u_state, 0));
   vec2 c = smoothChemicals(v_uv);

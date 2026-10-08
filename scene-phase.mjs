@@ -21,7 +21,6 @@ const presets = [
 ];
 
 const simulationFragment = `
-const float TAU = 6.28318530718;
 float decodePhase(vec2 rg) {
   return TAU * (rg.x * 65280.0 + rg.y * 255.0) / 65536.0;
 }
@@ -31,9 +30,6 @@ vec2 encodePhase(float theta) {
 }
 float phaseAt(ivec2 p, ivec2 size) {
   return decodePhase(texelFetch(u_state, (p + size) % size, 0).rg);
-}
-vec2 torusDelta(vec2 a, vec2 b) {
-  return mod(a - b + 0.5, 1.0) - 0.5;
 }
 void main() {
   ivec2 size = textureSize(u_state, 0);
@@ -99,7 +95,7 @@ void main() {
   field += clamp(u_gesture.z, 0.0, 1.0) * exp(-dot(dg, dg) / 0.002);
   field += 0.3 * clamp(u_onset, 0.0, 1.0) * exp(-dot(ds, ds) / 0.003);
   // Uniform zero-mean unit-variance noise, deterministic for a seed/tick.
-  float xi = (2.0 * hash(vec2(cell) + vec2(floor(u_time * 60.0) * 0.731, 27.7)) - 1.0) * 1.73205080757;
+  float xi = (2.0 * tickHash(cell, 17u) - 1.0) * 1.73205080757;
   if (dt <= 0.0) {
     outColor = old;
     return;
@@ -113,7 +109,6 @@ void main() {
 `;
 
 const fragment = `
-const float TAU = 6.28318530718;
 float decodePhase(vec2 rg) {
   return TAU * (rg.x * 65280.0 + rg.y * 255.0) / 65536.0;
 }

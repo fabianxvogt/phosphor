@@ -20,7 +20,6 @@ const presets = [
 ];
 
 const fragment = `
-const float PI = 3.14159265359;
 const int RAY_CAP = 96;
 const int GENERATION_CAP = 4;
 
@@ -164,7 +163,7 @@ void main() {
   // Vertical field of view is fixed; width follows actual render-target aspect.
   vec2 screen = aspectUV() * 2.;
   vec3 rd = normalize(forward + right * screen.x * .62 + up * screen.y * .62);
-  int limit = int(clamp(u_params[7], 32., float(RAY_CAP)));
+  int limit = int(min(clamp(u_params[7], 32., float(RAY_CAP)), u_raySteps));
   float distance = 0.;
   float hit = 0.;
   vec2 surface = vec2(1., 0.);
@@ -208,7 +207,7 @@ void main() {
     float isFloor = 1. - smoothstep(-1.65, -1.5, p.y);
     vec3 lightDirection = normalize(vec3(-1.7, 3.8, -2.));
     float diffuse = .28 + .72 * max(dot(n, lightDirection), 0.);
-    float rim = pow(1. - abs(dot(n, -rd)), 3.);
+    float rim = pow(max(1. - abs(dot(n, -rd)), 0.), 3.);
     float specular = pow(max(dot(reflect(-lightDirection, n), -rd), 0.), mix(20., 65., isCrystal));
     vec3 glassColor = base * (.18 + diffuse * .23 + glass.x * glow * (.6 + .16 * clamp(u_bass, 0., 1.)));
     glassColor *= mix(.14, 1., glass.x);
@@ -232,6 +231,7 @@ export default {
   id: 'cathedral',
   number: 49,
   name: 'Cathedrals of Error',
+  maxRenderWidth: 1280,
   description: 'Recursive SDF Gothic naves, octahedral reliquaries, rose cloisters and folded vaults. Three bounded aisle journeys; speed zero holds the camera still. Procedural stained glass, not a physical optics simulation.',
   schema,
   presets,

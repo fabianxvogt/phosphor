@@ -26,19 +26,8 @@ const presets = [
 ];
 
 const simulationFragment = `
-const float TAU = 6.28318530718;
-vec2 wrappedDelta(vec2 a, vec2 b) {
-  return fract(a - b + 0.5) - 0.5;
-}
-vec4 transported(vec2 uv) {
-  vec2 p = uv * u_resolution - 0.5;
-  vec2 base = floor(p);
-  vec2 f = fract(p);
-  vec2 a = (base + 0.5) / u_resolution;
-  vec2 t = 1.0 / u_resolution;
-  return mix(mix(texture(u_state, a), texture(u_state, a + vec2(t.x, 0.0)), f.x),
-             mix(texture(u_state, a + vec2(0.0, t.y)), texture(u_state, a + t), f.x), f.y);
-}
+vec2 wrappedDelta(vec2 a, vec2 b) { return torusDelta(a,b); }
+vec4 transported(vec2 uv) { return stateBilinear(uv); }
 float habitatFood(vec2 uv, float habitat) {
   vec2 p = wrappedDelta(uv, vec2(0.5));
   if (habitat < 0.5) {
@@ -88,16 +77,16 @@ void main() {
       }
       vec2 d = wrappedDelta(v_uv, center) * u_resolution;
       float angle = TAU * random.x;
-      d = mat2(cos(angle), -sin(angle), sin(angle), cos(angle)) * d;
+      d = rot2(angle) * d;
       d.x /= mix(1.0, 1.75, form);
       float r = length(d) / radius;
       float core = exp(-r * r * 1.65);
-      float membrane = exp(-pow((r - 0.58) / 0.35, 2.0));
+      float membrane = exp(-sq((r - 0.58) / 0.35));
       // These are inocula only; subsequent geometry is evolved from field state.
       density = max(density, 0.82 * mix(core, membrane, form));
     }
     float nutrient = supply * (0.72 + 0.22 * habitatFood(v_uv, habitat));
-    outColor = vec4(clamp(density, 0.0, 1.0), nutrient, density, 0.0);
+    emit(vec4(clamp(density, 0.0, 1.0), nutrient, density, 0.0));
     return;
   }
   vec4 previous = texture(u_state, v_uv);
@@ -132,7 +121,7 @@ void main() {
   float neighborhood = sum / weightSum;
   float mu = mix(0.29, 0.23, form);
   float sigma = mix(0.13, 0.105, form);
-  float bell = 2.0 * exp(-0.5 * pow((neighborhood - mu) / sigma, 2.0)) - 1.0;
+  float bell = 2.0 * exp(-0.5 * sq((neighborhood - mu) / sigma)) - 1.0;
   float capacity = clamp(population / 4.0, 0.0, 1.0);
   float crowding = max(neighborhood - mix(0.24, 0.64, population / 12.0), 0.0);
   float growth = 0.66 * bell + 0.64 * state.g - 0.50 - 0.26 * crowding;
@@ -154,28 +143,16 @@ void main() {
   float persistence = mix(0.68, 0.995, u_params[7] / 0.97);
   float trail = max(density, state.b * pow(persistence, tick * dynamics));
   vec4 nextState = clamp(vec4(density, nutrient, trail, neighborhood), 0.0, 1.0);
-  // Unbiased quantization prevents low-speed growth, starvation and trails from
-  // becoming trapped at RGBA8 rounding thresholds. Replay uses the same seed/time.
-  vec2 noiseCell = floor(v_uv * u_resolution) + floor(u_time * 60.0) * vec2(17.0, 43.0);
-  vec4 rounding = vec4(hash(noiseCell), hash(noiseCell + 19.7),
-                       hash(noiseCell + 71.3), hash(noiseCell + 113.1));
-  outColor = floor(nextState * 255.0 + rounding) / 255.0;
+  // Per-cell integer tick noise keeps RGBA8 growth/decay unbiased indefinitely.
+  emit(nextState);
 }
 `;
 
 const fragment = `
-vec4 softState(vec2 uv) {
-  vec2 size = vec2(192.0, 128.0);
-  vec2 p = uv * size - 0.5;
-  vec2 f = fract(p);
-  vec2 base = (floor(p) + 0.5) / size;
-  vec2 t = 1.0 / size;
-  return mix(mix(texture(u_state, base), texture(u_state, base + vec2(t.x, 0.0)), f.x),
-             mix(texture(u_state, base + vec2(0.0, t.y)), texture(u_state, base + t), f.x), f.y);
-}
+vec4 softState(vec2 uv) { return stateBilinear(uv); }
 void main() {
   vec4 state = softState(v_uv);
-  vec2 texel = vec2(1.0 / 192.0, 1.0 / 128.0);
+  vec2 texel = 1.0 / vec2(textureSize(u_state, 0));
   float east = softState(v_uv + vec2(texel.x, 0.0)).r;
   float west = softState(v_uv - vec2(texel.x, 0.0)).r;
   float north = softState(v_uv + vec2(0.0, texel.y)).r;
@@ -183,8 +160,8 @@ void main() {
   vec2 gradient = vec2(east - west, north - south);
   float body = smoothstep(0.025, 0.72, state.r);
   float edge = clamp(length(gradient) * 2.4, 0.0, 1.0);
-  float rim = exp(-pow((state.r - 0.25) / 0.065, 2.0)) * smoothstep(0.035, 0.13, state.r);
-  float inner = exp(-pow((state.r - 0.53) / 0.045, 2.0));
+  float rim = exp(-sq((state.r - 0.25) / 0.065)) * smoothstep(0.035, 0.13, state.r);
+  float inner = exp(-sq((state.r - 0.53) / 0.045));
   vec3 normal = normalize(vec3(-gradient * 4.0, 0.58));
   float light = 0.45 + 0.55 * max(dot(normal, normalize(vec3(-0.6, 0.7, 1.0))), 0.0);
   vec2 p = aspectUV();

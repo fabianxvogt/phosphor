@@ -261,13 +261,6 @@ int wrapRow(int row) { return (row + 1022) % 511; }
 `;
 
 const simulationFragment = `${metadata}
-uint seedHash(uint value) {
-  value ^= value >> 16u;
-  value *= 2246822519u;
-  value ^= value >> 13u;
-  value *= 3266489917u;
-  return value ^ (value >> 16u);
-}
 float initialCell(int x, int shape, int fill, int phraseIndex) {
   uint salt = u_seedBits + uint(phraseIndex) * 1013u;
   int center = 256 + int(salt % 97u) - 48;
