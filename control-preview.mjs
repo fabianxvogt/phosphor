@@ -48,13 +48,18 @@ export function restorePerformance(show, state, t) {
       own: true,
     };
     const load = actions.find((a) => a.type === "load");
-    if (load) load.snapshot = state.clip.snapshot;
+    if (load)
+      Object.assign(load, {
+        snapshot: state.clip.snapshot,
+        baseEnergy: state.clip.energy,
+      });
     else
       actions.unshift({
         type: "load",
         snapshot: state.clip.snapshot,
         fadeSeconds: 0,
         energy: state.runtime.energy,
+        baseEnergy: state.clip.energy,
       });
   } else {
     show.live = null;
@@ -96,14 +101,17 @@ export class ControlPreview {
       flashLimit: true,
     });
   }
-  select(page, slot, clip, t) {
+  select(page, slot, clip, t, manual = true) {
     // Editing a selected clip is immediate; performer slot triggers still
     // honor that clip's quantization and fade through Show.command.
     if (this.show.disabled.has(clip.snapshot.scene)) return;
     const copy = structuredClone(clip);
     this.show.page = page;
     this.apply(
-      this.show.command({ type: "audition", clip: { ...copy, fade: 0 } }, t),
+      this.show.command(
+        { type: "audition", clip: { ...copy, fade: 0 }, manual },
+        t,
+      ),
     );
     this.show.live.page = page;
     this.show.live.slot = slot;
@@ -151,7 +159,7 @@ export class ControlPreview {
         case "safe":
           this.engine.setLevel(action.energy, action.fadeSeconds ?? 0);
           this.engine.load(action.snapshot, action.fadeSeconds ?? 0.4, {
-            energy: action.energy,
+            energy: action.baseEnergy ?? action.energy,
             flashExempt: action.type === "safe",
           });
           break;

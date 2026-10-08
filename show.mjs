@@ -27,6 +27,7 @@ export class Show {
     this.scenes = new Map(scenes.map((s) => [s.id, s]));
     this.pending = null; // { page, slot, clip, at, fade }
     this.energy = 0.5;
+    this.resumeEnergy = null; // energy to resume after the safe look
     this.speed = 1;
     this.shared = { ...set.shared };
     this.blackout = false;
@@ -82,14 +83,23 @@ export class Show {
       base: p.clip.snapshot.params,
     };
     this.drift = null;
-    this.energy = p.clip.energy;
+    // Energy is show state (D54): a trigger keeps the fader and autopilot's
+    // build/breakdown/drop moves; only a fresh show starts from a clip's value.
+    // Leaving the safe look resumes the energy from before it.
+    if (this.resumeEnergy !== null) {
+      this.energy = this.resumeEnergy;
+      this.resumeEnergy = null;
+    }
     this.autopilot.played(p.clip.id);
     return [
       {
         type: "load",
         snapshot: p.clip.snapshot,
         fadeSeconds: (p.fade * 60) / now.bpm,
-        energy: p.clip.energy,
+        energy: this.energy,
+        // Authored at the clip's stored energy: the family's energy curves
+        // move parameters from there to the show energy.
+        baseEnergy: p.clip.energy,
         page: p.page,
         slot: p.slot,
         clipId: p.clip.id,
@@ -101,9 +111,11 @@ export class Show {
     this.autopilot.manual(this.clock.at(t).bar);
   }
 
-  // First picture on a fresh stage (not a performer action): a random
-  // autopilot clip in Random mode, else the page's first clip.
-  begin(t) {
+  // First picture on a stage with nothing on screen (not a performer
+  // action): a random autopilot clip in Random mode, else the page's first
+  // clip. A fresh show starts at that clip's stored energy; a restored show
+  // keeps its recovered energy (fresh: false).
+  begin(t, { fresh = true } = {}) {
     const pool = this.#pool();
     const allowed = pool.filter((p) => p.clip.autopilot);
     const from = allowed.length ? allowed : pool;
@@ -112,6 +124,7 @@ export class Show {
     const pick = this.autopilot.randomMode
       ? from[Math.floor(this.autopilot.random() * from.length)]
       : from[0];
+    if (fresh) this.energy = pick.clip.energy;
     return this.#schedule(t, this.page, pick.slot, "now", 0);
   }
 
@@ -181,9 +194,10 @@ export class Show {
         return this.#schedule(t, this.page, action.index, clip.quantize);
       }
       case "audition":
-        // Prep: play an unsaved clip on the stage (page/slot -1).
+        // Play an unsaved clip (page/slot -1). Showing the first clip when
+        // the control window opens is not a performer takeover (D53).
         if (!action.clip?.snapshot) return [];
-        this.#manual(t);
+        if (action.manual !== false) this.#manual(t);
         return this.#schedule(t, -1, -1, "now", action.clip.fade, action.clip);
       case "page":
         if (action.index >= 0 && action.index < this.set.pages.length)
@@ -197,6 +211,8 @@ export class Show {
         this.blackout = this.freeze = this.flash = false;
         this.pending = null;
         this.live = null;
+        // The panic look is calm; the next clip resumes the show's energy.
+        this.resumeEnergy ??= this.energy;
         this.energy = 0.15;
         this.speed = 1;
         Object.assign(this.shared, { hue: 0, zoom: 1, mirror: 1 });
@@ -219,6 +235,7 @@ export class Show {
         return [];
       case "energy":
         this.#manual(t);
+        this.resumeEnergy = null; // the performer sets the level from here
         this.energy = clamp01(
           action.value ??
             this.energy + ENERGY_STEP * Math.sign(action.direction),
@@ -406,6 +423,7 @@ export class Show {
         snapshot: clip.snapshot,
         fadeSeconds: 0,
         energy: this.energy,
+        baseEnergy: clip.energy,
         page: saved.live.page,
         slot: saved.live.slot,
         clipId: clip.id,

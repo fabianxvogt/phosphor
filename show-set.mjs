@@ -8,6 +8,7 @@ import {
   migrateLegacy,
   validateSession,
 } from "./session.mjs";
+import { GATED } from "./scenes.mjs";
 
 export const FORMAT = "phosphor-set-v3";
 export const PAGES = 8;
@@ -71,25 +72,56 @@ export function clipFrom(snapshot, { id, name, energy = 0.5 } = {}) {
   };
 }
 
-export function initialShowSet(scenes) {
-  // Every family's authored looks, round-robin (each family's first look,
-  // then each second look, …), up to three per family. Page 1 therefore
-  // holds every family, so random autopilot shows them all.
+export const LAB_PAGE = PAGES - 1;
+
+// Preset indices with one look of every structural type first, then the
+// remaining looks in authored order.
+function typesFirst(scene) {
+  const all = scene.presets.map((_, i) => i);
+  if (!scene.type) return all;
+  const first = scene.type.values
+    .map((v) => all.find((i) => scene.presets[i].params[scene.type.key] === v))
+    .filter((i) => i !== undefined);
+  return [...first, ...all.filter((i) => !first.includes(i))];
+}
+
+// Authored looks, round-robin across families (each family's first look,
+// then each second look, …), every type before repeats, up to `rounds` per
+// family and `SLOTS` clips.
+function roundRobin(scenes, rounds, { autopilot, idFrom }) {
+  const orders = scenes.map(typesFirst);
   const clips = [];
-  for (let round = 0; round < 3; round++)
-    for (const scene of scenes)
-      if (round < scene.presets.length)
-        clips.push(
-          clipFrom(presetSnapshot(scene, round), {
-            id: `clip-${clips.length}`,
-            energy: 0.5,
+  for (let round = 0; round < rounds; round++)
+    scenes.forEach((scene, s) => {
+      if (round < orders[s].length && clips.length < SLOTS)
+        clips.push({
+          ...clipFrom(presetSnapshot(scene, orders[s][round]), {
+            id: `clip-${idFrom + clips.length}`,
           }),
-        );
+          autopilot,
+        });
+    });
+  return clips;
+}
+
+export function initialShowSet(scenes, gated = GATED) {
+  // Page 1 holds every type of the gated families, so random autopilot
+  // shows them all. Drafts start on the lab page with autopilot off (D55).
+  const show = roundRobin(
+    scenes.filter((s) => gated.has(s.id)),
+    5,
+    { autopilot: true, idFrom: 0 },
+  );
+  const lab = roundRobin(
+    scenes.filter((s) => !gated.has(s.id)),
+    3,
+    { autopilot: false, idFrom: show.length },
+  );
   const pages = Array.from({ length: PAGES }, (_, p) => ({
-    name: `Page ${p + 1}`,
+    name: p === LAB_PAGE ? "Lab" : `Page ${p + 1}`,
     slots: Array.from(
       { length: SLOTS },
-      (_, s) => clips[p * SLOTS + s] ?? null,
+      (_, s) => (p === 0 ? show[s] : p === LAB_PAGE ? lab[s] : null) ?? null,
     ),
   }));
   return {
@@ -264,4 +296,43 @@ export function parseShowSet(parsed, scenes) {
 
 export function clipAt(set, page, slot) {
   return set.pages[page]?.slots[slot] ?? null;
+}
+
+// Families with no clip anywhere in the set (sets saved before a family
+// existed never gain it on their own).
+export function missingFamilies(set, scenes) {
+  const present = new Set();
+  for (const page of set.pages)
+    for (const clip of page.slots) if (clip) present.add(clip.snapshot.scene);
+  return scenes.filter((s) => !present.has(s.id));
+}
+
+// Puts each missing family's first look into an empty slot of the lab page
+// (D53); existing clips are never moved or replaced. Gated families may be
+// played by autopilot there, drafts not.
+export function addMissingFamilies(set, scenes, gated = GATED) {
+  const next = structuredClone(set);
+  const ids = new Set();
+  for (const page of next.pages)
+    for (const clip of page.slots) if (clip) ids.add(clip.id);
+  const lab = next.pages[LAB_PAGE];
+  const added = [],
+    skipped = [];
+  let n = 0;
+  for (const scene of missingFamilies(set, scenes)) {
+    const slot = lab.slots.indexOf(null);
+    if (slot < 0) {
+      skipped.push(scene.name);
+      continue;
+    }
+    while (ids.has(`clip-added-${n}`)) n++;
+    const id = `clip-added-${n}`;
+    ids.add(id);
+    lab.slots[slot] = {
+      ...clipFrom(presetSnapshot(scene, 0), { id }),
+      autopilot: gated.has(scene.id),
+    };
+    added.push(scene.name);
+  }
+  return { set: validateShowSet(next, scenes), added, skipped };
 }

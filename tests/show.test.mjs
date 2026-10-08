@@ -41,6 +41,29 @@ test("a press just after the beat fires immediately", () => {
   assert.equal(loads(show.command({ type: "slot", index: 0 }, 1.02)).length, 1);
 });
 
+test("a trigger keeps the show energy instead of the clip's stored value (D54)", () => {
+  const show = makeShow((set) => {
+    set.autopilot.enabled = false;
+    set.pages[0].slots[1].energy = 0.2;
+  });
+  show.command({ type: "energy", value: 0.9 }, 0);
+  const [fired] = loads(show.command({ type: "slot", index: 1 }, 1.02));
+  assert.equal(fired.energy, 0.9);
+  // Parameters are authored at the clip's stored energy; curves start there.
+  assert.equal(fired.baseEnergy, 0.2);
+  assert.equal(show.status(1.02).energy, 0.9);
+});
+
+test("the safe look is calm, and the next clip resumes the show energy", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
+  show.command({ type: "energy", value: 0.8 }, 0);
+  const [safe] = show.command({ type: "safe" }, 0.1);
+  assert.equal(safe.energy, 0.15);
+  show.command({ type: "safe" }, 0.2); // a second panic keeps the old level
+  const [fired] = loads(show.command({ type: "slot", index: 2 }, 1.02));
+  assert.equal(fired.energy, 0.8);
+});
+
 test("bar quantize waits for the bar line; the latest press wins", () => {
   const show = makeShow((set) => {
     set.autopilot.enabled = false;
@@ -148,8 +171,19 @@ test("audition plays an unsaved clip immediately", () => {
   assert.equal(show.status(0.3).live.slot, -1);
 });
 
+// Acid is a draft on the Lab page (D55); these tests need it on page 1.
+function acidFirst(set) {
+  const acid = set.pages
+    .flatMap((p) => p.slots)
+    .find((c) => c?.snapshot.scene === "acid");
+  set.pages[0].slots[0] = { ...acid, id: "acid-page-1", autopilot: true };
+}
+
 test("autopilot and keys never schedule a family whose shaders failed", () => {
-  const show = makeShow((set) => (set.autopilot.everyBars = 16));
+  const show = makeShow((set) => {
+    set.autopilot.everyBars = 16;
+    acidFirst(set);
+  });
   show.disable("acid", 0);
   assert.deepEqual(show.command({ type: "slot", index: 0 }, 0.6), []); // acid
   const fired = [];
@@ -160,7 +194,10 @@ test("autopilot and keys never schedule a family whose shaders failed", () => {
 });
 
 test("a failed family on screen cuts at once to a playable clip on the page", () => {
-  const show = makeShow((set) => (set.autopilot.enabled = false));
+  const show = makeShow((set) => {
+    set.autopilot.enabled = false;
+    acidFirst(set);
+  });
   show.command({ type: "slot", index: 0 }, 0.5); // acid, fires on the beat
   assert.equal(show.status(0.5).live.slot, 0);
   const cut = loads(show.disable("acid", 0.7, true));
@@ -173,6 +210,7 @@ test("a failed family on screen cuts at once to a playable clip on the page", ()
 test("with the page unplayable the safe look takes over, then any page, then blackout", () => {
   const show = makeShow((set) => {
     set.autopilot.enabled = false;
+    acidFirst(set);
     const cathedral = set.pages[0].slots.find(
       (c) => c?.snapshot.scene === "cathedral",
     );

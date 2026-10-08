@@ -77,7 +77,9 @@ function apply(actions) {
         engine.setLevel(a.energy, a.fadeSeconds);
         engine.rayStepBudget = governor.steps(a.snapshot.scene);
         if (
-          engine.load(a.snapshot, a.fadeSeconds, { energy: a.energy }) === false
+          engine.load(a.snapshot, a.fadeSeconds, {
+            energy: a.baseEnergy ?? a.energy,
+          }) === false
         )
           isolate(a.snapshot.scene);
         break;
@@ -140,7 +142,7 @@ apply([{ type: "shared", shared: { ...show.shared } }]);
 fit();
 const saved = loadRuntime(localStorage);
 if (saved) apply(show.restore(saved, now()));
-if (!engine.slots.length) apply(show.begin(now()));
+if (!engine.slots.length) apply(show.begin(now(), { fresh: !saved }));
 
 // Audio (D21). The last chosen source survives a reload; a fresh stage
 // starts on the demo beat at 120 BPM. Chrome keeps audio suspended until
@@ -345,6 +347,11 @@ channel.onmessage = async ({ data }) => {
                 deviceId: data.deviceId ?? "",
                 muted: !!data.muted,
               };
+        // Automatic tracking missed its targets on real DJ mixes (D63): a
+        // line feed starts tap-first at the current tempo. Follow audio
+        // switches it back on. The demo and files keep following.
+        if (data.source === "input" && show.clock.mode === "auto")
+          show.clock.setManualBpm(t, show.clock.at(t).bpm);
         audioStart = audio.use(data);
         await audioStart;
         break;
@@ -392,10 +399,17 @@ async function watchScreen() {
     details.addEventListener("currentscreenchange", update);
   } catch {}
 }
-$("start").onclick = async () => {
+// Escape is the blackout key, but in fullscreen Chrome also exits on it
+// unless the key is locked (D53). Locked, a press reaches the page as
+// blackout; holding Escape still leaves fullscreen.
+async function enterFullscreen() {
   try {
     await document.documentElement.requestFullscreen?.();
+    await navigator.keyboard?.lock?.(["Escape"]);
   } catch {}
+}
+$("start").onclick = async () => {
+  await enterFullscreen();
   await awake();
   watchScreen();
   startAudio(); // this click lets the audio context run
@@ -406,8 +420,12 @@ $("start").onclick = async () => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") awake();
 });
-document.addEventListener("fullscreenchange", () => {
-  if (!document.fullscreenElement && started) $("overlay").hidden = false;
+// Losing fullscreen mid-show never puts UI on the venue screen: the output
+// keeps playing and the control window warns (status.stage.fullscreen).
+// A click on the stage returns to fullscreen.
+addEventListener("click", (event) => {
+  if (started && !document.fullscreenElement && event.target !== $("start"))
+    enterFullscreen();
 });
 addEventListener("resize", fit);
 addEventListener("pagehide", () => {

@@ -35,3 +35,15 @@ export default [
   hyperbolic,
   swarm,
 ];
+
+// Families that passed the family gate (roadmap "Family gate status", D51).
+// Only these go onto the show pages autopilot plays (D55); drafts start on
+// the lab page.
+export const GATED = new Set([
+  "feedback",
+  "tapestry",
+  "cathedral",
+  "interference",
+  "pulse",
+  "flight",
+]);

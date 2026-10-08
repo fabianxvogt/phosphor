@@ -27,10 +27,8 @@ function play(pilot, bars, { events = {}, startEnergy = 0.5 } = {}) {
     });
     for (const a of actions) {
       log.push({ bar, ...a });
-      if (a.type === "trigger") {
-        current = pool[a.slot];
-        energy = current.clip.energy;
-      }
+      // Energy is show state (D54): a trigger does not reset it.
+      if (a.type === "trigger") current = pool[a.slot];
       if (a.type === "energy") energy = a.value;
     }
   }
@@ -104,9 +102,31 @@ test("drop crossfades fast to a higher-energy clip; breakdown lowers energy and 
   );
   const drop = at(20);
   assert.ok(drop.some((a) => a.type === "speed" && a.value === 1));
+  // Breakdown took 0.5 → 0.2; the drop lifts 0.3 above where the chain began.
+  const lift = drop.find((a) => a.type === "energy");
+  assert.ok(lift && Math.abs(lift.value - 0.8) < 1e-9);
   const trigger = drop.find((a) => a.type === "trigger");
   assert.ok(trigger && trigger.fade === 4); // smooth, never a hard cut
   assert.ok(pool[trigger.slot].clip.energy >= 0.5);
+});
+
+test("breakdown/build/drop chains settle back instead of ratcheting energy up (D54)", () => {
+  const events = {};
+  for (let cycle = 0; cycle < 8; cycle++) {
+    events[cycle * 64 + 10] = "breakdown";
+    events[cycle * 64 + 18] = "build";
+    events[cycle * 64 + 26] = "drop";
+  }
+  const log = play(new Autopilot({ everyBars: 32 }), 8 * 64, { events });
+  const levels = log.filter((a) => a.type === "energy").map((a) => a.value);
+  assert.ok(Math.max(...levels) <= 0.8 + 1e-9, String(levels));
+  // Before every breakdown (after the first) energy has settled back to 0.5.
+  for (let cycle = 1; cycle < 8; cycle++) {
+    const before = log
+      .filter((a) => a.type === "energy" && a.bar < cycle * 64 + 10)
+      .at(-1);
+    assert.ok(Math.abs(before.value - 0.5) < 1e-9, JSON.stringify(before));
+  }
 });
 
 test("never touches master, mirror, blackout, flash or page", () => {

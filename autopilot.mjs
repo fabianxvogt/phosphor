@@ -41,6 +41,11 @@ export class Autopilot {
     this.history = [];
     this.breakdownSince = null;
     this.calmerTaken = false;
+    // Energy is show state (D54), so the event chain is anchored: `chainFrom`
+    // is the energy before a breakdown/build began; after a drop, `settle`
+    // eases back to it so repeated chains never ratchet upward.
+    this.chainFrom = null;
+    this.settle = null; // { bar, to }
   }
 
   // Any manual performance input at `bar`.
@@ -104,6 +109,7 @@ export class Autopilot {
       if (this.nextChange === null || this.nextChange < this.manualUntil)
         this.nextChange = Math.max(bar + 1, this.manualUntil);
       this.breakdownSince = null;
+      this.chainFrom = this.settle = null; // the performer's level is the new anchor
       return actions;
     }
     const trigger = (choice, fade) => {
@@ -117,7 +123,15 @@ export class Autopilot {
       this.nextChange = bar + this.everyBars;
       this.nextDrift = bar + Math.ceil(fade / 4); // drift once the fade is over
     };
+    const anchor = () => {
+      if (this.chainFrom === null) {
+        this.chainFrom = this.settle?.to ?? energy;
+        this.settle = null;
+      }
+      return this.chainFrom;
+    };
     if (event === "build") {
+      anchor();
       actions.push({
         type: "energy",
         value: Math.min(1, energy + 0.2),
@@ -127,7 +141,14 @@ export class Autopilot {
       const wasBreakdown = this.breakdownSince !== null;
       this.breakdownSince = null;
       if (wasBreakdown) actions.push({ type: "speed", value: 1 });
-      const choice = this.#pick(pool, current, Math.min(1, energy + 0.3));
+      // The drop lifts energy 0.3 above where the chain began, then settles
+      // back there after 32 bars; the new clip keeps it (D54).
+      const from = anchor();
+      const target = Math.min(1, from + 0.3);
+      this.chainFrom = null;
+      this.settle = { bar: bar + 32, to: from };
+      actions.push({ type: "energy", value: target, beats: 4 });
+      const choice = this.#pick(pool, current, target);
       if (choice && choice.clip.energy >= (current?.clip.energy ?? 0))
         trigger(choice, DROP_FADE_BEATS);
       return actions;
@@ -136,10 +157,14 @@ export class Autopilot {
       this.calmerTaken = false;
       actions.push({
         type: "energy",
-        value: Math.max(0, energy - 0.3),
+        value: Math.max(0, anchor() - 0.3),
         beats: 8,
       });
       actions.push({ type: "speed", value: 0.5 });
+    }
+    if (this.settle && bar >= this.settle.bar) {
+      actions.push({ type: "energy", value: this.settle.to, beats: 32 });
+      this.settle = null;
     }
     if (
       this.breakdownSince !== null &&

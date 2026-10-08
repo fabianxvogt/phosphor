@@ -8,17 +8,19 @@ import {
   validateShowSet,
   parseShowSet,
   clipFrom,
+  missingFamilies,
+  addMissingFamilies,
   SLOTS,
   QUANTIZE,
   AUTOPILOT_BARS,
   PIXEL_BUDGETS,
+  MIDI_TARGETS,
 } from "./show-set.mjs";
 import { loadSet, saveSet } from "./show-storage.mjs";
 import { actionFor, keyLabels, GRID_CODES } from "./keymap.mjs";
 import { mutatePreset } from "./evolution.mjs";
 import { AudioEngine, MidiInput } from "./audio.mjs";
 import { routeMidi } from "./midi-map.mjs";
-import { MIDI_TARGETS } from "./show-set.mjs";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...children) => {
@@ -472,13 +474,18 @@ const activeIsFader = () => document.activeElement?.type === "range";
 function renderStatus() {
   const s = performanceStatus();
   const alive = stageAlive();
+  // The stage never shows UI on the venue screen after it started (D53):
+  // a lost fullscreen is reported here instead.
+  const windowed = alive && status.stage.started && !status.stage.fullscreen;
   $("stagePill").textContent = alive
     ? status.stage.started
-      ? "Stage live"
+      ? windowed
+        ? "Stage not fullscreen · click the stage"
+        : "Stage live"
       : "Stage open · click it to start"
     : "Stage not open";
   $("stagePill").className =
-    `pill ${alive ? (status.stage.started ? "ok" : "warn") : "bad"}`;
+    `pill ${alive ? (status.stage.started && !windowed ? "ok" : "warn") : "bad"}`;
   $("openStage").disabled = alive;
   updateSettingsLock();
   updatePreview();
@@ -557,14 +564,20 @@ if (editorEngine)
   localPerformance = new ControlPreview(editorEngine, set, scenes, now());
 const localPreviewContext = $("localPreview").getContext("2d");
 updatePreview();
-function previewDraft() {
+function previewDraft(manual = true) {
   if (!editorEngine || !draft) return;
   resumeLocalPerformance();
   if (stageAlive()) {
     editorEngine.setLevel(draft.energy, 0);
     editorEngine.load(draft.snapshot, 0, { energy: draft.energy });
   } else
-    localPerformance.select(draftTarget.page, draftTarget.slot, draft, now());
+    localPerformance.select(
+      draftTarget.page,
+      draftTarget.slot,
+      draft,
+      now(),
+      manual,
+    );
 }
 function editDraft() {
   if (!editorEngine || !draft) return;
@@ -572,7 +585,9 @@ function editDraft() {
   if (stageAlive()) editorEngine.setSnapshot(draft.snapshot);
   else localPerformance.edit(draftTarget.page, draftTarget.slot, draft, now());
 }
-function selectSlot(page, slot, preview = true) {
+// preview: show the clip in the main preview; manual: that counts as a
+// performer takeover (opening the window or importing a set does not).
+function selectSlot(page, slot, preview = true, manual = true) {
   selected = { page, slot };
   draftTarget = { page, slot };
   const clip = set.pages[page].slots[slot];
@@ -582,7 +597,7 @@ function selectSlot(page, slot, preview = true) {
         id: `clip-${Date.now().toString(36)}`,
       });
   draft.isNew = !clip;
-  if (preview) previewDraft();
+  if (preview) previewDraft(manual);
   renderEditor();
   renderGrid();
   updateSettingsLock();
@@ -1145,7 +1160,7 @@ $("importSet").onchange = async () => {
       ...result.report.map((line) => el("li", { textContent: line })),
     );
     changed();
-    selectSlot(0, 0);
+    selectSlot(0, 0, true, false);
     toast(`Imported “${set.name}”.`);
   } catch (error) {
     toast(`Import failed: ${error.message}`);
@@ -1200,6 +1215,24 @@ $("pattern").onclick = () => {
   $("pattern").ariaPressed = String(on);
   send({ type: "pattern", on });
 };
+// Sets saved before a family existed never gain it on their own (D53).
+function renderMissing() {
+  const missing = missingFamilies(set, scenes);
+  $("missingFamilies").hidden = !missing.length;
+  $("missingText").textContent =
+    `${missing.length} famil${missing.length === 1 ? "y is" : "ies are"} not in this set: ${missing.map((s) => s.name).join(", ")}.`;
+}
+$("addMissing").onclick = () => {
+  if (settingsLocked) return;
+  const result = addMissingFamilies(set, scenes);
+  set = result.set;
+  changed();
+  toast(
+    result.skipped.length
+      ? `Added ${result.added.length} to the Lab page; no room for ${result.skipped.join(", ")}.`
+      : `Added ${result.added.length} famil${result.added.length === 1 ? "y" : "ies"} to the Lab page.`,
+  );
+};
 
 function render() {
   $("setName").textContent = set.name;
@@ -1209,6 +1242,7 @@ function render() {
   renderEditor();
   renderSetFields();
   renderChecks();
+  renderMissing();
   renderMidi();
   renderStatus();
   updateSettingsLock();
@@ -1246,7 +1280,7 @@ if ("serviceWorker" in navigator)
     );
 
 labels = await keyLabels();
-selectSlot(0, 0);
+selectSlot(0, 0, true, false);
 render();
 send({ type: "hello" });
 send({ type: "devices" });

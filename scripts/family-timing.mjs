@@ -75,9 +75,12 @@ try {
   for (const value of family.values) {
     const snapshot = structuredClone(family.clip.snapshot);
     if (family.key !== null) snapshot.params[family.key] = value;
+    // Energy is show state (D54): set it, then audition the clip at its
+    // authored energy so the family's energy curves move it to `level`.
+    await send({ type: "energy", value: level });
     await send({
       type: "audition",
-      clip: { ...family.clip, snapshot, energy: level, fade: 0 },
+      clip: { ...family.clip, snapshot, fade: 0 },
     });
     await delay(3000); // compile, warm-up and the energy ramp
     await drain();
