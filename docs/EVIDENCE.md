@@ -2,6 +2,12 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-08 — Selected visual preview without a stage
+
+- `INCREMENTAL / EMPIRICAL`: the main preview reuses the editor's rendered canvas at 480×270 / 30 Hz while no live stage stream is available. No extra WebGL engine or audio context is created. A connected stage takes over the monitor; closing it restores the selected clip.
+- Installed-Chrome smoke against the source: initial visual visible with only the control window open; selecting Prismatic Nave changed the main preview; opening the stage switched to live video; closing it restored the local preview with no empty overlay. Zero page errors; screenshot inspected.
+- Verification: 144 tests passed, four opt-in browser probes skipped; typecheck, build, distribution/offline verification and format check passed. Distribution revision `f53a4b9398c064a5`.
+
 ## 2026-10-08 — Current VJ instrument deployed to production
 
 - Owner requested deployment of everything; published the complete verified application distribution, not local music or generated research artifacts. `INCREMENTAL / EMPIRICAL`.

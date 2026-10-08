@@ -126,12 +126,27 @@ async function openStage() {
   }
 }
 const stageAlive = () => performance.now() - lastStatusAt < 2000;
+function updatePreview() {
+  const live =
+    stageAlive() &&
+    $("preview")
+      .srcObject?.getVideoTracks()
+      .some((t) => t.readyState === "live");
+  $("preview").hidden = !live;
+  $("localPreview").hidden = !!live;
+  $("previewEmpty").hidden = !!live || !!editorEngine;
+}
 window.__phosphorControl = {
   attachPreview(stream) {
     const video = $("preview");
     video.srcObject = stream;
     video.play().catch(() => {});
-    $("previewEmpty").hidden = true;
+    stream
+      .getVideoTracks()
+      .forEach((track) =>
+        track.addEventListener("ended", updatePreview, { once: true }),
+      );
+    updatePreview();
   },
 };
 
@@ -365,6 +380,7 @@ function renderStatus() {
   $("stagePill").className =
     `pill ${alive ? (status.stage.started ? "ok" : "warn") : "bad"}`;
   $("openStage").disabled = alive;
+  updatePreview();
   if (!s) return;
   const clock = s.clock;
   $("bpm").textContent = clock.bpm.toFixed(1);
@@ -427,6 +443,8 @@ try {
 } catch (error) {
   log(`Editor preview unavailable: ${error.message}`);
 }
+const localPreviewContext = $("localPreview").getContext("2d");
+updatePreview();
 function previewDraft() {
   if (!editorEngine || !draft) return;
   editorEngine.setLevel(draft.energy, 0);
@@ -664,7 +682,7 @@ let editorLoop = 0;
 function animateEditor(ms) {
   requestAnimationFrame(animateEditor);
   if (
-    showMode ||
+    (showMode && $("localPreview").hidden) ||
     !editorEngine ||
     document.hidden ||
     ms - editorLoop < 1000 / 30
@@ -672,8 +690,11 @@ function animateEditor(ms) {
     return;
   const dt = Math.min(0.1, (ms - editorLoop) / 1000);
   editorLoop = ms;
-  editorEngine.beat = status?.status.clock.beat ?? ms / 500;
+  editorEngine.beat =
+    (stageAlive() ? status?.status.clock.beat : null) ?? ms / 500;
   editorEngine.advance(dt, false);
+  if (!$("localPreview").hidden)
+    localPreviewContext.drawImage($("editorCanvas"), 0, 0);
 }
 
 // --- Prep: set, audio, checks --------------------------------------------------------
@@ -1050,6 +1071,7 @@ window.addEventListener("beforeunload", () => {
 setInterval(() => {
   if (!stageAlive() && status) {
     status = null;
+    $("preview").srcObject = null;
     renderStatus();
   }
 }, 1000);

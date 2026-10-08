@@ -37,15 +37,21 @@
         <section class="panel" aria-label="Stage monitor">
           <div class="monitor">
             <div class="preview">
+              <canvas
+                id="localPreview"
+                width="480"
+                height="270"
+                aria-label="Selected visual preview"
+              ></canvas>
               <video
                 id="preview"
                 muted
+                hidden
                 playsinline
                 aria-label="Stage preview"
               ></video>
               <div class="empty" id="previewEmpty">
-                Open the stage, drag it to the projector and click once on it.
-                The preview appears here.
+                Preview unavailable. Open the stage to try its renderer.
               </div>
             </div>
             <div class="readouts">
