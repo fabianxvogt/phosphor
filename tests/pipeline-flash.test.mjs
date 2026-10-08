@@ -2,20 +2,23 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { FlashLimiter } from "../flash-limiter.mjs";
 
-function flashes(samples) {
-  let anchor = samples[0].y, extreme = anchor, direction = 0;
+// Independent monotonic-run oracle: reset at EVERY reversal, not at limiter
+// events or a paired-flash anchor. One >=0.1 run is one flash transition.
+function transitions(samples) {
   const times = [];
+  let start = samples[0].y, previous = start, sign = 0, counted = false;
   for (const { y, time } of samples.slice(1)) {
-    if (!direction) {
-      if (y - anchor >= 0.1 && anchor < 0.8) { direction = 1; extreme = y; }
-      else if (anchor - y >= 0.1 && y < 0.8) { direction = -1; extreme = y; }
-    } else if (direction === 1) {
-      extreme = Math.max(extreme, y);
-      if (extreme - y >= 0.1 && y < 0.8) { times.push(time); direction = 0; anchor = y; }
-    } else {
-      extreme = Math.min(extreme, y);
-      if (y - extreme >= 0.1 && extreme < 0.8) { times.push(time); direction = 0; anchor = y; }
+    const nextSign = Math.sign(y - previous);
+    if (nextSign !== 0 && nextSign !== sign) {
+      start = previous;
+      sign = nextSign;
+      counted = false;
     }
+    if (!counted && sign !== 0 && Math.abs(y - start) >= .1 && Math.min(y, start) < .8) {
+      times.push(time);
+      counted = true;
+    }
+    previous = y;
   }
   return times;
 }
@@ -29,12 +32,12 @@ function strobe(enabled, exempt = false) {
     const gain = limiter.update(input, time, enabled, exempt);
     samples.push({ time, y: input * gain });
   }
-  return { samples, times: flashes(samples), limiter };
+  return { samples, times: transitions(samples), limiter };
 }
 
 test("a 10 Hz full-frame strobe has at most three general flashes in any second", () => {
   const { times, limiter } = strobe(true);
-  for (const time of times) assert.ok(times.filter(t => t > time - 1 && t <= time).length <= 3);
+  for (const time of times) assert.ok(times.filter(t => t > time - 1 && t <= time).length <= 6);
   assert.ok(limiter.limitedFrames > 0);
 });
 
@@ -61,8 +64,8 @@ test("the first bright approved frame reserves the flash from startup black", ()
     const input=Math.floor(frame/3)%2===0 ? .7 : 0;
     samples.push({time:frame/60,y:input*limiter.update(input,frame/60)});
   }
-  const times=flashes(samples);
-  assert.ok(times.length<=3,`startup emitted ${times.length} flashes`);
+  const times=transitions(samples);
+  assert.ok(times.length<=6,`startup emitted ${times.length} flash transitions`);
 });
 
 test("sRGB8 rounding cannot turn subthreshold excursions into unlimited flashes", () => {
@@ -77,6 +80,27 @@ test("sRGB8 rounding cannot turn subthreshold excursions into unlimited flashes"
     const input=Math.floor(frame/3)%2===0 ? .549 : .45;
     samples.push({time:frame/60,y:quantizedLuminance(input*limiter.update(input,frame/60))});
   }
-  const times=flashes(samples);
-  for (const time of times) assert.ok(times.filter(t=>t>time-1&&t<=time).length<=3);
+  const times=transitions(samples);
+  for (const time of times) assert.ok(times.filter(t=>t>time-1&&t<=time).length<=6);
 });
+
+for (const [name, inputAt] of [
+  ["anchor-centred flicker", frame => frame < 20 ? .3 : frame < 40 ? .6 : frame < 120 ? .3 : Math.floor(frame/3)%2 ? .385 : .215],
+  ["post-cap strobe", frame => frame < 36 ? Math.floor(frame/6)%2 ? .085 : .6 : Math.floor(frame/3)%2 ? .6 : 0],
+  ["varying troughs", frame => frame < 36 ? Math.floor(frame/6)%2 ? .085 : .6 : Math.floor(frame/3)%2 ? .6 : [0,.015,.03,.045][Math.floor(frame/6)%4]],
+]) {
+  test(`${name} cannot exceed six independent flash transitions per second`, () => {
+    const limiter = new FlashLimiter();
+    const samples = [{time:0,y:0}];
+    for (let frame=1;frame<600;frame++) {
+      const input=inputAt(frame);
+      samples.push({time:frame/60,y:input*limiter.update(input,frame/60)});
+    }
+    const times=transitions(samples);
+    for (const time of times) {
+      const count=times.filter(t=>t>time-1&&t<=time).length;
+      assert.ok(count<=6,`${count} transitions at ${time}s`);
+    }
+    assert.ok(limiter.limitedFrames>0);
+  });
+}
