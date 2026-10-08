@@ -61,7 +61,8 @@ Every family below is a draft until it passes (D47). Packets: `docs/families/<id
 | Group | Family | Status |
 | --- | --- | --- |
 | 1 | Feedback Chapel | [packet](docs/families/feedback.md): types, ladder, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
-| 1 | Cathedral, Interference, Tapestry | in lanes |
+| 1 | Causal Tapestry | [packet](docs/families/tapestry.md): four types pass within the family; Cascade has cross-family near pairs (nearest Melt 0.138), the other three are clear; ladder, aspect, correctness and rig timing pass; **awaiting owner art sign-off** |
+| 1 | Cathedral, Interference | in lanes |
 | 2 | Pulse Geometry, Fractal Flight | in lanes |
 | 3 | Melt, Acid (+ garden type) | draft |
 | 4 | Light Beams, Particle Swarm | draft |

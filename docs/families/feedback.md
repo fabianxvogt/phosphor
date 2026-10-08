@@ -46,13 +46,15 @@ Convex feedback: pigment ≤ .86/channel, history/injection weights sum to ≤ 1
 
 ## Contact sheets (absolute local paths; metrics.json alongside each)
 
-- Types: `/Users/fabian/Development/phosphor-worktrees/family-feedback/artifacts/contact/feedback-types/index.html`
-- All authored ladders: `/Users/fabian/Development/phosphor-worktrees/family-feedback/artifacts/contact/feedback-ladder/index.html`
-- 640×360: `/Users/fabian/Development/phosphor-worktrees/family-feedback/artifacts/contact/feedback-640x360/index.html`
-- 1280×360: `/Users/fabian/Development/phosphor-worktrees/family-feedback/artifacts/contact/feedback-1280x360/index.html`
-- 480×480: `/Users/fabian/Development/phosphor-worktrees/family-feedback/artifacts/contact/feedback-480x480/index.html`
-- Cross-family: `/Users/fabian/Development/phosphor-worktrees/family-feedback/artifacts/contact/feedback-cross-types/index.html`
-- Cut/fade/kick gallery: `/Users/fabian/Development/phosphor-worktrees/family-feedback/artifacts/contact/feedback-behaviour/index.html`
+Regenerated from `main` after the merge (the lane worktree was removed).
+
+- Types: `/Users/fabian/Development/phosphor/artifacts/contact/feedback-types/index.html`
+- All authored ladders: `/Users/fabian/Development/phosphor/artifacts/contact/feedback-ladder/index.html`
+- 640×360: `/Users/fabian/Development/phosphor/artifacts/contact/feedback-640x360/index.html`
+- 1280×360: `/Users/fabian/Development/phosphor/artifacts/contact/feedback-1280x360/index.html`
+- 480×480: `/Users/fabian/Development/phosphor/artifacts/contact/feedback-480x480/index.html`
+- Cross-family: `/Users/fabian/Development/phosphor/artifacts/contact/feedback-cross-types/index.html`
+- Cut/fade/kick gallery: `/Users/fabian/Development/phosphor/artifacts/contact/feedback-behaviour/index.html`
 
 ## Owner-only acceptance and known limits
 

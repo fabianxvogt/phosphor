@@ -42,19 +42,21 @@ All four types rendered at **640×360, 1280×360 and 480×480**: WebGL/non-finit
 - `npm test`: **130 passed, 1 intentional opt-in skip**; `npm run build`: **47 assets built**. `node scripts/test-browser.mjs --only lab --port 48124`: **all 104 looks non-blank, WebGL 0, non-finite 0, textures accounted**; extreme energy, odd aspects and one-slot/no-leak fades passed for every family.
 - `node tests/tapestry-gate.test.mjs --port 48124 --matrix artifacts/contact/tapestry-cross-family`: **passed**. All four types have ordered scroll **11/34/57 rows/s**, weave **.40/.72/1.00**, rendered edges and kick response. Same-state off/kick PNG review confirms shared punch/pulse at 0.9, with automatic flash suppressed: mean 8-bit RGB differences **0: 11.31; 1: 24.92; 2: 46.45; 3: 20.11** (all zero at 0.1). Declared weights are punch **.8**, pulse **1**; no injection alters the exact CA.
 
-## Contact sheets (absolute worktree paths)
+## Contact sheets (absolute paths; copied into the main checkout's `artifacts/` at merge)
 
-- Types: `/Users/fabian/Development/phosphor-worktrees/family-tapestry/artifacts/contact/tapestry-types/index.html`
-- Baseline comparison: `/Users/fabian/Development/phosphor-worktrees/family-tapestry/artifacts/contact/tapestry-before/index.html`
-- All authored ladders: `/Users/fabian/Development/phosphor-worktrees/family-tapestry/artifacts/contact/tapestry-ladder/index.html`
-- 16:9: `/Users/fabian/Development/phosphor-worktrees/family-tapestry/artifacts/contact/tapestry-640x360/index.html`
-- Ultra-wide: `/Users/fabian/Development/phosphor-worktrees/family-tapestry/artifacts/contact/tapestry-1280x360/index.html`
-- Square: `/Users/fabian/Development/phosphor-worktrees/family-tapestry/artifacts/contact/tapestry-480x480/index.html`
-- All-family grayscale types: `/Users/fabian/Development/phosphor-worktrees/family-tapestry/artifacts/contact/tapestry-cross-family/index.html`
-- Isolated kick PNGs and full distance matrix: `/Users/fabian/Development/phosphor-worktrees/family-tapestry/artifacts/contact/tapestry-probes/metrics.json`
+- Types: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-types/index.html`
+- Baseline comparison: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-before/index.html`
+- All authored ladders: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-ladder/index.html`
+- 16:9: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-640x360/index.html`
+- Ultra-wide: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-1280x360/index.html`
+- Square: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-480x480/index.html`
+- All-family grayscale types: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-cross-family/index.html`
+- Isolated kick PNGs and full distance matrix: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-probes/metrics.json`
 
 ## Owner decision and limits
 
 Judge structural identity in grayscale, the ladder's at-a-glance order (especially the dense rosette), calm/peak usefulness and acceptable cover-crop. Approve or reject the recommended presets; then run `npm run timing -- --rig --family tapestry` alone on the reference rig (all types at high energy, p99 ≤ 34 ms, no downgrade/errors).
+
+**Rig timing PASS (2026-10-08, parent):** `npm run timing -- --rig --family tapestry`, Chrome on the M3 Pro (ANGLE Metal, built-in display), 1920×1080, energy 0.95, 30 s per type, under heavy CPU load from parallel headless lanes (load average ≈ 136): p50 16.7 ms, p99 17.6 ms for all four types, max 24.2 ms, GPU errors 0, non-finite 0, no step reduction or downgrade. Art sign-off has not been executed.
 
 Known limits: simulation is 512 cells × 511 retained generations; square/ultra-wide use 16:9 cover-crop, not native recomposition. Distances are static 120-frame grayscale proxies, not settled-history or motion proofs. Thin threads may alias on an LED wall. At very low energy, authored 184/22 can clamp scroll to zero and show only sparse initial history. Reverse revisits stored rows, never reconstructs older history. Arbitrary edited rules (e.g. 0/255) need not make useful art; the gate concerns declared types and authored looks. No real-GPU timing or owner sign-off was performed in this lane.
