@@ -64,6 +64,9 @@ export function initialSession(scenes) {
       kaleido: 1,
       autoQuality: true,
       autoRecovery: true,
+      flashLimit: true,
+      echo: 0,
+      chroma: 0,
     },
     lineages: [],
   };
@@ -176,6 +179,11 @@ export function validateSession(value, scenes) {
     !["high", "balanced", "low"].includes(value.options.quality)
   )
     throw new Error("Invalid render quality");
+  if (
+    value.options.flashLimit !== undefined &&
+    typeof value.options.flashLimit !== "boolean"
+  )
+    throw new Error("Flash limiter must be a boolean");
   const options = {
     quality: value.options.quality,
     brightness: finite(value.options.brightness, 0, 1, "Brightness"),
@@ -184,6 +192,20 @@ export function validateSession(value, scenes) {
     reducedMotion: value.options.reducedMotion === true,
     autoQuality: value.options.autoQuality === true,
     autoRecovery: value.options.autoRecovery === true,
+    flashLimit:
+      value.options.flashLimit === undefined ? true : value.options.flashLimit,
+    echo: finite(
+      value.options.echo === undefined ? 0 : value.options.echo,
+      0,
+      1,
+      "Echo",
+    ),
+    chroma: finite(
+      value.options.chroma === undefined ? 0 : value.options.chroma,
+      0,
+      1,
+      "Chroma",
+    ),
   };
   if (!Array.isArray(value.midi) || value.midi.length > 64)
     throw new Error("Invalid MIDI mappings");
@@ -277,6 +299,7 @@ function activeSceneTargets(scenes) {
   return scenes.flatMap((s) => s.schema.map((d) => `${s.id}.${d.key}`));
 }
 export function interpolateSnapshot(a, b, t) {
+  t = Number.isNaN(t) || t === -Infinity ? 0 : Math.max(0, Math.min(1, t));
   if (a.scene !== b.scene) return t < 1 ? a : b;
   const result = structuredClone(a);
   for (const key of Object.keys(a.params))
@@ -309,6 +332,7 @@ export function migrateLegacy(value, scenes) {
     value.version !== 1
   )
     throw new Error("Expected a Phosphor v1 set");
+  if (value.presetIndex?.length === 14) return migrateB(value, scenes);
   const ids = ["acid", "tapestry", "feedback"];
   const base = initialSession(scenes);
   if (
@@ -423,4 +447,335 @@ export async function readSetFile(file, scenes) {
   return parsed?.format === "phosphor-set-v1"
     ? migrateLegacy(parsed, scenes)
     : validateSession(parsed, scenes);
+}
+
+export const B_FAMILIES = [
+  "acid",
+  "tapestry",
+  "feedback",
+  "magnetic",
+  "cathedrals",
+  "aquarium",
+  "interference",
+  "topology",
+  "phase",
+  "evolution",
+  "julia",
+  "fourspace",
+  "hyperbolic",
+  "fractal",
+];
+const bShared = { cathedrals: "cathedral", topology: "melt" };
+const bBounds = {
+  acid: {
+    growth: [0, 1],
+    injection: [0, 1],
+    diffusion: [0.2, 1.4],
+    contrast: [0.5, 2],
+    drift: [0, 1],
+  },
+  tapestry: {
+    rule: [0, 255],
+    scroll: [0, 1],
+    weave: [0, 1],
+    reversal: [0, 1],
+    phrase: [2, 16],
+  },
+  feedback: {
+    decay: [0.72, 0.99],
+    transform: [-0.06, 0.06],
+    symmetry: [1, 6],
+    injection: [0, 1],
+    tunnel: [0, 1],
+  },
+  magnetic: {
+    attractorX: [0, 1],
+    attractorY: [0, 1],
+    attractor: [0, 1],
+    trail: [0.72, 0.98],
+    density: [0.2, 1],
+    motion: [0.1, 1],
+    split: [0, 1],
+  },
+  cathedrals: {
+    family: [0, 3],
+    journey: [0, 2],
+    recursion: [1, 6],
+    scale: [0.55, 1.2],
+    color: [0, 1],
+    traversal: [0, 1],
+    stationary: [0, 1],
+    lighting: [0, 1],
+    material: [0, 1],
+    fog: [0, 1],
+    emission: [0, 1],
+  },
+  aquarium: {
+    population: [0.1, 1],
+    feeding: [0, 1],
+    trails: [0.5, 0.98],
+    habitat: [0, 2],
+    bloom: [0, 1],
+    food: [0, 1],
+    extinction: [0, 1],
+  },
+  interference: {
+    fieldA: [0, 1],
+    fieldB: [0, 1],
+    fieldC: [0, 1],
+    frequency: [0.2, 4],
+    ratio: [0.25, 2],
+    phase: [0, 1],
+    orientation: [0, 1],
+    filter: [0.2, 1],
+    tempoLock: [0, 1],
+  },
+  topology: {
+    family: [0, 3],
+    loop: [0.2, 1],
+    thickness: [0.1, 1],
+    twist: [0, 1],
+    camera: [0, 1],
+    material: [0, 1],
+    keyframe: [0, 1],
+  },
+  phase: {
+    arc: [0, 2],
+    regime: [0, 5],
+    compare: [0, 1],
+    control: [0, 1],
+    coupling: [0, 1],
+    disturbance: [0, 1],
+    release: [0, 1],
+    tempo: [0.2, 1],
+  },
+  evolution: {
+    mutation: [0, 1],
+    lock: [0, 1],
+    lockField: [0, 3],
+    generation: [0, 8],
+    lineage: [0, 1],
+    focus: [0, 1],
+  },
+};
+function bSnapshot(value, index, preset, scenes, cue) {
+  const id = B_FAMILIES[index];
+  const scene = scenes.find((s) => s.id === (bShared[id] || id));
+  if (!scene) return null;
+  const limits = id === "tapestry" ? 8 : 6;
+  if (!Number.isInteger(preset) || preset < 0 || preset >= limits)
+    throw new Error("Unknown B preset");
+  const old = cue?.sceneParamsSnapshot || value.params[id];
+  if (!record(old)) throw new Error(`B parameters missing for ${id}`);
+  for (const [key, bounds] of Object.entries(bBounds[id]))
+    finite(old[key], ...bounds, `${id}.${key}`);
+  const snapshot = presetSnapshot(
+    scene,
+    Math.min(preset, scene.presets.length - 1),
+  );
+  let updates;
+  switch (id) {
+    case "acid":
+      updates = {
+        feed: 0.018 + old.growth * 0.026,
+        kill: 0.045 + (1 - old.growth) * 0.02,
+        speed: 0.25 + old.growth * 0.75,
+        diffusion: old.diffusion,
+        injection: old.injection,
+        contrast: old.contrast,
+      };
+      break;
+    case "tapestry":
+      updates = {
+        rule: old.rule,
+        scroll: old.scroll * 60,
+        weave: old.weave,
+        playback: old.reversal > 0.5 ? -1 : 1,
+        phrase: Math.round(old.phrase * 4),
+      };
+      break;
+    case "feedback":
+      updates = {
+        persistence: old.decay,
+        zoom: old.transform * 4,
+        rotation: old.transform * 12,
+        symmetry: old.symmetry,
+        injection: old.injection,
+        aperture: 0.12 + old.tunnel * 0.78,
+      };
+      break;
+    case "magnetic":
+      updates = {
+        flow: old.split > 0.65 ? 1 : old.trail > 0.9 ? 2 : 0,
+        motion: old.motion * 2,
+        density: old.density,
+        trails: 0.2 + ((old.trail - 0.72) / 0.26) * 2.8,
+        radius: 0.12 + old.attractor * 0.26,
+        curl: old.attractor * 1.4,
+        separation: 0.14 + old.split * 0.5,
+        weave: old.split,
+      };
+      break;
+    case "cathedrals":
+      updates = {
+        geometry: old.family,
+        journey: old.journey,
+        recursion: old.recursion,
+        scale: old.scale,
+        speed: old.stationary > 0.5 ? 0 : old.traversal * 1.5,
+        material: Math.round(old.material * 5),
+        glow: 0.1 + old.emission * 1.4,
+      };
+      break;
+    case "aquarium":
+      updates = {
+        population: Math.round(old.population * 12),
+        dynamics: (1 - old.extinction) * 1.6,
+        feeding: old.feeding,
+        habitat: old.habitat,
+        form: old.bloom,
+        flow: old.food * 1.5,
+        trails: old.trails,
+      };
+      break;
+    case "interference":
+      updates = {
+        composition: preset % 6,
+        fields: Math.max(
+          1,
+          [old.fieldA, old.fieldB, old.fieldC].filter((v) => v > 0.25).length,
+        ),
+        ratio: old.ratio,
+        phase: old.phase,
+        orientation: old.orientation * 180,
+        palette: old.phase,
+        motion: old.frequency / 4,
+        beatLock: old.tempoLock,
+      };
+      break;
+    case "topology":
+      updates = {
+        family: [3, 0, 1, 2][Math.round(old.family)],
+        thickness: 0.018 + old.thickness * 0.122,
+        duration: 4 + (1 - old.loop) * 86,
+        phase: old.keyframe,
+        yaw: old.camera * 360 - 180,
+        material: Math.round(old.material * 5),
+        motion: old.twist,
+      };
+      break;
+    case "phase":
+      updates = {
+        coupling: old.coupling * 6,
+        noise: old.disturbance,
+        speed: old.tempo * 3,
+        disturbance: old.disturbance * 2,
+        detuning: (1 - old.release) * 2,
+        winding: old.regime,
+        coherence: old.control,
+        arc: old.arc + 1,
+      };
+      break;
+    case "evolution":
+      updates = {
+        feed: 0.025 + old.mutation * 0.023,
+        prune: 0.051 + old.lineage * 0.014,
+        spread: 0.35 + old.focus * 0.3,
+        planting: 3 + old.generation,
+        petals: old.mutation,
+        sway: old.focus,
+        glow: 0.35 + old.lineage * 1.3,
+        growth: 0.2 + old.mutation * 1.3,
+      };
+      break;
+  }
+  for (const field of scene.schema) {
+    if (updates[field.key] === undefined) continue;
+    let next = Math.max(field.min, Math.min(field.max, updates[field.key]));
+    if (field.step === 1) next = Math.round(next);
+    snapshot.params[field.key] = next;
+  }
+  snapshot.palette = {
+    ...(cue?.paletteSnapshot ||
+      value.scenePalettes?.[id] ||
+      value.palette ||
+      DEFAULT_PALETTE),
+  };
+  return validateSnapshot(snapshot, scenes);
+}
+function migrateB(value, scenes) {
+  if (
+    !Number.isInteger(value.activeScene) ||
+    !B_FAMILIES[value.activeScene] ||
+    !record(value.params) ||
+    !Array.isArray(value.cues) ||
+    value.cues.length < 1 ||
+    value.cues.length > 64
+  )
+    throw new Error("Malformed B scene or cue list");
+  const base = initialSession(scenes);
+  base.name = value.name || "Migrated B performance";
+  base.tempo = value.tempo;
+  base.cues = [];
+  value.cues.forEach((cue, index) => {
+    if (!record(cue) || !Number.isInteger(cue.scene) || !B_FAMILIES[cue.scene])
+      throw new Error("Unknown B cue family");
+    const snapshot = bSnapshot(value, cue.scene, cue.preset, scenes, cue);
+    if (!snapshot) return;
+    base.cues.push({
+      id: `legacy-${index}`,
+      name: cue.label || "Unnamed cue",
+      snapshot,
+      bars: cue.duration,
+      transition: 4,
+      keyframes: [],
+      energy: 0.5,
+    });
+  });
+  if (!base.cues.length)
+    throw new Error("B set has no cues in the ten supported families");
+  base.active =
+    bSnapshot(
+      value,
+      value.activeScene,
+      value.presetIndex[value.activeScene],
+      scenes,
+    ) || base.cues[0].snapshot;
+  base.options.reducedMotion = value.options?.reducedMotion === true;
+  base.options.brightness = value.options?.brightness ?? 0.92;
+  base.options.quality =
+    { native: "high", 1080: "high", 720: "balanced", 540: "low" }[
+      value.options?.quality
+    ] || "balanced";
+  const effects = value.options?.effects;
+  if (effects) {
+    base.options.echo = effects.echo;
+    base.options.chroma = effects.chroma;
+    base.options.bloom = effects.glow;
+    base.options.kaleido = 1 + Math.round(effects.symmetry * 11);
+  }
+  return validateSession(base, scenes);
+}
+export function importReport(value) {
+  if (value?.format !== "phosphor-set-v1") return [];
+  const report = [
+    "v1 parameters translated to corrected GPU models; visuals are not identical. Original JSON retained in recovery backup.",
+  ];
+  if (value.presetIndex?.length === 14) {
+    for (let i = 0; i < value.cues.length; i++) {
+      const cue = value.cues[i];
+      if (cue.scene >= 10)
+        report.push(
+          `Dropped cue ${i + 1}: ${cue.label || "Unnamed cue"} (${B_FAMILIES[cue.scene]}).`,
+        );
+    }
+    if (value.activeScene >= 10)
+      report.push(
+        "Unsupported active family replaced by the first supported cue.",
+      );
+    report.push(
+      "Global effects translated; per-cue effect automation, flight poses and model-specific provenance remain in the backup, not in v2.",
+    );
+  }
+  return report;
 }

@@ -157,7 +157,7 @@ export function mutatePreset(
       lastStep,
     );
     const stepped = field.min + stepIndex * field.step;
-    params[field.key] = clamp(Number(stepped.toPrecision(14)), lower, upper);
+    params[field.key] = Number(stepped.toPrecision(14));
   }
   return {
     name: `${scene.name || scene.id} ${nextSeed.toString(36).toUpperCase()}`,
