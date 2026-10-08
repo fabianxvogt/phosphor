@@ -24,12 +24,12 @@ A live test and review found show bugs and a visual layer weaker than the platfo
 
 1. **Bug batch (D53–D55):** done 2026-10-08 — energy survives clip triggers (bounded autopilot chains); Escape keyboard-locked on the stage, no venue-screen UI on fullscreen loss; drafts on a Lab page autopilot skips; demo-start click does not pause autopilot; **Add missing families**; line input starts tap-first (D63). Gated families' rig timing must be re-run (runner now applies energy curves).
 2. **Set v4 and palettes (D57, D59):** done 2026-10-08 — 24 mood-tagged palettes, show-level palette with four-beat glides, palette autopilot, page moods, lossless v3 migration; owner keep/reject sheet pending. Stage ownership no longer depends on status cadence (D64). Transition/post fields join v4 later.
-3. **Float picture path and energy-driven post (D56).**
+3. **Float picture path and energy-driven post (D56):** done 2026-10-09 — RGBA16F slot/mix/bloom/echo with RGBA8 fallback; bloom, echo, chroma, grain and vignette follow energy under set-wide ceilings; rig p99 unchanged (17.6–17.7 ms Flight/Cathedral).
 4. **Palette library and palette autopilot (D57):** landed with step 2.
 5. **Transitions (D58):** eased crossfade, downbeat cut (manual only), noise dissolve, feedback melt.
 6. **Audio feature bus (D61).**
 
-Then, in parallel family branches: structural energy gate and re-gating of the six (D60), Flight and Cathedral headliners (D62), Pulse and Interference reworks (D60). Evidence runs alongside (D63): CC-mix beat evaluation, output-measured blackout latency, first 8-hour external-display run by 2026-10-31, USB line check before the freeze.
+Then, in parallel family branches: structural energy gate and re-gating of the six (D60), Flight and Cathedral headliners (D62), Pulse and Interference reworks (D60). Evidence runs alongside (D63): CC-mix beat evaluation, output-measured blackout latency, first 8-hour external-display run by 2026-10-31, USB line check before the freeze. **Status 2026-10-09:** headliners, Pulse (strobe geometry) and Interference (layered moiré) reworks merged; every type of all four now scores ≥ 0.15 on the energy metric and times at p99 ≈ 17.7 ms on the rig; all four await owner art sign-off. Feedback passes; Tapestry seed shape 3 (0.108) still fails the metric. Next: transitions, then the audio bus.
 
 ## Milestone 1 — first show
 
@@ -75,10 +75,10 @@ Every family below is a draft until it passes (D47). Packets: `docs/families/<id
 | --- | --- | --- |
 | 1 | Feedback Chapel | **passed** — [packet](docs/families/feedback.md); owner sign-off 2026-10-08 |
 | 1 | Causal Tapestry | **passed** — [packet](docs/families/tapestry.md); owner accepted Cascade's cross-family near pairs (nearest Melt 0.138) |
-| 1 | Cathedrals of Error | **passed** — [packet](docs/families/cathedral.md); owner accepted Crystals/Roses near pairs (0.224–0.245) |
-| 1 | Interference Rituals | **passed** — [packet](docs/families/interference.md); three types (from six compositions) |
-| 2 | Pulse Geometry | **passed** — [packet](docs/families/pulse.md); owner accepted the tunnel's near pairs (Hyperbolic 0.168–0.210) |
-| 2 | Fractal Flight | **passed** — [packet](docs/families/flight.md); four authored camera paths |
+| 1 | Cathedrals of Error | **passed**, reworked as headliner (D62) — [packet](docs/families/cathedral.md); awaiting owner sign-off of the new look |
+| 1 | Interference Rituals | **passed**, reworked as layered moiré (D60) — [packet](docs/families/interference.md); awaiting owner sign-off |
+| 2 | Pulse Geometry | **passed**, reworked as strobe geometry (D60) — [packet](docs/families/pulse.md); awaiting owner sign-off |
+| 2 | Fractal Flight | **passed**, reworked as headliner (D62) — [packet](docs/families/flight.md); awaiting owner sign-off |
 | 3 | Melt, Acid (+ garden type) | draft |
 | 4 | Light Beams, Particle Swarm | draft |
 | 5 | Julia Observatory, Fourth Dimension, Hyperbolic Loom | draft |
