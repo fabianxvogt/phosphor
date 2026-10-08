@@ -3,7 +3,7 @@
   "title": "Phosphor",
   "topic": "Creative tools/Generative art",
   "type": "product",
-  "description": "A browser VJ instrument for DJ sets: generative GPU families on a keyboard clip grid with a beat-following autopilot. The linked demo is a frozen earlier build.",
+  "description": "A browser VJ instrument for DJ sets: generative GPU families on a keyboard clip grid with a beat-following autopilot. The public demo runs the current VJ instrument.",
   "demo": "https://phosphor-performance.vercel.app/",
   "featured": true
 }
@@ -13,7 +13,7 @@
 
 A browser VJ instrument for other people's DJ sets: GPU-simulated generative families on a 4×8 keyboard clip grid, an autopilot that follows the music, beat tracking from the booth feed, and a stage window that keeps playing if the controls crash. Everything runs locally in Chrome.
 
-**State:** being rebuilt for live VJ work; first show planned for December 2026. See the [roadmap](ROADMAP.md) and [decisions](docs/DECISIONS.md). Reference rig: MacBook Pro M3 Pro, Chrome, HDMI to the venue screen. The [public demo](https://phosphor-performance.vercel.app/) still runs the previous instrument and is not updated.
+**State:** production candidate for live VJ work; first show planned for December 2026. The [public demo](https://phosphor-performance.vercel.app/) runs the current stage/control instrument, deployed 2026-10-08. See the [roadmap](ROADMAP.md), [decisions](docs/DECISIONS.md) and [release evidence](docs/EVIDENCE.md). External-display endurance and real DJ-mix acceptance remain open. Reference rig: MacBook Pro M3 Pro, Chrome, HDMI to the venue screen.
 
 ## Run
 

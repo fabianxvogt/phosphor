@@ -2,6 +2,14 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-08 — Current VJ instrument deployed to production
+
+- Owner requested deployment of everything; published the complete verified application distribution, not local music or generated research artifacts. `INCREMENTAL / EMPIRICAL`.
+- Source `166ffbe`; distribution revision `5bf07cc48a03e25f`. `npm run build` generated 47 reachable assets; `npm run check:dist` verified 46 distribution assets and the revisioned offline cache. [CI](https://github.com/fabianxvogt/phosphor/actions/runs/37778081169) passed tests, build, distribution verification, typecheck, browser smoke, contact renders and formatting.
+- Vercel production deployment `dpl_9Ai7xFKeWRKkxbLWpsXDMYsvhFCj` is READY at [phosphor-performance.vercel.app](https://phosphor-performance.vercel.app/). Uploaded only `dist`, with `.env*`, `.vercel`, `.openai` and upload metadata excluded.
+- Live production smoke in fresh installed Chrome: control opened the stage; demo audio locked at 120.06 BPM; keyboard `3` selected Prismatic Nave (slot 2); Escape enabled blackout and a second Escape restored it; control preview displayed the stage; zero page errors. The deployed tracker module returned HTTP 200 and contained the new kick-body and comb-phase implementation.
+- Existing offline sessions may retain the previous build until all Phosphor windows close. Deployment does not certify real DJ-mix transitions, line input or external-display eight-hour endurance; those acceptance checks remain open.
+
 ## 2026-10-08 — Beat tracker follows the kick, not the bassline
 
 - `EMPIRICAL` Diagnosis on the owner's tracks: once the bassline enters, beat-synchronous flux per band (against a fitted constant-tempo grid) peaks on the beat only between 150 Hz and 2 kHz; below 150 Hz it peaks on the off-beat (Track C) or a sixteenth before the beat (Track A), above 2 kHz on the off-beat (open hats). The old tracker listened mostly below 150 Hz and slid half a beat (Track C after a re-acquisition at 95 s) or wandered (Track A).

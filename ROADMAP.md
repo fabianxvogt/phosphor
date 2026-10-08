@@ -1,6 +1,6 @@
 # Roadmap
 
-State: production candidate; canonical branch `main`; [Vercel](https://phosphor-performance.vercel.app/) is a frozen free demo. Direction set 2026-10-08 in an owner interview, recorded in the [decision log](docs/DECISIONS.md):
+State: production candidate; canonical branch `main`; [Vercel](https://phosphor-performance.vercel.app/) runs the current free VJ demo (deployed 2026-10-08). Direction set 2026-10-08 in an owner interview, recorded in the [decision log](docs/DECISIONS.md):
 
 **Phosphor is the owner's VJ instrument for other people's DJ sets.** One MacBook Pro M3 Pro, Chrome, HDMI straight to whatever screen the venue has, 4–8-hour nights, generative visuals only. Reference: [docs](docs/README.md), [evidence log](docs/EVIDENCE.md).
 
@@ -96,3 +96,4 @@ Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PN
 - Public Vercel release with hosted all-family, offline, 390 px and output checks (see evidence log).
 - 2026-10-08: critical review; `main` became canonical; Pages mirror retired; v6 source frozen and tagged `archive/v6-canvas`; owner interview set the VJ direction above.
 - 2026-10-08: lanes merged (test harness, image pipeline incl. review fixes R1–R6, app core); show core, stage/control split and contract v3; beat tracker with synthetic tests; seven new or ported families as drafts; failed-family isolation, ray-step-first governor, pre-show facts, family timing runner; soak counters judged before the crash drill; leftover frame-sequence export code removed. Evidence: [log](docs/EVIDENCE.md).
+- 2026-10-08: owner-requested production deployment of the complete current VJ instrument (`166ffbe`, distribution revision `5bf07cc48a03e25f`); live Chrome smoke verified demo beat lock, keyboard clip selection, blackout/recovery and remote preview. Show acceptance gates remain open.
