@@ -45,8 +45,8 @@ try {
       look.name,
     );
     assert.ok(
-      r.health.mean > 0.5 || !r.health.pending,
-      `${look.sceneId}/${look.name}: health pending`,
+      !r.health.pending && r.health.mean > 0.5,
+      `${look.sceneId}/${look.name} is blank (${r.health.mean})`,
     );
     assert.equal(r.glError, 0, `${look.name}: WebGL error`);
     assert.equal(r.nonFinite, 0, `${look.name}: non-finite input`);

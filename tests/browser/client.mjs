@@ -85,12 +85,18 @@ export async function renderLook({
     engine.advance(1 / 60, false);
   }
   engine.present();
+  // The health mean (0–255) arrives through an asynchronous readback.
+  let health = engine.health();
+  for (let i = 0; i < 60 && health.pending; i++) {
+    await new Promise((done) => requestAnimationFrame(done));
+    health = engine.health();
+  }
   const result = {
     glError: engine.gl.getError(),
     nonFinite:
       engine.counters.nonFinite + (window.__harness?.nonFiniteUploads ?? 0),
     stats: engine.stats(),
-    health: engine.health(),
+    health: { ...health },
   };
   if (!capture) return result;
   const canvas = document.createElement("canvas");
