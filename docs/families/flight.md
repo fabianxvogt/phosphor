@@ -44,17 +44,19 @@ Beat weights are `punch: 1.3, pulse: 1`. `node tests/flight-render.test.mjs --po
 `npm test`: 138/138 passed, including bounded authored looks for every path and portable preset round trips. `npm run build && node scripts/test-browser.mjs --only lab --port 48126`: passed; 47 built assets, all 104 looks non-blank, WebGL 0, non-finite 0, textures accounted; extreme-energy, aspect and fade checks passed.
 `contact --sheet types --family flight --width W --height H` at 640×360, 1280×360 and 480×480: all four types rendered and all 12 PNGs inspected, no stretching, lost subject or empty bands. The 960-pixel shading cap preserves aspect; no screen-shape crop or fixed simulation frame was introduced.
 
-## Local evidence
-- Long-run/64-step PNGs and metrics: `/Users/fabian/Development/phosphor-worktrees/family-flight/artifacts/contact/flight-probe/`
-- Grayscale types (120 frames, four types, zero same-family flags below .25): `/Users/fabian/Development/phosphor-worktrees/family-flight/artifacts/contact/flight-types/index.html`
-- All six authored ladders: `/Users/fabian/Development/phosphor-worktrees/family-flight/artifacts/contact/flight-ladder/index.html`
-- 640×360: `/Users/fabian/Development/phosphor-worktrees/family-flight/artifacts/contact/flight-16x9/index.html`
-- 1280×360: `/Users/fabian/Development/phosphor-worktrees/family-flight/artifacts/contact/flight-wide/index.html`
-- 480×480: `/Users/fabian/Development/phosphor-worktrees/family-flight/artifacts/contact/flight-square/index.html`
-- Final all-family sheet: `/Users/fabian/Development/phosphor-worktrees/family-flight/artifacts/contact/flight-all-types/index.html`
-- Exact within/nearest distances: `/Users/fabian/Development/phosphor-worktrees/family-flight/artifacts/contact/flight-distances/distances.json`
-- Isolated quiet/kick PNG pairs and metrics: `/Users/fabian/Development/phosphor-worktrees/family-flight/artifacts/contact/flight-beat/`
+## Local evidence (copied into the main checkout's `artifacts/` at merge)
+- Long-run/64-step PNGs and metrics: `/Users/fabian/Development/phosphor/artifacts/contact/flight-probe/`
+- Grayscale types (120 frames, four types, zero same-family flags below .25): `/Users/fabian/Development/phosphor/artifacts/contact/flight-types/index.html`
+- All six authored ladders: `/Users/fabian/Development/phosphor/artifacts/contact/flight-ladder/index.html`
+- 640×360: `/Users/fabian/Development/phosphor/artifacts/contact/flight-16x9/index.html`
+- 1280×360: `/Users/fabian/Development/phosphor/artifacts/contact/flight-wide/index.html`
+- 480×480: `/Users/fabian/Development/phosphor/artifacts/contact/flight-square/index.html`
+- Final all-family sheet: `/Users/fabian/Development/phosphor/artifacts/contact/flight-all-types/index.html`
+- Exact within/nearest distances: `/Users/fabian/Development/phosphor/artifacts/contact/flight-distances/distances.json`
+- Isolated quiet/kick PNG pairs and metrics: `/Users/fabian/Development/phosphor/artifacts/contact/flight-beat/`
 
 ## Owner decisions and known limits
-Owner must judge grayscale structural diversity, blind ordering of every energy ladder, presets/palettes, spiral-motion comfort and small-hole aliasing. Parent runs `npm run timing -- --rig --family flight` alone on the reference display (not run in this lane). These are the two remaining sign-off parts; no platform/contract blocker was found.
+Owner must judge grayscale structural diversity, blind ordering of every energy ladder, presets/palettes, spiral-motion comfort and small-hole aliasing. Art sign-off has not been executed; no platform/contract blocker was found.
+
+**Rig timing PASS (2026-10-08, parent):** `npm run timing -- --rig --family flight`, Chrome on the M3 Pro (ANGLE Metal, built-in display), 1920×1080, energy 0.95, 30 s per path at 96 ray steps, with unrelated CPU load on the machine (load average ≈ 61): p50 16.7 ms, p99 17.6 ms for all four paths, max 34.2 ms, GPU errors 0, non-finite 0, no ray-step reduction or downgrade.
 The six-unit travel cycle repeats continuously; Random glides vary its look, not its camera topology. Travel and roll are 16-bit phases (approximately 0.000092 distance units / 0.000096 radians per quantum); extremely small roll rates can quantize to zero. Fine recursion can shimmer, particularly at low pixel budgets. The 40-step tier and real-GPU p99 are not established here.

@@ -2,6 +2,15 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-08 — Groups 1 and 2: family-gate packets
+
+- `EMPIRICAL` Six parallel lanes (Codex Sol 6.1 xhigh, one branch and worktree per family, headless SwiftShader, own ports) rebuilt failing types and wrote packets in `docs/families/`. Within-family grayscale distinctness at 480×270 (threshold 0.25), before → after: Feedback all six pairs 0.031–0.099 → min 0.288; Tapestry 3 near pairs → min 0.454; Cathedral 5 → min 0.262; Interference 2 → three types, min 0.331 (six compositions consolidated); Pulse 1 (0.238) → min 0.334; Flight 6 → min 0.377.
+- `EMPIRICAL` Cross-family flags below 0.25 in each lane's all-family sheet: none for Feedback, Interference, Flight; Tapestry's Cascade (nearest Melt 0.138), Cathedral's Crystals and Roses (0.224–0.245), Pulse's tunnel (Hyperbolic 0.168–0.210). Each of these families keeps at least three unflagged types; the flags are listed for owner judgement.
+- `EMPIRICAL` Every lane: `npm test` green, headless lab render of every look (non-blank, WebGL 0, non-finite 0, textures accounted), ladders at 0.1/0.5/0.9 inspected, 640×360 / 1280×360 / 480×480 renders inspected, shared kick response measured at energy 0.9.
+- `EMPIRICAL` Real GPU, parent, one family at a time (`npm run timing -- --rig`, Chrome on the M3 Pro, built-in display, 1920×1080, energy 0.95, 30 s per type, with other CPU load on the machine): every type of all six families p50 16.7 ms and p99 17.6–19.7 ms, max ≤ 34.2 ms, GPU errors 0, non-finite 0, no ray-step reduction or downgrade.
+- `EMPIRICAL` Interference narrowed its composition range (0–5 → 0–2): a saved show holding a removed value no longer validates. The loader now keeps such a save under `phosphor-set-v3-unreadable` instead of letting the next edit overwrite it (unit-tested).
+- Not done: owner art sign-off for any family; external-display and 8-hour show-gate runs.
+
 ## 2026-10-08 — Default mode: demo beat, Random autopilot
 
 - `EMPIRICAL` Installed Chrome 154 on the M3 Pro, no autoplay flag, fresh profile: clicking only **Open stage** in the control left the stage's audio context running with the demo beat playing (input level 0.054); four seconds after the stage click the tracker reported 120.0 BPM, locked, confidence 1. Chrome needs that one click: no page can start sound on load alone.
