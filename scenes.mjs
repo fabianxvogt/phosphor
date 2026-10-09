@@ -15,6 +15,7 @@ import julia from "./scene-julia.mjs";
 import fourspace from "./scene-fourspace.mjs";
 import hyperbolic from "./scene-hyperbolic.mjs";
 import swarm from "./scene-swarm.mjs";
+import mandelbrot from "./scene-mandelbrot.mjs";
 
 export default [
   acid,
@@ -34,6 +35,7 @@ export default [
   fourspace,
   hyperbolic,
   swarm,
+  mandelbrot,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
