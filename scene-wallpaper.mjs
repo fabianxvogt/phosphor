@@ -160,6 +160,11 @@ const int GROUP_START[${GROUPS.length}] = int[](${starts.join(", ")});
 const int GROUP_COUNT[${GROUPS.length}] = int[](${GROUPS.map((g) => g.ops.length).join(", ")});
 const int GROUP_LATTICE[${GROUPS.length}] = int[](${GROUPS.map((g) => g.lattice).join(", ")});
 const mat2 LATTICE[${LATTICES.length}] = mat2[](${glslLattice});
+// A cyclic colour wheel from the three palette colours (no seam at ±π).
+vec3 colourWheel(float ph) {
+  vec3 w = pow(0.5 + 0.5 * cos(TAU * (ph - vec3(0.0, 1.0, 2.0) / 3.0)), vec3(1.5));
+  return (u_secondary * w.x + u_primary * w.y + u_accent * w.z) / max(w.x + w.y + w.z, 1e-3) * 1.15;
+}
 float wRand(uint a, uint b) { return float(cellHash(uvec3(a, b, 71u)) >> 8u) / 16777216.0; }
 // Wave term j of generation g: integer frequencies and a complex weight.
 void wTerm(int j, uint g, out vec2 nm, out vec2 w) {
@@ -217,7 +222,7 @@ void main() {
   float phase = atan(F.y, F.x) / TAU;
   float light = pow(m / (m + 0.35), 1.3);
   float band = 0.5 + 0.5 * cos(TAU * (log2(max(m, 1e-4)) * 1.2 - beats * 0.25));
-  vec3 colour = palette(fract(phase + 0.5 + 0.1 * beatPulse)) * light * (1.0 - rings * 0.35 * (1.0 - band));
+  vec3 colour = colourWheel(phase + 0.1 * beatPulse) * light * (1.0 - rings * 0.35 * (1.0 - band));
   colour += mix(u_accent, vec3(1.0), 0.5) * rings * 0.45 * smoothstep(0.88, 1.0, band) * light;
   // The unit cell, faint.
   vec2 fx = abs(fract(X + 0.5) - 0.5) / max(fwidth(X), vec2(1e-5));

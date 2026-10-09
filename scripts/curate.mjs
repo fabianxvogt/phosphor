@@ -268,6 +268,20 @@ const families = {
       "Honeycomb Sand",
     ],
   ],
+  domain: [
+    8.3,
+    [
+      "Steiner Net",
+      "Julia Polynomial",
+      "Zeros and Poles",
+      "Critical Line",
+      "Loxodrome Flow",
+      "Degree Doubling",
+      "Conformal Grid",
+      "Pole Dance",
+      "Zeta Bands",
+    ],
+  ],
   newton: [
     8.7,
     [
