@@ -199,6 +199,21 @@ const families = {
       "p1 Drift",
     ],
   ],
+  truchet: [
+    8.1,
+    [
+      "Truchet Tunnel",
+      "Smith Rivers",
+      "Pulse Field",
+      "Spiral Weave",
+      "Hex Rivers",
+      "Fat Loops",
+      "10 PRINT",
+      "Flip Storm",
+      "Hex Lace",
+      "Diagonal Maze",
+    ],
+  ],
   newton: [
     8.7,
     [

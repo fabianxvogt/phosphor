@@ -28,6 +28,7 @@ import turmite from "./scene-turmite.mjs";
 import kleinian from "./scene-kleinian.mjs";
 import harmonograph from "./scene-harmonograph.mjs";
 import wallpaper from "./scene-wallpaper.mjs";
+import truchet from "./scene-truchet.mjs";
 
 export default [
   acid,
@@ -60,6 +61,7 @@ export default [
   kleinian,
   harmonograph,
   wallpaper,
+  truchet,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
