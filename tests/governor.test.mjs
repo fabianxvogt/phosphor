@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Governor } from "../governor.mjs";
+import { PIXEL_BUDGETS, NATIVE_BUDGET } from "../show-set.mjs";
 
 const SLOW = 40,
   FAST = 16.7;
@@ -15,6 +16,17 @@ test("a ray-marched family loses steps 96 → 64 → 40 before the pixel budget 
   assert.deepEqual(g.assess(SLOW, "cathedral", true), { budget: 1 });
   assert.equal(g.stepReductions, 2);
   assert.equal(g.downgrades, 1);
+});
+
+test("the native stage budget steps down 8.3 → 2.1 → 1 → 0.5 MP under sustained slow frames (D67)", () => {
+  const g = new Governor(PIXEL_BUDGETS, NATIVE_BUDGET);
+  const ladder = [];
+  for (let i = 0; i < 20; i++) {
+    const change = g.assess(SLOW, "acid", false);
+    if (change) ladder.push(change.budget);
+  }
+  assert.deepEqual(ladder, [2.1, 1, 0.5]);
+  assert.equal(g.downgrades, 3);
 });
 
 test("a fast window resets the slow count; nothing ever comes back up", () => {

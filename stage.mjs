@@ -48,6 +48,7 @@ const telemetry = new Telemetry();
 const pacer = new Pacer();
 let frozen = false;
 const governor = new Governor(PIXEL_BUDGETS, set.options.pixelBudget);
+let setBudget = set.options.pixelBudget; // the set's choice; the governor may go lower
 let started = false;
 
 function applyOptions(options) {
@@ -284,6 +285,8 @@ function sendStatus(t, ms) {
       p95: n ? sorted[Math.floor(n * 0.95)] : null,
       level: engine.level,
       scene: engine.slots.at(-1)?.scene.id ?? null,
+      // The control pauses catalog thumbnails while a transition runs.
+      transition: !!engine.transition,
       counters: { ...engine.counters },
       frozen,
       // Preflight (D10).
@@ -325,13 +328,12 @@ channel.onmessage = async ({ data }) => {
         break;
       case "set": {
         const next = validateShowSet(data.set, scenes);
-        show.set = next;
-        show.autopilot.everyBars = next.autopilot.everyBars;
-        show.autopilot.handBackBars = next.autopilot.handBackBars;
-        show.autopilot.randomMode = next.autopilot.random;
-        if (show.page >= next.pages.length) show.page = 0;
+        show.updateSet(next);
         applyOptions(next.options);
-        if (next.options.pixelBudget !== governor.budget) {
+        // Only a changed budget setting resets the governor: any other edit
+        // (a rating, a clip) must not undo a downgrade for slow frames (D45).
+        if (next.options.pixelBudget !== setBudget) {
+          setBudget = next.options.pixelBudget;
           governor.budget = next.options.pixelBudget;
           fit();
         }

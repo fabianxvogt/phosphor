@@ -1,5 +1,6 @@
 // Portable show set, format v4 (D57–D59): pages of a 4×8 clip grid,
-// library palettes, transitions, shared mixer controls, autopilot and clock settings.
+// library palettes, transitions, shared mixer controls, autopilot and clock
+// settings, and look ratings for the catalog (D65, optional, defaulted).
 // Older linear scores migrate through v2 and v3 before entering this format.
 import {
   presetSnapshot,
@@ -8,8 +9,8 @@ import {
   migrateLegacy,
   validateSession,
 } from "./session.mjs";
-import { GATED } from "./scenes.mjs";
 import { MOODS, PALETTES, paletteById } from "./palettes.mjs";
+import { validRating } from "./catalog.mjs";
 
 export const FORMAT = "phosphor-set-v4";
 export const PAGES = 8;
@@ -17,8 +18,14 @@ export const SLOTS = 32; // 4 rows × 8 columns
 export const QUANTIZE = ["beat", "bar", "now"];
 export const TRANSITIONS = ["auto", "crossfade", "cut", "dissolve", "melt"];
 export const SPEEDS = [0.5, 1, 2];
-export const AUTOPILOT_BARS = [16, 32, 64];
-export const PIXEL_BUDGETS = [0.5, 1, 2.1]; // megapixels
+export const AUTOPILOT_BARS = [8, 12, 16, 32, 64]; // in-order mode (D66)
+export const AUTOPILOT_SOURCES = ["catalog", "page"];
+// Megapixels, ascending (the governor steps down this ladder). 8.3 MP is
+// native up to 4K (3840 × 2160), the default stage budget (D67).
+export const PIXEL_BUDGETS = [0.5, 1, 2.1, 8.3];
+export const NATIVE_BUDGET = 8.3;
+const OLD_DEFAULT_BUDGET = 2.1;
+export const MAX_RATINGS = 4096;
 export const MIDI_TARGETS = [
   "blackout",
   "safe",
@@ -31,6 +38,7 @@ export const MIDI_TARGETS = [
   "tap",
   "downbeat",
   "autopilot",
+  "next",
   "freeze",
   "family.0",
   "family.1",
@@ -82,8 +90,6 @@ export function clipFrom(
   };
 }
 
-export const LAB_PAGE = PAGES - 1;
-
 // Preset indices with one look of every structural type first, then the
 // remaining looks in authored order.
 function typesFirst(scene) {
@@ -95,47 +101,39 @@ function typesFirst(scene) {
   return [...first, ...all.filter((i) => !first.includes(i))];
 }
 
-// Authored looks, round-robin across families (each family's first look,
-// then each second look, …), every type before repeats, up to `rounds` per
-// family and `SLOTS` clips.
-function roundRobin(scenes, rounds, { autopilot, idFrom }) {
+// Every authored look, round-robin across families (each family's first
+// look, then each second look, …), every type before repeats, up to `limit`
+// clips. Palettes vary within a round (one page) and within a family.
+function roundRobin(scenes, limit) {
   const orders = scenes.map(typesFirst);
+  const rounds = Math.max(0, ...orders.map((order) => order.length));
   const clips = [];
   for (let round = 0; round < rounds; round++)
     scenes.forEach((scene, s) => {
-      if (round < orders[s].length && clips.length < SLOTS) {
-        const palette = PALETTES[(clips.length + round) % PALETTES.length];
-        clips.push({
-          ...clipFrom(presetSnapshot(scene, orders[s][round]), {
-            id: `clip-${idFrom + clips.length}`,
+      if (round < orders[s].length && clips.length < limit) {
+        const palette = PALETTES[(s * 7 + round * 5) % PALETTES.length];
+        clips.push(
+          clipFrom(presetSnapshot(scene, orders[s][round]), {
+            id: `clip-${clips.length}`,
             palette: palette.id,
           }),
-          autopilot,
-        });
+        );
       }
     });
   return clips;
 }
 
-export function initialShowSet(scenes, gated = GATED) {
-  // Page 1 holds every type of the gated families, so random autopilot
-  // shows them all. Drafts start on the lab page with autopilot off (D55).
-  const show = roundRobin(
-    scenes.filter((s) => gated.has(s.id)),
-    5,
-    { autopilot: true, idFrom: 0 },
-  );
-  const lab = roundRobin(
-    scenes.filter((s) => !gated.has(s.id)),
-    3,
-    { autopilot: false, idFrom: show.length },
-  );
+// The pages hold every authored look in that order, so each page mixes
+// families and autopilot may play all of them (D65). Looks beyond the 256
+// slots are reachable through the catalog.
+export function initialShowSet(scenes) {
+  const clips = roundRobin(scenes, PAGES * SLOTS);
   const pages = Array.from({ length: PAGES }, (_, p) => ({
-    name: p === LAB_PAGE ? "Lab" : `Page ${p + 1}`,
+    name: `Page ${p + 1}`,
     mood: null,
     slots: Array.from(
       { length: SLOTS },
-      (_, s) => (p === 0 ? show[s] : p === LAB_PAGE ? lab[s] : null) ?? null,
+      (_, s) => clips[p * SLOTS + s] ?? null,
     ),
   }));
   return {
@@ -144,10 +142,16 @@ export function initialShowSet(scenes, gated = GATED) {
     name: "New show",
     pages,
     shared: { ...DEFAULT_SHARED },
-    autopilot: { enabled: true, random: true, everyBars: 32, handBackBars: 32 },
+    autopilot: {
+      enabled: true,
+      random: true,
+      source: "catalog",
+      everyBars: 16,
+      handBackBars: 32,
+    },
     clock: { mode: "auto", manualBpm: 120, latencyMs: 0 },
     options: {
-      pixelBudget: 2.1,
+      pixelBudget: NATIVE_BUDGET,
       bloom: 0.15,
       echo: 0,
       chroma: 0,
@@ -158,7 +162,25 @@ export function initialShowSet(scenes, gated = GATED) {
     },
     midi: [],
     lineages: [],
+    ratings: {},
   };
+}
+
+// Ratings are advisory: malformed entries are dropped, never fatal. Ratings
+// of looks this release does not know are kept (a reworked or newer family
+// may bring the look back).
+function validateRatings(value) {
+  const ratings = {};
+  if (!record(value)) return ratings;
+  let count = 0;
+  for (const [id, rating] of Object.entries(value)) {
+    if (count >= MAX_RATINGS) break;
+    if (id.length > 200 || id.indexOf(":") < 1 || !validRating(rating))
+      continue;
+    ratings[id] = rating;
+    count++;
+  }
+  return ratings;
 }
 
 function validateClip(value, scenes, ids) {
@@ -232,6 +254,11 @@ export function validateShowSet(value, scenes) {
     autopilot: {
       enabled: autopilot.enabled !== false,
       random: autopilot.random !== false,
+      source: oneOf(
+        autopilot.source === undefined ? "catalog" : autopilot.source,
+        AUTOPILOT_SOURCES,
+        "Autopilot source",
+      ),
       everyBars: oneOf(autopilot.everyBars, AUTOPILOT_BARS, "Autopilot bars"),
       handBackBars: finite(autopilot.handBackBars, 4, 256, "Hand-back bars"),
     },
@@ -273,7 +300,31 @@ export function validateShowSet(value, scenes) {
       };
     }),
     lineages: validateLineages(value.lineages, scenes),
+    ratings: validateRatings(value.ratings),
   };
+}
+
+// Sets saved before the catalog (no `ratings` field, D65–D67): the old Lab
+// page becomes an ordinary page autopilot may play, and the old default
+// stage budget (2.1 MP) becomes native. Applied on load and import only, so
+// a later deliberate "Lab" name or 2.1 MP choice is kept.
+function normaliseLegacy(parsed, result) {
+  if (!record(parsed) || parsed.ratings !== undefined) return result;
+  const set = structuredClone(result.set);
+  const report = [...result.report];
+  const last = set.pages[PAGES - 1];
+  if (last.name === "Lab") {
+    last.name = `Page ${PAGES}`;
+    last.slots = last.slots.map((clip) => clip && { ...clip, autopilot: true });
+    report.push(
+      `The Lab page is now “Page ${PAGES}”; autopilot may play its clips (the catalog replaces it).`,
+    );
+  }
+  if (set.options.pixelBudget === OLD_DEFAULT_BUDGET) {
+    set.options.pixelBudget = NATIVE_BUDGET;
+    report.push("Stage resolution raised from 2.1 MP to native (up to 4K).");
+  }
+  return { set, report };
 }
 
 // v2 → v3 (decision D12): cues become clips on consecutive pages in score
@@ -353,54 +404,29 @@ export function migrateV3(v3, scenes) {
 // goes through the existing v1 → v2 migration first.
 export function parseShowSet(parsed, scenes) {
   if (parsed?.format === FORMAT)
-    return { set: validateShowSet(parsed, scenes), report: [] };
-  if (parsed?.format === "phosphor-set-v3") return migrateV3(parsed, scenes);
+    return normaliseLegacy(parsed, {
+      set: validateShowSet(parsed, scenes),
+      report: [],
+    });
+  if (parsed?.format === "phosphor-set-v3")
+    return normaliseLegacy(parsed, migrateV3(parsed, scenes));
   const v2 =
     parsed?.format === "phosphor-set-v1"
       ? migrateLegacy(parsed, scenes)
       : validateSession(parsed, scenes);
-  return migrateV2(v2, scenes);
+  return normaliseLegacy(parsed, migrateV2(v2, scenes));
 }
 
 export function clipAt(set, page, slot) {
   return set.pages[page]?.slots[slot] ?? null;
 }
 
-// Families with no clip anywhere in the set (sets saved before a family
-// existed never gain it on their own).
-export function missingFamilies(set, scenes) {
-  const present = new Set();
-  for (const page of set.pages)
-    for (const clip of page.slots) if (clip) present.add(clip.snapshot.scene);
-  return scenes.filter((s) => !present.has(s.id));
-}
-
-// Puts each missing family's first look into an empty slot of the lab page
-// (D53); existing clips are never moved or replaced. Gated families may be
-// played by autopilot there, drafts not.
-export function addMissingFamilies(set, scenes, gated = GATED) {
-  const next = structuredClone(set);
+// A clip id not used anywhere in the set (for clips stored from the catalog).
+export function freeClipId(set, prefix = "clip") {
   const ids = new Set();
-  for (const page of next.pages)
+  for (const page of set.pages)
     for (const clip of page.slots) if (clip) ids.add(clip.id);
-  const lab = next.pages[LAB_PAGE];
-  const added = [],
-    skipped = [];
   let n = 0;
-  for (const scene of missingFamilies(set, scenes)) {
-    const slot = lab.slots.indexOf(null);
-    if (slot < 0) {
-      skipped.push(scene.name);
-      continue;
-    }
-    while (ids.has(`clip-added-${n}`)) n++;
-    const id = `clip-added-${n}`;
-    ids.add(id);
-    lab.slots[slot] = {
-      ...clipFrom(presetSnapshot(scene, 0), { id }),
-      autopilot: gated.has(scene.id),
-    };
-    added.push(scene.name);
-  }
-  return { set: validateShowSet(next, scenes), added, skipped };
+  while (ids.has(`${prefix}-${n}`)) n++;
+  return `${prefix}-${n}`;
 }

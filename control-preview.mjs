@@ -13,6 +13,8 @@ export function performanceState(show, t) {
       randomMode: show.autopilot.randomMode,
       manualUntil: show.autopilot.manualUntil,
       nextChange: show.autopilot.nextChange,
+      duration: show.autopilot.duration,
+      history: [...show.autopilot.history],
       nextDrift: show.autopilot.nextDrift,
       nextPalette: show.autopilot.nextPalette,
       paletteHistory: [...show.autopilot.paletteHistory],
@@ -36,7 +38,7 @@ export function restorePerformance(show, state, t) {
   show.pending = null;
   show.drift = null;
   show.disabled = new Set(state.disabled);
-  Object.assign(show.autopilot, state.autopilot);
+  Object.assign(show.autopilot, structuredClone(state.autopilot));
   const runtime = state.clip
     ? {
         ...state.runtime,
@@ -102,10 +104,7 @@ export class ControlPreview {
     this.apply([{ type: "shared", shared: this.show.shared }]);
   }
   updateSet(set) {
-    this.show.set = set;
-    this.show.autopilot.everyBars = set.autopilot.everyBars;
-    this.show.autopilot.handBackBars = set.autopilot.handBackBars;
-    this.show.autopilot.randomMode = set.autopilot.random;
+    this.show.updateSet(set);
     Object.assign(this.engine.options, {
       bloom: set.options.bloom,
       echo: set.options.echo,

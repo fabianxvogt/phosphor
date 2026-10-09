@@ -1,100 +1,235 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import scenes, { GATED } from "../scenes.mjs";
+import scenes from "../scenes.mjs";
 import { initialSession } from "../session.mjs";
 import { PALETTES, paletteById } from "../palettes.mjs";
+import { catalogLooks, lookId } from "../catalog.mjs";
 import {
   initialShowSet,
   validateShowSet,
   migrateV2,
   migrateV3,
   parseShowSet,
-  addMissingFamilies,
-  missingFamilies,
-  LAB_PAGE,
+  freeClipId,
   PAGES,
   SLOTS,
+  PIXEL_BUDGETS,
+  AUTOPILOT_BARS,
+  MIDI_TARGETS,
 } from "../show-set.mjs";
 
 const familiesOn = (page) =>
   new Set(page.slots.filter(Boolean).map((c) => c.snapshot.scene));
+const looks = catalogLooks(scenes);
 
-test("initial set: page 1 plays only gated families; drafts wait on the lab page (D55)", () => {
+test("initial set: every authored look fills the pages types-first, all autopilot (D65)", () => {
   const set = validateShowSet(initialShowSet(scenes), scenes);
   assert.equal(set.pages.length, PAGES);
   assert.ok(set.pages.every((p) => p.slots.length === SLOTS));
-  assert.deepEqual(familiesOn(set.pages[0]), GATED);
-  assert.ok(set.pages[0].slots.filter(Boolean).every((c) => c.autopilot));
-  for (const scene of scenes.filter((s) => GATED.has(s.id) && s.type))
-    for (const value of scene.type.values)
-      assert.ok(
-        set.pages[0].slots.some(
-          (c) =>
-            c?.snapshot.scene === scene.id &&
-            c.snapshot.params[scene.type.key] === value,
-        ),
-        `${scene.id} ${scene.type.key} ${value} on page 1`,
-      );
-  const lab = set.pages[LAB_PAGE];
-  assert.equal(lab.name, "Lab");
   assert.deepEqual(
-    familiesOn(lab),
-    new Set(scenes.filter((s) => !GATED.has(s.id)).map((s) => s.id)),
+    set.pages.map((p) => p.name),
+    Array.from({ length: PAGES }, (_, p) => `Page ${p + 1}`),
+    "no Lab page",
   );
-  assert.ok(lab.slots.filter(Boolean).every((c) => !c.autopilot));
-  const all = set.pages.flatMap((p) => p.slots).filter(Boolean);
-  assert.equal(new Set(all.map((c) => c.id)).size, all.length);
-  assert.deepEqual(missingFamilies(set, scenes), []);
+  const clips = set.pages.flatMap((p) => p.slots).filter(Boolean);
+  assert.equal(clips.length, Math.min(looks.length, PAGES * SLOTS));
+  assert.ok(clips.every((c) => c.autopilot));
+  assert.equal(new Set(clips.map((c) => c.id)).size, clips.length);
+  // Each authored look exactly once, filling slots in order (no gaps).
+  assert.equal(
+    new Set(clips.map((c) => lookId(c.snapshot))).size,
+    clips.length,
+  );
+  const flat = set.pages.flatMap((p) => p.slots);
+  assert.ok(flat.slice(0, clips.length).every(Boolean));
+  // Page 1 starts with one look of every family, of their first type.
+  assert.deepEqual(familiesOn(set.pages[0]), new Set(scenes.map((s) => s.id)));
+  // Every family's types come before its repeats.
+  for (const scene of scenes.filter((s) => s.type)) {
+    const order = clips
+      .filter((c) => c.snapshot.scene === scene.id)
+      .map((c) => c.snapshot.params[scene.type.key]);
+    const types = scene.type.values.filter((v) =>
+      scene.presets.some((p) => p.params[scene.type.key] === v),
+    );
+    assert.deepEqual(
+      new Set(order.slice(0, types.length)),
+      new Set(types),
+      scene.id,
+    );
+  }
+  // Every page with clips mixes families.
+  for (const page of set.pages.filter((p) => p.slots.some(Boolean)))
+    assert.ok(familiesOn(page).size >= Math.min(4, scenes.length));
   assert.ok(set.autopilot.enabled && set.autopilot.random);
+  assert.equal(set.autopilot.source, "catalog");
+  assert.equal(set.options.pixelBudget, 8.3);
+  assert.deepEqual(set.ratings, {});
   assert.equal(set.clock.manualBpm, 120);
   assert.equal(set.pages[0].mood, null);
   const paletteIds = set.pages[0].slots.filter(Boolean).map((c) => c.palette);
   assert.ok(new Set(paletteIds).size >= 12, "page 1 is visibly varied");
-  for (const family of GATED) {
-    const clips = set.pages[0].slots.filter(
-      (c) => c?.snapshot.scene === family,
+  for (const scene of scenes) {
+    const own = clips.filter((c) => c.snapshot.scene === scene.id);
+    assert.equal(
+      new Set(own.map((c) => c.palette)).size,
+      Math.min(own.length, PALETTES.length),
+      `${scene.id} looks differ in colour`,
     );
-    assert.equal(new Set(clips.map((c) => c.palette)).size, clips.length);
   }
 });
 
-test("add missing families fills empty lab slots and never touches existing clips", () => {
-  const set = validateShowSet(initialShowSet(scenes), scenes);
-  // An old set: only Acid and Pulse, with a clip already on the lab page.
-  for (const page of set.pages)
-    page.slots = page.slots.map((c) =>
-      c && ["acid", "pulse"].includes(c.snapshot.scene) ? c : null,
+test("initial set takes the first 256 looks of a larger catalog; the rest stay in the catalog", () => {
+  // Synthetic: 40 families × 8 looks = 320 looks.
+  const many = Array.from({ length: 40 }, (_, f) => ({
+    ...scenes[f % scenes.length],
+    id: `family${f}`,
+    name: `Family ${f}`,
+    presets: Array.from({ length: 8 }, (_, i) => ({
+      ...scenes[f % scenes.length].presets[
+        i % scenes[f % scenes.length].presets.length
+      ],
+      name: `Look ${i}`,
+    })),
+  }));
+  const set = initialShowSet(many);
+  const clips = set.pages.flatMap((p) => p.slots);
+  assert.equal(clips.length, PAGES * SLOTS);
+  assert.ok(clips.every(Boolean));
+  assert.ok(set.pages.every((p) => familiesOn(p).size >= 8));
+  // Round-robin: every family has at least six looks on the pages.
+  for (let f = 0; f < 40; f++)
+    assert.ok(
+      clips.filter((c) => c.snapshot.scene === `family${f}`).length >= 6,
     );
-  const keep = set.pages[0].slots.find((c) => c?.snapshot.scene === "pulse");
-  set.pages[LAB_PAGE].slots[0] = { ...keep, id: "lab-own" };
-  const before = JSON.parse(JSON.stringify(set));
-  const { set: next, added, skipped } = addMissingFamilies(set, scenes);
-  assert.deepEqual(set, before, "input is not mutated");
-  assert.equal(added.length, scenes.length - 2);
-  assert.deepEqual(skipped, []);
-  assert.deepEqual(missingFamilies(next, scenes), []);
-  next.pages.forEach((page, p) =>
-    page.slots.forEach((clip, s) => {
-      const old = before.pages[p].slots[s];
-      if (old) assert.deepEqual(clip, old);
-      else if (clip) {
-        assert.equal(p, LAB_PAGE);
-        assert.equal(clip.autopilot, GATED.has(clip.snapshot.scene));
-      }
-    }),
-  );
 });
 
-test("add missing families reports what does not fit a full lab page", () => {
-  const set = validateShowSet(initialShowSet(scenes), scenes);
-  const filler = set.pages[0].slots[0];
-  set.pages[LAB_PAGE].slots = set.pages[LAB_PAGE].slots.map((_, i) => ({
-    ...filler,
-    id: `full-${i}`,
-  }));
-  const { added, skipped } = addMissingFamilies(set, scenes);
-  assert.deepEqual(added, []);
-  assert.equal(skipped.length, scenes.length - GATED.size);
+test("ratings round-trip; malformed entries are dropped without failing the set", () => {
+  const set = initialShowSet(scenes);
+  set.ratings = {
+    "pulse:Square Tunnel": 9.5,
+    "flight:Corkscrew": 0,
+    "acid:Mycelial City": 10,
+    "gone:Retired look": 4, // unknown looks are kept
+    "pulse:Slow Gate": 3.3, // not a half step
+    "pulse:Ring Dive": 11,
+    "pulse:Shard Crown": -0.5,
+    "pulse:Horizon Grid": "7",
+    "pulse:Scanner Bars": null,
+    nocolon: 5,
+    ":leading": 5,
+    [`x:${"y".repeat(250)}`]: 5,
+  };
+  const validated = validateShowSet(set, scenes);
+  assert.deepEqual(validated.ratings, {
+    "pulse:Square Tunnel": 9.5,
+    "flight:Corkscrew": 0,
+    "acid:Mycelial City": 10,
+    "gone:Retired look": 4,
+  });
+  assert.deepEqual(
+    parseShowSet(JSON.parse(JSON.stringify(validated)), scenes).set,
+    validated,
+  );
+  for (const bad of [null, [], "x", 5]) {
+    const copy = structuredClone(set);
+    copy.ratings = bad;
+    assert.deepEqual(validateShowSet(copy, scenes).ratings, {});
+  }
+});
+
+test("older v4 sets without ratings or a source load losslessly with defaults", () => {
+  const old = validateShowSet(initialShowSet(scenes), scenes);
+  delete old.ratings;
+  delete old.autopilot.source;
+  old.options.pixelBudget = 1;
+  const original = structuredClone(old);
+  const { set, report } = parseShowSet(JSON.parse(JSON.stringify(old)), scenes);
+  assert.deepEqual(report, []);
+  assert.deepEqual(set.ratings, {});
+  assert.equal(set.autopilot.source, "catalog");
+  const rest = structuredClone(set);
+  delete rest.ratings;
+  delete rest.autopilot.source;
+  assert.deepEqual(rest, original);
+  assert.deepEqual(old, original, "defaulting does not mutate the source");
+});
+
+test("an older set's Lab page becomes Page 8 with autopilot on; its 2.1 MP default becomes native", () => {
+  const old = validateShowSet(initialShowSet(scenes), scenes);
+  delete old.ratings;
+  const lab = old.pages[PAGES - 1];
+  lab.name = "Lab";
+  lab.slots = lab.slots.map((_, i) =>
+    i < 3
+      ? { ...old.pages[0].slots[i], id: `lab-${i}`, autopilot: false }
+      : null,
+  );
+  old.pages[0].slots[5].autopilot = false; // other pages keep their flags
+  old.options.pixelBudget = 2.1;
+  const { set, report } = parseShowSet(JSON.parse(JSON.stringify(old)), scenes);
+  assert.equal(set.pages[PAGES - 1].name, "Page 8");
+  assert.deepEqual(
+    set.pages[PAGES - 1].slots.slice(0, 3).map((c) => [c.id, c.autopilot]),
+    [
+      ["lab-0", true],
+      ["lab-1", true],
+      ["lab-2", true],
+    ],
+  );
+  assert.equal(set.pages[0].slots[5].autopilot, false);
+  assert.equal(set.options.pixelBudget, 8.3);
+  assert.equal(report.length, 2);
+  // Once saved with ratings, a deliberate "Lab" name and 2.1 MP are kept.
+  const chosen = structuredClone(set);
+  chosen.pages[PAGES - 1].name = "Lab";
+  chosen.pages[PAGES - 1].slots[0].autopilot = false;
+  chosen.options.pixelBudget = 2.1;
+  const again = parseShowSet(JSON.parse(JSON.stringify(chosen)), scenes);
+  assert.deepEqual(again.set, validateShowSet(chosen, scenes));
+  assert.deepEqual(again.report, []);
+  // A v3 file is pre-catalog too.
+  const v3 = structuredClone(old);
+  v3.format = "phosphor-set-v3";
+  v3.version = 3;
+  for (const page of v3.pages) {
+    delete page.mood;
+    for (const clip of page.slots) if (clip) delete clip.palette;
+  }
+  delete v3.autopilot.source;
+  const migrated = parseShowSet(v3, scenes).set;
+  assert.equal(migrated.pages[PAGES - 1].name, "Page 8");
+  assert.equal(migrated.options.pixelBudget, 8.3);
+});
+
+test("autopilot bars, sources, pixel budgets and MIDI targets (D66, D67)", () => {
+  assert.deepEqual(AUTOPILOT_BARS, [8, 12, 16, 32, 64]);
+  assert.deepEqual(PIXEL_BUDGETS, [0.5, 1, 2.1, 8.3]);
+  assert.ok(MIDI_TARGETS.includes("next"));
+  for (const everyBars of AUTOPILOT_BARS)
+    for (const source of ["catalog", "page"])
+      for (const pixelBudget of PIXEL_BUDGETS) {
+        const set = initialShowSet(scenes);
+        Object.assign(set.autopilot, { everyBars, source });
+        set.options.pixelBudget = pixelBudget;
+        set.midi = [{ type: "note", channel: 0, number: 60, target: "next" }];
+        assert.deepEqual(validateShowSet(set, scenes), set);
+      }
+  const bad = initialShowSet(scenes);
+  bad.autopilot.source = "lab";
+  assert.throws(() => validateShowSet(bad, scenes), /Autopilot source/);
+});
+
+test("free clip ids never collide with the set's clips", () => {
+  const set = initialShowSet(scenes);
+  const id = freeClipId(set);
+  const ids = set.pages
+    .flatMap((p) => p.slots)
+    .filter(Boolean)
+    .map((c) => c.id);
+  assert.ok(!ids.includes(id));
+  set.pages[7].slots[31] = { ...set.pages[0].slots[0], id };
+  assert.notEqual(freeClipId(set), id);
 });
 
 test("v4 round-trips through JSON unchanged", () => {
@@ -205,7 +340,14 @@ test("v3 migration preserves every clip and set field, including hand-set colour
     everyBars: 64,
     handBackBars: 48,
   };
-  v3.options = { ...v3.options, bloom: 0.7, echo: 0.4, chroma: 0.2 };
+  v3.options = {
+    ...v3.options,
+    pixelBudget: 1,
+    bloom: 0.7,
+    echo: 0.4,
+    chroma: 0.2,
+  };
+  delete v3.ratings; // v3 predates the catalog
   v3.midi = [{ type: "note", channel: 2, number: 40, target: "slot.17" }];
   const snapshot = v3.pages[0].slots[0].snapshot;
   v3.lineages = [
@@ -231,6 +373,10 @@ test("v3 migration preserves every clip and set field, including hand-set colour
   const roundTrip = parseShowSet(JSON.parse(JSON.stringify(set)), scenes).set;
   roundTrip.format = original.format;
   roundTrip.version = 3;
+  assert.deepEqual(roundTrip.ratings, {});
+  delete roundTrip.ratings;
+  assert.equal(roundTrip.autopilot.source, "catalog");
+  delete roundTrip.autopilot.source;
   for (const page of roundTrip.pages) {
     delete page.mood;
     for (const clip of page.slots) {
@@ -285,7 +431,7 @@ test("invalid values are rejected before anything is applied", () => {
     (s) => (s.pages[0].slots[0].palette = "unknown"),
     (s) => (s.pages[0].mood = "unknown"),
     (s) => (s.shared.zoom = 9),
-    (s) => (s.autopilot.everyBars = 12),
+    (s) => (s.autopilot.everyBars = 24),
     (s) => (s.clock.mode = "midi"),
     (s) => (s.options.pixelBudget = 8),
     (s) => s.midi.push({ type: "cc", channel: 0, number: 1, target: "go" }),

@@ -72,6 +72,9 @@
                 <i></i><i></i><i></i><i></i>
               </div>
               <div class="readout"><span>Bar</span><span id="bar">—</span></div>
+              <div class="readout now">
+                <span>Playing</span><span id="nowReadout">—</span>
+              </div>
               <div class="readout">
                 <span>Autopilot</span><span id="autopilotReadout">—</span>
               </div>
@@ -87,6 +90,22 @@
               <div class="readout">
                 <span>Render</span><span id="renderReadout">—</span>
               </div>
+              <div class="readout">
+                <label for="previewResolution">Preview</label>
+                <select
+                  id="previewResolution"
+                  title="Resolution of the local preview renderer (this browser only)"
+                >
+                  <option value="480x270">480×270</option>
+                  <option value="960x540">960×540</option>
+                  <option value="1280x720">1280×720</option>
+                  <option value="1920x1080">1920×1080</option>
+                </select>
+              </div>
+              <p class="note" id="previewNote" hidden>
+                Stage live: the monitor shows the stage's own stream; the editor
+                renders at 480×270 to leave the GPU to the stage.
+              </p>
             </div>
           </div>
           <div class="row" style="margin-top: 10px">
@@ -126,6 +145,34 @@
             live. Settings stay editable unless you enable Lock settings.
           </p>
         </section>
+        <section class="panel catalog" aria-labelledby="catalogTitle">
+          <div class="catalog-head">
+            <h2 id="catalogTitle">Catalog</h2>
+            <input
+              id="catalogSearch"
+              type="search"
+              placeholder="Search look, family or variant"
+              aria-label="Search the catalog"
+            />
+            <select id="catalogFamily" aria-label="Family filter"></select>
+            <button id="catalogSort" type="button" hidden>Sort</button>
+            <span class="note" id="catalogCount"></span>
+          </div>
+          <div
+            class="catalog-list"
+            id="catalogList"
+            role="list"
+            aria-label="Looks, best rated first"
+          ></div>
+          <p class="note">
+            Rate looks 0.5–10 stars (left half of a star for a half star; click
+            the current rating to clear it). Autopilot plays higher-rated looks
+            more often, unrated ones like a 5, and never a look rated
+            <strong>0</strong>. The list re-sorts by rating when the pointer
+            leaves it. <strong>To slot</strong> stores a look in the selected
+            grid slot.
+          </p>
+        </section>
       </div>
       <div class="column">
         <section class="panel" aria-label="Performance">
@@ -149,10 +196,24 @@
             <button
               id="random"
               aria-pressed="true"
-              title="Autopilot picks clips at random and lets the live clip's parameters drift; off: clips in page order, parameters fixed"
+              title="Autopilot picks rated looks at random for 8, 12 or 16 bars and lets parameters drift; off: in order every N bars, parameters fixed"
             >
               Random
             </button>
+            <button
+              id="next"
+              title="Play autopilot's next pick on the next beat (also with autopilot off)"
+            >
+              Next <kbd>⇧Space</kbd>
+            </button>
+            <select
+              id="autopilotSource"
+              aria-label="Autopilot source"
+              title="Where autopilot picks from: every catalog look by rating, or the clips on the current page"
+            >
+              <option value="catalog">Catalog</option>
+              <option value="page">Page</option>
+            </select>
             <button id="half" aria-pressed="false">½× <kbd>9</kbd></button>
             <button id="double" aria-pressed="false">2× <kbd>0</kbd></button>
           </div>
@@ -196,10 +257,6 @@
             /></label>
           </div>
           <ul class="log" id="importReport"></ul>
-          <div class="row" id="missingFamilies" hidden style="margin-top: 10px">
-            <span id="missingText"></span>
-            <button id="addMissing">Add missing families</button>
-          </div>
         </section>
         <section class="panel settings-controls" aria-label="Audio">
           <h2>Audio</h2>

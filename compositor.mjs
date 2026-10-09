@@ -44,15 +44,22 @@ vec3 outgoingAt(vec2 uv) {
   q=1.-abs(1.-mod(q,2.));
   return texture(history,q).rgb;
 }
+// Smootherstep (6t⁵−15t⁴+10t³, D66): zero velocity and acceleration at both
+// ends, so a long autopilot fade starts and lands without a visible kink.
+float smootherstep01(float x) {
+  x=clamp(x,0.,1.);
+  return x*x*x*(x*(x*6.-15.)+10.);
+}
 vec3 sceneAt(vec2 uv) {
   vec3 c=outgoingAt(uv);
   if(singleSlot) return c;
-  float amount=smoothstep(0.,1.,mixAmount);
+  float amount=smootherstep01(mixAmount);
   if(transitionKind==1) {
     vec2 p=(uv-.5)*vec2(targetAspect,1.)*34.;
     float noise=dissolveNoise(p+vec2(transitionTime*.8,-transitionTime*.55));
-    // Threshold extends past the noise range for exact, clean endpoints.
-    amount=smoothstep(noise-.065,noise+.065,mixAmount*1.13-.065);
+    // The eased amount drives the noise threshold; the threshold extends past
+    // the noise range for exact, clean endpoints.
+    amount=smoothstep(noise-.065,noise+.065,amount*1.13-.065);
   }
   return mix(c,texture(b,cover(uv,aspectB)).rgb,amount);
 }

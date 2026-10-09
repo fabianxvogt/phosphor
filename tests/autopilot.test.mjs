@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Autopilot } from "../autopilot.mjs";
+import { Autopilot, RANDOM_BARS } from "../autopilot.mjs";
 import { PALETTES, paletteById } from "../palettes.mjs";
 
 const clip = (id, energy, autopilot = true) => ({
@@ -36,15 +36,120 @@ function play(pilot, bars, { events = {}, startEnergy = 0.5 } = {}) {
   return log;
 }
 
-test("changes clip every N bars on the bar line", () => {
-  const log = play(new Autopilot({ everyBars: 32 }), 130).filter(
-    (a) => a.type === "trigger",
+test("in-order mode changes clip every N bars on the bar line", () => {
+  for (const everyBars of [8, 12, 16, 32, 64]) {
+    const pilot = new Autopilot({ everyBars, random: false });
+    const log = play(pilot, 130).filter((a) => a.type === "trigger");
+    assert.deepEqual(
+      log.map((a) => a.bar),
+      Array.from(
+        { length: Math.ceil(130 / everyBars) },
+        (_, i) => i * everyBars,
+      ),
+    );
+    assert.ok(log.every((a) => a.quantize === "bar"));
+    assert.equal(pilot.duration, everyBars);
+  }
+});
+
+test("random mode plays each clip a uniformly random 8, 12 or 16 bars (D66)", () => {
+  const pilot = new Autopilot({ everyBars: 64, seed: 11 });
+  const log = play(pilot, 4000).filter((a) => a.type === "trigger");
+  const gaps = log.slice(1).map((a, i) => a.bar - log[i].bar);
+  const counts = { 8: 0, 12: 0, 16: 0 };
+  for (const gap of gaps) counts[gap]++;
+  assert.equal(counts[8] + counts[12] + counts[16], gaps.length, String(gaps));
+  for (const bars of [8, 12, 16])
+    assert.ok(
+      Math.abs(counts[bars] / gaps.length - 1 / 3) < 0.06,
+      JSON.stringify(counts),
+    );
+  assert.ok(RANDOM_BARS.includes(pilot.duration));
+  assert.equal(pilot.nextChange - log.at(-1).bar, pilot.duration);
+});
+
+test("random picks follow pool weights; weight 0 never plays (page ratings)", () => {
+  const weighted = pool.map((p, i) => ({
+    ...p,
+    weight: i === 0 ? 10 : i === 1 ? 0 : 1,
+  }));
+  // Fresh pilots (no history): the first pick follows the weights alone.
+  const counts = new Array(8).fill(0);
+  for (let seed = 1; seed <= 4000; seed++)
+    counts[
+      new Autopilot({ seed }).next({ bar: 0, pool: weighted, current: null })
+        .slot
+    ]++;
+  assert.equal(counts[1], 0, "rated 0: never");
+  assert.ok(
+    Math.abs(counts[0] / 4000 - 10 / 16) < 0.03,
+    JSON.stringify(counts),
   );
-  assert.deepEqual(
-    log.map((a) => a.bar),
-    [0, 32, 64, 96, 128],
+  for (let slot = 2; slot < 8; slot++)
+    assert.ok(
+      Math.abs(counts[slot] / 4000 - 1 / 16) < 0.02,
+      JSON.stringify(counts),
+    );
+  // Over a long run, history still spreads the changes, and 0 never plays.
+  const pilot = new Autopilot({ everyBars: 16, seed: 2 });
+  let current = null;
+  for (let bar = 0; bar < 16 * 500; bar++)
+    for (const a of pilot.update({ bar, pool: weighted, current, energy: 0.5 }))
+      if (a.type === "trigger") {
+        assert.notEqual(a.slot, 1);
+        current = weighted[a.slot];
+      }
+});
+
+test("catalog source avoids the last 24 looks; page source the last six", () => {
+  const looks = Array.from({ length: 40 }, (_, i) => ({
+    slot: -1,
+    order: i,
+    clip: { ...clip(`look-${i}`, 0.5), transition: "auto" },
+  }));
+  const pilot = new Autopilot({ seed: 4, source: "catalog" });
+  let current = null;
+  const ids = [];
+  for (let bar = 0; bar < 16 * 300; bar++)
+    for (const a of pilot.update({ bar, pool: looks, current, energy: 0.5 }))
+      if (a.type === "trigger") {
+        assert.equal(a.slot, -1);
+        assert.ok(a.clip, "catalog triggers carry their clip");
+        ids.push(a.clip.id);
+        current = looks.find((l) => l.clip.id === a.clip.id);
+      }
+  assert.ok(ids.length > 200);
+  for (let i = 0; i < ids.length; i++)
+    for (let j = Math.max(0, i - 24); j < i; j++)
+      assert.notEqual(ids[i], ids[j], `change ${i}`);
+});
+
+test("Next plays the pick on the next beat with the regular fade and re-arms the duration", () => {
+  const pilot = new Autopilot({ seed: 6 });
+  play(pilot, 3); // first trigger at bar 0
+  pilot.enabled = false; // works with autopilot off, without enabling it
+  const before = pilot.manualUntil;
+  const next = pilot.next({ bar: 5, pool, current: pool[0] });
+  assert.equal(next.type, "trigger");
+  assert.equal(next.quantize, "beat");
+  assert.equal(next.fade, 12);
+  assert.notEqual(next.slot, 0);
+  assert.ok(["crossfade", "dissolve", "melt"].includes(next.transition));
+  assert.ok(RANDOM_BARS.includes(pilot.duration));
+  assert.equal(pilot.nextChange, 5 + pilot.duration);
+  assert.equal(pilot.nextDrift, 8, "drift waits for the three-bar fade");
+  assert.equal(pilot.manualUntil, before, "not a performer takeover");
+  assert.equal(pilot.enabled, false);
+  assert.equal(pilot.history.at(-1), pool[next.slot].clip.id);
+  const ordered = new Autopilot({ random: false, everyBars: 32 });
+  const step = ordered.next({ bar: 2, pool, current: pool[3] });
+  assert.equal(step.slot, 4);
+  assert.equal(step.transition, "crossfade");
+  assert.equal(ordered.nextChange, 34);
+  assert.equal(
+    new Autopilot().next({ bar: 0, pool: [pool[0]], current: pool[0] }),
+    null,
   );
-  assert.ok(log.every((a) => a.quantize === "bar"));
 });
 
 test("never repeats any of the last six clips", () => {
@@ -91,7 +196,7 @@ test("manual input takes over and control returns after the hand-back", () => {
 });
 
 test("drop melts fast to a higher-energy clip; breakdown lowers energy and halves speed", () => {
-  const log = play(new Autopilot({ everyBars: 64 }), 40, {
+  const log = play(new Autopilot({ everyBars: 64, random: false }), 40, {
     events: { 4: "breakdown", 20: "drop" },
   });
   const at = (bar) => log.filter((a) => a.bar === bar);
@@ -148,19 +253,24 @@ test("never touches master, mirror, blackout, flash or page", () => {
     );
 });
 
-test("random mode: regular changes are random, crossfade at least two bars and drift between changes", () => {
+test("random mode: regular changes are random, fade over three bars and drift between changes", () => {
   const log = play(new Autopilot({ everyBars: 16, seed: 5 }), 16 * 40);
   const triggers = log.filter((a) => a.type === "trigger");
-  assert.ok(triggers.every((a) => a.fade >= 8));
+  assert.ok(triggers.every((a) => a.fade >= 12));
   const steps = triggers.slice(1).map((a, i) => a.slot - triggers[i].slot);
   assert.ok(
     steps.some((s) => s !== 1 && s !== -7),
     "not just page order",
   );
   assert.ok(new Set(triggers.map((a) => a.slot)).size === pool.length);
-  // Drift starts once the 2-bar fade is over, then every 8 bars.
+  // Drift starts once the 3-bar fade is over, then every 8 bars until the
+  // next change.
   const drifts = log.filter((a) => a.type === "drift").map((a) => a.bar);
-  assert.deepEqual(drifts.slice(0, 3), [2, 10, 18]);
+  assert.equal(drifts[0], 3);
+  for (const bar of drifts) {
+    const last = triggers.filter((a) => a.bar <= bar).at(-1);
+    assert.ok((bar - last.bar - 3) % 8 === 0, `drift at ${bar}`);
+  }
 });
 
 test("in-order mode walks the page in slot order and never drifts", () => {
@@ -172,17 +282,43 @@ test("in-order mode walks the page in slot order and never drifts", () => {
   assert.ok(!log.some((a) => a.type === "drift"));
 });
 
-test("auto uses crossfade normally, both smooth breakdown choices, and one-bar melt on drops (D58)", () => {
-  const log = play(new Autopilot({ everyBars: 16, seed: 5 }), 100, {
-    events: { 4: "breakdown", 90: "drop" },
-  }).filter((action) => action.type === "trigger");
+test("random changes mix crossfade 60 %, dissolve 20 % and melt 20 %; in order they crossfade (D66)", () => {
+  const counts = { crossfade: 0, dissolve: 0, melt: 0 };
+  const random = play(new Autopilot({ seed: 8 }), 6000).filter(
+    (a) => a.type === "trigger",
+  );
+  for (const a of random) counts[a.transition]++;
+  const n = random.length;
+  assert.ok(n > 400);
+  assert.ok(
+    Math.abs(counts.crossfade / n - 0.6) < 0.07,
+    JSON.stringify(counts),
+  );
+  assert.ok(Math.abs(counts.dissolve / n - 0.2) < 0.06, JSON.stringify(counts));
+  assert.ok(Math.abs(counts.melt / n - 0.2) < 0.06, JSON.stringify(counts));
+  const ordered = play(new Autopilot({ random: false }), 400).filter(
+    (a) => a.type === "trigger",
+  );
+  assert.ok(
+    ordered.every((a) => a.transition === "crossfade" && a.fade === 12),
+  );
+});
+
+test("auto uses smooth breakdown choices and one-bar melt on drops (D58)", () => {
+  const log = play(
+    new Autopilot({ everyBars: 16, seed: 5, random: false }),
+    100,
+    {
+      events: { 4: "breakdown", 90: "drop" },
+    },
+  ).filter((action) => action.type === "trigger");
   assert.equal(log[0].transition, "crossfade");
   const breakdowns = log.filter((action) => action.bar > 4 && action.bar < 90);
   assert.deepEqual(
     new Set(breakdowns.map((action) => action.transition)),
     new Set(["melt", "dissolve"]),
   );
-  assert.ok(breakdowns.every((action) => action.fade >= 8));
+  assert.ok(breakdowns.every((action) => action.fade >= 12));
   const drop = new Autopilot({ seed: 5 })
     .update({ bar: 90, pool, current: pool[0], energy: 0.5, event: "drop" })
     .find((action) => action.type === "trigger");

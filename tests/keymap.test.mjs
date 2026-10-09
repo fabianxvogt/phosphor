@@ -47,6 +47,19 @@ test("typing in a text field does not trigger clips", () => {
   });
 });
 
+test("Shift+Space plays autopilot's next pick; Space alone stays tap (D66)", () => {
+  assert.deepEqual(actionFor(key("Space", { shiftKey: true })), {
+    type: "next",
+  });
+  assert.deepEqual(actionFor(key("Space")), { type: "tap" });
+  assert.equal(actionFor(key("Space", { shiftKey: true, repeat: true })), null);
+  assert.equal(
+    actionFor(key("Space", { shiftKey: true, target: input("search") })),
+    null,
+    "typing a space in the catalog search stays text",
+  );
+});
+
 test("tempo, energy, speed and toggles", () => {
   assert.deepEqual(actionFor(key("Space")), { type: "tap" });
   assert.deepEqual(actionFor(key("Enter")), { type: "downbeat" });

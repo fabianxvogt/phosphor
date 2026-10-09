@@ -42,6 +42,18 @@ test("triggers fire once per press, not on every CC message", () => {
   assert.deepEqual(fired, [0, 1, 0, 0, 0, 1]);
 });
 
+test("a learnt Next control plays autopilot's next pick once per press (D66)", () => {
+  const maps = [{ type: "note", channel: 0, number: 40, target: "next" }];
+  const edges = new Map();
+  const note = (value) => ({ type: "note", channel: 0, number: 40, value });
+  assert.deepEqual(routeMidi(note(1), maps, edges).actions, [{ type: "next" }]);
+  assert.deepEqual(routeMidi(note(1), maps, edges).actions, []);
+  assert.deepEqual(routeMidi(note(0), maps, edges).actions, []);
+  assert.deepEqual(routeMidi(note(0.9), maps, edges).actions, [
+    { type: "next" },
+  ]);
+});
+
 test("slots, family faders and momentary flash", () => {
   const maps = [
     { type: "note", channel: 0, number: 36, target: "slot.9" },

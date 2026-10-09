@@ -13,6 +13,7 @@ const TRIGGERS = {
   tap: () => ({ type: "tap" }),
   downbeat: () => ({ type: "downbeat" }),
   autopilot: () => ({ type: "autopilot" }),
+  next: () => ({ type: "next" }),
   freeze: () => ({ type: "freeze" }),
 };
 
