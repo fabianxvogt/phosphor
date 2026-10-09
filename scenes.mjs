@@ -21,6 +21,7 @@ import mandelbrot from "./scene-mandelbrot.mjs";
 import sandpile from "./scene-sandpile.mjs";
 import newton from "./scene-newton.mjs";
 import flame from "./scene-flame.mjs";
+import quasicrystal from "./scene-quasicrystal.mjs";
 
 export default [
   acid,
@@ -46,6 +47,7 @@ export default [
   sandpile,
   newton,
   flame,
+  quasicrystal,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
