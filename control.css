@@ -480,3 +480,189 @@ kbd {
 .settings-controls select:disabled {
   opacity: 0.55;
 }
+
+/* readouts: now playing, preview resolution */
+.readout.now span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+.readout label {
+  color: var(--muted);
+}
+.readout select {
+  padding: 1px 4px;
+}
+.readout select:disabled {
+  opacity: 0.55;
+}
+.actions select {
+  border-radius: 6px;
+  background: var(--panel-2);
+  padding: 8px 6px;
+  cursor: pointer;
+}
+
+/* catalog (D65) */
+.catalog {
+  --star: #ffd166;
+  --star-off: #3a4352;
+}
+.catalog-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.catalog-head h2 {
+  margin: 0 auto 0 0;
+}
+#catalogSearch {
+  width: min(280px, 100%);
+}
+#catalogFamily {
+  max-width: 220px;
+}
+#catalogSort {
+  padding: 5px 10px;
+  border-color: var(--pending);
+  color: var(--pending);
+}
+.catalog-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+  align-content: start;
+  max-height: max(420px, calc(100vh - 150px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 4px 2px 2px;
+}
+.look {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+.look.live {
+  border-color: var(--live);
+  box-shadow: 0 0 0 1px var(--live);
+}
+.look.pending {
+  border-color: var(--pending);
+  animation: blink 0.5s steps(2) infinite;
+}
+.look .thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+.look .thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.look.live .thumb::after {
+  content: "LIVE";
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #0b0d12;
+  background: var(--live);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.look .badge {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--star);
+  background: rgb(8 10 14 / 0.72);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.look .badge.never {
+  color: var(--error);
+}
+.look .badge.preview {
+  color: #fff;
+}
+.look-body {
+  display: grid;
+  gap: 5px;
+  padding: 7px 8px 8px;
+  min-width: 0;
+}
+.look-name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.look-meta {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rating .never {
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 17px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+.rating .never[aria-pressed="true"] {
+  border-color: var(--error);
+  color: var(--error);
+}
+.stars {
+  display: flex;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 3px;
+  font-size: 15px;
+  line-height: 18px;
+}
+.stars .star {
+  display: inline-block;
+  width: 15px;
+  text-align: center;
+  color: var(--star-off);
+}
+.stars .star.full {
+  color: var(--star);
+}
+.stars .star.half {
+  background: linear-gradient(90deg, var(--star) 50%, var(--star-off) 50%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.look-actions {
+  display: flex;
+  gap: 6px;
+}
+.look-actions button {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 12px;
+}

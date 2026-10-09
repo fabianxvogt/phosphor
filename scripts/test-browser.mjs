@@ -135,6 +135,42 @@ try {
       assert.equal(stats.error, 0);
     }
     pass("every family fade returns to one slot with no leaked textures");
+
+    // An incoming simulation family warms up behind the outgoing picture:
+    // the transition clock (and so its mix) holds at 0 until the warm-up is
+    // done, then the smooth fade runs to completion (D66).
+    const warmups = await lab.page.evaluate(async () => {
+      const { engine, scenes, presetSnapshot } = window.__phosphorLab;
+      engine.resize(160, 90);
+      const plain = scenes.find((s) => !s.simulation);
+      await engine.ready(plain.id);
+      const rows = [];
+      for (const scene of scenes.filter((s) => s.simulation)) {
+        await engine.ready(scene.id);
+        engine.load(presetSnapshot(plain), 0);
+        for (let i = 0; i < 3; i++) engine.advance(1 / 60);
+        engine.load(presetSnapshot(scene), 2, { transition: "crossfade" });
+        let held = true,
+          steps = 0;
+        while (engine.slots.at(-1).warmTicks > 0 && steps++ < 400) {
+          held &&= engine.transition?.elapsed === 0;
+          engine.advance(1 / 60);
+        }
+        for (let i = 0; i < 400 && engine.transition; i++)
+          engine.advance(1 / 60);
+        rows.push({ id: scene.id, held, steps, done: !engine.transition });
+      }
+      return rows;
+    });
+    assert.ok(warmups.length > 0);
+    for (const row of warmups) {
+      assert.ok(row.steps > 0, `${row.id} had no warm-up`);
+      assert.ok(row.held, `${row.id}: transition advanced during warm-up`);
+      assert.ok(row.done, `${row.id}: fade never finished`);
+    }
+    pass(
+      `${warmups.length} simulation families warm up behind a held transition (no pop)`,
+    );
     assert.deepEqual(lab.errors, []);
     await lab.context.close();
   }
@@ -227,6 +263,74 @@ try {
     "set edit reaches the stage",
   );
   pass("configuration edits reach the stage");
+
+  // Catalog (D65): every look is listed; a star rating reaches the stage's
+  // set; Play plays the look live as an unsaved clip.
+  const catalog = await control.evaluate(() => ({
+    title: document.getElementById("catalogTitle").textContent,
+    cards: document.querySelectorAll(".look").length,
+  }));
+  const lookTotal = await stage.evaluate(() =>
+    window.__phosphorStage.scenes.reduce((n, s) => n + s.presets.length, 0),
+  );
+  assert.equal(catalog.cards, lookTotal);
+  assert.equal(catalog.title, `Catalog · ${lookTotal} looks`);
+  const cards = control.locator(".look");
+  const rated = await cards.nth(2).evaluate((node) => node.card.look.id);
+  await cards
+    .nth(2)
+    .locator(".star")
+    .nth(9)
+    .click({ position: { x: 12, y: 9 } });
+  await waitFor(
+    stage,
+    (id) => window.__phosphorStage.show.set.ratings[id] === 10,
+    rated,
+    "a ten-star rating reaches the stage",
+  );
+  await control.mouse.move(2, 2); // leaving the list re-sorts by rating
+  await waitFor(
+    control,
+    (id) => document.querySelector(".look")?.card.look.id === id,
+    rated,
+    "the rated look sorts first",
+  );
+  const played = await cards.nth(4).evaluate((node) => node.card.look.id);
+  await cards.nth(4).locator(".play").click();
+  await waitFor(
+    stage,
+    (id) => {
+      const live = window.__phosphorStage.show.live;
+      return live?.clip.id === id && live.page === -1;
+    },
+    played,
+    "Play plays the look live",
+  );
+  pass("catalog lists every look; ratings reach the stage; Play plays live");
+
+  // Next (D66): Shift+Space plays autopilot's next pick without taking over.
+  const beforeNext = await stage.evaluate(() => ({
+    id: window.__phosphorStage.show.live?.clip.id,
+    manualUntil: window.__phosphorStage.show.autopilot.manualUntil,
+  }));
+  await control.locator("body").press("Shift+Space");
+  await waitFor(
+    stage,
+    (id) => {
+      const live = window.__phosphorStage.show.live;
+      return !!live && live.clip.id !== id;
+    },
+    beforeNext.id,
+    "Shift+Space plays the next pick",
+  );
+  assert.equal(
+    await stage.evaluate(
+      () => window.__phosphorStage.show.autopilot.manualUntil,
+    ),
+    beforeNext.manualUntil,
+    "Next is not a performer takeover",
+  );
+  pass("Shift+Space plays autopilot's next pick on the stage");
 
   // Control reload: the stage keeps rendering and the control reconnects.
   // Leave the text field: typing there must not trigger clips.

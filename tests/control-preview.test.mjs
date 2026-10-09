@@ -190,6 +190,35 @@ test("a rejected load never applies foreign params to the previous picture", () 
   );
 });
 
+test("handoff keeps a catalog look live with autopilot's history and random duration (D65, D66)", () => {
+  const control = makeShow();
+  control.set.autopilot.source = "catalog";
+  control.autopilot.enabled = true;
+  control.begin(0);
+  control.tick(0);
+  control.command({ type: "next" }, 0.3);
+  control.tick(0.5);
+  const live = control.live.clip.id;
+  assert.equal(control.live.page, -1);
+  const state = performanceState(control, 1);
+  const stage = makeShow();
+  stage.set.autopilot.source = "catalog";
+  const actions = restorePerformance(
+    stage,
+    JSON.parse(JSON.stringify(state)),
+    10,
+  );
+  assert.equal(stage.live.clip.id, live);
+  assert.equal(stage.live.page, -1);
+  assert.equal(
+    actions.find((a) => a.type === "load").snapshot.scene,
+    live.split(":")[0],
+  );
+  assert.deepEqual(stage.autopilot.history, control.autopilot.history);
+  assert.equal(stage.autopilot.duration, control.autopilot.duration);
+  assert.equal(stage.status(10).live.look, live);
+});
+
 test("safe-look handoff carries its palette without inventing a live clip", () => {
   const control = makeShow();
   control.command({ type: "safe" }, 0);

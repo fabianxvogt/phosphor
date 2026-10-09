@@ -35,6 +35,12 @@ export function loadSet(storage, scenes) {
         ],
       };
     }
+    // A normalised older v4 save (D65–D67) is stored at once, like a
+    // migration, so the report appears only on the first load.
+    if (key === SET_KEY && loaded.report.length)
+      try {
+        saveSet(storage, loaded.set);
+      } catch {}
     if (key !== SET_KEY) {
       loaded.report.unshift(
         `Migrated the saved ${key.endsWith("v3") ? "v3" : "v2"} set.`,

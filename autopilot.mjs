@@ -1,20 +1,25 @@
-// Autopilot (decision D15). Plays autopilot-allowed clips on the current
-// page, changes every N bars on a bar line, avoids the last six clips, and
-// reacts to loudness events. Manual input takes over; control returns after
+// Autopilot (decisions D15, D66). Plays from a pool the show builds — the
+// look catalog (default) or the autopilot-allowed clips on the current page —
+// changes on a bar line, avoids recently played clips, and reacts to
+// loudness events. Manual input takes over; control returns after
 // `handBackBars` idle bars. It may change the clip, palette, energy and speed —
 // never master, mirror, blackout, flash or page (a mirror jump is not smooth).
-// Random mode (owner direction 2026-10-08, default on): regular changes pick
-// a random clip and the live clip's parameters drift smoothly; off, changes
-// walk the page in slot order and parameters stay put. Autopilot changes
-// are always smooth: context chooses a transition, never a hard cut (D50, D58).
+// Random mode (default on): each chosen clip plays a random 8, 12 or 16 bars,
+// picks are weighted by rating (pool entries' `weight`; 0 never plays) and the
+// live clip's parameters drift smoothly; off, changes walk the pool in order
+// every `everyBars` and parameters stay put. Autopilot changes are always
+// smooth: context chooses a transition, never a hard cut (D50, D58).
 import { PALETTES, paletteById } from "./palettes.mjs";
+import { weightedChoice, UNRATED_WEIGHT } from "./catalog.mjs";
 
-const HISTORY = 6;
-const FADE_BEATS = 8; // regular and breakdown changes: at least two bars
+const HISTORY = { page: 6, catalog: 24 }; // recently played clips to avoid
+const FADE_BEATS = 12; // regular and breakdown changes: at least three bars
 const DROP_FADE_BEATS = 4; // drops land fast but never as a hard cut
+export const RANDOM_BARS = [8, 12, 16]; // random-mode clip durations (D66)
 export const DRIFT_BARS = 8; // one parameter glide, then the next
 const PALETTE_HISTORY = 3;
 const PALETTE_BEATS = 4;
+const weightOf = (entry) => entry.weight ?? UNRATED_WEIGHT;
 
 function hue(hex) {
   const value = parseInt(hex.slice(1), 16);
@@ -59,20 +64,24 @@ export class Autopilot {
   constructor({
     enabled = true,
     random = true,
-    everyBars = 32,
+    everyBars = 16,
     handBackBars = 32,
+    source = "page",
     seed = 1,
   } = {}) {
     this.enabled = enabled;
     this.randomMode = random;
     this.everyBars = everyBars;
     this.handBackBars = handBackBars;
+    this.source = source; // "catalog" | "page": sets the history window
     this.random = rng(seed);
     this.paletteRandom = rng(seed ^ 0x50414c);
     this.transitionRandom = rng(seed ^ 0x545241);
+    this.durationRandom = rng(seed ^ 0x445552);
     this.nextPalette = null;
     this.paletteHistory = [];
     this.nextChange = null;
+    this.duration = null; // bars the current autopilot clip plays
     this.nextDrift = null;
     this.manualUntil = -Infinity;
     this.history = [];
@@ -94,7 +103,34 @@ export class Autopilot {
     if (!clipId) return;
     this.history = this.history.filter((id) => id !== clipId);
     this.history.push(clipId);
-    if (this.history.length > HISTORY) this.history.shift();
+    if (this.history.length > HISTORY.catalog) this.history.shift();
+  }
+
+  // Clip ids to avoid: the last 24 looks from the catalog, six on a page.
+  #recent() {
+    return new Set(this.history.slice(-(HISTORY[this.source] ?? HISTORY.page)));
+  }
+
+  // How long the clip starting now plays: a random 8/12/16 bars in random
+  // mode, else the set's interval.
+  #period() {
+    this.duration = this.randomMode
+      ? RANDOM_BARS[Math.floor(this.durationRandom() * RANDOM_BARS.length)]
+      : this.everyBars;
+    return this.duration;
+  }
+
+  // Weighted by rating among clips not played recently; recency is ignored
+  // rather than playing nothing.
+  #weighted(candidates) {
+    const recent = this.#recent();
+    return (
+      weightedChoice(
+        candidates.filter((p) => !recent.has(p.clip.id)),
+        weightOf,
+        this.random,
+      ) ?? weightedChoice(candidates, weightOf, this.random)
+    );
   }
 
   palettePlayed(id) {
@@ -150,16 +186,20 @@ export class Autopilot {
     return this.enabled && bar >= this.manualUntil;
   }
 
-  // pool: [{ slot, clip }] on the current page; current: { slot, clip } | null.
+  // Event change (drop, breakdown). pool: [{ slot, clip, weight? }] — page
+  // slots, or catalog looks with slot −1; current: { slot, clip } | null.
+  // Page clips are chosen by stored energy near `target`; catalog looks all
+  // share the authored mid energy, so they are chosen by rating. A clip whose
+  // look is rated 0 is never chosen.
   #pick(pool, current, target) {
-    const allowed = pool.filter((p) => p.clip.autopilot);
-    let candidates = allowed.filter(
-      (p) =>
-        p.clip.id !== current?.clip.id && !this.history.includes(p.clip.id),
+    const allowed = pool.filter(
+      (p) => p.clip.autopilot && p.clip.id !== current?.clip.id && weightOf(p),
     );
-    if (!candidates.length)
-      candidates = allowed.filter((p) => p.clip.id !== current?.clip.id);
-    if (!candidates.length) return null;
+    if (!allowed.length) return null;
+    if (this.source === "catalog") return this.#weighted(allowed);
+    const recent = this.#recent();
+    const fresh = allowed.filter((p) => !recent.has(p.clip.id));
+    const candidates = fresh.length ? fresh : allowed;
     let best = null,
       score = Infinity;
     for (const p of candidates) {
@@ -172,18 +212,19 @@ export class Autopilot {
     return best;
   }
 
-  // Regular change: a random allowed clip not played recently (random mode)
-  // or the next allowed clip in page order.
+  // Regular change: a weighted random allowed clip not played recently
+  // (random mode) or the next allowed clip in pool order (page slots, or the
+  // catalog sorted by rating).
   #next(pool, current) {
     const allowed = pool.filter(
       (p) => p.clip.autopilot && p.clip.id !== current?.clip.id,
     );
     if (!allowed.length) return null;
-    if (!this.randomMode)
-      return allowed.find((p) => p.slot > (current?.slot ?? -1)) ?? allowed[0];
-    const fresh = allowed.filter((p) => !this.history.includes(p.clip.id));
-    const from = fresh.length ? fresh : allowed;
-    return from[Math.floor(this.random() * from.length)];
+    if (this.randomMode) return this.#weighted(allowed);
+    const position = (p) => p.order ?? p.slot;
+    const here = pool.find((p) => p.clip.id === current?.clip.id);
+    const from = here ? position(here) : (current?.slot ?? -1);
+    return allowed.find((p) => position(p) > from) ?? allowed[0];
   }
 
   #transition(clip, event) {
@@ -193,7 +234,40 @@ export class Autopilot {
     if (event === "drop") return "melt";
     if (this.breakdownSince !== null)
       return this.transitionRandom() < 0.5 ? "melt" : "dissolve";
-    return "crossfade";
+    if (!this.randomMode) return "crossfade";
+    // Random mode varies regular changes: crossfade 60 %, dissolve 20 %,
+    // melt 20 % (D66).
+    const x = this.transitionRandom();
+    return x < 0.6 ? "crossfade" : x < 0.8 ? "dissolve" : "melt";
+  }
+
+  #trigger(choice, bar, fade, quantize, event) {
+    this.played(choice.clip.id);
+    this.nextChange = bar + this.#period();
+    this.nextDrift = bar + Math.ceil(fade / 4); // drift once the fade is over
+    return {
+      type: "trigger",
+      slot: choice.slot,
+      clip: choice.clip,
+      fade,
+      quantize,
+      transition: this.#transition(choice.clip, event),
+    };
+  }
+
+  // The Next button (D66): the pick a regular change would make, on the next
+  // beat with the regular fade; its duration starts now. Not a performer
+  // takeover, and it plays even with autopilot off. null when nothing can.
+  next({ bar, pool, current }) {
+    const choice = this.#next(pool, current);
+    if (!choice) return null;
+    return this.#trigger(
+      choice,
+      bar,
+      Math.max(FADE_BEATS, choice.clip.fade),
+      "beat",
+      null,
+    );
   }
 
   // Called once per clock update. Returns actions for the show.
@@ -228,18 +302,8 @@ export class Autopilot {
       if (step) actions.push(step);
       this.nextPalette = bar + this.#paletteInterval();
     }
-    const trigger = (choice, fade) => {
-      actions.push({
-        type: "trigger",
-        slot: choice.slot,
-        fade,
-        quantize: "bar",
-        transition: this.#transition(choice.clip, event),
-      });
-      this.played(choice.clip.id);
-      this.nextChange = bar + this.everyBars;
-      this.nextDrift = bar + Math.ceil(fade / 4); // drift once the fade is over
-    };
+    const trigger = (choice, fade) =>
+      actions.push(this.#trigger(choice, bar, fade, "bar", event));
     const anchor = () => {
       if (this.chainFrom === null) {
         this.chainFrom = this.settle?.to ?? energy;
@@ -294,14 +358,14 @@ export class Autopilot {
       return actions;
     }
     if (this.nextChange === null)
-      this.nextChange = current ? bar + this.everyBars : bar;
+      this.nextChange = current ? bar + this.#period() : bar;
     if (bar >= this.nextChange) {
       const choice = this.#next(pool, current);
       if (choice) {
         trigger(choice, Math.max(FADE_BEATS, choice.clip.fade));
         return actions;
       }
-      this.nextChange = bar + this.everyBars;
+      this.nextChange = bar + this.#period();
     }
     // Random mode: the live clip's parameters glide to a new nearby target
     // every DRIFT_BARS bars (the show computes and interpolates the target).

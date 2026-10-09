@@ -9,13 +9,13 @@ import {
   validateShowSet,
   parseShowSet,
   clipFrom,
-  missingFamilies,
-  addMissingFamilies,
+  freeClipId,
   SLOTS,
   QUANTIZE,
   TRANSITIONS,
   AUTOPILOT_BARS,
   PIXEL_BUDGETS,
+  NATIVE_BUDGET,
   MIDI_TARGETS,
 } from "./show-set.mjs";
 import { loadSet, saveSet } from "./show-storage.mjs";
@@ -23,6 +23,9 @@ import { actionFor, keyLabels, GRID_CODES } from "./keymap.mjs";
 import { mutatePreset } from "./evolution.mjs";
 import { AudioEngine, MidiInput } from "./audio.mjs";
 import { routeMidi } from "./midi-map.mjs";
+import { catalogLooks, catalogClip } from "./catalog.mjs";
+import { Thumbnails } from "./catalog-thumbs.mjs";
+import { CatalogPanel } from "./control-catalog.mjs";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...children) => {
@@ -71,9 +74,8 @@ function toast(message) {
 for (const line of report) log(line);
 
 // --- set persistence: save on edits only (D9) -------------------------------
-function changed() {
-  set = validateShowSet(set, scenes);
-  localPerformance?.updateSet(set);
+let ratingSendTimer;
+function saveSoon() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
@@ -82,8 +84,24 @@ function changed() {
       toast(`Could not save locally (${error.message}). Export the set.`);
     }
   }, 300);
+}
+function changed() {
+  set = validateShowSet(set, scenes);
+  localPerformance?.updateSet(set);
+  saveSoon();
+  clearTimeout(ratingSendTimer);
   send({ type: "set", set });
   scheduleRender();
+}
+// Ratings (D65) are set data but change in bursts: the card repaints at once,
+// the save and the stage update are coalesced. Allowed under Lock settings.
+function rate(id, rating) {
+  if (rating === null) delete set.ratings[id];
+  else set.ratings[id] = rating;
+  localPerformance?.updateSet(set);
+  saveSoon();
+  clearTimeout(ratingSendTimer);
+  ratingSendTimer = setTimeout(() => send({ type: "set", set }), 400);
 }
 // Coalesce re-renders to the next frame: rendering synchronously from a
 // change/blur handler would replace the element that is firing the event.
@@ -513,24 +531,40 @@ function renderStatus() {
   $("bar").textContent =
     `${clock.bar + 1} · ${Math.floor(clock.beatInBar) + 1}`;
   const ap = s.autopilot;
+  // Random mode shows the bars left of the current clip's random duration.
   $("autopilotReadout").textContent = !ap.enabled
     ? "off"
     : ap.active
-      ? `${ap.random ? "random" : "in order"} · next in ${ap.nextChangeIn ?? "—"} bars`
+      ? ap.random
+        ? `random · ${ap.nextChangeIn ?? "—"}/${ap.duration ?? "—"} bars`
+        : `in order · next in ${ap.nextChangeIn ?? "—"}`
       : `paused · back in ${ap.handBackIn} bars`;
+  const live = s.live;
+  const liveScene = live && sceneById(live.scene);
+  $("nowReadout").textContent = live ? live.name : s.blackout ? "black" : "—";
+  $("nowReadout").title = live
+    ? `${live.name} · ${liveScene?.name ?? live.scene} · ${live.page < 0 ? (catalogIds.has(live.clipId) ? "catalog" : "unsaved clip") : `page ${live.page + 1}`}`
+    : "";
+  catalog?.setStatus(live?.look ?? null, s.pending?.look ?? null);
+  if (document.activeElement !== $("autopilotSource"))
+    $("autopilotSource").value = ap.source ?? set.autopilot.source;
   $("energyReadout").textContent = s.energy.toFixed(2);
   $("paletteReadout").textContent =
     paletteById(s.palette)?.name ?? (s.palette ? "Custom" : "—");
   $("speedReadout").textContent = `${s.speed}×`;
+  applyPreviewSize();
   const st = alive
     ? status.stage
     : {
-        width: editorEngine?.width ?? 480,
-        height: editorEngine?.height ?? 270,
-        fps: 30,
+        width: editorEngine?.width ?? 0,
+        height: editorEngine?.height ?? 0,
+        fps: localFps,
       };
   $("renderReadout").textContent =
-    `${st.width}×${st.height} · ${st.fps ? Math.round(st.fps) : "—"} fps`;
+    editorEngine || alive
+      ? `${st.width}×${st.height} · ${st.fps ? Math.round(st.fps) : "—"} fps`
+      : "—";
+  $("renderReadout").title = alive ? "Stage output" : "Local preview";
   $("latency").textContent =
     clock.mode === "auto" ? `latency ${clock.latencyMs} ms` : "";
   $("autoClock").ariaPressed = String(clock.mode === "auto");
@@ -572,7 +606,99 @@ try {
 if (editorEngine)
   localPerformance = new ControlPreview(editorEngine, set, scenes, now());
 const localPreviewContext = $("localPreview").getContext("2d");
+
+// Preview resolution (D67): chosen per viewer, applied to the local renderer.
+// While the stage is live the monitor shows the stage's own stream, so the
+// choice is disabled and the editor renders small to leave the GPU to it.
+const PREVIEW_KEY = "phosphor-preview-resolution";
+const PREVIEW_SIZES = ["480x270", "960x540", "1280x720", "1920x1080"];
+let previewSize = "960x540";
+try {
+  const stored = localStorage.getItem(PREVIEW_KEY);
+  if (PREVIEW_SIZES.includes(stored)) previewSize = stored;
+} catch {}
+let localFps = null;
+function applyPreviewSize() {
+  const alive = stageAlive();
+  const [w, h] = (alive ? "480x270" : previewSize).split("x").map(Number);
+  if (editorEngine && (editorEngine.width !== w || editorEngine.height !== h)) {
+    editorEngine.resize(w, h);
+    localFps = null;
+  }
+  if ($("localPreview").width !== w) $("localPreview").width = w;
+  if ($("localPreview").height !== h) $("localPreview").height = h;
+  $("previewResolution").disabled = alive || !editorEngine;
+  if (document.activeElement !== $("previewResolution"))
+    $("previewResolution").value = previewSize;
+  $("previewNote").hidden = !alive;
+}
+$("previewResolution").onchange = () => {
+  previewSize = $("previewResolution").value;
+  try {
+    localStorage.setItem(PREVIEW_KEY, previewSize);
+  } catch {}
+  applyPreviewSize();
+  renderStatus();
+};
+applyPreviewSize();
 updatePreview();
+
+// --- catalog (D65) -----------------------------------------------------------
+const looks = catalogLooks(scenes);
+const catalogIds = new Set(looks.map((look) => look.id));
+let thumbnailErrors = 0;
+const thumbnails = new Thumbnails({
+  createEngine: () =>
+    new Engine(document.createElement("canvas"), scenes, (message) => {
+      if (thumbnailErrors++ < 3) log(`Catalog thumbnails: ${message}`);
+    }),
+  // Never take time from a transition on the stage or the local preview.
+  busy: () =>
+    document.hidden ||
+    !!editorEngine?.transition ||
+    (stageAlive() && !!status?.stage?.transition),
+  onReady: (id) => catalog?.showThumbnail(id),
+  onError: (message) => log(message),
+});
+function playLook(look) {
+  act({ type: "audition", clip: catalogClip(look) });
+}
+function lookToSlot(look) {
+  if (settingsLocked) return;
+  const { page, slot } = draftTarget ?? selected;
+  const label = labels[GRID_CODES[slot]] ?? slot + 1;
+  const store = () => {
+    if (settingsLocked) return;
+    set.pages[page].slots[slot] = catalogClip(look, { id: freeClipId(set) });
+    changed();
+    selectSlot(page, slot, false);
+    toast(`“${look.name}” is in slot ${label} on page ${page + 1}.`);
+  };
+  const old = set.pages[page].slots[slot];
+  if (old)
+    confirm(
+      `Replace “${old.name}” in slot ${label} on page ${page + 1} with “${look.name}”?`,
+      store,
+    );
+  else store();
+}
+const catalog = new CatalogPanel({
+  looks,
+  families: scenes.map((scene) => ({ id: scene.id, name: scene.name })),
+  list: $("catalogList"),
+  search: $("catalogSearch"),
+  family: $("catalogFamily"),
+  sortButton: $("catalogSort"),
+  title: $("catalogTitle"),
+  count: $("catalogCount"),
+  getRatings: () => set.ratings,
+  onRate: rate,
+  onPlay: playLook,
+  onToSlot: lookToSlot,
+  thumbnails,
+});
+// Harness hooks (tests/browser): the catalog and its thumbnail renderer.
+Object.assign(window.__phosphorControl, { catalog, thumbnails });
 function previewDraft(manual = true) {
   if (!editorEngine || !draft) return;
   resumeLocalPerformance();
@@ -881,11 +1007,19 @@ async function breed() {
 }
 let editorLoop = 0;
 let lastLocalStatus = 0;
+let fpsFrames = 0,
+  fpsSince = 0;
 function animateEditor(ms) {
   requestAnimationFrame(animateEditor);
   if (!editorEngine || document.hidden || ms - editorLoop < 1000 / 30) return;
   const dt = Math.min(0.1, (ms - editorLoop) / 1000);
   editorLoop = ms;
+  fpsFrames++;
+  if (ms - fpsSince >= 1000) {
+    localFps = fpsSince ? (fpsFrames * 1000) / (ms - fpsSince) : null;
+    fpsFrames = 0;
+    fpsSince = ms;
+  }
   resumeLocalPerformance();
   if (stageAlive()) {
     editorEngine.beat = status.status.clock.beat;
@@ -944,6 +1078,8 @@ function renderSetFields() {
   const every = el(
     "select",
     {
+      title:
+        "In-order autopilot changes clip every N bars; Random plays each clip 8, 12 or 16 bars",
       onchange: () => {
         set.autopilot.everyBars = Number(every.value);
         changed();
@@ -960,6 +1096,8 @@ function renderSetFields() {
   const budget = el(
     "select",
     {
+      title:
+        "Stage render budget; the stage steps down only if frames stay slow",
       onchange: () => {
         set.options.pixelBudget = Number(budget.value);
         changed();
@@ -968,7 +1106,7 @@ function renderSetFields() {
     ...PIXEL_BUDGETS.map((b) =>
       el("option", {
         value: b,
-        textContent: `${b} MP`,
+        textContent: b === NATIVE_BUDGET ? "Native (up to 4K)" : `${b} MP`,
         selected: b === set.options.pixelBudget,
       }),
     ),
@@ -994,8 +1132,8 @@ function renderSetFields() {
     field("Show name", name),
     field(`Page ${page + 1} name`, pageName),
     field("Page mood", mood),
-    field("Autopilot every", every),
-    field("Pixel budget", budget),
+    field("In order every", every),
+    field("Stage resolution", budget),
     option("bloom", "Bloom ceiling"),
     option("echo", "Echo ceiling"),
     option("chroma", "Chroma ceiling"),
@@ -1105,6 +1243,9 @@ function updateSettingsLock() {
   ))
     input.disabled =
       settingsLocked && !["exportSet", "auditionClip"].includes(input.id);
+  // Rating, search and Play stay available; storing a look in a slot is a
+  // configuration change.
+  catalog.setLocked(settingsLocked);
   // A MIDI learn started before locking must not alter the mappings later.
   if (settingsLocked) {
     midiLearn = null;
@@ -1130,6 +1271,11 @@ $("safe").onclick = () => act({ type: "safe" });
 $("freeze").onclick = () => act({ type: "freeze" });
 $("autopilot").onclick = () => act({ type: "autopilot" });
 $("random").onclick = () => act({ type: "random" });
+$("next").onclick = () => act({ type: "next" });
+$("autopilotSource").onchange = () => {
+  set.autopilot.source = $("autopilotSource").value;
+  changed();
+};
 $("half").onclick = () => act({ type: "speed", value: 0.5 });
 $("double").onclick = () => act({ type: "speed", value: 2 });
 $("flash").onpointerdown = () => act({ type: "flash", on: true });
@@ -1243,6 +1389,7 @@ $("importSet").onchange = async () => {
       ...result.report.map((line) => el("li", { textContent: line })),
     );
     changed();
+    catalog.refresh(); // the imported set brings its own ratings
     selectSlot(0, 0, true, false);
     toast(`Imported “${set.name}”.`);
   } catch (error) {
@@ -1298,25 +1445,6 @@ $("pattern").onclick = () => {
   $("pattern").ariaPressed = String(on);
   send({ type: "pattern", on });
 };
-// Sets saved before a family existed never gain it on their own (D53).
-function renderMissing() {
-  const missing = missingFamilies(set, scenes);
-  $("missingFamilies").hidden = !missing.length;
-  $("missingText").textContent =
-    `${missing.length} famil${missing.length === 1 ? "y is" : "ies are"} not in this set: ${missing.map((s) => s.name).join(", ")}.`;
-}
-$("addMissing").onclick = () => {
-  if (settingsLocked) return;
-  const result = addMissingFamilies(set, scenes);
-  set = result.set;
-  changed();
-  toast(
-    result.skipped.length
-      ? `Added ${result.added.length} to the Lab page; no room for ${result.skipped.join(", ")}.`
-      : `Added ${result.added.length} famil${result.added.length === 1 ? "y" : "ies"} to the Lab page.`,
-  );
-};
-
 function render() {
   $("setName").textContent = set.name;
   renderPages();
@@ -1325,7 +1453,6 @@ function render() {
   renderEditor();
   renderSetFields();
   renderChecks();
-  renderMissing();
   renderMidi();
   renderStatus();
   updateSettingsLock();

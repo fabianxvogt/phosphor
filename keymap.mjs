@@ -61,7 +61,8 @@ export function actionFor(event) {
     return { type: "slot", index: SLOT_BY_CODE.get(code) };
   switch (code) {
     case "Space":
-      return { type: "tap" };
+      // Shift+Space: autopilot's next pick now (D66); Space alone taps.
+      return { type: shiftKey ? "next" : "tap" };
     case "Enter":
     case "NumpadEnter":
       return { type: "downbeat" };

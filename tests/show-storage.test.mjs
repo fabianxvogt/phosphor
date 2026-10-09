@@ -28,6 +28,28 @@ test("a saved v4 set reloads unchanged", () => {
   assert.equal(loadSet(storage, scenes).set.name, "Friday");
 });
 
+test("a pre-catalog v4 autosave is normalised once: Lab → Page 8, 2.1 MP → native", () => {
+  const storage = memory();
+  const old = initialShowSet(scenes);
+  delete old.ratings;
+  old.pages[7].name = "Lab";
+  old.pages[7].slots[0] = {
+    ...old.pages[0].slots[0],
+    id: "lab",
+    autopilot: false,
+  };
+  old.options.pixelBudget = 2.1;
+  storage.setItem(SET_KEY, JSON.stringify(old));
+  const first = loadSet(storage, scenes);
+  assert.equal(first.set.pages[7].name, "Page 8");
+  assert.equal(first.set.pages[7].slots[0].autopilot, true);
+  assert.equal(first.set.options.pixelBudget, 8.3);
+  assert.equal(first.report.length, 2);
+  const second = loadSet(storage, scenes);
+  assert.deepEqual(second.report, [], "stored at once, reported once");
+  assert.deepEqual(second.set, first.set);
+});
+
 test("an existing v2 autosave migrates on first load", () => {
   const storage = memory();
   storage.setItem("phosphor-set-v2", JSON.stringify(initialSession(scenes)));

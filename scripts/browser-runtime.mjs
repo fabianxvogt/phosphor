@@ -171,6 +171,10 @@ export async function openShow(
   {
     viewport = { width: 1440, height: 900 },
     stageViewport = { width: 320, height: 180 },
+    // The control's local preview resolution (a per-viewer setting, D67).
+    // Software GL at the 960×540 default starves the main thread the stage
+    // shares, so harness runs pin the smallest size unless asked otherwise.
+    preview = "480x270",
   } = {},
 ) {
   const context = await browser.newContext({
@@ -179,6 +183,12 @@ export async function openShow(
     acceptDownloads: true,
   });
   await context.addInitScript(installProbes);
+  if (preview)
+    await context.addInitScript((size) => {
+      try {
+        localStorage.setItem("phosphor-preview-resolution", size);
+      } catch {}
+    }, preview);
   const control = await context.newPage();
   const errors = [];
   watch(control, "control", errors);

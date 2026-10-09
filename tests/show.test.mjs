@@ -9,10 +9,13 @@ import { paletteById } from "../palettes.mjs";
 const safeSnapshot = presetSnapshot(
   scenes.find((s) => s.id === "interference"),
 );
+// Most tests exercise page behaviour; catalog tests opt in with
+// `set.autopilot.source = "catalog"` (the default for real sets, D66).
 function makeShow(mutate) {
   const set = initialShowSet(scenes);
   set.clock.mode = "manual";
   set.clock.manualBpm = 120; // 0.5 s per beat, 2 s per bar
+  set.autopilot.source = "page";
   mutate?.(set);
   return new Show({
     set: validateShowSet(set, scenes),
@@ -91,7 +94,7 @@ test("autopilot's resolved smooth transition survives scheduling a clip authored
   show.tick(0);
   const [action] = loads(show.tick(32));
   assert.equal(action.transition, "crossfade");
-  assert.equal(action.fadeSeconds, 4);
+  assert.equal(action.fadeSeconds, 6); // three bars at 120 BPM (D66)
 });
 
 test("a trigger keeps the show energy instead of the clip's stored value (D54)", () => {
@@ -296,14 +299,16 @@ test("with the page unplayable the safe look takes over, then any page, then bla
 test("random mode glides the live clip's continuous parameters near its authored values", () => {
   const show = makeShow((set) => (set.autopilot.everyBars = 64));
   const snapshots = [];
-  for (let t = 0; t <= 60; t += 1 / 60)
+  // Random clips play at least 8 bars (16 s here); drift starts once the
+  // three-bar fade is over (6 s): one clip, one glide.
+  for (let t = 0; t <= 15.9; t += 1 / 60)
     if (show.tick(t).some((action) => action.type === "params"))
       snapshots.push(structuredClone(show.currentSnapshot()));
-  const live = show.status(60).live;
+  const live = show.status(15.9).live;
   const clip = show.set.pages[live.page].slots[live.slot];
   const scene = scenes.find((s) => s.id === clip.snapshot.scene);
   const glide = snapshots.filter((snapshot) => snapshot.scene === scene.id);
-  assert.ok(glide.length > 600, "params move every frame while drifting");
+  assert.ok(glide.length > 500, "params move every frame while drifting");
   const drifting = scene.schema.filter(
     (f) => f.key !== scene.type?.key && !(f.step >= 1) && f.max > f.min,
   );
@@ -369,16 +374,26 @@ test("random off: autopilot walks the page in order and parameters stay put", ()
   assert.equal(show.set.autopilot.random, true);
 });
 
-test("a fresh stage begins on a random autopilot clip; autopilot then waits a full period", () => {
-  const show = makeShow((set) => (set.autopilot.everyBars = 16));
-  const first = loads(show.begin(0));
-  assert.equal(first.length, 1);
-  assert.equal(first[0].fadeSeconds, 0);
-  assert.equal(show.status(0).live.slot, first[0].slot);
-  const later = [];
-  for (let t = 0; t < 40; t += 1 / 30) later.push(...loads(show.tick(t)));
-  assert.equal(later.length, 1);
-  assert.ok(later[0].fadeSeconds >= 4); // two bars at 120 BPM
+test("a fresh stage begins on a random autopilot clip; autopilot then waits its random duration", () => {
+  for (const source of ["page", "catalog"]) {
+    const show = makeShow((set) => (set.autopilot.source = source));
+    const first = loads(show.begin(0));
+    assert.equal(first.length, 1);
+    assert.equal(first[0].fadeSeconds, 0);
+    assert.equal(show.status(0).live.slot, first[0].slot);
+    assert.equal(first[0].page, source === "catalog" ? -1 : 0);
+    assert.deepEqual(loads(show.tick(0)), []);
+    const { duration, nextChangeIn } = show.status(0).autopilot;
+    assert.ok([8, 12, 16].includes(duration));
+    assert.equal(nextChangeIn, duration);
+    const later = [];
+    for (let t = 0; t < 40; t += 1 / 30)
+      for (const load of loads(show.tick(t))) later.push({ t, load });
+    // The first change comes after the first clip's random duration.
+    assert.ok(later.length >= 1, source);
+    assert.ok(Math.abs(later[0].t - duration * 2) < 0.05, `${later[0].t}`);
+    assert.equal(later[0].load.fadeSeconds, 6); // three bars at 120 BPM
+  }
 });
 
 test("manual triggers adopt the clip palette with a glide; autopilot keeps the show palette", () => {

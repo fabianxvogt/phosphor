@@ -164,8 +164,9 @@ test(
             });
             engine.options.echo = 0;
             if (kind === "crossfade") {
-              // At progress 1/4 the specified smoothstep weight is 0.15625,
-              // not the old linear 0.25. Blue is independent of A's pattern.
+              // At progress 1/4 the specified smootherstep weight is
+              // 0.103515625 (D66; smoothstep was 0.15625, linear 0.25).
+              // Blue is independent of A's pattern.
               const pixel = 4 * (45 * 160 + 80);
               rows.push({
                 fallback,
@@ -202,7 +203,7 @@ test(
         return rows;
       });
       for (const row of evidence.precision) {
-        assert.ok(Math.abs(row.blueAtQuarter - 16) <= 2, JSON.stringify(row));
+        assert.ok(Math.abs(row.blueAtQuarter - 11) <= 2, JSON.stringify(row));
         assert.equal(row.outgoingBlue, 0);
         assert.ok(row.crossfadeDissolveDifference > 5);
         assert.ok(row.crossfadeMeltDifference > 1);
