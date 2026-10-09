@@ -1,6 +1,6 @@
 # Phosphor catalog: families, variants, looks
 
-Status 2026-10-09 (night): 33 families, 279 looks. Built: Game of Life (64), Strange Attractors (65), Mandelbrot Dive (66), Abelian Sandpile (67), Newton Basins (68), Fractal Flames (69), Aperiodic Tilings (70), Voronoi Cells (71), Ripple Tank (72), Langton's Ant (73), Indra's Pearls (74), Harmonograph (75), Wallpaper Groups (76), Truchet Tiles (77), Space-filling Curves (78), Phyllotaxis (79); Causal Tapestry reworked; the lost Interference compositions and Enamel Still are back. Pages are gone (D68): the catalog is the instrument. Terms and quality bar are in [families/AUTHORING.md](families/AUTHORING.md):
+Status 2026-10-09 (night): 34 families, 287 looks. Built: Game of Life (64), Strange Attractors (65), Mandelbrot Dive (66), Abelian Sandpile (67), Newton Basins (68), Fractal Flames (69), Aperiodic Tilings (70), Voronoi Cells (71), Ripple Tank (72), Langton's Ant (73), Indra's Pearls (74), Harmonograph (75), Wallpaper Groups (76), Truchet Tiles (77), Space-filling Curves (78), Phyllotaxis (79), Hopf Fibration (80); Causal Tapestry reworked; the lost Interference compositions and Enamel Still are back. Pages are gone (D68): the catalog is the instrument. Terms and quality bar are in [families/AUTHORING.md](families/AUTHORING.md):
 
 - a **family** is one algorithm;
 - a **variant** is a structurally different instance of it (rule, map, lattice, symmetry, projection);
@@ -62,7 +62,7 @@ Ordered by build batch. Every one is a distinct algorithm that runs in real time
 | 77 ✓ | `truchet`      | Truchet Tiles        | Random oriented tiles                                | Smith arcs · 10 PRINT · hexagons · log-polar tunnel                        | Endless curves from coin tosses; pulses on consistently oriented paths     |
 | 78 ✓ | `hilbert`      | Space-filling Curves | Hilbert / Moore / Peano, live refinement             | Hilbert · Moore · Peano · Hilbert locality                                 | One unbroken line visiting every cell; vertices glide out of their parents |
 | 79 ✓ | `phyllotaxis`  | Phyllotaxis          | Vogel's golden-angle model                           | Sunflower · angle sweep · Fibonacci sphere · growth                        | Fibonacci spiral arms lit by n mod F; spokes at rational angles            |
-| 80   | `hopf`         | Hopf Fibration       | S³ → S² fibres, stereographic projection             | Torus of fibres · nested tori · spiral · scattered                         | Every pair of circles linked                                               |
+| 80 ✓ | `hopf`         | Hopf Fibration       | S³ → S² fibres, stereographic projection             | Latitude torus · nested tori · loxodrome · scattered rings                 | Every pair of circles linked; colour shows the base point                  |
 | 81   | `chladni`      | Chladni Figures      | Plate eigenmodes, sand on nodal lines                | Square · circle · mode morph · sweep                                       | Sand gathering on the nodal lines                                          |
 | 82   | `domain`       | Domain Colouring     | Complex functions coloured by phase                  | Rational · zeta-like · Möbius flow · iterated                              | Zeros and poles as colour wheels                                           |
 

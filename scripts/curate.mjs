@@ -242,6 +242,19 @@ const families = {
       "Dense Head",
     ],
   ],
+  hopf: [
+    8.4,
+    [
+      "Clifford Torus",
+      "Linked Rings",
+      "Through Infinity",
+      "Nested Tori",
+      "Loxodrome Fibres",
+      "Ring Storm",
+      "Thin Torus",
+      "Fibre Bloom",
+    ],
+  ],
   newton: [
     8.7,
     [
