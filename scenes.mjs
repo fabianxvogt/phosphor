@@ -18,6 +18,7 @@ import swarm from "./scene-swarm.mjs";
 import life from "./scene-life.mjs";
 import attractor from "./scene-attractor.mjs";
 import mandelbrot from "./scene-mandelbrot.mjs";
+import sandpile from "./scene-sandpile.mjs";
 
 export default [
   acid,
@@ -40,6 +41,7 @@ export default [
   life,
   attractor,
   mandelbrot,
+  sandpile,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
