@@ -309,7 +309,7 @@ try {
   pass("catalog lists every look; ratings reach the stage; Play plays live");
 
   // Next (D66): Shift+Space plays autopilot's next pick without taking over.
-  const before = await stage.evaluate(() => ({
+  const beforeNext = await stage.evaluate(() => ({
     id: window.__phosphorStage.show.live?.clip.id,
     manualUntil: window.__phosphorStage.show.autopilot.manualUntil,
   }));
@@ -320,14 +320,14 @@ try {
       const live = window.__phosphorStage.show.live;
       return !!live && live.clip.id !== id;
     },
-    before.id,
+    beforeNext.id,
     "Shift+Space plays the next pick",
   );
   assert.equal(
     await stage.evaluate(
       () => window.__phosphorStage.show.autopilot.manualUntil,
     ),
-    before.manualUntil,
+    beforeNext.manualUntil,
     "Next is not a performer takeover",
   );
   pass("Shift+Space plays autopilot's next pick on the stage");
