@@ -20,6 +20,7 @@ import attractor from "./scene-attractor.mjs";
 import mandelbrot from "./scene-mandelbrot.mjs";
 import sandpile from "./scene-sandpile.mjs";
 import newton from "./scene-newton.mjs";
+import flame from "./scene-flame.mjs";
 
 export default [
   acid,
@@ -44,6 +45,7 @@ export default [
   mandelbrot,
   sandpile,
   newton,
+  flame,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
