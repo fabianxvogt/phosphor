@@ -26,6 +26,7 @@ import voronoi from "./scene-voronoi.mjs";
 import ripple from "./scene-ripple.mjs";
 import turmite from "./scene-turmite.mjs";
 import kleinian from "./scene-kleinian.mjs";
+import harmonograph from "./scene-harmonograph.mjs";
 
 export default [
   acid,
@@ -56,6 +57,7 @@ export default [
   ripple,
   turmite,
   kleinian,
+  harmonograph,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

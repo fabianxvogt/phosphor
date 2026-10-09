@@ -162,6 +162,21 @@ const families = {
       "Hyperbolic Dive",
     ],
   ],
+  harmonograph: [
+    8.4,
+    [
+      "Lissajous Knot",
+      "Precessing 5:8",
+      "Pendulum Drawing",
+      "Spirograph Rose",
+      "Knot 5:8:13",
+      "Scope 3:2",
+      "Harmonograph 3:4",
+      "Seven Petals",
+      "Octave Ribbon",
+      "Slow Spiral",
+    ],
+  ],
   newton: [
     8.7,
     [

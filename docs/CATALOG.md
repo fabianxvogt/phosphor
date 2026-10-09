@@ -1,6 +1,6 @@
 # Phosphor catalog: families, variants, looks
 
-Status 2026-10-09 (night): 28 families, 224 looks. Built: Game of Life (64), Strange Attractors (65), Mandelbrot Dive (66), Abelian Sandpile (67), Newton Basins (68), Fractal Flames (69), Aperiodic Tilings (70), Voronoi Cells (71), Ripple Tank (72), Langton's Ant (73), Indra's Pearls (74); Causal Tapestry reworked; the lost Interference compositions and Enamel Still are back. Pages are gone (D68): the catalog is the instrument. Terms and quality bar are in [families/AUTHORING.md](families/AUTHORING.md):
+Status 2026-10-09 (night): 29 families, 234 looks. Built: Game of Life (64), Strange Attractors (65), Mandelbrot Dive (66), Abelian Sandpile (67), Newton Basins (68), Fractal Flames (69), Aperiodic Tilings (70), Voronoi Cells (71), Ripple Tank (72), Langton's Ant (73), Indra's Pearls (74), Harmonograph (75); Causal Tapestry reworked; the lost Interference compositions and Enamel Still are back. Pages are gone (D68): the catalog is the instrument. Terms and quality bar are in [families/AUTHORING.md](families/AUTHORING.md):
 
 - a **family** is one algorithm;
 - a **variant** is a structurally different instance of it (rule, map, lattice, symmetry, projection);
@@ -57,7 +57,7 @@ Ordered by build batch. Every one is a distinct algorithm that runs in real time
 | 72 ✓ | `ripple`       | Ripple Tank          | Discrete wave equation                       | Slits / grating · raindrops · lens · phased array                          | Interference fringes behind the slits; a steered beam with grating lobes |
 | 73 ✓ | `turmite`      | Langton's Ant        | Generalised ants on a torus                  | RL · LLRR · LRRRRRLLR · RRLLLRLLLRRR · RLR · LLRRRLRLRLLR, up to 12 ants   | Chaos for ~10k steps, then the 104-step highway                          |
 | 74 ✓ | `kleinian`     | Indra's Pearls       | Möbius groups: circle inversions, limit sets | Apollonian flow · Schottky pearls · loxodromic tunnel · Steiner porism     | Pearls nested by word length; the gasket flowing into itself             |
-| 75   | `harmonograph` | Harmonograph         | Coupled damped oscillators (XY scope)        | Lissajous · harmonograph · spirograph · rose                               | Frequency ratios drawn as laser curves                                   |
+| 75 ✓ | `harmonograph` | Harmonograph         | Oscillator curves on a phosphor scope        | Lissajous · damped harmonograph · spirograph · Lissajous knot              | Frequency ratios drawn as laser curves; a knot in 3D                     |
 | 76   | `wallpaper`    | Wallpaper Groups     | The 17 plane symmetry groups                 | p4m · p6m · p3 · pgg … (kaleidoscope)                                      | Exact crystallographic symmetry                                          |
 | 77   | `truchet`      | Truchet Tiles        | Random oriented tiles                        | Smith arcs · diagonals · multiscale · hex                                  | Long continuous paths from random choices                                |
 | 78   | `hilbert`      | Space-filling Curves | Hilbert / Moore / Peano / Z-order            | per curve                                                                  | One unbroken line visiting every cell                                    |
