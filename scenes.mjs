@@ -16,6 +16,7 @@ import fourspace from "./scene-fourspace.mjs";
 import hyperbolic from "./scene-hyperbolic.mjs";
 import swarm from "./scene-swarm.mjs";
 import life from "./scene-life.mjs";
+import attractor from "./scene-attractor.mjs";
 
 export default [
   acid,
@@ -36,11 +37,12 @@ export default [
   hyperbolic,
   swarm,
   life,
+  attractor,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
-// Only these go onto the show pages autopilot plays (D55); drafts start on
-// the lab page.
+// Kept for tooling (contact sheets); since D65/D68 the owner's ratings, not
+// this list, decide what plays.
 export const GATED = new Set([
   "feedback",
   "tapestry",
