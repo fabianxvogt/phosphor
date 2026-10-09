@@ -17,6 +17,7 @@ import hyperbolic from "./scene-hyperbolic.mjs";
 import swarm from "./scene-swarm.mjs";
 import life from "./scene-life.mjs";
 import attractor from "./scene-attractor.mjs";
+import mandelbrot from "./scene-mandelbrot.mjs";
 
 export default [
   acid,
@@ -38,6 +39,7 @@ export default [
   swarm,
   life,
   attractor,
+  mandelbrot,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
