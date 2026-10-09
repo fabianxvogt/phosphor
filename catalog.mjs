@@ -7,6 +7,7 @@
 import { presetSnapshot } from "./session.mjs";
 import { PALETTES } from "./palettes.mjs";
 import { clipFrom } from "./show-set.mjs";
+import { CURATED } from "./catalog-curated.mjs";
 
 export const UNRATED_WEIGHT = 5;
 export const MAX_RATING = 10;
@@ -102,9 +103,14 @@ export function catalogLooks(scenes, own = []) {
   return [...authored, ...mine];
 }
 
+// Editorial rank (catalog-curated.mjs); own and unlisted looks come after.
+const CURATED_RANK = new Map(CURATED.map((id, i) => [id, i]));
+export const curatedRank = (look) =>
+  look.own ? Infinity : (CURATED_RANK.get(look.id) ?? Infinity);
+
 // Favourites first (D68); within each part rated looks (best first), then
-// unrated, then looks rated 0; ties keep family number and preset order.
-// Returns a new array.
+// unrated, then looks rated 0; ties follow the editorial order, then family
+// number and preset order. Returns a new array.
 export function sortCatalog(looks, ratings, favorites = []) {
   const favored = favorites instanceof Set ? favorites : new Set(favorites);
   const group = (r) => (r === null ? 1 : r > 0 ? 0 : 2);
@@ -119,6 +125,7 @@ export function sortCatalog(looks, ratings, favorites = []) {
         a.favorite - b.favorite ||
         group(a.rating) - group(b.rating) ||
         (b.rating ?? 0) - (a.rating ?? 0) ||
+        curatedRank(a.look) - curatedRank(b.look) ||
         a.look.number - b.look.number ||
         a.look.index - b.look.index,
     )

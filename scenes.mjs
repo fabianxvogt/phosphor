@@ -23,6 +23,7 @@ import newton from "./scene-newton.mjs";
 import flame from "./scene-flame.mjs";
 import quasicrystal from "./scene-quasicrystal.mjs";
 import voronoi from "./scene-voronoi.mjs";
+import ripple from "./scene-ripple.mjs";
 
 export default [
   acid,
@@ -50,6 +51,7 @@ export default [
   flame,
   quasicrystal,
   voronoi,
+  ripple,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

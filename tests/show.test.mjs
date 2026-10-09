@@ -249,7 +249,10 @@ test("audition plays an unsaved clip immediately", () => {
 });
 
 // The first key holds an Acid look in the catalog's default order.
-const acidFirst = (set) => assert.match(set.keys[0], /^acid:/);
+// Put an acid look on key 0 (the default keys follow the editorial order).
+const acidFirst = (set) => {
+  set.keys[0] = "acid:Mycelial City";
+};
 
 test("autopilot and keys never schedule a family whose shaders failed", () => {
   const show = makeShow((set) => {
@@ -420,9 +423,9 @@ test("manual triggers adopt the look palette with a glide; autopilot keeps the s
     set.autopilot.random = false;
     set.autopilot.everyBars = 16;
     set.autopilot.favoritesOnly = true;
-    own(set, 0, { palette: "ember" });
-    own(set, 1, { palette: "glacier" });
-    own(set, 2, { palette: "toxic" });
+    own(set, 0, { palette: "ember", from: "acid:Mycelial City" });
+    own(set, 1, { palette: "glacier", from: "acid:Vein Cathedral" });
+    own(set, 2, { palette: "toxic", from: "acid:Lime Bloom" });
     set.favorites.push("own-k0", "own-k1");
   });
   show.begin(0);

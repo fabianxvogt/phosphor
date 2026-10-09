@@ -1,12 +1,12 @@
 # Phosphor catalog: families, variants, looks
 
-Status 2026-10-09 (night): 25 families, 193 looks. Built: Game of Life (64), Strange Attractors (65), Mandelbrot Dive (66), Abelian Sandpile (67), Newton Basins (68), Fractal Flames (69), Aperiodic Tilings (70), Voronoi Cells (71); Causal Tapestry reworked; the lost Interference compositions and Enamel Still are back. Pages are gone (D68): the catalog is the instrument. Terms and quality bar are in [families/AUTHORING.md](families/AUTHORING.md):
+Status 2026-10-09 (night): 26 families, 203 looks. Built: Game of Life (64), Strange Attractors (65), Mandelbrot Dive (66), Abelian Sandpile (67), Newton Basins (68), Fractal Flames (69), Aperiodic Tilings (70), Voronoi Cells (71), Ripple Tank (72); Causal Tapestry reworked; the lost Interference compositions and Enamel Still are back. Pages are gone (D68): the catalog is the instrument. Terms and quality bar are in [families/AUTHORING.md](families/AUTHORING.md):
 
 - a **family** is one algorithm;
 - a **variant** is a structurally different instance of it (rule, map, lattice, symmetry, projection);
 - a **look** is a variant plus parameters and seed.
 
-Every look appears in the in-app catalog, where the owner rates it from 0 to 10 stars in half steps.
+Every look appears in the in-app catalog, where the owner rates it from 0 to 10 stars in half steps. Looks with the same rating (all of them, before any rating) follow an editorial order, most interesting first: [catalog-curated.mjs](../catalog-curated.mjs).
 
 ## What happened to the "missing" looks (2026-10-08 → 09)
 
@@ -44,26 +44,26 @@ Owner direction 2026-10-09: the Lab page goes away. A catalog holds every look, 
 
 Ordered by build batch. Every one is a distinct algorithm that runs in real time and has a signature an expert recognises.
 
-| #    | id             | Family               | Algorithm                                  | Variants                                                                   | Signature detail                                                     |
-| ---- | -------------- | -------------------- | ------------------------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 64 ✓ | `life`         | Game of Life         | 2D outer-totalistic and multi-state CAs    | Conway B3/S23 · HighLife B36/S23 · Day & Night · Brian's Brain · cyclic CA | Gliders, a Gosper gun firing, replicators, BZ spirals                |
-| 65 ✓ | `attractor`    | Strange Attractors   | ODE and map attractors traced by particles | Lorenz · Rössler · Aizawa · Thomas · Clifford / de Jong                    | Butterfly lobes; sensitive dependence (neighbouring tracers diverge) |
-| 66 ✓ | `mandelbrot`   | Mandelbrot Dive      | Escape-time with emulated double precision | Mandelbrot · Burning Ship · Tricorn · Multibrot                            | Minibrots and spirals appearing endlessly on the zoom                |
-| 67 ✓ | `sandpile`     | Abelian Sandpile     | Bak–Tang–Wiesenfeld toppling               | Centre pile · rain (SOC) · multi-source · identity                         | Four-colour fractal mandala; avalanches                              |
-| 68 ✓ | `newton`       | Newton Basins        | Newton's method on polynomials             | z³−1 · moving roots · relaxed (Nova) · high degree                         | Basin boundaries where all roots meet                                |
-| 69 ✓ | `flame`        | Fractal Flame        | Chaos-game IFS with non-linear variations  | linear · swirl · spherical · sinusoidal · julia                            | Electric-Sheep-style flames, log-density glow                        |
-| 70 ✓ | `quasicrystal` | Aperiodic Tilings    | de Bruijn multigrid                        | Penrose (5) · Ammann–Beenker (8) · 7-fold · 12-fold                        | Rhombi that never repeat; five-fold symmetry                         |
-| 71 ✓ | `voronoi`      | Voronoi Cells        | Nearest-site partitions, Lloyd relaxation  | Lloyd relax (any p) · metric morph · power · Delaunay dual                 | Cells relaxing into a honeycomb; cell shapes change with the metric  |
-| 72   | `ripple`       | Ripple Tank          | Discrete wave equation                     | Double slit · raindrops · lens · drum modes                                | Diffraction fringes emerging behind two slits                        |
-| 73   | `turmite`      | Langton's Ant        | Turmites                                   | RL ant (highway) · symmetric LLRR · multi-colour · many ants               | Chaos for ~10k steps, then the highway                               |
-| 74   | `kleinian`     | Indra's Pearls       | Circle inversion, Kleinian limit sets      | Apollonian gasket · Schottky · Kleinian · inversion tunnel                 | Nested tangent circles                                               |
-| 75   | `harmonograph` | Harmonograph         | Coupled damped oscillators (XY scope)      | Lissajous · harmonograph · spirograph · rose                               | Frequency ratios drawn as laser curves                               |
-| 76   | `wallpaper`    | Wallpaper Groups     | The 17 plane symmetry groups               | p4m · p6m · p3 · pgg … (kaleidoscope)                                      | Exact crystallographic symmetry                                      |
-| 77   | `truchet`      | Truchet Tiles        | Random oriented tiles                      | Smith arcs · diagonals · multiscale · hex                                  | Long continuous paths from random choices                            |
-| 78   | `hilbert`      | Space-filling Curves | Hilbert / Moore / Peano / Z-order          | per curve                                                                  | One unbroken line visiting every cell                                |
-| 79   | `phyllotaxis`  | Phyllotaxis          | Vogel's golden-angle model                 | Sunflower · angle sweep · Fibonacci sphere · Fermat                        | Spiral arms locking at 137.5°                                        |
-| 80   | `hopf`         | Hopf Fibration       | S³ → S² fibres, stereographic projection   | Torus of fibres · nested tori · spiral · scattered                         | Every pair of circles linked                                         |
-| 81   | `chladni`      | Chladni Figures      | Plate eigenmodes, sand on nodal lines      | Square · circle · mode morph · sweep                                       | Sand gathering on the nodal lines                                    |
-| 82   | `domain`       | Domain Colouring     | Complex functions coloured by phase        | Rational · zeta-like · Möbius flow · iterated                              | Zeros and poles as colour wheels                                     |
+| #    | id             | Family               | Algorithm                                  | Variants                                                                   | Signature detail                                                         |
+| ---- | -------------- | -------------------- | ------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 64 ✓ | `life`         | Game of Life         | 2D outer-totalistic and multi-state CAs    | Conway B3/S23 · HighLife B36/S23 · Day & Night · Brian's Brain · cyclic CA | Gliders, a Gosper gun firing, replicators, BZ spirals                    |
+| 65 ✓ | `attractor`    | Strange Attractors   | ODE and map attractors traced by particles | Lorenz · Rössler · Aizawa · Thomas · Clifford / de Jong                    | Butterfly lobes; sensitive dependence (neighbouring tracers diverge)     |
+| 66 ✓ | `mandelbrot`   | Mandelbrot Dive      | Escape-time with emulated double precision | Mandelbrot · Burning Ship · Tricorn · Multibrot                            | Minibrots and spirals appearing endlessly on the zoom                    |
+| 67 ✓ | `sandpile`     | Abelian Sandpile     | Bak–Tang–Wiesenfeld toppling               | Centre pile · rain (SOC) · multi-source · identity                         | Four-colour fractal mandala; avalanches                                  |
+| 68 ✓ | `newton`       | Newton Basins        | Newton's method on polynomials             | z³−1 · moving roots · relaxed (Nova) · high degree                         | Basin boundaries where all roots meet                                    |
+| 69 ✓ | `flame`        | Fractal Flame        | Chaos-game IFS with non-linear variations  | linear · swirl · spherical · sinusoidal · julia                            | Electric-Sheep-style flames, log-density glow                            |
+| 70 ✓ | `quasicrystal` | Aperiodic Tilings    | de Bruijn multigrid                        | Penrose (5) · Ammann–Beenker (8) · 7-fold · 12-fold                        | Rhombi that never repeat; five-fold symmetry                             |
+| 71 ✓ | `voronoi`      | Voronoi Cells        | Nearest-site partitions, Lloyd relaxation  | Lloyd relax (any p) · metric morph · power · Delaunay dual                 | Cells relaxing into a honeycomb; cell shapes change with the metric      |
+| 72 ✓ | `ripple`       | Ripple Tank          | Discrete wave equation                     | Slits / grating · raindrops · lens · phased array                          | Interference fringes behind the slits; a steered beam with grating lobes |
+| 73   | `turmite`      | Langton's Ant        | Turmites                                   | RL ant (highway) · symmetric LLRR · multi-colour · many ants               | Chaos for ~10k steps, then the highway                                   |
+| 74   | `kleinian`     | Indra's Pearls       | Circle inversion, Kleinian limit sets      | Apollonian gasket · Schottky · Kleinian · inversion tunnel                 | Nested tangent circles                                                   |
+| 75   | `harmonograph` | Harmonograph         | Coupled damped oscillators (XY scope)      | Lissajous · harmonograph · spirograph · rose                               | Frequency ratios drawn as laser curves                                   |
+| 76   | `wallpaper`    | Wallpaper Groups     | The 17 plane symmetry groups               | p4m · p6m · p3 · pgg … (kaleidoscope)                                      | Exact crystallographic symmetry                                          |
+| 77   | `truchet`      | Truchet Tiles        | Random oriented tiles                      | Smith arcs · diagonals · multiscale · hex                                  | Long continuous paths from random choices                                |
+| 78   | `hilbert`      | Space-filling Curves | Hilbert / Moore / Peano / Z-order          | per curve                                                                  | One unbroken line visiting every cell                                    |
+| 79   | `phyllotaxis`  | Phyllotaxis          | Vogel's golden-angle model                 | Sunflower · angle sweep · Fibonacci sphere · Fermat                        | Spiral arms locking at 137.5°                                            |
+| 80   | `hopf`         | Hopf Fibration       | S³ → S² fibres, stereographic projection   | Torus of fibres · nested tori · spiral · scattered                         | Every pair of circles linked                                             |
+| 81   | `chladni`      | Chladni Figures      | Plate eigenmodes, sand on nodal lines      | Square · circle · mode morph · sweep                                       | Sand gathering on the nodal lines                                        |
+| 82   | `domain`       | Domain Colouring     | Complex functions coloured by phase        | Rational · zeta-like · Möbius flow · iterated                              | Zeros and poles as colour wheels                                         |
 
 Later or needs platform work: Physarum (agents depositing into a trail map need scatter writes, which the engine doesn't have yet), Mandelbulb/Mandelbox (heavy raymarch), diffusion-limited aggregation, Boids (neighbour search), L-systems.

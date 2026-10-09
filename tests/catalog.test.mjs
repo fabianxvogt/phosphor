@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
+import { CURATED } from "../catalog-curated.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { paletteById } from "../palettes.mjs";
 import {
@@ -146,11 +147,29 @@ test("ratings sort first by rating, then unrated, then never (0); ties by family
     "b:1",
     "sorting does not mutate",
   );
+  // Unrated authored looks follow the editorial order.
   assert.deepEqual(
     sortCatalog(looks, {}).map((l) => l.id),
-    [...looks]
-      .sort((x, y) => x.number - y.number || x.index - y.index)
-      .map((l) => l.id),
+    CURATED,
+  );
+});
+
+test("the editorial order covers every authored look exactly once", () => {
+  assert.equal(new Set(CURATED).size, CURATED.length);
+  assert.deepEqual([...CURATED].sort(), looks.map((l) => l.id).sort());
+  // Every family shows its best look within the first 50.
+  const families = new Set(looks.map((l) => l.sceneId));
+  const early = new Set(CURATED.slice(0, 50).map((id) => id.split(":")[0]));
+  assert.equal(early.size, families.size);
+  // Equal ratings fall back to the editorial order; own looks come last.
+  const [first, second] = CURATED;
+  const pick = looks.filter((l) => l.id === first || l.id === second).reverse();
+  const own = { id: "own-1", own: true, number: 1, index: 100000 };
+  assert.deepEqual(
+    sortCatalog([own, ...pick], { [first]: 6, [second]: 6, "own-1": 6 }).map(
+      (l) => l.id,
+    ),
+    [first, second, "own-1"],
   );
 });
 
