@@ -27,6 +27,7 @@ import ripple from "./scene-ripple.mjs";
 import turmite from "./scene-turmite.mjs";
 import kleinian from "./scene-kleinian.mjs";
 import harmonograph from "./scene-harmonograph.mjs";
+import wallpaper from "./scene-wallpaper.mjs";
 
 export default [
   acid,
@@ -58,6 +59,7 @@ export default [
   turmite,
   kleinian,
   harmonograph,
+  wallpaper,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

@@ -177,6 +177,28 @@ const families = {
       "Slow Spiral",
     ],
   ],
+  wallpaper: [
+    8.3,
+    [
+      "p6m Snowflake",
+      "p4g Pinwheels",
+      "p3 Triskelion",
+      "pgg Weave",
+      "p6 Spirals",
+      "p31m Lace",
+      "p4m Tiles",
+      "p3m1 Kaleidoscope",
+      "cmm Diamonds",
+      "p4 Turnstiles",
+      "pmg Ribbons",
+      "cm Feathers",
+      "pg Footprints",
+      "p2 Pinwheel Field",
+      "pmm Panels",
+      "pm Mirrors",
+      "p1 Drift",
+    ],
+  ],
   newton: [
     8.7,
     [
