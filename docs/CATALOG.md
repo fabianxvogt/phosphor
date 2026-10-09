@@ -1,6 +1,6 @@
 # Phosphor catalog: families, variants, looks
 
-Status 2026-10-09 (night): 24 families, 182 looks. Built: Game of Life (64), Strange Attractors (65), Mandelbrot Dive (66), Abelian Sandpile (67), Newton Basins (68), Fractal Flames (69), Aperiodic Tilings (70); Causal Tapestry reworked; the lost Interference compositions and Enamel Still are back. Pages are gone (D68): the catalog is the instrument. Terms and quality bar are in [families/AUTHORING.md](families/AUTHORING.md):
+Status 2026-10-09 (night): 25 families, 193 looks. Built: Game of Life (64), Strange Attractors (65), Mandelbrot Dive (66), Abelian Sandpile (67), Newton Basins (68), Fractal Flames (69), Aperiodic Tilings (70), Voronoi Cells (71); Causal Tapestry reworked; the lost Interference compositions and Enamel Still are back. Pages are gone (D68): the catalog is the instrument. Terms and quality bar are in [families/AUTHORING.md](families/AUTHORING.md):
 
 - a **family** is one algorithm;
 - a **variant** is a structurally different instance of it (rule, map, lattice, symmetry, projection);
@@ -53,7 +53,7 @@ Ordered by build batch. Every one is a distinct algorithm that runs in real time
 | 68 ✓ | `newton`       | Newton Basins        | Newton's method on polynomials             | z³−1 · moving roots · relaxed (Nova) · high degree                         | Basin boundaries where all roots meet                                |
 | 69 ✓ | `flame`        | Fractal Flame        | Chaos-game IFS with non-linear variations  | linear · swirl · spherical · sinusoidal · julia                            | Electric-Sheep-style flames, log-density glow                        |
 | 70 ✓ | `quasicrystal` | Aperiodic Tilings    | de Bruijn multigrid                        | Penrose (5) · Ammann–Beenker (8) · 7-fold · 12-fold                        | Rhombi that never repeat; five-fold symmetry                         |
-| 71   | `voronoi`      | Voronoi Cells        | Nearest-site partitions                    | Euclidean · Manhattan · Chebyshev · power / Delaunay                       | Cell shapes change with the metric                                   |
+| 71 ✓ | `voronoi`      | Voronoi Cells        | Nearest-site partitions, Lloyd relaxation  | Lloyd relax (any p) · metric morph · power · Delaunay dual                 | Cells relaxing into a honeycomb; cell shapes change with the metric  |
 | 72   | `ripple`       | Ripple Tank          | Discrete wave equation                     | Double slit · raindrops · lens · drum modes                                | Diffraction fringes emerging behind two slits                        |
 | 73   | `turmite`      | Langton's Ant        | Turmites                                   | RL ant (highway) · symmetric LLRR · multi-colour · many ants               | Chaos for ~10k steps, then the highway                               |
 | 74   | `kleinian`     | Indra's Pearls       | Circle inversion, Kleinian limit sets      | Apollonian gasket · Schottky · Kleinian · inversion tunnel                 | Nested tangent circles                                               |
