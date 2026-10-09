@@ -255,6 +255,19 @@ const families = {
       "Fibre Bloom",
     ],
   ],
+  chladni: [
+    8.5,
+    [
+      "Bessel Rings",
+      "Chladni Plate",
+      "Drumhead",
+      "Faraday Hexagons",
+      "Fine Sand",
+      "Mode Morph",
+      "Fast Modes",
+      "Honeycomb Sand",
+    ],
+  ],
   newton: [
     8.7,
     [

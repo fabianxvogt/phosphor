@@ -32,6 +32,7 @@ import truchet from "./scene-truchet.mjs";
 import hilbert from "./scene-hilbert.mjs";
 import phyllotaxis from "./scene-phyllotaxis.mjs";
 import hopf from "./scene-hopf.mjs";
+import chladni from "./scene-chladni.mjs";
 
 export default [
   acid,
@@ -68,6 +69,7 @@ export default [
   hilbert,
   phyllotaxis,
   hopf,
+  chladni,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
