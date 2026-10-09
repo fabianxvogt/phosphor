@@ -618,8 +618,9 @@ ${loops}
     bool inside = all(greaterThanEqual(prevUV, vec2(0.0))) && all(lessThanEqual(prevUV, vec2(1.0)));
     if (ticks < 6u && inside && MB_TS[ptid] == set && abs(viewDepth - pd) < 0.5) {
       history = texture(u_previous, prevUV);
-      // Fast surfacing keeps less history so the glide stays sharp.
-      blend = mix(0.3, 0.6, smoothstep(0.01, 0.05, abs(viewDepth - lastDepth)));
+      // About eight jittered frames (one Halton cycle) while diving; fast
+      // surfacing keeps less history so the glide stays sharp.
+      blend = mix(0.13, 0.6, smoothstep(0.01, 0.05, abs(viewDepth - lastDepth)));
     }
   }
   outColor = vec4(mix(history.rgb, col, blend), float(u_tick & 255u) / 255.0);
