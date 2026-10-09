@@ -1,7 +1,9 @@
-// Look catalog (D65): every authored look of every family, rated 0–10 in
-// half steps. Pure and data-driven from scenes.mjs, so it grows with the
-// families. Ratings live in the set (`ratings`, keyed by look id); 0 means
-// "never play", no entry means unrated (weighted like a 5).
+// Look catalog (D65, D68): every authored look of every family plus the
+// owner's own looks, rated 0–10 in half steps and optionally favourited.
+// Pure and data-driven from scenes.mjs, so it grows with the families.
+// Ratings and favourites live in the set (keyed by look id); 0 means "never
+// play", no entry means unrated (weighted like a 5). Own looks (saved edits
+// and variations) live in the set's `looks` with ids "own-…".
 import { presetSnapshot } from "./session.mjs";
 import { PALETTES } from "./palettes.mjs";
 import { clipFrom } from "./show-set.mjs";
@@ -10,6 +12,9 @@ export const UNRATED_WEIGHT = 5;
 export const MAX_RATING = 10;
 
 export const lookId = (snapshot) => `${snapshot.scene}:${snapshot.preset}`;
+export const OWN_PREFIX = "own-";
+export const isOwnId = (id) =>
+  typeof id === "string" && id.startsWith(OWN_PREFIX);
 
 export function validRating(value) {
   return (
@@ -53,8 +58,10 @@ export function variantLabel(scene, params) {
   return `${head} ${Number.isFinite(value) ? +value.toFixed(2) : value}`;
 }
 
-export function catalogLooks(scenes) {
-  return scenes.flatMap((scene, s) =>
+// Authored looks in family and preset order, then own looks (each placed
+// with its family by number, after the authored ones).
+export function catalogLooks(scenes, own = []) {
+  const authored = scenes.flatMap((scene, s) =>
     scene.presets.map((preset, index) => {
       const snapshot = presetSnapshot(scene, index);
       return {
@@ -66,25 +73,69 @@ export function catalogLooks(scenes) {
         name: preset.name,
         variant: variantLabel(scene, snapshot.params),
         snapshot,
+        own: false,
       };
     }),
   );
+  const byId = new Map(scenes.map((scene, s) => [scene.id, [scene, s]]));
+  const mine = own.flatMap((look, i) => {
+    const entry = byId.get(look.snapshot?.scene);
+    if (!entry) return [];
+    const [scene, s] = entry;
+    return [
+      {
+        id: look.id,
+        sceneId: scene.id,
+        family: scene.name,
+        number: scene.number ?? s + 1,
+        index: 100000 + i,
+        name: look.name,
+        variant: variantLabel(scene, look.snapshot.params),
+        snapshot: look.snapshot,
+        own: true,
+        base: look.base ?? null,
+        palette: look.palette ?? null,
+        transition: look.transition ?? "auto",
+      },
+    ];
+  });
+  return [...authored, ...mine];
 }
 
-// Rated looks (best first), then unrated, then looks rated 0; ties keep
-// family number and preset order. Returns a new array.
-export function sortCatalog(looks, ratings) {
+// Favourites first (D68); within each part rated looks (best first), then
+// unrated, then looks rated 0; ties keep family number and preset order.
+// Returns a new array.
+export function sortCatalog(looks, ratings, favorites = []) {
+  const favored = favorites instanceof Set ? favorites : new Set(favorites);
   const group = (r) => (r === null ? 1 : r > 0 ? 0 : 2);
   return looks
-    .map((look) => ({ look, rating: ratingOf(ratings, look.id) }))
+    .map((look) => ({
+      look,
+      rating: ratingOf(ratings, look.id),
+      favorite: favored.has(look.id) ? 0 : 1,
+    }))
     .sort(
       (a, b) =>
+        a.favorite - b.favorite ||
         group(a.rating) - group(b.rating) ||
         (b.rating ?? 0) - (a.rating ?? 0) ||
         a.look.number - b.look.number ||
         a.look.index - b.look.index,
     )
     .map((entry) => entry.look);
+}
+
+// Whether autopilot may play a look (D66, D68): never at 0 stars; with
+// `favoritesOnly` only favourites; with `minRating` > 0 only looks rated at
+// least that (unrated looks count as a 5).
+export function autopilotMay(
+  look,
+  { ratings, favorites, favoritesOnly = false, minRating = 0 },
+) {
+  const rating = ratingOf(ratings, look.id);
+  if (rating === 0) return false;
+  if (favoritesOnly && !favorites.has(look.id)) return false;
+  return ratingWeight(rating) >= minRating;
 }
 
 // One item with probability proportional to weightOf(item); items weighing
@@ -129,11 +180,13 @@ export function lookPalette(look) {
   return PALETTES[(hash >>> 0) % PALETTES.length].id;
 }
 
-// An unsaved clip for a look (page/slot −1 when played).
+// The playable clip for a look; its id is the look id. Own looks keep their
+// own palette ("custom" keeps the snapshot's colours) and transition.
 export function catalogClip(look, { id = look.id, palette } = {}) {
   return clipFrom(look.snapshot, {
     id,
     name: look.name,
-    palette: palette ?? lookPalette(look),
+    palette: palette ?? look.palette ?? lookPalette(look),
+    transition: look.transition ?? "auto",
   });
 }

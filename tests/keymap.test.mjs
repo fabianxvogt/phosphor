@@ -21,11 +21,8 @@ test("32 grid keys map to slots by physical position", () => {
   assert.deepEqual(actionFor(key("Comma")), { type: "slot", index: 31 });
 });
 
-test("shift + 1–8 selects pages, not slots", () => {
-  assert.deepEqual(actionFor(key("Digit3", { shiftKey: true })), {
-    type: "page",
-    index: 2,
-  });
+test("shift + 1–8 does nothing: there are no pages (D68)", () => {
+  assert.equal(actionFor(key("Digit3", { shiftKey: true })), null);
 });
 
 test("panic keys work even with a slider or text field focused", () => {

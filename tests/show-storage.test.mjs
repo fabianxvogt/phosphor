@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import { initialSession } from "../session.mjs";
-import { initialShowSet } from "../show-set.mjs";
+import { initialShowSet, clipFrom } from "../show-set.mjs";
+import { catalogLooks } from "../catalog.mjs";
 import {
   loadSet,
   saveSet,
@@ -20,31 +21,65 @@ const memory = () => {
   };
 };
 
-test("a saved v4 set reloads unchanged", () => {
+test("a saved v5 set reloads unchanged", () => {
   const storage = memory();
   const set = initialShowSet(scenes);
   set.name = "Friday";
+  set.favorites = ["julia:Cubic Lace"];
   saveSet(storage, set);
-  assert.equal(loadSet(storage, scenes).set.name, "Friday");
+  const { set: loaded, report } = loadSet(storage, scenes);
+  assert.deepEqual(loaded, set);
+  assert.deepEqual(report, []);
 });
 
-test("a pre-catalog v4 autosave is normalised once: Lab → Page 8, 2.1 MP → native", () => {
+test("a v4 autosave migrates once to v5; the v4 entry stays as a backup (D68)", () => {
   const storage = memory();
-  const old = initialShowSet(scenes);
-  delete old.ratings;
-  old.pages[7].name = "Lab";
-  old.pages[7].slots[0] = {
-    ...old.pages[0].slots[0],
-    id: "lab",
-    autopilot: false,
+  const looks = catalogLooks(scenes);
+  const clip = (look, id) =>
+    clipFrom(look.snapshot, { id, name: look.name, palette: "ember" });
+  const edited = clip(looks[1], "edited");
+  edited.snapshot.seed += 7;
+  const v4 = {
+    format: "phosphor-set-v4",
+    version: 4,
+    name: "Old",
+    pages: Array.from({ length: 8 }, (_, p) => ({
+      name: p === 7 ? "Lab" : `Page ${p + 1}`,
+      mood: null,
+      slots: Array.from({ length: 32 }, (_, s) =>
+        p === 0 && s === 0
+          ? clip(looks[0], "a")
+          : p === 7 && s === 0
+            ? edited
+            : null,
+      ),
+    })),
+    shared: { master: 0.9, hue: 0, zoom: 1, mirror: 1 },
+    autopilot: { enabled: true, random: true, everyBars: 16, handBackBars: 32 },
+    clock: { mode: "auto", manualBpm: 120, latencyMs: 0 },
+    options: {
+      pixelBudget: 2.1,
+      bloom: 0.15,
+      echo: 0,
+      chroma: 0,
+      grain: 0.12,
+      vignette: 0.15,
+      autoRecovery: true,
+      reducedMotion: false,
+    },
+    midi: [],
+    lineages: [],
   };
-  old.options.pixelBudget = 2.1;
-  storage.setItem(SET_KEY, JSON.stringify(old));
+  const original = JSON.stringify(v4);
+  storage.setItem("phosphor-set-v4", original);
   const first = loadSet(storage, scenes);
-  assert.equal(first.set.pages[7].name, "Page 8");
-  assert.equal(first.set.pages[7].slots[0].autopilot, true);
+  assert.equal(first.set.format, "phosphor-set-v5");
+  assert.ok(first.report[0].includes("Migrated the saved v4 set"));
+  assert.equal(first.set.looks.length, 1);
+  assert.equal(first.set.looks[0].id, "own-edited");
   assert.equal(first.set.options.pixelBudget, 8.3);
-  assert.equal(first.report.length, 2);
+  assert.deepEqual(JSON.parse(storage.getItem(SET_KEY)), first.set);
+  assert.equal(storage.getItem("phosphor-set-v4"), original);
   const second = loadSet(storage, scenes);
   assert.deepEqual(second.report, [], "stored at once, reported once");
   assert.deepEqual(second.set, first.set);
@@ -54,45 +89,15 @@ test("an existing v2 autosave migrates on first load", () => {
   const storage = memory();
   storage.setItem("phosphor-set-v2", JSON.stringify(initialSession(scenes)));
   const { set, report } = loadSet(storage, scenes);
-  assert.equal(set.format, "phosphor-set-v4");
-  assert.ok(report[0].includes("Migrated"));
+  assert.equal(set.format, "phosphor-set-v5");
+  assert.ok(report[0].includes("Migrated the saved v2 set"));
 });
 
-test("an existing v3 autosave migrates losslessly under the new key and keeps its source", () => {
-  const storage = memory();
-  const v3 = initialShowSet(scenes);
-  v3.format = "phosphor-set-v3";
-  v3.version = 3;
-  for (const page of v3.pages) {
-    delete page.mood;
-    for (const clip of page.slots) if (clip) delete clip.palette;
-  }
-  v3.pages[0].slots[0].snapshot.palette.primary = "#123456";
-  const original = JSON.stringify(v3);
-  storage.setItem("phosphor-set-v3", original);
-  const { set, report } = loadSet(storage, scenes);
-  assert.equal(set.format, "phosphor-set-v4");
-  assert.ok(report[0].includes("Migrated"));
-  assert.equal(set.pages[0].slots[0].palette, "custom");
-  assert.deepEqual(
-    set.pages.map((page) =>
-      page.slots.filter(Boolean).map((clip) => {
-        const { palette, ...old } = clip;
-        return old;
-      }),
-    ),
-    v3.pages.map((page) => page.slots.filter(Boolean)),
-  );
-  assert.deepEqual(JSON.parse(storage.getItem(SET_KEY)), set);
-  assert.equal(storage.getItem("phosphor-set-v3"), original);
-  assert.deepEqual(loadSet(storage, scenes).set, set);
-});
-
-test("a corrupt v4 save falls back to a new set, says so and keeps the original", () => {
+test("a corrupt v5 save falls back to a new set, says so and keeps the original", () => {
   const storage = memory();
   storage.setItem(SET_KEY, "{oops");
   const { set, report } = loadSet(storage, scenes);
-  assert.equal(set.format, "phosphor-set-v4");
+  assert.equal(set.format, "phosphor-set-v5");
   assert.ok(report[0].includes("unreadable"));
   assert.equal(storage.getItem(UNREADABLE_KEY), "{oops");
   storage.setItem(SET_KEY, "{later");
@@ -119,7 +124,7 @@ test("a corrupt old v3 save retains the first unreadable backup", () => {
 
 test("runtime state expires after twelve hours", () => {
   const storage = memory();
-  saveRuntime(storage, { page: 2 }, 1000);
-  assert.deepEqual(loadRuntime(storage, 1000 + 3600e3), { page: 2 });
+  saveRuntime(storage, { energy: 0.2 }, 1000);
+  assert.deepEqual(loadRuntime(storage, 1000 + 3600e3), { energy: 0.2 });
   assert.equal(loadRuntime(storage, 1000 + 13 * 3600e3), null);
 });

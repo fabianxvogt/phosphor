@@ -5,39 +5,60 @@ import { presetSnapshot } from "../session.mjs";
 import { initialShowSet, validateShowSet } from "../show-set.mjs";
 import { Show } from "../show.mjs";
 import { paletteById } from "../palettes.mjs";
+import { catalogLooks, sortCatalog } from "../catalog.mjs";
 
 const safeSnapshot = presetSnapshot(
   scenes.find((s) => s.id === "interference"),
 );
-// Most tests exercise page behaviour; catalog tests opt in with
-// `set.autopilot.source = "catalog"` (the default for real sets, D66).
-function makeShow(mutate) {
-  const set = initialShowSet(scenes);
+const authored = catalogLooks(scenes);
+function makeShow(mutate, family = scenes) {
+  const set = initialShowSet(family);
   set.clock.mode = "manual";
   set.clock.manualBpm = 120; // 0.5 s per beat, 2 s per bar
-  set.autopilot.source = "page";
   mutate?.(set);
   return new Show({
-    set: validateShowSet(set, scenes),
+    set: validateShowSet(set, family),
     safeSnapshot,
-    scenes,
+    scenes: family,
     now: 0,
   });
 }
+// An own look (D68) copied from the look on grid key `key`, put on that key.
+function own(set, key, { palette = null, transition = "auto", from } = {}) {
+  const base = authored.find((look) => look.id === (from ?? set.keys[key]));
+  const look = {
+    id: `own-k${key}`,
+    name: `${base.name} (own)`,
+    base: base.id,
+    snapshot: structuredClone(base.snapshot),
+    palette,
+    transition,
+  };
+  set.looks.push(look);
+  set.keys[key] = look.id;
+  return look;
+}
 const loads = (actions) => actions.filter((a) => a.type === "load");
 
-test("a beat-quantized slot fires on the next beat with its fade in seconds", () => {
-  const show = makeShow((set) => {
-    set.autopilot.enabled = false;
-    set.pages[0].slots[3].fade = 2;
-  });
+test("a grid key fires its look on the next beat with the look's fade (D68)", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
+  const id = show.set.keys[3];
   assert.deepEqual(loads(show.command({ type: "slot", index: 3 }, 0.3)), []);
   assert.deepEqual(loads(show.tick(0.45)), []);
   const fired = loads(show.tick(0.5));
   assert.equal(fired.length, 1);
-  assert.equal(fired[0].slot, 3);
-  assert.equal(fired[0].fadeSeconds, 1); // 2 beats at 120 BPM
-  assert.equal(show.status(0.5).live.slot, 3);
+  assert.equal(fired[0].clipId, id);
+  assert.equal(fired[0].fadeSeconds, 2); // 4 beats at 120 BPM
+  assert.equal(show.status(0.5).live.look, id);
+});
+
+test("catalog Play fires a look at once with its own palette", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
+  const look = authored.find((l) => l.sceneId === "julia");
+  const [fired] = loads(show.command({ type: "look", id: look.id }, 0.3));
+  assert.equal(fired.clipId, look.id);
+  assert.equal(fired.snapshot.scene, "julia");
+  assert.deepEqual(show.command({ type: "look", id: "julia:nope" }, 0.4), []);
 });
 
 test("a press just after the beat fires immediately", () => {
@@ -45,17 +66,14 @@ test("a press just after the beat fires immediately", () => {
   assert.equal(loads(show.command({ type: "slot", index: 0 }, 1.02)).length, 1);
 });
 
-test("manual auto resolves to eased crossfade; authored smooth transitions reach load actions", () => {
+test("manual auto resolves to eased crossfade; own looks' smooth transitions reach load actions", () => {
   for (const transition of ["auto", "crossfade", "dissolve", "melt"]) {
     const show = makeShow((set) => {
       set.autopilot.enabled = false;
-      Object.assign(set.pages[0].slots[1], {
-        transition,
-        quantize: "now",
-        fade: 4,
-      });
+      own(set, 1, { transition });
     });
-    const [action] = loads(show.command({ type: "slot", index: 1 }, 0.3));
+    show.command({ type: "slot", index: 1 }, 0.3);
+    const [action] = loads(show.tick(0.5));
     assert.equal(
       action.transition,
       transition === "auto" ? "crossfade" : transition,
@@ -64,17 +82,16 @@ test("manual auto resolves to eased crossfade; authored smooth transitions reach
   }
 });
 
-test("manual cuts wait for the downbeat regardless of clip quantization and ignore fade", () => {
-  for (const quantize of ["now", "beat", "bar"]) {
+test("manual cuts wait for the downbeat and ignore fade", () => {
+  for (const play of [
+    { type: "slot", index: 1 },
+    { type: "look", id: "own-k1" },
+  ]) {
     const show = makeShow((set) => {
       set.autopilot.enabled = false;
-      Object.assign(set.pages[0].slots[1], {
-        transition: "cut",
-        quantize,
-        fade: 8,
-      });
+      own(set, 1, { transition: "cut" });
     });
-    assert.deepEqual(loads(show.command({ type: "slot", index: 1 }, 0.3)), []);
+    assert.deepEqual(loads(show.command(play, 0.3)), []);
     assert.deepEqual(loads(show.tick(0.5)), [], "a beat is not a downbeat");
     assert.deepEqual(loads(show.tick(1.99)), []);
     const [action] = loads(show.tick(2));
@@ -83,12 +100,15 @@ test("manual cuts wait for the downbeat regardless of clip quantization and igno
   }
 });
 
-test("autopilot's resolved smooth transition survives scheduling a clip authored as cut", () => {
+test("autopilot's resolved smooth transition survives scheduling a look authored as cut", () => {
   const show = makeShow((set) => {
     set.autopilot.everyBars = 16;
     set.autopilot.random = false;
-    for (const clip of set.pages[0].slots)
-      if (clip) Object.assign(clip, { transition: "cut", fade: 0 });
+    set.autopilot.favoritesOnly = true;
+    for (const key of [0, 1, 2]) {
+      own(set, key, { transition: "cut" });
+      set.favorites.push(`own-k${key}`);
+    }
   });
   show.begin(0);
   show.tick(0);
@@ -97,16 +117,13 @@ test("autopilot's resolved smooth transition survives scheduling a clip authored
   assert.equal(action.fadeSeconds, 6); // three bars at 120 BPM (D66)
 });
 
-test("a trigger keeps the show energy instead of the clip's stored value (D54)", () => {
-  const show = makeShow((set) => {
-    set.autopilot.enabled = false;
-    set.pages[0].slots[1].energy = 0.2;
-  });
+test("a trigger keeps the show energy instead of the look's authored value (D54)", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
   show.command({ type: "energy", value: 0.9 }, 0);
   const [fired] = loads(show.command({ type: "slot", index: 1 }, 1.02));
   assert.equal(fired.energy, 0.9);
-  // Parameters are authored at the clip's stored energy; curves start there.
-  assert.equal(fired.baseEnergy, 0.2);
+  // Parameters are authored at mid energy; the curves start there.
+  assert.equal(fired.baseEnergy, 0.5);
   assert.equal(show.status(1.02).energy, 0.9);
 });
 
@@ -120,37 +137,37 @@ test("the safe look is calm, and the next clip resumes the show energy", () => {
   assert.equal(fired.energy, 0.8);
 });
 
-test("bar quantize waits for the bar line; the latest press wins", () => {
-  const show = makeShow((set) => {
-    set.autopilot.enabled = false;
-    set.pages[0].slots[1].quantize = "bar";
-    set.pages[0].slots[2].quantize = "bar";
-  });
+test("keys wait for the beat; the latest press wins", () => {
+  const show = makeShow((set) => (set.autopilot.enabled = false));
   show.command({ type: "slot", index: 1 }, 0.6);
   show.command({ type: "slot", index: 2 }, 0.9);
-  assert.deepEqual(loads(show.tick(1.9)), []);
-  const fired = loads(show.tick(2.0));
-  assert.equal(fired[0].slot, 2);
+  assert.deepEqual(loads(show.tick(0.95)), []);
+  const fired = loads(show.tick(1.0));
+  assert.equal(fired[0].clipId, show.set.keys[2]);
 });
 
-test("empty slots do nothing", () => {
+test("empty or unknown keys do nothing", () => {
   const show = makeShow((set) => {
     set.autopilot.enabled = false;
-    set.pages[0].slots[31] = null;
+    set.keys[31] = null;
+    set.keys[30] = "acid:Not a look";
   });
   assert.deepEqual(show.command({ type: "slot", index: 31 }, 0), []);
+  assert.deepEqual(show.command({ type: "slot", index: 30 }, 0), []);
+  assert.deepEqual(show.command({ type: "slot", index: 32 }, 0), []);
 });
 
-test("autopilot plays the current page and pauses after manual input", () => {
+test("autopilot plays the catalog and pauses after manual input", () => {
   const show = makeShow((set) => (set.autopilot.everyBars = 16));
   const fired = [];
   for (let t = 0; t < 200; t += 0.01) {
     if (Math.abs(t - 40) < 0.005) show.command({ type: "slot", index: 5 }, t);
-    for (const a of loads(show.tick(t))) fired.push({ t, slot: a.slot });
+    for (const a of loads(show.tick(t))) fired.push({ t, id: a.clipId });
   }
-  // Bar = 2 s. Changes at bars 0 and 16 (t = 0, 32), manual at t = 40
-  // (bar 20) holds until bar 52 (t = 104), then every 16 bars.
-  const auto = fired.filter((f) => f.slot !== 5 || Math.abs(f.t - 40.5) > 0.1);
+  // Bar = 2 s. Random changes every 8–16 bars, manual at t = 40 (bar 20)
+  // holds until bar 52 (t = 104).
+  const key = show.set.keys[5];
+  const auto = fired.filter((f) => f.id !== key || Math.abs(f.t - 40.5) > 0.1);
   assert.ok(
     auto.every((f) => f.t < 40 || f.t >= 104 - 0.01),
     JSON.stringify(auto),
@@ -195,7 +212,7 @@ test("crash snapshot restores clip, energy, shared controls and clock", () => {
   const again = makeShow((set) => (set.autopilot.enabled = false));
   const actions = again.restore(saved, 0);
   assert.equal(actions[0].type, "load");
-  assert.equal(actions[0].slot, 4);
+  assert.equal(actions[0].clipId, show.set.keys[4]);
   assert.equal(actions[0].fadeSeconds, 0);
   const s = again.status(0);
   assert.equal(s.energy, 0.8);
@@ -203,37 +220,36 @@ test("crash snapshot restores clip, energy, shared controls and clock", () => {
   assert.ok(Math.abs(s.clock.bpm - 132) < 0.01);
 });
 
-test("stage faders tweak the live clip without changing the saved set", () => {
+test("stage faders tweak the live clip without changing the catalog", () => {
   const show = makeShow((set) => (set.autopilot.enabled = false));
   show.command({ type: "slot", index: 0 }, 0);
   const key = Object.keys(show.live.clip.snapshot.params)[0];
-  const before = show.set.pages[0].slots[0].snapshot.params[key];
+  const stored = show.catalogClips.get(show.set.keys[0]).snapshot.params;
+  const before = stored[key];
   const [action] = show.command(
     { type: "param", key, value: before + 0.01 },
     0.1,
   );
   assert.equal(action.type, "params");
   assert.equal(show.currentSnapshot().params[key], before + 0.01);
-  assert.equal(show.set.pages[0].slots[0].snapshot.params[key], before);
+  assert.equal(stored[key], before);
 });
 
 test("audition plays an unsaved clip immediately", () => {
   const show = makeShow((set) => (set.autopilot.enabled = false));
-  const clip = structuredClone(show.set.pages[0].slots[2]);
-  clip.name = "draft";
+  const clip = {
+    ...structuredClone(show.catalogClips.get(show.set.keys[2])),
+    id: "draft",
+    name: "draft",
+  };
   const [load] = show.command({ type: "audition", clip }, 0.3);
   assert.equal(load.type, "load");
-  assert.equal(load.slot, -1);
-  assert.equal(show.status(0.3).live.slot, -1);
+  assert.equal(load.clipId, "draft");
+  assert.equal(show.status(0.3).live.look, "draft");
 });
 
-// Acid is a draft on the Lab page (D55); these tests need it on page 1.
-function acidFirst(set) {
-  const acid = set.pages
-    .flatMap((p) => p.slots)
-    .find((c) => c?.snapshot.scene === "acid");
-  set.pages[0].slots[0] = { ...acid, id: "acid-page-1", autopilot: true };
-}
+// The first key holds an Acid look in the catalog's default order.
+const acidFirst = (set) => assert.match(set.keys[0], /^acid:/);
 
 test("autopilot and keys never schedule a family whose shaders failed", () => {
   const show = makeShow((set) => {
@@ -249,34 +265,30 @@ test("autopilot and keys never schedule a family whose shaders failed", () => {
   assert.deepEqual(show.status(400).disabled, ["acid"]);
 });
 
-test("a failed family on screen cuts at once to a playable clip on the page", () => {
+test("a failed family on screen cuts at once to a playable look", () => {
   const show = makeShow((set) => {
     set.autopilot.enabled = false;
     acidFirst(set);
   });
   show.command({ type: "slot", index: 0 }, 0.5); // acid, fires on the beat
-  assert.equal(show.status(0.5).live.slot, 0);
+  assert.match(show.status(0.5).live.look, /^acid:/);
   const cut = loads(show.disable("acid", 0.7, true));
   assert.equal(cut.length, 1);
   assert.equal(cut[0].fadeSeconds, 0);
   assert.notEqual(cut[0].snapshot.scene, "acid");
-  assert.equal(show.status(0.7).live.slot, cut[0].slot);
+  assert.equal(show.status(0.7).live.look, cut[0].clipId);
 });
 
-test("with the page unplayable the safe look takes over, then any page, then blackout", () => {
+test("with nothing autopilot may play the safe look takes over, then any look, then blackout", () => {
+  const three = ["acid", "interference", "cathedral"].map((id) =>
+    scenes.find((s) => s.id === id),
+  );
   const show = makeShow((set) => {
     set.autopilot.enabled = false;
+    // Rated 0: never chosen by autopilot, still playable by hand.
+    for (const look of catalogLooks(three)) set.ratings[look.id] = 0;
     acidFirst(set);
-    const cathedral = set.pages[0].slots.find(
-      (c) => c?.snapshot.scene === "cathedral",
-    );
-    for (const page of set.pages)
-      page.slots = page.slots.map((c) =>
-        c?.snapshot.scene === "acid" ? c : null,
-      );
-    for (const page of set.pages.slice(1)) page.slots.fill(null);
-    set.pages[1].slots[4] = cathedral;
-  });
+  }, three);
   show.command({ type: "slot", index: 0 }, 0.5);
   const safe = show.disable("acid", 1, true);
   assert.deepEqual(
@@ -287,7 +299,6 @@ test("with the page unplayable the safe look takes over, then any page, then bla
   assert.equal(show.currentSnapshot().scene, "interference");
   const other = loads(show.disable("interference", 2, true));
   assert.equal(other[0].snapshot.scene, "cathedral");
-  assert.equal(show.status(2).live.page, 1);
   assert.equal(show.currentSnapshot().scene, "cathedral");
   assert.deepEqual(show.disable("cathedral", 3, true), [
     { type: "blackout", on: true },
@@ -305,7 +316,7 @@ test("random mode glides the live clip's continuous parameters near its authored
     if (show.tick(t).some((action) => action.type === "params"))
       snapshots.push(structuredClone(show.currentSnapshot()));
   const live = show.status(15.9).live;
-  const clip = show.set.pages[live.page].slots[live.slot];
+  const clip = show.catalogClips.get(live.look);
   const scene = scenes.find((s) => s.id === clip.snapshot.scene);
   const glide = snapshots.filter((snapshot) => snapshot.scene === scene.id);
   assert.ok(glide.length > 500, "params move every frame while drifting");
@@ -353,35 +364,43 @@ test("a drift glide never jumps, and a stage fader stops it", () => {
   assert.ok(!show.tick(40.02).some((a) => a.type === "params"));
 });
 
-test("random off: autopilot walks the page in order and parameters stay put", () => {
+test("random off: autopilot walks the catalog in order and parameters stay put", () => {
   const show = makeShow((set) => {
     set.autopilot.everyBars = 16;
     set.autopilot.random = false;
   });
-  const slots = [];
+  const ids = [];
   for (let t = 0; t <= 140; t += 1 / 30)
     for (const a of show.tick(t)) {
       if (a.type === "params")
         assert.deepEqual(
           show.currentSnapshot().params,
-          show.set.pages[show.live.page].slots[show.live.slot].snapshot.params,
+          show.catalogClips.get(show.live.clip.id).snapshot.params,
         );
-      if (a.type === "load") slots.push(a.slot);
+      if (a.type === "load") ids.push(a.clipId);
     }
-  assert.deepEqual(slots, [0, 1, 2, 3, 4]);
+  assert.deepEqual(
+    ids,
+    sortCatalog(authored, {})
+      .slice(0, 5)
+      .map((look) => look.id),
+  );
   show.command({ type: "random" }, 140);
   assert.equal(show.status(140).autopilot.random, true);
   assert.equal(show.set.autopilot.random, true);
 });
 
-test("a fresh stage begins on a random autopilot clip; autopilot then waits its random duration", () => {
-  for (const source of ["page", "catalog"]) {
-    const show = makeShow((set) => (set.autopilot.source = source));
+test("a fresh stage begins on a random look; autopilot then waits its random duration", () => {
+  for (const seed of [1, 2]) {
+    const show = makeShow();
+    show.autopilot.random = (() => {
+      let x = seed * 0.37;
+      return () => (x = (x * 9301 + 0.4927) % 1);
+    })();
     const first = loads(show.begin(0));
     assert.equal(first.length, 1);
     assert.equal(first[0].fadeSeconds, 0);
-    assert.equal(show.status(0).live.slot, first[0].slot);
-    assert.equal(first[0].page, source === "catalog" ? -1 : 0);
+    assert.equal(show.status(0).live.look, first[0].clipId);
     assert.deepEqual(loads(show.tick(0)), []);
     const { duration, nextChangeIn } = show.status(0).autopilot;
     assert.ok([8, 12, 16].includes(duration));
@@ -389,26 +408,28 @@ test("a fresh stage begins on a random autopilot clip; autopilot then waits its 
     const later = [];
     for (let t = 0; t < 40; t += 1 / 30)
       for (const load of loads(show.tick(t))) later.push({ t, load });
-    // The first change comes after the first clip's random duration.
-    assert.ok(later.length >= 1, source);
+    // The first change comes after the first look's random duration.
+    assert.ok(later.length >= 1);
     assert.ok(Math.abs(later[0].t - duration * 2) < 0.05, `${later[0].t}`);
     assert.equal(later[0].load.fadeSeconds, 6); // three bars at 120 BPM
   }
 });
 
-test("manual triggers adopt the clip palette with a glide; autopilot keeps the show palette", () => {
+test("manual triggers adopt the look palette with a glide; autopilot keeps the show palette", () => {
   const show = makeShow((set) => {
     set.autopilot.random = false;
     set.autopilot.everyBars = 16;
-    set.pages[0].slots[0].palette = "ember";
-    set.pages[0].slots[1].palette = "glacier";
-    set.pages[0].slots[2].palette = "toxic";
+    set.autopilot.favoritesOnly = true;
+    own(set, 0, { palette: "ember" });
+    own(set, 1, { palette: "glacier" });
+    own(set, 2, { palette: "toxic" });
+    set.favorites.push("own-k0", "own-k1");
   });
   show.begin(0);
   show.tick(0);
   assert.equal(show.status(0).palette, "ember");
   const auto = loads(show.tick(32))[0];
-  assert.equal(auto.slot, 1);
+  assert.equal(auto.clipId, "own-k1");
   assert.deepEqual(auto.snapshot.palette, paletteById("ember").colors);
   assert.equal(show.status(32).palette, "ember");
   const manual = loads(show.command({ type: "slot", index: 2 }, 34))[0];
@@ -434,7 +455,7 @@ test("manual triggers adopt the clip palette with a glide; autopilot keeps the s
     paletteById("toxic").colors,
   );
   assert.deepEqual(
-    show.set.pages[0].slots[0].snapshot.palette,
+    show.catalogClips.get("own-k0").snapshot.palette,
     paletteById("ember").colors,
   );
 });
@@ -442,7 +463,9 @@ test("manual triggers adopt the clip palette with a glide; autopilot keeps the s
 test("palette changes interpolate each frame and a manual palette change wins over a drop", () => {
   const show = makeShow((set) => {
     set.autopilot.random = false;
-    set.pages[0].slots[0].palette = "ember";
+    set.autopilot.favoritesOnly = true;
+    own(set, 0, { palette: "ember" });
+    set.favorites.push("own-k0");
   });
   show.begin(0);
   const original = { ...show.live.clip.snapshot.palette };
@@ -538,9 +561,7 @@ test("palette frames emit only changed 8-bit colours using the same live buffer"
   const to = { primary: "#111111", secondary: "#111111", accent: "#111111" };
   const show = makeShow((set) => {
     set.autopilot.enabled = false;
-    const clip = set.pages[0].slots[0];
-    clip.palette = "custom";
-    clip.snapshot.palette = from;
+    own(set, 0, { palette: "custom" }).snapshot.palette = from;
   });
   show.command({ type: "slot", index: 0 }, 0);
   const buffer = show.currentSnapshot().palette;
@@ -571,7 +592,7 @@ test("palette params require an actual clip or explicitly loaded safe look", () 
   assert.ok(!show.tick(1.1).some((action) => action.type === "params"));
   const empty = makeShow((set) => {
     set.autopilot.enabled = false;
-    for (const page of set.pages) page.slots.fill(null);
+    for (const look of authored) set.ratings[look.id] = 0;
   });
   assert.equal(empty.begin(0)[0].type, "safe");
   assert.equal(empty.currentSnapshot().scene, safeSnapshot.scene);

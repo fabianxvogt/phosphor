@@ -117,7 +117,8 @@ test("control↔stage handoff preserves palette colours and finishes an in-fligh
 
 test("handoff preserves an unsaved audition's custom show palette", () => {
   const show = makeShow();
-  const clip = structuredClone(show.set.pages[0].slots[1]);
+  const clip = structuredClone(show.catalogClips.get(show.set.keys[1]));
+  clip.id = "draft";
   clip.palette = "custom";
   clip.snapshot.palette = {
     primary: "#ffeedd",
@@ -127,7 +128,7 @@ test("handoff preserves an unsaved audition's custom show palette", () => {
   show.command({ type: "audition", clip }, 0);
   const restored = makeShow();
   const actions = restorePerformance(restored, performanceState(show, 0), 10);
-  assert.equal(restored.live.slot, -1);
+  assert.equal(restored.live.clip.id, "draft");
   assert.deepEqual(restored.status(10).palette, clip.snapshot.palette);
   assert.deepEqual(
     actions.find((action) => action.type === "load").snapshot.palette,
@@ -137,12 +138,11 @@ test("handoff preserves an unsaved audition's custom show palette", () => {
 
 test("a rejected load never applies foreign params to the previous picture", () => {
   const show = makeShow();
-  const failedSlot = show.set.pages[0].slots.findIndex(
-    (clip) =>
-      clip && clip.snapshot.scene !== show.set.pages[0].slots[0].snapshot.scene,
+  const clipAt = (key) => show.catalogClips.get(show.set.keys[key]);
+  const failedSlot = show.set.keys.findIndex(
+    (id, key) => id && clipAt(key).snapshot.scene !== clipAt(0).snapshot.scene,
   );
-  const failed = show.set.pages[0].slots[failedSlot];
-  failed.quantize = "beat";
+  const failed = clipAt(failedSlot);
   const appliedParams = [];
   let picture = null;
   const engine = {
@@ -190,26 +190,22 @@ test("a rejected load never applies foreign params to the previous picture", () 
   );
 });
 
-test("handoff keeps a catalog look live with autopilot's history and random duration (D65, D66)", () => {
+test("handoff keeps a catalog look live with autopilot's history and random duration (D65, D66, D68)", () => {
   const control = makeShow();
-  control.set.autopilot.source = "catalog";
   control.autopilot.enabled = true;
   control.begin(0);
   control.tick(0);
   control.command({ type: "next" }, 0.3);
   control.tick(0.5);
   const live = control.live.clip.id;
-  assert.equal(control.live.page, -1);
   const state = performanceState(control, 1);
   const stage = makeShow();
-  stage.set.autopilot.source = "catalog";
   const actions = restorePerformance(
     stage,
     JSON.parse(JSON.stringify(state)),
     10,
   );
   assert.equal(stage.live.clip.id, live);
-  assert.equal(stage.live.page, -1);
   assert.equal(
     actions.find((a) => a.type === "load").snapshot.scene,
     live.split(":")[0],

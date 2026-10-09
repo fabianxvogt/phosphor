@@ -1,10 +1,11 @@
-// Show with the look catalog as autopilot source, ratings and Next (D65, D66).
+// Show with the look catalog as autopilot's source: ratings, favourites, own
+// looks and Next (D65, D66, D68).
 import test from "node:test";
 import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { initialShowSet, validateShowSet } from "../show-set.mjs";
-import { catalogLooks, lookId } from "../catalog.mjs";
+import { catalogLooks } from "../catalog.mjs";
 import { Show } from "../show.mjs";
 
 const safeSnapshot = presetSnapshot(
@@ -27,12 +28,9 @@ const looks = catalogLooks(scenes);
 const lookIds = new Set(looks.map((look) => look.id));
 const KINDS = ["crossfade", "dissolve", "melt"];
 
-test("the catalog is the default source: autopilot plays unsaved looks with the show palette and energy", () => {
+test("autopilot plays catalog looks with the show palette and energy", () => {
   const show = makeShow();
-  assert.equal(show.status(0).autopilot.source, "catalog");
   const [first] = loads(show.begin(0));
-  assert.equal(first.page, -1);
-  assert.equal(first.slot, -1);
   assert.ok(lookIds.has(first.clipId));
   const palette = show.status(0).palette;
   show.energy = 0.8; // as if autopilot had built up
@@ -48,8 +46,6 @@ test("the catalog is the default source: autopilot plays unsaved looks with the 
   }
   assert.ok(fired.length >= 4, `${fired.length} changes`);
   for (const { load } of fired) {
-    assert.equal(load.page, -1);
-    assert.equal(load.slot, -1);
     assert.ok(lookIds.has(load.clipId));
     assert.equal(load.energy, 0.8, "show energy carries over (D54)");
     assert.equal(load.fadeSeconds, 6);
@@ -71,8 +67,7 @@ test("the catalog is the default source: autopilot plays unsaved looks with the 
     "triggers keep the show palette",
   );
   const live = show.status(120).live;
-  const look = looks.find((l) => l.id === live.clipId);
-  assert.equal(live.page, -1);
+  const look = looks.find((l) => l.id === live.look);
   assert.equal(live.name, look.name);
   assert.equal(live.scene, look.sceneId);
   assert.equal(new Set(fired.map((f) => f.load.clipId)).size, fired.length);
@@ -102,27 +97,69 @@ test("catalog picks follow ratings: 0 never plays, higher ratings play more", ()
   );
 });
 
-test("page source weights random picks by the rating of each clip's authored look", () => {
+test("favourites only: autopilot plays favourites, all looks when none can play (D68)", () => {
+  const favorites = ["pulse:Square Tunnel", "julia:Cubic Lace"];
   const show = makeShow((set) => {
-    set.autopilot.source = "page";
-    const slots = set.pages[0].slots;
-    set.ratings = {};
-    slots.forEach((clip, i) => {
-      if (clip) set.ratings[lookId(clip.snapshot)] = i < 2 ? 10 : 0;
-    });
-    // A clip that no longer matches an authored look counts as unrated.
-    slots[5].snapshot.preset = "Bred variation";
+    set.favorites = favorites;
+    set.autopilot.favoritesOnly = true;
   });
-  const played = new Set(loads(show.begin(0)).map((load) => load.slot));
-  for (let t = 0; t < 2000; t += 0.25)
-    for (const load of loads(show.tick(t))) {
-      assert.equal(load.page, 0);
-      played.add(load.slot);
-    }
-  assert.deepEqual(
-    [...played].sort((a, b) => a - b),
-    [0, 1, 5],
-  );
+  const played = new Set(loads(show.begin(0)).map((load) => load.clipId));
+  for (let t = 0; t < 600; t += 0.25)
+    for (const load of loads(show.tick(t))) played.add(load.clipId);
+  assert.deepEqual([...played].sort(), [...favorites].sort());
+  const none = makeShow((set) => {
+    set.favorites = ["pulse:Square Tunnel"];
+    set.ratings["pulse:Square Tunnel"] = 0; // a favourite rated "never"
+    set.autopilot.favoritesOnly = true;
+  });
+  const [load] = loads(none.begin(0));
+  assert.ok(load && load.clipId !== "pulse:Square Tunnel");
+});
+
+test("a minimum rating keeps lower-rated looks out; unrated count as 5", () => {
+  const show = makeShow((set) => {
+    set.autopilot.minRating = 6;
+    for (const look of looks) set.ratings[look.id] = 3;
+    set.ratings["flight:Corkscrew"] = 8;
+    set.ratings["beams:Crossfire"] = 6;
+  });
+  const played = new Set(loads(show.begin(0)).map((load) => load.clipId));
+  for (let t = 0; t < 600; t += 0.25)
+    for (const load of loads(show.tick(t))) played.add(load.clipId);
+  assert.deepEqual([...played].sort(), ["beams:Crossfire", "flight:Corkscrew"]);
+  const unrated = makeShow((set) => (set.autopilot.minRating = 5));
+  assert.equal(loads(unrated.begin(0)).length, 1, "unrated looks pass a 5");
+});
+
+test("own looks play from keys, the catalog and autopilot (D68)", () => {
+  const base = looks.find((look) => look.sceneId === "melt");
+  const show = makeShow((set) => {
+    set.looks.push({
+      id: "own-1",
+      name: "My knot",
+      base: base.id,
+      snapshot: structuredClone(base.snapshot),
+      palette: "ember",
+      transition: "dissolve",
+    });
+    set.keys[7] = "own-1";
+    set.favorites = ["own-1"];
+    set.autopilot.favoritesOnly = true;
+    set.autopilot.enabled = false;
+  });
+  show.command({ type: "slot", index: 7 }, 0.3);
+  const [key] = loads(show.tick(0.5));
+  assert.equal(key.clipId, "own-1");
+  assert.equal(key.transition, "dissolve");
+  assert.equal(show.status(0.5).palette, "ember");
+  assert.equal(show.status(0.5).live.name, "My knot");
+  show.command({ type: "next" }, 1.2);
+  const [next] = loads(show.tick(1.5));
+  assert.equal(next, undefined, "the only favourite is already live");
+  const updated = structuredClone(show.set);
+  updated.looks[0].name = "Renamed";
+  show.updateSet(updated);
+  assert.equal(show.catalogClips.get("own-1").name, "Renamed");
 });
 
 test("Next plays autopilot's pick on the next beat, smoothly, without taking over (D66)", () => {
@@ -131,8 +168,7 @@ test("Next plays autopilot's pick on the next beat, smoothly, without taking ove
   show.tick(0);
   const first = show.live.clip.id;
   assert.deepEqual(show.command({ type: "next" }, 0.3), []);
-  assert.equal(show.status(0.3).pending.page, -1);
-  assert.ok(lookIds.has(show.status(0.3).pending.clipId));
+  assert.ok(lookIds.has(show.status(0.3).pending.look));
   const [load] = loads(show.tick(0.5));
   assert.ok(load, "fires on the next beat");
   assert.notEqual(load.clipId, first);
@@ -154,36 +190,25 @@ test("Next plays autopilot's pick on the next beat, smoothly, without taking ove
     ids.push(next.clipId);
   }
   assert.equal(show.autopilot.enabled, false);
-  // Page source: a page clip, on the same path.
-  const page = makeShow((set) => {
-    set.autopilot.source = "page";
-    set.autopilot.enabled = false;
-  });
-  page.command({ type: "next" }, 0.3);
-  const [slot] = loads(page.tick(0.5));
-  assert.equal(slot.page, 0);
-  assert.ok(slot.slot >= 0);
-  assert.equal(page.status(0.5).autopilot.handBackIn, 0);
   const empty = makeShow((set) => {
-    set.autopilot.source = "page";
-    for (const p of set.pages) p.slots.fill(null);
+    for (const look of looks) set.ratings[look.id] = 0;
   });
   assert.deepEqual(empty.command({ type: "next" }, 0), []);
 });
 
-test("drops and breakdowns pick catalog looks when the catalog is the source", () => {
+test("drops and breakdowns pick catalog looks", () => {
   const show = makeShow();
   show.begin(0);
   show.tick(0);
   const [drop] = loads(show.tick(2, { event: "drop" }));
-  assert.equal(drop.page, -1);
+  assert.ok(lookIds.has(drop.clipId));
   assert.equal(drop.transition, "melt");
   assert.equal(drop.fadeSeconds, 2); // four beats
   show.tick(4, { event: "breakdown" });
   const calmer = [];
   for (let t = 4; t < 21; t += 0.25) calmer.push(...loads(show.tick(t)));
   assert.equal(calmer.length, 1);
-  assert.equal(calmer[0].page, -1);
+  assert.ok(lookIds.has(calmer[0].clipId));
   assert.ok(["melt", "dissolve"].includes(calmer[0].transition));
 });
 
@@ -196,9 +221,8 @@ test("a catalog look comes back after a stage reload by its id", () => {
   const [load] = again.restore(saved, 0);
   assert.equal(load.type, "load");
   assert.equal(load.clipId, id);
-  assert.equal(again.live.page, -1);
   assert.equal(again.live.clip.snapshot.scene, id.split(":")[0]);
-  assert.equal(again.status(0).live.clipId, id);
+  assert.equal(again.status(0).live.look, id);
 });
 
 test("a failed family on screen gives way to another catalog look", () => {
@@ -206,7 +230,7 @@ test("a failed family on screen gives way to another catalog look", () => {
   show.begin(0);
   const scene = show.live.clip.snapshot.scene;
   const [cut] = loads(show.disable(scene, 1, true));
-  assert.equal(cut.page, -1);
+  assert.ok(lookIds.has(cut.clipId));
   assert.notEqual(cut.snapshot.scene, scene);
   for (let t = 1; t < 300; t += 0.25)
     for (const load of loads(show.tick(t)))

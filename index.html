@@ -132,19 +132,6 @@
             /></label>
           </div>
         </section>
-        <section class="panel" aria-label="Clip grid">
-          <div
-            class="pages"
-            id="pages"
-            role="tablist"
-            aria-label="Pages (Shift + 1–8)"
-          ></div>
-          <div class="grid" id="grid"></div>
-          <p class="note">
-            Click a slot to preview it here; with the stage open, it also plays
-            live. Settings stay editable unless you enable Lock settings.
-          </p>
-        </section>
         <section class="panel catalog" aria-labelledby="catalogTitle">
           <div class="catalog-head">
             <h2 id="catalogTitle">Catalog</h2>
@@ -155,6 +142,7 @@
               aria-label="Search the catalog"
             />
             <select id="catalogFamily" aria-label="Family filter"></select>
+            <select id="catalogShow" aria-label="Show"></select>
             <button id="catalogSort" type="button" hidden>Sort</button>
             <span class="note" id="catalogCount"></span>
           </div>
@@ -162,15 +150,18 @@
             class="catalog-list"
             id="catalogList"
             role="list"
-            aria-label="Looks, best rated first"
+            aria-label="Looks: favourites first, then best rated"
           ></div>
           <p class="note">
-            Rate looks 0.5–10 stars (left half of a star for a half star; click
-            the current rating to clear it). Autopilot plays higher-rated looks
-            more often, unrated ones like a 5, and never a look rated
-            <strong>0</strong>. The list re-sorts by rating when the pointer
-            leaves it. <strong>To slot</strong> stores a look in the selected
-            grid slot.
+            The first 32 cards of this view are on the keyboard (1–8, Q–I, A–K,
+            Y–comma): filter or search, and the keys play what you see.
+            <strong>♥</strong> marks a favourite (listed first; autopilot can be
+            limited to favourites). Rate 0.5–10 stars (left half of a star for a
+            half star; click the current rating to clear it). Autopilot plays
+            higher-rated looks more often, unrated ones like a 5, and never a
+            look rated <strong>0</strong>. The list re-sorts when the pointer
+            leaves it. Click a thumbnail to play it; <strong>Edit</strong> opens
+            it in the look editor, where changes are saved as own looks.
           </p>
         </section>
       </div>
@@ -206,14 +197,18 @@
             >
               Next <kbd>⇧Space</kbd>
             </button>
-            <select
-              id="autopilotSource"
-              aria-label="Autopilot source"
-              title="Where autopilot picks from: every catalog look by rating, or the clips on the current page"
+            <button
+              id="favoritesOnly"
+              aria-pressed="false"
+              title="Autopilot plays only favourites (all looks again if there are none)"
             >
-              <option value="catalog">Catalog</option>
-              <option value="page">Page</option>
-            </select>
+              ♥ only
+            </button>
+            <select
+              id="minRating"
+              aria-label="Autopilot minimum rating"
+              title="Autopilot plays only looks rated at least this (unrated count as 5)"
+            ></select>
             <button id="half" aria-pressed="false">½× <kbd>9</kbd></button>
             <button id="double" aria-pressed="false">2× <kbd>0</kbd></button>
           </div>
@@ -223,8 +218,8 @@
           <h2 id="familyTitle">Family</h2>
           <div class="faders" id="family"></div>
         </section>
-        <section class="panel settings-controls" aria-label="Clip editor">
-          <h2 id="editorTitle">Clip</h2>
+        <section class="panel settings-controls" aria-label="Look editor">
+          <h2 id="editorTitle">Look</h2>
           <canvas
             id="editorCanvas"
             class="editor-preview"
@@ -233,10 +228,11 @@
           ></canvas>
           <div class="fields" id="editor" style="margin-top: 10px"></div>
           <div class="row" style="margin-top: 10px">
-            <button id="saveClip" class="accent">Save to slot</button>
-            <button id="auditionClip">Play selected clip</button>
-            <button id="breedClip">Variations</button>
-            <button id="clearClip">Clear slot</button>
+            <button id="saveLook" class="accent" hidden>Save</button>
+            <button id="saveAsLook">Save as own look</button>
+            <button id="auditionLook">Play draft</button>
+            <button id="breedLook">Variations</button>
+            <button id="deleteLook" class="danger" hidden>Delete</button>
           </div>
           <div
             class="grid"

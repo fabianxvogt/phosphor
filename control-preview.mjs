@@ -59,12 +59,7 @@ export function restorePerformance(show, state, t) {
     const clip = structuredClone(state.clip);
     clip.snapshot.palette = show.paletteColors;
     show.safeShowing = false;
-    show.live = {
-      page: state.runtime.live?.page ?? -1,
-      slot: state.runtime.live?.slot ?? -1,
-      clip,
-      base: clip.snapshot.params,
-    };
+    show.live = { clip, base: clip.snapshot.params };
     const load = actions.find((a) => a.type === "load");
     if (load)
       Object.assign(load, {
@@ -115,28 +110,25 @@ export class ControlPreview {
       flashLimit: true,
     });
   }
-  select(page, slot, clip, t, manual = true) {
-    // Editing a selected clip is immediate; performer slot triggers still
-    // honor that clip's quantization and fade through Show.command.
+  select(clip, t, manual = true) {
+    // Editing a selected look is immediate; grid keys and catalog Play still
+    // honor the look's quantization and fade through Show.command.
     if (this.show.disabled.has(clip.snapshot.scene)) return;
     const copy = structuredClone(clip);
-    this.show.page = page;
     this.apply(
       this.show.command(
         { type: "audition", clip: { ...copy, fade: 0 }, manual },
         t,
       ),
     );
-    this.show.live.page = page;
-    this.show.live.slot = slot;
   }
-  edit(page, slot, clip, t) {
+  edit(clip, t) {
     if (
       !this.show.live ||
       this.show.live.clip.id !== clip.id ||
       this.engine.slots.at(-1)?.scene.id !== clip.snapshot.scene
     ) {
-      this.select(page, slot, clip, t);
+      this.select(clip, t);
       return;
     }
     const copy = structuredClone(clip);

@@ -8,7 +8,7 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 
 ## Product shape
 
-- **Play:** 4×8 clip grid on the keyboard (physical key positions, so QWERTZ works), eight pages, plus a rated catalog of every look (D65). Configuration stays accessible; an optional stage-only settings lock protects it without disabling performance (D52). Local preview plays at 120 BPM with autopilot and Random on; opening the stage transfers the current performance. Autopilot plays rated catalog looks (or a page) for 8, 12 or 16 bars with smooth three-bar changes; **Next** skips ahead (D66). Any manual trigger takes over and hands back after 32 idle bars.
+- **Play:** one catalog of every look — authored and own — with favourites and 0–10 ratings; the first 32 cards of the current view are on the keyboard (physical key positions, so QWERTZ works) (D65, D68). Configuration stays accessible; an optional stage-only settings lock protects it without disabling performance (D52). Local preview plays at 120 BPM with autopilot and Random on; opening the stage transfers the current performance. Autopilot plays rated catalog looks (optionally favourites only) for 8, 12 or 16 bars with smooth three-bar changes; **Next** skips ahead (D66). Any manual trigger takes over and hands back after 32 idle bars.
 - **Controls:** shared master, energy, speed trim (½×/1×/2×), hue, zoom, mirror and flash (through the limiter); three live family faders and all parameters in the editor. Performance controls work on the local preview without a stage and on live output with one. Energy is show state and survives clip changes (D54). A clip stores its look, the energy it was authored at, fade, quantize and autopilot flag.
 - **Timing:** line feed from the DJ mixer. Automatic tempo and beat phase, downbeat by key, builds/drops/breakdowns from loudness. Tap, downbeat and nudge always work alone. Techno/house, 100–150 BPM.
 - **Output:** the output window renders at the screen's native size and shape (up to 4K, 8.3 MP budget, D67) and owns show state, audio, beat tracking and autopilot; the control window is a remote with a preview. Full restore after a crash in ≤ 10 s.
@@ -29,20 +29,20 @@ A live test and review found show bugs and a visual layer weaker than the platfo
 5. **Transitions (D58):** done 2026-10-09 — per-clip `auto` / eased crossfade / downbeat cut (manual only) / noise dissolve / feedback melt; autopilot uses melt or dissolve in breakdowns, one-bar melt on drops, never a cut. Rig p99 17.6–18.4 ms during transitions.
 6. **Audio feature bus (D61):** done 2026-10-09 — low/mid/high envelopes, onset, flux and hits; every gated family maps three capped hero parameters to real audio and falls back to the clock kick within 2 s when tracking or signal drops.
 
-7. **Catalog, faster autopilot, resolution (D65–D67):** owner direction 2026-10-09 — the Lab page and **Add missing families** are replaced by a rated catalog of every look (thumbnails, Play, To slot); new sets fill all eight pages; autopilot plays from the catalog by rating for a random 8/12/16 bars with three-bar smootherstep changes and a **Next** button (Shift+Space); the stage renders native up to 4K and the preview resolution is selectable. Rig check pending: stage p99 at 4K on the external display, thumbnail rendering during a live show.
+7. **Catalog, faster autopilot, resolution (D65–D68):** owner direction 2026-10-09 — the Lab page and **Add missing families** are replaced by a rated catalog of every look (thumbnails, Play, To slot); new sets fill all eight pages; autopilot plays from the catalog by rating for a random 8/12/16 bars with three-bar smootherstep changes and a **Next** button (Shift+Space); the stage renders native up to 4K and the preview resolution is selectable. On 2026-10-09 the pages went too: the catalog is the instrument, with favourites, own looks and keys that follow the view; set format v5 (D68). Rig check pending: stage p99 at 4K on the external display, thumbnail rendering during a live show.
 
 Then, in parallel family branches: structural energy gate and re-gating of the six (D60), Flight and Cathedral headliners (D62), Pulse and Interference reworks (D60). Evidence runs alongside (D63): CC-mix beat evaluation, output-measured blackout latency, first 8-hour external-display run by 2026-10-31, USB line check before the freeze. **Status 2026-10-09:** all six platform steps are on `main` and live. Headliners, Pulse (strobe geometry), Interference (layered moiré) and Tapestry (seed shape 3 energy growth, lifted midtones) reworked; every type of all six gated families scores ≥ 0.15 on the energy metric and times at p99 ≈ 17.6–17.7 ms on the rig. Open: owner art sign-off of the reworked families and palette keep/reject; Feedback rig re-timing with the corrected runner; output blackout measurement (needs Chrome's macOS Screen Recording permission); 8-hour external-display run; USB line check.
 
 ## Milestone 1 — first show
 
-| Weeks | Dates | Work |
-| --- | --- | --- |
-| 1 | 8–14 Oct | Review and merge `lane/test-harness`, `lane/image-pipeline`, `lane/app-core`. Owner provides 5–10 recorded mixes (outside the repo). Beat-tracker prototype. |
-| 2–3 | 15–28 Oct | Output window becomes renderer and show owner; control window becomes a remote. Scene contract v3: energy curve, beat responses, types, any aspect. Remove linear score, keyframes, WebM/frame export, MIDI clock, manual audio routing. Measure beat tracking on the mixes. |
-| 4–5 | 29 Oct–11 Nov | Grid, keyboard map and pages; optional settings lock; shared controls and energy fader; crash recovery; preflight; bar-count autopilot. Group 1 families start in parallel. |
-| 4–8 | 29 Oct–2 Dec | Families in queue order, owner sign-off weekly. Auto beat tracking and build/drop autopilot if they meet their targets. |
-| 9 | 3–9 Dec | Freeze. 8-hour run, fixes only. |
-| 10 | 10–16 Dec | Second 8-hour run if fixes landed; line check with a real DJ mixer feed. |
+| Weeks | Dates         | Work                                                                                                                                                                                                                                                                         |
+| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | 8–14 Oct      | Review and merge `lane/test-harness`, `lane/image-pipeline`, `lane/app-core`. Owner provides 5–10 recorded mixes (outside the repo). Beat-tracker prototype.                                                                                                                 |
+| 2–3   | 15–28 Oct     | Output window becomes renderer and show owner; control window becomes a remote. Scene contract v3: energy curve, beat responses, types, any aspect. Remove linear score, keyframes, WebM/frame export, MIDI clock, manual audio routing. Measure beat tracking on the mixes. |
+| 4–5   | 29 Oct–11 Nov | Grid, keyboard map and pages; optional settings lock; shared controls and energy fader; crash recovery; preflight; bar-count autopilot. Group 1 families start in parallel.                                                                                                  |
+| 4–8   | 29 Oct–2 Dec  | Families in queue order, owner sign-off weekly. Auto beat tracking and build/drop autopilot if they meet their targets.                                                                                                                                                      |
+| 9     | 3–9 Dec       | Freeze. 8-hour run, fixes only.                                                                                                                                                                                                                                              |
+| 10    | 10–16 Dec     | Second 8-hour run if fixes landed; line check with a real DJ mixer feed.                                                                                                                                                                                                     |
 
 **Checkpoint 2026-11-11:** if fewer than three group 1 families have passed the family gate, group 2 leaves the first-show scope and Melt and Acid move up.
 
@@ -73,18 +73,18 @@ At least three types that pass the grayscale distinctness sheet (same palette, m
 
 Every family below is a draft until it passes (D47). Packets: `docs/families/<id>.md`.
 
-| Group | Family | Status |
-| --- | --- | --- |
-| 1 | Feedback Chapel | **passed** — [packet](docs/families/feedback.md); owner sign-off 2026-10-08 |
-| 1 | Causal Tapestry | **passed** — [packet](docs/families/tapestry.md); owner accepted Cascade's cross-family near pairs (nearest Melt 0.138) |
-| 1 | Cathedrals of Error | **passed**, reworked as headliner (D62) — [packet](docs/families/cathedral.md); awaiting owner sign-off of the new look |
-| 1 | Interference Rituals | **passed**, reworked as layered moiré (D60) — [packet](docs/families/interference.md); awaiting owner sign-off |
-| 2 | Pulse Geometry | **passed**, reworked as strobe geometry (D60) — [packet](docs/families/pulse.md); awaiting owner sign-off |
-| 2 | Fractal Flight | **passed**, reworked as headliner (D62) — [packet](docs/families/flight.md); awaiting owner sign-off |
-| 3 | Melt, Acid (+ garden type) | draft |
-| 4 | Light Beams, Particle Swarm | draft |
-| 5 | Julia Observatory, Fourth Dimension, Hyperbolic Loom | draft |
-| 6 | Magnetic, Phase (reworks), Aquarium | draft |
+| Group | Family                                               | Status                                                                                                                  |
+| ----- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1     | Feedback Chapel                                      | **passed** — [packet](docs/families/feedback.md); owner sign-off 2026-10-08                                             |
+| 1     | Causal Tapestry                                      | **passed** — [packet](docs/families/tapestry.md); owner accepted Cascade's cross-family near pairs (nearest Melt 0.138) |
+| 1     | Cathedrals of Error                                  | **passed**, reworked as headliner (D62) — [packet](docs/families/cathedral.md); awaiting owner sign-off of the new look |
+| 1     | Interference Rituals                                 | **passed**, reworked as layered moiré (D60) — [packet](docs/families/interference.md); awaiting owner sign-off          |
+| 2     | Pulse Geometry                                       | **passed**, reworked as strobe geometry (D60) — [packet](docs/families/pulse.md); awaiting owner sign-off               |
+| 2     | Fractal Flight                                       | **passed**, reworked as headliner (D62) — [packet](docs/families/flight.md); awaiting owner sign-off                    |
+| 3     | Melt, Acid (+ garden type)                           | draft                                                                                                                   |
+| 4     | Light Beams, Particle Swarm                          | draft                                                                                                                   |
+| 5     | Julia Observatory, Fourth Dimension, Hyperbolic Loom | draft                                                                                                                   |
+| 6     | Magnetic, Phase (reworks), Aquarium                  | draft                                                                                                                   |
 
 ### Show gate
 

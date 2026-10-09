@@ -3,7 +3,7 @@
 // (decision D8) and tests can drive it with synthetic time.
 import { ShowClock } from "./show-clock.mjs";
 import { Autopilot } from "./autopilot.mjs";
-import { SLOTS } from "./show-set.mjs";
+import { KEYS } from "./show-set.mjs";
 import { paletteById } from "./palettes.mjs";
 import {
   catalogLooks,
@@ -12,7 +12,7 @@ import {
   ratingOf,
   ratingWeight,
   weightedChoice,
-  lookId,
+  autopilotMay,
 } from "./catalog.mjs";
 
 const LATE = 0.1; // a press this soon after a beat or bar line fires on it
@@ -38,11 +38,10 @@ export class Show {
       now,
     });
     this.autopilot = new Autopilot({ ...set.autopilot, seed });
-    this.page = 0;
-    this.live = null; // { page, slot, clip, base } — base: authored params
+    this.live = null; // { clip, base } — clip.id is the look id; base: authored params
     this.drift = null; // { keys, from, to, t0, seconds } while params glide
     this.scenes = new Map(scenes.map((s) => [s.id, s]));
-    this.pending = null; // { page, slot, clip, at, fade, transition }
+    this.pending = null; // { clip, at, fade, adoptPalette, transition }
     this.energy = 0.5;
     this.palette = null; // library ID or custom colours; the glide's target
     this.paletteColors = null; // actual colours currently on screen
@@ -58,96 +57,80 @@ export class Show {
     this.flash = false;
     this.lastBar = null;
     this.disabled = new Set(); // families whose shaders failed
-    // The look catalog (D65): autopilot's default source. Its clips are
-    // unsaved (page/slot −1) and keep the show palette when autopilot plays.
-    this.catalog = catalogLooks(scenes);
+    // The look catalog (D65, D68) is the whole library: the grid keys and
+    // autopilot both play its looks; a clip's id is its look id.
+    this.#indexCatalog();
+  }
+
+  #indexCatalog() {
+    this.catalog = catalogLooks([...this.scenes.values()], this.set.looks);
     this.catalogClips = new Map(
       this.catalog.map((look) => [look.id, catalogClip(look)]),
     );
   }
 
-  get source() {
-    return this.set.autopilot.source ?? "catalog";
-  }
-
   // An edited set from the control (stage `set` message, local preview).
   updateSet(set) {
+    const looksChanged = set.looks !== this.set.looks;
     this.set = set;
     this.autopilot.everyBars = set.autopilot.everyBars;
     this.autopilot.handBackBars = set.autopilot.handBackBars;
     this.autopilot.randomMode = set.autopilot.random;
-    this.autopilot.source = this.source;
-    if (this.page >= set.pages.length) this.page = 0;
+    if (looksChanged) this.#indexCatalog();
   }
 
-  // Page clips weigh the rating of the authored look they were made from
-  // (same family and preset name), else like an unrated look.
-  #pool(page = this.page) {
-    const pool = [];
-    const ratings = this.set.ratings;
-    this.set.pages[page].slots.forEach((clip, slot) => {
-      if (!clip || this.disabled.has(clip.snapshot.scene)) return;
-      const id = lookId(clip.snapshot);
-      const rating = this.catalogClips.has(id) ? ratingOf(ratings, id) : null;
-      pool.push({ slot, clip, weight: ratingWeight(rating) });
-    });
-    return pool;
+  // The clip for a look id, or null (unknown look or failed family).
+  clipFor(id) {
+    const clip = this.catalogClips.get(id);
+    return clip && !this.disabled.has(clip.snapshot.scene) ? clip : null;
   }
 
-  // Every playable catalog look, best rated first (the in-order walk);
-  // looks rated 0 never play.
-  #catalogPool() {
-    const ratings = this.set.ratings;
+  // Every look autopilot may play (D66, D68): never at 0 stars, only
+  // favourites or only looks rated at least `minRating` when the set says
+  // so; best first (the in-order walk), weighted by rating in random mode.
+  #pool() {
+    const { ratings, favorites: list, autopilot } = this.set;
+    const favorites = new Set(list);
+    const rules = {
+      ratings,
+      favorites,
+      favoritesOnly: autopilot.favoritesOnly,
+      minRating: autopilot.minRating,
+    };
     const pool = [];
-    for (const look of sortCatalog(this.catalog, ratings)) {
-      if (this.disabled.has(look.sceneId)) continue;
-      const weight = ratingWeight(ratingOf(ratings, look.id));
-      if (!weight) continue;
+    for (const look of sortCatalog(this.catalog, ratings, favorites)) {
+      if (this.disabled.has(look.sceneId) || !autopilotMay(look, rules))
+        continue;
       pool.push({
-        slot: -1,
         order: pool.length,
         clip: this.catalogClips.get(look.id),
-        weight,
+        weight: ratingWeight(ratingOf(ratings, look.id)),
       });
     }
+    // Favourites only, but none playable: fall back to the whole catalog
+    // rather than standing still.
+    if (!pool.length && (rules.favoritesOnly || rules.minRating > 0))
+      for (const look of this.catalog)
+        if (
+          !this.disabled.has(look.sceneId) &&
+          autopilotMay(look, { ratings, favorites })
+        )
+          pool.push({
+            order: pool.length,
+            clip: this.catalogClips.get(look.id),
+            weight: ratingWeight(ratingOf(ratings, look.id)),
+          });
     return pool;
   }
 
-  #autopilotPool() {
-    return this.source === "catalog" ? this.#catalogPool() : this.#pool();
-  }
-
-  // What autopilot treats as playing: with the catalog source any live clip;
-  // with the page source a clip of this page or an unsaved one (page −1).
-  #current() {
-    if (!this.live) return null;
-    if (this.source === "catalog" || this.live.page < 0) return this.live;
-    return this.live.page === this.page ? this.live : null;
-  }
-
-  // An autopilot trigger: a page slot, or an unsaved catalog clip.
+  // An autopilot trigger: always a catalog look, keeping the show palette.
   #autoTrigger(t, a) {
-    return a.slot >= 0
-      ? this.#schedule(
-          t,
-          this.page,
-          a.slot,
-          a.quantize,
-          a.fade,
-          undefined,
-          false,
-          a.transition,
-        )
-      : this.#schedule(
-          t,
-          -1,
-          -1,
-          a.quantize,
-          a.fade,
-          a.clip,
-          false,
-          a.transition,
-        );
+    return this.#schedule(t, a.clip, {
+      quantize: a.quantize,
+      fade: a.fade,
+      adoptPalette: false,
+      transition: a.transition,
+    });
   }
 
   #snapshot(snapshot) {
@@ -237,15 +220,15 @@ export class Show {
 
   #schedule(
     t,
-    page,
-    slot,
-    quantize,
-    fade,
-    clip = this.set.pages[page]?.slots[slot],
-    adoptPalette = true,
-    transition = clip?.transition === "auto"
-      ? "crossfade"
-      : (clip?.transition ?? "crossfade"),
+    clip,
+    {
+      quantize = clip?.quantize ?? "beat",
+      fade = clip?.fade,
+      adoptPalette = true,
+      transition = clip?.transition === "auto"
+        ? "crossfade"
+        : (clip?.transition ?? "crossfade"),
+    } = {},
   ) {
     if (!clip || this.disabled.has(clip.snapshot.scene)) return [];
     if (transition === "cut") {
@@ -262,8 +245,6 @@ export class Show {
       at = now.beatInBar <= LATE ? now.beat : barStart + 4;
     }
     this.pending = {
-      page,
-      slot,
       clip,
       at,
       fade: fade ?? clip.fade,
@@ -287,12 +268,7 @@ export class Show {
       );
     const clip = structuredClone(p.clip);
     clip.snapshot = this.#snapshot(clip.snapshot);
-    this.live = {
-      page: p.page,
-      slot: p.slot,
-      clip,
-      base: p.clip.snapshot.params,
-    };
+    this.live = { clip, base: p.clip.snapshot.params };
     this.drift = null;
     this.safeShowing = false;
     // Energy is show state (D54): a trigger keeps the fader and autopilot's
@@ -313,8 +289,6 @@ export class Show {
         // Authored at the clip's stored energy: the family's energy curves
         // move parameters from there to the show energy.
         baseEnergy: p.clip.energy,
-        page: p.page,
-        slot: p.slot,
         clipId: p.clip.id,
       },
     ];
@@ -344,35 +318,22 @@ export class Show {
   }
 
   // First picture on a stage with nothing on screen (not a performer
-  // action): from autopilot's source — a rating-weighted catalog look (or
-  // page clip) in Random mode, else the best-rated look (or the page's first
-  // clip); the page when the catalog has nothing playable. A fresh show
-  // starts at that clip's stored energy; a restored show keeps its recovered
-  // energy (fresh: false).
+  // action): a rating-weighted look autopilot may play in Random mode, else
+  // the best one. A fresh show starts at that clip's stored energy; a
+  // restored show keeps its recovered energy (fresh: false).
   begin(t, { fresh = true } = {}) {
-    this.autopilot.source = this.source;
-    const catalog = this.source === "catalog";
-    let from = catalog ? this.#catalogPool() : [];
-    if (!from.length) {
-      const pool = this.#pool();
-      const allowed = pool.filter((p) => p.clip.autopilot);
-      from = allowed.length ? allowed : pool;
-    }
+    const from = this.#pool();
     if (!from.length) return [this.safe(t, 0.15)];
     const pick = this.autopilot.randomMode
       ? (weightedPick(from, this.autopilot.random) ?? from[0])
       : from[0];
     if (fresh) this.energy = pick.clip.energy;
-    return this.#schedule(
-      t,
-      pick.slot < 0 ? -1 : this.page,
-      pick.slot,
-      "now",
-      0,
-      pick.clip,
-      fresh,
-      "crossfade",
-    );
+    return this.#schedule(t, pick.clip, {
+      quantize: "now",
+      fade: 0,
+      adoptPalette: fresh,
+      transition: "crossfade",
+    });
   }
 
   // Random mode: glide the live clip's continuous parameters (never its type
@@ -400,8 +361,8 @@ export class Show {
   }
 
   // A family whose shaders failed is never scheduled again. If it is on
-  // screen, cut to a playable clip on this page, else the safe look, else
-  // any playable clip; with nothing playable left, black out.
+  // screen, cut to a look autopilot may play, else the safe look, else any
+  // playable look; with nothing playable left, black out.
   disable(id, t, onScreen = false) {
     if (this.live?.clip.snapshot.scene === id) this.live = this.drift = null;
     if (this.safeShowing && this.safeSnapshot.scene === id)
@@ -410,40 +371,18 @@ export class Show {
     this.disabled.add(id);
     if (this.pending?.clip.snapshot.scene === id) this.pending = null;
     if (!onScreen) return [];
-    const pick = (page) => {
-      const pool = this.#pool(page);
-      return pool.find(({ clip }) => clip.autopilot) ?? pool[0];
-    };
-    const look =
-      this.source === "catalog" &&
-      weightedPick(this.#catalogPool(), this.autopilot.random);
-    const here = look || pick(this.page);
-    if (here)
-      return this.#schedule(
-        t,
-        look ? -1 : this.page,
-        here.slot,
-        "now",
-        0,
-        here.clip,
-        false,
-        "crossfade",
-      );
+    const now = (clip) =>
+      this.#schedule(t, clip, {
+        quantize: "now",
+        fade: 0,
+        adoptPalette: false,
+        transition: "crossfade",
+      });
+    const pick = weightedPick(this.#pool(), this.autopilot.random);
+    if (pick) return now(pick.clip);
     if (!this.disabled.has(this.safeSnapshot.scene)) return [this.safe(t)];
-    for (let page = 0; page < this.set.pages.length; page++) {
-      const any = pick(page);
-      if (any)
-        return this.#schedule(
-          t,
-          page,
-          any.slot,
-          "now",
-          0,
-          any.clip,
-          false,
-          "crossfade",
-        );
-    }
+    const any = this.catalog.find((look) => !this.disabled.has(look.sceneId));
+    if (any) return now(this.catalogClips.get(any.id));
     this.blackout = true;
     return [{ type: "blackout", on: true }];
   }
@@ -451,21 +390,30 @@ export class Show {
   command(action, t) {
     switch (action.type) {
       case "slot": {
-        const clip = this.set.pages[this.page].slots[action.index];
-        if (!clip || action.index >= SLOTS) return [];
+        // A grid key plays the look the control put on it (D68), on the
+        // next beat with the look's fade.
+        if (!(action.index >= 0 && action.index < KEYS)) return [];
+        const clip = this.clipFor(this.set.keys[action.index]);
+        if (!clip) return [];
         this.#manual(t);
-        return this.#schedule(t, this.page, action.index, clip.quantize);
+        return this.#schedule(t, clip);
+      }
+      case "look": {
+        // Play from the catalog (D68): the look's own palette, at once.
+        const clip = this.clipFor(action.id);
+        if (!clip) return [];
+        if (action.manual !== false) this.#manual(t);
+        return this.#schedule(t, clip, { quantize: "now" });
       }
       case "audition":
-        // Play an unsaved clip (page/slot -1). Showing the first clip when
-        // the control window opens is not a performer takeover (D53).
+        // Play an unsaved clip (the editor's draft). Showing the first clip
+        // when the control window opens is not a performer takeover (D53).
         if (!action.clip?.snapshot) return [];
         if (action.manual !== false) this.#manual(t);
-        return this.#schedule(t, -1, -1, "now", action.clip.fade, action.clip);
-      case "page":
-        if (action.index >= 0 && action.index < this.set.pages.length)
-          this.page = action.index;
-        return [];
+        return this.#schedule(t, action.clip, {
+          quantize: "now",
+          fade: action.clip.fade,
+        });
       case "blackout":
         this.blackout = action.on ?? !this.blackout;
         return [{ type: "blackout", on: this.blackout }];
@@ -527,11 +475,10 @@ export class Show {
       case "next": {
         // Next (D66): autopilot's next pick now, on the next beat with the
         // regular fade. Not a takeover; works with autopilot off too.
-        this.autopilot.source = this.source;
         const pick = this.autopilot.next({
           bar: this.clock.at(t).bar,
-          pool: this.#autopilotPool(),
-          current: this.#current(),
+          pool: this.#pool(),
+          current: this.live,
         });
         return pick ? this.#autoTrigger(t, pick) : [];
       }
@@ -581,15 +528,14 @@ export class Show {
     const now = this.clock.at(t);
     if (now.bar !== this.lastBar || event) {
       this.lastBar = now.bar;
-      this.autopilot.source = this.source;
       const auto = this.autopilot.update({
         bar: now.bar,
-        pool: this.#autopilotPool(),
-        current: this.#current(),
+        pool: this.#pool(),
+        current: this.live,
         energy: this.energy,
         event,
         palette: this.palette,
-        mood: this.set.pages[this.page].mood,
+        mood: this.set.mood,
       });
       for (const a of auto) {
         if (a.type === "trigger") actions.push(...this.#autoTrigger(t, a));
@@ -624,22 +570,15 @@ export class Show {
   status(t) {
     const clock = this.clock.at(t);
     return {
-      page: this.page,
-      // Catalog and auditioned clips are page/slot −1; a catalog clip's id
-      // is its look id ("<sceneId>:<preset>").
+      // A clip's id is its look id ("<scene>:<preset>" or "own-…"); an
+      // unsaved editor draft has its own id and no catalog entry.
       live: this.live && {
-        page: this.live.page,
-        slot: this.live.slot,
-        clipId: this.live.clip.id,
+        look: this.live.clip.id,
         name: this.live.clip.name,
         scene: this.live.clip.snapshot.scene,
-        look: lookId(this.live.clip.snapshot), // the authored look it came from
       },
       pending: this.pending && {
-        page: this.pending.page,
-        slot: this.pending.slot,
-        clipId: this.pending.clip.id,
-        look: lookId(this.pending.clip.snapshot),
+        look: this.pending.clip.id,
         beats: Math.max(0, this.pending.at - clock.beat),
       },
       energy: this.energy,
@@ -655,7 +594,6 @@ export class Show {
       autopilot: {
         enabled: this.autopilot.enabled,
         random: this.autopilot.randomMode,
-        source: this.source,
         duration: this.autopilot.duration,
         active: this.autopilot.active(clock.bar),
         handBackIn: Math.max(0, this.autopilot.manualUntil - clock.bar),
@@ -674,12 +612,7 @@ export class Show {
     const clock = this.clock.at(t);
     const paletteColors = this.#colorsAt(t);
     return {
-      page: this.page,
-      live: this.live && {
-        page: this.live.page,
-        slot: this.live.slot,
-        clipId: this.live.clip.id,
-      },
+      live: this.live && { clipId: this.live.clip.id },
       safeShowing: this.safeShowing,
       energy: this.energy,
       palette: structuredClone(this.palette),
@@ -705,7 +638,6 @@ export class Show {
   }
 
   restore(saved, t) {
-    this.page = saved.page;
     this.energy = saved.energy;
     this.palette = structuredClone(saved.palette ?? null);
     this.paletteColors = saved.paletteColors
@@ -731,12 +663,9 @@ export class Show {
       { type: "speed", value: this.speed },
       { type: "blackout", on: this.blackout },
     ];
-    // A catalog look comes back by its id (D65); other unsaved clips cannot.
-    const clip =
-      saved.live &&
-      (saved.live.page < 0
-        ? this.catalogClips.get(saved.live.clipId)
-        : this.set.pages[saved.live.page]?.slots[saved.live.slot]);
+    // A catalog look comes back by its id (D65, D68); an unsaved draft
+    // cannot.
+    const clip = saved.live && this.clipFor(saved.live.clipId);
     if (clip) {
       if (this.palette === null)
         this.#setPalette(
@@ -745,12 +674,7 @@ export class Show {
         );
       const liveClip = structuredClone(clip);
       liveClip.snapshot = this.#snapshot(liveClip.snapshot);
-      this.live = {
-        page: saved.live.page,
-        slot: saved.live.slot,
-        clip: liveClip,
-        base: clip.snapshot.params,
-      };
+      this.live = { clip: liveClip, base: clip.snapshot.params };
       actions.unshift({
         type: "load",
         snapshot: this.live.clip.snapshot,
@@ -758,8 +682,6 @@ export class Show {
         transition: "crossfade",
         energy: this.energy,
         baseEnergy: clip.energy,
-        page: saved.live.page,
-        slot: saved.live.slot,
         clipId: clip.id,
       });
     } else if (saved.safeShowing) actions.unshift(this.safe(t));

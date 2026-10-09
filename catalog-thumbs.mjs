@@ -47,6 +47,14 @@ export class Thumbnails {
     this.#schedule();
   }
 
+  // An own look was edited: drop its picture so the next view renders anew.
+  invalidate(id) {
+    const cached = this.cache.get(id);
+    if (cached?.url) URL.revokeObjectURL(cached.url);
+    this.cache.delete(id);
+    this.queue = this.queue.filter((entry) => entry.id !== id);
+  }
+
   // A card left the view before its turn.
   forget(id) {
     this.queue = this.queue.filter((entry) => entry.id !== id);
@@ -56,11 +64,16 @@ export class Thumbnails {
     if (this.scheduled) return;
     this.scheduled = true;
     const idle = () => {
+      // A main thread that is never idle (a busy preview on a slow GPU)
+      // still gets one small step per second through the timeout.
       if (globalThis.requestIdleCallback)
-        requestIdleCallback((deadline) => {
-          this.scheduled = false;
-          this.#work(deadline);
-        });
+        requestIdleCallback(
+          (deadline) => {
+            this.scheduled = false;
+            this.#work(deadline);
+          },
+          { timeout: 1000 },
+        );
       else
         setTimeout(() => {
           this.scheduled = false;
@@ -199,7 +212,11 @@ export class Thumbnails {
     }
     let steps = 0;
     try {
-      while (deadline.timeRemaining() > STEP_MS && steps < STEPS_PER_SLICE) {
+      const forced = deadline.didTimeout === true;
+      while (
+        (forced ? steps < 1 : deadline.timeRemaining() > STEP_MS) &&
+        steps < STEPS_PER_SLICE
+      ) {
         if (!this.job) {
           const entry = this.queue.shift();
           if (!entry) break;

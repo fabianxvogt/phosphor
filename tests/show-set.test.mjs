@@ -1,107 +1,127 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
-import { initialSession } from "../session.mjs";
+import { initialSession, presetSnapshot } from "../session.mjs";
 import { PALETTES, paletteById } from "../palettes.mjs";
-import { catalogLooks, lookId } from "../catalog.mjs";
+import { catalogLooks, sortCatalog } from "../catalog.mjs";
 import {
   initialShowSet,
   validateShowSet,
   migrateV2,
   migrateV3,
+  migrateV4,
   parseShowSet,
-  freeClipId,
-  PAGES,
-  SLOTS,
+  freeLookId,
+  clipFrom,
+  defaultKeys,
+  KEYS,
   PIXEL_BUDGETS,
   AUTOPILOT_BARS,
   MIDI_TARGETS,
 } from "../show-set.mjs";
 
-const familiesOn = (page) =>
-  new Set(page.slots.filter(Boolean).map((c) => c.snapshot.scene));
 const looks = catalogLooks(scenes);
-
-test("initial set: every authored look fills the pages types-first, all autopilot (D65)", () => {
-  const set = validateShowSet(initialShowSet(scenes), scenes);
-  assert.equal(set.pages.length, PAGES);
-  assert.ok(set.pages.every((p) => p.slots.length === SLOTS));
-  assert.deepEqual(
-    set.pages.map((p) => p.name),
-    Array.from({ length: PAGES }, (_, p) => `Page ${p + 1}`),
-    "no Lab page",
-  );
-  const clips = set.pages.flatMap((p) => p.slots).filter(Boolean);
-  assert.equal(clips.length, Math.min(looks.length, PAGES * SLOTS));
-  assert.ok(clips.every((c) => c.autopilot));
-  assert.equal(new Set(clips.map((c) => c.id)).size, clips.length);
-  // Each authored look exactly once, filling slots in order (no gaps).
-  assert.equal(
-    new Set(clips.map((c) => lookId(c.snapshot))).size,
-    clips.length,
-  );
-  const flat = set.pages.flatMap((p) => p.slots);
-  assert.ok(flat.slice(0, clips.length).every(Boolean));
-  // Page 1 starts with one look of every family, of their first type.
-  assert.deepEqual(familiesOn(set.pages[0]), new Set(scenes.map((s) => s.id)));
-  // Every family's types come before its repeats.
-  for (const scene of scenes.filter((s) => s.type)) {
-    const order = clips
-      .filter((c) => c.snapshot.scene === scene.id)
-      .map((c) => c.snapshot.params[scene.type.key]);
-    const types = scene.type.values.filter((v) =>
-      scene.presets.some((p) => p.params[scene.type.key] === v),
-    );
-    assert.deepEqual(
-      new Set(order.slice(0, types.length)),
-      new Set(types),
-      scene.id,
-    );
-  }
-  // Every page with clips mixes families.
-  for (const page of set.pages.filter((p) => p.slots.some(Boolean)))
-    assert.ok(familiesOn(page).size >= Math.min(4, scenes.length));
-  assert.ok(set.autopilot.enabled && set.autopilot.random);
-  assert.equal(set.autopilot.source, "catalog");
-  assert.equal(set.options.pixelBudget, 8.3);
-  assert.deepEqual(set.ratings, {});
-  assert.equal(set.clock.manualBpm, 120);
-  assert.equal(set.pages[0].mood, null);
-  const paletteIds = set.pages[0].slots.filter(Boolean).map((c) => c.palette);
-  assert.ok(new Set(paletteIds).size >= 12, "page 1 is visibly varied");
-  for (const scene of scenes) {
-    const own = clips.filter((c) => c.snapshot.scene === scene.id);
-    assert.equal(
-      new Set(own.map((c) => c.palette)).size,
-      Math.min(own.length, PALETTES.length),
-      `${scene.id} looks differ in colour`,
-    );
-  }
+const json = (value) => JSON.parse(JSON.stringify(value));
+const ownLook = (id = "own-1", from = looks[0]) => ({
+  id,
+  name: `${from.name} (mine)`,
+  base: from.id,
+  snapshot: structuredClone(from.snapshot),
+  palette: null,
+  transition: "auto",
 });
 
-test("initial set takes the first 256 looks of a larger catalog; the rest stay in the catalog", () => {
-  // Synthetic: 40 families × 8 looks = 320 looks.
-  const many = Array.from({ length: 40 }, (_, f) => ({
-    ...scenes[f % scenes.length],
-    id: `family${f}`,
-    name: `Family ${f}`,
-    presets: Array.from({ length: 8 }, (_, i) => ({
-      ...scenes[f % scenes.length].presets[
-        i % scenes[f % scenes.length].presets.length
-      ],
-      name: `Look ${i}`,
-    })),
+// A v4 set as release D65–D67 saved it: eight pages of clips.
+function v4Set(mutate) {
+  let n = 0;
+  const pages = Array.from({ length: 8 }, (_, p) => ({
+    name: `Page ${p + 1}`,
+    mood: null,
+    slots: Array.from({ length: 32 }, () => {
+      const look = looks[n % looks.length];
+      return n++ < looks.length
+        ? clipFrom(look.snapshot, {
+            id: `clip-${n}`,
+            name: look.name,
+            palette: PALETTES[n % PALETTES.length].id,
+          })
+        : null;
+    }),
   }));
-  const set = initialShowSet(many);
-  const clips = set.pages.flatMap((p) => p.slots);
-  assert.equal(clips.length, PAGES * SLOTS);
-  assert.ok(clips.every(Boolean));
-  assert.ok(set.pages.every((p) => familiesOn(p).size >= 8));
-  // Round-robin: every family has at least six looks on the pages.
-  for (let f = 0; f < 40; f++)
-    assert.ok(
-      clips.filter((c) => c.snapshot.scene === `family${f}`).length >= 6,
-    );
+  const set = {
+    format: "phosphor-set-v4",
+    version: 4,
+    name: "Old show",
+    pages,
+    shared: { master: 0.8, hue: 0.1, zoom: 1, mirror: 2 },
+    autopilot: {
+      enabled: true,
+      random: true,
+      source: "page",
+      everyBars: 32,
+      handBackBars: 32,
+    },
+    clock: { mode: "manual", manualBpm: 126, latencyMs: 12 },
+    options: {
+      pixelBudget: 2.1,
+      bloom: 0.2,
+      echo: 0.1,
+      chroma: 0,
+      grain: 0.12,
+      vignette: 0.15,
+      autoRecovery: true,
+      reducedMotion: false,
+    },
+    midi: [{ type: "note", channel: 0, number: 36, target: "slot.3" }],
+    lineages: [],
+    ratings: { "pulse:Square Tunnel": 8.5 },
+  };
+  mutate?.(set);
+  return set;
+}
+
+test("a new set has no pages: an empty library and the catalog's first 32 looks on the keys (D68)", () => {
+  const set = initialShowSet(scenes);
+  assert.equal(set.format, "phosphor-set-v5");
+  assert.equal(set.version, 5);
+  assert.equal(set.pages, undefined);
+  assert.deepEqual(set.looks, []);
+  assert.deepEqual(set.ratings, {});
+  assert.deepEqual(set.favorites, []);
+  assert.equal(set.mood, null);
+  assert.equal(set.keys.length, KEYS);
+  assert.deepEqual(
+    set.keys,
+    sortCatalog(looks, {})
+      .slice(0, KEYS)
+      .map((look) => look.id),
+  );
+  assert.deepEqual(set.autopilot, {
+    enabled: true,
+    random: true,
+    everyBars: 16,
+    handBackBars: 32,
+    favoritesOnly: false,
+    minRating: 0,
+  });
+  assert.equal(set.options.pixelBudget, 8.3);
+  assert.deepEqual(validateShowSet(json(set), scenes), set);
+});
+
+test("keys follow favourites and ratings when derived; short catalogs pad with null", () => {
+  const set = initialShowSet(scenes);
+  set.favorites = ["julia:Cubic Lace"];
+  set.ratings = { "pulse:Square Tunnel": 9 };
+  const keys = defaultKeys(scenes, set);
+  assert.deepEqual(keys.slice(0, 2), [
+    "julia:Cubic Lace",
+    "pulse:Square Tunnel",
+  ]);
+  const one = [scenes.find((s) => s.id === "julia")];
+  const few = defaultKeys(one);
+  assert.equal(few.length, KEYS);
+  assert.equal(few.filter(Boolean).length, one[0].presets.length);
+  assert.ok(few.slice(one[0].presets.length).every((k) => k === null));
 });
 
 test("ratings round-trip; malformed entries are dropped without failing the set", () => {
@@ -127,10 +147,7 @@ test("ratings round-trip; malformed entries are dropped without failing the set"
     "acid:Mycelial City": 10,
     "gone:Retired look": 4,
   });
-  assert.deepEqual(
-    parseShowSet(JSON.parse(JSON.stringify(validated)), scenes).set,
-    validated,
-  );
+  assert.deepEqual(parseShowSet(json(validated), scenes).set, validated);
   for (const bad of [null, [], "x", 5]) {
     const copy = structuredClone(set);
     copy.ratings = bad;
@@ -138,145 +155,126 @@ test("ratings round-trip; malformed entries are dropped without failing the set"
   }
 });
 
-test("older v4 sets without ratings or a source load losslessly with defaults", () => {
-  const old = validateShowSet(initialShowSet(scenes), scenes);
-  delete old.ratings;
-  delete old.autopilot.source;
-  old.options.pixelBudget = 1;
-  const original = structuredClone(old);
-  const { set, report } = parseShowSet(JSON.parse(JSON.stringify(old)), scenes);
-  assert.deepEqual(report, []);
-  assert.deepEqual(set.ratings, {});
-  assert.equal(set.autopilot.source, "catalog");
-  const rest = structuredClone(set);
-  delete rest.ratings;
-  delete rest.autopilot.source;
-  assert.deepEqual(rest, original);
-  assert.deepEqual(old, original, "defaulting does not mutate the source");
-});
-
-test("an older set's Lab page becomes Page 8 with autopilot on; its 2.1 MP default becomes native", () => {
-  const old = validateShowSet(initialShowSet(scenes), scenes);
-  delete old.ratings;
-  const lab = old.pages[PAGES - 1];
-  lab.name = "Lab";
-  lab.slots = lab.slots.map((_, i) =>
-    i < 3
-      ? { ...old.pages[0].slots[i], id: `lab-${i}`, autopilot: false }
-      : null,
-  );
-  old.pages[0].slots[5].autopilot = false; // other pages keep their flags
-  old.options.pixelBudget = 2.1;
-  const { set, report } = parseShowSet(JSON.parse(JSON.stringify(old)), scenes);
-  assert.equal(set.pages[PAGES - 1].name, "Page 8");
-  assert.deepEqual(
-    set.pages[PAGES - 1].slots.slice(0, 3).map((c) => [c.id, c.autopilot]),
-    [
-      ["lab-0", true],
-      ["lab-1", true],
-      ["lab-2", true],
-    ],
-  );
-  assert.equal(set.pages[0].slots[5].autopilot, false);
-  assert.equal(set.options.pixelBudget, 8.3);
-  assert.equal(report.length, 2);
-  // Once saved with ratings, a deliberate "Lab" name and 2.1 MP are kept.
-  const chosen = structuredClone(set);
-  chosen.pages[PAGES - 1].name = "Lab";
-  chosen.pages[PAGES - 1].slots[0].autopilot = false;
-  chosen.options.pixelBudget = 2.1;
-  const again = parseShowSet(JSON.parse(JSON.stringify(chosen)), scenes);
-  assert.deepEqual(again.set, validateShowSet(chosen, scenes));
-  assert.deepEqual(again.report, []);
-  // A v3 file is pre-catalog too.
-  const v3 = structuredClone(old);
-  v3.format = "phosphor-set-v3";
-  v3.version = 3;
-  for (const page of v3.pages) {
-    delete page.mood;
-    for (const clip of page.slots) if (clip) delete clip.palette;
+test("favourites and keys are advisory: duplicates and malformed ids drop out", () => {
+  const set = initialShowSet(scenes);
+  set.looks = [ownLook("own-1")];
+  set.favorites = [
+    "julia:Cubic Lace",
+    "julia:Cubic Lace",
+    "own-1",
+    "own-404", // an own look that does not exist
+    42,
+    "nocolon",
+  ];
+  set.keys = ["own-1", "own-404", null, 7, "julia:Cubic Lace"];
+  const v = validateShowSet(set, scenes);
+  assert.deepEqual(v.favorites, ["julia:Cubic Lace", "own-1"]);
+  assert.equal(v.keys.length, KEYS);
+  assert.deepEqual(v.keys.slice(0, 5), [
+    "own-1",
+    null,
+    null,
+    null,
+    "julia:Cubic Lace",
+  ]);
+  for (const bad of [null, "x", {}]) {
+    const copy = structuredClone(set);
+    copy.favorites = bad;
+    copy.keys = bad;
+    const out = validateShowSet(copy, scenes);
+    assert.deepEqual(out.favorites, []);
+    assert.deepEqual(out.keys, Array(KEYS).fill(null));
   }
-  delete v3.autopilot.source;
-  const migrated = parseShowSet(v3, scenes).set;
-  assert.equal(migrated.pages[PAGES - 1].name, "Page 8");
-  assert.equal(migrated.options.pixelBudget, 8.3);
 });
 
-test("autopilot bars, sources, pixel budgets and MIDI targets (D66, D67)", () => {
+test("own looks validate their id, palette, transition and parameters", () => {
+  const ok = initialShowSet(scenes);
+  ok.looks = [
+    ownLook("own-1"),
+    { ...ownLook("own-a_b-2"), palette: "ember", transition: "melt" },
+    {
+      ...ownLook("own-3"),
+      palette: "custom",
+      snapshot: {
+        ...ownLook().snapshot,
+        palette: {
+          primary: "#123456",
+          secondary: "#654321",
+          accent: "#abcdef",
+        },
+      },
+    },
+  ];
+  const v = validateShowSet(ok, scenes);
+  assert.deepEqual(v.looks, ok.looks);
+  assert.equal(
+    validateShowSet(
+      { ...ok, looks: [{ ...ownLook(), transition: undefined }] },
+      scenes,
+    ).looks[0].transition,
+    "auto",
+  );
+  const bad = [
+    (s) => (s.looks[0].id = "julia:Cubic Lace"),
+    (s) => (s.looks[0].id = "own-has space"),
+    (s) => s.looks.push(ownLook("own-1")),
+    (s) => (s.looks[0].palette = "unknown"),
+    (s) => (s.looks[0].transition = "wipe"),
+    (s) => (s.looks[0].name = ""),
+    (s) => (s.looks[0].snapshot.scene = "gone"),
+    (s) =>
+      (s.looks[0].snapshot.params[Object.keys(s.looks[0].snapshot.params)[0]] =
+        1e9),
+    (s) => (s.looks = "x"),
+  ];
+  for (const mutate of bad) {
+    const copy = structuredClone(ok);
+    mutate(copy);
+    assert.throws(() => validateShowSet(copy, scenes), mutate.toString());
+  }
+});
+
+test("free own-look ids never collide", () => {
+  const set = initialShowSet(scenes);
+  assert.equal(freeLookId(set), "own-1");
+  set.looks = [ownLook("own-1"), ownLook("own-3")];
+  const id = freeLookId(set);
+  assert.ok(!["own-1", "own-3"].includes(id));
+  assert.match(id, /^own-\d+$/);
+});
+
+test("autopilot bars, minimum ratings, pixel budgets and MIDI targets (D66–D68)", () => {
   assert.deepEqual(AUTOPILOT_BARS, [8, 12, 16, 32, 64]);
   assert.deepEqual(PIXEL_BUDGETS, [0.5, 1, 2.1, 8.3]);
   assert.ok(MIDI_TARGETS.includes("next"));
+  assert.ok(MIDI_TARGETS.includes("slot.31"));
   for (const everyBars of AUTOPILOT_BARS)
-    for (const source of ["catalog", "page"])
-      for (const pixelBudget of PIXEL_BUDGETS) {
-        const set = initialShowSet(scenes);
-        Object.assign(set.autopilot, { everyBars, source });
-        set.options.pixelBudget = pixelBudget;
-        set.midi = [{ type: "note", channel: 0, number: 60, target: "next" }];
-        assert.deepEqual(validateShowSet(set, scenes), set);
-      }
-  const bad = initialShowSet(scenes);
-  bad.autopilot.source = "lab";
-  assert.throws(() => validateShowSet(bad, scenes), /Autopilot source/);
+    for (const pixelBudget of PIXEL_BUDGETS) {
+      const set = initialShowSet(scenes);
+      Object.assign(set.autopilot, {
+        everyBars,
+        favoritesOnly: true,
+        minRating: 6.5,
+      });
+      set.options.pixelBudget = pixelBudget;
+      set.midi = [{ type: "note", channel: 0, number: 60, target: "next" }];
+      assert.deepEqual(validateShowSet(set, scenes), set);
+    }
+  const odd = initialShowSet(scenes);
+  odd.autopilot.minRating = 3.3;
+  odd.autopilot.favoritesOnly = "yes";
+  const v = validateShowSet(odd, scenes);
+  assert.equal(v.autopilot.minRating, 0);
+  assert.equal(v.autopilot.favoritesOnly, false);
 });
 
-test("free clip ids never collide with the set's clips", () => {
-  const set = initialShowSet(scenes);
-  const id = freeClipId(set);
-  const ids = set.pages
-    .flatMap((p) => p.slots)
-    .filter(Boolean)
-    .map((c) => c.id);
-  assert.ok(!ids.includes(id));
-  set.pages[7].slots[31] = { ...set.pages[0].slots[0], id };
-  assert.notEqual(freeClipId(set), id);
-});
-
-test("v4 round-trips through JSON unchanged", () => {
-  const set = validateShowSet(initialShowSet(scenes), scenes);
-  assert.deepEqual(
-    validateShowSet(JSON.parse(JSON.stringify(set)), scenes),
-    set,
-  );
-});
-
-test("v4 clip transitions default to auto and round-trip every authored choice", () => {
-  const old = initialShowSet(scenes);
-  for (const page of old.pages)
-    for (const clip of page.slots) if (clip) delete clip.transition;
-  const original = structuredClone(old);
-  const defaulted = parseShowSet(JSON.parse(JSON.stringify(old)), scenes).set;
-  for (const page of defaulted.pages)
-    for (const clip of page.slots)
-      if (clip) assert.equal(clip.transition, "auto");
-  assert.deepEqual(old, original, "defaulting does not mutate the source");
-  for (const transition of ["auto", "crossfade", "cut", "dissolve", "melt"]) {
-    const set = initialShowSet(scenes);
-    set.pages[0].slots[0].transition = transition;
-    assert.deepEqual(
-      parseShowSet(JSON.parse(JSON.stringify(set)), scenes).set,
-      set,
-    );
-  }
-});
-
-test("unknown or non-string clip transitions are rejected", () => {
-  for (const transition of ["wipe", "", null, 0, false, {}]) {
-    const set = initialShowSet(scenes);
-    set.pages[0].slots[0].transition = transition;
-    assert.throws(() => validateShowSet(set, scenes), /Clip transition/);
-  }
-});
-
-test("older v4 sets default grain/vignette without changing any existing field", () => {
+test("older v5 sets default grain/vignette without changing any existing field", () => {
   const old = initialShowSet(scenes);
   delete old.options.grain;
   delete old.options.vignette;
   old.options.bloom = 0.73;
-  old.options.echo = 0.41;
-  old.options.chroma = 0.19;
   const original = structuredClone(old);
-  const { set, report } = parseShowSet(JSON.parse(JSON.stringify(old)), scenes);
+  const { set, report } = parseShowSet(json(old), scenes);
   assert.deepEqual(report, []);
   assert.equal(set.options.grain, 0.12);
   assert.equal(set.options.vignette, 0.15);
@@ -292,10 +290,7 @@ test("post ceilings round-trip, including explicit zero, and reject invalid valu
     const set = initialShowSet(scenes);
     set.options.grain = value;
     set.options.vignette = 1 - value;
-    assert.deepEqual(
-      parseShowSet(JSON.parse(JSON.stringify(set)), scenes).set,
-      set,
-    );
+    assert.deepEqual(parseShowSet(json(set), scenes).set, set);
   }
   for (const key of ["grain", "vignette"]) {
     for (const value of [-0.01, 1.01, NaN, Infinity, "0.2", null]) {
@@ -306,130 +301,12 @@ test("post ceilings round-trip, including explicit zero, and reject invalid valu
   }
 });
 
-test("v3 migration preserves every clip and set field, including hand-set colours", () => {
-  const v3 = initialShowSet(scenes);
-  v3.format = "phosphor-set-v3";
-  v3.version = 3;
-  v3.name = "Owner's eight-page show";
-  for (const [p, page] of v3.pages.entries()) {
-    delete page.mood;
-    for (const [s, clip] of page.slots.entries()) {
-      if (!clip) continue;
-      delete clip.palette;
-      delete clip.transition;
-      clip.name = `Authored ${p}:${s}`;
-      clip.snapshot.seed = 1000 + p * SLOTS + s;
-      clip.snapshot.palette = {
-        primary: "#aB1234",
-        secondary: "#456789",
-        accent: "#fedCbA",
-      };
-      clip.energy = s / SLOTS;
-      clip.fade = s;
-      clip.quantize = ["now", "beat", "bar"][s % 3];
-      clip.autopilot = s % 2 === 0;
-    }
-  }
-  v3.pages[3].slots[17] = structuredClone(v3.pages[0].slots[1]);
-  v3.pages[3].slots[17].id = "second-page";
-  v3.shared = { master: 0.7, hue: -0.2, zoom: 1.2, mirror: 3 };
-  v3.clock = { mode: "manual", manualBpm: 137, latencyMs: -40 };
-  v3.autopilot = {
-    enabled: false,
-    random: false,
-    everyBars: 64,
-    handBackBars: 48,
-  };
-  v3.options = {
-    ...v3.options,
-    pixelBudget: 1,
-    bloom: 0.7,
-    echo: 0.4,
-    chroma: 0.2,
-  };
-  delete v3.ratings; // v3 predates the catalog
-  v3.midi = [{ type: "note", channel: 2, number: 40, target: "slot.17" }];
-  const snapshot = v3.pages[0].slots[0].snapshot;
-  v3.lineages = [
-    {
-      selectedId: "owner-root",
-      nodes: [
-        {
-          id: "owner-root",
-          parentId: null,
-          name: snapshot.preset,
-          scene: snapshot.scene,
-          seed: snapshot.seed,
-          params: { ...snapshot.params },
-        },
-      ],
-    },
-  ];
-  const original = structuredClone(v3);
-  const { set, report } = migrateV3(v3, scenes);
-  assert.deepEqual(report, [], "v3 has no dropped fields");
-  assert.equal(set.version, 4);
-  assert.ok(set.pages.every((page) => page.mood === null));
-  const roundTrip = parseShowSet(JSON.parse(JSON.stringify(set)), scenes).set;
-  roundTrip.format = original.format;
-  roundTrip.version = 3;
-  assert.deepEqual(roundTrip.ratings, {});
-  delete roundTrip.ratings;
-  assert.equal(roundTrip.autopilot.source, "catalog");
-  delete roundTrip.autopilot.source;
-  for (const page of roundTrip.pages) {
-    delete page.mood;
-    for (const clip of page.slots) {
-      if (!clip) continue;
-      assert.equal(clip.palette, "custom");
-      delete clip.palette;
-      assert.equal(clip.transition, "auto");
-      delete clip.transition;
-    }
-  }
-  assert.deepEqual(roundTrip, original);
-  assert.deepEqual(v3, original, "migration does not mutate the source");
-  assert.deepEqual(parseShowSet(v3, scenes).set, set);
-});
-
-test("library IDs normalise colours; custom palettes retain their authored colours", () => {
-  const set = initialShowSet(scenes);
-  const clip = set.pages[0].slots[0];
-  clip.palette = "ember";
-  clip.snapshot.palette = {
-    primary: "#123456",
-    secondary: "#654321",
-    accent: "#abcdef",
-  };
-  const custom = set.pages[0].slots[1];
-  custom.palette = "custom";
-  custom.snapshot.palette = { ...clip.snapshot.palette };
-  const validated = validateShowSet(set, scenes);
-  assert.deepEqual(
-    validated.pages[0].slots[0].snapshot.palette,
-    paletteById("ember").colors,
-  );
-  assert.deepEqual(
-    validated.pages[0].slots[1].snapshot.palette,
-    custom.snapshot.palette,
-  );
-  assert.notDeepEqual(
-    clip.snapshot.palette,
-    paletteById("ember").colors,
-    "validation is non-mutating",
-  );
-  assert.equal(PALETTES.length, 24);
-});
-
 test("invalid values are rejected before anything is applied", () => {
   const base = initialShowSet(scenes);
   const bad = [
-    (s) => (s.pages = s.pages.slice(1)),
-    (s) => (s.pages[0].slots[0].energy = 2),
-    (s) => (s.pages[0].slots[0].quantize = "phrase"),
-    (s) => (s.pages[0].slots[1].id = s.pages[0].slots[0].id),
-    (s) => (s.pages[0].slots[0].palette = "unknown"),
-    (s) => (s.pages[0].mood = "unknown"),
+    (s) => (s.version = 4),
+    (s) => (s.format = "phosphor-set-v4"),
+    (s) => (s.mood = "unknown"),
     (s) => (s.shared.zoom = 9),
     (s) => (s.autopilot.everyBars = 24),
     (s) => (s.clock.mode = "midi"),
@@ -443,7 +320,141 @@ test("invalid values are rejected before anything is applied", () => {
   }
 });
 
-test("v2 score migrates cues to clips in order and reports what is dropped", () => {
+test("v4 → v5: pages go; authored clips are catalog looks, edited ones become own looks (D68)", () => {
+  const old = v4Set((set) => {
+    // An edited clip: different params, a custom palette and a transition.
+    const edited = set.pages[0].slots[2];
+    const scene = scenes.find((s) => s.id === edited.snapshot.scene);
+    const key = scene.schema.find((f) => f.step < 1).key;
+    const field = scene.schema.find((f) => f.key === key);
+    edited.snapshot.params[key] =
+      edited.snapshot.params[key] === field.max ? field.min : field.max;
+    edited.name = "My tweak";
+    edited.palette = "custom";
+    edited.transition = "melt";
+    // A reseeded duplicate, and a clip of a look that no longer exists.
+    set.pages[3].slots[31] = {
+      ...structuredClone(set.pages[0].slots[0]),
+      id: "page4/dup",
+    };
+    set.pages[3].slots[31].snapshot.seed += 1;
+    set.pages[3].slots[30] = {
+      ...structuredClone(set.pages[0].slots[1]),
+      id: "renamed",
+    };
+    set.pages[3].slots[30].snapshot.preset = "Retired look";
+    set.pages[0].mood = "cold";
+  });
+  const original = structuredClone(old);
+  const { set, report } = migrateV4(old, scenes);
+  assert.deepEqual(old, original, "migration does not mutate the source");
+  assert.equal(set.format, "phosphor-set-v5");
+  assert.equal(set.pages, undefined);
+  assert.deepEqual(
+    set.looks.map((look) => [look.id, look.name, look.base]),
+    [
+      [
+        "own-clip-3",
+        "My tweak",
+        old.pages[0].slots[2].snapshot.scene +
+          ":" +
+          old.pages[0].slots[2].snapshot.preset,
+      ],
+      ["own-renamed", old.pages[0].slots[1].name, null],
+      ["own-page4_dup", old.pages[0].slots[0].name, looks[0].id],
+    ],
+  );
+  const tweak = set.looks[0];
+  assert.equal(tweak.palette, "custom");
+  assert.equal(tweak.transition, "melt");
+  assert.deepEqual(tweak.snapshot, old.pages[0].slots[2].snapshot);
+  assert.deepEqual(set.ratings, old.ratings);
+  assert.equal(set.mood, "cold");
+  assert.equal(set.options.pixelBudget, 8.3, "old default 2.1 MP → native");
+  assert.deepEqual(set.shared, old.shared);
+  assert.deepEqual(set.clock, old.clock);
+  assert.deepEqual(set.midi, old.midi);
+  assert.equal(set.autopilot.everyBars, 32);
+  assert.equal(set.autopilot.source, undefined);
+  assert.equal(set.keys.length, KEYS);
+  assert.ok(report.some((line) => /3 edited clip/.test(line)));
+  assert.ok(report.some((line) => /Pages are gone/.test(line)));
+  assert.ok(report.some((line) => /native/.test(line)));
+  assert.deepEqual(parseShowSet(json(original), scenes).set, set);
+  assert.deepEqual(parseShowSet(json(set), scenes).set, set, "v5 round-trips");
+});
+
+test("v4 → v5 keeps a chosen budget and labels unsafe clip ids", () => {
+  const { set } = migrateV4(
+    v4Set((s) => {
+      s.options.pixelBudget = 1;
+      s.pages[1].slots[0] = {
+        ...structuredClone(s.pages[0].slots[0]),
+        id: "ünïcode id!",
+        name: "Odd",
+      };
+      s.pages[1].slots[0].snapshot.seed = 99;
+    }),
+    scenes,
+  );
+  assert.equal(set.options.pixelBudget, 1);
+  assert.match(set.looks[0].id, /^own-[A-Za-z0-9_-]+$/);
+});
+
+test("v3 migrates through v4 to v5, keeping hand-set colours as own looks", () => {
+  const v3 = v4Set();
+  v3.format = "phosphor-set-v3";
+  v3.version = 3;
+  delete v3.ratings;
+  delete v3.autopilot.source;
+  for (const page of v3.pages) {
+    delete page.mood;
+    for (const clip of page.slots) {
+      if (!clip) continue;
+      delete clip.palette;
+      delete clip.transition;
+    }
+  }
+  const hand = v3.pages[0].slots[4];
+  hand.snapshot.seed = 4242;
+  hand.snapshot.palette = {
+    primary: "#aB1234",
+    secondary: "#456789",
+    accent: "#fedCbA",
+  };
+  const original = structuredClone(v3);
+  const { set } = migrateV3(v3, scenes);
+  assert.deepEqual(v3, original, "migration does not mutate the source");
+  assert.equal(set.version, 5);
+  assert.equal(set.looks.length, 1);
+  assert.equal(set.looks[0].palette, "custom");
+  assert.deepEqual(set.looks[0].snapshot.palette, hand.snapshot.palette);
+  assert.deepEqual(parseShowSet(v3, scenes).set, set);
+});
+
+test("library palettes never reinterpret a custom own look's colours", () => {
+  const set = initialShowSet(scenes);
+  const colors = {
+    primary: "#123456",
+    secondary: "#654321",
+    accent: "#abcdef",
+  };
+  set.looks = [
+    {
+      ...ownLook("own-1"),
+      palette: "custom",
+      snapshot: { ...ownLook().snapshot, palette: colors },
+    },
+  ];
+  assert.deepEqual(
+    validateShowSet(set, scenes).looks[0].snapshot.palette,
+    colors,
+  );
+  assert.equal(PALETTES.length, 24);
+  assert.ok(paletteById("ember"));
+});
+
+test("v2 score migrates cues to own looks or catalog looks and reports what is dropped", () => {
   const v2 = initialSession(scenes);
   v2.cues[0].keyframes.push({ beat: 8, snapshot: v2.cues[0].snapshot });
   v2.midi.push(
@@ -451,13 +462,19 @@ test("v2 score migrates cues to clips in order and reports what is dropped", () 
     { type: "note", channel: 0, number: 36, target: "go" },
   );
   const { set, report } = migrateV2(v2, scenes);
-  const clips = set.pages[0].slots.filter(Boolean);
-  assert.equal(clips.length, v2.cues.length);
-  clips.forEach((clip, i) => {
-    assert.deepEqual(clip.snapshot, v2.cues[i].snapshot);
-    assert.equal(clip.energy, v2.cues[i].energy);
-    assert.equal(clip.fade, v2.cues[i].transition);
-  });
+  assert.equal(set.version, 5);
+  // Every cue is either an authored look in the catalog or an own look.
+  const authored = new Set(looks.map((look) => look.id));
+  for (const cue of v2.cues) {
+    const id = `${cue.snapshot.scene}:${cue.snapshot.preset}`;
+    const own = set.looks.find(
+      (look) =>
+        look.snapshot.scene === cue.snapshot.scene &&
+        look.snapshot.seed === cue.snapshot.seed &&
+        look.name === cue.name,
+    );
+    assert.ok(authored.has(id) || own, cue.name);
+  }
   assert.deepEqual(set.midi, [
     { type: "cc", channel: 0, number: 7, target: "master" },
   ]);
@@ -466,20 +483,12 @@ test("v2 score migrates cues to clips in order and reports what is dropped", () 
   assert.ok(report.some((line) => /"go" dropped/.test(line)));
 });
 
-test("parseShowSet routes v4 and v2 files to v4", () => {
-  const v4 = validateShowSet(initialShowSet(scenes), scenes);
-  assert.deepEqual(
-    parseShowSet(JSON.parse(JSON.stringify(v4)), scenes).set,
-    v4,
-  );
-  const v2 = JSON.parse(JSON.stringify(initialSession(scenes)));
-  const migrated = parseShowSet(v2, scenes).set;
-  assert.equal(migrated.format, "phosphor-set-v4");
-  assert.ok(migrated.pages.every((page) => page.mood === null));
-  assert.ok(
-    migrated.pages
-      .flatMap((page) => page.slots)
-      .filter(Boolean)
-      .every((clip) => clip.palette === "custom"),
-  );
+test("parseShowSet routes v5, v4, v3 and v2 files to v5", () => {
+  const v5 = validateShowSet(initialShowSet(scenes), scenes);
+  assert.deepEqual(parseShowSet(json(v5), scenes).set, v5);
+  assert.equal(parseShowSet(json(v4Set()), scenes).set.version, 5);
+  const v2 = json(initialSession(scenes));
+  assert.equal(parseShowSet(v2, scenes).set.format, "phosphor-set-v5");
+  assert.throws(() => parseShowSet({ format: "nope" }, scenes));
+  assert.ok(presetSnapshot);
 });

@@ -50,9 +50,9 @@ try {
   const family = await stage.evaluate((id) => {
     const { engine, scenes, show } = window.__phosphorStage;
     const scene = scenes.find((s) => s.id === id);
-    const clip = show.set.pages
-      .flatMap((p) => p.slots)
-      .find((c) => c?.snapshot.scene === id);
+    const clip = [...show.catalogClips.values()].find(
+      (c) => c.snapshot.scene === id,
+    );
     const gl = engine.gl;
     const debug = gl.getExtension("WEBGL_debug_renderer_info");
     return (

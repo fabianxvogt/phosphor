@@ -187,14 +187,17 @@ try {
   );
   pass("control opens the stage, the stage starts and reports back");
 
-  await control.keyboard.press("KeyW"); // slot 9 (QWERTY/QWERTZ W)
+  await control.keyboard.press("KeyW"); // key 9 (QWERTY/QWERTZ W)
   await waitFor(
     stage,
-    () => window.__phosphorStage.show.live?.slot === 9,
+    () => {
+      const { show } = window.__phosphorStage;
+      return !!show.set.keys[9] && show.live?.clip.id === show.set.keys[9];
+    },
     null,
-    "grid key triggers slot 9",
+    "grid key 9 plays the tenth card",
   );
-  pass("grid key triggers its clip on the stage");
+  pass("grid key plays the look on that card on the stage (D68)");
 
   // Panic under slider focus: the old instrument ignored B/Esc here.
   await control.locator("#fader-master").focus();
@@ -264,8 +267,8 @@ try {
   );
   pass("configuration edits reach the stage");
 
-  // Catalog (D65): every look is listed; a star rating reaches the stage's
-  // set; Play plays the look live as an unsaved clip.
+  // Catalog (D65, D68): every look is listed; a star rating and a favourite
+  // reach the stage's set; the keys follow the view; Play plays live.
   const catalog = await control.evaluate(() => ({
     title: document.getElementById("catalogTitle").textContent,
     cards: document.querySelectorAll(".look").length,
@@ -295,18 +298,29 @@ try {
     rated,
     "the rated look sorts first",
   );
+  const loved = await cards.nth(6).evaluate((node) => node.card.look.id);
+  await cards.nth(6).locator(".heart").click();
+  await control.mouse.move(2, 2);
+  await waitFor(
+    stage,
+    (id) => {
+      const { set } = window.__phosphorStage.show;
+      return set.favorites.includes(id) && set.keys[0] === id;
+    },
+    loved,
+    "a favourite sorts first and takes the first key",
+  );
   const played = await cards.nth(4).evaluate((node) => node.card.look.id);
   await cards.nth(4).locator(".play").click();
   await waitFor(
     stage,
-    (id) => {
-      const live = window.__phosphorStage.show.live;
-      return live?.clip.id === id && live.page === -1;
-    },
+    (id) => window.__phosphorStage.show.live?.clip.id === id,
     played,
     "Play plays the look live",
   );
-  pass("catalog lists every look; ratings reach the stage; Play plays live");
+  pass(
+    "catalog lists every look; ratings and favourites reach the stage; keys follow the view; Play plays live",
+  );
 
   // Next (D66): Shift+Space plays autopilot's next pick without taking over.
   const beforeNext = await stage.evaluate(() => ({
@@ -335,12 +349,15 @@ try {
   // Control reload: the stage keeps rendering and the control reconnects.
   // Leave the text field: typing there must not trigger clips.
   await control.evaluate(() => document.activeElement?.blur());
-  await control.keyboard.press("KeyE"); // slot 10
+  await control.keyboard.press("KeyE"); // key 10
+  const key10 = await stage.evaluate(
+    () => window.__phosphorStage.show.set.keys[10],
+  );
   await waitFor(
     stage,
-    () => window.__phosphorStage.show.live?.slot === 10,
-    null,
-    "slot 10",
+    (id) => window.__phosphorStage.show.live?.clip.id === id,
+    key10,
+    "key 10",
   );
   const before = await stage.evaluate(readStage);
   await control.reload();
@@ -355,7 +372,7 @@ try {
     after.frames > before.frames,
     "stage kept rendering through the control reload",
   );
-  assert.equal(after.status.live.slot, 10);
+  assert.equal(after.status.live.look, key10);
   await waitFor(
     control,
     () => document.getElementById("previewEmpty").hidden,
@@ -461,7 +478,7 @@ try {
   await stage.reload();
   await waitFor(stage, () => !!window.__phosphorStage, null, "stage reloads");
   const restored = await stage.evaluate(readStage);
-  assert.equal(restored.status.live.slot, 10);
+  assert.equal(restored.status.live.look, key10);
   assert.equal(restored.status.energy, 0.8);
   assert.equal(restored.status.shared.zoom, 1.4);
   pass("stage reload restores clip, energy and shared controls");

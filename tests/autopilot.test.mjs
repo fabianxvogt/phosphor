@@ -10,9 +10,12 @@ const clip = (id, energy, autopilot = true) => ({
   autopilot,
 });
 const pool = [0.2, 0.3, 0.5, 0.5, 0.6, 0.7, 0.8, 0.9].map((e, i) => ({
-  slot: i,
+  order: i,
   clip: clip(`c${i}`, e),
 }));
+// A trigger carries its clip; its position in a pool by clip id.
+const at = (trigger, from = pool) =>
+  from.findIndex((p) => p.clip.id === trigger.clip.id);
 
 function play(pilot, bars, { events = {}, startEnergy = 0.5 } = {}) {
   let current = null,
@@ -29,7 +32,7 @@ function play(pilot, bars, { events = {}, startEnergy = 0.5 } = {}) {
     for (const a of actions) {
       log.push({ bar, ...a });
       // Energy is show state (D54): a trigger does not reset it.
-      if (a.type === "trigger") current = pool[a.slot];
+      if (a.type === "trigger") current = pool[at(a)];
       if (a.type === "energy") energy = a.value;
     }
   }
@@ -68,7 +71,7 @@ test("random mode plays each clip a uniformly random 8, 12 or 16 bars (D66)", ()
   assert.equal(pilot.nextChange - log.at(-1).bar, pilot.duration);
 });
 
-test("random picks follow pool weights; weight 0 never plays (page ratings)", () => {
+test("random picks follow pool weights; weight 0 never plays", () => {
   const weighted = pool.map((p, i) => ({
     ...p,
     weight: i === 0 ? 10 : i === 1 ? 0 : 1,
@@ -77,8 +80,9 @@ test("random picks follow pool weights; weight 0 never plays (page ratings)", ()
   const counts = new Array(8).fill(0);
   for (let seed = 1; seed <= 4000; seed++)
     counts[
-      new Autopilot({ seed }).next({ bar: 0, pool: weighted, current: null })
-        .slot
+      at(
+        new Autopilot({ seed }).next({ bar: 0, pool: weighted, current: null }),
+      )
     ]++;
   assert.equal(counts[1], 0, "rated 0: never");
   assert.ok(
@@ -96,25 +100,23 @@ test("random picks follow pool weights; weight 0 never plays (page ratings)", ()
   for (let bar = 0; bar < 16 * 500; bar++)
     for (const a of pilot.update({ bar, pool: weighted, current, energy: 0.5 }))
       if (a.type === "trigger") {
-        assert.notEqual(a.slot, 1);
-        current = weighted[a.slot];
+        assert.notEqual(at(a), 1);
+        current = weighted[at(a)];
       }
 });
 
-test("catalog source avoids the last 24 looks; page source the last six", () => {
-  const looks = Array.from({ length: 40 }, (_, i) => ({
-    slot: -1,
+test("avoids the last 24 looks in a large pool", () => {
+  const looks = Array.from({ length: 60 }, (_, i) => ({
     order: i,
     clip: { ...clip(`look-${i}`, 0.5), transition: "auto" },
   }));
-  const pilot = new Autopilot({ seed: 4, source: "catalog" });
+  const pilot = new Autopilot({ seed: 4 });
   let current = null;
   const ids = [];
   for (let bar = 0; bar < 16 * 300; bar++)
     for (const a of pilot.update({ bar, pool: looks, current, energy: 0.5 }))
       if (a.type === "trigger") {
-        assert.equal(a.slot, -1);
-        assert.ok(a.clip, "catalog triggers carry their clip");
+        assert.ok(a.clip, "triggers carry their clip");
         ids.push(a.clip.id);
         current = looks.find((l) => l.clip.id === a.clip.id);
       }
@@ -133,17 +135,17 @@ test("Next plays the pick on the next beat with the regular fade and re-arms the
   assert.equal(next.type, "trigger");
   assert.equal(next.quantize, "beat");
   assert.equal(next.fade, 12);
-  assert.notEqual(next.slot, 0);
+  assert.notEqual(at(next), 0);
   assert.ok(["crossfade", "dissolve", "melt"].includes(next.transition));
   assert.ok(RANDOM_BARS.includes(pilot.duration));
   assert.equal(pilot.nextChange, 5 + pilot.duration);
   assert.equal(pilot.nextDrift, 8, "drift waits for the three-bar fade");
   assert.equal(pilot.manualUntil, before, "not a performer takeover");
   assert.equal(pilot.enabled, false);
-  assert.equal(pilot.history.at(-1), pool[next.slot].clip.id);
+  assert.equal(pilot.history.at(-1), next.clip.id);
   const ordered = new Autopilot({ random: false, everyBars: 32 });
   const step = ordered.next({ bar: 2, pool, current: pool[3] });
-  assert.equal(step.slot, 4);
+  assert.equal(at(step), 4);
   assert.equal(step.transition, "crossfade");
   assert.equal(ordered.nextChange, 34);
   assert.equal(
@@ -152,13 +154,13 @@ test("Next plays the pick on the next beat with the regular fade and re-arms the
   );
 });
 
-test("never repeats any of the last six clips", () => {
+test("a small pool avoids recent looks while keeping more than half to choose from", () => {
   const log = play(new Autopilot({ everyBars: 16, seed: 3 }), 16 * 60).filter(
     (a) => a.type === "trigger",
   );
   for (let i = 0; i < log.length; i++)
-    for (let j = Math.max(0, i - 6); j < i; j++)
-      assert.notEqual(log[i].slot, log[j].slot, `bar ${log[i].bar}`);
+    for (let j = Math.max(0, i - 3); j < i; j++)
+      assert.notEqual(at(log[i]), at(log[j]), `bar ${log[i].bar}`);
 });
 
 test("only plays clips allowed for autopilot", () => {
@@ -171,8 +173,8 @@ test("only plays clips allowed for autopilot", () => {
   for (let bar = 0; bar < 400; bar++)
     for (const a of pilot.update({ bar, pool: limited, current, energy: 0.5 }))
       if (a.type === "trigger") {
-        assert.ok(a.slot < 3);
-        current = limited[a.slot];
+        assert.ok(at(a, limited) < 3);
+        current = limited[at(a, limited)];
       }
 });
 
@@ -185,7 +187,7 @@ test("manual input takes over and control returns after the hand-back", () => {
     for (const a of pilot.update({ bar, pool, current, energy: 0.5 }))
       if (a.type === "trigger") {
         triggers.push(bar);
-        current = pool[a.slot];
+        current = pool[at(a)];
       }
   }
   assert.ok(
@@ -195,7 +197,7 @@ test("manual input takes over and control returns after the hand-back", () => {
   assert.ok(triggers.includes(42));
 });
 
-test("drop melts fast to a higher-energy clip; breakdown lowers energy and halves speed", () => {
+test("drop melts fast to another look; breakdown lowers energy and halves speed", () => {
   const log = play(new Autopilot({ everyBars: 64, random: false }), 40, {
     events: { 4: "breakdown", 20: "drop" },
   });
@@ -214,7 +216,6 @@ test("drop melts fast to a higher-energy clip; breakdown lowers energy and halve
   const trigger = drop.find((a) => a.type === "trigger");
   assert.ok(trigger && trigger.fade === 4); // smooth, never a hard cut
   assert.equal(trigger.transition, "melt");
-  assert.ok(pool[trigger.slot].clip.energy >= 0.5);
 });
 
 test("breakdown/build/drop chains settle back instead of ratcheting energy up (D54)", () => {
@@ -236,7 +237,7 @@ test("breakdown/build/drop chains settle back instead of ratcheting energy up (D
   }
 });
 
-test("never touches master, mirror, blackout, flash or page", () => {
+test("never touches master, mirror, blackout or flash", () => {
   const log = play(new Autopilot({ everyBars: 16, seed: 9 }), 2000, {
     events: Object.fromEntries(
       Array.from({ length: 100 }, (_, i) => [
@@ -257,12 +258,12 @@ test("random mode: regular changes are random, fade over three bars and drift be
   const log = play(new Autopilot({ everyBars: 16, seed: 5 }), 16 * 40);
   const triggers = log.filter((a) => a.type === "trigger");
   assert.ok(triggers.every((a) => a.fade >= 12));
-  const steps = triggers.slice(1).map((a, i) => a.slot - triggers[i].slot);
+  const steps = triggers.slice(1).map((a, i) => at(a) - at(triggers[i]));
   assert.ok(
     steps.some((s) => s !== 1 && s !== -7),
-    "not just page order",
+    "not just catalog order",
   );
-  assert.ok(new Set(triggers.map((a) => a.slot)).size === pool.length);
+  assert.ok(new Set(triggers.map((a) => at(a))).size === pool.length);
   // Drift starts once the 3-bar fade is over, then every 8 bars until the
   // next change.
   const drifts = log.filter((a) => a.type === "drift").map((a) => a.bar);
@@ -273,10 +274,10 @@ test("random mode: regular changes are random, fade over three bars and drift be
   }
 });
 
-test("in-order mode walks the page in slot order and never drifts", () => {
+test("in-order mode walks the catalog in order and never drifts", () => {
   const log = play(new Autopilot({ everyBars: 16, random: false }), 16 * 12);
   assert.deepEqual(
-    log.filter((a) => a.type === "trigger").map((a) => a.slot),
+    log.filter((a) => a.type === "trigger").map((a) => at(a)),
     [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3],
   );
   assert.ok(!log.some((a) => a.type === "drift"));
@@ -346,7 +347,7 @@ test("autopilot honours smooth clip choices but never cuts, including breakdowns
       }))
         if (action.type === "trigger") {
           triggers.push(action);
-          current = choices[action.slot];
+          current = choices[at(action, choices)];
         }
     }
     assert.ok(triggers.length > 3);

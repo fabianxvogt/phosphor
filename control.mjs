@@ -9,9 +9,8 @@ import {
   validateShowSet,
   parseShowSet,
   clipFrom,
-  freeClipId,
-  SLOTS,
-  QUANTIZE,
+  freeLookId,
+  KEYS,
   TRANSITIONS,
   AUTOPILOT_BARS,
   PIXEL_BUDGETS,
@@ -23,7 +22,12 @@ import { actionFor, keyLabels, GRID_CODES } from "./keymap.mjs";
 import { mutatePreset } from "./evolution.mjs";
 import { AudioEngine, MidiInput } from "./audio.mjs";
 import { routeMidi } from "./midi-map.mjs";
-import { catalogLooks, catalogClip } from "./catalog.mjs";
+import {
+  catalogLooks,
+  lookPalette,
+  MAX_RATING,
+  OWN_PREFIX,
+} from "./catalog.mjs";
 import { Thumbnails } from "./catalog-thumbs.mjs";
 import { CatalogPanel } from "./control-catalog.mjs";
 
@@ -47,9 +51,9 @@ let { set, report } = loadSet(localStorage, scenes);
 let status = null; // last stage status
 let lastStatusAt = -Infinity; // no stage heard yet (0 would read as alive for 2 s)
 let labels = {};
-let selected = { page: 0, slot: 0 };
-let draft = null; // clip being edited
-let draftTarget = null; // editor destination; the stage may change the grid page
+// The look in the editor (D68): { id, own, base, name, snapshot, palette,
+// transition }. Edits stay a draft until saved as an own look.
+let draft = null;
 let settingsLocked = false;
 let localPerformance = null;
 let handoffPending = false;
@@ -102,6 +106,27 @@ function rate(id, rating) {
   saveSoon();
   clearTimeout(ratingSendTimer);
   ratingSendTimer = setTimeout(() => send({ type: "set", set }), 400);
+}
+// Favourites (D68) behave like ratings: library data, allowed under Lock.
+function favorite(id, on) {
+  const list = set.favorites.filter((f) => f !== id);
+  if (on) list.push(id);
+  set.favorites = list;
+  localPerformance?.updateSet(set);
+  saveSoon();
+  clearTimeout(ratingSendTimer);
+  ratingSendTimer = setTimeout(() => send({ type: "set", set }), 400);
+}
+// The grid keys play the first 32 cards of the catalog's current view (D68).
+let keysTimer;
+function setKeys(ids) {
+  const keys = Array.from({ length: KEYS }, (_, i) => ids[i] ?? null);
+  if (keys.every((id, i) => id === set.keys[i])) return;
+  set.keys = keys;
+  localPerformance?.updateSet(set);
+  saveSoon();
+  clearTimeout(keysTimer);
+  keysTimer = setTimeout(() => send({ type: "set", set }), 150);
 }
 // Coalesce re-renders to the next frame: rendering synchronously from a
 // change/blur handler would replace the element that is firing the event.
@@ -173,8 +198,14 @@ function act(action) {
   resumeLocalPerformance();
   if (stageAlive()) send({ type: "action", action });
   else localPerformance?.command(action, now());
-  if (action.type === "slot" && set.pages[selected.page]?.slots[action.index])
-    selectSlot(selected.page, action.index, false);
+  // A grid key or a catalog Play also opens that look in the editor.
+  const id =
+    action.type === "slot"
+      ? set.keys[action.index]
+      : action.type === "look"
+        ? action.id
+        : null;
+  if (id && lookById(id)) selectLook(id, false);
   renderStatus();
 }
 function setClock(mode, bpm) {
@@ -267,7 +298,6 @@ channel.onmessage = ({ data }) => {
       status = data;
       lastStatusAt = performance.now();
       stopLocalDemo();
-      selected.page = data.status.page;
       // The stage may change shared controls and autopilot from its own keys
       // and autopilot; keep the set in step so a later edit doesn't undo them.
       set.shared = { ...data.status.shared };
@@ -323,95 +353,10 @@ for (const kind of ["keydown", "keyup"])
     const action = actionFor(event);
     if (!action) return;
     event.preventDefault();
-    if (action.type === "page") {
-      set.pages[action.index] && (selected.page = action.index);
-    }
     act(action);
   });
 
-// --- rendering: grid, pages, readouts -----------------------------------------
-function renderPages() {
-  const livePage = performanceStatus()?.page ?? selected.page;
-  $("pages").replaceChildren(
-    ...set.pages.map((page, i) =>
-      el("button", {
-        textContent: `${i + 1} · ${page.name}`,
-        role: "tab",
-        ariaSelected: String(i === selected.page),
-        ariaPressed: String(i === livePage),
-        onclick: () => {
-          selected.page = i;
-          act({ type: "page", index: i });
-          render();
-        },
-      }),
-    ),
-  );
-}
-function renderGrid() {
-  const page = selected.page;
-  const state = performanceStatus();
-  const live = state?.live;
-  const pending = state?.pending;
-  $("grid").replaceChildren(
-    ...set.pages[page].slots.map((clip, slot) => {
-      const scene = clip && sceneById(clip.snapshot.scene);
-      const cell = el(
-        "button",
-        {
-          className: "cell",
-          ariaLabel: clip
-            ? `Slot ${labels[GRID_CODES[slot]]}: ${clip.name}`
-            : `Slot ${labels[GRID_CODES[slot]]}: empty`,
-          onclick: () => {
-            selectSlot(page, slot);
-            if (stageAlive() && clip) {
-              if (performanceStatus().page !== page)
-                act({ type: "page", index: page });
-              act({ type: "slot", index: slot });
-            }
-          },
-        },
-        el("span", {
-          className: "key",
-          textContent: labels[GRID_CODES[slot]] ?? "",
-        }),
-        el("span", { className: "name", textContent: clip ? clip.name : "—" }),
-        el("span", {
-          className: "family",
-          textContent: scene ? scene.name : "",
-        }),
-      );
-      if (clip)
-        cell.append(
-          el("span", {
-            className: "energy",
-            style: `width:${Math.round(clip.energy * 100)}%`,
-          }),
-        );
-      cell.classList.toggle("empty", !clip);
-      cell.classList.toggle("noauto", !!clip && !clip.autopilot);
-      cell.classList.toggle(
-        "unavailable",
-        !!clip && !!state?.disabled?.includes(clip.snapshot.scene),
-      );
-      cell.classList.toggle(
-        "live",
-        !!live && live.page === page && live.slot === slot,
-      );
-      cell.classList.toggle(
-        "pending",
-        !!pending && pending.page === page && pending.slot === slot,
-      );
-      cell.classList.toggle(
-        "selected",
-        draftTarget?.page === page && draftTarget?.slot === slot,
-      );
-      return cell;
-    }),
-  );
-}
-
+// --- rendering: readouts -------------------------------------------------------
 const SHARED = [
   { key: "master", label: "Master", min: 0, max: 1, step: 0.01 },
   { key: "energy", label: "Energy", min: 0, max: 1, step: 0.01 },
@@ -466,12 +411,9 @@ function renderShared() {
 let familyKey = null;
 function renderFamily() {
   const live = performanceStatus()?.live;
-  const clip = stageAlive()
-    ? (status?.performance?.clip ??
-      (live && set.pages[live.page]?.slots[live.slot]))
-    : localPerformance?.show.live?.clip;
+  const clip = liveClip();
   const scene = clip && sceneById(clip.snapshot.scene);
-  const key = scene ? `${scene.id}:${live?.page}:${live?.slot}` : null;
+  const key = scene ? `${scene.id}:${live?.look}` : null;
   if (key === familyKey) return;
   familyKey = key;
   $("familyTitle").textContent = scene ? scene.name : "Family";
@@ -492,6 +434,12 @@ function renderFamily() {
           }),
         ]),
   );
+}
+// The clip on screen: the stage's own copy (with live tweaks) or the local one.
+function liveClip() {
+  return stageAlive()
+    ? status?.performance?.clip
+    : localPerformance?.show.live?.clip;
 }
 // Re-render faders only when the user isn't dragging one.
 const activeIsFader = () => document.activeElement?.type === "range";
@@ -543,11 +491,12 @@ function renderStatus() {
   const liveScene = live && sceneById(live.scene);
   $("nowReadout").textContent = live ? live.name : s.blackout ? "black" : "—";
   $("nowReadout").title = live
-    ? `${live.name} · ${liveScene?.name ?? live.scene} · ${live.page < 0 ? (catalogIds.has(live.clipId) ? "catalog" : "unsaved clip") : `page ${live.page + 1}`}`
+    ? `${live.name} · ${liveScene?.name ?? live.scene}${lookById(live.look) ? "" : " · unsaved draft"}`
     : "";
   catalog?.setStatus(live?.look ?? null, s.pending?.look ?? null);
-  if (document.activeElement !== $("autopilotSource"))
-    $("autopilotSource").value = ap.source ?? set.autopilot.source;
+  $("favoritesOnly").ariaPressed = String(set.autopilot.favoritesOnly);
+  if (document.activeElement !== $("minRating"))
+    $("minRating").value = String(set.autopilot.minRating);
   $("energyReadout").textContent = s.energy.toFixed(2);
   $("paletteReadout").textContent =
     paletteById(s.palette)?.name ?? (s.palette ? "Custom" : "—");
@@ -588,8 +537,6 @@ function renderStatus() {
   }
   renderShared();
   if (!activeIsFader()) renderFamily();
-  renderGrid();
-  renderPages();
   renderChecks();
 }
 
@@ -643,9 +590,15 @@ $("previewResolution").onchange = () => {
 applyPreviewSize();
 updatePreview();
 
-// --- catalog (D65) -----------------------------------------------------------
-const looks = catalogLooks(scenes);
-const catalogIds = new Set(looks.map((look) => look.id));
+// --- catalog (D65, D68) ---------------------------------------------------------
+let looks = catalogLooks(scenes, set.looks);
+let lookIndex = new Map(looks.map((look) => [look.id, look]));
+const lookById = (id) => lookIndex.get(id) ?? null;
+function reindexLooks() {
+  looks = catalogLooks(scenes, set.looks);
+  lookIndex = new Map(looks.map((look) => [look.id, look]));
+  catalog?.setLooks(looks);
+}
 let thumbnailErrors = 0;
 const thumbnails = new Thumbnails({
   createEngine: () =>
@@ -660,81 +613,77 @@ const thumbnails = new Thumbnails({
   onReady: (id) => catalog?.showThumbnail(id),
   onError: (message) => log(message),
 });
-function playLook(look) {
-  act({ type: "audition", clip: catalogClip(look) });
-}
-function lookToSlot(look) {
-  if (settingsLocked) return;
-  const { page, slot } = draftTarget ?? selected;
-  const label = labels[GRID_CODES[slot]] ?? slot + 1;
-  const store = () => {
-    if (settingsLocked) return;
-    set.pages[page].slots[slot] = catalogClip(look, { id: freeClipId(set) });
-    changed();
-    selectSlot(page, slot, false);
-    toast(`“${look.name}” is in slot ${label} on page ${page + 1}.`);
-  };
-  const old = set.pages[page].slots[slot];
-  if (old)
-    confirm(
-      `Replace “${old.name}” in slot ${label} on page ${page + 1} with “${look.name}”?`,
-      store,
-    );
-  else store();
-}
 const catalog = new CatalogPanel({
   looks,
   families: scenes.map((scene) => ({ id: scene.id, name: scene.name })),
   list: $("catalogList"),
   search: $("catalogSearch"),
   family: $("catalogFamily"),
+  show: $("catalogShow"),
   sortButton: $("catalogSort"),
   title: $("catalogTitle"),
   count: $("catalogCount"),
   getRatings: () => set.ratings,
+  getFavorites: () => set.favorites,
+  keyLabel: (i) => labels[GRID_CODES[i]] ?? "",
   onRate: rate,
-  onPlay: playLook,
-  onToSlot: lookToSlot,
+  onFavorite: favorite,
+  onPlay: (look) => act({ type: "look", id: look.id }),
+  onEdit: (look) => selectLook(look.id, true),
+  onOrder: setKeys,
   thumbnails,
 });
 // Harness hooks (tests/browser): the catalog and its thumbnail renderer.
 Object.assign(window.__phosphorControl, { catalog, thumbnails });
+
+// --- look editor (D68) ---------------------------------------------------------
+// The draft as a playable clip; its id is the look's, so live edits of the
+// look on screen update it in place.
+function draftClip() {
+  return clipFrom(draft.snapshot, {
+    id: draft.id,
+    name: draft.name,
+    palette: draft.palette,
+    transition: draft.transition,
+  });
+}
 function previewDraft(manual = true) {
   if (!editorEngine || !draft) return;
   resumeLocalPerformance();
   if (stageAlive()) {
-    editorEngine.setLevel(draft.energy, 0);
-    editorEngine.load(draft.snapshot, 0, { energy: draft.energy });
-  } else
-    localPerformance.select(
-      draftTarget.page,
-      draftTarget.slot,
-      draft,
-      now(),
-      manual,
-    );
+    editorEngine.setLevel(0.5, 0);
+    editorEngine.load(draftClip().snapshot, 0, { energy: 0.5 });
+  } else localPerformance.select(draftClip(), now(), manual);
 }
 function editDraft() {
   if (!editorEngine || !draft) return;
   resumeLocalPerformance();
-  if (stageAlive()) editorEngine.setSnapshot(draft.snapshot);
-  else localPerformance.edit(draftTarget.page, draftTarget.slot, draft, now());
+  if (stageAlive()) editorEngine.setSnapshot(draftClip().snapshot);
+  else localPerformance.edit(draftClip(), now());
 }
-// preview: show the clip in the main preview; manual: that counts as a
+// preview: show the look in the main preview; manual: that counts as a
 // performer takeover (opening the window or importing a set does not).
-function selectSlot(page, slot, preview = true, manual = true) {
-  selected = { page, slot };
-  draftTarget = { page, slot };
-  const clip = set.pages[page].slots[slot];
-  draft = clip
-    ? structuredClone(clip)
-    : clipFrom(presetSnapshot(scenes[0]), {
-        id: `clip-${Date.now().toString(36)}`,
-      });
-  draft.isNew = !clip;
+function selectLook(id, preview = true, manual = true) {
+  const look = lookById(id);
+  if (!look) return;
+  const palette = look.palette ?? lookPalette(look);
+  const snapshot = structuredClone(look.snapshot);
+  if (palette !== "custom")
+    snapshot.palette = {
+      ...(paletteById(palette)?.colors ?? snapshot.palette),
+    };
+  draft = {
+    id: look.id,
+    own: look.own,
+    base: look.own ? look.base : look.id,
+    name: look.name,
+    snapshot,
+    palette,
+    transition: look.transition ?? "auto",
+  };
   if (preview) previewDraft(manual);
   renderEditor();
-  renderGrid();
+  catalog.setSelected(look.id);
   updateSettingsLock();
 }
 function field(label, input) {
@@ -746,20 +695,27 @@ function field(label, input) {
   );
 }
 function renderEditor() {
-  const { page, slot } = draftTarget ?? selected;
-  $("editorTitle").textContent =
-    `Clip · page ${page + 1} · slot ${labels[GRID_CODES[slot]] ?? slot + 1}${draft?.isNew ? " (new)" : ""}`;
   if (!draft) {
+    $("editorTitle").textContent = "Look";
     $("editor").replaceChildren(
-      el("p", { className: "note", textContent: "Select a slot." }),
+      el("p", {
+        className: "note",
+        textContent: "Pick a look in the catalog.",
+      }),
     );
     return;
   }
+  const look = lookById(draft.id);
+  $("editorTitle").textContent = draft.own
+    ? `Own look · ${look?.name ?? draft.name}`
+    : `Look · ${draft.name}`;
+  $("saveLook").hidden = !draft.own;
+  $("deleteLook").hidden = !draft.own;
   const scene = sceneById(draft.snapshot.scene);
   const name = el("input", {
     value: draft.name,
     maxLength: 80,
-    oninput: () => (draft.name = name.value || "Untitled"),
+    oninput: () => (draft.name = name.value.trim() || "Untitled"),
   });
   const family = el(
     "select",
@@ -771,6 +727,7 @@ function renderEditor() {
           palette: draft.snapshot.palette,
         };
         draft.name = next.presets[0].name;
+        draft.base = `${next.id}:${next.presets[0].name}`;
         previewDraft();
         renderEditor();
       },
@@ -794,11 +751,12 @@ function renderEditor() {
           palette: draft.snapshot.palette,
         };
         draft.name = scene.presets[index].name;
+        draft.base = `${scene.id}:${scene.presets[index].name}`;
         previewDraft();
         renderEditor();
       },
     },
-    el("option", { value: -1, textContent: "Load an authored look…" }),
+    el("option", { value: -1, textContent: "Start from an authored look…" }),
     ...scene.presets.map((p, i) =>
       el("option", { value: i, textContent: p.name }),
     ),
@@ -845,8 +803,8 @@ function renderEditor() {
   const palette = el(
     "select",
     {
-      id: "clipPalette",
-      ariaLabel: "Clip palette",
+      id: "lookPalette",
+      ariaLabel: "Look palette",
       onchange: () => {
         draft.palette = palette.value;
         if (draft.palette !== "custom")
@@ -869,27 +827,6 @@ function renderEditor() {
       selected: draft.palette === "custom",
     }),
   );
-  const energy = fader(
-    { key: "clip-energy", label: "Energy", min: 0, max: 1, step: 0.01 },
-    draft.energy,
-    (value) => {
-      draft.energy = value;
-      if (stageAlive()) editorEngine?.setLevel(value, 0);
-      else {
-        editDraft();
-        act({ type: "energy", value });
-      }
-    },
-  );
-  const fade = el("input", {
-    type: "number",
-    min: 0,
-    max: 32,
-    step: 1,
-    value: draft.fade,
-    onchange: () =>
-      (draft.fade = Math.max(0, Math.min(32, Number(fade.value) || 0))),
-  });
   const transition = el(
     "select",
     { onchange: () => (draft.transition = transition.value) },
@@ -907,24 +844,6 @@ function renderEditor() {
       }),
     ),
   );
-  const quantize = el(
-    "select",
-    { onchange: () => (draft.quantize = quantize.value) },
-    ...QUANTIZE.map((q) =>
-      el("option", {
-        value: q,
-        textContent: { beat: "next beat", bar: "next bar", now: "immediately" }[
-          q
-        ],
-        selected: q === draft.quantize,
-      }),
-    ),
-  );
-  const autopilot = el("input", {
-    type: "checkbox",
-    checked: draft.autopilot,
-    onchange: () => (draft.autopilot = autopilot.checked),
-  });
   $("editor").replaceChildren(
     field("Name", name),
     field("Family", family),
@@ -935,20 +854,52 @@ function renderEditor() {
     ...(draft.palette === "custom"
       ? [field("Custom colours", customColors)]
       : []),
-    energy,
-    field("Fade (beats)", fade),
     field("Transition", transition),
-    field("Starts on", quantize),
-    field("Autopilot may play", autopilot),
   );
 }
-function saveDraft() {
+function ownLookFromDraft(id) {
+  return {
+    id,
+    name: draft.name.trim() || "Untitled",
+    base: draft.base ?? null,
+    snapshot: structuredClone(draft.snapshot),
+    palette: draft.palette,
+    transition: draft.transition ?? "auto",
+  };
+}
+// Saving never touches an authored look: it creates or updates an own look.
+function saveLook(asNew) {
   if (!draft || settingsLocked) return;
-  const { isNew, ...clip } = draft;
-  set.pages[draftTarget.page].slots[draftTarget.slot] = structuredClone(clip);
-  draft.isNew = false;
+  if (!asNew && draft.own) {
+    set.looks = set.looks.map((look) =>
+      look.id === draft.id ? ownLookFromDraft(draft.id) : look,
+    );
+    changed();
+    reindexLooks();
+    toast(`Saved “${draft.name}”.`);
+    return;
+  }
+  const look = ownLookFromDraft(freeLookId(set));
+  set.looks = [...set.looks, look];
   changed();
-  toast("Clip saved.");
+  reindexLooks();
+  selectLook(look.id, false);
+  catalog.reveal(look.id);
+  toast(`“${look.name}” is now an own look in the catalog.`);
+}
+function deleteLook() {
+  if (!draft?.own || settingsLocked) return;
+  const { id, base, name } = draft;
+  confirm(`Delete the own look “${name}”? Authored looks stay.`, () => {
+    if (settingsLocked) return;
+    set.looks = set.looks.filter((look) => look.id !== id);
+    delete set.ratings[id];
+    set.favorites = set.favorites.filter((f) => f !== id);
+    set.keys = set.keys.map((k) => (k === id ? null : k));
+    changed();
+    reindexLooks();
+    selectLook(lookById(base) ? base : looks[0].id, false);
+  });
 }
 async function breed() {
   if (!draft || settingsLocked) return;
@@ -998,7 +949,7 @@ async function breed() {
       seed: button.child.seed,
       params: button.child.params,
     };
-    editorEngine.load(snapshot, 0, { energy: draft.energy });
+    editorEngine.load(snapshot, 0, { energy: 0.5 });
     await editorEngine.ready(snapshot.scene);
     for (let i = 0; i < 30; i++) editorEngine.advance(1 / 60, false);
     button.thumb.getContext("2d").drawImage($("editorCanvas"), 0, 0, 160, 90);
@@ -1035,7 +986,6 @@ function animateEditor(ms) {
 
 // --- set, audio, checks ------------------------------------------------------
 function renderSetFields() {
-  const page = selected.page;
   const name = el("input", {
     value: set.name,
     maxLength: 80,
@@ -1044,34 +994,27 @@ function renderSetFields() {
       changed();
     },
   });
-  const pageName = el("input", {
-    value: set.pages[page].name,
-    maxLength: 40,
-    onchange: () => {
-      set.pages[page].name = pageName.value || `Page ${page + 1}`;
-      changed();
-    },
-  });
   const mood = el(
     "select",
     {
-      id: "pageMood",
-      ariaLabel: "Page mood",
+      id: "setMood",
+      ariaLabel: "Palette mood",
+      title: "Autopilot steps palettes within this mood (D57)",
       onchange: () => {
-        set.pages[page].mood = mood.value || null;
+        set.mood = mood.value || null;
         changed();
       },
     },
     el("option", {
       value: "",
       textContent: "Any palette",
-      selected: set.pages[page].mood === null,
+      selected: set.mood === null,
     }),
     ...MOODS.map((value) =>
       el("option", {
         value,
         textContent: value,
-        selected: set.pages[page].mood === value,
+        selected: set.mood === value,
       }),
     ),
   );
@@ -1130,8 +1073,7 @@ function renderSetFields() {
   });
   $("setFields").replaceChildren(
     field("Show name", name),
-    field(`Page ${page + 1} name`, pageName),
-    field("Page mood", mood),
+    field("Palette mood", mood),
     field("In order every", every),
     field("Stage resolution", budget),
     option("bloom", "Bloom ceiling"),
@@ -1242,10 +1184,12 @@ function updateSettingsLock() {
     ".settings-controls input, .settings-controls select, .settings-controls button",
   ))
     input.disabled =
-      settingsLocked && !["exportSet", "auditionClip"].includes(input.id);
-  // Rating, search and Play stay available; storing a look in a slot is a
-  // configuration change.
-  catalog.setLocked(settingsLocked);
+      settingsLocked &&
+      !["exportSet", "auditionLook", "breedLook"].includes(input.id);
+  // Rating, favourites, search, Play and Edit stay available; saving or
+  // deleting own looks is a configuration change.
+  for (const id of ["saveLook", "saveAsLook", "deleteLook"])
+    $(id).disabled = settingsLocked;
   // A MIDI learn started before locking must not alter the mappings later.
   if (settingsLocked) {
     midiLearn = null;
@@ -1272,8 +1216,20 @@ $("freeze").onclick = () => act({ type: "freeze" });
 $("autopilot").onclick = () => act({ type: "autopilot" });
 $("random").onclick = () => act({ type: "random" });
 $("next").onclick = () => act({ type: "next" });
-$("autopilotSource").onchange = () => {
-  set.autopilot.source = $("autopilotSource").value;
+$("favoritesOnly").onclick = () => {
+  set.autopilot.favoritesOnly = !set.autopilot.favoritesOnly;
+  changed();
+};
+$("minRating").replaceChildren(
+  ...Array.from({ length: MAX_RATING + 1 }, (_, r) =>
+    el("option", {
+      value: r,
+      textContent: r ? `≥ ${r} ★` : "any rating",
+    }),
+  ),
+);
+$("minRating").onchange = () => {
+  set.autopilot.minRating = Number($("minRating").value);
   changed();
 };
 $("half").onclick = () => act({ type: "speed", value: 0.5 });
@@ -1281,19 +1237,12 @@ $("double").onclick = () => act({ type: "speed", value: 2 });
 $("flash").onpointerdown = () => act({ type: "flash", on: true });
 for (const end of ["pointerup", "pointerleave", "pointercancel"])
   $("flash").addEventListener(end, () => act({ type: "flash", on: false }));
-$("saveClip").onclick = saveDraft;
-$("auditionClip").onclick = () =>
-  draft && act({ type: "audition", clip: (({ isNew, ...c }) => c)(draft) });
-$("breedClip").onclick = breed;
-$("clearClip").onclick = () => {
-  const { page, slot } = draftTarget;
-  confirm("Clear this slot?", () => {
-    if (settingsLocked) return;
-    set.pages[page].slots[slot] = null;
-    changed();
-    selectSlot(page, slot);
-  });
-};
+$("saveLook").onclick = () => saveLook(false);
+$("saveAsLook").onclick = () => saveLook(true);
+$("deleteLook").onclick = deleteLook;
+$("auditionLook").onclick = () =>
+  draft && act({ type: "audition", clip: draftClip() });
+$("breedLook").onclick = breed;
 function download(name, text) {
   const blob = new Blob([text], { type: "application/json" });
   const a = el("a", { href: URL.createObjectURL(blob), download: name });
@@ -1312,11 +1261,7 @@ const midiEdges = new Map();
 let midiLearn = null;
 const midi = new MidiInput(
   (message) => {
-    const live = performanceStatus()?.live;
-    const clip = stageAlive()
-      ? (status?.performance?.clip ??
-        (live && set.pages[live.page]?.slots[live.slot]))
-      : localPerformance?.show.live?.clip;
+    const clip = liveClip();
     const scene = clip && sceneById(clip.snapshot.scene);
     const familyParam = (i, v) => {
       const key = scene && stageParams(scene)[i];
@@ -1389,8 +1334,9 @@ $("importSet").onchange = async () => {
       ...result.report.map((line) => el("li", { textContent: line })),
     );
     changed();
-    catalog.refresh(); // the imported set brings its own ratings
-    selectSlot(0, 0, true, false);
+    reindexLooks(); // the imported set brings its own looks and ratings
+    catalog.refresh();
+    selectLook(catalog.first() ?? looks[0].id, true, false);
     toast(`Imported “${set.name}”.`);
   } catch (error) {
     toast(`Import failed: ${error.message}`);
@@ -1447,8 +1393,6 @@ $("pattern").onclick = () => {
 };
 function render() {
   $("setName").textContent = set.name;
-  renderPages();
-  renderGrid();
   renderShared();
   renderEditor();
   renderSetFields();
@@ -1490,7 +1434,8 @@ if ("serviceWorker" in navigator)
     );
 
 labels = await keyLabels();
-selectSlot(0, 0, true, false);
+catalog.refreshKeys();
+selectLook(catalog.first() ?? looks[0].id, true, false);
 render();
 send({ type: "hello" });
 send({ type: "devices" });

@@ -1,13 +1,15 @@
-// Catalog panel of the control window (D65): every authored look as a card
-// with a thumbnail, a 0–10 half-star rating, Play and To slot. Cards are
-// keyed by look id and reused, so a status update or a rating never rebuilds
-// what the pointer or keyboard focus is on.
+// Catalog panel of the control window (D65, D68): every look — authored and
+// own — as a card with a thumbnail, a favourite heart, a 0–10 half-star
+// rating, Play and Edit. The first 32 cards of the current view carry the
+// grid keys (the control stores them in the set; the stage plays them).
+// Cards are keyed by look id and reused, so a status update or a rating
+// never rebuilds what the pointer or keyboard focus is on.
 //
 // Sorting: ratings apply at once (set, stage, autopilot), but the order is
 // frozen while the pointer is over the list or a rating has focus; it
 // re-sorts when the pointer leaves, focus leaves the list, the search or
 // family filter changes, or Sort is pressed — then the last rated card is
-// scrolled into view.
+// scrolled into view. Favourites always come first (D68).
 import { sortCatalog, ratingOf, lookPalette, MAX_RATING } from "./catalog.mjs";
 import { paletteById } from "./palettes.mjs";
 
@@ -145,57 +147,69 @@ function ratingWidget(look, getRating, setRating) {
   };
 }
 
+export const SHOW = [
+  ["all", "All looks"],
+  ["favorites", "Favourites"],
+  ["rated", "Rated"],
+  ["unrated", "Unrated"],
+  ["own", "Own looks"],
+];
+
 export class CatalogPanel {
   constructor({
-    looks, // catalogLooks(scenes)
+    looks, // catalogLooks(scenes, set.looks)
     families, // [{ id, name }]
     list, // scroll container
     search,
     family,
+    show, // select: SHOW
     sortButton,
     title,
     count,
     getRatings,
+    getFavorites, // () => [id]
+    keyLabel, // (index 0–31) => label
     onRate, // (id, rating | null)
+    onFavorite, // (id, on)
     onPlay, // (look)
-    onToSlot, // (look)
+    onEdit, // (look)
+    onOrder, // ([id]) after every sort: the visible order
     thumbnails, // Thumbnails
   }) {
     Object.assign(this, {
       looks,
+      families,
       list,
       search,
       family,
+      show,
       sortButton,
       title,
       count,
       getRatings,
+      getFavorites,
+      keyLabel,
       onRate,
+      onFavorite,
       onPlay,
-      onToSlot,
+      onEdit,
+      onOrder,
       thumbnails,
     });
-    this.cards = new Map(); // id → { node, look, widget, thumb }
+    this.cards = new Map(); // id → { node, look, widget, thumb, … }
     this.order = [];
-    this.stale = 0; // ratings changed since the last sort
+    this.stale = 0; // ratings or favourites changed since the last sort
     this.lastRated = null;
     this.pointerInside = false;
     this.live = null;
     this.pending = null;
-    this.locked = false;
-    family.replaceChildren(
-      el("option", {
-        value: "",
-        textContent: `All families (${families.length})`,
-      }),
-      ...families.map((f) =>
-        el("option", {
-          value: f.id,
-          textContent: `${f.name} (${looks.filter((l) => l.sceneId === f.id).length})`,
-        }),
+    this.selected = null;
+    show.replaceChildren(
+      ...SHOW.map(([value, label]) =>
+        el("option", { value, textContent: label }),
       ),
     );
-    title.textContent = `Catalog · ${looks.length} looks`;
+    this.#families();
     this.observer =
       "IntersectionObserver" in globalThis
         ? new IntersectionObserver(
@@ -214,6 +228,7 @@ export class CatalogPanel {
         : null;
     search.addEventListener("input", () => this.sort());
     family.addEventListener("change", () => this.sort());
+    show.addEventListener("change", () => this.sort());
     sortButton.addEventListener("click", () => this.sort());
     list.addEventListener("pointerenter", () => (this.pointerInside = true));
     list.addEventListener("pointerleave", () => {
@@ -227,10 +242,48 @@ export class CatalogPanel {
     this.sort();
   }
 
+  #families() {
+    const value = this.family.value;
+    this.family.replaceChildren(
+      el("option", {
+        value: "",
+        textContent: `All families (${this.families.length})`,
+      }),
+      ...this.families.map((f) =>
+        el("option", {
+          value: f.id,
+          textContent: `${f.name} (${this.looks.filter((l) => l.sceneId === f.id).length})`,
+        }),
+      ),
+    );
+    this.family.value = value;
+    this.title.textContent = `Catalog · ${this.looks.length} looks`;
+  }
+
+  // Own looks were added, edited or deleted: rebuild their cards.
+  setLooks(looks) {
+    const ids = new Set(looks.map((look) => look.id));
+    for (const [id, card] of this.cards)
+      if (!ids.has(id) || card.look.own) {
+        this.observer?.unobserve(card.node);
+        card.node.remove();
+        this.cards.delete(id);
+        if (card.look.own) this.thumbnails?.invalidate(id);
+      }
+    this.looks = looks;
+    this.#families();
+    this.sort();
+  }
+
   #card(look) {
     let card = this.cards.get(look.id);
     if (card) return card;
-    const palette = paletteById(lookPalette(look));
+    const palette =
+      look.palette && look.palette !== "custom"
+        ? paletteById(look.palette)
+        : look.palette === "custom"
+          ? { colors: look.snapshot.palette }
+          : paletteById(lookPalette(look));
     const snapshot = { ...look.snapshot, palette: { ...palette.colors } };
     const { primary, secondary, accent } = palette.colors;
     const thumb = el("div", {
@@ -242,14 +295,28 @@ export class CatalogPanel {
       () => ratingOf(this.getRatings(), look.id),
       (rating) => this.#rate(look.id, rating),
     );
-    thumb.append(widget.value);
-    const toSlot = el("button", {
-      className: "to-slot",
+    const key = el("kbd", { className: "key", hidden: true });
+    thumb.append(key, widget.value);
+    if (look.own)
+      thumb.append(
+        el("span", {
+          className: "own",
+          textContent: "own",
+          title: "Your own look",
+        }),
+      );
+    // The thumbnail plays the look, like a grid key.
+    thumb.addEventListener("click", () => this.onPlay(look));
+    thumb.title = "Play (preview here; live when the stage is open)";
+    const heart = el("button", {
+      className: "heart",
       type: "button",
-      textContent: "To slot",
-      title: "Store this look in the selected grid slot",
-      onclick: () => this.onToSlot(look),
+      textContent: "♥",
+      title: "Favourite: in your live set, listed first",
+      ariaLabel: `Favourite ${look.name}`,
+      onclick: () => this.#favorite(look.id),
     });
+    heart.addEventListener("mousedown", (event) => event.preventDefault());
     const node = el(
       "article",
       { className: "look", role: "listitem", ariaLabel: look.name },
@@ -257,14 +324,22 @@ export class CatalogPanel {
       el(
         "div",
         { className: "look-body" },
-        el("div", {
-          className: "look-name",
-          textContent: look.name,
-          title: look.name,
-        }),
+        el(
+          "div",
+          { className: "look-title" },
+          el("div", {
+            className: "look-name",
+            textContent: look.name,
+            title: look.name,
+          }),
+          heart,
+        ),
         el("div", {
           className: "look-meta",
           textContent: look.variant
+            ? `${look.family} · ${look.variant}`
+            : look.family,
+          title: look.variant
             ? `${look.family} · ${look.variant}`
             : look.family,
         }),
@@ -279,7 +354,13 @@ export class CatalogPanel {
             title: "Preview here; plays live when the stage is open",
             onclick: () => this.onPlay(look),
           }),
-          toSlot,
+          el("button", {
+            className: "edit",
+            type: "button",
+            textContent: "Edit",
+            title: "Open in the look editor (save changes as an own look)",
+            onclick: () => this.onEdit(look),
+          }),
         ),
       ),
     );
@@ -288,15 +369,22 @@ export class CatalogPanel {
       look,
       widget,
       thumb,
-      toSlot,
+      heart,
+      key,
       snapshot,
       text: fold(`${look.name} ${look.family} ${look.variant ?? ""}`),
     };
     node.card = card;
-    toSlot.disabled = this.locked;
     this.cards.set(look.id, card);
+    this.#paintHeart(card);
     this.showThumbnail(look.id);
     return card;
+  }
+
+  #paintHeart(card) {
+    const on = this.getFavorites().includes(card.look.id);
+    card.heart.ariaPressed = String(on);
+    card.node.classList.toggle("favorite", on);
   }
 
   #rate(id, rating) {
@@ -305,6 +393,17 @@ export class CatalogPanel {
     this.lastRated = id;
     this.stale++;
     this.#updateCount();
+  }
+
+  #favorite(id) {
+    const on = !this.getFavorites().includes(id);
+    this.onFavorite(id, on);
+    const card = this.cards.get(id);
+    if (card) this.#paintHeart(card);
+    this.lastRated = id;
+    this.stale++;
+    this.#updateCount();
+    if (!this.pointerInside) this.#settle();
   }
 
   #settle() {
@@ -316,18 +415,33 @@ export class CatalogPanel {
     this.count.textContent =
       shown === this.looks.length ? "" : `${shown} shown`;
     this.sortButton.hidden = !this.stale;
-    this.sortButton.textContent = `Sort (${this.stale} rated)`;
+    this.sortButton.textContent = `Sort (${this.stale} changed)`;
   }
 
-  // Rebuilds the visible order from ratings, search and family filter.
+  #visible(look, ratings, favorites, words, family, show) {
+    if (family && look.sceneId !== family) return false;
+    const rating = ratingOf(ratings, look.id);
+    if (show === "favorites" && !favorites.has(look.id)) return false;
+    if (show === "rated" && rating === null) return false;
+    if (show === "unrated" && rating !== null) return false;
+    if (show === "own" && !look.own) return false;
+    return words.every((word) => this.#card(look).text.includes(word));
+  }
+
+  // Rebuilds the visible order from favourites, ratings, search and filters.
   sort() {
     const words = fold(this.search.value).split(/\s+/).filter(Boolean);
-    const family = this.family.value;
-    const sorted = sortCatalog(this.looks, this.getRatings());
-    const visible = sorted.filter(
-      (look) =>
-        (!family || look.sceneId === family) &&
-        words.every((word) => this.#card(look).text.includes(word)),
+    const ratings = this.getRatings();
+    const favorites = new Set(this.getFavorites());
+    const visible = sortCatalog(this.looks, ratings, favorites).filter((look) =>
+      this.#visible(
+        look,
+        ratings,
+        favorites,
+        words,
+        this.family.value,
+        this.show.value,
+      ),
     );
     const scrollTop = this.list.scrollTop;
     this.list.replaceChildren(...visible.map((look) => this.#card(look).node));
@@ -341,11 +455,34 @@ export class CatalogPanel {
     const rated = this.lastRated && this.cards.get(this.lastRated)?.node;
     if (this.stale && rated?.isConnected) this.#reveal(rated);
     this.stale = 0;
+    for (const card of this.cards.values()) this.#paintHeart(card);
     this.#updateCount();
     this.#highlight();
+    this.refreshKeys();
+    this.onOrder?.(this.order.slice(0, 32));
   }
 
-  // Scrolls only the catalog list (never the page) so `node` is visible.
+  // Key badges on the first 32 visible cards (labels follow the layout).
+  refreshKeys() {
+    for (const card of this.cards.values()) card.key.hidden = true;
+    this.order.slice(0, 32).forEach((id, i) => {
+      const key = this.cards.get(id)?.key;
+      if (!key) return;
+      key.textContent = this.keyLabel?.(i) ?? "";
+      key.hidden = !key.textContent;
+    });
+  }
+
+  first() {
+    return this.order[0] ?? null;
+  }
+
+  // Scrolls only the catalog list (never the page) so a card is visible.
+  reveal(id) {
+    const node = this.cards.get(id)?.node;
+    if (node?.isConnected) this.#reveal(node);
+  }
+
   #reveal(node) {
     const list = this.list.getBoundingClientRect();
     const box = node.getBoundingClientRect();
@@ -354,9 +491,12 @@ export class CatalogPanel {
       this.list.scrollTop += box.bottom - list.bottom + 8;
   }
 
-  // Ratings changed elsewhere (import, another tab): repaint every widget.
+  // Ratings or favourites changed elsewhere (import, another tab).
   refresh() {
-    for (const card of this.cards.values()) card.widget.sync();
+    for (const card of this.cards.values()) {
+      card.widget.sync();
+      this.#paintHeart(card);
+    }
     if (!this.pointerInside && !this.list.contains(document.activeElement))
       this.sort();
   }
@@ -376,7 +516,7 @@ export class CatalogPanel {
     );
   }
 
-  // Live / pending look ids from the show status (catalog clips use the look id).
+  // Live / pending look ids from the show status.
   setStatus(live, pending) {
     if (live === this.live && pending === this.pending) return;
     this.live = live;
@@ -384,16 +524,17 @@ export class CatalogPanel {
     this.#highlight();
   }
 
+  // The look open in the editor.
+  setSelected(id) {
+    this.selected = id;
+    this.#highlight();
+  }
+
   #highlight() {
     for (const card of this.cards.values()) {
       card.node.classList.toggle("live", card.look.id === this.live);
       card.node.classList.toggle("pending", card.look.id === this.pending);
+      card.node.classList.toggle("selected", card.look.id === this.selected);
     }
-  }
-
-  setLocked(locked) {
-    if (locked === this.locked) return;
-    this.locked = locked;
-    for (const card of this.cards.values()) card.toSlot.disabled = locked;
   }
 }

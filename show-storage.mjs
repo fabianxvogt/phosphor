@@ -1,13 +1,14 @@
-// Local persistence (D9): the control saves v4 sets on edits; the stage
+// Local persistence (D9): the control saves v5 sets on edits; the stage
 // saves runtime state each second. Old set entries remain as migration backups.
 import { initialShowSet, parseShowSet, validateShowSet } from "./show-set.mjs";
 
-export const SET_KEY = "phosphor-set-v4";
-export const RUNTIME_KEY = "phosphor-runtime-v3";
-const OLD_SET_KEYS = ["phosphor-set-v3", "phosphor-set-v2"];
+export const SET_KEY = "phosphor-set-v5";
+// v4 runtime state named page/slot positions; v5 names the live look.
+export const RUNTIME_KEY = "phosphor-runtime-v4";
+const OLD_SET_KEYS = ["phosphor-set-v4", "phosphor-set-v3", "phosphor-set-v2"];
 // An unreadable save is never thrown away: the next edit would overwrite it
 // (e.g. a clip whose family narrowed a parameter range). The first one kept.
-export const UNREADABLE_KEY = "phosphor-set-v4-unreadable";
+export const UNREADABLE_KEY = "phosphor-set-v5-unreadable";
 const RUNTIME_MAX_AGE = 12 * 3600 * 1000;
 
 export function loadSet(storage, scenes) {
@@ -35,16 +36,8 @@ export function loadSet(storage, scenes) {
         ],
       };
     }
-    // A normalised older v4 save (D65–D67) is stored at once, like a
-    // migration, so the report appears only on the first load.
-    if (key === SET_KEY && loaded.report.length)
-      try {
-        saveSet(storage, loaded.set);
-      } catch {}
     if (key !== SET_KEY) {
-      loaded.report.unshift(
-        `Migrated the saved ${key.endsWith("v3") ? "v3" : "v2"} set.`,
-      );
+      loaded.report.unshift(`Migrated the saved ${key.slice(-2)} set.`);
       try {
         saveSet(storage, loaded.set);
       } catch (error) {

@@ -55,8 +55,6 @@ export function actionFor(event) {
     return code === "KeyL" ? { type: "flash", on: false } : null;
   if (code === "Escape") return { type: shiftKey ? "safe" : "blackout" };
   if (isTextEntry(event.target)) return null;
-  if (shiftKey && /^Digit[1-8]$/.test(code))
-    return { type: "page", index: Number(code.slice(5)) - 1 };
   if (SLOT_BY_CODE.has(code) && !shiftKey)
     return { type: "slot", index: SLOT_BY_CODE.get(code) };
   switch (code) {
