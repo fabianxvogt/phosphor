@@ -9,13 +9,19 @@ import { structureSignature, structureDistance } from "./browser/metrics.mjs";
 
 const scenes = [interference];
 
-test("interference exposes three compositions, each covered by authored looks", () => {
+test("interference exposes six compositions, each covered by authored looks", () => {
   assert.deepEqual(interference.type, {
     key: "composition",
-    values: [0, 1, 2],
+    values: [0, 1, 2, 3, 4, 5],
   });
   const selector = interference.schema.find(({ key }) => key === "composition");
-  assert.equal(selector.max, 2);
+  assert.equal(selector.max, 5);
+  // The three looks the D60 rework dropped are back (owner, 2026-10-09).
+  for (const name of ["Orbit Loom", "Petal Resonance", "Bent Horizons"])
+    assert.ok(
+      interference.presets.some((p) => p.name === name),
+      name,
+    );
   for (const value of interference.type.values)
     assert.ok(
       interference.presets.some(({ params }) => params.composition === value),

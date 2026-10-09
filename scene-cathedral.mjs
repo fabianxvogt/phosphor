@@ -137,6 +137,22 @@ const presets = [
       steps: 80,
     },
   },
+  // Restored 2026-10-09: the still-camera look the D62 rework replaced with
+  // Enamel Glide (energy still adds a slow drift).
+  {
+    name: "Enamel Still",
+    seed: 4981,
+    params: {
+      geometry: 3,
+      recursion: 3,
+      scale: 0.75,
+      speed: 0,
+      journey: 0,
+      material: 4,
+      glow: 0.62,
+      steps: 80,
+    },
+  },
   {
     name: "Ember Vault",
     seed: 4999,

@@ -1,9 +1,9 @@
 const schema = [
   {
     key: "composition",
-    label: "Composition · 0–2",
+    label: "Composition · floor / vault / screens / orbit / petals / horizons",
     min: 0,
-    max: 2,
+    max: 5,
     step: 1,
     default: 0,
   },
@@ -150,6 +150,50 @@ const presets = [
       beatLock: 1,
     },
   },
+  // Restored 2026-10-09 (owner: "delete nothing"): the three compositions
+  // the D60 rework had dropped, now as layered variants 3–5.
+  {
+    name: "Orbit Loom",
+    seed: 5344,
+    params: {
+      composition: 3,
+      fields: 3,
+      ratio: 0.75,
+      phase: 0.63,
+      orientation: 35,
+      palette: 0.74,
+      motion: 0.55,
+      beatLock: 1,
+    },
+  },
+  {
+    name: "Petal Resonance",
+    seed: 5355,
+    params: {
+      composition: 4,
+      fields: 3,
+      ratio: 1.23,
+      phase: 0.27,
+      orientation: 116,
+      palette: 0.94,
+      motion: 0.35,
+      beatLock: 0.6,
+    },
+  },
+  {
+    name: "Bent Horizons",
+    seed: 5366,
+    params: {
+      composition: 5,
+      fields: 2,
+      ratio: 1.08,
+      phase: 0.82,
+      orientation: 154,
+      palette: 0.42,
+      motion: 0.18,
+      beatLock: 1,
+    },
+  },
 ];
 
 const fragment = `
@@ -232,6 +276,38 @@ void main() {
       waves.x = TAU * f * length(wall - vec3(-0.34, 0.15, 0.0)) - drift * 0.2;
       waves.y = TAU * f * ratio * length(wall - vec3(0.41, -0.28, 1.25)) + phase + drift * 0.4;
       waves.z = TAU * f * ratio * ratio * length(wall - vec3(0.12, 0.42, 2.3)) - phase - drift * 0.6;
+    } else if (mode > 2.5) {
+      // Restored flat compositions (orbit lattice, petal ripples, curved
+      // horizons): three stacked planes at slightly different scales and
+      // turns, so layers shear against each other into deeper moire.
+      depth = 1.0 + layer * 0.55;
+      f *= 1.7;
+      vec2 q = rot2(orientation + layer * 0.17) * ray * depth + camera;
+      if (mode < 3.5) {
+        // Orbit lattice: one circular source circling a plane-wave grid.
+        vec2 around = vec2(cos(orbit * 0.2 + seedAngle + layer),
+          sin(orbit * 0.2 + seedAngle + layer)) * (0.08 + motion * 0.09);
+        waves.x = TAU * f * length(q - around) - drift;
+        waves.y = TAU * f * ratio * q.x + phase + drift * 0.5;
+        waves.z = TAU * f * ratio * ratio * q.y - phase - drift * 0.5;
+      } else if (mode < 4.5) {
+        // Petal ripples: radial waves bent by a smooth Cartesian rose (no
+        // atan seam); each layer's petals turn against the next.
+        float r = length(q);
+        vec2 n = q / sqrt(dot(q, q) + 0.0025);
+        float rose = n.x * n.x - n.y * n.y;
+        float petals = 2.0 * n.x * n.y;
+        float bloom = 0.055 * (1.0 + 0.6 * sin(orbit * 0.3 + layer));
+        waves.x = TAU * f * (r + bloom * rose) - drift;
+        waves.y = TAU * f * ratio * (r + bloom * petals) + phase + drift * 0.5;
+        waves.z = TAU * f * ratio * ratio * (r - bloom * rose) - phase - drift * 0.25;
+      } else {
+        // Curved horizons: parabolic wavefronts bending towards each other.
+        float bend = 0.12 + 0.10 * sin(orbit * 0.25 + seedAngle) * motion;
+        waves.x = TAU * f * (q.y + bend * q.x * q.x) - drift;
+        waves.y = TAU * f * ratio * (q.y - bend * q.x * q.x + 0.055 * q.x) + phase + drift;
+        waves.z = TAU * f * ratio * ratio * (q.x + bend * q.y * q.y) - phase;
+      }
     } else {
       // Lattice screens: tilted rectangular wave planes at three depths,
       // rather than another tunnel. Outboard screens repeat on wide walls;
@@ -292,11 +368,11 @@ export default {
     { param: "palette", feature: "high", amount: 0.12 },
   ],
   stage: ["motion", "ratio", "phase"],
-  type: { key: "composition", values: [0, 1, 2] },
+  type: { key: "composition", values: [0, 1, 2, 3, 4, 5] },
   number: 53,
   name: "Interference Rituals",
   description:
-    "Layered analytic moire with perspective depth: receding wave floors, cylindrical ripple vaults and suspended lattice screens. Energy adds wave sources and a third depth layer, raises spatial frequency and transport speed, separates layer colours through the shared palette and hardens the interference into anti-aliased peak bands; brightness stays on master and kicks use the shared punch/pulse layer. Existing composition ids and authored controls remain portable. Beat lock follows transport; zero motion freezes every layer. Pixel-footprint filtering retains resolvable moire when distant carriers are subpixel. This is an artistic scalar-wave model, not an optical simulation.",
+    "Layered analytic moire with perspective depth: receding wave floors, cylindrical ripple vaults and suspended lattice screens, plus the restored flat orbit lattices, petal ripples and curved horizons. Energy adds wave sources and a third depth layer, raises spatial frequency and transport speed, separates layer colours through the shared palette and hardens the interference into anti-aliased peak bands; brightness stays on master and kicks use the shared punch/pulse layer. Existing composition ids and authored controls remain portable. Beat lock follows transport; zero motion freezes every layer. Pixel-footprint filtering retains resolvable moire when distant carriers are subpixel. This is an artistic scalar-wave model, not an optical simulation.",
   schema,
   presets,
   fragment,
