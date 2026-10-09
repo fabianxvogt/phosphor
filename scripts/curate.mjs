@@ -146,6 +146,22 @@ const families = {
       "Spinning Lattice",
     ],
   ],
+  kleinian: [
+    8.7,
+    [
+      "Apollonian Flow",
+      "Indra's Pearls",
+      "Steiner Porism",
+      "Kissing Necklace",
+      "Loxodromic Dive",
+      "Integer Gasket",
+      "Nine-ring Chain",
+      "Cantor Dust",
+      "Gasket Lens",
+      "Steiner Triplets",
+      "Hyperbolic Dive",
+    ],
+  ],
   newton: [
     8.7,
     [

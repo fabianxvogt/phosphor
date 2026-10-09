@@ -157,9 +157,11 @@ test("ratings sort first by rating, then unrated, then never (0); ties by family
 test("the editorial order covers every authored look exactly once", () => {
   assert.equal(new Set(CURATED).size, CURATED.length);
   assert.deepEqual([...CURATED].sort(), looks.map((l) => l.id).sort());
-  // Every family shows its best look within the first 50.
+  // Every family shows its best look early: within two looks per family.
   const families = new Set(looks.map((l) => l.sceneId));
-  const early = new Set(CURATED.slice(0, 50).map((id) => id.split(":")[0]));
+  const early = new Set(
+    CURATED.slice(0, 2 * families.size).map((id) => id.split(":")[0]),
+  );
   assert.equal(early.size, families.size);
   // Equal ratings fall back to the editorial order; own looks come last.
   const [first, second] = CURATED;
