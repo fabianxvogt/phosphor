@@ -24,6 +24,7 @@ import flame from "./scene-flame.mjs";
 import quasicrystal from "./scene-quasicrystal.mjs";
 import voronoi from "./scene-voronoi.mjs";
 import ripple from "./scene-ripple.mjs";
+import turmite from "./scene-turmite.mjs";
 
 export default [
   acid,
@@ -52,6 +53,7 @@ export default [
   quasicrystal,
   voronoi,
   ripple,
+  turmite,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
