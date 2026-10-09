@@ -214,6 +214,20 @@ const families = {
       "Diagonal Maze",
     ],
   ],
+  hilbert: [
+    8.0,
+    [
+      "Hilbert Refinement",
+      "Locality Flow",
+      "Moore Chase",
+      "Peano Weave",
+      "Hilbert Strip",
+      "Locality Blocks",
+      "Moore Loop",
+      "Deep Hilbert",
+      "Peano Steps",
+    ],
+  ],
   newton: [
     8.7,
     [

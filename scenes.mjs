@@ -29,6 +29,7 @@ import kleinian from "./scene-kleinian.mjs";
 import harmonograph from "./scene-harmonograph.mjs";
 import wallpaper from "./scene-wallpaper.mjs";
 import truchet from "./scene-truchet.mjs";
+import hilbert from "./scene-hilbert.mjs";
 
 export default [
   acid,
@@ -62,6 +63,7 @@ export default [
   harmonograph,
   wallpaper,
   truchet,
+  hilbert,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
