@@ -1,96 +1,92 @@
-# Causal Tapestry — family sign-off packet
+# Causal Tapestry (#51) — elementary cellular automata
 
-**Gate: PASSED — owner art sign-off 2026-10-08 (D51), rig timing passed.** The historical lane record follows the D60 update below.
+**Rework 2026-10-09** after owner feedback: the automaton was lost under woven relief and stopped evolving. It is now the hero: crisp cells, the rule's space–time diagram, and a write head that visibly prints each new generation. It never stops generating.
 
-**2026-10-08 · INCREMENTAL / EMPIRICAL · draft until owner art approval and isolated real-GPU timing.** Headless captures are correctness/art-review evidence, not performance evidence or artistic sign-off. Scope: `scene-tapestry.mjs` and `tests/tapestry-gate.test.mjs`; exact CA evolution and recorded-history reverse playback are unchanged.
+## Algorithm
 
-## D60 structural energy and midtone update (2026-10-09)
+Wolfram's elementary cellular automata: a ring of binary cells. Each generation, every cell becomes bit `4·left + 2·self + right` of the 8-bit rule number. `stepTapestry(row, rule)` is the exact CPU reference. `TapestryModel` mirrors the whole GPU simulation (seeding, events, stale detection) generation by generation. The opt-in browser gate checks that the GPU history equals it bit for bit.
 
-Rosette retains its annular loom and exact elementary automaton, but energy now opens its growth radius from .30 to .48, winds its angular cells at .003–.06 turns per second, and scales its authored scroll rate by .5–1. The three other layouts, initial seed arrangements, CA rules and scroll curves are unchanged. The extra rosette controls ease across energy .1–.9; no rule switching, history clearing or added simulation pass is introduced.
+- **Rings:** one ring of **199** cells (cascade, mirror, tunnel), or three rings of **37** (rails). Both are prime, so they are never powers of two. On the old 512-cell ring, additive rule 90 went black after 256 generations; on 199 it never dies.
+- **History:** a 255-generation ring buffer in a 256×256 RGBA8 state texture. Row 0 holds metadata.
+- **Background-relative display:** rules whose quiescent background flips (bit 0 set, e.g. 45, 73) are shown as `cell XOR background(t)`. The ground stays dark and never strobes. The background orbit is tracked per row.
 
-Yarn gets a fixed palette-midtone lift (40% toward the square root of the palette colour, with the contrast midpoint raised from .18 to .24). This is independent of energy. The dark ground remains `secondary × .045 + (.006, .008, .014)`; no full-frame exposure gain or brighter background is added.
+## Signature detail in front
 
-Compact structural-energy comparison: 160×90, seed 17, 60 warm frames, 12 samples at 30 Hz, energy .1/.9 with clip base .5. Baseline values were retained by the parent at the same settings; the post-change run uses the current shared D60 metric, which normalizes brightness/tint out.
+- **Cells read as cells.** About 199 cells span a 16:9 frame (≈9.6 px each at 1920×1080). Tiles have a gap and bevel (`weave`); on sub-3-px cells the gap fades out so nothing aliases.
+- **The write head.** A glowing line marks the newest generation. A pen sweeps along it and reveals the new row cell by cell during each generation interval. Unlit lattice cells near the head glow faintly, so the grid being written reads.
+- **The seed column.** Each cascade records its seed column. For asymmetric two-sided rules (30, 45, …) its live cells are tinted. For rule 30 this is the centre column that Wolfram used as a random number generator. Symmetric rules are left plain, because their axis carries nothing new.
+- **Events are visible.** Fresh cascades, injected perturbations and live rule changes (a boundary row) flash in the accent colour and cool with age.
 
-| `seedShape` | Before score | After structure | After motion delta | After score |
-| ----------- | ------------ | --------------- | ------------------ | ----------- |
-| 0 Cascade   | .2064        | .21379          | .02086             | **.21481**  |
-| 1 Cross     | .1658        | .15885          | .02762             | **.16123**  |
-| 2 Rails     | .2211        | .20908          | .07296             | **.22144**  |
-| 3 Rosette   | .1080        | .41089          | .01843             | **.41130**  |
+## Endless
 
-All four now exceed .15. Pulse's final compact scores in the same run are **.87404 / .69026 / .40154 / .68956**; its packet's numerical energy evidence is updated without changing its scene. Executed: `npm run contact -- --sheet energy --family tapestry,pulse --seed 17 --width 160 --height 90 --frames 60 --samples 12 --stride 2 --port 48240`. Result: `artifacts/contact/energy/metrics.json`.
+1. **Cascades are reborn.** In sparse looks (density < 0.25), a fresh row of seeds starts a new cascade when the single seed's light cone has wrapped the ring. The wrap point comes from the rule's growth bits: left via `001` (bit 1), right via `100` (bit 4). That is 111 generations for two-sided rules on 199 cells: exactly one cascade page. One-sided rules (102, 110, 60) start at the edge their cone crosses away from.
+2. **Stale detection.** Each row stores a rotation- and reflection-invariant signature: population, boundaries, and pairs at distance 2 and 3. Once per generation, one controller texel per ring checks the last signatures for any period p ≤ 40. That covers dead, uniform and blinking states, cycles, and shifted cycles such as traffic free-flow or gliders on a ring. A stale ring needs `max(12, 2p + 2)` matching generations and has a 32-generation cooldown. It gets a visible event: a fresh cascade in sparse looks, a local flip-patch in dense looks. In rails, a dead or saturated ring also moves on to another rule.
+3. **Rain and phrases.** Above energy 0.3, perturbations rain in with energy. `phrase` adds a seed event every N beats. A dense look that stays quiet for 360 generations is perturbed.
+4. **No stall.** The generation clock runs at ≥ 2 generations/s whatever the parameters. The tunnel's rotation phase is integrated in state, so energy changes never jump it. All clocks are bounded integers.
+5. **Prefill.** During the engine's 120 warm ticks, the first 200 generations are written one per pass, so a clip opens on a full diagram.
+6. **Live rule change** continues from the current row and marks the boundary. Changing the view re-partitions the ring with a fresh row and keeps the visible history.
 
-The 480×270, 120-frame mid-energy grayscale types sheet has **zero near pairs below .25**, matching the historical within-family verdict. Minimum within-family distance is **.35069** (Cascade/Rosette). All captures have WebGL/non-finite **0/0**. Executed: `npm run contact -- --sheet types --family tapestry --port 48241 --out artifacts/contact/tapestry-energy-types`. The comparison is within-family; this run does not re-measure the historical cross-family flags.
+CPU evidence (`tests/tapestry-gate.test.mjs`): every look is run at energy 0.1/0.5/0.9 for 3000 generations, with 300-generation windows sampled every 100 generations. No window is more than half dead, none is p-periodic for p ≤ 40, and every window has varied signatures. Sparse looks give birth to a new cascade at least every `2·wrapAge`.
 
-All 24 library palettes were measured on Cascade at 320×180, 60 frames, mid energy, matching the retained `artifacts/contact/palettes/metrics.json` settings. Mean linear luminance across palettes rises modestly from **.01110 to .01395 (+25.7%)**; the per-palette range moves from **.00954–.01248 to .01227–.01541**. All palettes rise, with **zero dim/faulty renders**, WebGL errors or non-finite uploads. These are technical brightness/readability proxies, not owner palette sign-off. Executed: `npm run contact -- --sheet palettes --family tapestry --width 320 --height 180 --frames 60 --port 48243 --out artifacts/contact/tapestry-energy-palettes`.
+## Views (`seedShape`, type values 0–3)
 
-The opt-in browser regression now asserts D60's .15 normalized structural-energy floor for all four types at the compact settings above, in addition to the existing ordered scroll/weave/edge-density ladder, shared kick response and grayscale distinctness checks. `node tests/tapestry-gate.test.mjs --port 48242 --matrix artifacts/contact/tapestry-energy-types --out artifacts/contact/tapestry-energy-regression` passed. `npm test`: **183 passed, 7 opt-in skips**; `npm run typecheck`: passed; Prettier passed on all four changed files.
+| Value | View        | What it shows                                                                                                                                                                                                                                                                                    |
+| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0     | **Cascade** | A printed page of Wolfram's diagram: 199 × 112 static cells. The write head sweeps down (up when reversed) and overwrites the oldest generation; a dark erase band runs ahead of it. Cells never move, so they are maximally legible. A two-sided cascade fills exactly one page.                |
+| 1     | **Mirror**  | The newest generation is the centre line and history streams out both ways. Energy folds the ring into 1 → 3 mirrored kaleidoscope copies. Reversed flow puts the heads on the top and bottom edges.                                                                                             |
+| 2     | **Rails**   | Three 37-cell rings with time running sideways. The centre rail runs the look's rule; the outer rails show a gallery of famous rules (18, 22, 30, 41, 45, 54, 60, 62, 73, 90, 102, 105, 106, 110, 126, 150) side by side from the same kind of seed. Heads sit on opposite sides (counter-flow). |
+| 3     | **Tunnel**  | A log-polar map, so every cell stays square and time is depth: the ring is literally a ring. Forward flow sends generations from the vanishing point toward the viewer. Reversed flow writes at r = 0.8 and lets history recede. Sub-pixel cells settle to the row's density.                    |
 
-**Isolated reference-rig timing PASS (2026-10-09):** `mkdir /tmp/phosphor-rig.lock` acquired the atomic lock before `npm run timing -- --rig --family tapestry --port 48244 --out artifacts/timing/tapestry-energy`; `rmdir /tmp/phosphor-rig.lock` released it after completion. Apple M3 Pro through ANGLE Metal, 1920×1080, live energy .95, 30 seconds per type. All types have GPU/non-finite errors **0/0**, no step reductions and no quality downgrades. Retained result: `artifacts/timing/tapestry-energy/tapestry.json`.
+## Parameters
 
-| `seedShape` | Frames | p50 ms | p95 ms | p99 ms   | Max ms |
-| ----------- | ------ | ------ | ------ | -------- | ------ |
-| 0           | 1801   | 16.7   | 17.5   | **17.6** | 17.7   |
-| 1           | 1802   | 16.7   | 17.4   | **17.6** | 17.7   |
-| 2           | 1802   | 16.7   | 17.5   | **17.6** | 17.7   |
-| 3           | 1802   | 16.7   | 17.5   | **17.6** | 17.7   |
+`rule` (Wolfram code), `seedShape` (view), `density` (< 0.25: 1–6 seeds per cascade; otherwise random fill; looks sit at ≤ 0.10 or ≥ 0.36 so autopilot drift of ±0.095 never flips the regime), `scroll` (generations/s, 0–96), `weave` (tile gap and bevel), `playback` (sign = time-flow direction, magnitude = write-head glow), `phrase` (seed event every N beats), `paletteDrift` (colour tide along generations). The keys are unchanged; every value an old preset used still validates.
 
-## Structural types (`scene.type`: `seedShape` 0–3)
+## Looks
 
-- **0 Cascade:** one vertically unrolled, expanding triangular history curtain; preset **90 · Nested linen**.
-- **1 Cross:** four opposed history arms meeting at the centre, with binary cells cut out of solid yarn; preset **54 · Twin brocade**.
-- **2 Rails:** five parallel sideways-history strips with staggered ages; preset **110 · Persistent knots**.
-- **3 Rosette:** rotating annular loom, angular cells and radial generations, with cut-out yarn; preset **30 · Wild silk**.
+| Look                    | View    | What it shows                                                                  |
+| ----------------------- | ------- | ------------------------------------------------------------------------------ |
+| 90 · Nested linen       | Cascade | Single-seed Sierpinski triangle, one per page                                  |
+| 54 · Twin brocade       | Mirror  | Two seeds of class-4 rule 54, mirrored into a woven texture                    |
+| 30 · Wild silk          | Tunnel  | Dense rule 30 chaos receding into the tunnel (reversed)                        |
+| 184 · Traffic ribbon    | Cascade | Traffic rule 184 near critical density: jams travel backwards against the cars |
+| 110 · Persistent knots  | Cascade | Universal rule 110 from random: gliders on the ether background                |
+| 150 · Interference lace | Mirror  | Three-seed additive rule 150, heads on the edges (reversed)                    |
+| 22 · Sparse ceremony    | Tunnel  | Single-seed rule 22 fan, receding tunnel                                       |
+| 126 · Burning fringe    | Rails   | Fast frieze of rule-126 triangles beside gallery rules                         |
+| 30 · Centre column      | Cascade | Rule 30 from one cell, time flowing up, centre column (RNG) tinted             |
+| 45 · Chaos fan          | Mirror  | Rule 45 single-seed chaos (background-relative), mirrored fan                  |
+| 73 · Walled gardens     | Tunnel  | Rule 73's static walls become radial spokes around chaotic gardens             |
+| 18 · Kink rails         | Rails   | Rule 18 from random: Sierpinski fragments and kinks, counter-flowing rails     |
+| 102 · Pascal slope      | Cascade | One-sided Sierpinski (Pascal's triangle mod 2) from two seeds                  |
+| 41 · Glider loom        | Rails   | Complex rule 41 in the centre rail                                             |
 
-The selector still chooses the matching initial seed arrangement as well as layout. All eight authored presets retain their bounded parameters and seeds. The original sheet flagged 0/1 (0.063), 1/3 (0.118), 0/3 (0.131); the rebuilt within-family sheet has **zero pairs below 0.25**.
+## Energy grammar (structure and motion, not brightness)
 
-## Distinctness (mid-energy grayscale; threshold 0.25)
+- `scroll` × 0.52 at 0.1 → × 1.48 at 0.9 (`energy: { mul: [0.4, 1.6] }`), with a floor of 2 generations/s.
+- Seeds per cascade: +1 at energy 0.65, +2 at 0.8. Rain of perturbations: none below 0.3, about 1 every 40 generations at 0.9.
+- Mirror folds: 1 → 3 kaleidoscope copies. Tunnel spin: 0.0015 → 0.012 turns/s, integrated.
+- Write-head intensity: 0.45 → 1.2 × `|playback|`, plus a small `u_kick` lift. Shared punch 0.8 and pulse 1 come from the engine.
 
-| Type      | 0     | 1     | 2     | 3     | Nearest other family/type    |
-| --------- | ----- | ----- | ----- | ----- | ---------------------------- |
-| 0 Cascade | —     | .6559 | .6021 | .4643 | Melt family 3 · .1381        |
-| 1 Cross   | .6559 | —     | .7079 | .4543 | Aquarium habitat 0 · .4855   |
-| 2 Rails   | .6021 | .7079 | —     | .7443 | Cathedral geometry 3 · .3281 |
-| 3 Rosette | .4643 | .4543 | .7443 | —     | Aquarium habitat 0 · .3652   |
+## Cost
 
-All **21 cross-family flags** concern Cascade (0): Melt family 3 (.1381), 2 (.1737), 0 (.2009); Evolution Garden planting 3 (.1407), 6 (.1831); Light Beams form 3 (.1423), 1 (.1527), 0 (.2164), 2 (.2185); Fourth Dimension shape 1 (.1602), 0 (.1875); Magnetic Choir flow 1 (.1726), 0 (.1797); Particle Swarm form 2 (.1815), 0 (.1905); Hyperbolic Loom tiling 1 (.1928), 0 (.2201), 2 (.2344); Feedback Chapel geometry 3 (.2013), 1 (.2265), 0 (.2369). **Types 1–3 have no cross-family flags.** Owner must judge these static-proxy similarities; no other family was changed.
+- **Simulation:** 256 × 256 = 65,536 texels × 2 passes per 60 Hz tick (`steps: 2`). Most texels fetch only the clock and themselves.
+- **Per generation** (at most one per pass): 199 new cells × 3 fetches; one signature texel per ring loops over its ring (≤ 202 fetches); one controller texel per ring runs the stale check (early-exit; at most about 3,300 signature compares in the worst case, about 80 typically).
+- **Visual:** per pixel about 6 `texelFetch` plus a few `exp`; the tunnel adds `log` and `atan`. No raymarching and no `maxRenderWidth`.
+- **Real GPU:** the reference rig was not re-timed in this lane. The work is about half the texel writes of the old 512 × 512 single-pass loom.
+- **SwiftShader:** about 130 ms per tick under a 4× oversubscribed CPU (headless only, not a GPU proxy).
 
-## Energy ladder (0.1 → 0.5 → 0.9; clip base 0.5, 120 frames)
+## Tests
 
-PNG review: all four recommended presets read calm → developed → intense through finer history, stronger foreground/background contrast and faster evolution, not just colour. All eight authored ladders have strictly increasing edge density. Luminance is recorded, not required to rise: contrast moves around a fixed midtone; no scene brightness gain is tied to energy, and master remains shared.
+`tests/tapestry-gate.test.mjs` covers:
 
-| Type / recommended preset | Linear mean luminance | Edge density          | Technical ladder verdict                            |
-| ------------------------- | --------------------- | --------------------- | --------------------------------------------------- |
-| 0 / 90                    | .0116 / .0132 / .0117 | .0178 / .0483 / .0675 | Ordered; larger/finer causal triangle               |
-| 1 / 54                    | .0259 / .0819 / .0785 | .0144 / .1876 / .3051 | Ordered; four arms gain woven detail                |
-| 2 / 110                   | .0669 / .1332 / .1424 | .2618 / .3127 / .4158 | Ordered; horizontal threads become dense relief     |
-| 3 / 30                    | .0252 / .0417 / .0474 | .1360 / .1710 / .1882 | Ordered; annulus gains contrast/detail and rotation |
+- every Wolfram code on every neighbourhood, and rule-30/110 fixtures
+- the old power-of-two death against the new prime rings
+- signature invariance
+- stale detection: dead, shift, traffic, blink, chaos and cascade states
+- seed placement
+- live rule change and view change continuity
+- gallery rails
+- 3000-generation endlessness for every look at three energies
+- the preset contract
 
-## Aspect checks
-
-All four types rendered at **640×360, 1280×360 and 480×480**: WebGL/non-finite inputs **0/0** in all 12 captures. PNG review found no stretching, letterbox/empty bands or lost central subject. Ultra-wide crops the vertical history/annulus; square crops the curtain and horizontal cross arms, preserving their centres. The annular hole remains circular in both crops.
-
-## Correctness and shared beat
-
-- `npm test`: **130 passed, 1 intentional opt-in skip**; `npm run build`: **47 assets built**. `node scripts/test-browser.mjs --only lab --port 48124`: **all 104 looks non-blank, WebGL 0, non-finite 0, textures accounted**; extreme energy, odd aspects and one-slot/no-leak fades passed for every family.
-- `node tests/tapestry-gate.test.mjs --port 48124 --matrix artifacts/contact/tapestry-cross-family`: **passed**. All four types have ordered scroll **11/34/57 rows/s**, weave **.40/.72/1.00**, rendered edges and kick response. Same-state off/kick PNG review confirms shared punch/pulse at 0.9, with automatic flash suppressed: mean 8-bit RGB differences **0: 11.31; 1: 24.92; 2: 46.45; 3: 20.11** (all zero at 0.1). Declared weights are punch **.8**, pulse **1**; no injection alters the exact CA.
-
-## Contact sheets (absolute paths; copied into the main checkout's `artifacts/` at merge)
-
-- Types: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-types/index.html`
-- Baseline comparison: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-before/index.html`
-- All authored ladders: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-ladder/index.html`
-- 16:9: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-640x360/index.html`
-- Ultra-wide: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-1280x360/index.html`
-- Square: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-480x480/index.html`
-- All-family grayscale types: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-cross-family/index.html`
-- Isolated kick PNGs and full distance matrix: `/Users/fabian/Development/phosphor/artifacts/contact/tapestry-probes/metrics.json`
-
-## Owner decision and limits
-
-Judge structural identity in grayscale, the ladder's at-a-glance order (especially the dense rosette), calm/peak usefulness and acceptable cover-crop. Approve or reject the recommended presets; then run `npm run timing -- --rig --family tapestry` alone on the reference rig (all types at high energy, p99 ≤ 34 ms, no downgrade/errors).
-
-**Rig timing PASS (2026-10-08, parent):** `npm run timing -- --rig --family tapestry`, Chrome on the M3 Pro (ANGLE Metal, built-in display), 1920×1080, energy 0.95, 30 s per type, under heavy CPU load from parallel headless lanes (load average ≈ 136): p50 16.7 ms, p99 17.6 ms for all four types, max 24.2 ms, GPU errors 0, non-finite 0, no step reduction or downgrade. Art sign-off has not been executed.
-
-Known limits: simulation is 512 cells × 511 retained generations; square/ultra-wide use 16:9 cover-crop, not native recomposition. Distances are static 120-frame grayscale proxies, not settled-history or motion proofs. Thin threads may alias on an LED wall. At very low energy, authored 184/22 can clamp scroll to zero and show only sparse initial history. Reverse revisits stored rows, never reconstructs older history. Arbitrary edited rules (e.g. 0/255) need not make useful art; the gate concerns declared types and authored looks. No real-GPU timing or owner sign-off was performed in this lane.
+The opt-in browser part (`node tests/tapestry-gate.test.mjs --port N`) renders every look and compares the full GPU history (cells, rule, background, event kind) with `TapestryModel`.
