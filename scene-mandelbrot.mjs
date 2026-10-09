@@ -29,11 +29,11 @@ export const SETS = [
 export const TARGETS = [
   // Mandelbrot · route 0: seahorse valley (seahorse tails, double spirals)
   { set: 0, route: 0, kind: "n", p: 41, x: -0.7949573757463125, y: 0.16279060511431684, D: 34.9 },
-  { set: 0, route: 0, kind: "n", p: 46, x: -0.7748343854395998, y: 0.12625681668003821, D: 34.8 },
+  { set: 0, route: 0, kind: "n", p: 47, x: -0.7960363631433862, y: 0.18306523233812358, D: 35.1 },
   { set: 0, route: 0, kind: "n", p: 35, x: -0.7432297472658107, y: 0.16873609283083466, D: 34.8 },
   // route 1: elephant valley and its eastern neighbours
   { set: 0, route: 1, kind: "n", p: 37, x: 0.3579156619028207, y: 0.07148527040645308, D: 35.5 },
-  { set: 0, route: 1, kind: "n", p: 42, x: 0.3269672446367841, y: 0.03534400353725522, D: 34.7 },
+  { set: 0, route: 1, kind: "n", p: 49, x: 0.34537543349775723, y: 0.05515208820044652, D: 34.7 },
   { set: 0, route: 1, kind: "n", p: 45, x: 0.39067485105484556, y: -0.2381775293414651, D: 35.2 },
   // route 2: minibrots hanging in the dendrite filaments
   { set: 0, route: 2, kind: "n", p: 34, x: -0.22965910006604096, y: -0.7379659567336307, D: 34.8 },
@@ -49,7 +49,6 @@ export const TARGETS = [
   { set: 1, route: 0, kind: "n", p: 26, x: -1.739448430059651, y: -0.05585290317207539, D: 36.9 },
   { set: 1, route: 0, kind: "n", p: 27, x: -1.7390286871676863, y: -0.04790476963960595, D: 35.5 },
   // route 1: ships in the rigging close to the antenna
-  { set: 1, route: 1, kind: "n", p: 36, x: -1.7461654047251771, y: -0.007390905233668064, D: 36.8 },
   { set: 1, route: 1, kind: "n", p: 31, x: -1.6168546836768196, y: -0.008587505344208152, D: 37.9 },
   { set: 1, route: 1, kind: "n", p: 22, x: -1.7769722161242294, y: -0.033629426205990236, D: 36.4 },
   { set: 1, route: 1, kind: "n", p: 26, x: -1.7869192638565277, y: -0.02333076722867557, D: 38 },
@@ -360,13 +359,13 @@ void main() {
   if (!surfacing) {
     // Ease in from the overview, decelerate into the end depth.
     depth += u_dt * speed * mix(0.35, 1.0, smoothstep(0.0, 1.5, depth)) *
-      clamp((end - depth) / 1.2 + 0.08, 0.0, 1.0);
+      clamp((end - depth) / 0.7 + 0.2, 0.0, 1.0);
     if (depth >= end - 0.004) surfacing = true;
   } else {
     // Surface on a fast eased glide; the overview is the same frame for
     // every target, so the next dive starts seamlessly.
     float rise = 2.0 + 3.0 * speed;
-    depth -= u_dt * rise * clamp((end - depth) * 0.5 + 0.06, 0.0, 1.0) *
+    depth -= u_dt * rise * clamp((end - depth) * 0.8 + 0.12, 0.0, 1.0) *
       clamp(depth * 0.35 + 0.05, 0.0, 1.0);
     if (depth <= 0.004) {
       depth = 0.0;
@@ -427,6 +426,51 @@ void main() {
 
 // ---------------------------------------------------------------- visual --
 
+// One specialised loop per set (uniform branch outside, none inside).
+// Per step: the derivative at z = Z + δ, then δ' = f(Z + δ) − f(Z) + δc
+// written without cancellation (diffAbs folds |·| for Ship and Celtic).
+const re = "(2.0 * Z.x + dl.x) * dl.x - (2.0 * Z.y + dl.y) * dl.y";
+const xc = "(Z.x * dl.y + dl.x * Z.y + dl.x * dl.y)";
+const STEPS = [
+  ["der = 2.0 * cmul(z, der) + vec2(pix, 0.0);", `dl = vec2(${re}, 2.0 * ${xc}) + dc;`],
+  [
+    "float s = z.x * z.y < 0.0 ? -2.0 : 2.0;\n      J = mbJmul(vec4(2.0 * z.x, -2.0 * z.y, s * z.y, s * z.x), J) + pix * S;",
+    `dl = vec2(${re}, 2.0 * diffAbs(Z.x * Z.y, ${xc})) + dc;`,
+  ],
+  ["J = mbJmul(vec4(2.0 * z.x, -2.0 * z.y, -2.0 * z.y, -2.0 * z.x), J) + pix * S;", `dl = vec2(${re}, -2.0 * ${xc}) + dc;`],
+  ["der = 3.0 * cmul(cmul(z, z), der) + vec2(pix, 0.0);", "dl = cmul(3.0 * cmul(Z, Z) + 3.0 * cmul(Z, dl) + cmul(dl, dl), dl) + dc;"],
+  [
+    "float s = z.x * z.x - z.y * z.y < 0.0 ? -2.0 : 2.0;\n      J = mbJmul(vec4(s * z.x, -s * z.y, 2.0 * z.y, 2.0 * z.x), J) + pix * S;",
+    `dl = vec2(diffAbs(Z.x * Z.x - Z.y * Z.y, ${re}), 2.0 * ${xc}) + dc;`,
+  ],
+];
+const loops = STEPS.map(
+  ([derivative, perturb], set) => `  ${set ? "else " : ""}if (set == ${set}) {
+    for (int i = 0; i < CAP; ++i) {
+      if (i >= N) break;
+      ${derivative}
+      ${perturb}
+      if (++m == L) {
+        m = loopAt;
+        // Inside the target minibrot δ settles onto the attracting cycle:
+        // once a whole period returns it to the same place, stop early.
+        if (loopAt == 0) {
+          vec2 moved = dl - lastWrap;
+          if (dot(moved, moved) < 1e-8 * dot(dl, dl)) break;
+          lastWrap = dl;
+        }
+      }
+      Z = mbZ(m);
+      z = Z + dl;
+      r2 = dot(z, z);
+      if (r2 > 1e5) { escaped = true; n = i + 1; break; }
+      // Rebase (Zhuoran): when the orbit comes closer to 0 than to the
+      // reference, continue from the reference's start.
+      if (r2 < dot(dl, dl)) { dl = z; Z = vec2(0.0); m = 0; }
+    }
+  }`,
+).join("\n");
+
 const fragment = `${common}
 const int CAP = ${ITERATION_CAP};
 vec2 mbZ(int m) {
@@ -437,24 +481,8 @@ vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y *
 float diffAbs(float c, float d) {
   return c >= 0.0 ? (c + d >= 0.0 ? d : -(2.0 * c + d)) : (c + d > 0.0 ? 2.0 * c + d : -d);
 }
-// δ' = f(Z + δ) − f(Z) + δc without cancellation.
-vec2 mbPerturb(int set, vec2 Z, vec2 d, vec2 dc) {
-  if (set == 3) {
-    vec2 a = 3.0 * cmul(Z, Z) + 3.0 * cmul(Z, d) + cmul(d, d);
-    return cmul(a, d) + dc;
-  }
-  float re = (2.0 * Z.x + d.x) * d.x - (2.0 * Z.y + d.y) * d.y;
-  float xc = Z.x * d.y + d.x * Z.y + d.x * d.y;
-  if (set == 4) re = diffAbs(Z.x * Z.x - Z.y * Z.y, re);
-  float im = set == 1 ? 2.0 * diffAbs(Z.x * Z.y, xc) : (set == 2 ? -2.0 : 2.0) * xc;
-  return vec2(re, im) + dc;
-}
-// Jacobian rows of z -> f(z) for the non-conformal sets.
-vec4 mbJac(int set, vec2 z) {
-  if (set == 1) { float s = z.x * z.y < 0.0 ? -2.0 : 2.0; return vec4(2.0 * z.x, -2.0 * z.y, s * z.y, s * z.x); }
-  if (set == 2) return vec4(2.0 * z.x, -2.0 * z.y, -2.0 * z.y, -2.0 * z.x);
-  float s = z.x * z.x - z.y * z.y < 0.0 ? -2.0 : 2.0;
-  return vec4(s * z.x, -s * z.y, 2.0 * z.y, 2.0 * z.x);
+vec4 mbJmul(vec4 A, vec4 J) {
+  return vec4(A.x * J.x + A.y * J.z, A.x * J.y + A.y * J.w, A.z * J.x + A.w * J.z, A.z * J.y + A.w * J.w);
 }
 float tri(float t) { return abs(fract(t) * 2.0 - 1.0); }
 vec2 mbTarget(int tid) { return vec2(uintBitsToFloat(MB_TC[4 * tid]), uintBitsToFloat(MB_TC[4 * tid + 1])); }
@@ -518,35 +546,7 @@ void main() {
   bool escaped = false;
   float r2 = 0.0;
   vec2 lastWrap = vec2(1e30);
-  for (int i = 0; i < CAP; ++i) {
-    if (i >= N) break;
-    // Pixel-scaled derivative dz/dc (distance estimate), at z = Z + δ.
-    if (set == 0) der = 2.0 * cmul(z, der) + vec2(pix, 0.0);
-    else if (set == 3) der = 3.0 * cmul(cmul(z, z), der) + vec2(pix, 0.0);
-    else {
-      vec4 A = mbJac(set, z);
-      J = vec4(A.x * J.x + A.y * J.z, A.x * J.y + A.y * J.w, A.z * J.x + A.w * J.z, A.z * J.y + A.w * J.w) +
-        pix * S;
-    }
-    dl = mbPerturb(set, Z, dl, dc);
-    if (++m == L) {
-      m = loopAt;
-      // Inside the target minibrot δ settles onto the attracting cycle:
-      // once a whole period returns it to the same place, stop early.
-      if (loopAt == 0) {
-        vec2 moved = dl - lastWrap;
-        if (dot(moved, moved) < 1e-8 * dot(dl, dl)) break;
-        lastWrap = dl;
-      }
-    }
-    Z = mbZ(m);
-    z = Z + dl;
-    r2 = dot(z, z);
-    if (r2 > 1e5) { escaped = true; n = i + 1; break; }
-    // Rebase (Zhuoran): when the orbit comes closer to 0 than to the
-    // reference, continue from the reference's start.
-    if (r2 < dot(dl, dl)) { dl = z; Z = vec2(0.0); m = 0; }
-  }
+${loops}
   // |∇|z|| = |Jᵀ ẑ|: the escape potential's gradient, also for the
   // non-conformal sets whose Jacobian stretches one direction.
   vec2 zh = z / max(length(z), 1e-30);
@@ -571,13 +571,13 @@ void main() {
     vec3 bandColour = palette(mix(tri(t), 0.5, aa));
     // Glow falls off with distance in screen terms (360-line reference), so
     // the look does not thin out at higher render widths.
-    float reach = 1.5 + 14.0 * (1.0 - edge) * (1.0 - edge);
+    float reach = 2.0 + 26.0 * (1.0 - edge) * (1.0 - edge);
     float near = exp2(-dist * (360.0 / u_resolution.y) / reach);
     float stripe = 1.0 - bands * 0.75 * mix(1.0 - smoothstep(0.35, 0.9, tri(t * 2.0)), 0.5, aa);
     // Filament core: one or two pixels wide whatever the render size.
     float line = 1.0 - smoothstep(0.0, mix(1.9, 0.85, detail), dist);
     vec3 lineColour = palette(mix(tri(t * 0.35 + 0.35), 0.5, aa * 0.6));
-    col = bandColour * near * stripe * (1.0 - edge) * 0.75 +
+    col = bandColour * near * stripe * (1.0 - edge) * 0.85 +
       lineColour * line * (0.35 + 0.65 * edge) * (1.0 - 0.6 * dust) + vec3(0.18) * line * line * edge;
     col *= 1.0 - 0.45 * dust;
   } else {
@@ -664,6 +664,7 @@ export default {
     speed: { mul: [0.4, 1.9] },
     spin: { mul: [0.35, 2.2] },
     detail: [-0.3, 0.3],
+    bands: [-0.2, 0.2],
   },
   beat: { punch: 0.5, pulse: 0.6 },
   audio: [
