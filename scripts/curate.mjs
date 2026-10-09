@@ -228,6 +228,20 @@ const families = {
       "Peano Steps",
     ],
   ],
+  phyllotaxis: [
+    8.2,
+    [
+      "Fibonacci Arms",
+      "Growing Head",
+      "Golden Sweep",
+      "Fibonacci Sphere",
+      "Sunflower",
+      "Seed Fountain",
+      "Spokes and Spirals",
+      "Golden Globe",
+      "Dense Head",
+    ],
+  ],
   newton: [
     8.7,
     [

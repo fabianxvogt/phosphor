@@ -30,6 +30,7 @@ import harmonograph from "./scene-harmonograph.mjs";
 import wallpaper from "./scene-wallpaper.mjs";
 import truchet from "./scene-truchet.mjs";
 import hilbert from "./scene-hilbert.mjs";
+import phyllotaxis from "./scene-phyllotaxis.mjs";
 
 export default [
   acid,
@@ -64,6 +65,7 @@ export default [
   wallpaper,
   truchet,
   hilbert,
+  phyllotaxis,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
