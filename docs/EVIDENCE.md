@@ -2,6 +2,12 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-10 — Git-triggered production release verified (D70)
+
+- `INCREMENTAL / EMPIRICAL`: pushing `7e7c831d3e998b6ab487c02c67b010ede673ef40` to `main` automatically created Vercel production deployment `dpl_HApeVSpG3x2NKGJkTXG8BRoqSYhg`, with API source `git` and the exact commit/branch. It reached READY and acquired [the public alias](https://phosphor-performance.vercel.app/). No manual application upload was used.
+- Vercel build logs: 376 tests passed, 8 opt-in probes skipped, zero failures; typecheck, build and distribution verification passed. Build revision `c59123912a9760bc`; 74 application assets. All 75 public URLs (including both `/` and `/index.html`) matched the local distribution byte-for-byte. `/.openai/hosting.json` and `/.vercelignore` returned 404.
+- Fresh installed-Chrome smoke on the production alias: catalog populated with 304 looks and all 36 families, local preview rendered non-black pixels, catalog search worked, zero page errors. Screenshot inspected. This is a hosted release smoke, not a new rig-performance or all-family aesthetic acceptance claim. Existing cached shows must use **Update app** to activate the new offline generation.
+
 ## 2026-10-10 — Automatic main releases configured (D70)
 
 - `INCREMENTAL / EMPIRICAL`: production was still serving revision `6981791fa1e6262e`, with the page grid and no `catalog.mjs` (HTTP 404). Vercel's latest deployment was READY but dated 2026-10-09 01:21 Berlin time; later catalog/family commits had been pushed without a release. The project had no Git connection, and GitHub CI only verified builds.
