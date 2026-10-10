@@ -678,7 +678,6 @@ export default {
   name: "Mandelbrot Dive",
   description:
     "An endless deep zoom into escape-time fractals: Mandelbrot, Burning Ship, Tricorn, the cubic Multibrot and the Celtic set. Each dive flies from the whole set down past 1e-10 to a verified boundary point — a minibrot nucleus or a Misiurewicz spiral centre — then surfaces on a fast eased glide and dives into the next. Pixels iterate a float32 perturbation around one reference orbit (with rebasing); the reference is computed once per target in double-single arithmetic in a small simulation texture. Smooth escape-count bands, distance-estimate filaments and a dark interior with a rim glow; energy drives zoom speed, spin, colour flow and filament detail.",
-  maxRenderWidth: 1280,
   schema,
   presets,
   fragment,

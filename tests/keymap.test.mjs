@@ -25,14 +25,10 @@ test("shift + 1–8 does nothing: there are no pages (D68)", () => {
   assert.equal(actionFor(key("Digit3", { shiftKey: true })), null);
 });
 
-test("panic keys work even with a slider or text field focused", () => {
+test("Escape and Shift+Escape never change playback, including focused inputs", () => {
   for (const target of [input("range"), input("text"), input("number")]) {
-    assert.deepEqual(actionFor(key("Escape", { target })), {
-      type: "blackout",
-    });
-    assert.deepEqual(actionFor(key("Escape", { target, shiftKey: true })), {
-      type: "safe",
-    });
+    assert.equal(actionFor(key("Escape", { target })), null);
+    assert.equal(actionFor(key("Escape", { target, shiftKey: true })), null);
   }
 });
 

@@ -16,9 +16,7 @@ import { imageMetrics } from "./browser/metrics.mjs";
 
 // The public render seam exercises the actual family shaders, not GLSL text.
 // Opt in with --port; --quick retains the fixed-time audio/palette/kick checks.
-test("headliners retain their bounded ray and pixel budgets", () => {
-  assert.equal(flight.maxRenderWidth, 960);
-  assert.equal(cathedral.maxRenderWidth, 1280);
+test("headliners retain their energy mappings at full output resolution", () => {
   for (const scene of [flight, cathedral]) {
     assert.equal(scene.energy.glow, undefined, "energy is not a master gain");
     assert.ok(scene.energy.speed);
@@ -71,12 +69,15 @@ test(
             engine.options.bloom = 0;
             const capture = (bass, beat) => {
               Object.assign(engine.features, {
-                low: bass, active: bass > 0, locked: bass > 0,
+                low: bass,
+                active: bass > 0,
+                locked: bass > 0,
               });
               engine.beat = beat;
               // Settle both the bounded heroes and the two-second clock
               // hand-back without advancing the ray-camera simulation.
-              for (let i = 0; i < 60; i++) engine.updatePerformance(0.05, false);
+              for (let i = 0; i < 60; i++)
+                engine.updatePerformance(0.05, false);
               engine.uniformFrame++;
               engine.drawSlot(slot, 0);
               const target = slot.visual[slot.vi];
@@ -207,13 +208,13 @@ test(
             }
           }
         }
-        // A source larger than the shading budget must keep the native aspect.
+        // Full HD shading must preserve the output dimensions.
         const capped = await lab.page.evaluate(renderLook, {
           sceneId: scene.id,
           index: 0,
           level: 0.5,
           frames: 0,
-          width: scene.maxRenderWidth * 2,
+          width: 1920,
           height: 360,
           capture: false,
         });
@@ -223,7 +224,7 @@ test(
           const target = engine.slots.at(-1).visual[0];
           return [target.w, target.h];
         });
-        assert.deepEqual(size, [scene.maxRenderWidth, 180]);
+        assert.deepEqual(size, [1920, 360]);
         if (scene.id === "cathedral") {
           const motion = await lab.page.evaluate(() => {
             const { engine } = window.__phosphorLab;

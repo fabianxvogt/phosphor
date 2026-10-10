@@ -17,7 +17,8 @@
     "blackout": "node scripts/blackout-output.mjs",
     "typecheck": "tsc --noEmit",
     "format:check": "prettier --check package.json tsconfig.json .prettierrc.json .github tests/browser scripts/browser-runtime.mjs scripts/test-browser.mjs scripts/contact.mjs scripts/soak.mjs scripts/family-timing.mjs",
-    "beat:eval": "node scripts/beat-eval.mjs"
+    "beat:eval": "node scripts/beat-eval.mjs",
+    "test:stage-output": "node scripts/test-stage-output.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.64.0",

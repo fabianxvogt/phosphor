@@ -300,7 +300,6 @@ export default {
   name: "Newton Basins",
   description:
     "Newton's root-finding method run on every pixel: each pixel takes the colour of the root it converges to, shaded by how long it took. The basin borders are fractal and have the Wada property (all basins meet at every border point). Variants: z³ − 1, five wandering roots, Halley's method, the Nova fractal and roots of unity whose degree grows from 3 to 8. Roots shine as small stars.",
-  maxRenderWidth: 1280,
   energy: {
     drift: { mul: [0.4, 2.2] },
     spin: { mul: [0.4, 2.4] },

@@ -283,7 +283,6 @@ export default {
   name: "Aperiodic Tilings",
   description:
     "De Bruijn's multigrid: families of parallel lines whose crossings become rhombi. Five families give Penrose's never-repeating rhombus tiling, four the eight-fold Ammann–Beenker tiling, seven and six heptagonal and dodecagonal ones. Thick and thin rhombi glow in their own colours; on the beat the ribbons of one grid family light up (they are the grid lines); drifting offsets make phason flips, tiles flipping in place while the tiling stays aperiodic.",
-  maxRenderWidth: 1280,
   energy: {
     phason: { mul: [0.4, 2.2] },
     drift: { mul: [0.5, 2] },

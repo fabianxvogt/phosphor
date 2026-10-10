@@ -13,8 +13,6 @@ import {
   KEYS,
   TRANSITIONS,
   AUTOPILOT_BARS,
-  PIXEL_BUDGETS,
-  NATIVE_BUDGET,
   MIDI_TARGETS,
 } from "./show-set.mjs";
 import { loadSet, saveSet } from "./show-storage.mjs";
@@ -185,9 +183,16 @@ const stageAlive = () =>
 const now = () => performance.now() / 1000;
 function resumeLocalPerformance() {
   if (stageAlive() || !status) return false;
-  if (status.performance) localPerformance?.restore(status.performance, now());
+  const state = status.performance;
   status = null;
+  handoffPending = false;
   $("preview").srcObject = null;
+  applyPreviewSize();
+  if (state) localPerformance?.restore(state, now());
+  // Present the restored look before revealing the local canvas.
+  editorEngine?.advance(0, true);
+  if (editorEngine) localPreviewContext.drawImage($("editorCanvas"), 0, 0);
+  updatePreview();
   return true;
 }
 function performanceStatus() {
@@ -264,7 +269,10 @@ function syncLocalDemo() {
     });
 }
 // Do not ask for microphone access or create an audio context on page load.
-for (const kind of ["click", "keydown"]) addEventListener(kind, syncLocalDemo);
+for (const kind of ["click", "keydown"])
+  addEventListener(kind, (event) => {
+    if (event.code !== "Escape") syncLocalDemo();
+  });
 addEventListener("pagehide", () => demoAudio.dispose());
 renderLocalAudio();
 function updatePreview() {
@@ -1036,24 +1044,9 @@ function renderSetFields() {
       }),
     ),
   );
-  const budget = el(
-    "select",
-    {
-      title:
-        "Stage render budget; the stage steps down only if frames stay slow",
-      onchange: () => {
-        set.options.pixelBudget = Number(budget.value);
-        changed();
-      },
-    },
-    ...PIXEL_BUDGETS.map((b) =>
-      el("option", {
-        value: b,
-        textContent: b === NATIVE_BUDGET ? "Native (up to 4K)" : `${b} MP`,
-        selected: b === set.options.pixelBudget,
-      }),
-    ),
-  );
+  const budget = el("span", {
+    textContent: "Native display pixels · full quality",
+  });
   const option = (key, label) =>
     fader(
       { key: `opt-${key}`, label, min: 0, max: 1, step: 0.01 },

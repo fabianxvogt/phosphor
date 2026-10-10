@@ -1,12 +1,12 @@
 // Stage window (decision D8): renders at the screen's native size within the
-// pixel budget and owns the show — controller, clock, autopilot, audio and
+// GPU limits and owns the show — controller, clock, autopilot, audio and
 // beat tracking. The control window is a remote; if it crashes or reloads
 // the picture keeps going.
 import scenes from "./scenes.mjs";
 import { Engine } from "./engine.mjs";
 import { Show } from "./show.mjs";
 import { performanceState, restorePerformance } from "./control-preview.mjs";
-import { validateShowSet, PIXEL_BUDGETS } from "./show-set.mjs";
+import { validateShowSet } from "./show-set.mjs";
 import { presetSnapshot } from "./session.mjs";
 import { StageAudio } from "./stage-audio.mjs";
 import { EnergyEvents } from "./energy-events.mjs";
@@ -15,7 +15,6 @@ import { actionFor } from "./keymap.mjs";
 import { drawPattern } from "./stage-pattern.mjs";
 import { Pacer } from "./pacer.mjs";
 import { Telemetry } from "./telemetry.mjs";
-import { Governor } from "./governor.mjs";
 
 const $ = (id) => document.getElementById(id);
 const channel = new BroadcastChannel("phosphor-show");
@@ -47,8 +46,6 @@ const events = new EnergyEvents();
 const telemetry = new Telemetry();
 const pacer = new Pacer();
 let frozen = false;
-const governor = new Governor(PIXEL_BUDGETS, set.options.pixelBudget);
-let setBudget = set.options.pixelBudget; // the set's choice; the governor may go lower
 let started = false;
 
 function applyOptions(options) {
@@ -78,7 +75,6 @@ function apply(actions) {
         // Energy crossfades with the picture: the outgoing clip moves toward
         // the new energy while the incoming one starts from the old.
         engine.setLevel(a.energy, a.fadeSeconds);
-        engine.rayStepBudget = governor.steps(a.snapshot.scene);
         if (
           engine.load(a.snapshot, a.fadeSeconds, {
             energy: a.baseEnergy ?? a.energy,
@@ -89,7 +85,6 @@ function apply(actions) {
         break;
       case "safe":
         engine.setLevel(a.energy, 0);
-        engine.rayStepBudget = governor.steps(a.snapshot.scene);
         if (
           engine.load(a.snapshot, 0.4, {
             flashExempt: true,
@@ -128,12 +123,24 @@ function apply(actions) {
     }
 }
 
-// Size the drawing buffer to the screen within the pixel budget (D7).
+// Use every physical display pixel, constrained only by GPU dimensions.
 function fit() {
   const dpr = window.devicePixelRatio || 1;
   const w = Math.max(1, innerWidth * dpr),
     h = Math.max(1, innerHeight * dpr);
-  const scale = Math.min(1, Math.sqrt((governor.budget * 1e6) / (w * h)));
+  const gl = engine.gl;
+  const limit = Math.min(
+    gl.getParameter(gl.MAX_TEXTURE_SIZE),
+    gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
+  );
+  const viewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+  const scale = Math.min(
+    1,
+    limit / w,
+    limit / h,
+    viewport[0] / w,
+    viewport[1] / h,
+  );
   const width = Math.round(w * scale),
     height = Math.round(h * scale);
   if (width !== engine.width || height !== engine.height)
@@ -156,7 +163,8 @@ if (!engine.slots.length) apply(show.begin(now(), { fresh: !saved }));
 // the show clock, which also starts at 120 BPM.
 let audioChoice = saved?.audio ?? { source: "demo" };
 let audioStart = null;
-function startAudio() {
+function startAudio(event) {
+  if (event?.code === "Escape") return;
   audio.context?.resume().catch(() => {}); // inside a gesture this unblocks
   audioStart ??= audio.use(audioChoice).catch((error) => {
     audioStart = null;
@@ -173,7 +181,6 @@ for (const kind of ["pointerdown", "keydown"])
 // Render at about 60 Hz whatever the display's refresh rate (pacer.mjs).
 const intervals = new Float32Array(600);
 let intervalCount = 0,
-  lastAssess = 0,
   lastStatus = 0,
   lastSave = 0;
 function frame(ms) {
@@ -215,7 +222,6 @@ function frame(ms) {
     engine,
     performance.memory?.usedJSHeapSize ?? null,
   );
-  if (ms - lastAssess > 5000) assess(ms);
   if (ms - lastStatus > 100) sendStatus(t, ms);
   if (ms - lastSave > 1000) {
     lastSave = ms;
@@ -225,9 +231,9 @@ function frame(ms) {
 function context() {
   const status = audio.status();
   return {
-    budget: governor.budget,
-    downgrades: governor.downgrades,
-    stepReductions: governor.stepReductions,
+    budget: (engine.width * engine.height) / 1e6,
+    downgrades: 0,
+    stepReductions: 0,
     scene: engine.slots.at(-1)?.scene.id ?? null,
     level: Math.round(engine.level * 100) / 100,
     audio: status.source,
@@ -236,36 +242,6 @@ function context() {
     width: engine.width,
     height: engine.height,
   };
-}
-
-// Every 5 s outside transitions (governor.mjs).
-function assess(ms) {
-  lastAssess = ms;
-  const n = Math.min(intervalCount, intervals.length);
-  if (n < 120 || engine.transition) return;
-  const sorted = Array.from(intervals.subarray(0, n)).sort((a, b) => a - b);
-  const scene = engine.slots.at(-1)?.scene.id ?? null;
-  const rayMarched =
-    engine.programs.get(scene)?.visual?.uniforms?.u_raySteps != null;
-  const change = governor.assess(
-    sorted[Math.floor(n * 0.95)],
-    scene,
-    rayMarched,
-  );
-  if (change?.steps) {
-    engine.rayStepBudget = change.steps;
-    post({
-      type: "error",
-      message: `Frames were slow; ${scene} ray steps lowered to ${change.steps}.`,
-    });
-  } else if (change?.budget) {
-    fit();
-    post({
-      type: "error",
-      message: `Frames were slow; pixel budget lowered to ${change.budget} MP.`,
-    });
-  }
-  intervalCount = 0;
 }
 
 function sendStatus(t, ms) {
@@ -280,7 +256,7 @@ function sendStatus(t, ms) {
       started,
       width: engine.width,
       height: engine.height,
-      budget: governor.budget,
+      budget: (engine.width * engine.height) / 1e6,
       fps: n ? 1000 / sorted[Math.floor(n / 2)] : null,
       p95: n ? sorted[Math.floor(n * 0.95)] : null,
       level: engine.level,
@@ -330,13 +306,6 @@ channel.onmessage = async ({ data }) => {
         const next = validateShowSet(data.set, scenes);
         show.updateSet(next);
         applyOptions(next.options);
-        // Only a changed budget setting resets the governor: any other edit
-        // (a rating, a clip) must not undo a downgrade for slow frames (D45).
-        if (next.options.pixelBudget !== setBudget) {
-          setBudget = next.options.pixelBudget;
-          governor.budget = next.options.pixelBudget;
-          fit();
-        }
         break;
       }
       case "clock":
@@ -406,9 +375,8 @@ async function watchScreen() {
     details.addEventListener("currentscreenchange", update);
   } catch {}
 }
-// Escape is the blackout key, but in fullscreen Chrome also exits on it
-// unless the key is locked (D53). Locked, a press reaches the page as
-// blackout; holding Escape still leaves fullscreen.
+// Lock Escape so an accidental press cannot leave fullscreen. The browser
+// reserves a long hold as an emergency exit; it never changes show state.
 async function enterFullscreen() {
   try {
     await document.documentElement.requestFullscreen?.();
@@ -435,7 +403,20 @@ addEventListener("click", (event) => {
     enterFullscreen();
 });
 addEventListener("resize", fit);
+function watchPixelRatio() {
+  const query = matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+  query.addEventListener(
+    "change",
+    () => {
+      fit();
+      watchPixelRatio();
+    },
+    { once: true },
+  );
+}
+watchPixelRatio();
 addEventListener("pagehide", () => {
+  sendStatus(now(), performance.now());
   saveRuntime(localStorage, runtime(now()));
   for (const track of previewTracks) track.stop();
   wake?.release();
@@ -445,7 +426,6 @@ addEventListener("pagehide", () => {
 window.__phosphorStage = {
   engine,
   show,
-  governor,
   audio,
   scenes,
   attachPreview,

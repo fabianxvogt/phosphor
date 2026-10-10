@@ -302,7 +302,6 @@ export default {
   number: 54,
   name: "Topological Melt",
   // Keep ribbon rasterization within the live-show GPU budget, independent of output.
-  maxRenderWidth: 960,
   description:
     "Trefoil and figure-eight tubes, a Möbius band, and woven torus ribbons. Periodic parametric sculptures with six opaque artistic materials. Artistic morphs may cross; topology preservation is not promised.",
   schema,

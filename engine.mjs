@@ -483,7 +483,9 @@ export class Engine {
       if (w / h > scene.aspect) h = w / scene.aspect;
       else w = h * scene.aspect;
     }
-    const scale = Math.min(1, (scene.maxRenderWidth || w) / w);
+    // Shade at output resolution; only the GPU texture limit may constrain it.
+    const limit = this.gl?.getParameter(this.gl.MAX_TEXTURE_SIZE) ?? Infinity;
+    const scale = Math.min(1, limit / w, limit / h);
     return [
       Math.max(1, Math.round(w * scale)),
       Math.max(1, Math.round(h * scale)),

@@ -265,7 +265,6 @@ export default {
   name: "Truchet Tiles",
   description:
     "Random tiles, endless paths. Every square tosses a coin between two Smith tiles, and their quarter arcs join into long meandering curves that never end. The curves split the plane into two colours, which orients them all consistently, so light pulses run along every path without meeting head-on. On each beat a few tiles re-toss and the paths re-route through the field. Variants: Smith arcs, 10 PRINT diagonals, hexagonal tiles, and a log-polar tunnel.",
-  maxRenderWidth: 1600,
   energy: { flip: [-0.1, 0.4], flow: { mul: [0.5, 2] }, pulse: [-0.1, 0.25] },
   beat: { punch: 0.6, pulse: 1 },
   audio: [

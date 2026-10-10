@@ -126,7 +126,6 @@ export default {
   stage: ["spin", "tumble", "fold"],
   type: { key: "shape", values: [0, 1, 2, 3] },
   number: 61,
-  maxRenderWidth: 1280,
   name: "Fourth Dimension",
   description:
     "Regular four-dimensional shapes — tesseract, 16-cell, 24-cell and a 6×6 duoprism — rotating through the fourth dimension as glowing wireframes. Vertices are rotated in four planes and projected 4D → 3D → 2D each frame; colour follows depth in w and vertices glint on the kick. A port of the v6 idea, not its Canvas2D code.",

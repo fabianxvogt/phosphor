@@ -90,7 +90,6 @@ export default {
   name: "Julia Observatory",
   description:
     "Julia-set filaments whose parameter travels around the edge of the Mandelbrot set. Four iteration maps give four structures: quadratic, cubic, burning-ship (absolute fold) and a four-fold mirror. Smooth escape counts light the filaments; the interior stays dark apart from an orbit-trap glow. A port of the v6 idea, not its Canvas2D code.",
-  maxRenderWidth: 1280,
   schema,
   presets,
   fragment,

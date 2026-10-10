@@ -93,7 +93,7 @@ vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t
 `;
 // Scene: {id,number,name,description,schema,presets,fragment,simulation?}.
 // Schema: <=8 {key,label,min,max,step,default}; presets: >=6 bounded looks.
-// maxRenderWidth caps visual shading (aspect preserved), not final output.
+// Visual shading follows output resolution; simulation grids remain independent.
 // Visual u_dt is frame dt; simulation u_dt is fixed 1/60 before reduced-motion
 // scaling. u_time is accumulated fixed-tick scene time. u_tick advances on
 // each simulation write (or visual frame), independent of floating-point time.

@@ -363,7 +363,6 @@ export default {
   name: "Voronoi Cells",
   description:
     "Every pixel belongs to its nearest site, and the sites run Lloyd's algorithm: each moves toward the centroid of its own cell, so random cells relax into a honeycomb. Beats jolt single sites, every 16 beats a shockwave scatters a region and the cells heal. Variants change the metric (taxicab diamonds, Euclidean hexagons, Chebyshev squares, concave stars), morph it live, draw the power diagram whose borders are the radical axes of breathing circles, or overlay the Delaunay dual.",
-  maxRenderWidth: 1280,
   energy: {
     jolt: { mul: [0.4, 2] },
     relax: { mul: [0.7, 1.4] },

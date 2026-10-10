@@ -324,7 +324,6 @@ export default {
   name: "Fractal Flight",
   description:
     "A flight through an infinite recursive sponge with continuously opening detail. Four authored paths compose square corridor portals, twisted corkscrew walls, a tall falling shaft and level-one inner junctions. Palette-tinted distance atmosphere, bounded in-scattered light and three-sample SDF occlusion give the passages depth; the smoothed low band excites emissive edges. Energy increases traversal, banking and kick FOV. A one-texel phase integrator keeps travel and roll smooth under live glides; each camera stays in a guaranteed free-space core.",
-  maxRenderWidth: 960,
   schema,
   presets,
   fragment,

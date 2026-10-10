@@ -336,7 +336,6 @@ export default {
   name: "Wallpaper Groups",
   description:
     "All 17 plane symmetry groups, made with Farris' wave-function method: a lattice-periodic complex function averaged over the group's mirrors, glides and rotations, so the pattern has exactly that symmetry. Domain colouring shows its phase as hue and its modulus as light, with contour rings; the zeros, where all hues meet, sit pinned on the rotation centres. The waves turn and re-roll every 16 beats while the symmetry never breaks.",
-  maxRenderWidth: 1600,
   energy: { flow: { mul: [0.5, 2] }, morph: [-0.2, 0.3], rings: [-0.1, 0.2] },
   beat: { punch: 0.6, pulse: 1 },
   audio: [

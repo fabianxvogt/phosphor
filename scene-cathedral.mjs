@@ -508,7 +508,6 @@ export default {
   type: { key: "geometry", values: [0, 1, 2, 3] },
   number: 49,
   name: "Cathedrals of Error",
-  maxRenderWidth: 1280,
   description:
     "Bounded SDF Gothic naves, perforating octahedral reliquaries, opening rose-window skeletons and zigzag folded galleries. Palette-led stained glass, distance atmosphere, bounded in-scattered shafts and three-sample SDF occlusion. The smoothed low band excites emissive panes; energy increases structural openings, detail, integrated traversal, banking and kick FOV. Speed zero holds the camera still; this is procedural stained glass, not physical optics.",
   schema,

@@ -364,7 +364,6 @@ export default {
   name: "Space-filling Curves",
   description:
     "One unbroken line through every cell of a grid: Hilbert's curve, Moore's closed loop and Peano's 3×3 original. Every few beats the curve refines to the next order, each vertex gliding out of its parent cell's centre into its own, then coarsens back. Colour runs along the line by index, so its famous locality shows as blocks of neighbouring colour, and a comet travels the whole line. Mirrored copies join Hilbert curves end to start into an endless strip.",
-  maxRenderWidth: 1600,
   energy: { flow: { mul: [0.5, 2] }, comet: [-0.1, 0.3], width: [-0.05, 0.15] },
   beat: { punch: 0.6, pulse: 1 },
   audio: [

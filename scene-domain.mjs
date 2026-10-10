@@ -250,7 +250,6 @@ export default {
   name: "Domain Colouring",
   description:
     "Complex functions on the plane: hue by phase, light by log modulus, and a conformal grid of phase and modulus lines that cross at right angles everywhere but at zeros and poles. Bands flow, so zeros send rings out and poles swallow them. Three zeros and three poles orbit and trade places; the Riemann zeta function travels along its critical line with its zeros lined up on Re s = ½; a Möbius map draws Steiner circles and loxodromes; iterating z² + c doubles the degree on the beat.",
-  maxRenderWidth: 1600,
   energy: {
     motion: { mul: [0.5, 2] },
     flow: { mul: [0.5, 2] },

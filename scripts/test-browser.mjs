@@ -199,14 +199,14 @@ try {
   );
   pass("grid key plays the look on that card on the stage (D68)");
 
-  // Panic under slider focus: the old instrument ignored B/Esc here.
+  // Panic under slider focus: the old instrument ignored B/Blackout button here.
   await control.locator("#fader-master").focus();
-  await control.keyboard.press("Escape");
+  await control.locator("#blackout").click();
   await waitFor(
     stage,
     () => window.__phosphorStage.engine.blackoutTarget === 1,
     null,
-    "Esc with a slider focused",
+    "Blackout button with a slider focused",
   );
   const latency = await stage.evaluate(
     () => window.__phosphorStage.telemetry().blackoutLatencyFrames,
@@ -221,18 +221,18 @@ try {
     latency.every((f) => f <= 2),
     `blackout latency ${latency}`,
   );
-  await control.keyboard.press("Escape");
+  await control.locator("#blackout").click();
   await waitFor(
     stage,
     () => window.__phosphorStage.engine.blackoutTarget === 0,
     null,
-    "Esc again recovers",
+    "Blackout button again recovers",
   );
   pass(
-    "Esc blacks out within two frames even with a slider focused, and recovers",
+    "Blackout button blacks out within two frames even with a slider focused, and recovers",
   );
 
-  await control.keyboard.press("Shift+Escape");
+  await control.locator("#safe").click();
   await waitFor(
     stage,
     () =>
@@ -241,7 +241,7 @@ try {
     null,
     "safe look",
   );
-  pass("Shift+Esc loads the safe look");
+  pass("Safe look button loads the safe look");
 
   const autopilot = await stage.evaluate(
     () => window.__phosphorStage.show.autopilot.enabled,
@@ -412,19 +412,19 @@ try {
       autopilot: window.__phosphorStage.show.autopilot.enabled,
     }));
     await control.locator("#fader-master").focus();
-    await control.keyboard.press("Escape");
+    await control.locator("#blackout").click();
     await waitFor(
       stage,
       (was) => window.__phosphorStage.engine.blackoutTarget !== was,
       state.blackout,
-      "Esc reaches the open stage without status reports",
+      "Blackout button reaches the open stage without status reports",
     );
-    await control.keyboard.press("Escape");
+    await control.locator("#blackout").click();
     await waitFor(
       stage,
       (was) => window.__phosphorStage.engine.blackoutTarget === was,
       state.blackout,
-      "Esc recovers the open stage without status reports",
+      "Blackout button recovers the open stage without status reports",
     );
     await control.locator("body").press("KeyP");
     await waitFor(
@@ -441,7 +441,7 @@ try {
       "P recovers the open stage without status reports",
     );
     pass(
-      "Esc and P keep reaching the open stage through missed status reports",
+      "Blackout button and P keep reaching the open stage through missed status reports",
     );
   } finally {
     await stage.evaluate(() => {
@@ -512,19 +512,19 @@ try {
     null,
     "stage closure resumes local performance and unlocks settings",
   );
-  await control.keyboard.press("Escape");
+  await control.locator("#blackout").click();
   await waitFor(
     control,
     () => document.getElementById("blackout").ariaPressed === "true",
     null,
-    "Esc controls the local preview after stage closure",
+    "Blackout button controls the local preview after stage closure",
   );
-  await control.keyboard.press("Escape");
+  await control.locator("#blackout").click();
   await waitFor(
     control,
     () => document.getElementById("blackout").ariaPressed === "false",
     null,
-    "Esc recovers the local preview after stage closure",
+    "Blackout button recovers the local preview after stage closure",
   );
   assert.deepEqual(show.errors, []);
   pass("closing the stage resumes local keys and unlocks settings");

@@ -92,7 +92,7 @@ try {
     });
   }
   // Blackout latency at the end of the run.
-  await control.locator("body").press("Escape");
+  await control.locator("#blackout").click();
   await stage.waitForFunction(
     () => window.__phosphorStage.engine.blackout === 1,
     null,
@@ -101,7 +101,7 @@ try {
   // Counters are per page lifetime: judge the run before the drill reloads it.
   const run = (await stage.evaluate(readStage)).telemetry;
   const blackout = run.blackoutLatencyFrames;
-  await control.locator("body").press("Escape");
+  await control.locator("#blackout").click();
   // Crash drill: reload the stage; time until it renders the restored clip.
   const t0 = Date.now();
   await stage.reload();

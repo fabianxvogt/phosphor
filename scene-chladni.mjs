@@ -302,7 +302,6 @@ export default {
     { param: "glow", feature: "high", amount: 0.06 },
   ],
   stage: ["vibration", "settle", "field"],
-  maxRenderWidth: 1280,
   type: { key: "variant", values: [0, 1, 2, 3] },
   schema,
   presets,

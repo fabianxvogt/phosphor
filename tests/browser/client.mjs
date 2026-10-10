@@ -65,8 +65,16 @@ export async function renderLook({
   if (engine.width !== width || engine.height !== height)
     engine.resize(width, height);
   engine.features = {
-    energy: 0, low: 0, mid: 0, high: 0, onset: 0, flux: 0,
-    hit: false, hitId: 0, active: false, locked: false,
+    energy: 0,
+    low: 0,
+    mid: 0,
+    high: 0,
+    onset: 0,
+    flux: 0,
+    hit: false,
+    hitId: 0,
+    active: false,
+    locked: false,
   };
   engine.speed = 1;
   engine.view = { hue: 0, zoom: 1 };

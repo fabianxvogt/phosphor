@@ -325,7 +325,6 @@ export default {
   name: "Indra's Pearls",
   description:
     "Limit sets of Möbius groups, drawn by walking every point back through circle inversions. The Apollonian gasket flows into itself around a tangency point; Schottky pearls nest by word length and close into a necklace as their circles kiss; a loxodromic generator turns the plane into an endless spiral dive; a Steiner chain turns and always closes, with the whole configuration repeated inside every circle. Pearls are coloured by word length, rims glow, and the limit set shines.",
-  maxRenderWidth: 1600,
   energy: { flow: { mul: [0.5, 2] }, rim: [-0.1, 0.25], fill: [0.1, -0.1] },
   beat: { punch: 0.7, pulse: 1 },
   audio: [

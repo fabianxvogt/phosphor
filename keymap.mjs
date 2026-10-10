@@ -43,9 +43,8 @@ export function isTextEntry(target) {
   return !!input && TEXT_TYPES.has(input.type || "text");
 }
 
-// Returns an action object or null. Panic actions (blackout, safe look)
-// work everywhere — sliders, buttons and text fields included — so focus can
-// never block them (the slider-focus bug). Everything else is ignored while
+// Returns an action object or null. Escape has no performance action.
+// Shortcuts are ignored while
 // typing, on key repeat, and with Ctrl/Cmd/Alt so browser shortcuts stay.
 export function actionFor(event) {
   const { code, shiftKey } = event;
@@ -53,7 +52,6 @@ export function actionFor(event) {
   if (event.repeat && event.type !== "keyup") return null; // held keys must not toggle
   if (event.type === "keyup")
     return code === "KeyL" ? { type: "flash", on: false } : null;
-  if (code === "Escape") return { type: shiftKey ? "safe" : "blackout" };
   if (isTextEntry(event.target)) return null;
   if (SLOT_BY_CODE.has(code) && !shiftKey)
     return { type: "slot", index: SLOT_BY_CODE.get(code) };

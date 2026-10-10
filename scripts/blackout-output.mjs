@@ -1,4 +1,4 @@
-// D63: time real Escape input against captured compositor pixels, not uniforms.
+// D63: time real Blackout button input against captured compositor pixels, not uniforms.
 // Screen capture still cannot measure the panel or downstream LED processor.
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -209,17 +209,6 @@ try {
   if (await stage.evaluate(() => window.__phosphorStage.show.autopilot.enabled))
     await stage.keyboard.press("KeyP");
   await stage.evaluate(() => {
-    window.__blackoutKeys = [];
-    addEventListener(
-      "keydown",
-      (event) => {
-        if (event.code === "Escape" && !event.repeat)
-          window.__blackoutKeys.push(
-            performance.timeOrigin + performance.now(),
-          );
-      },
-      { capture: true },
-    );
     const square = document.createElement("div");
     square.id = "captureCalibration";
     square.style.cssText =
@@ -425,22 +414,18 @@ try {
     document.getElementById("captureCalibration").remove(),
   );
   const results = [];
-  const escape = async () => {
-    const count = await stage.evaluate(() => window.__blackoutKeys.length);
-    await stage.keyboard.press("Escape");
-    const at = await stage.evaluate(
-      (count) => window.__blackoutKeys[count],
-      count,
-    );
-    if (!Number.isFinite(at))
-      throw new Error(
-        "Escape did not reach the stage keydown handler; focus the fullscreen stage and enable keyboard-lock permission.",
+  const blackout = async () => {
+    await control.evaluate(() => {
+      document.getElementById("blackout").addEventListener(
+        "click",
+        () => {
+          window.__blackoutClick = performance.timeOrigin + performance.now();
+        },
+        { capture: true, once: true },
       );
-    if (!(await stage.evaluate(() => !!document.fullscreenElement)))
-      throw new Error(
-        "Escape exited fullscreen: allow Chrome's keyboard-lock permission for this localhost origin, then rerun. Windowed results cannot pass the output gate.",
-      );
-    return at;
+    });
+    await control.locator("#blackout").click();
+    return control.evaluate(() => window.__blackoutClick);
   };
   for (let i = 0; i < trials; i++) {
     const baselineAt = await stage.evaluate(
@@ -460,7 +445,7 @@ try {
       throw new Error(
         "The live look or capture is already black/intermittently black; no valid blackout edge. Check capture permission/selected screen and use a continuously lit look before rerunning.",
       );
-    const keypressAt = await escape();
+    const keypressAt = await blackout();
     const black = await waitFrame(keypressAt, true);
     const latencyMs = black.at - keypressAt;
     const trial = {
@@ -477,7 +462,7 @@ try {
     console.log(
       `Trial ${trial.trial}: ${latencyMs.toFixed(2)} ms / ${trial.displayFrames.toFixed(2)} display frames ${trial.pass ? "PASS" : "FAIL"}`,
     );
-    await escape();
+    await blackout();
     await waitFrame(
       await stage.evaluate(() => performance.timeOrigin + performance.now()),
       false,
@@ -492,7 +477,7 @@ try {
   summary = {
     verdict: latency.max <= limitMs ? "PASS" : "FAIL",
     method:
-      "Escape stage keydown to first delivered captured screen frame below mean encoded Rec.709 luminance threshold; common performance.timeOrigin + performance.now clock, no latency subtraction",
+      "Blackout control click to first delivered captured screen frame below mean encoded Rec.709 luminance threshold; common performance.timeOrigin + performance.now clock, no latency subtraction",
     scope:
       "Compositor output only; excludes physical panel/LED processing. A phone slow-motion cross-check is still required by D63.",
     rig: args.rig,
