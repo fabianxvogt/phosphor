@@ -1,6 +1,6 @@
 # Roadmap
 
-State: production candidate; canonical branch `main`; [Vercel](https://phosphor-performance.vercel.app/) runs the current free VJ demo (deployed 2026-10-08). Direction set 2026-10-08 in an owner interview, recorded in the [decision log](docs/DECISIONS.md):
+State: production candidate; canonical branch `main`; [Vercel](https://phosphor-performance.vercel.app/) automatically builds and publishes `main` after tests, typecheck and distribution verification (connected 2026-10-10). Direction set 2026-10-08 in an owner interview, recorded in the [decision log](docs/DECISIONS.md):
 
 **Phosphor is the owner's VJ instrument for other people's DJ sets.** One MacBook Pro M3 Pro, Chrome, HDMI straight to whatever screen the venue has, 4–8-hour nights, generative visuals only. Reference: [docs](docs/README.md), [evidence log](docs/EVIDENCE.md).
 
@@ -108,6 +108,7 @@ Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PN
 
 ## Done
 
+- 2026-10-10: connected the existing Vercel project to `main`; versioned build settings run tests, typecheck and distribution verification before publishing `dist` (D70). Other branches do not auto-deploy; running shows retain their offline generation.
 - Ten families / 62 looks on one WebGL2 engine; fixed 60 Hz simulation with bounded catch-up; two-slot transitions with interrupted-mix recovery; context-loss rebuild.
 - Cue scores with keyframes, quantized GO, director mode; audio/MIDI routing and clock; clean projector output; PNG/WebM/frame-sequence export; strict portable v2 sets with v1 migration and recovery backup; content-stamped offline cache.
 - Public Vercel release with hosted all-family, offline, 390 px and output checks (see evidence log).

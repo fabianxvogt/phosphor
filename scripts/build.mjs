@@ -77,8 +77,6 @@ export async function build(root) {
   const assets = ["./", ...files.map(file => `./${file}`)];
   const worker = await readFile(resolve(root, "sw.js"), "utf8");
   await writeFile(resolve(dist, "sw.js"), worker.replace("__BUILD__", revision).replace('["__ASSETS__"]', JSON.stringify(assets)));
-  await cp(resolve(root, ".openai/hosting.json"), resolve(dist, ".openai/hosting.json"));
-  await cp(resolve(root, ".vercelignore"), resolve(dist, ".vercelignore"));
   console.log(`Built ${files.length} reachable assets in ${dist} (${revision})`);
 }
 

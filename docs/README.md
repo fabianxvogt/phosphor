@@ -80,7 +80,11 @@ Simulation runs on a fixed 60 Hz clock with at most six catch-up ticks per frame
 
 ## Release operations
 
-Vercel production (`fabianxvogts-projects/phosphor-performance`) is the only public deployment, published from reviewed `dist` at checkpoints, never mid-show. The GitHub Pages mirror was retired on 2026-10-08. For manual Vercel updates: `npm run build && npm run check:dist`, then `npx vercel link --yes --project phosphor-performance --scope fabianxvogts-projects --cwd dist` and `npx vercel deploy --prod --yes --scope fabianxvogts-projects --cwd dist`. Builds recreate `dist`, including the upload exclusion policy; re-link after rebuilding. Only deploy reviewed distribution assets. `.env*`, `.vercel`, other-provider metadata and the exclusion file itself are excluded; never publish CLI-generated environment tokens. Git connection is intentionally not required, avoiding an automatic deployment of the separate default-branch instrument.
+Vercel production (`fabianxvogts-projects/phosphor-performance`) is connected to `fabianxvogt/phosphor`, with `main` as its production branch and the repository root as its build root. Every push to `main` automatically builds and publishes the current instrument. Other branches do not auto-deploy (`vercel.json`). The GitHub Pages mirror was retired on 2026-10-08.
+
+`vercel.json` installs with `npm ci`, then runs tests, typecheck, build and distribution verification before publishing only `dist`. A failed check leaves the previous production release live; inspect the commit's Vercel check and build log. GitHub Actions independently runs the full browser/contact suite. Keep Node 24 in the Vercel project settings. Do not deploy a stale local `dist`; retry the Git-backed deployment in Vercel instead. Local music, recordings, generated artifacts, secrets and provider metadata remain outside the distribution.
+
+Production updates do not switch an already-open show: its offline generation stays pinned. Use **Update app** after saving edits and closing the other Phosphor windows; saved sets survive. Never activate an update mid-show.
 
 ## Show acceptance
 

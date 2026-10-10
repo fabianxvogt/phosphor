@@ -1,10 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm, cp } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, cp, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { walkAssets } from "../scripts/build.mjs";
+import { build, walkAssets } from "../scripts/build.mjs";
 import { verifyDistribution } from "../scripts/check-dist.mjs";
+
+test("production build contains only reachable app assets, without hosting metadata", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pipeline release "));
+  try {
+    const entries = ["index.html", "stage.html", "update.html", "beat-worklet.mjs"];
+    for (const entry of entries) await writeFile(join(root, entry), "");
+    await writeFile(join(root, "sw.js"), 'const REVISION = "__BUILD__"; const ASSETS = ["__ASSETS__"];');
+    await mkdir(join(root, ".openai"));
+    await writeFile(join(root, ".openai/hosting.json"), '{"project_id":"synthetic-host"}');
+    await writeFile(join(root, ".vercelignore"), ".openai\n.vercelignore\n");
+    await build(root);
+    assert.deepEqual((await readdir(join(root, "dist"))).sort(), [...entries, "sw.js"].sort());
+    assert.equal(await verifyDistribution(root), entries.length);
+  } finally { await rm(root, {recursive:true,force:true}); }
+});
 
 test("HTML entrypoints walk nested, side-effect, re-export and literal dynamic imports", async () => {
   const root = await mkdtemp(join(tmpdir(), "pipeline graph "));
