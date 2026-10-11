@@ -29,7 +29,7 @@ If an older offline release still shows **Enter Show mode** or **Prep: click a s
 
 ## Appearance and navigation
 
-Use the sun/moon button to switch between warm light and dark themes. Phosphor follows your system appearance until you choose one, then remembers the choice in this browser. The preview, performance controls and look editor sit together; the catalog adapts from four columns on a desktop to two on smaller screens. **Rate & edit** on each card reveals its rating and editing controls. Audio, MIDI, Set and Pre-show live in keyboard-accessible tabs. Click the set name to rename it; expand **Performance options**, **More look settings** or **Timing controls** for the additional controls. Space/Enter activate focused buttons, arrow keys adjust focused sliders, and Shift+Space still plays Next.
+Use the sun/moon button to switch between warm light and dark themes. Phosphor follows your system appearance until you choose one, then remembers the choice in this browser. Preview and Catalog share the left column; Look, Performance and the setup tabs stack in the right column; the catalog adapts from four columns on a desktop to two on smaller screens. **Rate & edit** on each card reveals its rating and editing controls. Audio, MIDI, Set and Pre-show live in keyboard-accessible tabs. Click the set name to rename it; expand **Performance options**, **More look settings** or **Timing controls** for the additional controls. Space/Enter activate focused buttons, arrow keys adjust focused sliders, and Shift+Space still plays Next.
 
 ## Prepare and play
 

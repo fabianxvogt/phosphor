@@ -2,6 +2,11 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-11 — Two-column workspace follow-up
+
+- `INCREMENTAL / EMPIRICAL`: Preview and Catalog now share an independent left column. The right column stacks Look, Performance and Setup in that order, without stretching the preview to match the controls. Narrow screens retain that section order in one column.
+- Browser inspection in light and dark mode confirmed the arrangement, with no horizontal overflow at 2207, 1014 and 373 CSS pixels. Build, distribution verification and whitespace checks passed. Read-only code review found no issues; existing control IDs and attributes are preserved. This is a layout-only change; playback logic was not modified.
+
 ## 2026-10-11 — Light/dark control interface
 
 - `INCREMENTAL / EMPIRICAL`: rebuilt the control surface around the owner's supplied light/dark reference images: warm neutral surfaces, gold controls, teal activity indicators, preview captions, compact catalog cards and responsive panel layouts. System appearance is the initial default; an explicit choice is stored per browser, synchronized across tabs and applied before first paint.
