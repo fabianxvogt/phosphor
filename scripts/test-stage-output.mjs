@@ -1,16 +1,17 @@
 // Actual popup lifecycle, Retina output, visual buffers and rendered preview.
 import assert from "node:assert/strict";
-import { serve, launch } from "./browser-runtime.mjs";
+import { serve, launch, options } from "./browser-runtime.mjs";
 import scenes from "../scenes.mjs";
 import { initialShowSet } from "../show-set.mjs";
 const fixture = initialShowSet(scenes);
+const args = options({ "native-gpu": { type: "boolean", default: false } });
 fixture.favorites = ["interference:0"];
 fixture.autopilot.enabled = false;
 fixture.options.pixelBudget = 0.5;
 const server = await serve(".", 48117);
 let runtime;
 try {
-  runtime = await launch();
+  runtime = await launch({ rig: args["native-gpu"], headless: true });
   const context = await runtime.browser.newContext({
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 2,
@@ -26,6 +27,8 @@ try {
   await control.waitForFunction(() =>
     document.getElementById("renderReadout").textContent.includes("480"),
   );
+  await control.locator("#audioOff").click();
+  await control.locator("#audioMute").check();
   const [stage] = await Promise.all([
     context.waitForEvent("page"),
     control.locator("#openStage").click(),
@@ -34,6 +37,12 @@ try {
   await stage.setViewportSize({ width: 800, height: 450 });
   await stage.waitForFunction(
     () => !!window.__phosphorStage?.engine.slots.length,
+  );
+  await stage.waitForFunction(() => window.__phosphorStage.audio.engine.muted);
+  assert.equal(
+    await stage.evaluate(() => window.__phosphorStage.audio.source),
+    "off",
+    "opening the stage preserves the local Off and Mute choices",
   );
   await stage.evaluate(() => {
     const { show } = window.__phosphorStage;

@@ -54,6 +54,7 @@ let labels = {};
 // transition }. Edits stay a draft until saved as an own look.
 let draft = null;
 let settingsLocked = false;
+let audioRequest = 0;
 let localPerformance = null;
 let handoffPending = false;
 let stageWindow = null;
@@ -316,8 +317,14 @@ channel.onmessage = ({ data }) => {
       break;
     case "stage-ready":
       log("Stage opened.");
-      if (handoffPending && localPerformance) {
-        send({ type: "preview-state", state: localPerformance.state(now()) });
+      if (handoffPending) {
+        if (localPerformance)
+          send({ type: "preview-state", state: localPerformance.state(now()) });
+        send({
+          type: "audio",
+          source: demoRequested ? "demo" : "off",
+          muted: $("audioMute").checked,
+        });
         handoffPending = false;
       }
       stopLocalDemo();
@@ -350,9 +357,18 @@ channel.onmessage = ({ data }) => {
 };
 
 // --- keys --------------------------------------------------------------------
+let heldFlash = false;
+function holdFlash(on) {
+  heldFlash = on;
+  act({ type: "flash", on });
+}
+window.addEventListener("blur", () => {
+  if (heldFlash) holdFlash(false);
+});
 for (const kind of ["keydown", "keyup"])
   window.addEventListener(kind, (event) => {
-    if (!$("confirm").hidden) return;
+    if (!$("confirm").hidden && !(kind === "keyup" && event.code === "KeyL"))
+      return;
     // Space belongs to a focused native checkbox, not the tap-tempo shortcut.
     if (
       event.code === "Space" &&
@@ -362,6 +378,7 @@ for (const kind of ["keydown", "keyup"])
     const action = actionFor(event);
     if (!action) return;
     event.preventDefault();
+    if (action.type === "flash") heldFlash = action.on;
     act(action);
   });
 
@@ -440,7 +457,16 @@ function renderFamily() {
   const clip = liveClip();
   const scene = clip && sceneById(clip.snapshot.scene);
   const key = scene ? `${scene.id}:${live?.look}` : null;
-  if (key === familyKey) return;
+  if (key === familyKey) {
+    for (const k of scene ? stageParams(scene) : []) {
+      const input = $(`fader-family-${k}`);
+      if (!input || input === document.activeElement) continue;
+      input.value = clip.snapshot.params[k];
+      paintFader(input);
+      input.nextElementSibling.value = faderValue(input);
+    }
+    return;
+  }
   familyKey = key;
   $("familyTitle").textContent = scene ? scene.name : "Family";
   $("family").replaceChildren(
@@ -555,10 +581,11 @@ function renderStatus() {
   $("normalSpeed").ariaPressed = String(s.speed === 1);
   if (alive) {
     const a = status.audio;
+    $("audioMute").checked = !!a.muted;
     $("audioPill").textContent =
       a.source === "off"
         ? "Audio off"
-        : `${a.source} · ${a.locked ? (a.coasting ? "holding" : `${a.bpm?.toFixed(1)} BPM`) : "listening"}`;
+        : `${a.source} · ${a.muted && a.source !== "input" ? "muted · " : ""}${a.locked ? (a.coasting ? "holding" : `${a.bpm?.toFixed(1)} BPM`) : "listening"}`;
     $("audioPill").className =
       `pill ${a.source === "off" ? "" : a.locked ? "ok" : "warn"}`;
   }
@@ -627,6 +654,8 @@ function reindexLooks() {
   catalog?.setLooks(looks);
 }
 let thumbnailErrors = 0;
+let variationGeneration = 0;
+const variationCards = new Map();
 const thumbnails = new Thumbnails({
   createEngine: () =>
     new Engine(document.createElement("canvas"), scenes, (message) => {
@@ -637,7 +666,13 @@ const thumbnails = new Thumbnails({
     document.hidden ||
     !!editorEngine?.transition ||
     (stageAlive() && !!status?.stage?.transition),
-  onReady: (id) => catalog?.showThumbnail(id),
+  onReady: (id) => {
+    const card = variationCards.get(id);
+    if (card) {
+      const result = thumbnails.get(id);
+      if (result?.url) card.src = result.url;
+    } else catalog?.showThumbnail(id);
+  },
   onError: (message) => log(message),
 });
 const catalog = new CatalogPanel({
@@ -693,6 +728,7 @@ function editDraft() {
 function selectLook(id, preview = true, manual = true) {
   const look = lookById(id);
   if (!look) return;
+  clearVariations();
   const palette = look.palette ?? lookPalette(look);
   const snapshot = structuredClone(look.snapshot);
   if (palette !== "custom")
@@ -749,13 +785,14 @@ function renderEditor() {
     "select",
     {
       onchange: () => {
+        clearVariations();
         const next = sceneById(family.value);
         draft.snapshot = {
           ...presetSnapshot(next),
           palette: draft.snapshot.palette,
         };
         draft.name = next.presets[0].name;
-        draft.base = `${next.id}:${next.presets[0].name}`;
+        draft.base = `${next.id}:0`;
         previewDraft();
         renderEditor();
       },
@@ -774,12 +811,13 @@ function renderEditor() {
       onchange: () => {
         const index = Number(preset.value);
         if (index < 0) return;
+        clearVariations();
         draft.snapshot = {
           ...presetSnapshot(scene, index),
           palette: draft.snapshot.palette,
         };
         draft.name = scene.presets[index].name;
-        draft.base = `${scene.id}:${scene.presets[index].name}`;
+        draft.base = `${scene.id}:${index}`;
         previewDraft();
         renderEditor();
       },
@@ -834,6 +872,7 @@ function renderEditor() {
       id: "lookPalette",
       ariaLabel: "Look palette",
       onchange: () => {
+        clearVariations();
         draft.palette = palette.value;
         if (draft.palette !== "custom")
           draft.snapshot.palette = { ...paletteById(draft.palette).colors };
@@ -951,8 +990,16 @@ function deleteLook() {
     selectLook(lookById(base) ? base : looks[0].id, false);
   });
 }
-async function breed() {
+function clearVariations() {
+  for (const id of variationCards.keys()) thumbnails.invalidate(id);
+  variationCards.clear();
+  $("variations").replaceChildren();
+}
+function breed() {
   if (!draft || settingsLocked) return;
+  clearVariations();
+  const generation = ++variationGeneration;
+  const parentDraft = draft;
   const scene = sceneById(draft.snapshot.scene);
   const parent = { seed: draft.snapshot.seed, params: draft.snapshot.params };
   const children = Array.from({ length: 6 }, () =>
@@ -962,18 +1009,27 @@ async function breed() {
     }),
   );
   $("variations").replaceChildren(
-    ...children.map((child) => {
-      const thumb = el("canvas", {
+    ...children.map((child, index) => {
+      const id = `variation:${generation}:${index}`;
+      const thumb = el("img", {
+        alt: "",
         width: 160,
         height: 90,
-        style: "width:100%;border-radius:4px;background:#000",
+        style: "width:100%;height:auto;border-radius:4px;background:#000",
       });
-      const button = el(
+      variationCards.set(id, thumb);
+      thumbnails.want(id, {
+        ...structuredClone(draft.snapshot),
+        seed: child.seed,
+        params: { ...child.params },
+      });
+      return el(
         "button",
         {
           className: "cell",
           ariaLabel: `Variation ${child.name}`,
           onclick: () => {
+            if (draft !== parentDraft || settingsLocked) return;
             draft.snapshot = {
               ...draft.snapshot,
               seed: child.seed,
@@ -986,25 +1042,8 @@ async function breed() {
         thumb,
         el("span", { className: "family", textContent: child.name }),
       );
-      button.thumb = thumb;
-      button.child = child;
-      return button;
     }),
   );
-  // Render thumbnails one at a time through the editor engine.
-  for (const button of $("variations").children) {
-    if (!editorEngine) break;
-    const snapshot = {
-      ...draft.snapshot,
-      seed: button.child.seed,
-      params: button.child.params,
-    };
-    editorEngine.load(snapshot, 0, { energy: 0.5 });
-    await editorEngine.ready(snapshot.scene);
-    for (let i = 0; i < 30; i++) editorEngine.advance(1 / 60, false);
-    button.thumb.getContext("2d").drawImage($("editorCanvas"), 0, 0, 160, 90);
-  }
-  previewDraft();
 }
 let editorLoop = 0;
 let lastLocalStatus = 0;
@@ -1036,7 +1075,29 @@ function animateEditor(ms) {
 
 // --- set, audio, checks ------------------------------------------------------
 function renderSetFields() {
+  if ($("setFields").children.length) {
+    for (const [id, value] of [
+      ["showName", set.name],
+      ["setMood", set.mood ?? ""],
+      ["autopilotEvery", set.autopilot.everyBars],
+      ...["bloom", "echo", "chroma", "grain", "vignette"].map((key) => [
+        `fader-opt-${key}`,
+        set.options[key],
+      ]),
+    ]) {
+      const input = $(id);
+      if (input === document.activeElement) continue;
+      input.value = value;
+      if (input.type === "range") {
+        paintFader(input);
+        input.nextElementSibling.value = faderValue(input);
+      }
+    }
+    $("reducedMotion").checked = set.options.reducedMotion;
+    return;
+  }
   const name = el("input", {
+    id: "showName",
     value: set.name,
     maxLength: 80,
     onchange: () => {
@@ -1071,6 +1132,7 @@ function renderSetFields() {
   const every = el(
     "select",
     {
+      id: "autopilotEvery",
       title:
         "In-order autopilot changes clip every N bars; Random plays each clip 8, 12 or 16 bars",
       onchange: () => {
@@ -1099,6 +1161,7 @@ function renderSetFields() {
       },
     );
   const reduced = el("input", {
+    id: "reducedMotion",
     type: "checkbox",
     checked: set.options.reducedMotion,
     onchange: () => {
@@ -1175,28 +1238,31 @@ function preflight() {
     ["No GPU errors", st?.counters.gpuErrors === 0],
   ];
 }
+const checkRows = [];
 function renderChecks() {
   const auto = preflight();
-  $("checks").replaceChildren(
-    ...auto.map(([label, ok]) =>
-      el(
-        "div",
-        { className: "check" },
-        el("span", { className: `light ${ok ? "auto" : "coast"}` }),
-        label,
-        el("span", { className: "state", textContent: ok ? "ok" : "check" }),
-      ),
-    ),
-    ...manualChecks.map((label) => {
-      const box = el("input", {
-        type: "checkbox",
-        checked: ticked.has(label),
-        onchange: () =>
-          box.checked ? ticked.add(label) : ticked.delete(label),
-      });
-      return el("label", { className: "check" }, box, label);
-    }),
-  );
+  if (!checkRows.length)
+    $("checks").replaceChildren(
+      ...auto.map(([label]) => {
+        const light = el("span");
+        const state = el("span", { className: "state" });
+        checkRows.push({ light, state });
+        return el("div", { className: "check" }, light, label, state);
+      }),
+      ...manualChecks.map((label) => {
+        const box = el("input", {
+          type: "checkbox",
+          checked: ticked.has(label),
+          onchange: () =>
+            box.checked ? ticked.add(label) : ticked.delete(label),
+        });
+        return el("label", { className: "check" }, box, label);
+      }),
+    );
+  auto.forEach(([, ok], index) => {
+    checkRows[index].light.className = `light ${ok ? "auto" : "coast"}`;
+    checkRows[index].state.textContent = ok ? "ok" : "check";
+  });
 }
 
 // --- optional settings lock --------------------------------------------------
@@ -1219,12 +1285,15 @@ function updateSettingsLock() {
     ".settings-controls input, .settings-controls select, .settings-controls button",
   ))
     input.disabled =
-      settingsLocked &&
-      !["exportSet", "auditionLook", "breedLook"].includes(input.id);
+      settingsLocked && !["exportSet", "auditionLook"].includes(input.id);
   // Rating, favourites, search, Play and Edit stay available; saving or
   // deleting own looks is a configuration change.
   for (const id of ["saveLook", "saveAsLook", "deleteLook"])
     $(id).disabled = settingsLocked;
+  for (const id of ["useInput", "audioDevice", "audioFile"])
+    $(id).disabled = settingsLocked || !alive;
+  $("audioStageNote").hidden = alive;
+  for (const id of ["pattern", "exportLog"]) $(id).disabled = !alive;
   // A MIDI learn started before locking must not alter the mappings later.
   if (settingsLocked) {
     midiLearn = null;
@@ -1233,6 +1302,7 @@ function updateSettingsLock() {
 }
 $("settingsLock").onchange = () => {
   settingsLocked = stageAlive() && $("settingsLock").checked;
+  if (settingsLocked) audioRequest++;
   updateSettingsLock();
 };
 
@@ -1271,21 +1341,34 @@ $("normalSpeed").onclick = () => act({ type: "speed", value: 1 });
 $("half").onclick = () => act({ type: "speed", value: 0.5 });
 $("double").onclick = () => act({ type: "speed", value: 2 });
 $("flash").addEventListener("keydown", (event) => {
-  if (event.shiftKey || ![" ", "Enter"].includes(event.key)) return;
+  if (
+    event.shiftKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    ![" ", "Enter"].includes(event.key)
+  )
+    return;
   event.preventDefault();
   event.stopPropagation();
-  if (!event.repeat) act({ type: "flash", on: true });
+  if (!event.repeat) holdFlash(true);
 });
 $("flash").addEventListener("keyup", (event) => {
   if (![" ", "Enter"].includes(event.key)) return;
   event.preventDefault();
   event.stopPropagation();
-  act({ type: "flash", on: false });
+  holdFlash(false);
 });
-$("flash").addEventListener("blur", () => act({ type: "flash", on: false }));
-$("flash").onpointerdown = () => act({ type: "flash", on: true });
+$("flash").addEventListener("blur", () => {
+  if (heldFlash) holdFlash(false);
+});
+$("flash").onpointerdown = (event) => {
+  if (event.button === 0) holdFlash(true);
+};
 for (const end of ["pointerup", "pointerleave", "pointercancel"])
-  $("flash").addEventListener(end, () => act({ type: "flash", on: false }));
+  $("flash").addEventListener(end, () => {
+    if (heldFlash) holdFlash(false);
+  });
 $("saveLook").onclick = () => saveLook(false);
 $("saveAsLook").onclick = () => saveLook(true);
 $("deleteLook").onclick = deleteLook;
@@ -1378,6 +1461,10 @@ $("importSet").onchange = async () => {
     if (file.size > 32 * 1024 * 1024)
       throw new Error("Sets are limited to 32 MB");
     const result = parseShowSet(JSON.parse(await file.text()), scenes);
+    if (settingsLocked) {
+      toast("Unlock settings before importing a set.");
+      return;
+    }
     set = result.set;
     $("importReport").replaceChildren(
       ...result.report.map((line) => el("li", { textContent: line })),
@@ -1392,6 +1479,9 @@ $("importSet").onchange = async () => {
   }
 };
 $("useInput").onclick = async () => {
+  if (settingsLocked || !stageAlive()) return;
+  const request = ++audioRequest;
+  const requestedStage = stageWindow;
   demoRequested = false;
   stopLocalDemo();
   renderLocalAudio();
@@ -1400,15 +1490,31 @@ $("useInput").onclick = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((t) => t.stop());
   } catch (error) {
-    toast(`Microphone permission: ${error.message}`);
+    if (request === audioRequest)
+      toast(`Microphone permission: ${error.message}`);
     return;
   }
-  send({ type: "audio", source: "input", deviceId: $("audioDevice").value });
+  if (
+    request !== audioRequest ||
+    settingsLocked ||
+    !stageAlive() ||
+    stageWindow !== requestedStage
+  )
+    return;
+  send({
+    type: "audio",
+    source: "input",
+    deviceId: $("audioDevice").value,
+    muted: $("audioMute").checked,
+  });
   send({ type: "devices" });
 };
 $("audioFile").onchange = () => {
   const file = $("audioFile").files[0];
+  $("audioFile").value = "";
+  if (settingsLocked || !stageAlive()) return;
   if (file) {
+    audioRequest++;
     demoRequested = false;
     stopLocalDemo();
     renderLocalAudio();
@@ -1421,17 +1527,20 @@ $("audioFile").onchange = () => {
   }
 };
 $("useDemo").onclick = () => {
+  audioRequest++;
   demoRequested = true;
   syncLocalDemo();
   send({ type: "audio", source: "demo", muted: $("audioMute").checked });
 };
 $("audioOff").onclick = () => {
+  audioRequest++;
   demoRequested = false;
   stopLocalDemo();
   renderLocalAudio();
-  send({ type: "audio", source: "off" });
+  send({ type: "audio", source: "off", muted: $("audioMute").checked });
 };
 $("audioMute").onchange = () => {
+  send({ type: "audio-mute", muted: $("audioMute").checked });
   demoAudio.mute($("audioMute").checked);
   renderLocalAudio();
 };

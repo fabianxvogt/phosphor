@@ -29,6 +29,7 @@ export class Thumbnails {
     this.engine = undefined; // null once creation failed
     this.cache = new Map(); // id → { url } | { failed: true }
     this.queue = []; // [{ id, snapshot }]
+    this.requests = new Map(); // id → current request, including async encoding
     this.job = null;
     this.scheduled = false;
     this.fence = null;
@@ -41,9 +42,10 @@ export class Thumbnails {
 
   // A card became visible: render its look (snapshot carries the palette).
   want(id, snapshot) {
-    if (this.cache.has(id) || this.job?.id === id) return;
-    if (this.queue.some((entry) => entry.id === id)) return;
-    this.queue.push({ id, snapshot });
+    if (this.cache.has(id) || this.requests.has(id)) return;
+    const entry = { id, snapshot };
+    this.requests.set(id, entry);
+    this.queue.push(entry);
     this.#schedule();
   }
 
@@ -52,11 +54,16 @@ export class Thumbnails {
     const cached = this.cache.get(id);
     if (cached?.url) URL.revokeObjectURL(cached.url);
     this.cache.delete(id);
+    this.requests.delete(id);
+    if (this.job?.id === id) this.job = null;
     this.queue = this.queue.filter((entry) => entry.id !== id);
+    if (this.queue.length) this.#schedule();
   }
 
   // A card left the view before its turn.
   forget(id) {
+    const queued = this.queue.find((entry) => entry.id === id);
+    if (queued && this.requests.get(id) === queued) this.requests.delete(id);
     this.queue = this.queue.filter((entry) => entry.id !== id);
   }
 
@@ -84,10 +91,12 @@ export class Thumbnails {
     else idle();
   }
 
-  #fail(id, message) {
-    this.cache.set(id, { failed: true });
+  #fail(entry, message) {
+    if (this.requests.get(entry.id) !== entry) return;
+    this.requests.delete(entry.id);
+    this.cache.set(entry.id, { failed: true });
     if (message) this.onError(message);
-    this.onReady(id);
+    this.onReady(entry.id);
   }
 
   #ensureEngine() {
@@ -105,10 +114,10 @@ export class Thumbnails {
 
   #start(entry) {
     const engine = this.#ensureEngine();
-    if (!engine || engine.lost) return this.#fail(entry.id);
+    if (!engine || engine.lost) return this.#fail(entry);
     const scene = entry.snapshot.scene;
-    if (this.failedFamilies.has(scene)) return this.#fail(entry.id);
-    const job = { ...entry, phase: "compile", frame: 0 };
+    if (this.failedFamilies.has(scene)) return this.#fail(entry);
+    const job = { ...entry, request: entry, phase: "compile", frame: 0 };
     this.job = job;
     engine.features = {
       energy: 0,
@@ -138,7 +147,7 @@ export class Thumbnails {
     if (loaded === false) {
       this.job = null;
       this.failedFamilies.add(scene);
-      return this.#fail(entry.id);
+      return this.#fail(entry);
     }
     // Shaders compile in parallel; completion advances between tasks.
     engine.ready(scene).then((ok) => {
@@ -146,7 +155,7 @@ export class Thumbnails {
       if (!ok) {
         this.job = null;
         this.failedFamilies.add(scene);
-        this.#fail(entry.id);
+        this.#fail(entry);
       } else job.phase = "warm";
       this.#schedule();
     });
@@ -175,6 +184,8 @@ export class Thumbnails {
       this.job = null;
       canvas.toBlob(
         (blob) => {
+          if (this.requests.get(job.id) !== job.request) return;
+          this.requests.delete(job.id);
           if (blob) this.cache.set(job.id, { url: URL.createObjectURL(blob) });
           else this.cache.set(job.id, { failed: true });
           this.onReady(job.id);
@@ -233,9 +244,9 @@ export class Thumbnails {
         gl.flush();
       }
     } catch (error) {
-      const id = this.job?.id;
+      const request = this.job?.request;
       this.job = null;
-      if (id) this.#fail(id, `Thumbnail: ${error.message}`);
+      if (request) this.#fail(request, `Thumbnail: ${error.message}`);
     }
     if (this.job || this.queue.length) this.#schedule();
   }

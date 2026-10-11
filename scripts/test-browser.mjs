@@ -23,7 +23,7 @@ const args = options({
 });
 if (args.rig)
   throw new Error("test:browser is always headless correctness-only");
-await outputDirectory("browser", args.out);
+const output = await outputDirectory("browser", args.out);
 const server = await serve(".", args.port);
 const frames = Number(args.frames);
 let runtime;
@@ -219,6 +219,115 @@ try {
   assert.equal(await control.locator(".look").count(), lookTotal);
   pass("theme switch, keyboard setup tabs and empty-catalog recovery");
 
+  await control.locator("#audioMute").check();
+  await waitFor(
+    stage,
+    () => window.__phosphorStage.audio.engine.muted,
+    null,
+    "mute reaches the playing stage without restarting its source",
+    5000,
+  );
+  await control.locator("#audioOff").click();
+  await waitFor(
+    stage,
+    () => window.__phosphorStage.audio.source === "off",
+    null,
+    "audio off",
+  );
+  await control.locator("#useDemo").click();
+  await waitFor(
+    stage,
+    () => window.__phosphorStage.audio.source === "demo",
+    null,
+    "demo resumes",
+  );
+  assert.equal(
+    await stage.evaluate(() => window.__phosphorStage.audio.engine.muted),
+    true,
+  );
+  await control.evaluate(() => {
+    window.__getUserMedia = navigator.mediaDevices.getUserMedia;
+    window.__stoppedPermissionTracks = 0;
+    navigator.mediaDevices.getUserMedia = () =>
+      new Promise((resolve) => {
+        window.__finishPermission = () =>
+          resolve({
+            getTracks: () => [
+              { stop: () => window.__stoppedPermissionTracks++ },
+            ],
+          });
+      });
+  });
+  for (const cancel of ["source", "lock"]) {
+    await control.locator("#useInput").click();
+    if (cancel === "source") await control.locator("#audioOff").click();
+    else await control.locator("#settingsLock").check();
+    await control.evaluate(() => window.__finishPermission());
+    await control.waitForTimeout(300);
+    assert.equal(
+      await stage.evaluate(() => window.__phosphorStage.audio.source),
+      "off",
+      "late microphone permission cannot override a newer choice or lock",
+    );
+    if (cancel === "lock") await control.locator("#settingsLock").uncheck();
+  }
+  assert.equal(
+    await control.evaluate(() => window.__stoppedPermissionTracks),
+    2,
+  );
+  await control.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = window.__getUserMedia;
+  });
+  await control.locator("#useDemo").click();
+  await waitFor(
+    stage,
+    () => window.__phosphorStage.audio.source === "demo",
+    null,
+    "demo restored",
+  );
+  await control.locator("#audioMute").uncheck();
+  await waitFor(
+    stage,
+    () => !window.__phosphorStage.audio.engine.muted,
+    null,
+    "unmute reaches stage",
+  );
+  pass("file/demo mute controls the playing stage");
+
+  await control.locator("#tab-checks").click();
+  const checklist = control.locator("#checks input").first();
+  await checklist.focus();
+  await checklist.press("Space");
+  await control.waitForTimeout(700); // multiple periodic stage status paints
+  assert.equal(await checklist.isChecked(), true);
+  assert.equal(
+    await checklist.evaluate((node) => node === document.activeElement),
+    true,
+  );
+  await control.locator("#tab-set").click();
+  const ceiling = await control.locator("#fader-opt-bloom").elementHandle();
+  await ceiling.press("ArrowLeft");
+  await control.waitForTimeout(300); // scheduled set render must preserve the dragged/focused node
+  assert.equal(
+    await ceiling.evaluate(
+      (node) => node.isConnected && node === document.activeElement,
+    ),
+    true,
+  );
+  await control.locator("#tab-audio").click();
+  await control.mouse.move(2, 2);
+  const heart = control.locator(".look .heart").first();
+  await heart.press("Space");
+  assert.equal(
+    await heart.evaluate((node) => node === document.activeElement),
+    true,
+  );
+  await heart.press("Space"); // restore the fixture's favourite state
+  await control.locator("#tab-audio").click();
+  pass(
+    "checklist, set faders and keyboard favourites retain focus through updates",
+  );
+
   await control.keyboard.press("KeyW"); // key 9 (QWERTY/QWERTZ W)
   await waitFor(
     stage,
@@ -230,6 +339,48 @@ try {
     "grid key 9 plays the tenth card",
   );
   pass("grid key plays the look on that card on the stage (D68)");
+
+  const familyChange = await stage.evaluate(() => {
+    const { show, scenes } = window.__phosphorStage;
+    const scene = scenes.find((s) => s.id === show.live.clip.snapshot.scene);
+    const key = scene.stage?.[0] ?? scene.schema.find((d) => d.step < 1).key;
+    const def = scene.schema.find((d) => d.key === key);
+    return { key, value: def.max };
+  });
+  await control.evaluate((change) => {
+    const channel = new BroadcastChannel("phosphor-show");
+    channel.postMessage({
+      type: "action",
+      action: { type: "param", ...change },
+    });
+    channel.close();
+  }, familyChange);
+  await waitFor(
+    control,
+    ({ key, value }) =>
+      Number(document.getElementById(`fader-family-${key}`)?.value) === value,
+    familyChange,
+    "family faders reflect remote/MIDI parameter changes",
+  );
+  await control.locator("body").press("KeyL");
+  await control.keyboard.down("KeyL");
+  await waitFor(
+    stage,
+    () => window.__phosphorStage.show.flash,
+    null,
+    "held Flash starts",
+  );
+  await control.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await waitFor(
+    stage,
+    () => !window.__phosphorStage.show.flash,
+    null,
+    "window blur releases held Flash",
+  );
+  await control.keyboard.up("KeyL");
+  pass(
+    "family faders follow remote edits and held Flash releases on focus loss",
+  );
 
   // Panic under slider focus: the old instrument ignored B/Blackout button here.
   await control.locator("#fader-master").focus();
@@ -544,6 +695,7 @@ try {
   // Presence-based ownership must still release the preview on real closure,
   // including the window proxy recovered after control and stage reloads.
   await control.locator("#settingsLock").check();
+  assert.equal(await control.locator("#breedLook").isDisabled(), true);
   await stage.close();
   await waitFor(
     control,
@@ -570,6 +722,91 @@ try {
   );
   assert.deepEqual(show.errors, []);
   pass("closing the stage resumes local keys and unlocks settings");
+
+  if (
+    (await control.locator("#autopilot").getAttribute("aria-pressed")) ===
+    "true"
+  )
+    await control.locator("#autopilot").click();
+  await control
+    .getByRole("combobox", { name: "Look family", exact: true })
+    .selectOption("interference");
+  await control.evaluate(async () => {
+    const { Engine } = await import("./engine.mjs");
+    const load = Engine.prototype.load;
+    window.__variationLoads = [];
+    window.__restoreVariationProbe = () => {
+      Engine.prototype.load = load;
+    };
+    Engine.prototype.load = function (...args) {
+      window.__variationLoads.push(this.canvas.id);
+      return load.apply(this, args);
+    };
+  });
+  await control.locator("#breedLook").click();
+  assert.equal(await control.locator("#variations button").count(), 6);
+  await waitFor(
+    control,
+    () => !!document.querySelector("#variations img[src]"),
+    null,
+    "variation thumbnail renders independently",
+  );
+  assert.equal(
+    await control.evaluate(() =>
+      window.__variationLoads.includes("editorCanvas"),
+    ),
+    false,
+    "generating variations must not replace the playing preview",
+  );
+  await control.evaluate(() => window.__restoreVariationProbe());
+  await control.locator("#variations button").first().click();
+  assert.equal(
+    await control
+      .getByRole("combobox", { name: "Look family", exact: true })
+      .inputValue(),
+    "interference",
+  );
+  await control
+    .getByRole("combobox", { name: "Look family", exact: true })
+    .selectOption("pulse");
+  assert.equal(
+    await control.locator("#variations button").count(),
+    0,
+    "changing family clears incompatible variations",
+  );
+  await control.locator("#saveAsLook").click();
+  await control.locator("body").focus();
+  await control.keyboard.down("KeyL");
+  await control.locator("#deleteLook").click();
+  await control.keyboard.up("KeyL");
+  assert.equal(
+    await control.locator("#flash").getAttribute("aria-pressed"),
+    "false",
+    "confirmation must not swallow held Flash release",
+  );
+  await control.locator("#confirmNo").click();
+  await control.locator("#tab-set").click();
+  const [download] = await Promise.all([
+    control.waitForEvent("download"),
+    control.locator("#exportSet").click(),
+  ]);
+  const { readFile } = await import("node:fs/promises");
+  const exportedPath = `${output}/ui-export.json`;
+  await download.saveAs(exportedPath);
+  const exported = JSON.parse(await readFile(exportedPath, "utf8"));
+  const saved = exported.looks.find(
+    (look) => look.name === "Pulse Geometry" || look.snapshot.scene === "pulse",
+  );
+  assert.ok(saved, "own look exports");
+  assert.equal(
+    saved.base,
+    "pulse:0",
+    "saved family changes retain a valid authored base",
+  );
+  assert.deepEqual(show.errors, []);
+  pass(
+    "variations preserve playback, clear on family change and save a valid own look",
+  );
 } finally {
   await runtime?.stop();
   await server.close();

@@ -48,10 +48,10 @@ export function isTextEntry(target) {
 // typing, on key repeat, and with Ctrl/Cmd/Alt so browser shortcuts stay.
 export function actionFor(event) {
   const { code, shiftKey } = event;
-  if (event.ctrlKey || event.metaKey || event.altKey) return null;
-  if (event.repeat && event.type !== "keyup") return null; // held keys must not toggle
   if (event.type === "keyup")
     return code === "KeyL" ? { type: "flash", on: false } : null;
+  if (event.ctrlKey || event.metaKey || event.altKey) return null;
+  if (event.repeat) return null; // held keys must not toggle
   if (isTextEntry(event.target)) return null;
   if (SLOT_BY_CODE.has(code) && !shiftKey)
     return { type: "slot", index: SLOT_BY_CODE.get(code) };

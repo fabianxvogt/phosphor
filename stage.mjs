@@ -314,6 +314,7 @@ channel.onmessage = async ({ data }) => {
           show.clock.setManualBpm(t, data.bpm);
         break;
       case "audio":
+        data.muted ??= audio.engine.muted;
         // A file cannot be reopened after a reload; the demo stands in.
         audioChoice =
           data.source === "file"
@@ -330,6 +331,11 @@ channel.onmessage = async ({ data }) => {
           show.clock.setManualBpm(t, show.clock.at(t).bpm);
         audioStart = audio.use(data);
         await audioStart;
+        break;
+      case "audio-mute":
+        audioChoice.muted = !!data.muted;
+        audio.engine.mute(!!data.muted);
+        sendStatus(t, performance.now());
         break;
       case "devices":
         post({ type: "devices", devices: await audio.devices() });
@@ -349,11 +355,18 @@ channel.onmessage = async ({ data }) => {
 };
 
 // --- keys work on the stage too (focus follows the last click) -------------
+let heldFlash = false;
+addEventListener("blur", () => {
+  if (!heldFlash) return;
+  heldFlash = false;
+  apply(show.command({ type: "flash", on: false }, now()));
+});
 for (const kind of ["keydown", "keyup"])
   window.addEventListener(kind, (event) => {
     const action = actionFor(event);
     if (!action) return;
     event.preventDefault();
+    if (action.type === "flash") heldFlash = action.on;
     apply(show.command(action, now()));
   });
 

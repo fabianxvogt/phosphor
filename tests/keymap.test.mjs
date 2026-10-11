@@ -96,3 +96,14 @@ test("labels follow the active layout when available", async () => {
   assert.equal(labels.Digit1, "1");
   assert.equal((await keyLabels(undefined)).KeyZ, "Z");
 });
+
+test("releasing Flash still works if a modifier was pressed while holding it", () => {
+  for (const modifier of ["ctrlKey", "metaKey", "altKey"])
+    assert.deepEqual(
+      actionFor({ type: "keyup", code: "KeyL", [modifier]: true }),
+      {
+        type: "flash",
+        on: false,
+      },
+    );
+});

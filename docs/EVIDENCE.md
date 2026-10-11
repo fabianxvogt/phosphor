@@ -2,6 +2,15 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## 2026-10-11 — Control workflow bug fixes and release checks
+
+- `INCREMENTAL / EMPIRICAL`: fixed live-stage mute and its persistence across source changes; opening a stage now transfers local Demo/Off and Mute choices. Delayed microphone permission cannot override a newer source or settings lock, and source status ignores stale async completions. Input/file controls explain that a stage is required; the same rehearsal file can be selected again.
+- Variations use the independent idle thumbnail renderer instead of replacing the playing preview. Changing look, family, authored preset or palette clears old variations. Invalidated compilation/encoding jobs cannot publish stale thumbnails, and queued work keeps running after cancellation. Saved family/preset changes retain valid authored base IDs.
+- Set-option faders, Pre-show checkboxes and keyboard favourites retain their DOM/focus through updates. Family faders follow remote parameter changes. Held Flash releases on window blur, modifier-key release and while a confirmation is open. Locked settings disable Variations consistently; a pending import cannot bypass the lock.
+- Reproduced the former mute failure with a new browser assertion before the fix. `npm test`: 388 passed, 8 opt-in probes skipped, no failures. Typecheck, formatting, build and distribution verification passed. Targeted review findings about thumbnail cancellation, mute/source changes, pending microphone permission and Flash release were fixed and re-reviewed without remaining blockers.
+- `npm run test:browser -- --native-gpu`: all 24 checks passed on installed Chrome 155, including all 304 looks, energy extremes, 32:9/square/portrait output, transition cleanup and 21 simulation-family warmups. The 19 control/stage checks include source/lock races, mute, keyboard focus, variations, own-look export, stage recovery and zero GPU/non-finite/page errors. `npm run test:stage-output -- --native-gpu` passed native Retina sizing, inert Escape, stage closure with a nonblack animated preview, Full HD preview buffers and Off/Mute handoff. Generated outputs remain local under `artifacts/`.
+- Limits: these are browser correctness checks, not the outstanding eight-hour external-display endurance, physical audio/MIDI line check, output-measured blackout latency or owner art acceptance. No open GitHub issues were listed during this pass.
+
 ## 2026-10-11 — Two-column workspace follow-up
 
 - `INCREMENTAL / EMPIRICAL`: Preview and Catalog now share an independent left column. The right column stacks Look, Performance and Setup in that order, without stretching the preview to match the controls. Narrow screens retain that section order in one column.

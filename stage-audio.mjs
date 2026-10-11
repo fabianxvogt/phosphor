@@ -11,6 +11,7 @@ export class StageAudio {
     this.ready = null; // one worklet setup, however many callers race
     this.tracker = null;
     this.source = "off";
+    this.generation = 0;
   }
   get context() {
     return this.engine.context;
@@ -40,16 +41,19 @@ export class StageAudio {
     this.node.connect(sink).connect(context.destination);
     this.node.port.onmessage = (event) => (this.tracker = event.data);
   }
-  async use({ source, deviceId = "", file = null, muted = false }) {
+  async use({ source, deviceId = "", file = null, muted = this.engine.muted }) {
+    const generation = ++this.generation;
+    this.engine.mute(muted);
     await this.ensure();
+    if (generation !== this.generation) return;
     this.node.port.postMessage({ reset: true });
     this.tracker = null;
     if (source === "input") await this.engine.input(deviceId);
     else if (source === "file" && file) await this.engine.file(file);
     else if (source === "demo") await this.engine.demo("techno");
     else this.engine.stop();
-    this.engine.mute(muted);
-    this.source = this.engine.kind === "silent" ? "off" : source;
+    if (generation === this.generation)
+      this.source = this.engine.kind === "silent" ? "off" : source;
   }
   // Tracker state with nextBeatTime converted to performance.now() seconds.
   trackerNow() {
@@ -77,6 +81,7 @@ export class StageAudio {
     const t = this.tracker;
     return {
       source: this.source,
+      muted: this.engine.muted,
       level: this.engine.features.energy,
       bpm: t?.bpm ?? null,
       locked: !!t?.locked,

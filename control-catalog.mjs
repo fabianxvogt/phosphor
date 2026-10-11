@@ -327,7 +327,7 @@ export class CatalogPanel {
         return;
       event.preventDefault();
       event.stopPropagation();
-      this.onPlay(look);
+      if (!event.repeat) this.onPlay(look);
     });
     thumb.title = "Play (preview here; live when the stage is open)";
     const heart = el("button", {
@@ -439,7 +439,8 @@ export class CatalogPanel {
     this.lastRated = id;
     this.stale++;
     this.#updateCount();
-    if (!this.pointerInside) this.#settle();
+    if (!this.pointerInside && !this.list.contains(document.activeElement))
+      this.#settle();
   }
 
   #settle() {

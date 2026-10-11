@@ -110,6 +110,8 @@ Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PN
 
 ## Done
 
+- **2026-10-11 · Control workflow fixes (INCREMENTAL):** live-stage mute/source handoff, cancellation-safe variation thumbnails, stable keyboard focus and fader readouts, valid own-look base IDs, settings-lock race protection and reliable held-Flash release. All 304 looks and the expanded control/stage browser checks pass; [evidence and remaining rig checks](docs/EVIDENCE.md#2026-10-11--control-workflow-bug-fixes-and-release-checks).
+
 - **2026-10-11 · Reference UI redesign (INCREMENTAL):** warm gold-accented light/dark themes with system default and persistent toggle; responsive two-column workspace with Preview/Catalog on the left and Look above Performance and Setup on the right; compact catalog cards, filter pills and recoverable empty states; Audio/MIDI/Set/Pre-show tabs, progressive disclosure and native keyboard controls. Rendering and saved-set formats remain unchanged. Validation and limits: [evidence](docs/EVIDENCE.md#2026-10-11--lightdark-control-interface).
 
 - 2026-10-10: connected the existing Vercel project to `main`; versioned build settings run tests, typecheck and distribution verification before publishing `dist` (D70). Other branches do not auto-deploy; running shows retain their offline generation.
