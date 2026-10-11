@@ -7,6 +7,10 @@
 
 **INCREMENTAL / EMPIRICAL.** A product rebuild, not a research novelty claim. Thirty-six scene modules are implemented: the seventeen original ones (the sixteen planned families plus Evolution Garden until Acid absorbs it) and nineteen algorithm families added 2026-10-09/10 (#64–#82, [catalog](CATALOG.md)); none is a placeholder. Six have passed the family gate (Feedback, Tapestry, Cathedral, Interference, Pulse Geometry, Fractal Flight; [status](../ROADMAP.md#family-gate-status)); the rest are drafts. Mathematical/biological discovery, topology preservation, automatic musical understanding and cross-device exact replay are not claimed. State: production candidate; rig rehearsal and multi-hour endurance gates remain open.
 
+## Control interface
+
+`control.css` holds the shared warm light/dark tokens and responsive layouts. `control-theme.js` applies the browser-local appearance before first paint; `control-ui.mjs` owns setup tabs, catalog filter buttons and keyboard event boundaries. Playback, persistence and settings locking remain in `control.mjs`. Catalog cards use native disclosures for rating/edit actions, and the editor keeps its extra parameters under More look settings. The presentation does not change exported sets or stage rendering.
+
 ## How a show runs
 
 The **stage** window owns live playback: renderer, show controller, clock, autopilot, audio input and the beat tracker (AudioWorklet). The **control** window edits the set and runs local performance when no stage is connected; while connected it sends performer actions over a BroadcastChannel and shows the stage's state and a preview. Reloading the controls never stops the stage; the stage saves its runtime state every second and restores the current clip, energy, speed, shared controls and tempo after a reload.

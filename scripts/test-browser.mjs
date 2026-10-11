@@ -19,6 +19,7 @@ import { renderLook, readStage } from "../tests/browser/client.mjs";
 const args = options({
   frames: { type: "string", default: "20" },
   only: { type: "string" }, // "lab" or "show" while iterating
+  "native-gpu": { type: "boolean", default: false }, // installed Chrome's GPU; still headless correctness-only
 });
 if (args.rig)
   throw new Error("test:browser is always headless correctness-only");
@@ -35,8 +36,10 @@ const waitFor = async (page, fn, arg, label, timeout = 60000) => {
   }
 };
 try {
-  runtime = await launch();
-  console.log(`Chrome ${runtime.version}; software GPU; no timing gates`);
+  runtime = await launch({ rig: args["native-gpu"], headless: true });
+  console.log(
+    `Chrome ${runtime.version}; ${args["native-gpu"] ? "native" : "software"} GPU; no timing gates`,
+  );
 
   if (args.only !== "show") {
     // --- render lab ---------------------------------------------------------
@@ -187,6 +190,35 @@ try {
   );
   pass("control opens the stage, the stage starts and reports back");
 
+  const { lookTotal, familyTotal } = await stage.evaluate(() => ({
+    lookTotal: window.__phosphorStage.scenes.reduce(
+      (n, scene) => n + scene.presets.length,
+      0,
+    ),
+    familyTotal: window.__phosphorStage.scenes.length,
+  }));
+  const originalTheme = await control
+    .locator("html")
+    .getAttribute("data-theme");
+  await control.locator("#themeToggle").click();
+  const savedTheme = originalTheme === "dark" ? "light" : "dark";
+  assert.equal(
+    await control.locator("html").getAttribute("data-theme"),
+    savedTheme,
+  );
+  await control.locator("#tab-audio").press("ArrowRight");
+  assert.equal(
+    await control.locator("#tab-midi").getAttribute("aria-selected"),
+    "true",
+  );
+  assert.equal(await control.locator("#setup-audio").isVisible(), false);
+  await control.locator("#tab-audio").click();
+  await control.locator("#catalogSearch").fill("no-such-look-ui-check");
+  assert.equal(await control.locator(".catalog-empty").isVisible(), true);
+  await control.getByRole("button", { name: "Explore all looks" }).click();
+  assert.equal(await control.locator(".look").count(), lookTotal);
+  pass("theme switch, keyboard setup tabs and empty-catalog recovery");
+
   await control.keyboard.press("KeyW"); // key 9 (QWERTY/QWERTZ W)
   await waitFor(
     stage,
@@ -257,6 +289,7 @@ try {
 
   // Set edits remain available while the stage is connected.
   const name = `Harness ${Date.now()}`;
+  await control.locator("#tab-set").click();
   await control.locator("#setFields input").first().fill(name);
   await control.locator("#setFields input").first().dispatchEvent("change");
   await waitFor(
@@ -273,13 +306,14 @@ try {
     title: document.getElementById("catalogTitle").textContent,
     cards: document.querySelectorAll(".look").length,
   }));
-  const lookTotal = await stage.evaluate(() =>
-    window.__phosphorStage.scenes.reduce((n, s) => n + s.presets.length, 0),
-  );
   assert.equal(catalog.cards, lookTotal);
-  assert.equal(catalog.title, `Catalog · ${lookTotal} looks`);
+  assert.equal(
+    catalog.title,
+    `Catalog${lookTotal} looks · ${familyTotal} families`,
+  );
   const cards = control.locator(".look");
   const rated = await cards.nth(2).evaluate((node) => node.card.look.id);
+  await cards.nth(2).locator("summary").click();
   await cards
     .nth(2)
     .locator(".star")
@@ -311,6 +345,7 @@ try {
     "a favourite sorts first and takes the first key",
   );
   const played = await cards.nth(4).evaluate((node) => node.card.look.id);
+  await cards.nth(4).locator("summary").click();
   await cards.nth(4).locator(".play").click();
   await waitFor(
     stage,
@@ -327,7 +362,8 @@ try {
     id: window.__phosphorStage.show.live?.clip.id,
     manualUntil: window.__phosphorStage.show.autopilot.manualUntil,
   }));
-  await control.locator("body").press("Shift+Space");
+  // A focused catalog thumbnail must preserve Shift+Space instead of replaying itself.
+  await cards.first().locator(".thumb").press("Shift+Space");
   await waitFor(
     stage,
     (id) => {
@@ -361,6 +397,11 @@ try {
   );
   const before = await stage.evaluate(readStage);
   await control.reload();
+  assert.equal(
+    await control.locator("html").getAttribute("data-theme"),
+    savedTheme,
+    "appearance survives a reload while the stage keeps playing",
+  );
   await waitFor(
     control,
     () => /Stage live/.test(document.getElementById("stagePill").textContent),
@@ -483,6 +524,7 @@ try {
   assert.equal(restored.status.shared.zoom, 1.4);
   pass("stage reload restores clip, energy and shared controls");
 
+  await control.locator("#tab-checks").click();
   await control.locator("#pattern").click();
   await waitFor(
     stage,

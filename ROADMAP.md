@@ -110,6 +110,8 @@ Linear cue score and keyframes; WebM recording and PNG frame-sequence export (PN
 
 ## Done
 
+- **2026-10-11 · Reference UI redesign (INCREMENTAL):** warm gold-accented light/dark themes with system default and persistent toggle; responsive preview/performance/look workspace; compact catalog cards, filter pills and recoverable empty states; Audio/MIDI/Set/Pre-show tabs, progressive disclosure and native keyboard controls. Rendering and saved-set formats remain unchanged. Validation and limits: [evidence](docs/EVIDENCE.md#2026-10-11--lightdark-control-interface).
+
 - 2026-10-10: connected the existing Vercel project to `main`; versioned build settings run tests, typecheck and distribution verification before publishing `dist` (D70). Other branches do not auto-deploy; running shows retain their offline generation.
 - Ten families / 62 looks on one WebGL2 engine; fixed 60 Hz simulation with bounded catch-up; two-slot transitions with interrupted-mix recovery; context-loss rebuild.
 - Cue scores with keyframes, quantized GO, director mode; audio/MIDI routing and clock; clean projector output; PNG/WebM/frame-sequence export; strict portable v2 sets with v1 migration and recovery backup; content-stamped offline cache.

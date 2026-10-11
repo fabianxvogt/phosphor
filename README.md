@@ -22,8 +22,14 @@ npm test && npm run build && npm run check:dist
 npm run preview   # http://localhost:48101 (built, offline-capable)
 ```
 
+For a headless control/stage smoke on a local machine with Chrome installed, run `npm run test:browser -- --only show --native-gpu` after building. The default browser runner uses software rendering; neither path applies rig timing gates.
+
 Microphone, MIDI, the offline cache and screen placement need HTTPS or localhost.
 If an older offline release still shows **Enter Show mode** or **Prep: click a slot to edit it**, save your clip edits and open [Update Phosphor](https://phosphor-performance.vercel.app/update.html) in that same tab. Close the stage and any other Phosphor tabs/windows, keeping the updater open; click **Update and open Phosphor**. Saved sets are retained.
+
+## Appearance and navigation
+
+Use the sun/moon button to switch between warm light and dark themes. Phosphor follows your system appearance until you choose one, then remembers the choice in this browser. The preview, performance controls and look editor sit together; the catalog adapts from four columns on a desktop to two on smaller screens. **Rate & edit** on each card reveals its rating and editing controls. Audio, MIDI, Set and Pre-show live in keyboard-accessible tabs. Click the set name to rename it; expand **Performance options**, **More look settings** or **Timing controls** for the additional controls. Space/Enter activate focused buttons, arrow keys adjust focused sliders, and Shift+Space still plays Next.
 
 ## Prepare and play
 

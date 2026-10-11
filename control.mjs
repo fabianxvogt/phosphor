@@ -28,6 +28,7 @@ import {
 } from "./catalog.mjs";
 import { Thumbnails } from "./catalog-thumbs.mjs";
 import { CatalogPanel } from "./control-catalog.mjs";
+import { setupControlUI } from "./control-ui.mjs";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...children) => {
@@ -372,21 +373,39 @@ const SHARED = [
   { key: "zoom", label: "Zoom", min: 0.5, max: 2, step: 0.01 },
   { key: "mirror", label: "Mirror", min: 1, max: 12, step: 1 },
 ];
+function faderValue(input) {
+  const value = Number(input.value);
+  if (["fader-master", "fader-energy", "fader-zoom"].includes(input.id))
+    return `${Math.round(value * 100)}%`;
+  if (input.id === "fader-hue") return `${Math.round(value * 360)}°`;
+  if (input.id === "fader-mirror") return value === 1 ? "Off" : `${value}×`;
+  return value.toFixed(Number(input.step) < 1 ? 2 : 0);
+}
+function paintFader(input) {
+  const min = Number(input.min),
+    max = Number(input.max);
+  input.style.setProperty(
+    "--fill",
+    `${(100 * (Number(input.value) - min)) / (max - min || 1)}%`,
+  );
+}
 function fader({ key, label, min, max, step }, value, oninput) {
   const id = `fader-${key}`;
   const input = el("input", { id, type: "range", min, max, step, value });
   const output = el("output", {
     htmlFor: id,
-    value: Number(value).toFixed(step < 1 ? 2 : 0),
+    value: faderValue(input),
   });
+  paintFader(input);
   input.oninput = () => {
-    output.value = Number(input.value).toFixed(step < 1 ? 2 : 0);
+    paintFader(input);
+    output.value = faderValue(input);
     oninput(Number(input.value));
   };
   return el(
     "div",
     { className: "fader" },
-    el("label", { htmlFor: id, textContent: label }),
+    el("label", { htmlFor: id, textContent: label, title: label }),
     input,
     output,
   );
@@ -411,9 +430,8 @@ function renderShared() {
     const input = $(`fader-${def.key}`);
     if (input === document.activeElement) continue;
     input.value = value(def.key);
-    input.nextElementSibling.value = Number(input.value).toFixed(
-      def.step < 1 ? 2 : 0,
-    );
+    paintFader(input);
+    input.nextElementSibling.value = faderValue(input);
   }
 }
 let familyKey = null;
@@ -466,7 +484,7 @@ function renderStatus() {
       : "Stage open · click it to start"
     : "Stage not open";
   $("stagePill").className =
-    `pill ${alive ? (status.stage.started && !windowed ? "ok" : "warn") : "bad"}`;
+    `pill ${alive ? (status.stage.started && !windowed ? "ok" : "warn") : ""}`;
   $("openStage").disabled = alive;
   updateSettingsLock();
   updatePreview();
@@ -534,6 +552,7 @@ function renderStatus() {
   $("random").ariaPressed = String(ap.random);
   $("half").ariaPressed = String(s.speed === 0.5);
   $("double").ariaPressed = String(s.speed === 2);
+  $("normalSpeed").ariaPressed = String(s.speed === 1);
   if (alive) {
     const a = status.audio;
     $("audioPill").textContent =
@@ -715,8 +734,9 @@ function renderEditor() {
   }
   const look = lookById(draft.id);
   $("editorTitle").textContent = draft.own
-    ? `Own look · ${look?.name ?? draft.name}`
-    : `Look · ${draft.name}`;
+    ? (look?.name ?? draft.name)
+    : draft.name;
+  $("editorFamily").textContent = sceneById(draft.snapshot.scene)?.name ?? "";
   $("saveLook").hidden = !draft.own;
   $("deleteLook").hidden = !draft.own;
   const scene = sceneById(draft.snapshot.scene);
@@ -852,17 +872,39 @@ function renderEditor() {
       }),
     ),
   );
+  family.ariaLabel = "Look family";
+  $("editorFamily").replaceChildren(family);
+  const heroKeys = stageParams(scene);
+  const advancedOpen = $("editor").querySelector("details")?.open ?? false;
+  const swatches = el(
+    "div",
+    { className: "palette-preview", ariaLabel: "Palette colours" },
+    ...Object.values(draft.snapshot.palette).map((color) =>
+      el("i", { style: `background:${color}`, title: color }),
+    ),
+  );
   $("editor").replaceChildren(
-    field("Name", name),
-    field("Family", family),
-    field("Look", preset),
-    ...params,
-    field("Seed", seed),
+    ...params.filter((_, index) => heroKeys.includes(scene.schema[index].key)),
     field("Palette", palette),
     ...(draft.palette === "custom"
-      ? [field("Custom colours", customColors)]
-      : []),
+      ? [field("Colours", customColors)]
+      : [swatches]),
     field("Transition", transition),
+    el(
+      "details",
+      { className: "advanced", open: advancedOpen },
+      el("summary", { textContent: "More look settings" }),
+      el(
+        "div",
+        { className: "detail-body" },
+        field("Name", name),
+        field("Look", preset),
+        ...params.filter(
+          (_, index) => !heroKeys.includes(scene.schema[index].key),
+        ),
+        field("Seed", seed),
+      ),
+    ),
   );
 }
 function ownLookFromDraft(id) {
@@ -1225,8 +1267,22 @@ $("minRating").onchange = () => {
   set.autopilot.minRating = Number($("minRating").value);
   changed();
 };
+$("normalSpeed").onclick = () => act({ type: "speed", value: 1 });
 $("half").onclick = () => act({ type: "speed", value: 0.5 });
 $("double").onclick = () => act({ type: "speed", value: 2 });
+$("flash").addEventListener("keydown", (event) => {
+  if (event.shiftKey || ![" ", "Enter"].includes(event.key)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (!event.repeat) act({ type: "flash", on: true });
+});
+$("flash").addEventListener("keyup", (event) => {
+  if (![" ", "Enter"].includes(event.key)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  act({ type: "flash", on: false });
+});
+$("flash").addEventListener("blur", () => act({ type: "flash", on: false }));
 $("flash").onpointerdown = () => act({ type: "flash", on: true });
 for (const end of ["pointerup", "pointerleave", "pointercancel"])
   $("flash").addEventListener(end, () => act({ type: "flash", on: false }));
@@ -1426,6 +1482,7 @@ if ("serviceWorker" in navigator)
       log("Offline cache unavailable here (needs HTTPS or localhost)."),
     );
 
+setupControlUI();
 labels = await keyLabels();
 catalog.refreshKeys();
 selectLook(catalog.first() ?? looks[0].id, true, false);

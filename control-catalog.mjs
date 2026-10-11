@@ -257,7 +257,13 @@ export class CatalogPanel {
       ),
     );
     this.family.value = value;
-    this.title.textContent = `Catalog · ${this.looks.length} looks`;
+    this.title.replaceChildren(
+      "Catalog",
+      el("span", {
+        className: "catalog-total",
+        textContent: `${this.looks.length} looks · ${this.families.length} families`,
+      }),
+    );
   }
 
   // Own looks were added, edited or deleted: rebuild their cards.
@@ -305,13 +311,29 @@ export class CatalogPanel {
           title: "Your own look",
         }),
       );
-    // The thumbnail plays the look, like a grid key.
+    // The thumbnail plays the look, like a grid key, with native keyboard semantics.
+    thumb.role = "button";
+    thumb.tabIndex = 0;
+    thumb.ariaLabel = `Play ${look.name}`;
     thumb.addEventListener("click", () => this.onPlay(look));
+    thumb.addEventListener("keydown", (event) => {
+      if (
+        event.shiftKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        (event.key !== "Enter" && event.key !== " ")
+      )
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.onPlay(look);
+    });
     thumb.title = "Play (preview here; live when the stage is open)";
     const heart = el("button", {
       className: "heart",
       type: "button",
-      textContent: "♥",
+      textContent: "♡",
       title: "Favourite: in your live set, listed first",
       ariaLabel: `Favourite ${look.name}`,
       onclick: () => this.#favorite(look.id),
@@ -334,36 +356,49 @@ export class CatalogPanel {
           }),
           heart,
         ),
-        el("div", {
-          className: "look-meta",
-          textContent: look.variant
-            ? `${look.family} · ${look.variant}`
-            : look.family,
-          title: look.variant
-            ? `${look.family} · ${look.variant}`
-            : look.family,
-        }),
-        widget.node,
         el(
-          "div",
-          { className: "look-actions" },
-          el("button", {
-            className: "play",
-            type: "button",
-            textContent: "▶ Play",
-            title: "Preview here; plays live when the stage is open",
-            onclick: () => this.onPlay(look),
+          "details",
+          { className: "look-tools" },
+          el("summary", {
+            textContent: "Rate & edit",
+            ariaLabel: `Rate and edit ${look.name}`,
           }),
-          el("button", {
-            className: "edit",
-            type: "button",
-            textContent: "Edit",
-            title: "Open in the look editor (save changes as an own look)",
-            onclick: () => this.onEdit(look),
+          el("div", {
+            className: "look-meta",
+            textContent: look.variant
+              ? `${look.family} · ${look.variant}`
+              : look.family,
+            title: look.variant
+              ? `${look.family} · ${look.variant}`
+              : look.family,
           }),
+          widget.node,
+          el(
+            "div",
+            { className: "look-actions" },
+            el("button", {
+              className: "play",
+              type: "button",
+              textContent: "▶ Play",
+              title: "Preview here; plays live when the stage is open",
+              onclick: () => this.onPlay(look),
+            }),
+            el("button", {
+              className: "edit",
+              type: "button",
+              textContent: "Edit",
+              title: "Open in the look editor (save changes as an own look)",
+              onclick: () => this.onEdit(look),
+            }),
+          ),
         ),
       ),
     );
+    // Pointer-opened details must not pin sorting after the pointer leaves.
+    // Keyboard activation still keeps focus in the card for rating/navigation.
+    node
+      .querySelector("summary")
+      .addEventListener("mousedown", (event) => event.preventDefault());
     card = {
       node,
       look,
@@ -384,6 +419,7 @@ export class CatalogPanel {
   #paintHeart(card) {
     const on = this.getFavorites().includes(card.look.id);
     card.heart.ariaPressed = String(on);
+    card.heart.textContent = on ? "♥" : "♡";
     card.node.classList.toggle("favorite", on);
   }
 
@@ -445,6 +481,35 @@ export class CatalogPanel {
     );
     const scrollTop = this.list.scrollTop;
     this.list.replaceChildren(...visible.map((look) => this.#card(look).node));
+    if (!visible.length) {
+      const own =
+        this.show.value === "own" && !this.looks.some((look) => look.own);
+      this.list.append(
+        el(
+          "div",
+          { className: "catalog-empty", role: "status" },
+          el("strong", {
+            textContent: own
+              ? "Your next look starts here"
+              : "No matching looks",
+          }),
+          el("p", {
+            textContent: own
+              ? "Choose a look, make it yours, then save it as an own look."
+              : "Try another search or reset the filters to explore the catalog.",
+          }),
+          el("button", {
+            textContent: "Explore all looks",
+            onclick: () => {
+              this.search.value = "";
+              this.family.value = "";
+              this.show.value = "all";
+              this.show.dispatchEvent(new Event("change"));
+            },
+          }),
+        ),
+      );
+    }
     this.order = visible.map((look) => look.id);
     if (this.observer) {
       this.observer.disconnect();
