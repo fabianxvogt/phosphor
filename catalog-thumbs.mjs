@@ -1,11 +1,12 @@
+import { THUMBNAIL_PALETTE, thumbnailKey } from "./thumbnail-palette.mjs";
 // Catalog thumbnails (D65): one small offscreen Engine renders one look at a
 // time in idle slices, like the browser harness's renderLook (load, warm a
-// simulation, ~60 frames). Results are cached as object URLs for the session.
+// simulation, 24 frames). Results are cached for the session; authored looks can use prebuilt WebP images.
 // It yields whenever `busy()` (a transition on the stage or preview, or a
 // hidden tab), never runs outside requestIdleCallback, and keeps at most one
 // small batch of GPU work in flight (a fence must signal before the next), so
 // it does not take time from the stage or the live preview.
-const FRAMES = 60;
+const FRAMES = 24;
 const STEP_MS = 4; // keep this much idle time in reserve before each step
 const STEPS_PER_SLICE = 4;
 const BUSY_RETRY_MS = 400;
@@ -14,13 +15,17 @@ const FENCE_RETRY_MS = 16;
 export class Thumbnails {
   constructor({
     createEngine, // () => Engine (called lazily, once)
-    width = 192,
-    height = 108,
+    paletteIndependent = false,
+    previews = {},
+    width = 512,
+    height = 288,
     busy = () => false,
     onReady = () => {},
     onError = () => {},
   }) {
     this.createEngine = createEngine;
+    this.paletteIndependent = paletteIndependent;
+    this.previews = previews;
     this.width = width;
     this.height = height;
     this.busy = busy;
@@ -43,6 +48,12 @@ export class Thumbnails {
   // A card became visible: render its look (snapshot carries the palette).
   want(id, snapshot) {
     if (this.cache.has(id) || this.requests.has(id)) return;
+    const preview = this.previews[id];
+    if (this.paletteIndependent && preview?.key === thumbnailKey(snapshot)) {
+      this.cache.set(id, { url: preview.url });
+      this.onReady(id);
+      return;
+    }
     const entry = { id, snapshot };
     this.requests.set(id, entry);
     this.queue.push(entry);
@@ -140,7 +151,13 @@ export class Thumbnails {
     engine.updatePerformance(2, false);
     let loaded;
     try {
-      loaded = engine.load(entry.snapshot, 0, { energy: 0.5 });
+      loaded = engine.load(
+        this.paletteIndependent
+          ? { ...entry.snapshot, palette: { ...THUMBNAIL_PALETTE } }
+          : entry.snapshot,
+        0,
+        { energy: 0.5 },
+      );
     } catch {
       loaded = false;
     }

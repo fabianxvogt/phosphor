@@ -2,9 +2,14 @@
 // The stage owns live playback once open; control reloads never stop the show.
 import scenes from "./scenes.mjs";
 import { Engine } from "./engine.mjs";
+import {
+  nativeDisplayResolution,
+  resolutionLimits,
+} from "./display-resolution.mjs";
 import { ControlPreview, performanceBeat } from "./control-preview.mjs";
-import { presetSnapshot, DEFAULT_PALETTE } from "./session.mjs";
-import { MOODS, PALETTES, paletteById } from "./palettes.mjs";
+import { presetSnapshot } from "./session.mjs";
+import { PalettePicker } from "./color-picker.mjs";
+import { PALETTES, paletteById } from "./palettes.mjs";
 import {
   validateShowSet,
   parseShowSet,
@@ -26,9 +31,10 @@ import {
   MAX_RATING,
   OWN_PREFIX,
 } from "./catalog.mjs";
+import { PREVIEWS } from "./catalog-previews.mjs";
 import { Thumbnails } from "./catalog-thumbs.mjs";
 import { CatalogPanel } from "./control-catalog.mjs";
-import { setupControlUI } from "./control-ui.mjs";
+import { setupControlUI, syncControlPalette } from "./control-ui.mjs";
 import { RhythmPanel } from "./control-rhythm.mjs";
 import { effectDefinitions, validatePattern } from "./rhythm.mjs";
 
@@ -49,6 +55,8 @@ const stageParams = (scene) =>
     .map((d) => d.key);
 
 let { set, report } = loadSet(localStorage, scenes);
+set.palette ??= "symbiosis";
+const showColors = () => paletteById(set.palette)?.colors ?? set.palette;
 let status = null; // last stage status
 let lastStatusAt = -Infinity; // no stage heard yet (0 would read as alive for 2 s)
 let labels = {};
@@ -338,7 +346,7 @@ channel.onmessage = ({ data }) => {
       send({ type: "set", set });
       break;
     case "stage-started":
-      log("Stage started (audio + fullscreen).");
+      log("Stage started.");
       break;
     case "devices":
       renderDevices(data.devices);
@@ -440,16 +448,21 @@ function renderShared() {
   const s = performanceStatus();
   const value = (key) =>
     key === "energy" ? (s?.energy ?? 0.5) : (s?.shared[key] ?? set.shared[key]);
-  if (!$("shared").children.length)
-    $("shared").replaceChildren(
-      ...SHARED.map((def) =>
+  if (!$("shared").children.length) {
+    for (const key of ["energy", "master", "hue", "zoom", "mirror"]) {
+      const def = SHARED.find((item) => item.key === key);
+      const target = ["energy", "master"].includes(key)
+        ? "shared"
+        : "sharedMore";
+      $(target).append(
         fader(def, value(def.key), (v) =>
           def.key === "energy"
             ? act({ type: "energy", value: v })
             : act({ type: "shared", [def.key]: v }),
         ),
-      ),
-    );
+      );
+    }
+  }
   for (const def of SHARED) {
     const input = $(`fader-${def.key}`);
     if (input === document.activeElement) continue;
@@ -523,6 +536,7 @@ function renderStatus() {
   updatePreview();
   if (!alive) renderLocalAudio();
   if (!s) return;
+  syncControlPalette(showColors());
   const clock = s.clock;
   $("bpm").textContent = clock.bpm.toFixed(1);
   const source = clock.mode === "manual" ? "manual" : clock.source;
@@ -616,39 +630,70 @@ if (editorEngine)
   localPerformance = new ControlPreview(editorEngine, set, scenes, now());
 const localPreviewContext = $("localPreview").getContext("2d");
 
-// Preview resolution (D67): chosen per viewer, applied to the local renderer.
-// While the stage is live the monitor shows the stage's own stream, so the
-// choice is disabled and the editor renders small to leave the GPU to it.
-const PREVIEW_KEY = "phosphor-preview-resolution";
-const PREVIEW_SIZES = ["480x270", "960x540", "1280x720", "1920x1080"];
-let previewSize = "960x540";
-try {
-  const stored = localStorage.getItem(PREVIEW_KEY);
-  if (PREVIEW_SIZES.includes(stored)) previewSize = stored;
-} catch {}
+// The main preview always uses the current display's native pixel dimensions.
+// A live stage supplies its full-resolution stream; only the small Look editor
+// renders separately at reduced size while the stage owns the main picture.
+const previewLimits = editorEngine ? resolutionLimits(editorEngine.gl) : {};
 let localFps = null;
+let nativeScreen = null;
 function applyPreviewSize() {
   const alive = stageAlive();
-  const [w, h] = (alive ? "480x270" : previewSize).split("x").map(Number);
+  const [w, h] = alive
+    ? [480, 270]
+    : nativeDisplayResolution(
+        nativeScreen ?? screen,
+        window.devicePixelRatio || 1,
+        previewLimits,
+      );
   if (editorEngine && (editorEngine.width !== w || editorEngine.height !== h)) {
     editorEngine.resize(w, h);
     localFps = null;
   }
   if ($("localPreview").width !== w) $("localPreview").width = w;
   if ($("localPreview").height !== h) $("localPreview").height = h;
-  $("previewResolution").disabled = alive || !editorEngine;
-  if (document.activeElement !== $("previewResolution"))
-    $("previewResolution").value = previewSize;
+  const shown = alive ? [status.stage.width, status.stage.height] : [w, h];
+  $("previewResolution").textContent = `Native · ${shown[0]} × ${shown[1]}`;
   $("previewNote").hidden = !alive;
 }
-$("previewResolution").onchange = () => {
-  previewSize = $("previewResolution").value;
+// Reuse an existing screen-management grant; never interrupt startup with a
+// new permission prompt. Open Stage already offers the normal placement flow.
+async function watchNativeScreen() {
+  if (!window.getScreenDetails || !navigator.permissions) return;
   try {
-    localStorage.setItem(PREVIEW_KEY, previewSize);
-  } catch {}
-  applyPreviewSize();
-  renderStatus();
-};
+    const permission = await navigator.permissions.query({
+      name: "window-management",
+    });
+    let details = null;
+    const update = async () => {
+      if (permission.state !== "granted") {
+        nativeScreen = null;
+        return;
+      }
+      if (!details) {
+        details = await window.getScreenDetails();
+        const refresh = () => {
+          nativeScreen = details.currentScreen;
+          applyPreviewSize();
+        };
+        details.addEventListener("currentscreenchange", refresh);
+        details.addEventListener("screenschange", refresh);
+        for (const display of details.screens)
+          display.addEventListener("change", refresh);
+      }
+      nativeScreen = details.currentScreen;
+      applyPreviewSize();
+    };
+    permission.addEventListener("change", () => {
+      update().catch(() => {});
+    });
+    await update();
+  } catch {
+    /* Screen dimensions remain available without a grant. */
+  }
+}
+watchNativeScreen();
+addEventListener("resize", applyPreviewSize);
+
 applyPreviewSize();
 updatePreview();
 
@@ -665,6 +710,8 @@ let thumbnailErrors = 0;
 let variationGeneration = 0;
 const variationCards = new Map();
 const thumbnails = new Thumbnails({
+  paletteIndependent: true,
+  previews: PREVIEWS,
   createEngine: () =>
     new Engine(document.createElement("canvas"), scenes, (message) => {
       if (thumbnailErrors++ < 3) log(`Catalog thumbnails: ${message}`);
@@ -685,6 +732,7 @@ const thumbnails = new Thumbnails({
 });
 const catalog = new CatalogPanel({
   looks,
+  palette: showColors(),
   families: scenes.map((scene) => ({ id: scene.id, name: scene.name })),
   list: $("catalogList"),
   search: $("catalogSearch"),
@@ -833,6 +881,28 @@ rhythmPanel = new RhythmPanel({
 });
 Object.assign(window.__phosphorControl, { rhythmPanel });
 
+let paletteThumbnailTimer;
+const palettePicker = new PalettePicker({
+  root: $("paletteControl"),
+  palettes: PALETTES,
+  value: set.palette,
+  isLocked: () => settingsLocked,
+  onChange: (value) => {
+    set.palette = value;
+    localPerformance?.updateSet(set);
+    act({ type: "palette", value, beats: 0 });
+    if (stageAlive() && draft) editDraft();
+    syncControlPalette(showColors());
+    catalog.setPalette(showColors());
+    saveSoon();
+    clearTimeout(paletteThumbnailTimer);
+    paletteThumbnailTimer = setTimeout(() => {
+      send({ type: "set", set });
+    }, 180);
+  },
+});
+syncControlPalette(showColors());
+
 // --- look editor (D68) ---------------------------------------------------------
 // The draft as a playable clip; its id is the look's, so live edits of the
 // look on screen update it in place.
@@ -848,6 +918,7 @@ function draftClip() {
     : draft.rhythmEdited
       ? draft.rhythm
       : null;
+  clip.snapshot.palette = { ...showColors() };
   if (rhythm) clip.rhythm = structuredClone(rhythm);
   return clip;
 }
@@ -1002,49 +1073,6 @@ function renderEditor() {
       previewDraft();
     },
   });
-  const customColors = el(
-    "div",
-    { className: "palette" },
-    ...Object.keys(DEFAULT_PALETTE).map((key) =>
-      el("input", {
-        type: "color",
-        value: draft.snapshot.palette[key],
-        ariaLabel: `${key} colour`,
-        oninput: (event) => {
-          draft.snapshot.palette[key] = event.target.value;
-          editDraft();
-        },
-      }),
-    ),
-  );
-  const palette = el(
-    "select",
-    {
-      id: "lookPalette",
-      ariaLabel: "Look palette",
-      onchange: () => {
-        clearVariations();
-        draft.palette = palette.value;
-        if (draft.palette !== "custom")
-          draft.snapshot.palette = { ...paletteById(draft.palette).colors };
-        editDraft();
-        renderEditor();
-        updateSettingsLock();
-      },
-    },
-    ...PALETTES.map((entry) =>
-      el("option", {
-        value: entry.id,
-        textContent: `${entry.name} · ${entry.moods.join(" / ")}`,
-        selected: entry.id === draft.palette,
-      }),
-    ),
-    el("option", {
-      value: "custom",
-      textContent: "Custom",
-      selected: draft.palette === "custom",
-    }),
-  );
   const transition = el(
     "select",
     { onchange: () => (draft.transition = transition.value) },
@@ -1065,36 +1093,15 @@ function renderEditor() {
   family.ariaLabel = "Look family";
   $("editorFamily").replaceChildren(family);
   const heroKeys = stageParams(scene);
-  const advancedOpen = $("editor").querySelector("details")?.open ?? false;
-  const swatches = el(
-    "div",
-    { className: "palette-preview", ariaLabel: "Palette colours" },
-    ...Object.values(draft.snapshot.palette).map((color) =>
-      el("i", { style: `background:${color}`, title: color }),
-    ),
-  );
   $("editor").replaceChildren(
     ...params.filter((_, index) => heroKeys.includes(scene.schema[index].key)),
-    field("Palette", palette),
-    ...(draft.palette === "custom"
-      ? [field("Colours", customColors)]
-      : [swatches]),
+  );
+  $("editorMore").replaceChildren(
+    field("Name", name),
+    field("Look", preset),
     field("Transition", transition),
-    el(
-      "details",
-      { className: "advanced", open: advancedOpen },
-      el("summary", { textContent: "More look settings" }),
-      el(
-        "div",
-        { className: "detail-body" },
-        field("Name", name),
-        field("Look", preset),
-        ...params.filter(
-          (_, index) => !heroKeys.includes(scene.schema[index].key),
-        ),
-        field("Seed", seed),
-      ),
-    ),
+    ...params.filter((_, index) => !heroKeys.includes(scene.schema[index].key)),
+    field("Seed", seed),
   );
 }
 function ownLookFromDraft(id) {
@@ -1154,6 +1161,7 @@ function deleteLook() {
 function clearVariations() {
   for (const id of variationCards.keys()) thumbnails.invalidate(id);
   variationCards.clear();
+  $("variations").hidePopover();
   $("variations").replaceChildren();
 }
 function breed() {
@@ -1181,6 +1189,7 @@ function breed() {
       variationCards.set(id, thumb);
       thumbnails.want(id, {
         ...structuredClone(draft.snapshot),
+        palette: { ...showColors() },
         seed: child.seed,
         params: { ...child.params },
       });
@@ -1196,6 +1205,7 @@ function breed() {
               seed: child.seed,
               params: { ...child.params },
             };
+            $("variations").hidePopover();
             previewDraft();
             renderEditor();
           },
@@ -1205,6 +1215,7 @@ function breed() {
       );
     }),
   );
+  $("variations").showPopover();
 }
 let editorLoop = 0;
 let lastLocalStatus = 0;
@@ -1255,7 +1266,6 @@ function renderSetFields() {
   if ($("setFields").children.length) {
     for (const [id, value] of [
       ["showName", set.name],
-      ["setMood", set.mood ?? ""],
       ["autopilotEvery", set.autopilot.everyBars],
       ...["bloom", "echo", "chroma", "grain", "vignette"].map((key) => [
         `fader-opt-${key}`,
@@ -1282,30 +1292,6 @@ function renderSetFields() {
       changed();
     },
   });
-  const mood = el(
-    "select",
-    {
-      id: "setMood",
-      ariaLabel: "Palette mood",
-      title: "Autopilot steps palettes within this mood (D57)",
-      onchange: () => {
-        set.mood = mood.value || null;
-        changed();
-      },
-    },
-    el("option", {
-      value: "",
-      textContent: "Any palette",
-      selected: set.mood === null,
-    }),
-    ...MOODS.map((value) =>
-      el("option", {
-        value,
-        textContent: value,
-        selected: set.mood === value,
-      }),
-    ),
-  );
   const every = el(
     "select",
     {
@@ -1348,7 +1334,6 @@ function renderSetFields() {
   });
   $("setFields").replaceChildren(
     field("Show name", name),
-    field("Palette mood", mood),
     field("In order every", every),
     field("Stage resolution", budget),
     option("bloom", "Bloom ceiling"),
@@ -1644,6 +1629,9 @@ $("importSet").onchange = async () => {
       return;
     }
     set = result.set;
+    set.palette ??= "symbiosis";
+    palettePicker.setValue(set.palette);
+    catalog.setPalette(showColors());
     rhythmEdits.clear();
     rhythmPanel?.setPreview(false);
     $("importReport").replaceChildren(

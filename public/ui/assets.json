@@ -1,0 +1,22 @@
+{
+  "assets": [
+    {
+      "file": "biomechanical-page-shell.png",
+      "source": "ChatGPT Image Oct 11 2026 09_59_14 PM-upscaled-4x.png",
+      "provenance": "Owner-provided upscale of the approved whole-page chassis, copied unchanged.",
+      "width": 3072,
+      "height": 1924,
+      "transparentPanels": true,
+      "sha256": "189eb787b5912f557163f2d5aed63e1d2a354bff66efcc4f5ad9b9e5d42998f0"
+    },
+    {
+      "file": "biomechanical-page-portrait.png",
+      "source": "ChatGPT Image Oct 11 2026 09_59_22 PM-upscaled-4x.png",
+      "provenance": "Owner-provided upscale of the approved whole-page chassis, copied unchanged.",
+      "width": 1024,
+      "height": 3072,
+      "transparentPanels": true,
+      "sha256": "3c06f225ccfd324b6fd40b34c0658827308651cc4f9e8f1d2a5dbdb2fe6b7962"
+    }
+  ]
+}

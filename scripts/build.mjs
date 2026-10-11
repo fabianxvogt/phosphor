@@ -44,6 +44,8 @@ export async function walkAssets(root, entries = ["index.html", "stage.html", "u
       for (const tag of text.replace(/<!--[\s\S]*?-->/g,"").matchAll(/<(?:script|link)\b[^>]*>/gi)) {
         const ref = tag[0].match(/\b(?:src|href)\s*=\s*["']([^"']+)["']/i);
         if (ref) refs.push(ref[1]);
+        const license = tag[0].match(/\bdata-license\s*=\s*["']([^"']+)["']/i);
+        if (license) refs.push(license[1]);
       }
     } else if (/\.(?:mjs|js)$/.test(file)) {
       refs.push(...moduleImports(text));

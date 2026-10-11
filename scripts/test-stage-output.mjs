@@ -19,16 +19,36 @@ try {
   await context.addInitScript((set) => {
     localStorage.setItem("phosphor-preview-resolution", "480x270");
     localStorage.setItem("phosphor-set-v5", JSON.stringify(set));
+    const display = Object.assign(new EventTarget(), {
+      width: 1280,
+      height: 800,
+      devicePixelRatio: 2,
+    });
+    const details = Object.assign(new EventTarget(), {
+      currentScreen: display,
+      screens: [display],
+    });
+    window.__displayDetails = details;
+    window.getScreenDetails = async () => details;
+    const query = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = (descriptor) =>
+      descriptor.name === "window-management"
+        ? Promise.resolve(
+            Object.assign(new EventTarget(), { state: "granted" }),
+          )
+        : query(descriptor);
   }, fixture);
   const control = await context.newPage();
   const errors = [];
   control.on("pageerror", (e) => errors.push(e.message));
   await control.goto(server.url + "dist/");
-  await control.waitForFunction(() =>
-    document.getElementById("renderReadout").textContent.includes("480"),
+  await control.waitForFunction(
+    () => document.getElementById("localPreview").width === 2560,
   );
+  await control.locator('[data-setup-open="audio"]').click();
   await control.locator("#audioOff").click();
   await control.locator("#audioMute").check();
+  await control.locator("#closeSetup").click();
   const [stage] = await Promise.all([
     context.waitForEvent("page"),
     control.locator("#openStage").click(),
@@ -63,8 +83,9 @@ try {
     "Stage uses every Retina pixel despite legacy budget",
   );
   // Lifecycle correctness does not require software shading at Retina size.
-  await stage.setViewportSize({ width: 160, height: 90 });
+  await stage.setViewportSize({ width: 640, height: 360 });
   await stage.click("#start", { timeout: 60000 });
+  await stage.setViewportSize({ width: 160, height: 90 });
   const before = await stage.evaluate(
     () => window.__phosphorStage.show.live?.clip.id,
   );
@@ -88,43 +109,73 @@ try {
       document.getElementById("stagePill").textContent === "Stage not open" &&
       !document.getElementById("localPreview").hidden,
   );
-  await control.waitForFunction(() => {
-    const canvas = document.getElementById("localPreview");
-    const pixels = canvas
-      .getContext("2d")
-      .getImageData(0, 0, canvas.width, canvas.height).data;
-    return pixels.some((value, i) => i % 4 !== 3 && value > 8);
-  });
   const capture = () => {
-    const canvas = document.getElementById("localPreview");
-    return Array.from(
-      canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height)
-        .data,
-    );
+    const preview = document.getElementById("localPreview");
+    const sample = document.createElement("canvas");
+    sample.width = 32;
+    sample.height = 18;
+    const context = sample.getContext("2d");
+    context.drawImage(preview, 0, 0, 32, 18);
+    return Array.from(context.getImageData(0, 0, 32, 18).data);
   };
-  const first = await control.evaluate(capture);
+  let first = await control.evaluate(capture);
+  assert.ok(
+    first.some((value, i) => i % 4 !== 3 && value > 8),
+    "native preview is nonblack",
+  );
   await control.keyboard.press("Escape");
   await control.keyboard.press("Shift+Escape");
   await control.waitForFunction((first) => {
-    const canvas = document.getElementById("localPreview");
-    const pixels = canvas
-      .getContext("2d")
-      .getImageData(0, 0, canvas.width, canvas.height).data;
-    return pixels.some((v, i) => i % 4 !== 3 && v !== first[i]);
+    const sample = document.createElement("canvas");
+    sample.width = 32;
+    sample.height = 18;
+    const context = sample.getContext("2d");
+    context.drawImage(document.getElementById("localPreview"), 0, 0, 32, 18);
+    return context
+      .getImageData(0, 0, 32, 18)
+      .data.some((v, i) => i % 4 !== 3 && v !== first[i]);
   }, first);
-  // Assert full-sized buffers without an expensive software rendering loop.
-  await control.selectOption("#previewResolution", "1920x1080");
   assert.deepEqual(
     await control.evaluate(() => {
       const canvas = document.getElementById("editorCanvas");
       const preview = document.getElementById("localPreview");
       return [canvas.width, canvas.height, preview.width, preview.height];
     }),
-    [1920, 1080, 1920, 1080],
+    [2560, 1600, 2560, 1600],
+    "Preview restores native Retina dimensions, ignoring an old low-quality preference",
+  );
+  // Page zoom must not change physical monitor resolution when screen metadata is available.
+  await control.evaluate(() => {
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value: 0.67,
+    });
+    dispatchEvent(new Event("resize"));
+  });
+  assert.equal(
+    await control.evaluate(() => document.getElementById("localPreview").width),
+    2560,
+  );
+  // A monitor change uses the new screen's own scale, independently of page zoom.
+  await control.evaluate(() => {
+    window.__displayDetails.currentScreen = {
+      width: 1920,
+      height: 1080,
+      devicePixelRatio: 1,
+    };
+    window.__displayDetails.dispatchEvent(new Event("currentscreenchange"));
+  });
+  assert.deepEqual(
+    await control.evaluate(() => {
+      const canvas = document.getElementById("localPreview");
+      return [canvas.width, canvas.height];
+    }),
+    [1920, 1080],
+    "Preview follows the new monitor's native size",
   );
   assert.deepEqual(errors, []);
   console.log(
-    "PASS Retina/native Stage, Escape inert in both windows, close resumes nonblack animated preview, Full HD preview buffers",
+    "PASS Retina/native Stage, Escape inert in both windows, close resumes nonblack animated preview, native preview buffers and display changes",
   );
   await context.close();
 } finally {

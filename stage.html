@@ -4,7 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Phosphor · stage</title>
+    <link
+      rel="preload"
+      href="public/fonts/Forum-Regular.ttf"
+      as="font"
+      type="font/ttf"
+      crossorigin
+      data-license="public/fonts/Forum-LICENSE.txt"
+    />
     <style>
+      @font-face {
+        font-family: Forum;
+        src: url("public/fonts/Forum-Regular.ttf") format("truetype");
+        font-display: swap;
+      }
       html,
       body {
         margin: 0;
@@ -30,27 +43,97 @@
         inset: 0;
         display: grid;
         place-items: center;
-        background: rgba(0, 0, 0, 0.72);
-        color: #e8f0e8;
+        background: radial-gradient(ellipse at center, #10171588, #080c0bd9);
+        color: #edf2eb;
         font:
           16px/1.4 system-ui,
           sans-serif;
         text-align: center;
         padding: 16px;
+        overflow: auto;
       }
       #overlay[hidden] {
         display: none;
       }
-      #start {
+      .stage-gate {
+        box-sizing: border-box;
+        width: min(440px, 100%);
+        padding: clamp(24px, 5vw, 44px);
+        border: 1px solid #abb8a880;
+        border-radius: 48px 22px 48px 22px;
+        background: linear-gradient(
+          145deg,
+          #444c44eb,
+          #1c2421f2 48%,
+          #101816f5
+        );
+        box-shadow:
+          inset 0 1px 0 #e2ecd45c,
+          inset 0 0 0 5px #080d0b88,
+          0 0 0 3px #6d786966,
+          0 16px 70px #0009;
+      }
+      .stage-wordmark {
         font:
-          600 20px system-ui,
-          sans-serif;
-        padding: 18px 28px;
-        border-radius: 10px;
-        border: 1px solid #d5ff5f;
-        background: #172019;
-        color: #d5ff5f;
+          24px Forum,
+          Georgia,
+          serif;
+        letter-spacing: 0.28em;
+        margin-bottom: 26px;
+        padding-left: 0.28em;
+        color: #dce8d8;
+      }
+      #start {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        width: 100%;
+        font:
+          28px Forum,
+          Georgia,
+          serif;
+        padding: 16px 24px;
+        border-radius: 50px 25px 50px 25px;
+        border: 1px solid #cbdcc4;
+        background: linear-gradient(165deg, #e4edda, #a7bda9 48%, #7d9a89);
+        color: #152b22;
+        box-shadow:
+          inset 0 1px 0 #f4ffee,
+          inset 0 -2px 4px #33564377,
+          0 4px 16px #0006;
         cursor: pointer;
+        transition:
+          filter 0.15s,
+          transform 0.15s;
+      }
+      #start:hover {
+        filter: brightness(1.12);
+      }
+      #start:active {
+        transform: translateY(1px);
+      }
+      #start:focus-visible {
+        outline: 2px solid #edf5e4;
+        outline-offset: 6px;
+      }
+      #start svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.5;
+      }
+      #message {
+        margin: 24px 0 0;
+        color: #c3d0c6;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .stage-hint {
+        margin: 12px 0 0;
+        color: #a9b9b0;
+        font-size: 12px;
       }
       body:fullscreen {
         cursor: none;
@@ -61,11 +144,20 @@
     <canvas id="canvas" aria-label="Phosphor stage output"></canvas>
     <canvas id="pattern" aria-hidden="true"></canvas>
     <div id="overlay">
-      <div>
-        <button id="start">Start stage · fullscreen</button>
+      <div class="stage-gate">
+        <div class="stage-wordmark">PHOSPHOR</div>
+        <button id="start">
+          Start stage
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" />
+          </svg>
+        </button>
         <p id="message">
-          Click once on this screen: it starts audio analysis and goes
-          fullscreen. Keys work here as well as in the control window.
+          Start the visual output and audio on this screen. Fullscreen opens
+          when supported by your browser.
+        </p>
+        <p class="stage-hint">
+          Your controls and keyboard shortcuts stay connected.
         </p>
       </div>
     </div>

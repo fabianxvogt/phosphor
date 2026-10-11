@@ -12,6 +12,12 @@ export const MOODS = Object.freeze([
 export const PALETTES = Object.freeze(
   [
     {
+      id: "symbiosis",
+      name: "Symbiosis",
+      moods: ["warm", "deep"],
+      colors: { primary: "#bfe7d8", secondary: "#d5ab6e", accent: "#294b42" },
+    },
+    {
       id: "phosphor",
       name: "Phosphor",
       moods: ["acid", "peak"],

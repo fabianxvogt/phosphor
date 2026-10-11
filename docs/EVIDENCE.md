@@ -3,6 +3,30 @@
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
 
+## Biomechanical controls and shared colour 2026-10-11
+
+**INCREMENTAL / EMPIRICAL.** Implemented the owner-approved biomechanical direction with one whole-page chassis, separate wide/portrait compositions, teardrop faders, compact family/global rhythm and a setup dialog. The final frames are the owner's upscaled PNG files copied unchanged: 3072×1924 wide and 1024×3072 portrait, with genuine alpha openings for the five panels. Dimensions, source names and hashes are recorded in `public/ui/assets.json`. Desktop and 390 px-width portrait layouts were visually inspected. Short desktop windows scroll an 850 px composition; at 1200×500, independent review verified no panel overlap and a reachable confirmation banner.
+
+The follow-up spacing pass insets the logo, Open Stage and headings away from the sculpted edges, centres compact rhythm content, adapts portrait canvas height and embeds Forum locally for headings/logo. Native preview sizing supersedes the old manual resolution preference; Stage remains native. ScreenDetailed metadata is reused only with an existing permission. The fallback limitation for already zoomed Retina browsers is recorded in [docs](README.md#architecture).
+
+Follow-up interaction fixes: dark mode is the default while explicit saved appearance choices are retained. Light mode uses stronger ink and distinct status/button surfaces directly over the original top-bar metal, with no extra white overlay. Only open menus rise above the chassis; panel backgrounds remain behind it. The preview caption has no rectangular gradient surface. The 16-cell rhythm grid now edits directly; a stable bar selector reaches longer loops, finer clicks preserve existing hits/duration, and track-name popovers expose timing and strength without expanding the panel. The Stage gate matches the new style and starts synchronously; fullscreen, keyboard-lock and wake-lock requests cannot block it. Browser regression first reproduced the stalled fullscreen request, then passed pending/rejected/missing API cases and Enter, Space and icon activation.
+
+The three shared colours now use a 2D saturation/value field, hue strip, hex/numeric input and 25 preset palettes. Set validation/export, manual/autopilot triggers, runtime restore, local/stage output, catalog, variations and rhythm retain the selected palette. Authored palettes remain preserved in their saved look data. The opening catalog emphasises networks, cells, caustics, particle rings, spirals and interference.
+
+The slow palette-edit path previously invalidated and re-simulated every thumbnail. A failing regression reproduced that invalidation. Palette edits now update a single SVG matrix while retaining images and pending render work. All 328 authored previews are bundled as 512×288 WebP basis images (about 7.5 MiB of source data); ID/signature tests cover every look. Startup and repeated colour edits were verified to create no thumbnail renderer. Own looks/variations render at 512×288 after warm-up plus 24 frames, then reuse their images. The catalog colour transform is an approximation of the live shader's palette response, not a pixel-identical substitute for live rendering.
+
+Executed checks:
+
+- `npm test`: **480 passed, 11 optional probes skipped, zero failures** (491 total). Includes shared-palette restore/trigger/update regressions, HSV round trips, compact rhythm placement, cache retention and all 328 baked-preview signatures.
+- `npm run typecheck`, `npm run format:check`, build and distribution/offline-asset verification passed. Appearance probes passed dark default under a light system preference, saved light/dark choices, unavailable storage, toggling and cross-tab reset.
+- `npm run test:browser -- --only show --native-gpu`: passed actual 2D dragging, keyboard/hex/preset changes, no thumbnail renderer at startup or palette edits, setup/navigation, rating/favourites, stage handoff/reload, rhythm edits, variations, confirmation and own-look export. Zero page/GPU/non-finite errors.
+- `PHOSPHOR_RHYTHM_UI=1 node --test tests/browser/control-rhythm.test.mjs`: passed. `npm run test:stage-output -- --native-gpu`: passed Retina/native output, Escape, animated nonblack preview after stage closure and native preview buffers, page-zoom independence with granted screen metadata, and monitor changes.
+- `node scripts/test-stage-start.mjs --native-gpu`: all eight cases passed; the new Stage button also dismissed the gate in the in-app browser.
+- Preview bake rendered all 328 authored looks with zero reported GL/non-finite failures. Independent review caught and verified fixes for preview ID lookup and short-window overflow; final narrow review reported no remaining defects.
+
+Limits/next gate: owner visual acceptance of the implemented UI remains open. These checks establish functional behavior and local layout, not external-display rehearsal or endurance. Local screenshots remain under `artifacts/ui/` and are not published as assets.
+
+
 ## Visual rhythms and catalog expansion 2026-10-11
 
 **INCREMENTAL / EMPIRICAL.** Implements the owner's [Q1–Q22 direction](research/family-rhythm-audit-2026-10-11.md) in the existing control style. Thirty-nine renderer modules expose 110 named family gestures; the grid adds independent global brightness/zoom/echo/colour tracks. Quarter/eighth/sixteenth steps, independent 1–64-beat loops, protected edits, optional own-look overrides, musical quantization and phrase automation share the music clock while visual Speed remains independent. Set v5 gains optional rhythm data without changing old IDs or losing favourites. Catalog metadata groups two Gray–Scott renderers into Reaction–Diffusion and adds visual filters; 38 catalog families / 328 authored looks.

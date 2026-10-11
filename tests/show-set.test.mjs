@@ -450,7 +450,7 @@ test("library palettes never reinterpret a custom own look's colours", () => {
     validateShowSet(set, scenes).looks[0].snapshot.palette,
     colors,
   );
-  assert.equal(PALETTES.length, 24);
+  assert.equal(PALETTES.length, 25);
   assert.ok(paletteById("ember"));
 });
 

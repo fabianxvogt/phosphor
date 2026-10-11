@@ -13,3 +13,7 @@ dist/
 artifacts/
 # Owner's local music for beat-tracker evaluation; never committed (D41).
 songs/
+
+# Selected owner-approved page frames. Other image artifacts remain local.
+!public/ui/biomechanical-page-shell.png
+!public/ui/biomechanical-page-portrait.png

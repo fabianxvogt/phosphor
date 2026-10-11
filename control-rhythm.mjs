@@ -27,6 +27,18 @@ export function cycleStep(value, accent = false) {
   return value <= 0 ? 0.55 : value < 1 ? 1 : 0;
 }
 
+// A compact cell always means a sixteenth within the selected bar. Finer
+// edits promote the track's grid without moving any of its existing hits.
+export function editCompactStep(track, bar, cell, accent = false) {
+  const beat = bar * 4 + cell / 4;
+  const next = Number.isInteger(beat * track.division)
+    ? copy(track)
+    : resizeTrack(track, (track.length * 4) / track.division, 4);
+  const index = modulo(Math.round(beat * next.division), next.length);
+  next.steps[index] = cycleStep(next.steps[index], accent);
+  return next;
+}
+
 // Preserve existing placements when extending a loop, and musical placement
 // when changing resolution. Truncating deliberately discards later steps.
 export function resizeTrack(track, length, division = track.division) {
@@ -91,6 +103,26 @@ function element(document, tag, props = {}, ...children) {
   return node;
 }
 
+function anchorOptions(popover, anchor) {
+  const view = popover.ownerDocument.defaultView;
+  const position = () => {
+    if (!popover.matches(":popover-open") || !anchor?.isConnected) return;
+    const rect = anchor.getBoundingClientRect();
+    const box = popover.getBoundingClientRect();
+    popover.style.left = `${Math.max(12, Math.min(rect.left, view.innerWidth - box.width - 12))}px`;
+    popover.style.top = `${Math.max(12, Math.min(rect.bottom + 8, view.innerHeight - box.height - 12))}px`;
+  };
+  popover.addEventListener("toggle", position);
+  view.addEventListener("resize", position);
+  view.addEventListener("scroll", position, true);
+  // These controls live in the top layer, outside the grid's key boundary.
+  popover.addEventListener("keydown", (event) => event.stopPropagation());
+  return () => {
+    view.removeEventListener("resize", position);
+    view.removeEventListener("scroll", position, true);
+  };
+}
+
 export class RhythmPanel {
   constructor({
     root,
@@ -115,6 +147,7 @@ export class RhythmPanel {
       isLocked,
     });
     this.document = root.ownerDocument;
+    this.compact = root.dataset.compact === "true";
     this.preview = false;
     this.groups = new Map();
     this.optimistic = new Map();
@@ -168,6 +201,26 @@ export class RhythmPanel {
           "Click a step: off → on → accent. Shift-click for an accent. Arrow keys move between steps. Loops keep running across bars; Speed only changes movement.",
       }),
     );
+    if (this.compact) {
+      this.settings = el("div", {
+        id: "rhythmSettings",
+        className: "rhythm-options",
+        popover: "auto",
+      });
+      this.settings.dataset.scope = "family";
+      this.settings.append(
+        this.optionHeading("Rhythm options", this.settings),
+        this.root.querySelector(".rhythm-context"),
+        this.targetLabel,
+        this.contextNote,
+        this.root.querySelector(".rhythm-guide"),
+      );
+      this.document.body.append(this.settings);
+      this.removeSettingsAnchor = anchorOptions(
+        this.settings,
+        this.document.getElementById("rhythmOptions"),
+      );
+    }
     this.root.addEventListener("keydown", (event) => {
       if (
         event.target.closest("button, input, select") &&
@@ -201,6 +254,32 @@ export class RhythmPanel {
 
   destroy() {
     cancelAnimationFrame(this.frame);
+    this.settings?.remove();
+    this.removeSettingsAnchor?.();
+    for (const group of this.groups.values()) this.removeOptions(group);
+  }
+
+  optionHeading(title, popover) {
+    const el = (...args) => element(this.document, ...args);
+    return el(
+      "div",
+      { className: "rhythm-option-heading" },
+      el("strong", { textContent: title }),
+      el("button", {
+        type: "button",
+        textContent: "×",
+        ariaLabel: "Close rhythm options",
+        onclick: () => popover.hidePopover(),
+      }),
+    );
+  }
+
+  removeOptions(group) {
+    group.settings?.remove();
+    for (const row of group.rows.values()) {
+      row.options?.remove();
+      row.removeAnchor?.();
+    }
   }
 
   setPreview(on) {
@@ -301,6 +380,8 @@ export class RhythmPanel {
       );
     else {
       this.familyRoot.replaceChildren();
+      if (this.groups.has("family"))
+        this.removeOptions(this.groups.get("family"));
       this.groups.delete("family");
     }
     this.updateGroup("global", this.globalRoot, GLOBAL_EFFECTS, target, status);
@@ -314,6 +395,7 @@ export class RhythmPanel {
         : `${target.preview ? "draft" : "family"}:${target.scene.id}`;
     let group = this.groups.get(scope);
     if (!group || group.key !== key) {
+      if (group) this.removeOptions(group);
       group = this.buildGroup(scope, root, key);
       this.groups.set(scope, group);
     }
@@ -347,6 +429,24 @@ export class RhythmPanel {
     )
       pattern = defaultPattern(definitions, status.rhythm.style);
     Object.assign(group, { pattern, definitions, target, targetKey });
+    if (this.compact) {
+      const bars = Math.max(
+        1,
+        ...pattern.tracks.map((track) =>
+          Math.ceil(track.length / track.division / 4),
+        ),
+      );
+      group.bar = Math.min(group.bar, bars - 1);
+      group.barLabel.textContent = `Bar ${group.bar + 1} / ${bars}`;
+      group.previous.disabled = group.bar === 0;
+      group.next.disabled = group.bar >= bars - 1;
+      group.quickAuto.textContent = pattern.mode === "auto" ? "Auto" : "Edited";
+      group.quickAuto.ariaPressed = String(pattern.mode === "auto");
+      group.quickAuto.title =
+        pattern.mode === "auto"
+          ? "Automatic patterns · click to protect"
+          : "Your edits are protected · click to restore automatic patterns";
+    }
     group.title.textContent =
       scope === "global" ? "Global effects" : target.scene.name;
     group.mode.textContent =
@@ -394,6 +494,7 @@ export class RhythmPanel {
     group.root.classList.toggle("rhythm-preview-inactive", disabled);
     for (const control of [group.auto, group.lock, group.style])
       control.disabled = disabled || (target?.preview && this.isLocked());
+    if (group.quickAuto) group.quickAuto.disabled = group.auto.disabled;
     const present = new Set();
     for (const definition of definitions) {
       const track = pattern.tracks.find(
@@ -412,6 +513,8 @@ export class RhythmPanel {
     for (const [id, row] of group.rows)
       if (!present.has(id)) {
         row.root.remove();
+        row.options?.remove();
+        row.removeAnchor?.();
         group.rows.delete(id);
       }
     group.empty.hidden = definitions.length > 0;
@@ -431,7 +534,7 @@ export class RhythmPanel {
 
   buildGroup(scope, root, key) {
     const el = (...args) => element(this.document, ...args);
-    const group = { scope, root, key, rows: new Map() };
+    const group = { scope, root, key, rows: new Map(), bar: 0 };
     group.title = el("h3");
     group.mode = el("span", { className: "rhythm-mode" });
     group.auto = el("button", {
@@ -510,6 +613,50 @@ export class RhythmPanel {
         group.inherit,
       ),
     );
+    if (this.compact) {
+      group.settings = el("section", {
+        className: `rhythm-options-group rhythm-options-${scope}`,
+      });
+      group.settings.append(
+        ...[...root.children].filter(
+          (child) => child !== group.tracks && child !== group.empty,
+        ),
+      );
+      this.settings.append(group.settings);
+      const turn = (delta) => {
+        group.bar += delta;
+        this.update();
+      };
+      group.previous = el("button", {
+        type: "button",
+        textContent: "‹",
+        ariaLabel: `${scope} previous rhythm bar`,
+        onclick: () => turn(-1),
+      });
+      group.next = el("button", {
+        type: "button",
+        textContent: "›",
+        ariaLabel: `${scope} next rhythm bar`,
+        onclick: () => turn(1),
+      });
+      group.barLabel = el("span", { className: "rhythm-bar-label" });
+      group.quickAuto = el("button", {
+        type: "button",
+        className: "rhythm-auto-toggle",
+        onclick: () =>
+          (group.pattern.mode === "auto" ? group.lock : group.auto).click(),
+      });
+      root.prepend(
+        el(
+          "div",
+          { className: "rhythm-mini-toolbar" },
+          group.previous,
+          group.barLabel,
+          group.next,
+          group.quickAuto,
+        ),
+      );
+    }
     return group;
   }
 
@@ -557,9 +704,17 @@ export class RhythmPanel {
     const edit = (change, quantize) =>
       this.edit(group, definition.id, change, quantize);
     const row = { definition, buttons: [], active: -1 };
-    row.name = el("span", {
+    row.name = el(this.compact ? "button" : "span", {
       className: "rhythm-effect-name",
       textContent: definition.label,
+      ...(this.compact
+        ? {
+            type: "button",
+            title: `${definition.label} · track settings`,
+            ariaLabel: `${definition.label} settings`,
+            onclick: () => row.options.togglePopover(),
+          }
+        : {}),
     });
     row.kind = el("span", {
       className: "rhythm-kind",
@@ -651,6 +806,47 @@ export class RhythmPanel {
       role: "group",
       ariaLabel: `${definition.label} loop steps`,
     });
+    row.mini = el("div", {
+      className: "rhythm-mini",
+      ...(this.compact
+        ? { role: "group", ariaLabel: `${definition.label} pattern` }
+        : { ariaHidden: "true" }),
+    });
+    row.miniCells = Array.from({ length: 16 }, (_, index) =>
+      el(
+        this.compact ? "button" : "i",
+        this.compact
+          ? {
+              type: "button",
+              tabIndex: index === 0 ? 0 : -1,
+              onclick: (event) =>
+                edit(
+                  (track) =>
+                    editCompactStep(track, group.bar, index, event.shiftKey),
+                  "step",
+                ),
+              onfocus: () =>
+                row.miniCells.forEach((cell, at) => {
+                  cell.tabIndex = at === index ? 0 : -1;
+                }),
+            }
+          : {},
+      ),
+    );
+    row.mini.addEventListener("keydown", (event) => {
+      const index = row.miniCells.indexOf(event.target);
+      const next = {
+        ArrowLeft: Math.max(0, index - 1),
+        ArrowRight: Math.min(15, index + 1),
+        Home: 0,
+        End: 15,
+      }[event.key];
+      if (index < 0 || next === undefined) return;
+      event.preventDefault();
+      event.stopPropagation();
+      row.miniCells[next].focus();
+    });
+    row.mini.append(...row.miniCells);
     row.root = el("div", { className: "rhythm-track" });
     row.root.dataset.effect = definition.id;
     row.root.append(
@@ -670,6 +866,7 @@ export class RhythmPanel {
         row.loop,
       ),
       el("div", { className: "rhythm-step-scroll", tabIndex: -1 }, row.steps),
+      row.mini,
       el(
         "div",
         { className: "rhythm-track-shape" },
@@ -689,6 +886,25 @@ export class RhythmPanel {
         ),
       ),
     );
+    if (this.compact) {
+      row.options = el("div", {
+        className: "rhythm-row-options",
+        popover: "auto",
+      });
+      row.options.dataset.effectOptions = definition.id;
+      row.options.append(
+        this.optionHeading(definition.label, row.options),
+        row.kind,
+        row.inactive,
+        row.mute,
+        row.root.querySelector(".rhythm-track-timing"),
+        row.root.querySelector(".rhythm-track-shape"),
+        row.loop,
+      );
+      this.document.body.append(row.options);
+      row.removeAnchor = anchorOptions(row.options, row.name);
+      row.root.querySelector(".rhythm-step-scroll").remove();
+    }
     row.steps.addEventListener("keydown", (event) => {
       const index = row.buttons.indexOf(event.target);
       if (index < 0) return;
@@ -710,6 +926,7 @@ export class RhythmPanel {
 
   updateRow(group, row, definition, track, disabled) {
     row.track = track;
+    row.miniPhase = null;
     const available =
       !definition.variants ||
       definition.variants.includes(group.target?.variant);
@@ -733,6 +950,9 @@ export class RhythmPanel {
     row.strength.style.setProperty("--fill", `${track.strength * 100}%`);
     row.strengthValue.value = `${Math.round(track.strength * 100)}%`;
     row.mute.disabled = inactive;
+    row.miniCells.forEach((cell) => {
+      if (this.compact) cell.disabled = inactive;
+    });
     const beats = track.length / track.division;
     row.loop.textContent = `${Number(beats.toFixed(2))} beats${beats % 4 ? " · crosses bars" : ` · ${beats / 4} ${beats === 4 ? "bar" : "bars"}`}`;
     if (row.buttons.length > track.length) {
@@ -793,6 +1013,46 @@ export class RhythmPanel {
   paintPlayheads(position) {
     for (const group of this.groups.values())
       for (const row of group.rows.values()) {
+        const available =
+          !row.root.classList.contains("rhythm-unavailable") &&
+          !(this.preview && group.scope === "global");
+        const phase = this.compact
+          ? group.bar * 4
+          : Math.floor(position / 4) * 4;
+        if (phase !== row.miniPhase) {
+          const steps = rhythmPreviewSteps(row.track, phase);
+          row.miniCells.forEach((cell, index) => {
+            if (this.compact) {
+              cell.ariaPressed = String(steps[index] > 0);
+              cell.ariaLabel = `${row.definition.label}, bar ${group.bar + 1}, beat ${Math.floor(index / 4) + 1}, subdivision ${(index % 4) + 1}, ${steps[index] === 1 ? "accent" : steps[index] > 0 ? "on" : "off"}`;
+              cell.title = `${stepLabel(group.bar * 16 + index, 4)} · click to change, Shift-click for accent`;
+            }
+            cell.classList.toggle(
+              "on",
+              steps[index] > 0 && !row.track.muted && available,
+            );
+            cell.classList.toggle(
+              "accent",
+              steps[index] === 1 && !row.track.muted && available,
+            );
+          });
+          row.miniPhase = phase;
+        }
+        const loopPosition = modulo(
+          position,
+          row.track.length / row.track.division,
+        );
+        const inViewedBar =
+          !this.compact || Math.floor(loopPosition / 4) === group.bar;
+        const miniActive =
+          this.clock.enabled && available && inViewedBar
+            ? Math.floor(modulo(this.compact ? loopPosition : position, 4) * 4)
+            : -1;
+        if (miniActive !== row.miniActive) {
+          row.miniCells[row.miniActive]?.classList.remove("current");
+          row.miniCells[miniActive]?.classList.add("current");
+          row.miniActive = miniActive;
+        }
         const next =
           this.clock.enabled &&
           !row.root.classList.contains("rhythm-unavailable") &&
@@ -814,4 +1074,12 @@ export class RhythmPanel {
         }
       }
   }
+}
+
+// Sixteenth-note view of the actual loop, including loops crossing bar edges.
+export function rhythmPreviewSteps(track, barStart) {
+  return Array.from({ length: 16 }, (_, index) => {
+    const step = (barStart + index / 4) * track.division;
+    return Number.isInteger(step) ? track.steps[modulo(step, track.length)] : 0;
+  });
 }

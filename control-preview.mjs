@@ -29,8 +29,10 @@ export function performanceState(show, t) {
     },
     disabled: [...show.disabled],
     clip: show.live ? structuredClone(show.live.clip) : null,
-    draftRhythm: show.live && show.rhythmDrafts[show.live.clip.id]
-      ? structuredClone(show.rhythmDrafts[show.live.clip.id]) : null,
+    draftRhythm:
+      show.live && show.rhythmDrafts[show.live.clip.id]
+        ? structuredClone(show.rhythmDrafts[show.live.clip.id])
+        : null,
     freeze: show.freeze,
     flash: show.flash,
   };
@@ -158,7 +160,8 @@ export class ControlPreview {
         {
           type: "palette",
           value:
-            clip.palette === "custom" ? clip.snapshot.palette : clip.palette,
+            this.show.set.palette ??
+            (clip.palette === "custom" ? clip.snapshot.palette : clip.palette),
         },
         t,
       ),
@@ -187,7 +190,9 @@ export class ControlPreview {
       switch (action.type) {
         case "load":
         case "safe":
-          this.engine.setRhythmFrame?.(this.show.rhythmFrame(this.show.rhythmTime ?? this.show.clock.last));
+          this.engine.setRhythmFrame?.(
+            this.show.rhythmFrame(this.show.rhythmTime ?? this.show.clock.last),
+          );
           this.engine.setLevel(action.energy, action.fadeSeconds ?? 0);
           this.engine.load(action.snapshot, action.fadeSeconds ?? 0.4, {
             lookId: action.clipId,
