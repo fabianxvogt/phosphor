@@ -748,7 +748,7 @@ h2 {
   }
 }
 
-.preview-size output {
+.preview-size .preview-setting {
   display: block;
   white-space: nowrap;
   font-size: 10px;
@@ -762,7 +762,89 @@ h2 {
   .preview-overlay {
     padding-inline: 22px;
   }
-  .preview-size output {
+  .preview-size .preview-setting {
     font-size: 9px;
   }
+}
+
+.preview-tempo .preview-setting {
+  pointer-events: auto;
+  font: inherit;
+  padding: 3px 7px;
+  border: 1px solid #aebebd35;
+  border-radius: 18px;
+  background: #10141480;
+  color: #edf2ef;
+  white-space: nowrap;
+}
+.preview-setting:hover {
+  border-color: #b4d0c8;
+  background: #253b35e6;
+}
+.preview-settings {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: 310px;
+  max-width: calc(100vw - 24px);
+  padding: 18px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow:
+    0 12px 35px #0007,
+    inset 0 1px 1px #ffffff20;
+}
+.quick-settings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.quick-settings-heading h3 {
+  font-family: var(--display-font);
+  font-weight: 400;
+  margin: 0;
+  font-size: 22px;
+}
+.quick-settings-heading button {
+  padding: 1px 9px;
+  min-height: 28px;
+}
+.quick-tempo-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.quick-tempo-controls > button {
+  padding: 7px 11px;
+}
+.quick-tempo-controls label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.quick-tempo-controls input {
+  width: 80px;
+  padding: 8px;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.preview-settings p {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.preview-settings > label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.preview-settings > select {
+  width: 100%;
 }

@@ -3,6 +3,28 @@
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
 
+## Shared tempo and selectable output 2026-10-11
+
+**INCREMENTAL / EMPIRICAL.** The original browser reproduction entered 145 BPM: the Stage visual clock reached 145 while its demo engine stayed at 120. The demo had its own free-running scheduler. It now reads the owning ShowClock and maps that beat timeline to audible AudioContext time. The synthetic source does not feed estimated tempo back into its master clock. Existing input/file analysis remains unchanged.
+
+The preview BPM readout opens a compact numeric/±/Tap popover. It and Audio settings update the same transport; numeric edits persist with the set. Preview and Stage resolution are selectable again: native is the default, with explicit lower long-edge caps. Selection preserves aspect ratio, respects native/GPU limits, survives export/reload, and applies to the active renderer and subsequent handoffs. Legacy pixel budgets still do not silently reduce output.
+
+- Regression coverage in `scripts/test-output-controls.mjs`: Audio settings and quick BPM input control demo sound and visual clock; rapid Stage ± clicks accumulate; both tempo readouts agree; Stage and local output resize; preferences survive reload. Added to CI.
+- New unit checks cover scheduled note timing/phase, tempo changes, missed-timer skipping, downbeat changes, resolution bounds/aspect ratio, and set validation/round-trip. Full suite: 484 passed, 11 optional probes skipped, zero failures; build, typecheck, formatting and offline-distribution checks passed.
+- `npm run test:output-controls -- --native-gpu`, `npm run test:autopilot-ui -- --native-gpu --port 48131`, `npm run test:stage-output -- --native-gpu` and the main control/Stage browser suite all passed on the final code. The dark UI popovers were visually inspected; the independent review also checked a 390 px viewport.
+- Independent review found and resolved two edge cases: a shifted bar origin could skip demo subdivisions, and rapid ± clicks could reuse stale Stage BPM. The scheduler now counts absolute beats; pending tempo requests update the control immediately.
+
+Limits: already scheduled demo notes may retain their timing for the bounded 120 ms lookahead after an edit. External-display/audio-device latency and endurance remain rig checks.
+
+## Autopilot look synchronization 2026-10-11
+
+**INCREMENTAL / EMPIRICAL.** The timed Stage reproduction twice reached `acid:Mycelial City` while the editor, parameter schema and selected catalog card remained on `physarum:Honeycomb Transport`. Status already carried the actual live clip; the control only updated the playing indicator and never synchronized the editor selection. `control.mjs` now observes playing-look identity changes, copies the live clip into the editor, updates its preview and marks the corresponding catalog card. It does not audition the look, restart playback or take over Autopilot. Repeated status updates refresh existing parameter controls while manually edited drafts remain untouched until the next playing-look change.
+
+- `npm run test:autopilot-ui -- --native-gpu --port 48131`: passed real timed changes on Stage and the local clock, all editor parameters, actual selected-card marking, retained Autopilot control, stable fader nodes, remote parameter updates and preservation of an unsaved edit after later status. Independent review also caught a local selection/name-edit race; the added regression now retains the new name before the next status tick. Added to CI.
+- `npm test`: 480 passed, 11 optional probes skipped, zero failures. Main control/Stage browser regression, typecheck, formatting, build and distribution verification passed.
+
+Limits: focused synchronization and existing interaction checks; external-rig endurance is unchanged.
+
 ## Biomechanical controls and shared colour 2026-10-11
 
 **INCREMENTAL / EMPIRICAL.** Implemented the owner-approved biomechanical direction with one whole-page chassis, separate wide/portrait compositions, teardrop faders, compact family/global rhythm and a setup dialog. The final frames are the owner's upscaled PNG files copied unchanged: 3072×1924 wide and 1024×3072 portrait, with genuine alpha openings for the five panels. Dimensions, source names and hashes are recorded in `public/ui/assets.json`. Desktop and 390 px-width portrait layouts were visually inspected. Short desktop windows scroll an 850 px composition; at 1200×500, independent review verified no panel overlap and a reachable confirmation banner.

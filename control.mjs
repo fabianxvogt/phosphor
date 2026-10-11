@@ -4,6 +4,8 @@ import scenes from "./scenes.mjs";
 import { Engine } from "./engine.mjs";
 import {
   nativeDisplayResolution,
+  outputResolution,
+  OUTPUT_RESOLUTIONS,
   resolutionLimits,
 } from "./display-resolution.mjs";
 import { ControlPreview, performanceBeat } from "./control-preview.mjs";
@@ -63,7 +65,10 @@ let labels = {};
 // The look in the editor (D68): { id, own, base, name, snapshot, palette,
 // transition }. Edits stay a draft until saved as an own look.
 let draft = null;
+let editorLiveLook = null;
+let editorFollowsLive = false;
 let settingsLocked = false;
+let requestedTempo = null;
 let audioRequest = 0;
 let localPerformance = null;
 let handoffPending = false;
@@ -216,6 +221,7 @@ function performanceStatus() {
   return stageAlive() ? status?.status : localPerformance?.status(now());
 }
 function act(action) {
+  if (action.type === "tap") requestedTempo = null;
   resumeLocalPerformance();
   if (stageAlive()) send({ type: "action", action });
   else localPerformance?.command(action, now());
@@ -230,16 +236,29 @@ function act(action) {
   renderStatus();
 }
 function setClock(mode, bpm) {
+  if (mode !== "auto" && !Number.isFinite(bpm)) return;
+  if (mode !== "auto") bpm = Math.max(40, Math.min(200, bpm));
+  set.clock.mode = mode;
+  if (mode !== "auto") set.clock.manualBpm = bpm;
+  saveSoon();
   resumeLocalPerformance();
+  requestedTempo =
+    stageAlive() && mode === "manual" ? { bpm, until: now() + 2 } : null;
   if (stageAlive()) send({ type: "clock", mode, bpm });
   else if (mode === "auto") localPerformance?.show.clock.resumeAuto(now());
   else if (Number.isFinite(bpm))
     localPerformance?.show.clock.setManualBpm(now(), bpm);
+  if (!stageAlive()) demoAudio.pumpDemo?.();
   renderStatus();
 }
 
 // Audition the demo locally until the stage takes ownership of audio.
 const demoAudio = new AudioEngine(() => renderLocalAudio());
+demoAudio.setDemoClock(() => {
+  const clock = localPerformance?.show.clock;
+  const t = now();
+  return clock && { ...clock.at(t), time: t, period: clock.period };
+});
 let demoRequested = true;
 let demoStarting = false;
 function renderLocalAudio() {
@@ -249,7 +268,7 @@ function renderLocalAudio() {
   $("audioPill").textContent = playing
     ? demoAudio.muted
       ? "Demo · muted"
-      : "Demo · 120 BPM"
+      : `Demo · ${demoAudio.tempo.toFixed(1)} BPM`
     : demoRequested
       ? "Demo · click to hear"
       : "Audio off";
@@ -302,6 +321,7 @@ function updatePreview() {
   $("previewEmpty").hidden = !!live || !!editorEngine;
 }
 window.__phosphorControl = {
+  demoAudio,
   attachPreview(stream, stage) {
     stageWindow = stage;
     const video = $("preview");
@@ -538,7 +558,15 @@ function renderStatus() {
   if (!s) return;
   syncControlPalette(showColors());
   const clock = s.clock;
-  $("bpm").textContent = clock.bpm.toFixed(1);
+  if (
+    requestedTempo &&
+    (!alive ||
+      Math.abs(clock.bpm - requestedTempo.bpm) < 0.001 ||
+      now() > requestedTempo.until)
+  )
+    requestedTempo = null;
+  const displayedBpm = requestedTempo?.bpm ?? clock.bpm;
+  $("bpm").textContent = displayedBpm.toFixed(1);
   const source = clock.mode === "manual" ? "manual" : clock.source;
   $("tempoSource").replaceChildren(
     el("span", { className: `light ${source}` }),
@@ -567,6 +595,7 @@ function renderStatus() {
     ? `${live.name} · ${liveScene?.name ?? live.scene}${lookById(live.look) ? "" : " · unsaved draft"}`
     : "";
   catalog?.setStatus(live?.look ?? null, s.pending?.look ?? null);
+  syncPlayingLook(live);
   $("favoritesOnly").ariaPressed = String(set.autopilot.favoritesOnly);
   if (document.activeElement !== $("minRating"))
     $("minRating").value = String(set.autopilot.minRating);
@@ -590,8 +619,8 @@ function renderStatus() {
   $("latency").textContent =
     clock.mode === "auto" ? `latency ${clock.latencyMs} ms` : "";
   $("autoClock").ariaPressed = String(clock.mode === "auto");
-  if (document.activeElement !== $("manualBpm"))
-    $("manualBpm").value = clock.bpm.toFixed(1);
+  for (const id of ["manualBpm", "quickBpm"])
+    if (document.activeElement !== $(id)) $(id).value = displayedBpm.toFixed(1);
   $("blackout").ariaPressed = String(s.blackout);
   $("freeze").ariaPressed = String(s.freeze);
   $("flash").ariaPressed = String(s.flash);
@@ -630,7 +659,7 @@ if (editorEngine)
   localPerformance = new ControlPreview(editorEngine, set, scenes, now());
 const localPreviewContext = $("localPreview").getContext("2d");
 
-// The main preview always uses the current display's native pixel dimensions.
+// The main preview defaults to native pixels, with optional lower output sizes.
 // A live stage supplies its full-resolution stream; only the small Look editor
 // renders separately at reduced size while the stage owns the main picture.
 const previewLimits = editorEngine ? resolutionLimits(editorEngine.gl) : {};
@@ -640,10 +669,13 @@ function applyPreviewSize() {
   const alive = stageAlive();
   const [w, h] = alive
     ? [480, 270]
-    : nativeDisplayResolution(
-        nativeScreen ?? screen,
-        window.devicePixelRatio || 1,
-        previewLimits,
+    : outputResolution(
+        nativeDisplayResolution(
+          nativeScreen ?? screen,
+          window.devicePixelRatio || 1,
+          previewLimits,
+        ),
+        set.options.outputResolution,
       );
   if (editorEngine && (editorEngine.width !== w || editorEngine.height !== h)) {
     editorEngine.resize(w, h);
@@ -652,7 +684,11 @@ function applyPreviewSize() {
   if ($("localPreview").width !== w) $("localPreview").width = w;
   if ($("localPreview").height !== h) $("localPreview").height = h;
   const shown = alive ? [status.stage.width, status.stage.height] : [w, h];
-  $("previewResolution").textContent = `Native · ${shown[0]} × ${shown[1]}`;
+  const choice = set.options.outputResolution ?? "native";
+  $("previewResolution").textContent =
+    `${choice === "native" ? "Native · " : ""}${shown[0]} × ${shown[1]} ⌄`;
+  for (const id of ["outputResolution", "setOutputResolution"])
+    if ($(id)) $(id).value = choice;
   $("previewNote").hidden = !alive;
 }
 // Reuse an existing screen-management grant; never interrupt startup with a
@@ -904,6 +940,52 @@ const palettePicker = new PalettePicker({
 syncControlPalette(showColors());
 
 // --- look editor (D68) ---------------------------------------------------------
+// Observe playback without auditioning or sending commands back to the show.
+// Only a new playing look replaces the editor; ongoing status updates leave
+// a manually selected/edited draft alone.
+function syncPlayingLook(live) {
+  const clip = liveClip();
+  if (!live || !clip || clip.id !== live.look) return;
+  const changedLook = editorLiveLook !== live.look;
+  editorLiveLook = live.look;
+  if (changedLook) {
+    const look = lookById(live.look);
+    clearVariations();
+    draft = {
+      id: clip.id,
+      own: look?.own ?? false,
+      base: look?.own ? look.base : (look?.id ?? null),
+      name: clip.name,
+      snapshot: structuredClone(clip.snapshot),
+      palette: clip.palette,
+      transition: clip.transition ?? "auto",
+      rhythm: clip.rhythm && structuredClone(clip.rhythm),
+      rhythmEdited: false,
+    };
+    rhythmPreviewActive = false;
+    editorFollowsLive = true;
+    renderEditor();
+    catalog.setSelected(look?.id ?? null);
+    updateSettingsLock();
+  } else if (editorFollowsLive && draft?.id === clip.id) {
+    draft.snapshot = structuredClone(clip.snapshot);
+    for (const [key, value] of Object.entries(draft.snapshot.params)) {
+      const input = $(`fader-param-${key}`);
+      if (!input || input === document.activeElement) continue;
+      input.value = value;
+      paintFader(input);
+      input.nextElementSibling.value = faderValue(input);
+    }
+  } else return;
+  if (stageAlive() && editorEngine) {
+    const snapshot = { ...draft.snapshot, palette: { ...showColors() } };
+    if (changedLook) {
+      editorEngine.setLevel(0.5, 0);
+      editorEngine.load(snapshot, 0, { energy: 0.5, lookId: clip.id });
+    } else editorEngine.setSnapshot(snapshot);
+  }
+}
+
 // The draft as a playable clip; its id is the look's, so live edits of the
 // look on screen update it in place.
 function draftClip() {
@@ -924,6 +1006,7 @@ function draftClip() {
 }
 function previewDraft(manual = true) {
   if (!editorEngine || !draft) return;
+  editorFollowsLive = false;
   resumeLocalPerformance();
   if (stageAlive()) {
     editorEngine.setLevel(0.5, 0);
@@ -931,19 +1014,29 @@ function previewDraft(manual = true) {
       energy: 0.5,
       lookId: draft.id,
     });
-  } else localPerformance.select(draftClip(), now(), manual);
+  } else {
+    localPerformance.select(draftClip(), now(), manual);
+    // This audition is already reflected in the editor. The next periodic
+    // status must not replace edits typed since the selection.
+    editorLiveLook = localPerformance.show.live?.clip.id ?? editorLiveLook;
+  }
 }
 function editDraft() {
   if (!editorEngine || !draft) return;
+  editorFollowsLive = false;
   resumeLocalPerformance();
   if (stageAlive()) editorEngine.setSnapshot(draftClip().snapshot);
-  else localPerformance.edit(draftClip(), now());
+  else {
+    localPerformance.edit(draftClip(), now());
+    editorLiveLook = localPerformance.show.live?.clip.id ?? editorLiveLook;
+  }
 }
 // preview: show the look in the main preview; manual: that counts as a
 // performer takeover (opening the window or importing a set does not).
 function selectLook(id, preview = true, manual = true) {
   const look = lookById(id);
   if (!look) return;
+  editorFollowsLive = false;
   clearVariations();
   const palette = look.palette ?? lookPalette(look);
   const snapshot = structuredClone(look.snapshot);
@@ -1000,7 +1093,10 @@ function renderEditor() {
   const name = el("input", {
     value: draft.name,
     maxLength: 80,
-    oninput: () => (draft.name = name.value.trim() || "Untitled"),
+    oninput: () => {
+      editorFollowsLive = false;
+      draft.name = name.value.trim() || "Untitled";
+    },
   });
   const family = el(
     "select",
@@ -1075,7 +1171,12 @@ function renderEditor() {
   });
   const transition = el(
     "select",
-    { onchange: () => (draft.transition = transition.value) },
+    {
+      onchange: () => {
+        editorFollowsLive = false;
+        draft.transition = transition.value;
+      },
+    },
     ...TRANSITIONS.map((kind) =>
       el("option", {
         value: kind,
@@ -1262,10 +1363,29 @@ function animateEditor(ms) {
 }
 
 // --- set, audio, checks ------------------------------------------------------
+function setOutputResolution(choice) {
+  if (settingsLocked || !OUTPUT_RESOLUTIONS.includes(choice)) return;
+  set.options.outputResolution = choice;
+  changed();
+  applyPreviewSize();
+}
+function resolutionOptions() {
+  return OUTPUT_RESOLUTIONS.map((choice) =>
+    el("option", {
+      value: choice,
+      textContent:
+        choice === "native"
+          ? "Native · full display"
+          : `Up to ${choice} px · longest side`,
+      selected: choice === (set.options.outputResolution ?? "native"),
+    }),
+  );
+}
 function renderSetFields() {
   if ($("setFields").children.length) {
     for (const [id, value] of [
       ["showName", set.name],
+      ["setOutputResolution", set.options.outputResolution ?? "native"],
       ["autopilotEvery", set.autopilot.everyBars],
       ...["bloom", "echo", "chroma", "grain", "vignette"].map((key) => [
         `fader-opt-${key}`,
@@ -1311,9 +1431,14 @@ function renderSetFields() {
       }),
     ),
   );
-  const budget = el("span", {
-    textContent: "Native display pixels · full quality",
-  });
+  const budget = el(
+    "select",
+    {
+      id: "setOutputResolution",
+      onchange: (event) => setOutputResolution(event.target.value),
+    },
+    ...resolutionOptions(),
+  );
   const option = (key, label) =>
     fader(
       { key: `opt-${key}`, label, min: 0, max: 1, step: 0.01 },
@@ -1476,8 +1601,21 @@ $("downbeat").onclick = () => act({ type: "downbeat" });
 $("nudgeBack").onclick = () => act({ type: "nudge", direction: -1 });
 $("nudgeForward").onclick = () => act({ type: "nudge", direction: 1 });
 $("autoClock").onclick = () => setClock("auto");
-$("manualBpm").onchange = () =>
-  setClock("manual", Number($("manualBpm").value));
+for (const id of ["manualBpm", "quickBpm"])
+  $(id).onchange = () => {
+    setClock("manual", $(id).valueAsNumber);
+    $(id).value = set.clock.manualBpm.toFixed(1);
+  };
+$("quickTap").onclick = () => act({ type: "tap" });
+for (const [id, delta] of [
+  ["tempoSlower", -1],
+  ["tempoFaster", 1],
+])
+  $(id).onclick = () =>
+    setClock("manual", Number($("bpm").textContent) + delta);
+$("outputResolution").replaceChildren(...resolutionOptions());
+$("outputResolution").onchange = (event) =>
+  setOutputResolution(event.target.value);
 $("blackout").onclick = () => act({ type: "blackout" });
 $("safe").onclick = () => act({ type: "safe" });
 $("freeze").onclick = () => act({ type: "freeze" });

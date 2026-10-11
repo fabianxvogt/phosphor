@@ -1,5 +1,23 @@
 // Presentation-only navigation. Playback and saved show state stay in control.mjs.
 export function setupControlUI() {
+  for (const [popupId, anchorId] of [
+    ["tempoSettings", "previewTempo"],
+    ["resolutionSettings", "previewResolution"],
+  ]) {
+    const popup = document.getElementById(popupId);
+    const anchor = document.getElementById(anchorId);
+    const position = () => {
+      if (!popup.matches(":popover-open")) return;
+      const rect = anchor.getBoundingClientRect();
+      const box = popup.getBoundingClientRect();
+      popup.style.left = `${Math.max(12, Math.min(rect.right - box.width, innerWidth - box.width - 12))}px`;
+      popup.style.top = `${Math.max(12, Math.min(rect.top - box.height - 12, innerHeight - box.height - 12))}px`;
+    };
+    popup.addEventListener("toggle", position);
+    popup.addEventListener("keydown", (event) => event.stopPropagation());
+    addEventListener("resize", position);
+    addEventListener("scroll", position, true);
+  }
   const rhythmRoot = document.getElementById("rhythmControls");
   for (const [id, global] of [
     ["rhythmFamilyView", false],

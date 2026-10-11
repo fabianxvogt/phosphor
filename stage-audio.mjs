@@ -57,6 +57,9 @@ export class StageAudio {
   }
   // Tracker state with nextBeatTime converted to performance.now() seconds.
   trackerNow() {
+    // A synthesized source follows the show clock; feeding its estimated BPM
+    // back into that clock would create an unnecessary timing feedback loop.
+    if (this.source === "demo" && this.engine.demoClock) return null;
     const s = this.tracker;
     const context = this.engine.context;
     if (!s || !context || s.nextBeatTime === null) return s;
@@ -71,7 +74,10 @@ export class StageAudio {
   }
   features(dt) {
     const features = this.engine.sample(dt);
-    features.locked = this.source !== "off" && !!this.tracker?.locked;
+    features.locked =
+      this.source === "demo" && this.engine.demoClock
+        ? this.context?.state === "running"
+        : this.source !== "off" && !!this.tracker?.locked;
     return features;
   }
   async devices() {
@@ -79,14 +85,15 @@ export class StageAudio {
   }
   status() {
     const t = this.tracker;
+    const demo = this.source === "demo" && !!this.engine.demoClock;
     return {
       source: this.source,
       muted: this.engine.muted,
       level: this.engine.features.energy,
-      bpm: t?.bpm ?? null,
-      locked: !!t?.locked,
-      coasting: !!t?.coasting,
-      confidence: t?.confidence ?? 0,
+      bpm: demo ? this.engine.tempo : (t?.bpm ?? null),
+      locked: demo ? this.context?.state === "running" : !!t?.locked,
+      coasting: demo ? false : !!t?.coasting,
+      confidence: demo ? 1 : (t?.confidence ?? 0),
     };
   }
   dispose() {

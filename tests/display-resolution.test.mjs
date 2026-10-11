@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   nativeResolution,
+  outputResolution,
   nativeDisplayResolution,
 } from "../display-resolution.mjs";
 
@@ -29,4 +30,11 @@ test("display metadata ignores page zoom, and fallback never shrinks a 1x screen
     ),
     [3024, 1964],
   );
+});
+
+test("explicit output size preserves aspect ratio and never exceeds native", () => {
+  assert.deepEqual(outputResolution([3440, 1440]), [3440, 1440]);
+  assert.deepEqual(outputResolution([3440, 1440], "1920"), [1920, 804]);
+  assert.deepEqual(outputResolution([1080, 1920], "960"), [540, 960]);
+  assert.deepEqual(outputResolution([1280, 720], "3840"), [1280, 720]);
 });

@@ -26,6 +26,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:browser
       - run: npm run test:stage-output
+      - run: npm run test:autopilot-ui
+      - run: npm run test:output-controls
       - run: npm run contact -- --frames 30 --width 320 --height 180
       - uses: actions/upload-artifact@v4
         if: always()

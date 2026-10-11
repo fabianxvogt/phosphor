@@ -4,7 +4,11 @@
 // the picture keeps going.
 import scenes from "./scenes.mjs";
 import { Engine } from "./engine.mjs";
-import { nativeResolution, resolutionLimits } from "./display-resolution.mjs";
+import {
+  nativeResolution,
+  outputResolution,
+  resolutionLimits,
+} from "./display-resolution.mjs";
 import { Show } from "./show.mjs";
 import { performanceState, restorePerformance } from "./control-preview.mjs";
 import { validateShowSet } from "./show-set.mjs";
@@ -43,6 +47,10 @@ const show = new Show({
   seed: Date.now() >>> 0,
 });
 const audio = new StageAudio((text) => post({ type: "audio-status", text }));
+audio.engine.setDemoClock(() => {
+  const t = now();
+  return { ...show.clock.at(t), time: t, period: show.clock.period };
+});
 const events = new EnergyEvents();
 const telemetry = new Telemetry();
 const pacer = new Pacer();
@@ -128,14 +136,17 @@ function apply(actions) {
     }
 }
 
-// Use every physical display pixel, constrained only by GPU dimensions.
+// Native is the default; an explicit lower resolution preserves aspect ratio.
 const stageLimits = resolutionLimits(engine.gl);
 function fit() {
-  const [width, height] = nativeResolution(
-    innerWidth,
-    innerHeight,
-    window.devicePixelRatio || 1,
-    stageLimits,
+  const [width, height] = outputResolution(
+    nativeResolution(
+      innerWidth,
+      innerHeight,
+      window.devicePixelRatio || 1,
+      stageLimits,
+    ),
+    show.set.options.outputResolution,
   );
   if (width !== engine.width || height !== engine.height)
     engine.resize(width, height);
@@ -301,12 +312,14 @@ channel.onmessage = async ({ data }) => {
         const next = validateShowSet(data.set, scenes);
         show.updateSet(next, t);
         applyOptions(next.options);
+        fit();
         break;
       }
       case "clock":
         if (data.mode === "auto") show.clock.resumeAuto(t);
         else if (Number.isFinite(data.bpm))
           show.clock.setManualBpm(t, data.bpm);
+        audio.engine.pumpDemo?.();
         break;
       case "audio":
         data.muted ??= audio.engine.muted;
@@ -410,7 +423,11 @@ document.addEventListener("visibilitychange", () => {
 // keeps playing and the control window warns (status.stage.fullscreen).
 // A click on the stage returns to fullscreen.
 addEventListener("click", (event) => {
-  if (started && !document.fullscreenElement && !$("start").contains(event.target))
+  if (
+    started &&
+    !document.fullscreenElement &&
+    !$("start").contains(event.target)
+  )
     enterFullscreen();
 });
 addEventListener("resize", fit);

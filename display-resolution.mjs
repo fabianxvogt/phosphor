@@ -34,3 +34,19 @@ export function nativeDisplayResolution(screen, pageDpr, limits) {
     limits,
   );
 }
+
+// Maximum long edge, never larger than the current native output.
+export const OUTPUT_RESOLUTIONS = [
+  "native",
+  "3840",
+  "2560",
+  "1920",
+  "1280",
+  "960",
+];
+export function outputResolution(native, choice = "native") {
+  if (!OUTPUT_RESOLUTIONS.includes(choice) || choice === "native")
+    return native;
+  const scale = Math.min(1, Number(choice) / Math.max(...native));
+  return native.map((side) => Math.max(1, Math.round(side * scale)));
+}

@@ -148,19 +148,31 @@
               <div class="preview-caption">
                 <span id="nowReadout">—</span>
                 <div class="preview-tempo">
-                  <span><span id="bpm">—</span> BPM</span>
+                  <button
+                    id="previewTempo"
+                    class="preview-setting"
+                    popovertarget="tempoSettings"
+                    aria-label="Set tempo"
+                    title="Set tempo"
+                  >
+                    <span id="bpm">—</span> BPM
+                    <span aria-hidden="true">⌄</span>
+                  </button>
                   <div class="beats" id="beats" aria-label="Beat in bar">
                     <i></i><i></i><i></i><i></i>
                   </div>
                 </div>
               </div>
               <span class="preview-size"
-                ><output
+                ><button
                   id="previewResolution"
-                  aria-label="Preview resolution"
-                  title="Native display resolution · automatic"
-                  >Native</output
-                ></span
+                  class="preview-setting"
+                  popovertarget="resolutionSettings"
+                  aria-label="Set output resolution"
+                  title="Set preview and stage resolution"
+                >
+                  Native
+                </button></span
               >
             </div>
           </div>
@@ -715,6 +727,62 @@
         </details>
       </section>
     </dialog>
+    <div
+      id="tempoSettings"
+      class="preview-settings"
+      popover
+      aria-labelledby="tempoTitle"
+    >
+      <div class="quick-settings-heading">
+        <h3 id="tempoTitle">Tempo</h3>
+        <button
+          popovertarget="tempoSettings"
+          popovertargetaction="hide"
+          aria-label="Close tempo settings"
+        >
+          ×
+        </button>
+      </div>
+      <div class="quick-tempo-controls">
+        <button id="tempoSlower" aria-label="Decrease tempo">−</button>
+        <label
+          ><input
+            id="quickBpm"
+            type="number"
+            min="40"
+            max="200"
+            step="0.1"
+            aria-label="Quick tempo in BPM"
+          /><span>BPM</span></label
+        >
+        <button id="tempoFaster" aria-label="Increase tempo">+</button>
+        <button id="quickTap">Tap</button>
+      </div>
+      <p>Visuals &amp; demo audio share this tempo.</p>
+    </div>
+    <div
+      id="resolutionSettings"
+      class="preview-settings settings-controls"
+      popover
+      aria-labelledby="resolutionTitle"
+    >
+      <div class="quick-settings-heading">
+        <h3 id="resolutionTitle">Resolution</h3>
+        <button
+          popovertarget="resolutionSettings"
+          popovertargetaction="hide"
+          aria-label="Close resolution settings"
+        >
+          ×
+        </button>
+      </div>
+      <label for="outputResolution">Preview &amp; stage</label>
+      <select id="outputResolution"></select>
+      <p>
+        Native uses the full display resolution. Lower settings reduce rendering
+        load.
+      </p>
+    </div>
     <div class="toast" id="toast" hidden role="status"></div>
     <script type="module" src="control.mjs"></script>
   </body>
