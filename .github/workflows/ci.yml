@@ -20,6 +20,7 @@ jobs:
       - run: npm ci
       - run: npx playwright-core install --with-deps chromium
       - run: npm test
+      - run: PHOSPHOR_RHYTHM_UI=1 node --test tests/browser/control-rhythm.test.mjs
       - run: npm run build
       - run: npm run check:dist
       - run: npm run typecheck

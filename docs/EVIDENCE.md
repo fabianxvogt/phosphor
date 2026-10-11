@@ -16,7 +16,8 @@ Append-only, newest first. Each entry records what was executed and observed, la
 
 ### Verification and review
 
-- `npm test`: **467 passed, 10 optional native/render probes skipped**, zero failures. Typecheck, format check, build and distribution verification passed. Pattern tests cover independent 3-/4-beat loops, speed-independent transport, delayed edits, downbeat changes, saved-set round trips and draft/own-look handoff.
+- The isolated grid fixture runs separately with `PHOSPHOR_RHYTHM_UI=1 node --test tests/browser/control-rhythm.test.mjs` (passed); CI installs Chromium and runs it explicitly. The deployment build remains browser-independent.
+- `npm test`: **466 passed, 11 optional browser/render probes skipped**, zero failures. Typecheck, format check, build and distribution verification passed. Pattern tests cover independent 3-/4-beat loops, speed-independent transport, delayed edits, downbeat changes, saved-set round trips and draft/own-look handoff.
 - `npm run test:browser -- --native-gpu` passed all 328 looks, energy extremes, 32:9/square/portrait output, all-family fade cleanup and 24 simulation preparation contracts. The actual control/stage test additionally sets a protected three-beat Penrose loop, mutes a global track, changes to Caustics and back, and verifies both states; keyboard, source ownership, reload and own-look export checks also pass.
 - `npm run test:stage-output -- --native-gpu` passed Retina/native stage sizing, inert Escape, stage closure with a nonblack animated preview and Full HD preview buffers.
 - Native regression `PHOSPHOR_RHYTHM_GPU=1 node --test tests/browser/rhythm-engine.test.mjs` passed: one Feedback stamp per event, six consecutive Life steps each creating exactly one object, CPU texture not overwritten by a GPU placeholder, field/CPU allocations accounted for, and a muted own-look override preserved through context loss including a load received while lost.

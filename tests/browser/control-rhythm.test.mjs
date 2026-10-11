@@ -4,7 +4,7 @@ import { launch, serve } from "../../scripts/browser-runtime.mjs";
 
 test(
   "rhythm grid keeps performer focus, explicit scope, dormant variants and independent loops",
-  { timeout: 120000 },
+  { skip: process.env.PHOSPHOR_RHYTHM_UI !== "1", timeout: 120000 },
   async () => {
     const server = await serve(".", 48276);
     // A dedicated fixture avoids rendering the show during this UI check.
