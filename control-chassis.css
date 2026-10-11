@@ -848,3 +848,116 @@ h2 {
 .preview-settings > select {
   width: 100%;
 }
+
+/* Tall windows can still fit both columns. Reflow the controls inside the
+   existing chassis instead of stretching the gaps between horizontal rows. */
+@media (min-width: 1100px) and (max-aspect-ratio: 1/1) {
+  .look-panel {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    align-content: stretch;
+    gap: clamp(12px, 1.5dvh, 24px) 8px;
+  }
+  #editor.fields {
+    display: grid;
+    grid-column: 1 / -1;
+    min-height: 0;
+    align-content: start;
+    align-self: start;
+    gap: clamp(18px, 2dvh, 32px);
+  }
+  #editor > .fader,
+  #shared > .fader {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 12px 10px;
+    min-height: 48px;
+  }
+  :is(#editor, #shared) > .fader label {
+    grid-area: 1 / 1;
+    white-space: normal;
+    line-height: 1.35;
+    font-size: 13px;
+  }
+  :is(#editor, #shared) > .fader output {
+    grid-area: 1 / 2;
+  }
+  :is(#editor, #shared) > .fader input {
+    grid-area: 2 / 1 / 3 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+  .performance-panel {
+    justify-content: flex-start;
+    gap: clamp(12px, 1.5dvh, 24px);
+  }
+  .performance-panel > h2 {
+    margin-bottom: 0;
+  }
+  #shared {
+    align-content: start;
+    gap: clamp(18px, 2dvh, 32px);
+  }
+  .performance-transport {
+    align-items: flex-end;
+    margin: 0;
+  }
+  .performance-primary {
+    margin-top: auto;
+  }
+  .speed-control {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+}
+
+/* Size the rhythm rows against their actual available space. This also keeps
+   all four Global tracks above the setup footer on short desktop panels. */
+#rhythmControls[data-compact] {
+  container: rhythm-grid / size;
+}
+#rhythmControls[data-compact] .rhythm-section {
+  flex: none;
+  margin-block: 0;
+  padding-block: 0;
+}
+#rhythmControls[data-compact] .rhythm-tracks {
+  gap: clamp(2px, 1.5cqh, 7px);
+}
+#rhythmControls[data-compact] .rhythm-track {
+  min-height: 0;
+}
+#rhythmControls[data-compact] .rhythm-mini button {
+  height: clamp(16px, 10cqh, 22px);
+}
+#rhythmControls[data-compact] .rhythm-effect-name {
+  min-height: 18px;
+}
+@container rhythm-grid (min-height: 240px) {
+  #rhythmControls[data-compact] .rhythm-tracks {
+    gap: clamp(6px, 2cqh, 16px);
+  }
+  #rhythmControls[data-compact] .rhythm-track {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 4px;
+  }
+  #rhythmControls[data-compact] .rhythm-effect-name {
+    white-space: normal;
+    line-height: 1.35;
+    font-size: 12px;
+  }
+  #rhythmControls[data-compact] .rhythm-mini button {
+    height: clamp(18px, 7cqh, 32px);
+  }
+}
+
+.rhythm-heading {
+  gap: 10px;
+}
+.rhythm-heading .rhythm-scope {
+  margin: 0 0 0 auto;
+  flex: none;
+}
+#rhythmControls[data-compact] .rhythm-mini-toolbar {
+  margin-bottom: 4px;
+}

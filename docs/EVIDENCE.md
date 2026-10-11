@@ -2,6 +2,16 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Responsive panel contents 2026-10-12
+
+**INCREMENTAL / EMPIRICAL.** Tall two-column windows previously distributed spare height between horizontal faders and centred the rhythm grid, leaving truncated labels and large gaps. Look/Performance now stack labels above full-width sliders in square/portrait desktop windows, with bounded spacing. A size container makes rhythm rows respond to available panel height. Family/Global switches move into the heading to preserve room for all four Global tracks in short landscape panels. The owner-provided chassis images and panel openings are unchanged.
+
+- Independent browser probes passed at 320×640, 390×844, 768×1024, 1099×850, 1100×850, 1100×1100, 1280×1440, 1870×2044, 1440×900, 1920×1080 and 2560×1080. No horizontal overflow, heading overlap, clipped faders or runtime errors; all 16 cells of each visible Family/Global track were visible and hit-testable. Review caught and resolved the fourth Global row overlapping the footer before the final matrix passed.
+- The main control/Stage browser regression (`npm run test:browser -- --only show --native-gpu`) passed, including live rhythm editing, handoff/reload, palette controls and no page/GPU/non-finite errors. Build and offline-distribution checks passed.
+- The tall two-column result was visually inspected in the in-app browser; local proof is `artifacts/ui/responsive-panels.png` (not a published asset). Independent review reported no remaining actionable findings.
+
+Limits: these are representative Chromium viewport and interaction checks, not a claim to cover every device, browser or accessibility zoom combination. Physical venue-display and endurance checks remain separate.
+
 
 ## Shared tempo and selectable output 2026-10-11
 

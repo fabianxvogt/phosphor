@@ -12,6 +12,8 @@
 
 `control.css` holds the layout primitives; `control-skin.css` adds biomechanical light/dark controls. `control-chassis.css` places the five live panels inside the alpha openings of one whole-page image: `public/ui/biomechanical-page-shell.png` for desktop, `biomechanical-page-portrait.png` below 1100 px. Both use the owner-provided upscaled images (provenance/dimensions in `public/ui/assets.json`). Short desktop windows retain an 850 px composition with page scrolling; narrow screens stack panels on a responsive 1850–2100 px canvas.
 
+Tall two-column windows put Look/Performance labels above full-width faders and bound the gaps between controls. Rhythm adapts to its actual available panel height: labels sit above the grid when there is room, while shorter panels retain compact rows. Family/Global switches share the heading so all four Global tracks remain above the setup footer. Representative viewport checks are recorded in the [evidence log](EVIDENCE.md#responsive-panel-contents-2026-10-12).
+
 `public/fonts/Forum-Regular.ttf` supplies the local heading/logo font; the accompanying SIL OFL license is included in distribution through the preload’s `data-license` asset reference.
 
 `control-theme.js` applies browser-local appearance before first paint, defaulting to dark mode when there is no saved choice. `control-ui.mjs` owns the native setup dialog, tabs, catalog filters and keyboard boundaries. Playback, persistence and locking remain in `control.mjs`.

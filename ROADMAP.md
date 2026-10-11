@@ -16,6 +16,8 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 
 ## Now (2026-10-08)
 
+Responsive panel contents (2026-10-12, INCREMENTAL): tall two-column layouts stack slider labels, keep control spacing bounded and adapt rhythm labels/cell height to available space. Family/Global switches share the heading, preserving all four Global rows on shorter panels. Eleven representative viewport sizes and the main control/Stage regression passed; [evidence and limits](docs/EVIDENCE.md#responsive-panel-contents-2026-10-12).
+
 Shared demo/visual BPM and selectable resolution (2026-10-11, INCREMENTAL): preview popovers expose tempo/Tap and output size; native remains the default, lower sizes are saved with the set. The demo follows the show clock without tracker feedback. Unit and local/Stage browser coverage: [evidence](docs/EVIDENCE.md#shared-tempo-and-selectable-output-2026-10-11).
 
 Autopilot UI synchronization (2026-10-11, INCREMENTAL): playing-look changes now update the Look name, family, actual parameter values, editor preview and catalog selection in local and Stage modes. Existing controls track live parameter changes without replacing manual drafts on every status update. See [evidence](docs/EVIDENCE.md#autopilot-look-synchronization-2026-10-11).

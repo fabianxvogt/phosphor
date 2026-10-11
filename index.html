@@ -532,6 +532,12 @@
         <section class="panel rhythm-panel" aria-labelledby="rhythmTitle">
           <div class="rhythm-heading">
             <h2 id="rhythmTitle">Rhythm</h2>
+            <div class="rhythm-scope" role="group" aria-label="Rhythm tracks">
+              <button id="rhythmFamilyView" aria-pressed="true">Family</button
+              ><button id="rhythmGlobalView" aria-pressed="false">
+                Global
+              </button>
+            </div>
             <button
               id="rhythmOptions"
               popovertarget="rhythmSettings"
@@ -539,10 +545,6 @@
             >
               •••
             </button>
-          </div>
-          <div class="rhythm-scope" role="group" aria-label="Rhythm tracks">
-            <button id="rhythmFamilyView" aria-pressed="true">Family</button
-            ><button id="rhythmGlobalView" aria-pressed="false">Global</button>
           </div>
           <div id="rhythmControls" data-compact="true"></div>
           <div class="setup-launchers" role="group" aria-label="Open setup">
