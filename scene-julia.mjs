@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Julia Observatory (v6 port, D32/D33): filaments of Julia sets whose
 // parameter c travels along the edge of the Mandelbrot set, where the most
 // intricate structure lives. Four types are different iteration maps:
@@ -40,7 +42,7 @@ void main() {
 
   // c travels around the main cardioid's boundary (scaled by edge): the
   // closer to 1, the more filamentary the Julia set.
-  float a = u_time * drift * 0.15 + fract(u_seed * 0.0071) * 6.2831853;
+  float a = u_time * drift * 0.15 + u_rhythm.z * 0.12 + fract(u_seed * 0.0071) * 6.2831853;
   vec2 cardioid = 0.5 * vec2(cos(a), sin(a)) - 0.25 * vec2(cos(2.0 * a), sin(2.0 * a));
   vec2 c = cardioid * mix(0.7, 1.0, edge);
   if (map > 0.5 && map < 1.5) c = 0.62 * vec2(cos(a * 1.3), sin(a)) * mix(0.75, 1.02, edge);
@@ -74,12 +76,20 @@ void main() {
   float inside = (1.0 - escaped) * exp(-trap * 8.0) * 0.35;
   float hue = fract(n * 0.04 * bands + a * 0.05);
   vec3 col = palette(hue) * filament + u_accent * inside;
+  float contour = exp(-pow((mod(n, 12.0) - mod(u_rhythmCount.x, 6.0) * 2.0) / 0.8, 2.0)) * escaped;
+  col += palette(hue) * contour * u_rhythm.x * 0.75;
+  col += u_accent * (1.0 - escaped) * exp(-trap * 20.0) * u_rhythm.y * 0.65;
   col *= 0.85 + 0.4 * u_level;
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `;
 
 export default {
+  rhythm: [
+    familyEffect("escape-contour", 0, "Escape-contour chase", "Highlight selected smooth escape-iteration contours outside the Julia set."),
+    familyEffect("orbit-trap", 1, "Orbit-trap light", "Reveal the measured orbit trap inside the non-escaping set.", { period: 3, strength: 0.55 }),
+    familyEffect("parameter-excursion", 2, "Julia parameter excursion", "Move the map parameter a short distance along its authored path.", { period: 16, strength: 0.5, duration: 2, kind: "motion" }),
+  ],
   id: "julia",
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { drift: [0.05, 1.1], spin: { mul: [0.4, 2.5] }, contrast: [0.9, 1.5], bands: [0.2, 0.7] },

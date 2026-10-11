@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Strange Attractors (#65): five chaotic flows and one chaotic map traced by
 // 65,535 GPU particles. Every particle is integrated exactly in the
 // simulation pass (fixed-step RK4 for flows, one iteration per hop for the
@@ -421,7 +423,7 @@ void main() {
   // Whole RK4 steps this tick from the shared accumulator (particle 0).
   // A kick is a velocity surge along the flow (never off the attractor),
   // stronger with show energy.
-  float surge = ${g(KICK_SURGE)} * clamp(u_kick, 0.0, 1.0) * (0.25 + 0.75 * clamp(u_level, 0.0, 1.0));
+  float surge = ${g(KICK_SURGE)} * clamp(u_rhythmEnabled ? u_rhythm.y : u_kick, 0.0, 1.0) * (0.25 + 0.75 * clamp(u_level, 0.0, 1.0));
   float speed = max(u_params[1], 0.0) * (1.0 + surge);
   float total = (u_reset ? 0.0 : atDecode24(atTexel(0, 1).rgb))
               + AT_RATE[s] * speed / AT_H[s] * u_dt;
@@ -479,7 +481,7 @@ void main() {
       }
       age += float(steps) * AT_H[s] / (AT_RATE[s] * ${g(AGE_SECONDS)});
     }
-    if (age >= life) {
+    if (age >= life || (u_rhythmHit.z > 0.0 && mod(float(c) - u_rhythmCount.z, 8.0) < 1.0)) {
       // Respawn the whole cluster as one tight ball around a random particle
       // that is already on the attractor: a fresh set of nearby initial
       // conditions whose divergence the viewer then watches.
@@ -548,7 +550,7 @@ void main() {
   float pitch = mix(cam.x, close.y, dive) + cam.y * sin(AT_TAU * 2.0 * phase + 0.7);
   vec3 target = dive * AT_FRAME[s] * (AT_FOCUS[s] - AT_CENTER[s]) * AT_SCALE[s];
   // Kick: a small camera dolly (parallax), on top of the shared 2D punch.
-  float dist = 2.4 / zoom * (1.0 - 0.05 * clamp(u_kick, 0.0, 1.0) * u_level);
+  float dist = 2.4 / zoom * (1.0 - 0.05 * clamp(u_rhythmEnabled ? u_rhythm.y : u_kick, 0.0, 1.0) * u_level);
   vec3 fwd = vec3(sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch));
   vec3 right = vec3(cos(yaw), 0.0, -sin(yaw));
   vec3 up = cross(fwd, right);
@@ -580,6 +582,8 @@ void main() {
   float gain = 0.42 * pow(1.0 - trail, 0.85) * pow(max(u_params[5], 0.05), -0.75) * pow(zoom, 0.8);
   if (halo) v_color = tag * (0.95 * pow(1.0 - trail, 0.85) * youth * youth * fog * light);
   else v_color = mix(dust, tag * 1.4, youth) * gain * fog * light;
+  float cohort = mod(float(c) - u_rhythmCount.x, 8.0) < 1.0 ? 1.0 : 0.0;
+  v_color *= 1.0 + cohort * u_rhythm.x * 2.0;
 }
 `,
 };
@@ -607,6 +611,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("trajectory-cohort", 0, "Trajectory-cohort light", "Highlight one cluster of neighbouring tracers on the existing attractor."),
+    familyEffect("flow-surge", 1, "Flow surge", "Briefly accelerate integration along the same bounded dynamical flow.", { period: 4, strength: 0.55, duration: 0.5, kind: "motion" }),
+    familyEffect("neighbour-tracers", 2, "Launch neighbouring tracers", "Re-seed one tight cohort on the attractor so its sensitive divergence becomes visible.", { period: 16, strength: 0.6, duration: 0.25, kind: "simulation" }),
+  ],
   id: "attractor",
   number: 65,
   name: "Strange Attractors",

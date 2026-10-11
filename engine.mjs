@@ -6,6 +6,8 @@ import {
   AUDIO_MAPPING_CAP,
 } from "./scene-contract.mjs";
 import { Compositor, AsyncReadback } from "./compositor.mjs";
+import { GLOBAL_EFFECTS, samplePattern } from "./rhythm.mjs";
+import { authoredRhythm, rhythmResponse, sampleSceneRhythm, consumeRhythmImpulse } from "./engine-rhythm.mjs";
 import {
   MELT_POINTS,
   MELT_ROWS,
@@ -23,7 +25,7 @@ const featureUniforms = [
 const paletteKeys = ["primary", "secondary", "accent"];
 const paletteUniforms = ["u_primary", "u_secondary", "u_accent"];
 const noAudioMappings = [];
-const programKeys = ["visual", "simulation", "particles"];
+const programKeys = ["visual", "simulation", "particles", "field", "deposit"];
 const vertex = `#version 300 es
 layout(location=0) in vec2 position; out vec2 v_uv;
 void main(){v_uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
@@ -95,7 +97,9 @@ export class Engine {
     this.speed = 1;
     this.view = { hue: 0, zoom: 1 };
     this.flashHeld = false;
-    this.beatFx = { punch: 0, pulse: 0, flash: 0 };
+    this.beatFx = { punch: 0, pulse: 0, flash: 0, echo: 0, colour: 0 };
+    this.rhythmFrame = null;
+    this.rhythmGlobalPosition = null;
     this.lastKickBeat = null;
     this.blackout = 0;
     this.blackoutTarget = 0;
@@ -118,8 +122,9 @@ export class Engine {
       this.lost = false;
       try {
         const saved = this.active;
+        const options = this.activeOptions;
         this.init();
-        if (saved) this.load(saved, 0);
+        if (saved) this.load(saved, 0, options);
         this.onError(
           "Graphics restored. Scene restarted; saved controls retained.",
         );
@@ -242,7 +247,7 @@ export class Engine {
         ? shaderHeader
         : this.pictureHeader;
       programs.visual = this.program(header + scene.fragment, true);
-      if (scene.simulation)
+      if (scene.simulation?.fragment && !scene.simulation.cpu)
         programs.simulation = this.program(
           shaderHeader + scene.simulation.fragment,
           true,
@@ -255,6 +260,10 @@ export class Engine {
           true,
           particleHeader + scene.particles.vertex,
         );
+      if (scene.field) {
+        programs.field = this.program(shaderHeader + scene.field.fragment, true);
+        programs.deposit = this.program(particleFragment, true, particleHeader + scene.field.depositVertex);
+      }
       this.checkScene(scene.id);
     } catch (error) {
       programs.error = error.message;
@@ -356,9 +365,12 @@ export class Engine {
       }
     }
   }
-  // Energy ramp, audio/clock kick envelopes, flashes and beat injection.
-  // Losing source or tracker lock crossfades back to the speed-trimmed clock
-  // over two seconds; reduced motion and freeze disable beat responses.
+  setRhythmFrame(frame) {
+    this.rhythmFrame = frame;
+    if (Number.isFinite(frame?.beat)) this.beat = frame.beat;
+  }
+  // Scheduled effects follow music independently of animation speed. Audio
+  // heroes remain continuous; they cannot add off-grid sequencer events.
   updatePerformance(dt, paused) {
     if (this.levelDuration > 0 && this.level !== this.levelTo) {
       this.levelElapsed += dt;
@@ -371,7 +383,7 @@ export class Engine {
     const x = Math.max(0, Math.min(1, (this.level - 0.15) / 0.85));
     const response = calm ? 0 : x * x * (3 - 2 * x);
     this.updateAudio(dt, calm);
-    const kickBeat = this.finite(this.beat ?? 0) * this.speed;
+    const kickBeat = this.finite(this.beat ?? 0);
     const phase = kickBeat - Math.floor(kickBeat);
     const clockKick = Math.exp(-phase * 7);
     const kick =
@@ -390,7 +402,7 @@ export class Engine {
     const clockHit = index !== this.lastKickBeat && this.lastKickBeat !== null;
     const impulse =
       (clockHit ? 1 - this.audioWeight : 0) + this.audioFeatures.hit;
-    if (impulse > 0 && weights.inject > 0 && response > 0) {
+    if (!scene?.rhythm?.length && impulse > 0 && weights.inject > 0 && response > 0) {
       const event = index + this.lastAudioHit;
       const h = Math.sin(event * 12.9898) * 43758.5453,
         k = Math.sin(event * 78.233) * 12543.123;
@@ -399,6 +411,26 @@ export class Engine {
       this.gesture[2] = Math.min(1, impulse) * weights.inject * response;
     }
     this.lastKickBeat = index;
+    let scheduled = false;
+    for (const slot of this.slots) {
+      if (sampleSceneRhythm(slot, this.rhythmFrame, kickBeat, this.level, calm)) scheduled = true;
+    }
+    if (scheduled || this.rhythmFrame) {
+      const frame = this.rhythmFrame;
+      const position = (frame?.beat ?? kickBeat) - (frame?.origin ?? 0);
+      const pattern = frame?.settings?.global ?? authoredRhythm(GLOBAL_EFFECTS);
+      const global = samplePattern(pattern, GLOBAL_EFFECTS, position, this.rhythmGlobalPosition, {
+        style: frame?.style, activation: frame?.activations?.global,
+      });
+      this.rhythmGlobalPosition = position;
+      const gain = calm || frame?.enabled === false ? 0 : rhythmResponse(this.level);
+      this.beatFx.pulse = global.values[0] * gain * 0.65;
+      this.beatFx.punch = global.values[1] * gain * 0.12;
+      this.beatFx.echo = global.values[2] * gain * 0.65;
+      this.beatFx.colour = global.values[3] * gain * 0.16;
+      // Flash remains a held performer action through the existing limiter.
+      this.beatFx.flash = calm || frame?.enabled === false ? 0 : (this.flashHeld ? clockKick : 0);
+    }
   }
   finite(value, fallback = 0) {
     if (Number.isFinite(value)) return value;
@@ -468,6 +500,7 @@ export class Engine {
   destroySlot(s) {
     for (const t of s.visual) this.deleteTarget(t);
     for (const t of s.sim) this.deleteTarget(t);
+    for (const t of s.field ?? []) this.deleteTarget(t);
     if (s.geometryTexture) {
       this.gl.deleteTexture(s.geometryTexture);
       this.liveTextures--;
@@ -537,6 +570,10 @@ export class Engine {
       previous.seed !== snapshot.seed
     ) {
       s.snapshot = structuredClone(snapshot);
+      if (s.cpu) {
+        s.cpu = s.scene.simulation.cpu.create({ seed: snapshot.seed, params: snapshot.params });
+        s.reset = true;
+      }
     } else {
       for (let i = 0; i < s.scene.schema.length; i++) {
         const key = s.scene.schema[i].key;
@@ -594,6 +631,15 @@ export class Engine {
       audioOffsets: new Float32Array(Math.min(3, scene.audio?.length ?? 0)),
     };
     this.prepareSnapshot(slot, snapshot);
+    if (scene.field) {
+      slot.field = [this.target(...scene.field.size, { simulation: true, filter: "linear" }), this.target(...scene.field.size, { simulation: true, filter: "linear" })];
+      slot.fi = 0;
+      slot.fieldReset = true;
+    }
+    if (scene.simulation?.cpu) {
+      slot.cpu = scene.simulation.cpu.create({ seed: snapshot.seed, params: snapshot.params });
+      slot.cpuParams = { ...snapshot.params };
+    }
     if (scene.id === "melt") {
       const gl = this.gl;
       slot.geometry = new Float32Array(MELT_POINTS * MELT_ROWS * 4);
@@ -619,15 +665,16 @@ export class Engine {
   load(snapshot, seconds = 2, opts = undefined) {
     const scene = this.scenes.find((s) => s.id === snapshot.scene);
     if (!scene) throw new Error("Unknown scene");
+    if (this.lost) {
+      this.active = structuredClone(snapshot);
+      this.activeOptions = { ...opts, energy: opts?.energy ?? this.level };
+      return;
+    }
     this.compileScene(scene);
     if (this.programs.get(scene.id)?.error) return false;
     if (opts?.transition === "cut") seconds = 0;
     this.flashExempt =
       opts?.flashExempt === true && seconds > 0 && this.slots.length > 0;
-    if (this.lost) {
-      this.active = structuredClone(snapshot);
-      return;
-    }
     if (this.slots.length > 1) {
       if (seconds > 0) {
         // Interrupt from the current ungraded mix, not the last incoming scene.
@@ -646,9 +693,12 @@ export class Engine {
       } else this.destroySlot(this.slots.shift());
     }
     const slot = this.createSlot(snapshot);
+    slot.lookId = opts?.lookId ?? `${snapshot.scene}:${snapshot.preset}`;
     slot.baseLevel = Number.isFinite(opts?.energy) ? opts.energy : this.level;
+    sampleSceneRhythm(slot, this.rhythmFrame, this.beat, this.level, false);
     this.slots.push(slot);
     this.active = slot.snapshot;
+    this.activeOptions = { ...opts, lookId: slot.lookId, energy: slot.baseLevel };
     if (this.slots.length === 2 && seconds > 0) {
       this.transition = {
         elapsed: 0,
@@ -671,7 +721,7 @@ export class Engine {
     }
     this.accumulator = 0;
     this.gesture[2] = 0;
-    slot.warmTicks = slot.scene.simulation ? 120 : 0;
+    slot.warmTicks = slot.scene.simulation ? (slot.scene.simulation.warmTicks ?? 120) : 0;
     this.warmSlot(slot);
     this.drawSlot(slot, 1 / 60);
     this.present();
@@ -725,7 +775,7 @@ export class Engine {
     }
     s.uniformFrame = this.uniformFrame;
   }
-  uniforms(program, s, target, dt, reset) {
+  uniforms(program, s, target, dt, reset, simulation = false) {
     const gl = this.gl,
       u = program.uniforms;
     this.updateUniforms(s);
@@ -756,11 +806,18 @@ export class Engine {
       gl.uniform1f(u.u_bass, this.finite(this.audioFeatures?.low ?? 0));
     if (u.u_hit != null)
       gl.uniform1f(u.u_hit, this.finite(this.audioFeatures?.hit ?? 0));
-    if (u.u_kick != null) gl.uniform1f(u.u_kick, this.finite(this.kick));
+    if (u.u_kick != null) gl.uniform1f(u.u_kick, this.finite(s.rhythm?.values[0] ?? this.kick));
+    if (u.u_rhythmEnabled != null) gl.uniform1i(u.u_rhythmEnabled, s.rhythm ? 1 : 0);
+    if (s.rhythm) {
+      if (u.u_rhythm != null) gl.uniform4fv(u.u_rhythm, s.rhythm.values);
+      if (u.u_rhythmCount != null) gl.uniform4fv(u.u_rhythmCount, s.rhythm.counts);
+      if (u.u_rhythmHit != null)
+        gl.uniform4fv(u.u_rhythmHit, simulation ? s.rhythmPending : s.rhythm.hits);
+    }
     if (u.u_beat != null)
       gl.uniform1f(
         u.u_beat,
-        this.finite(this.beat ?? 0) * (this.options.reducedMotion ? 0.25 : 1),
+        this.finite(this.beat ?? 0),
       );
     if (u.u_level != null)
       gl.uniform1f(u.u_level, this.finite(this.level, 0.5));
@@ -768,7 +825,7 @@ export class Engine {
     if (u.u_gesture != null) {
       for (let i = 0; i < 3; i++)
         this.gesture[i] = this.finite(this.gesture[i]);
-      gl.uniform3fv(u.u_gesture, this.gesture);
+      gl.uniform3fv(u.u_gesture, s.rhythm && this.gesture[2] <= 0 ? s.rhythmGesture : this.gesture);
     }
     for (let i = 0; i < paletteKeys.length; i++) {
       if (u[paletteUniforms[i]] != null) {
@@ -785,6 +842,11 @@ export class Engine {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, s.visual[s.vi].texture);
     if (u.u_previous != null) gl.uniform1i(u.u_previous, 1);
+    if (u.u_field != null) {
+      gl.activeTexture(gl.TEXTURE3);
+      gl.bindTexture(gl.TEXTURE_2D, s.field?.[s.fi]?.texture ?? s.sim[s.si].texture);
+      gl.uniform1i(u.u_field, 3);
+    }
     if (u.u_geometry != null) {
       gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_2D, s.geometryTexture);
@@ -796,17 +858,53 @@ export class Engine {
     const step = dt * (this.options.reducedMotion ? 0.25 : 1);
     s.time += step;
     const program = this.programs.get(s.scene.id).simulation;
+    if (s.scene.simulation?.cpu) {
+      this.updateUniforms(s);
+      s.scene.schema.forEach((definition, i) => { s.cpuParams[definition.key] = s.params[i]; });
+      const bytes = s.scene.simulation.cpu.step(s.cpu, {
+        dt: step, params: s.cpuParams, level: this.level, reset: s.reset,
+        rhythm: s.rhythm ? { ...s.rhythm, hits: s.rhythmPending } : null,
+      });
+      if (bytes) {
+        const target = s.sim[s.si];
+        this.gl.bindTexture(this.gl.TEXTURE_2D, target.texture);
+        this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 0, 0, target.w, target.h, this.gl.RGBA, this.gl.UNSIGNED_BYTE, bytes);
+      }
+      s.tick = (s.tick + 1) >>> 0;
+      s.reset = false;
+      consumeRhythmImpulse(s);
+    }
     if (program) {
       for (let i = 0; i < (s.scene.simulation.steps || 1); i++) {
         s.tick = (s.tick + 1) >>> 0;
         const target = s.sim[1 - s.si];
         this.bind(program, target);
-        this.uniforms(program, s, target, step, s.reset);
+        this.uniforms(program, s, target, step, s.reset, true);
         this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+        consumeRhythmImpulse(s);
         s.si = 1 - s.si;
         s.reset = false;
       }
     }
+    if (s.field) this.tickField(s, step);
+  }
+  tickField(s, dt) {
+    const gl = this.gl, programs = this.programs.get(s.scene.id);
+    const target = s.field[1 - s.fi];
+    this.bind(programs.field, target);
+    this.uniforms(programs.field, s, target, dt, s.fieldReset);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    this.bind(programs.deposit, target);
+    this.uniforms(programs.deposit, s, target, dt, false);
+    const [w, h] = s.scene.simulation.size;
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+    gl.disableVertexAttribArray(0);
+    gl.drawArrays(gl.POINTS, 0, w * h);
+    gl.enableVertexAttribArray(0);
+    gl.disable(gl.BLEND);
+    s.fi = 1 - s.fi;
+    s.fieldReset = false;
   }
   drawSlot(s, dt) {
     if (s.frozen || !this.checkScene(s.scene.id)) return;
@@ -854,6 +952,9 @@ export class Engine {
     }
     s.vi = 1 - s.vi;
     s.visualReset = false;
+    // Feedback scenes evolve in the picture pass rather than a simulation
+    // texture. Their seed stamp still belongs to one write only.
+    if (!s.scene.simulation) consumeRhythmImpulse(s);
   }
   advance(dt, paused = false) {
     if (this.lost || this.gl.isContextLost() || !this.slots.length) return;
@@ -960,7 +1061,7 @@ export class Engine {
       slots: this.slots.length,
       textures: this.slots.reduce(
         (n, s) =>
-          n + s.visual.length + s.sim.length + (s.geometryTexture ? 1 : 0),
+          n + s.visual.length + s.sim.length + (s.field?.length ?? 0) + (s.geometryTexture ? 1 : 0),
         1 + this.pipeline.targets.length,
       ),
       liveTextures: this.liveTextures,

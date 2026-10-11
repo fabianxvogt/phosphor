@@ -118,7 +118,7 @@ test("D61 runtime caps excessive signed amounts and feature values, and ignores 
   assert.ok(parameters(engine, slot).every((v, i) => v >= scene.schema[i]?.min || i >= scene.schema.length));
 });
 
-test("D61 unlocked input never maps and hit events inject only once", () => {
+test("audio heroes respect lock while sequenced injections stay on the grid", () => {
   const scene = scenes.find((s) => s.id === "feedback");
   const { engine, slot } = performer(scene);
   engine.features.locked = false;
@@ -130,12 +130,21 @@ test("D61 unlocked input never maps and hit events inject only once", () => {
   engine.features.hit = true;
   engine.features.hitId = 1;
   engine.updatePerformance(1 / 60, false);
-  assert.ok(engine.gesture[2] > 0);
+  assert.equal(engine.gesture[2], 0, "audio onset cannot add an off-grid seed");
+  assert.equal(slot.rhythmPending[2], 0);
   assert.equal(engine.audioFeatures.hit, 1);
   engine.gesture[2] = 0;
   engine.updatePerformance(1 / 60, false);
   assert.equal(engine.audioFeatures.hit, 0);
   assert.equal(engine.gesture[2], 0);
+  engine.beat = 16;
+  engine.updatePerformance(1 / 60, false);
+  assert.ok(slot.rhythmPending[2] > 0, "authored seed-stamp step triggers");
+  assert.ok(slot.rhythmGesture[2] > 0);
+  slot.rhythmPending.fill(0);
+  slot.rhythmGesture[2] = 0;
+  engine.updatePerformance(1 / 60, false);
+  assert.equal(slot.rhythmPending[2], 0, "one event is not replayed");
 });
 
 test("D61 stage delivers tracker availability, and off rejects stale lock", () => {

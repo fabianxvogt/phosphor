@@ -161,18 +161,31 @@ try {
         }
         for (let i = 0; i < 400 && engine.transition; i++)
           engine.advance(1 / 60);
-        rows.push({ id: scene.id, held, steps, done: !engine.transition });
+        rows.push({
+          id: scene.id,
+          held,
+          steps,
+          warmTicks: scene.simulation.warmTicks ?? 120,
+          done: !engine.transition,
+        });
       }
       return rows;
     });
     assert.ok(warmups.length > 0);
     for (const row of warmups) {
-      assert.ok(row.steps > 0, `${row.id} had no warm-up`);
+      if (row.warmTicks > 6)
+        assert.ok(row.steps > 0, `${row.id} had no warm-up`);
+      else
+        assert.equal(
+          row.steps,
+          0,
+          `${row.id} requested immediate prepared playback`,
+        );
       assert.ok(row.held, `${row.id}: transition advanced during warm-up`);
       assert.ok(row.done, `${row.id}: fade never finished`);
     }
     pass(
-      `${warmups.length} simulation families warm up behind a held transition (no pop)`,
+      `${warmups.length} simulation families respect preparation and held-transition contracts`,
     );
     assert.deepEqual(lab.errors, []);
     await lab.context.close();
@@ -190,13 +203,20 @@ try {
   );
   pass("control opens the stage, the stage starts and reports back");
 
-  const { lookTotal, familyTotal } = await stage.evaluate(() => ({
-    lookTotal: window.__phosphorStage.scenes.reduce(
-      (n, scene) => n + scene.presets.length,
-      0,
-    ),
-    familyTotal: window.__phosphorStage.scenes.length,
-  }));
+  const { lookTotal, familyTotal } = await stage.evaluate(async () => {
+    const { familyMetadata } = await import("./family-catalog.mjs");
+    return {
+      lookTotal: window.__phosphorStage.scenes.reduce(
+        (n, scene) => n + scene.presets.length,
+        0,
+      ),
+      familyTotal: new Set(
+        window.__phosphorStage.scenes.map(
+          (scene) => familyMetadata(scene).familyId,
+        ),
+      ).size,
+    };
+  });
   const originalTheme = await control
     .locator("html")
     .getAttribute("data-theme");
@@ -674,6 +694,64 @@ try {
   assert.equal(restored.status.energy, 0.8);
   assert.equal(restored.status.shared.zoom, 1.4);
   pass("stage reload restores clip, energy and shared controls");
+
+  // Real control → stage sequencer flow, beyond the isolated UI fixture.
+  const rhythmCue = (id) =>
+    control.evaluate((id) => {
+      const bus = new BroadcastChannel("phosphor-show");
+      bus.postMessage({
+        type: "action",
+        action: { type: "autopilot", on: false },
+      });
+      bus.postMessage({ type: "action", action: { type: "look", id } });
+      bus.close();
+    }, id);
+  await rhythmCue("quasicrystal:Penrose Rhombs");
+  const ribbon = control.locator('[data-effect="ribbon"]');
+  await ribbon.waitFor();
+  const length = ribbon.getByLabel("Ribbon chase loop length in steps");
+  await length.fill("3");
+  await length.dispatchEvent("change");
+  await waitFor(
+    stage,
+    () => {
+      const pattern = window.__phosphorStage.show.rhythmFrame(
+        performance.now() / 1000,
+      ).settings.families.quasicrystal;
+      return pattern.mode === "locked" && pattern.tracks[0].length === 3;
+    },
+    null,
+    "three-beat family loop applies on the music clock",
+  );
+  const globalMute = control.locator('[data-effect="brightness"] .rhythm-mute');
+  await globalMute.click();
+  await waitFor(
+    stage,
+    () =>
+      window.__phosphorStage.show.rhythmFrame(performance.now() / 1000).settings
+        .global.tracks[0].muted,
+    null,
+    "global mute reaches stage immediately",
+  );
+  await rhythmCue("caustics:Pool of Light");
+  await control.locator('[data-effect="ray-bundle"]').waitFor();
+  assert.equal(await globalMute.getAttribute("aria-pressed"), "true");
+  await rhythmCue("quasicrystal:Penrose Rhombs");
+  await ribbon.waitFor();
+  await waitFor(
+    control,
+    () =>
+      document.querySelector('[data-effect="ribbon"] input[type="number"]')
+        .value === "3",
+    null,
+    "protected family pattern returns unchanged",
+  );
+  await control
+    .locator(".rhythm-panel")
+    .screenshot({ path: `${output}/rhythm-panel.png` });
+  pass(
+    "live rhythm grid applies independent loops, protects edits and retains global effects across families",
+  );
 
   await control.locator("#tab-checks").click();
   await control.locator("#pattern").click();

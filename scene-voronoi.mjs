@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Voronoi Cells (#71): every pixel belongs to its nearest site. The sites
 // live in a small simulation texture and run Lloyd's algorithm: each step
 // a site moves toward the centroid of its own cell (estimated with a
@@ -108,17 +110,17 @@ vec2 vBurstCentre(float beat) {
 vec3 vEvent(int i, vec2 s, float beat, float jolt, float burst, float sp) {
   vec3 ev = vec3(0.0);
   uint b = uint(beat);
-  if (vRand(uint(i), b, 1u) < jolt * (0.12 + 0.3 * u_level)) {
+  if (vRand(uint(i), b, 1u) < jolt * (0.12 + 0.3 * u_level) * (u_rhythmEnabled ? u_rhythmHit.y : 1.0)) {
     float a = TAU * vRand(uint(i), b, 2u);
     float m = sp * (0.35 + 0.5 * vRand(uint(i), b, 3u));
     ev = vec3(m * cos(a), m * sin(a), 1.0);
   }
-  if (burst > 0.01 && mod(beat, 16.0) < 0.5) {
-    vec2 d = torusDelta(s, vBurstCentre(beat)) * W;
+  if (burst > 0.01 && (u_rhythmEnabled ? u_rhythmHit.z > 0.0 : mod(beat, 16.0) < 0.5)) {
+    vec2 d = torusDelta(s, vBurstCentre(u_rhythmEnabled ? u_rhythmCount.z : beat)) * W;
     float L = length(d);
     if (L < 0.5 && L > 1e-5) {
       float f = sq(1.0 - L / 0.5);
-      ev.xy += d / L * burst * sp * 2.2 * f;
+      ev.xy += d / L * burst * sp * 2.2 * f * (u_rhythmEnabled ? u_rhythmHit.z : 1.0);
       ev.z = max(ev.z, f);
     }
   }
@@ -143,9 +145,9 @@ void main() {
   vec4 meta = texelFetch(u_state, ivec2(0, 1), 0);
   bool fresh = u_reset || meta.a < 0.5;
   int lastBeat = int(meta.g * 255.0 + 0.5);
-  float beatF = floor(max(u_beat, 0.0));
+  float beatF = floor(u_rhythmEnabled ? u_rhythmCount.y : max(u_beat, 0.0));
   int beat = int(beatF) & 255;
-  bool event = !fresh && beat != lastBeat;
+  bool event = !fresh && (u_rhythmEnabled ? max(u_rhythmHit.y, u_rhythmHit.z) > 0.0 : beat != lastBeat);
   int i = px.x;
 
   if (px.y == 1) {
@@ -257,17 +259,20 @@ void main() {
     colour += mix(u_accent, vec3(1.0), 0.4) * (1.0 - smoothstep(0.0, 1.0 + 2.0 * glow, dl / pxw)) * (0.6 + 0.4 * u_level);
   }
 
+  if (mod(float(i1) - u_rhythmCount.x, 6.0) < 1.0)
+    colour += palette(fract(0.1 + h * 0.8)) * u_rhythm.x * (0.15 + 0.45 * core);
+
   // Sites as small stars.
   colour += mix(u_accent, vec3(1.0), 0.6) * exp(-dot(d1, d1) / sq(pxw) / (4.0 + 10.0 * glow));
 
   // The shockwave of the last 16-beat burst.
   if (burst > 0.01) {
     float bt = max(u_beat, 0.0);
-    float b0 = floor(bt / 16.0) * 16.0;
-    float age = bt - b0;
+    float b0 = u_rhythmEnabled ? u_rhythmCount.z : floor(bt / 16.0) * 16.0;
+    float age = u_rhythmEnabled ? (1.0 - min(u_rhythm.z, 1.0)) * 4.0 : bt - b0;
     float dist = length(torusDelta(q, vBurstCentre(b0)) * W);
     float wave = exp(-sq((dist - age * 0.16) / (pxw * 4.0 + 0.004))) * exp(-age * 0.45);
-    colour += u_accent * wave * burst * 0.6;
+    colour += u_accent * wave * burst * 0.6 * (u_rhythmEnabled ? u_rhythm.z : 1.0);
   }
   outColor = vec4(clamp(colour, 0.0, 1.0), 1.0);
 }
@@ -358,11 +363,16 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("cell-cohort", 0, "Cell-cohort light", "Highlight a selected cohort of true nearest-site Voronoi cells."),
+    familyEffect("site-jolt", 1, "Site jolt", "Move a bounded subset of sites; the cells are recomputed from their real positions.", { period: 4, strength: 0.55, duration: 0.25, kind: "simulation" }),
+    familyEffect("regional-scatter", 2, "Regional scatter", "Scatter a local site region; continuing Lloyd relaxation heals the tessellation.", { period: 16, strength: 0.6, duration: 1.5, kind: "simulation" }),
+  ],
   id: "voronoi",
   number: 71,
   name: "Voronoi Cells",
   description:
-    "Every pixel belongs to its nearest site, and the sites run Lloyd's algorithm: each moves toward the centroid of its own cell, so random cells relax into a honeycomb. Beats jolt single sites, every 16 beats a shockwave scatters a region and the cells heal. Variants change the metric (taxicab diamonds, Euclidean hexagons, Chebyshev squares, concave stars), morph it live, draw the power diagram whose borders are the radical axes of breathing circles, or overlay the Delaunay dual.",
+    "Every pixel belongs to its nearest site, and the sites run Lloyd's algorithm: each moves toward the centroid of its own cell, so random cells relax into a honeycomb. Independent tracks highlight cells, jolt selected sites and scatter a region whose cells heal through continuing relaxation. Variants change the metric (taxicab diamonds, Euclidean hexagons, Chebyshev squares, concave stars), morph it live, draw the power diagram whose borders are the radical axes of breathing circles, or overlay the Delaunay dual.",
   energy: {
     jolt: { mul: [0.4, 2] },
     relax: { mul: [0.7, 1.4] },

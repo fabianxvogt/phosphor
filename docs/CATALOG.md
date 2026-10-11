@@ -1,69 +1,83 @@
 # Phosphor catalog: families, variants, looks
 
-Status 2026-10-09 (night): 36 families, 304 looks. Built: Game of Life (64), Strange Attractors (65), Mandelbrot Dive (66), Abelian Sandpile (67), Newton Basins (68), Fractal Flames (69), Aperiodic Tilings (70), Voronoi Cells (71), Ripple Tank (72), Langton's Ant (73), Indra's Pearls (74), Harmonograph (75), Wallpaper Groups (76), Truchet Tiles (77), Space-filling Curves (78), Phyllotaxis (79), Hopf Fibration (80), Chladni Figures (81), Domain Colouring (82); Causal Tapestry reworked; the lost Interference compositions and Enamel Still are back. Pages are gone (D68): the catalog is the instrument. Terms and quality bar are in [families/AUTHORING.md](families/AUTHORING.md):
+Status 2026-10-11: **39 renderers, 38 catalog families, 328 authored looks**. The unified catalog includes every authored look and the owner's own looks. No scene, preset, favourite, rating or own-look id is removed by the naming cleanup.
 
-- a **family** is one algorithm;
-- a **variant** is a structurally different instance of it (rule, map, lattice, symmetry, projection);
-- a **look** is a variant plus parameters and seed.
+- A **family** has a coherent visual and algorithmic principle. Related renderers can share a catalog identity.
+- A **variant** changes a rule, map, topology, lattice, symmetry, projection or meaningful rendering structure.
+- A **look** gives a variant authored parameters, palette and seed. Density, brightness and speed alone do not create a new variant.
 
-Every look appears in the in-app catalog, where the owner rates it from 0 to 10 stars in half steps. Looks with the same rating (all of them, before any rating) follow an editorial order, most interesting first: [catalog-curated.mjs](../catalog-curated.mjs).
+The stable renderer registry is [scenes.mjs](../scenes.mjs). Public family identities, short algorithm explanations, explicit variant names and visual filters live in [family-catalog.mjs](../family-catalog.mjs); [catalog.mjs](../catalog.mjs) joins them to snapshots. Future scenes may declare a catalog descriptor; generic schema labels remain a fallback. Authoring guidance is in [families/AUTHORING.md](families/AUTHORING.md).
 
-## What happened to the "missing" looks (2026-10-08 → 09)
+## Finding and playing looks
 
-Nothing was deleted from the families. Looks grew from 62 (10 families) to 104 (17 families). What changed:
+Every card shows its **family · variant** below the look name. **Rate & edit** reveals a short explanation of what its algorithm does alongside ratings and editing. Search includes look, family, legacy source-family name, variant, algorithm and visual style; it ignores case and accents.
 
-1. **D55 Lab page.** Only the six gated families (Cathedral, Tapestry, Feedback, Interference, Pulse, Flight) stayed on page 1. The other eleven moved to page 8 "Lab" with autopilot off ("manual"). Lab has 32 slots, so **34 of their 66 looks had no slot at all** and could only be reached through the clip editor.
-2. **Interference rework.** The family was cut from six compositions to three (`d5495dc`, then `f906d27`). The orbit-lattice, petal-ripple and curved-horizon compositions and their looks _Orbit Loom_, _Petal Resonance_ and _Bent Horizons_ were replaced by _Crossed Loom_, _Ripple Resonance_ and _Tempo Veil_.
-3. **Cathedral rework.** _Enamel Still_ (a still camera) became _Enamel Glide_.
+The family filter combines with one visual-style filter: **Geometric, Organic, Spatial, Particles, Waves, Fractals**. Styles can overlap. Where appearance changes by variant, the tags follow the variant: a Fibonacci sphere and a Lissajous knot are spatial; the flat sunflower and Lissajous figure are not.
 
-Owner direction 2026-10-09: the Lab page goes away. A catalog holds every look, sorted by rating, and the three lost Interference compositions and _Enamel Still_ come back. **Done:** Interference compositions 3–5 (_Orbit Loom_, _Petal Resonance_, _Bent Horizons_) and Cathedral _Enamel Still_ are restored next to the rework looks.
+Ratings remain 0–10 in half steps; **0** means never play, and unrated looks count as 5 for weighted autopilot selection. Favourites stay first. Equal ratings retain the editorial order in [catalog-curated.mjs](../catalog-curated.mjs). Own looks keep their palette, transition and optional saved family-rhythm override when turned into a playable catalog clip. The first 32 visible looks remain keyboard playable.
 
-## Existing families (17)
+## Consistency decisions
 
-| #   | Family                   | Algorithm                                     | Signature detail to foreground                        | Variants (type)                                          | Looks | Notes                                                                                                   |
-| --- | ------------------------ | --------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------- |
-| 47  | Acid Mycelium            | Gray–Scott reaction–diffusion                 | Turing spots, stripes and self-replicating spots      | 6 seed compositions                                      | 6     |                                                                                                         |
-| 48  | Magnetic Choir           | Dye advection through vector fields           | Streamlines of a divergence-free flow                 | torus / vortices / silk                                  | 6     |                                                                                                         |
-| 49  | Cathedrals of Error      | Raymarched recursive SDF architecture         | Self-similar gothic recursion                         | nave / reliquary / rose / gallery                        | 6     | Headliner                                                                                               |
-| 50  | Alien Aquarium           | Lenia-like continuous CA                      | Soft gliding "organisms" from a ring kernel           | lagoon / tide / gyre                                     | 6     | Calm-only                                                                                               |
-| 51  | Causal Tapestry          | Elementary (Wolfram) cellular automata        | Rule 30/90/110 space–time patterns written row by row | waterfall / kaleidoscope / rails + rule gallery / tunnel | 14    | **Reworked**: crisp cells and a write head; prime rings, stale detection and reseeding keep it endless  |
-| 52  | Feedback Chapel          | Video feedback (iterated image transform)     | Infinite recursion of the previous frame              | halo / portal / weave / procession                       | 6     |                                                                                                         |
-| 53  | Interference Rituals     | Wave superposition, moiré                     | Beat frequencies and moiré fringes                    | floor / vault / screens / orbit / petals / horizons      | 9     | 3 lost compositions restored                                                                            |
-| 54  | Topological Melt         | Parametric knots and surfaces                 | Trefoil, figure-eight and Möbius topology             | knot / eight / Möbius / braid                            | 6     |                                                                                                         |
-| 55  | Phase Transition Theatre | Kuramoto coupled oscillators                  | Synchronisation spreading as phase waves              | manual / gather / launch / return                        | 6     |                                                                                                         |
-| 56  | Evolution Garden         | Gray–Scott reaction–diffusion (relief render) | Morphogen budding                                     | 4 planting densities                                     | 6     | Same algorithm as Acid; candidate to merge into it as a variant later (D32). Kept as is for now         |
-| 57  | Pulse Geometry           | Kick-cut strobe geometry                      | Beat-locked structure                                 | bars / tunnel / grid / shards                            | 6     | Club staple; no special algorithm                                                                       |
-| 58  | Light Beams              | Volumetric beams in haze                      | Laser fans                                            | fan / pillars / crossfire / starburst                    | 6     | Club staple                                                                                             |
-| 59  | Julia Observatory        | Escape-time Julia sets                        | c travelling along the Mandelbrot boundary            | quadratic / cubic / burning / mirror                     | 6     |                                                                                                         |
-| 60  | Fractal Flight           | Raymarched Menger sponge                      | Endless self-similar corridors                        | corridor / spiral / shaft / narrows                      | 6     | Headliner                                                                                               |
-| 61  | Fourth Dimension         | 4D regular polytopes, rotation and projection | Tesseract turning "inside out"                        | tesseract / 16-cell / 24-cell / duoprism                 | 6     |                                                                                                         |
-| 62  | Hyperbolic Loom          | {p,q} tilings in the Poincaré disk            | Infinite tiling shrinking to the rim                  | {7,3} / {5,4} / {4,5} / {3,8}                            | 6     |                                                                                                         |
-| 63  | Particle Swarm           | GPU particles in stateless fields             | 65k points                                            | flock / de Jong attractor / galaxy / bursts              | 6     | Mixes three algorithms; the new Strange Attractors family covers attractors properly. Swarm stays as is |
+**Reaction–Diffusion** groups legacy acid and evolution without changing renderer or look ids. Both use Gray–Scott chemistry. **Acid Mycelium** is the planar-front variant; **Garden Relief** renders budding islands and petal relief. Evolution's planting density remains a look parameter, rather than producing labels such as “Planting density 9”. Runtime family rhythm remains keyed by its renderer so existing patterns and variant-specific effect availability remain intact.
 
-## New families
+**Penrose** is a named variant of **Aperiodic Tilings**. **Wallpaper Groups** use the actual names p1 through p6m, rather than “Group 16”. Cathedral architecture uses Nave, Reliquary, Rose Window and Gallery. **Causal Tapestry** exposes its Wolfram rule as well as its view, and cyclic Life looks expose their actual cyclic rule flavour.
 
-Ordered by build batch. Every one is a distinct algorithm that runs in real time and has a signature an expert recognises.
+**Particle Swarm** is described as particles advected through prescribed fields. Curl Flow has no neighbour-based Boids rules; its murmuration-like appearance is not a claim of a Boids simulation. The de Jong field remains a distinct swarm variant, while the Strange Attractors family presents traced map/ODE attractors.
 
-| #    | id             | Family               | Algorithm                                            | Variants                                                                   | Signature detail                                                                    |
-| ---- | -------------- | -------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 64 ✓ | `life`         | Game of Life         | 2D outer-totalistic and multi-state CAs              | Conway B3/S23 · HighLife B36/S23 · Day & Night · Brian's Brain · cyclic CA | Gliders, a Gosper gun firing, replicators, BZ spirals                               |
-| 65 ✓ | `attractor`    | Strange Attractors   | ODE and map attractors traced by particles           | Lorenz · Rössler · Aizawa · Thomas · Clifford / de Jong                    | Butterfly lobes; sensitive dependence (neighbouring tracers diverge)                |
-| 66 ✓ | `mandelbrot`   | Mandelbrot Dive      | Escape-time with emulated double precision           | Mandelbrot · Burning Ship · Tricorn · Multibrot                            | Minibrots and spirals appearing endlessly on the zoom                               |
-| 67 ✓ | `sandpile`     | Abelian Sandpile     | Bak–Tang–Wiesenfeld toppling                         | Centre pile · rain (SOC) · multi-source · identity                         | Four-colour fractal mandala; avalanches                                             |
-| 68 ✓ | `newton`       | Newton Basins        | Newton's method on polynomials                       | z³−1 · moving roots · relaxed (Nova) · high degree                         | Basin boundaries where all roots meet                                               |
-| 69 ✓ | `flame`        | Fractal Flame        | Chaos-game IFS with non-linear variations            | linear · swirl · spherical · sinusoidal · julia                            | Electric-Sheep-style flames, log-density glow                                       |
-| 70 ✓ | `quasicrystal` | Aperiodic Tilings    | de Bruijn multigrid                                  | Penrose (5) · Ammann–Beenker (8) · 7-fold · 12-fold                        | Rhombi that never repeat; five-fold symmetry                                        |
-| 71 ✓ | `voronoi`      | Voronoi Cells        | Nearest-site partitions, Lloyd relaxation            | Lloyd relax (any p) · metric morph · power · Delaunay dual                 | Cells relaxing into a honeycomb; cell shapes change with the metric                 |
-| 72 ✓ | `ripple`       | Ripple Tank          | Discrete wave equation                               | Slits / grating · raindrops · lens · phased array                          | Interference fringes behind the slits; a steered beam with grating lobes            |
-| 73 ✓ | `turmite`      | Langton's Ant        | Generalised ants on a torus                          | RL · LLRR · LRRRRRLLR · RRLLLRLLLRRR · RLR · LLRRRLRLRLLR, up to 12 ants   | Chaos for ~10k steps, then the 104-step highway                                     |
-| 74 ✓ | `kleinian`     | Indra's Pearls       | Möbius groups: circle inversions, limit sets         | Apollonian flow · Schottky pearls · loxodromic tunnel · Steiner porism     | Pearls nested by word length; the gasket flowing into itself                        |
-| 75 ✓ | `harmonograph` | Harmonograph         | Oscillator curves on a phosphor scope                | Lissajous · damped harmonograph · spirograph · Lissajous knot              | Frequency ratios drawn as laser curves; a knot in 3D                                |
-| 76 ✓ | `wallpaper`    | Wallpaper Groups     | The 17 plane symmetry groups (Farris wave functions) | all 17: p1 … p6m, one look each                                            | Exact crystallographic symmetry; zeros pinned on rotation centres                   |
-| 77 ✓ | `truchet`      | Truchet Tiles        | Random oriented tiles                                | Smith arcs · 10 PRINT · hexagons · log-polar tunnel                        | Endless curves from coin tosses; pulses on consistently oriented paths              |
-| 78 ✓ | `hilbert`      | Space-filling Curves | Hilbert / Moore / Peano, live refinement             | Hilbert · Moore · Peano · Hilbert locality                                 | One unbroken line visiting every cell; vertices glide out of their parents          |
-| 79 ✓ | `phyllotaxis`  | Phyllotaxis          | Vogel's golden-angle model                           | Sunflower · angle sweep · Fibonacci sphere · growth                        | Fibonacci spiral arms lit by n mod F; spokes at rational angles                     |
-| 80 ✓ | `hopf`         | Hopf Fibration       | S³ → S² fibres, stereographic projection             | Latitude torus · nested tori · loxodrome · scattered rings                 | Every pair of circles linked; colour shows the base point                           |
-| 81 ✓ | `chladni`      | Chladni Figures      | Plate eigenmodes, sand random-walking to the nodes   | Square · mode morph · circular (Bessel) · Faraday hexagons                 | Sand gathering on the nodal lines and migrating on mode changes                     |
-| 82 ✓ | `domain`       | Domain Colouring     | Complex functions by phase and log modulus           | Rational · Riemann zeta · Möbius net · iterated z² + c                     | Zeros and poles as colour wheels; a conformal grid; zeta zeros on the critical line |
+## Registered catalog families
 
-Later or needs platform work: Physarum (agents depositing into a trail map need scatter writes, which the engine doesn't have yet), Mandelbulb/Mandelbox (heavy raymarch), diffusion-limited aggregation, Boids (neighbour search), L-systems.
+The renderer ids below remain the keys used in saved snapshots. Counts describe authored looks, not owner-created looks or independent algorithms.
+
+| Family                   | Renderer ids    | Algorithm                                    | Structural variants / views                                                                   | Looks |
+| ------------------------ | --------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- | ----- |
+| Reaction–Diffusion       | acid, evolution | Gray–Scott reaction–diffusion                | Acid Mycelium / Garden Relief                                                                 | 12    |
+| Magnetic Choir           | magnetic        | Dye advection in vector fields               | Torus / Vortices / Silk                                                                       | 6     |
+| Cathedrals of Error      | cathedral       | Recursive distance-field architecture        | Nave / Reliquary / Rose Window / Gallery                                                      | 7     |
+| Alien Aquarium           | aquarium        | Lenia-inspired continuous cellular automaton | Lagoon / Tide / Gyre                                                                          | 6     |
+| Causal Tapestry          | tapestry        | Elementary cellular automata                 | Cascade / Mirror / Rails / Tunnel                                                             | 14    |
+| Feedback Chapel          | feedback        | Iterated image feedback                      | Halo / Portal / Weave / Procession                                                            | 6     |
+| Interference Rituals     | interference    | Wave superposition and moiré                 | Floor / Vault / Screens / Orbit / Petals / Horizons                                           | 9     |
+| Topological Melt         | melt            | Parametric knots and surfaces                | Trefoil / Figure Eight / Möbius Strip / Woven Orbit                                           | 6     |
+| Phase Transition Theatre | phase           | Nearest-neighbour Kuramoto oscillators       | Manual / Gather / Launch / Return                                                             | 6     |
+| Pulse Geometry           | pulse           | Layered rhythmic geometry                    | Bars / Tunnel / Grid / Shards                                                                 | 6     |
+| Fractal Flight           | flight          | Raymarched Menger sponge                     | Corridor / Spiral / Shaft / Narrows                                                           | 6     |
+| Light Beams              | beams           | Procedural light beams in haze               | Fan / Pillars / Crossfire / Starburst                                                         | 6     |
+| Julia Observatory        | julia           | Escape-time Julia maps                       | Quadratic / Cubic / Burning / Mirror                                                          | 6     |
+| Fourth Dimension         | fourspace       | 4D polytope rotation and projection          | Tesseract / 16-cell / 24-cell / Duoprism                                                      | 6     |
+| Hyperbolic Loom          | hyperbolic      | Hyperbolic tilings in the Poincaré disk      | Heptagons {7,3} / Pentagons {5,4} / Squares {4,5} / Triangles {3,8}                           | 6     |
+| Particle Swarm           | swarm           | Particle advection in prescribed fields      | Curl Flow / de Jong Field / Differential Galaxy / Radial Bursts                               | 6     |
+| Game of Life             | life            | Life-like and multi-state cellular automata  | Conway B3/S23 / HighLife B36/S23 / Day & Night / Brian’s Brain / Cyclic / Bosco               | 13    |
+| Strange Attractors       | attractor       | Differential-equation and map attractors     | Lorenz / Rössler / Aizawa / Thomas / Halvorsen / Clifford                                     | 8     |
+| Mandelbrot Dive          | mandelbrot      | Escape-time fractal sets                     | Mandelbrot / Burning Ship / Tricorn / Multibrot / Celtic                                      | 10    |
+| Abelian Sandpile         | sandpile        | Abelian sandpile toppling                    | Centre Pile / Critical Rain / Wandering Sources / Identity                                    | 10    |
+| Newton Basins            | newton          | Polynomial root-finding basins               | z³ − 1 / Wandering Roots / Halley / Nova / Roots of Unity                                     | 9     |
+| Fractal Flames           | flame           | Chaos-game iterated function systems         | Swirl / Sinusoidal / Spherical / Julia / Barnsley Fern / Heighway Dragon                      | 10    |
+| Aperiodic Tilings        | quasicrystal    | de Bruijn multigrid tilings                  | Penrose / Ammann–Beenker / Sevenfold / Twelvefold                                             | 8     |
+| Voronoi Cells            | voronoi         | Nearest-site partitions and Lloyd relaxation | Lloyd Relaxation / Metric Morph / Power Diagram / Delaunay Dual                               | 11    |
+| Ripple Tank              | ripple          | Discrete wave equation                       | Slits & Gratings / Raindrops / Lens / Phased Array                                            | 10    |
+| Langton's Ant            | turmite         | Generalised Langton ants                     | RL / LLRR / LRRRRRLLR / RRLLLRLLLRRR / RLR / LLRRRLRLRLLR                                     | 10    |
+| Indra's Pearls           | kleinian        | Möbius maps and circle inversions            | Apollonian / Schottky / Loxodromic Tunnel / Steiner Porism                                    | 11    |
+| Harmonograph             | harmonograph    | Coupled oscillator curves                    | Lissajous / Damped Harmonograph / Spirograph / Lissajous Knot                                 | 10    |
+| Wallpaper Groups         | wallpaper       | Symmetry-averaged periodic wave functions    | p1 / p2 / pm / pg / cm / pmm / pmg / pgg / cmm / p4 / p4m / p4g / p3 / p3m1 / p31m / p6 / p6m | 17    |
+| Truchet Tiles            | truchet         | Oriented tile networks                       | Smith Arcs / 10 PRINT / Hexagons / Log-polar Tunnel                                           | 10    |
+| Space-filling Curves     | hilbert         | Recursive space-filling curves               | Hilbert / Moore / Peano / Hilbert Locality                                                    | 9     |
+| Phyllotaxis              | phyllotaxis     | Golden-angle point placement                 | Sunflower / Angle Sweep / Fibonacci Sphere / Growth                                           | 9     |
+| Hopf Fibration           | hopf            | Stereographic Hopf fibres                    | Latitude Torus / Nested Tori / Loxodrome Fibres / Scattered Rings                             | 8     |
+| Chladni Figures          | chladni         | Resonant modes with nodal sand settling      | Square Plate / Mode Morph / Circular Drumhead / Faraday Hexagons                              | 8     |
+| Domain Colouring         | domain          | Complex-function domain colouring            | Rational / Riemann Zeta / Möbius Net / Iterated z² + c                                        | 9     |
+
+| Physarum Networks | physarum | Agent chemotaxis with a diffusing trail field | Free Foraging / Food Nodes / Food Ring / Moving Food Nodes | 8 |
+| Geometric Caustics | caustics | Snell refraction through a moving heightfield | Point Waves / Crossing Wave Banks / Lens Sheet | 8 |
+| Space Colonization | colonization | Nearest-branch attraction and reached-point removal | Canopy / Root Fan / Coral Arbor | 8 |
+
+Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
+
+## Preserved historical looks
+
+The 2026-10-09 catalog replaced the former Lab/page slots with access to every look. The lost Interference compositions **Orbit Loom**, **Petal Resonance** and **Bent Horizons**, and Cathedral's **Enamel Still**, remain alongside their newer looks. The current cleanup preserves their exact look ids, snapshots, ratings and favourites.
+
+## Evidence
+
+Classification: **INCREMENTAL**. Identity, filters, fallback handling and unchanged saved ids are checked in [catalog tests](../tests/catalog.test.mjs) and [family metadata tests](../tests/family-catalog.test.mjs); set/show catalog tests cover ratings, favourites, custom looks and reopening. A native Chrome browser smoke checked the family/style combination, empty-result reset, variant-aware spatial tags, legacy-family search, algorithm explanations and filtered keyboard order; the resulting control screenshot is in the ignored artifacts/catalog-consistency directory. This metadata cleanup does not establish a new visual family-gate pass or a venue-rig performance result. The agreed visual/rhythm work and outstanding motion evidence are recorded in the [family audit](research/family-rhythm-audit-2026-10-11.md).
+
+The three additions retain explicit model limits: Physarum omits exclusive occupancy; caustics uses one refracting interface and a flat receiver; Space Colonization renews finite bounded regions. Their implementation and moving evidence are in [Physarum/Caustics](families/studies-physarum-caustics.md), [Colonization](families/colonization.md) and the [evidence log](EVIDENCE.md#visual-rhythms-and-catalog-expansion-2026-10-11).

@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Causal Tapestry (#51): exact elementary (Wolfram) cellular automata.
 //
 // State texture (256×256 RGBA8). Row 0 is metadata; rows 1–255 are a ring
@@ -730,7 +732,7 @@ void main() {
   int densityH = clamp(int(floor(u_params[2] * 100. + .5)), 0, 100);
   int levelQ = clamp(int(floor(u_level * 20. + .5)), 0, 20);
   int phrase = clamp(int(floor(u_params[6] + .5)), 0, 255);
-  int phraseIndex = phrase > 0 ? int(floor(max(u_beat, 0.) / float(phrase))) % 65536 : 0;
+  int phraseIndex = u_rhythmEnabled ? int(u_rhythmCount.z) % 65536 : phrase > 0 ? int(floor(max(u_beat, 0.) / float(phrase))) % 65536 : 0;
   int arrangement = view == 2 ? 1 : 0;
   int rings = arrangement == 1 ? 3 : 1;
   int width = arrangement == 1 ? RAIL : RING;
@@ -767,6 +769,12 @@ void main() {
     outColor = bytes(ivec4(phase16 >> 8, phase16 & 255, 0, 255));
     return;
   }
+  // A scheduled seed must survive until the next generation, but be consumed once.
+  bool rhythmicSeed = u_rhythmEnabled && (u_rhythmHit.z > 0. || bytesAt(ivec2(6, 0)).r > 0);
+  if (pixel == ivec2(6, 0)) {
+    outColor = bytes(ivec4(!advance && rhythmicSeed ? 1 : 0, 0, 0, 255));
+    return;
+  }
   if (!advance) {
     outColor = pixel == ivec2(0, 0)
       ? bytes(ivec4(head, clock16 >> 8, clock16 & 255, prefill))
@@ -792,7 +800,7 @@ void main() {
   if (pixel.y == 0) {
     ivec4 phraseBytes = bytesAt(ivec2(2, 0));
     int sinceLayout = bytesAt(ivec2(4, 0)).r;
-    bool phraseEvent = phrase > 0 && phraseBytes.a == phrase
+    bool phraseEvent = u_rhythmEnabled ? rhythmicSeed : phrase > 0 && phraseBytes.a == phrase
       && phraseBytes.g * 256 + phraseBytes.b != phraseIndex;
     if (pixel.x == 0) outColor = bytes(ivec4(next, clock16 >> 8, clock16 & 255, max(prefill - 1, 0)));
     else if (pixel.x == 1)
@@ -1054,6 +1062,7 @@ void main() {
     ink = mix(ink, sqrt(max(ink, vec3(0.))), .35);
     float fade = mix(1., .4, pow(ageNorm, .85)) * h.fade;
     vec3 lit = ink * bevel * fade;
+    if (mod(float(age) - u_rhythmCount.y, 6.) < 1.) lit += ink * fade * u_rhythm.y * .65;
     float hot = headGain * .7 * exp(-h.age * 1.1);
     lit = mix(lit, hotInk, clamp(hot, 0., .85));
     lit = mix(lit, u_accent * 1.15 + .08, clamp(spark, 0., 1.));
@@ -1088,6 +1097,11 @@ void main() {
 `;
 
 export default {
+  rhythm: [
+    familyEffect("write-head", 0, "Write-head light", "Strengthen the genuine newest-generation line and its writing pen."),
+    familyEffect("causal-generation", 1, "Generation-cohort light", "Select recorded rows by their causal age without changing history.", { period: 3, strength: 0.5 }),
+    familyEffect("causal-seed", 2, "Causal seed event", "Schedule the rule-aware phrase injection; its descendants remain in the recorded causal diagram.", { period: 32, strength: 0.6, duration: 0.25, kind: "simulation" }),
+  ],
   id: "tapestry",
   // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
   aspect: 16 / 9,

@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Pulse Geometry (D60): clock-cut strobe geometry, not a full-screen flash.
 // Analytic tiles, broken portals, a block floor and splintered radial blades
 // gain count, subdivision, travel and a second shape layer with energy.
@@ -151,7 +153,7 @@ void main() {
   // The shared clock selects one of four configurations, exactly on a kick.
   // No time hash, random flicker, local light pulse or full-frame white.
   float cutAmt = smoothstep(0.7, 0.9, u_level) * stepAmt;
-  float configuration = mod(floor(u_beat), 4.0);
+  float configuration = mod(floor(u_rhythmEnabled ? u_rhythmCount.z : u_beat), 4.0);
   float cut = configuration * cutAmt;
   float travel = u_time * speed * 1.5;
   float seedTurn = fract(u_seed * 0.0137);
@@ -246,6 +248,10 @@ void main() {
     col = max(col, palette(fract(sector * 0.21 + 0.9)) * crown * layers * 0.6);
   }
 
+  float layerCohort = mod(floor(length(p) * count * 3.0) - u_rhythmCount.x, 4.0) < 1.0 ? 1.0 : 0.0;
+  col += col * layerCohort * u_rhythm.x * 0.8;
+  float spokeCohort = pow(max(0.0, cos(atan(p.y, p.x) * count - u_rhythmCount.y)), 8.0);
+  col += mix(col, u_accent * length(col), 0.5) * spokeCohort * u_rhythm.y * 0.6;
   // Energy changes geometry, not a full-frame exposure multiplier. Layering
   // uses max rather than an unbounded sum; the shared output owns flash safety.
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
@@ -253,6 +259,11 @@ void main() {
 `;
 
 export default {
+  rhythm: [
+    familyEffect("geometric-layer", 0, "Geometric-layer light", "Select one radial layer of the authored pulse geometry."),
+    familyEffect("spoke-cohort", 1, "Spoke-cohort light", "Independently chase angular sectors of the current geometry.", { period: 3, strength: 0.5 }),
+    familyEffect("configuration", 2, "Configuration switch", "Advance the authored geometric configuration without a random image cut.", { period: 4, strength: 0.6, duration: 0.5, kind: "motion" }),
+  ],
   id: "pulse",
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: {

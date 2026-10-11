@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Gray–Scott art model, not a biological realism claim. Only this scene owns
 // these two chemicals: U is nutrient and V is the autocatalytic activator.
 const stateCodec = `
@@ -133,11 +135,19 @@ void main() {
   // Audio accents edges modestly; the simulation supplies all visible motion.
   float audioLight = clamp(u_params[7], 0., 1.) * clamp(u_mid, 0., 1.);
   color += u_accent * ridge * audioLight * .035;
+  color += mix(ink, u_accent, .4) * ridge * u_rhythm.x * .75;
+  float chemicalBand = exp(-sq((c.y - (.06 + .055 * mod(u_rhythmCount.y, 5.))) / .025));
+  color += ink * chemicalBand * body * u_rhythm.y * .5;
   outColor = vec4(clamp(color, 0., 1.), 1.);
 }
 `;
 
 export default {
+  rhythm: [
+    familyEffect("reaction-front", 0, "Reaction-front light", "Illuminate gradients of the growing Gray–Scott chemical field."),
+    familyEffect("chemical-cohort", 1, "Chemical-band light", "Select a narrow concentration band inside the mycelial body.", { period: 3, strength: 0.5 }),
+    familyEffect("feed", 2, "Local chemical feed", "Inject a bounded local feed patch into the existing reaction field.", { period: 16, strength: 0.6, duration: 0.25, kind: "simulation" }),
+  ],
   id: "acid",
   // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
   aspect: 16 / 9,

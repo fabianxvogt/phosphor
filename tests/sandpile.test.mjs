@@ -7,6 +7,8 @@ import sandpile, {
   identity,
   sources,
   BOARDS,
+  pileExtent,
+  pileFrame,
 } from "../scene-sandpile.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
 
@@ -84,6 +86,51 @@ test("source layouts place 1, 2, 3, 4 and 6 sources inside the board", () => {
         for (const [x, y] of s)
           assert.ok(x >= 0 && x < bw && y >= 0 && y < bh, `${x},${y}`);
       }
+});
+
+test("display framing measures real occupied cells, including distant sources, without changing grains", () => {
+  const height = grid(128, 72, (x, y) => (x >= 58 && x < 69 && y >= 31 && y < 42 ? 3 : 0));
+  const before = Int32Array.from(height);
+  assert.deepEqual(pileExtent(height, 128, 72), { min: [58, 31], max: [69, 42] });
+  const initial = pileFrame(pileExtent(height, 128, 72), 128, 72);
+  assert.ok(initial.span < 0.4, "a young pile is displayed at a useful scale");
+  height[10 * 128 + 20] = 1;
+  const extent = pileExtent(height, 128, 72);
+  assert.deepEqual(extent, { min: [20, 10], max: [69, 42] });
+  pileFrame(extent, 128, 72);
+  before[10 * 128 + 20] = 1;
+  assert.deepEqual(height, before, "display measurements cannot modify the physical board");
+  assert.equal(pileExtent(new Int32Array(128 * 72), 128, 72), null);
+});
+
+test("framing keeps every occupied cell in view with margin on every board size", () => {
+  for (const [width, rows] of BOARDS) {
+    for (let sample = 0; sample < 30; sample++) {
+      const lo = [Math.floor(width * sample / 60), Math.floor(rows * sample / 90)];
+      const hi = [width - Math.floor(width * sample / 90), rows - Math.floor(rows * sample / 60)];
+      const frame = pileFrame({ min: lo, max: hi }, width, rows);
+      for (let axis = 0; axis < 2; axis++) {
+        const dimension = [width, rows][axis];
+        assert.ok(lo[axis] / dimension >= frame.center[axis] - frame.span * 0.5);
+        assert.ok(hi[axis] / dimension <= frame.center[axis] + frame.span * 0.5);
+      }
+    }
+    const rain = pileFrame({ min: [0, 0], max: [width, rows] }, width, rows, { full: true });
+    assert.deepEqual(rain, { center: [0.5, 0.5], span: 1 });
+  }
+});
+
+test("camera movement eases toward growth and holds while the pile dissolves", () => {
+  const extent = { min: [60, 25], max: [100, 68] };
+  const previous = { center: [0.5, 0.5], span: 0.4 };
+  const target = pileFrame(extent, 128, 72);
+  const first = pileFrame(extent, 128, 72, { previous });
+  assert.ok(first.span > previous.span && first.span < target.span);
+  assert.ok(first.center[0] > previous.center[0] && first.center[0] < target.center[0]);
+  let frame = previous;
+  for (let tick = 0; tick < 120; tick++) frame = pileFrame(extent, 128, 72, { previous: frame });
+  assert.ok(Math.abs(frame.span - target.span) < 0.01);
+  assert.deepEqual(pileFrame(null, 128, 72, { previous: frame, hold: true }), frame);
 });
 
 test("every look validates and the four variants are covered", () => {

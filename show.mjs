@@ -6,6 +6,13 @@ import { Autopilot } from "./autopilot.mjs";
 import { KEYS } from "./show-set.mjs";
 import { paletteById } from "./palettes.mjs";
 import {
+  GLOBAL_EFFECTS,
+  effectDefinitions,
+  defaultPattern,
+  validatePattern,
+  validateRhythm,
+} from "./rhythm.mjs";
+import {
   catalogLooks,
   catalogClip,
   sortCatalog,
@@ -22,6 +29,43 @@ const PALETTE_BEATS = 4;
 const PALETTE_KEYS = ["primary", "secondary", "accent"];
 const PARAMS = Object.freeze({ type: "params" });
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const rhythmKey = (target) =>
+  target.scope === "global"
+    ? "global"
+    : `${target.scope}:${target.scope === "look" ? target.look : target.family}`;
+const sameSteps = (a, b) =>
+  a?.effect === b?.effect &&
+  a?.division === b?.division &&
+  a?.length === b?.length &&
+  same(a?.steps, b?.steps);
+const samePatternTiming = (a, b) =>
+  a?.style === b?.style &&
+  a?.tracks?.length === b?.tracks?.length &&
+  a?.tracks?.every((track, i) => sameSteps(track, b.tracks[i]));
+// Authored phrase lengths in bars: quiet development gets more space than
+// a driving passage. Track loops themselves are never reset at a phrase.
+const RHYTHM_PHRASES = [
+  { bars: 8, style: "driving" },
+  { bars: 16, style: "restrained" },
+  { bars: 8, style: "driving" },
+  { bars: 32, style: "accented" },
+];
+function rhythmPhrase(position) {
+  const bar = Math.max(0, Math.floor(position / 4));
+  const cycle = Math.floor(bar / 64);
+  let within = bar % 64;
+  for (let i = 0; i < RHYTHM_PHRASES.length; i++) {
+    const phrase = RHYTHM_PHRASES[i];
+    if (within < phrase.bars)
+      return {
+        index: cycle * RHYTHM_PHRASES.length + i,
+        style: phrase.style,
+        start: (bar - within) * 4,
+      };
+    within -= phrase.bars;
+  }
+}
 const weightedPick = (pool, random) =>
   weightedChoice(pool, (p) => p.weight ?? 1, random);
 
@@ -57,6 +101,19 @@ export class Show {
     this.flash = false;
     this.lastBar = null;
     this.disabled = new Set(); // families whose shaders failed
+    this.rhythmDesired = validateRhythm(set.rhythm, scenes);
+    this.set.rhythm = this.rhythmDesired;
+    this.rhythmApplied = structuredClone(this.rhythmDesired);
+    this.rhythmOverrides = this.#ownRhythms(set);
+    this.rhythmAppliedOverrides = structuredClone(this.rhythmOverrides);
+    this.rhythmPending = new Map();
+    this.rhythmStyle = "driving";
+    this.rhythmPhrase = null;
+    this.rhythmDrafts = {}; // retained while an outgoing draft fades
+    this.rhythmFrameOverrides = { ...this.rhythmAppliedOverrides };
+    this.rhythmActivationBeats = { global: {}, families: {}, overrides: {} };
+    this.rhythmFrameActivations = null;
+    this.rhythmActivationOrigin = null;
     // The look catalog (D65, D68) is the whole library: the grid keys and
     // autopilot both play its looks; a clip's id is its look id.
     this.#indexCatalog();
@@ -70,13 +127,597 @@ export class Show {
   }
 
   // An edited set from the control (stage `set` message, local preview).
-  updateSet(set) {
+  updateSet(set, t = this.rhythmTime ?? this.clock.last) {
     const looksChanged = set.looks !== this.set.looks;
+    const desired = validateRhythm(set.rhythm, [...this.scenes.values()]);
+    const overrides = this.#ownRhythms(set);
+    if (!same(desired.global, this.rhythmDesired.global))
+      this.#queueRhythm(
+        { scope: "global", pattern: desired.global, quantize: "bar" },
+        t,
+      );
+    for (const [family, pattern] of Object.entries(desired.families))
+      if (!same(pattern, this.rhythmDesired.families[family]))
+        this.#queueRhythm(
+          { scope: "family", family, pattern, quantize: "bar" },
+          t,
+        );
+    for (const look of set.looks ?? [])
+      if (
+        !same(overrides[look.id] ?? null, this.rhythmOverrides[look.id] ?? null)
+      )
+        this.#queueRhythm(
+          {
+            scope: "look",
+            look: look.id,
+            family: look.snapshot.scene,
+            pattern: overrides[look.id] ?? null,
+            quantize: "bar",
+          },
+          t,
+        );
+    const ownIds = new Set((set.looks ?? []).map((look) => look.id));
+    for (const look of Object.keys(this.rhythmAppliedOverrides))
+      if (!ownIds.has(look)) {
+        delete this.rhythmAppliedOverrides[look];
+        this.rhythmPending.delete(`look:${look}`);
+      }
+    this.rhythmDesired = desired;
+    this.rhythmOverrides = overrides;
+    set.rhythm = desired;
+    this.#refreshRhythmOverrides();
     this.set = set;
     this.autopilot.everyBars = set.autopilot.everyBars;
     this.autopilot.handBackBars = set.autopilot.handBackBars;
     this.autopilot.randomMode = set.autopilot.random;
     if (looksChanged) this.#indexCatalog();
+  }
+
+  #ownRhythms(set) {
+    const result = {};
+    for (const look of set.looks ?? [])
+      if (look.rhythm != null)
+        result[look.id] = validatePattern(
+          look.rhythm,
+          effectDefinitions(this.scenes.get(look.snapshot.scene)),
+        );
+    return result;
+  }
+
+  #refreshRhythmOverrides() {
+    this.rhythmFrameOverrides = {
+      ...this.rhythmAppliedOverrides,
+      ...this.rhythmDrafts,
+    };
+  }
+
+  #markRhythmActivation(target, effect, at) {
+    const scope =
+      target.scope === "global"
+        ? this.rhythmActivationBeats.global
+        : target.scope === "family"
+          ? (this.rhythmActivationBeats.families[target.family] ??= {})
+          : (this.rhythmActivationBeats.overrides[target.look] ??= {});
+    scope[effect] = at;
+    this.rhythmFrameActivations = null;
+  }
+
+  #activatePattern(target, pattern, at) {
+    const tracks =
+      pattern?.tracks ??
+      this.rhythmApplied.families[target.family]?.tracks ??
+      [];
+    for (const track of tracks)
+      this.#markRhythmActivation(target, track.effect, at);
+  }
+
+  #activationFrame(clock) {
+    if (
+      !this.rhythmFrameActivations ||
+      clock.origin !== this.rhythmActivationOrigin
+    ) {
+      const relative = (map) =>
+        Object.fromEntries(
+          Object.entries(map).map(([effect, at]) => [
+            effect,
+            at - clock.origin,
+          ]),
+        );
+      const groups = (map) =>
+        Object.fromEntries(
+          Object.entries(map).map(([id, entries]) => [id, relative(entries)]),
+        );
+      this.rhythmFrameActivations = {
+        global: relative(this.rhythmActivationBeats.global),
+        families: groups(this.rhythmActivationBeats.families),
+        overrides: groups(this.rhythmActivationBeats.overrides),
+      };
+      this.rhythmActivationOrigin = clock.origin;
+    }
+    return this.rhythmFrameActivations;
+  }
+
+  #appliedRhythm(target) {
+    if (target.scope === "global") return this.rhythmApplied.global;
+    if (target.scope === "family")
+      return this.rhythmApplied.families[target.family];
+    return (
+      this.rhythmAppliedOverrides[target.look] ??
+      this.rhythmApplied.families[target.family]
+    );
+  }
+
+  #applyRhythm(target, pattern) {
+    if (target.scope === "global")
+      this.rhythmApplied = { ...this.rhythmApplied, global: pattern };
+    else if (target.scope === "family")
+      this.rhythmApplied = {
+        ...this.rhythmApplied,
+        families: { ...this.rhythmApplied.families, [target.family]: pattern },
+      };
+    else {
+      if (pattern === null) delete this.rhythmAppliedOverrides[target.look];
+      else this.rhythmAppliedOverrides[target.look] = pattern;
+      this.#refreshRhythmOverrides();
+    }
+  }
+
+  #nextRhythmPoint(clock, quantize, division = 1) {
+    return quantize === "bar"
+      ? clock.origin + (Math.floor(clock.position / 4 + 1e-8) + 1) * 4
+      : clock.origin +
+          (Math.floor(clock.position * division + 1e-8) + 1) / division;
+  }
+
+  #queueRhythm(target, t) {
+    const key = rhythmKey(target);
+    const previous = this.rhythmPending.get(key);
+    const clock = this.clock.at(t);
+    const pattern = target.pattern;
+    let current = this.#appliedRhythm(target);
+    if (!current) {
+      this.#applyRhythm(target, pattern);
+      this.#activatePattern(target, pattern, clock.beat);
+      this.rhythmPending.delete(key);
+      return;
+    }
+    if (pattern === null) {
+      this.rhythmPending.set(key, {
+        ...target,
+        at: this.#nextRhythmPoint(clock, "bar"),
+        trackAt: null,
+      });
+      return;
+    }
+    // Protecting the automatic phrase preserves the actual visible grid,
+    // including its longer quiet loops, rather than reverting to the saved
+    // driving template before the edited step reaches its grid point.
+    if (current.mode === "auto" && current.style !== this.rhythmStyle) {
+      const definitions =
+        target.scope === "global"
+          ? GLOBAL_EFFECTS
+          : effectDefinitions(this.scenes.get(target.family));
+      current = defaultPattern(definitions, this.rhythmStyle);
+    }
+    const desiredById = new Map(
+      pattern.tracks.map((track) => [track.effect, track]),
+    );
+    // Strength, mute and envelope duration change without scheduling a new
+    // trigger. Existing step placement stays in place until its grid point.
+    const immediate = {
+      ...current,
+      mode: pattern.mode === "locked" ? "locked" : current.mode,
+      tracks: current.tracks.map((track) => {
+        const desired = desiredById.get(track.effect);
+        return desired
+          ? {
+              ...track,
+              strength: desired.strength,
+              muted: desired.muted,
+              duration: desired.duration,
+            }
+          : track;
+      }),
+    };
+    this.#applyRhythm(target, immediate);
+    if (same(immediate, pattern)) {
+      this.rhythmPending.delete(key);
+      return;
+    }
+    // Only equal-sized, equal-division step edits can be applied piecemeal.
+    // A topology/style change is a complete pattern change on the next 1.
+    const topology =
+      immediate.mode !== pattern.mode ||
+      immediate.style !== pattern.style ||
+      immediate.tracks.length !== pattern.tracks.length ||
+      immediate.tracks.some((track) => {
+        const desired = desiredById.get(track.effect);
+        return (
+          !desired ||
+          track.length !== desired.length ||
+          track.division !== desired.division
+        );
+      });
+    const quantize = topology
+      ? "bar"
+      : target.quantize === "now"
+        ? (previous?.quantize ?? "bar")
+        : target.quantize;
+    let trackAt = null;
+    let at;
+    if (quantize === "step") {
+      trackAt = pattern.tracks
+        .filter(
+          (track) =>
+            !sameSteps(
+              track,
+              immediate.tracks.find((old) => old.effect === track.effect),
+            ),
+        )
+        .map((track) => {
+          const oldAt = previous?.trackAt?.find(
+            (entry) => entry.effect === track.effect,
+          );
+          const oldTrack = previous?.pattern?.tracks.find(
+            (entry) => entry.effect === track.effect,
+          );
+          return {
+            effect: track.effect,
+            at:
+              oldAt && sameSteps(track, oldTrack)
+                ? oldAt.at
+                : this.#nextRhythmPoint(clock, "step", track.division),
+          };
+        });
+      at = Math.min(...trackAt.map((entry) => entry.at));
+    } else {
+      at =
+        previous?.quantize === "bar" &&
+        samePatternTiming(previous.pattern, pattern)
+          ? previous.at
+          : this.#nextRhythmPoint(clock, "bar");
+    }
+    this.rhythmPending.set(key, { ...target, quantize, at, trackAt });
+  }
+
+  #rhythmCommand(action, t) {
+    if (
+      !["global", "family", "look"].includes(action.scope) ||
+      !["now", "step", "bar"].includes(action.quantize ?? "bar")
+    )
+      return;
+    let family = action.family ?? this.live?.clip.snapshot.scene;
+    let look = null;
+    if (action.scope === "look") {
+      look = this.set.looks.find((entry) => entry.id === action.look);
+      if (!look) return;
+      family = look.snapshot.scene;
+    }
+    if (action.scope !== "global" && !this.scenes.has(family)) return;
+    const definitions =
+      action.scope === "global"
+        ? GLOBAL_EFFECTS
+        : effectDefinitions(this.scenes.get(family));
+    const pattern =
+      action.scope === "look" && action.pattern === null
+        ? null
+        : validatePattern(action.pattern, definitions);
+    if (action.scope === "global")
+      this.rhythmDesired = { ...this.rhythmDesired, global: pattern };
+    else if (action.scope === "family")
+      this.rhythmDesired = {
+        ...this.rhythmDesired,
+        families: { ...this.rhythmDesired.families, [family]: pattern },
+      };
+    else {
+      if (pattern === null) delete this.rhythmOverrides[look.id];
+      else this.rhythmOverrides[look.id] = pattern;
+      // Replace the saved look so catalog invalidation notices the edit.
+      this.set.looks = this.set.looks.map((entry) =>
+        entry.id === look.id ? { ...entry, rhythm: pattern } : entry,
+      );
+      this.#indexCatalog();
+    }
+    this.set.rhythm = this.rhythmDesired;
+    this.#queueRhythm(
+      {
+        scope: action.scope,
+        family,
+        look: look?.id,
+        pattern,
+        quantize: action.quantize ?? "bar",
+      },
+      t,
+    );
+  }
+
+  #advanceRhythm(t) {
+    this.rhythmTime = t;
+    const clock = this.clock.at(t);
+    for (const [key, pending] of this.rhythmPending) {
+      if (clock.beat + 1e-8 < pending.at) continue;
+      if (pending.trackAt) {
+        const due = new Set(
+          pending.trackAt
+            .filter((entry) => clock.beat + 1e-8 >= entry.at)
+            .map((entry) => entry.effect),
+        );
+        const current = this.#appliedRhythm(pending);
+        const tracks = current.tracks.map((track) =>
+          due.has(track.effect)
+            ? pending.pattern.tracks.find(
+                (entry) => entry.effect === track.effect,
+              )
+            : track,
+        );
+        this.#applyRhythm(pending, {
+          ...current,
+          style: pending.pattern.style,
+          mode: pending.pattern.mode,
+          tracks,
+        });
+        for (const entry of pending.trackAt)
+          if (due.has(entry.effect))
+            this.#markRhythmActivation(pending, entry.effect, entry.at);
+        pending.trackAt = pending.trackAt.filter(
+          (entry) => !due.has(entry.effect),
+        );
+        if (pending.trackAt.length) {
+          pending.at = Math.min(...pending.trackAt.map((entry) => entry.at));
+          continue;
+        }
+      } else {
+        this.#applyRhythm(pending, pending.pattern);
+        this.#activatePattern(pending, pending.pattern, pending.at);
+      }
+      this.rhythmPending.delete(key);
+    }
+    const phrase = rhythmPhrase(clock.position);
+    if (this.rhythmPhrase === null) this.rhythmPhrase = phrase.index;
+    if (phrase.index !== this.rhythmPhrase) {
+      this.rhythmPhrase = phrase.index;
+      if (
+        this.autopilot.active(clock.bar) &&
+        this.rhythmStyle !== phrase.style
+      ) {
+        this.rhythmStyle = phrase.style;
+        const at = phrase.start + clock.origin;
+        if (this.rhythmApplied.global.mode === "auto")
+          this.#activatePattern(
+            { scope: "global" },
+            this.rhythmApplied.global,
+            at,
+          );
+        for (const [family, pattern] of Object.entries(
+          this.rhythmApplied.families,
+        ))
+          if (pattern.mode === "auto")
+            this.#activatePattern({ scope: "family", family }, pattern, at);
+        for (const [look, pattern] of Object.entries(
+          this.rhythmAppliedOverrides,
+        ))
+          if (pattern.mode === "auto")
+            this.#activatePattern({ scope: "look", look }, pattern, at);
+        for (const [look, pattern] of Object.entries(this.rhythmDrafts))
+          if (pattern.mode === "auto")
+            this.#activatePattern({ scope: "look", look }, pattern, at);
+      }
+    }
+    return clock;
+  }
+
+  // Renderer boundary. settings/overrides are the applied immutable pattern
+  // references. activations carries per-effect music positions; pass the
+  // selected scope map as samplePattern(..., { activation }) so a delayed
+  // edit cannot inject an event from before its quantized application point.
+  rhythmFrame(t) {
+    const clock = this.#advanceRhythm(t);
+    return {
+      beat: clock.beat,
+      origin: clock.origin,
+      settings: this.rhythmApplied,
+      overrides: this.rhythmFrameOverrides,
+      activations: this.#activationFrame(clock),
+      style: this.rhythmStyle,
+      enabled: !this.safeShowing,
+    };
+  }
+
+  // The editor updates a running draft's parameters without loading a new
+  // renderer slot. Its rhythm follows that explicit preview, but never
+  // becomes an own-look override until a saved rhythm command says so.
+  refreshDraftRhythm(clip, t = this.rhythmTime ?? this.clock.last) {
+    if (
+      !clip?.snapshot ||
+      clip.id !== this.live?.clip.id ||
+      typeof clip.id !== "string" ||
+      clip.id.length > 200 ||
+      ["__proto__", "constructor", "prototype"].includes(clip.id)
+    )
+      return false;
+    const scene = this.scenes.get(clip.snapshot.scene);
+    if (!scene) return false;
+    const pattern =
+      clip.rhythm == null
+        ? null
+        : validatePattern(clip.rhythm, effectDefinitions(scene));
+    const previous =
+      this.rhythmDrafts[clip.id] ??
+      this.rhythmAppliedOverrides[clip.id] ??
+      this.rhythmApplied.families[scene.id];
+    if (pattern === null) delete this.rhythmDrafts[clip.id];
+    else this.rhythmDrafts[clip.id] = pattern;
+    if (!samePatternTiming(previous, pattern))
+      this.#activatePattern(
+        { scope: "look", look: clip.id, family: scene.id },
+        pattern,
+        this.clock.at(t).beat,
+      );
+    const drafts = Object.keys(this.rhythmDrafts);
+    for (const id of drafts.slice(0, Math.max(0, drafts.length - 16))) {
+      delete this.rhythmDrafts[id];
+      if (!this.set.looks.some((look) => look.id === id))
+        delete this.rhythmActivationBeats.overrides[id];
+    }
+    this.#refreshRhythmOverrides();
+    this.rhythmFrameActivations = null;
+    return true;
+  }
+
+  #restoreRhythm(saved, t) {
+    this.rhythmPending.clear();
+    this.rhythmDrafts = {};
+    if (!saved) {
+      this.#refreshRhythmOverrides();
+      return;
+    }
+    try {
+      const scenes = [...this.scenes.values()];
+      const previousDesired = validateRhythm(saved.desired, scenes);
+      const applied = validateRhythm(saved.applied, scenes);
+      const previousOverrides = {};
+      const appliedOverrides = {};
+      for (const look of this.set.looks) {
+        const definitions = effectDefinitions(
+          this.scenes.get(look.snapshot.scene),
+        );
+        if (saved.overrides?.[look.id] != null)
+          previousOverrides[look.id] = validatePattern(
+            saved.overrides[look.id],
+            definitions,
+          );
+        if (saved.appliedOverrides?.[look.id] != null)
+          appliedOverrides[look.id] = validatePattern(
+            saved.appliedOverrides[look.id],
+            definitions,
+          );
+      }
+      this.rhythmApplied = applied;
+      this.rhythmAppliedOverrides = appliedOverrides;
+      this.rhythmActivationBeats = { global: {}, families: {}, overrides: {} };
+      this.rhythmFrameActivations = null;
+      const restoreActivations = (target, definitions, source) => {
+        for (const definition of definitions) {
+          const at = source?.[definition.id];
+          if (Number.isFinite(at) && at >= 0 && at <= this.clock.beatAt(t))
+            this.#markRhythmActivation(target, definition.id, at);
+        }
+      };
+      restoreActivations(
+        { scope: "global" },
+        GLOBAL_EFFECTS,
+        saved.activations?.global,
+      );
+      for (const [family, scene] of this.scenes)
+        restoreActivations(
+          { scope: "family", family },
+          effectDefinitions(scene),
+          saved.activations?.families?.[family],
+        );
+      for (const look of this.set.looks)
+        restoreActivations(
+          { scope: "look", look: look.id },
+          effectDefinitions(this.scenes.get(look.snapshot.scene)),
+          saved.activations?.overrides?.[look.id],
+        );
+      this.rhythmStyle = ["restrained", "driving", "accented"].includes(
+        saved.style,
+      )
+        ? saved.style
+        : "driving";
+      this.rhythmPhrase =
+        Number.isSafeInteger(saved.phrase) && saved.phrase >= 0
+          ? saved.phrase
+          : null;
+      const savedDesiredFor = (target) =>
+        target.scope === "global"
+          ? previousDesired.global
+          : target.scope === "family"
+            ? previousDesired.families[target.family]
+            : (previousOverrides[target.look] ?? null);
+      const currentDesiredFor = (target) =>
+        target.scope === "global"
+          ? this.rhythmDesired.global
+          : target.scope === "family"
+            ? this.rhythmDesired.families[target.family]
+            : (this.rhythmOverrides[target.look] ?? null);
+      for (const raw of Array.isArray(saved.pending)
+        ? saved.pending.slice(0, 256)
+        : []) {
+        if (
+          !["global", "family", "look"].includes(raw?.scope) ||
+          !["step", "bar"].includes(raw.quantize) ||
+          !Number.isFinite(raw.at)
+        )
+          continue;
+        const own =
+          raw.scope === "look"
+            ? this.set.looks.find((look) => look.id === raw.look)
+            : null;
+        const family = own?.snapshot.scene ?? raw.family;
+        if (raw.scope !== "global" && !this.scenes.has(family)) continue;
+        if (raw.scope === "look" && !own) continue;
+        const target = { scope: raw.scope, family, look: own?.id };
+        // A set saved after this runtime snapshot is authoritative. Never
+        // restore an older desired pattern over a newer protected edit.
+        if (!same(savedDesiredFor(target), currentDesiredFor(target))) continue;
+        const definitions =
+          raw.scope === "global"
+            ? GLOBAL_EFFECTS
+            : effectDefinitions(this.scenes.get(family));
+        const pattern =
+          raw.pattern === null && raw.scope === "look"
+            ? null
+            : validatePattern(raw.pattern, definitions);
+        if (!same(pattern, currentDesiredFor(target))) continue;
+        let trackAt = null;
+        if (raw.quantize === "step" && Array.isArray(raw.trackAt) && pattern) {
+          trackAt = raw.trackAt
+            .filter(
+              (entry) =>
+                Number.isFinite(entry?.at) &&
+                pattern.tracks.some((track) => track.effect === entry.effect),
+            )
+            .map((entry) => ({ effect: entry.effect, at: entry.at }));
+          if (!trackAt.length) continue;
+        }
+        const key = rhythmKey(target);
+        this.rhythmPending.set(key, {
+          ...target,
+          pattern,
+          quantize: raw.quantize,
+          at: trackAt ? Math.min(...trackAt.map((entry) => entry.at)) : raw.at,
+          trackAt,
+        });
+      }
+      const targets = [{ scope: "global", pattern: this.rhythmDesired.global }];
+      for (const [family, pattern] of Object.entries(
+        this.rhythmDesired.families,
+      ))
+        targets.push({ scope: "family", family, pattern });
+      for (const look of this.set.looks)
+        targets.push({
+          scope: "look",
+          family: look.snapshot.scene,
+          look: look.id,
+          pattern: this.rhythmOverrides[look.id] ?? null,
+        });
+      for (const target of targets)
+        if (!same(savedDesiredFor(target), currentDesiredFor(target)))
+          this.#queueRhythm({ ...target, quantize: "bar" }, t);
+      this.#refreshRhythmOverrides();
+    } catch {
+      // Runtime is advisory recovery data. A malformed old snapshot does
+      // not invalidate the independently validated, portable show set.
+      this.rhythmApplied = structuredClone(this.rhythmDesired);
+      this.rhythmAppliedOverrides = structuredClone(this.rhythmOverrides);
+      this.rhythmPending.clear();
+      this.rhythmStyle = "driving";
+      this.rhythmPhrase = null;
+      this.rhythmActivationBeats = { global: {}, families: {}, overrides: {} };
+      this.rhythmFrameActivations = null;
+      this.#refreshRhythmOverrides();
+    }
   }
 
   // The clip for a look id, or null (unknown look or failed family).
@@ -269,6 +910,15 @@ export class Show {
     const clip = structuredClone(p.clip);
     clip.snapshot = this.#snapshot(clip.snapshot);
     this.live = { clip, base: p.clip.snapshot.params };
+    if (
+      clip.rhythm != null &&
+      !this.set.looks.some((look) => look.id === clip.id)
+    ) {
+      this.refreshDraftRhythm(clip, t);
+    } else if (Object.hasOwn(this.rhythmDrafts, clip.id)) {
+      delete this.rhythmDrafts[clip.id];
+      this.#refreshRhythmOverrides();
+    }
     this.drift = null;
     this.safeShowing = false;
     // Energy is show state (D54): a trigger keeps the fader and autopilot's
@@ -389,6 +1039,10 @@ export class Show {
 
   command(action, t) {
     switch (action.type) {
+      case "rhythm":
+        this.#advanceRhythm(t);
+        this.#rhythmCommand(action, t);
+        return [];
       case "slot": {
         // A grid key plays the look the control put on it (D68), on the
         // next beat with the look's fade.
@@ -440,6 +1094,20 @@ export class Show {
         return [];
       case "downbeat":
         this.clock.downbeat(t);
+        // Pending changes follow the corrected 1/subdivision, rather than
+        // an old bar line hidden behind the performer's phase correction.
+        for (const pending of this.rhythmPending.values()) {
+          const clock = this.clock.at(t);
+          if (pending.trackAt) {
+            for (const entry of pending.trackAt) {
+              const track = pending.pattern.tracks.find(
+                (track) => track.effect === entry.effect,
+              );
+              entry.at = this.#nextRhythmPoint(clock, "step", track.division);
+            }
+            pending.at = Math.min(...pending.trackAt.map((entry) => entry.at));
+          } else pending.at = this.#nextRhythmPoint(clock, "bar");
+        }
         return [];
       case "nudge":
         this.clock.nudge(t, action.direction);
@@ -523,6 +1191,7 @@ export class Show {
   // event: "build" | "drop" | "breakdown" from loudness analysis.
   tick(t, { tracker = null, event = null } = {}) {
     if (tracker) this.clock.track(t, tracker);
+    this.#advanceRhythm(t);
     let paramsChanged = this.#advancePalette(t);
     const actions = this.#fire(t);
     const now = this.clock.at(t);
@@ -568,7 +1237,8 @@ export class Show {
   }
 
   status(t) {
-    const clock = this.clock.at(t);
+    const clock = this.#advanceRhythm(t);
+    const scene = this.live && this.scenes.get(this.live.clip.snapshot.scene);
     return {
       // A clip's id is its look id ("<scene>:<preset>" or "own-…"); an
       // unsaved editor draft has its own id and no catalog entry.
@@ -603,13 +1273,50 @@ export class Show {
             : this.autopilot.nextChange - clock.bar,
       },
       disabled: [...this.disabled],
+      rhythm: {
+        beat: clock.beat,
+        origin: clock.origin,
+        position: clock.position,
+        style: this.rhythmStyle,
+        enabled: !this.safeShowing,
+        // Desired saved state is separate from applied playback and drafts.
+        // The control may persist settings/overrides; drafts is ephemeral.
+        settings: this.rhythmDesired,
+        applied: this.rhythmApplied,
+        overrides: this.rhythmOverrides,
+        drafts: this.rhythmDrafts,
+        activations: this.#activationFrame(clock),
+        appliedOverrides: this.rhythmFrameOverrides,
+        pending: [...this.rhythmPending.values()].map((pending) => ({
+          scope: pending.scope,
+          ...(pending.family ? { family: pending.family } : {}),
+          ...(pending.look ? { look: pending.look } : {}),
+          at: pending.at,
+          beats: Math.max(0, pending.at - clock.beat),
+          quantize: pending.quantize,
+          ...(pending.trackAt
+            ? { effects: pending.trackAt.map((entry) => entry.effect) }
+            : {}),
+        })),
+        live: this.live
+          ? {
+              family: this.live.clip.snapshot.scene,
+              look: this.live.clip.id,
+              name: this.live.clip.name,
+              variant: scene?.type
+                ? this.live.clip.snapshot.params[scene.type.key]
+                : null,
+              own: this.set.looks.some((look) => look.id === this.live.clip.id),
+            }
+          : null,
+      },
       clock,
     };
   }
 
   // Runtime state for crash recovery (decision D9), separate from the set.
   snapshot(t) {
-    const clock = this.clock.at(t);
+    this.#advanceRhythm(t);
     const paletteColors = this.#colorsAt(t);
     return {
       live: this.live && { clipId: this.live.clip.id },
@@ -627,11 +1334,16 @@ export class Show {
       speed: this.speed,
       shared: { ...this.shared },
       blackout: this.blackout,
-      clock: {
-        mode: this.clock.mode,
-        bpm: clock.bpm,
-        latencyMs: this.clock.latencyMs,
-        barOffset: this.clock.barOffset,
+      clock: this.clock.snapshot(t),
+      rhythm: {
+        desired: structuredClone(this.rhythmDesired),
+        applied: structuredClone(this.rhythmApplied),
+        overrides: structuredClone(this.rhythmOverrides),
+        appliedOverrides: structuredClone(this.rhythmAppliedOverrides),
+        activations: structuredClone(this.rhythmActivationBeats),
+        pending: structuredClone([...this.rhythmPending.values()]),
+        style: this.rhythmStyle,
+        phrase: this.rhythmPhrase,
       },
       autopilot: this.autopilot.enabled,
     };
@@ -654,10 +1366,9 @@ export class Show {
     this.shared = { ...saved.shared };
     this.blackout = saved.blackout;
     this.autopilot.enabled = saved.autopilot;
-    this.clock.latencyMs = saved.clock.latencyMs;
-    this.clock.barOffset = saved.clock.barOffset;
-    if (saved.clock.mode === "manual")
-      this.clock.setManualBpm(t, saved.clock.bpm);
+    this.clock.restore(saved.clock, t);
+    this.rhythmTime = t;
+    this.#restoreRhythm(saved.rhythm, t);
     const actions = [
       { type: "shared", shared: { ...this.shared } },
       { type: "speed", value: this.speed },

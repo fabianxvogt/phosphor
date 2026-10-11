@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 const schema = [
   { key: 'flow', label: 'Torus · Vortices · Silk', min: 0, max: 2, step: 0.01, default: 0 },
   { key: 'motion', label: 'Motion', min: 0, max: 2, step: 0.01, default: 0.7 },
@@ -55,8 +57,9 @@ vec2 field(vec2 uv, vec2 center) {
   float mode = u_params[0];
   vec2 velocity = mix(mix(torus, twins, clamp(mode, 0.0, 1.0)), silk, clamp(mode - 1.0, 0.0, 1.0));
   velocity += curl * u_params[5];
+  velocity += (turn(dl) * left - turn(dr) * right) * u_rhythm.z * 0.9;
   // Phrase-level energy changes transport, never globally pumps output brightness.
-  velocity *= u_params[1] * (1.0 + 0.18 * u_energy + 0.07 * sin(u_beat * 0.392699));
+  velocity *= u_params[1] * (1.0 + 0.18 * u_energy);
   return velocity * min(1.0, 0.62 / max(length(velocity), 0.0001));
 }
 vec2 ringSource(vec2 d, float radius, float phase, float orientation) {
@@ -122,6 +125,11 @@ void main() {
   vec3 light = u_primary * dye.r * 2.6 + u_secondary * dye.g * 2.6;
   light += (u_primary * glow.r + u_secondary * glow.g) * 0.12;
   light += u_accent * pow(clamp(total, 0.0, 1.0), 3.0) * 0.8;
+  vec2 centre = texture(u_state, vec2(0.5)).ba;
+  float packetAngle = atan(uv.y - centre.y, uv.x - centre.x);
+  float packet = pow(max(0.0, cos(packetAngle - u_rhythmCount.x * 2.399963)), 10.0);
+  light += u_accent * total * packet * u_rhythm.x * 1.8;
+  light += (mod(u_rhythmCount.y, 2.0) < 1.0 ? u_primary * dye.r : u_secondary * dye.g) * u_rhythm.y * 1.2;
   light *= edge;
   vec2 p = aspectUV();
   vec3 background = mix(vec3(0.002, 0.004, 0.008), u_secondary * 0.014, exp(-dot(p, p) * 3.0));
@@ -131,6 +139,11 @@ void main() {
 `;
 
 export default {
+  rhythm: [
+    familyEffect("dye-packet", 0, "Dye-packet chase", "Illuminate an angular packet in the actual transported dye."),
+    familyEffect("dye-strand", 1, "Dye-strand light", "Alternate the two advected dye populations.", { period: 3, strength: 0.5 }),
+    familyEffect("paired-vortex", 2, "Paired vortex impulse", "Temporarily strengthen opposite local curls while dye keeps advecting.", { period: 16, strength: 0.55, duration: 1, kind: "simulation" }),
+  ],
   id: 'magnetic',
   // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
   aspect: 16 / 9,

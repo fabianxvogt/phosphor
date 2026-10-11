@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Particle Swarm (new, D32): 65,536 GPU particles drawn as additive points
 // over fading trails (contract v3 particles). Positions live in a 16-bit
 // packed simulation texture; motion comes from a stateless field per type:
@@ -70,13 +72,13 @@ void main() {
     v = vec2(-q.y, q.x) * (0.25 * speed / (r + 0.12)) - q * 0.02 * speed;
   } else {
     // Bursts: drawn toward the centre, thrown outward on every kick.
-    float kick = exp(-fract(u_beat) * 7.0);
+    float kick = u_rhythmEnabled ? u_rhythm.z : exp(-fract(u_beat) * 7.0);
     float r = length(q) + 1e-3;
     v = q / r * kick * (0.6 + 1.6 * burst) * (0.3 + 0.7 * fract(id * 0.618)) - q * (0.4 + speed);
     v += vec2(-q.y, q.x) * 0.3 * speed;
   }
   // Kick push for every form, scaled by the burst parameter.
-  v += normalize(q + 1e-4) * burst * 0.15 * exp(-fract(u_beat) * 8.0) * u_level;
+  v += normalize(q + 1e-4) * burst * 0.15 * (u_rhythmEnabled ? u_rhythm.z : exp(-fract(u_beat) * 8.0)) * u_level * (mod(id - u_rhythmCount.z, 8.0) < 1.0 ? 1.0 : 0.0);
   q += v * dt;
   pos = q / vec2(16.0 / 9.0, 1.0) + 0.5;
   if (any(lessThan(pos, vec2(0.0))) || any(greaterThan(pos, vec2(1.0)))) pos = fract(pos);
@@ -100,15 +102,22 @@ void main() {
   float visible = step(fract(id * 0.61803398875), u_params[6]);
   gl_Position = vec4(pos * 2.0 - 1.0, 0.0, 1.0);
   float pixels = u_resolution.y / 540.0;
-  gl_PointSize = visible * u_params[3] * pixels * (1.0 + 0.6 * u_level * exp(-fract(u_beat) * 6.0));
+  float cohort = mod(id - u_rhythmCount.x, 8.0) < 1.0 ? 1.0 : 0.0;
+  gl_PointSize = visible * u_params[3] * pixels * (1.0 + 0.5 * u_rhythm.x * cohort);
   float hue = fract(particleHash(id) * 0.35 + pos.x * 0.4 + u_time * 0.01);
   // Thousands overlap additively: keep each one faint.
-  v_color = palette(hue) * 0.06 * u_params[7] * visible;
+  float orbitBand = exp(-pow((length((pos - 0.5) * vec2(16.0 / 9.0, 1.0)) - (0.08 + mod(u_rhythmCount.y, 5.0) * 0.075)) / 0.035, 2.0));
+  v_color = palette(hue) * 0.06 * u_params[7] * visible * (1.0 + cohort * u_rhythm.x * 1.8 + orbitBand * u_rhythm.y);
 }
 `,
 };
 
 export default {
+  rhythm: [
+    familyEffect("particle-cohort", 0, "Particle-cohort chase", "Illuminate one interleaved population of existing particles."),
+    familyEffect("orbit-band", 1, "Orbit-band light", "Accent a narrow radial cohort in the swarm's actual positions.", { period: 3, strength: 0.55 }),
+    familyEffect("cohort-burst", 2, "Cohort burst", "Apply a bounded outward impulse to a particle cohort within the active movement model.", { period: 8, strength: 0.55, duration: 0.5, kind: "simulation" }),
+  ],
   id: "swarm",
   // Particle space is a 16:9 frame; other screens cover-crop it (D7).
   aspect: 16 / 9,

@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Phyllotaxis (#79): Vogel's model of a sunflower head. Seed n sits at
 // radius c·√n and angle n·α. With α the golden angle 360°·(2 − φ) ≈
 // 137.508°, the most irrational turn there is, the seeds pack evenly and
@@ -56,7 +58,7 @@ void main() {
   float persistence = clamp(u_params[7], 0.0, 0.95);
   float t = mod(u_time, 3600.0);
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
-  float beatPulse = u_beat > 0.0 ? exp(-4.0 * fract(u_beat)) : 0.0;
+  float beatPulse = u_rhythmEnabled ? u_rhythm.x : u_beat > 0.0 ? exp(-4.0 * fract(u_beat)) : 0.0;
   float i = float(gl_VertexID);
   if (i >= N) return;
 
@@ -103,7 +105,7 @@ void main() {
   gl_PointSize = size;
 
   // Colour: seed n mod F lights F parastichies; F climbs every 8 beats.
-  int fi = int(mod(floor(beats / 8.0), 6.0));
+  int fi = int(mod(u_rhythmEnabled ? u_rhythmCount.z : floor(beats / 8.0), 6.0));
   float F = FIB[fi];
   float armIdx = mod(id, F);
   float radial = sqrt(clamp(n / N, 0.0, 1.0));
@@ -111,10 +113,12 @@ void main() {
   // Alternate arms bright and dim, so exactly F spirals stand out.
   float alt = mix(1.0, mod(armIdx, 2.0) < 0.5 ? 1.25 : 0.3, arms);
   // A ring of light runs out from the centre on every beat.
-  float ring = exp(-pow((radial - fract(beats)) * 14.0, 2.0)) * (0.4 + beatPulse);
+  float ringRadius = u_rhythmEnabled ? 1.0 - min(u_rhythm.y, 1.0) : fract(beats);
+  float ring = exp(-pow((radial - ringRadius) * 14.0, 2.0)) * (u_rhythmEnabled ? u_rhythm.y : 0.4 + beatPulse);
+  float armCohort = mod(armIdx - u_rhythmCount.x, F) < 1.0 ? 1.0 : 0.0;
   float light = glow * 1.5 * (1.0 - 0.85 * persistence) * (0.55 + 0.45 * u_level) * depthLight * alt;
   if (variant == 2) light *= 0.35;
-  v_color = palette(fract(0.08 + 0.85 * hue)) * light * (0.8 + 1.4 * ring);
+  v_color = palette(fract(0.08 + 0.85 * hue)) * light * (0.8 + 1.4 * ring + armCohort * beatPulse * 1.4);
 }
 `,
 };
@@ -209,11 +213,16 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("fibonacci-arm", 0, "Fibonacci-arm chase", "Select one seed-index class that follows a true Fibonacci parastichy."),
+    familyEffect("seed-ring", 1, "Seed-ring wave", "Sweep a radial seed cohort separately from the spiral arms.", { period: 4, strength: 0.65, duration: 1.5 }),
+    familyEffect("arm-class", 2, "Fibonacci arm-class change", "Choose the next Fibonacci modulus, preserving the golden-angle seed layout.", { period: 8, strength: 0.55, duration: 0.5, kind: "motion" }),
+  ],
   id: "phyllotaxis",
   number: 79,
   name: "Phyllotaxis",
   description:
-    "Vogel's sunflower: seed n at radius √n and angle n times the golden angle, 137.508°. The seeds pack evenly and form spiral arms in consecutive Fibonacci numbers; colouring seed n by n mod F lights exactly F arms, and F climbs 8, 13, 21, 34, 55, 89 on the beat. Variants sweep the angle (rational angles collapse into straight spokes), wrap the rule around a sphere, or let the head grow, seeds born at the centre and pushed outward.",
+    "Vogel's sunflower: seed n at radius √n and angle n times the golden angle, 137.508°. The seeds pack evenly and form spiral arms in consecutive Fibonacci numbers; colouring seed n by n mod F lights exactly F arms, and a scheduled structure track chooses F from 8, 13, 21, 34, 55, 89. Independent tracks light individual arms and radial seed cohorts. Variants sweep the angle (rational angles collapse into straight spokes), wrap the rule around a sphere, or let the head grow, seeds born at the centre and pushed outward.",
   energy: {
     speed: { mul: [0.5, 2] },
     glow: [-0.1, 0.2],

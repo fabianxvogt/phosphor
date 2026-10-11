@@ -98,7 +98,7 @@ test("energy adds wave sources without changing an authored hold or transport lo
   assert.equal(engine.counters.nonFinite, 0);
 });
 
-test("interference kick weights drive the shared layer in energy order", () => {
+test("authored shared accents increase with energy without hiding family structure", () => {
   const engine = Object.create(Engine.prototype);
   Object.assign(engine, {
     slots: [{ scene: interference }],
@@ -116,13 +116,14 @@ test("interference kick weights drive the shared layer in energy order", () => {
     engine.updatePerformance(1 / 60, false);
     return { ...engine.beatFx };
   });
-  assert.equal(responses[0].punch, 0);
-  assert.equal(responses[0].pulse, 0);
+  assert.ok(responses[0].punch > 0, "quiet accents remain legible");
+  assert.ok(responses[0].pulse > 0);
+  assert.ok(responses[0].punch < responses[1].punch);
   assert.ok(responses[1].punch < responses[2].punch);
   assert.ok(responses[1].pulse < responses[2].pulse);
-  assert.ok(responses[2].punch > 0.05);
-  assert.ok(responses[2].pulse > 0.4);
-  engine.beat = 8.5;
+  assert.ok(responses[2].punch < 0.05, "global zoom supports the local gesture");
+  assert.ok(responses[2].pulse < 0.4);
+  engine.beat = 8.75;
   engine.updatePerformance(1 / 60, false);
   assert.ok(engine.beatFx.punch < responses[2].punch / 20);
   assert.ok(engine.beatFx.pulse < responses[2].pulse / 20);

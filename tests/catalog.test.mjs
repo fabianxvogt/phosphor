@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import { CURATED } from "../catalog-curated.mjs";
+import { familyMetadata } from "../family-catalog.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { paletteById } from "../palettes.mjs";
 import {
@@ -29,7 +30,8 @@ test("the catalog holds every authored look of every family, data-driven from sc
       const look = looks.find((l) => l.id === `${scene.id}:${preset.name}`);
       assert.ok(look, `${scene.id}:${preset.name}`);
       assert.equal(look.sceneId, scene.id);
-      assert.equal(look.family, scene.name);
+      assert.equal(look.family, familyMetadata(scene).family);
+      assert.equal(look.sourceFamily, scene.name);
       assert.equal(look.number, scene.number ?? s + 1);
       assert.equal(look.index, index);
       assert.equal(look.name, preset.name);
@@ -42,7 +44,7 @@ test("the catalog holds every authored look of every family, data-driven from sc
   );
 });
 
-test("variants come from the type parameter's label, else its head and value", () => {
+test("unregistered variants use the type label while registered families have explicit names", () => {
   const pulse = {
     key: "form",
     label: "Form · bars / tunnel / grid / shards",
@@ -124,8 +126,37 @@ test("variants come from the type parameter's label, else its head and value", (
     assert.ok(look.variant === null || look.variant.length > 0, look.id);
   assert.equal(
     looks.find((l) => l.id === "pulse:Square Tunnel").variant,
-    "tunnel",
+    "Tunnel",
   );
+});
+
+test("own-look rhythm overrides are cloned through catalog entries and playable clips", () => {
+  const snapshot = presetSnapshot(
+    scenes.find((scene) => scene.id === "quasicrystal"),
+  );
+  const rhythm = { mode: "locked", style: "driving", tracks: [] };
+  const [look] = catalogLooks(
+    [scenes.find((scene) => scene.id === snapshot.scene)],
+    [{ id: "own-rhythm", name: "My ribbons", snapshot, rhythm }],
+  ).filter((entry) => entry.own);
+  assert.deepEqual(look.rhythm, rhythm);
+  assert.notEqual(look.rhythm, rhythm);
+  const clip = catalogClip(look);
+  assert.deepEqual(clip.rhythm, rhythm);
+  assert.notEqual(clip.rhythm, look.rhythm);
+  clip.rhythm.style = "restrained";
+  assert.equal(look.rhythm.style, "driving");
+  assert.equal(rhythm.style, "driving");
+  assert.ok(
+    !Object.hasOwn(catalogClip(looks[0]), "rhythm"),
+    "ordinary looks inherit their set's family pattern",
+  );
+  const [inherited] = catalogLooks(
+    [scenes.find((scene) => scene.id === snapshot.scene)],
+    [{ id: "own-inherit", name: "Inherit", snapshot, rhythm: null }],
+  ).filter((entry) => entry.own);
+  assert.equal(inherited.rhythm, null, "an explicit release is preserved");
+  assert.equal(catalogClip(inherited).rhythm, null);
 });
 
 test("ratings sort first by rating, then unrated, then never (0); ties by family number and preset index", () => {

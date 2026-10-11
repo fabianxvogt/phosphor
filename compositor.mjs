@@ -445,7 +445,7 @@ export class Compositor {
     const echo =
       raw || melt
         ? 0
-        : e.finite(e.options.echo ?? 0, 0) * postCurve(level, 0.15);
+        : Math.min(0.92, e.finite(e.options.echo ?? 0, 0) * postCurve(level, 0.15) + e.finite(e.beatFx?.echo ?? 0, 0));
     if ((echo > 0.01 || melt) && !this.echoTarget) {
       this.echoTarget = this.target(e.width, e.height);
       this.echoNextTarget = this.target(e.width, e.height);
@@ -483,7 +483,7 @@ export class Compositor {
       raw ? 0 : e.finite(e.options.vignette ?? 0.15, 0) * postCurve(level, 0.3),
     );
     gl.uniform2f(u.resolution, e.width, e.height);
-    gl.uniform1f(u.hue, raw ? 0 : e.finite(e.view?.hue ?? 0, 0));
+    gl.uniform1f(u.hue, raw ? 0 : e.finite(e.view?.hue ?? 0, 0) + e.finite(e.beatFx?.colour ?? 0, 0));
     gl.uniform1f(
       u.zoom,
       raw ? 1 : Math.max(0.25, e.finite(e.view?.zoom ?? 1, 1)),

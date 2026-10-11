@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Space-filling Curves (#78): one unbroken line through every cell of a
 // grid. Hilbert's curve (2×2 refinement), Moore's closed version (four
 // Hilbert quarters in a loop) and Peano's original (3×3 refinement).
@@ -226,9 +228,9 @@ void main() {
   int lo = kind == 1 ? 2 : 1;
   int span = max(maxOrder - lo, 1);
   float per = stepIdx == 0 ? 4.0 : stepIdx == 1 ? 8.0 : stepIdx == 2 ? 16.0 : 32.0;
-  float k = beats / per;
+  float k = u_rhythmEnabled ? u_rhythmCount.z : beats / per;
   int stepN = int(floor(k)) % (2 * span);
-  float within = fract(k);
+  float within = u_rhythmEnabled ? 1.0 - min(u_rhythm.z * 1.5, 1.0) : fract(k);
   // Up: order lo+1 … max gliding out of parents; down: the reverse.
   bool upward = stepN < span;
   int o = upward ? lo + 1 + stepN : maxOrder - (stepN - span);
@@ -276,6 +278,10 @@ void main() {
     colour += pathColour * halo * 0.25;
     // The comet: one point running the whole line.
     float head = fract(t * (0.01 + 0.04 * flow) + copy * 0.5);
+    float rhythmicHead = fract(u_rhythmCount.x * 0.173 + copy * 0.5);
+    float rhythmicGap = abs(fract(u - rhythmicHead + 0.5) - 0.5);
+    colour += mix(pathColour, u_accent, 0.5) * exp(-rhythmicGap * 70.0) * u_rhythm.x * (line + 0.3 * halo);
+    if (mod(floor(cellU * 16.0) - u_rhythmCount.y, 4.0) < 1.0) colour += cellColour * fill * u_rhythm.y * 0.55;
     float gap = fract(head - u);
     colour += mix(u_accent, vec3(1.0), 0.5) * comet * (line + halo * 0.5) * (exp(-gap * 60.0) * 2.0 + exp(-gap * 6.0) * 0.4);
   }
@@ -359,11 +365,16 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("curve-index", 0, "Curve-index comet", "Light a selected parameter position in the curve's exact traversal order."),
+    familyEffect("locality-cohort", 1, "Locality-cohort light", "Select contiguous index blocks that occupy nearby curve cells.", { period: 3, strength: 0.5 }),
+    familyEffect("refinement", 2, "Parent-to-child refinement", "Advance or reverse the bounded recursive refinement with vertices travelling from their parents.", { period: 8, strength: 0.65, duration: 1.5, kind: "motion" }),
+  ],
   id: "hilbert",
   number: 78,
   name: "Space-filling Curves",
   description:
-    "One unbroken line through every cell of a grid: Hilbert's curve, Moore's closed loop and Peano's 3×3 original. Every few beats the curve refines to the next order, each vertex gliding out of its parent cell's centre into its own, then coarsens back. Colour runs along the line by index, so its famous locality shows as blocks of neighbouring colour, and a comet travels the whole line. Mirrored copies join Hilbert curves end to start into an endless strip.",
+    "One unbroken line through every cell of a grid: Hilbert's curve, Moore's closed loop and Peano's 3×3 original. A scheduled refinement track advances the curve to the next order, each vertex gliding out of its parent cell's centre into its own, then coarsens back. Colour runs along the line by index, so its famous locality shows as blocks of neighbouring colour, and a scheduled comet selects positions in its exact traversal order. Mirrored copies join Hilbert curves end to start into an endless strip.",
   energy: { flow: { mul: [0.5, 2] }, comet: [-0.1, 0.3], width: [-0.05, 0.15] },
   beat: { punch: 0.6, pulse: 1 },
   audio: [

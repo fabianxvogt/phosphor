@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Abelian Sandpile (#67): the Bak–Tang–Wiesenfeld model. A cell holding four
 // or more grains topples, giving one grain to each of its four neighbours;
 // grains that fall off the board are lost. The final stable picture does not
@@ -108,6 +110,34 @@ export function sources(layout, bw, bh, turn = 0) {
   });
 }
 
+// Display-only reference: exact occupied cell bounds, then a padded, smoothed
+// camera. It never changes the board, grains, source positions or sink edges.
+export function pileExtent(height, width, rows) {
+  let left = width, bottom = rows, right = 0, top = 0;
+  for (let y = 0; y < rows; y++) for (let x = 0; x < width; x++) {
+    if (height[y * width + x] <= 0) continue;
+    left = Math.min(left, x); bottom = Math.min(bottom, y);
+    right = Math.max(right, x + 1); top = Math.max(top, y + 1);
+  }
+  return right > left ? { min: [left, bottom], max: [right, top] } : null;
+}
+
+export function pileFrame(extent, width, rows, { previous, dt = 1 / 60, hold = false, full = false } = {}) {
+  const minimum = 24 / rows;
+  const target = { center: [0.5, 0.5], span: full ? 1 : minimum };
+  if (extent && !full) {
+    target.center = extent.min.map((value, axis) => (value + extent.max[axis]) / (2 * [width, rows][axis]));
+    target.span = Math.min(1.3, Math.max(minimum,
+      (extent.max[0] - extent.min[0]) / width / 0.78,
+      (extent.max[1] - extent.min[1]) / rows / 0.78));
+  }
+  if (!previous) return target;
+  if (hold) return { center: [...previous.center], span: previous.span };
+  const amount = 1 - Math.exp(-Math.max(0, dt) * 2.5);
+  return { center: target.center.map((value, axis) => previous.center[axis] + (value - previous.center[axis]) * amount),
+    span: previous.span + (target.span - previous.span) * amount };
+}
+
 // ---------------------------------------------------------------- GPU --
 const common = `
 const int GW = ${GW};
@@ -121,12 +151,19 @@ int sHeight(ivec2 cell) {
   vec4 t = texelFetch(u_state, cell + ivec2(0, 2), 0);
   return sByte(t.r) + 256 * sByte(t.g);
 }
-int sGlow(ivec2 cell) { return sByte(texelFetch(u_state, cell + ivec2(0, 2), 0).b); }
+int sGlow(ivec2 cell) {
+  if (any(lessThan(cell, ivec2(0))) || cell.x >= GW || cell.y >= GH) return 0;
+  return sByte(texelFetch(u_state, cell + ivec2(0, 2), 0).b);
+}
 int sU16(ivec2 texel) {
   vec4 t = texelFetch(u_state, texel, 0);
   return sByte(t.r) + 256 * sByte(t.g);
 }
 vec4 sMeta(int x) { return texelFetch(u_state, ivec2(x, 0), 0); }
+vec2 sMetaPairs(int x) {
+  vec4 t = sMeta(x);
+  return vec2(sByte(t.r) + 256 * sByte(t.g), sByte(t.b) + 256 * sByte(t.a)) / 65535.0;
+}
 // Identity boards: full 16:9, square, 4:3 and 2:1, centred; others sink.
 bool sInShape(ivec2 c, ivec2 b, int drop, int shape) {
   if (any(lessThan(c, ivec2(0))) || any(greaterThanEqual(c, b))) return false;
@@ -164,7 +201,8 @@ void main() {
   ivec2 b = sBoard(board);
 
   // Metadata (row 0): M0 rg phase timer, b phase, a cycle; M1 grains added
-  // (rg low, ba high); M2 r stable, g last beat, a configuration.
+  // (rg low, ba high); M2 r stable, g last beat, a configuration;
+  // M3 display centre (two 16-bit values); M4 display span + initialised flag.
   vec4 m0 = sMeta(0), m1 = sMeta(1), m2 = sMeta(2);
   int config = drop * 8 + board;
   bool reset = u_reset || sByte(m2.a) != config + 1;
@@ -174,8 +212,8 @@ void main() {
   float grains = reset ? 0.0 : float(sU16(ivec2(1, 0))) + 65536.0 * (float(sByte(m1.b)) + 256.0 * float(sByte(m1.a)));
   bool stable = sByte(m2.r) == 1;
   int lastBeat = sByte(m2.g);
-  int beat = int(floor(max(u_beat, 0.0))) & 255;
-  bool kicked = !reset && beat != lastBeat && kick > 0.0;
+  int beat = int(floor(u_rhythmEnabled ? u_rhythmCount.z : max(u_beat, 0.0))) & 255;
+  bool kicked = !reset && kick > 0.0 && (u_rhythmEnabled ? u_rhythmHit.z > 0.0 : beat != lastBeat);
 
   int lay = (layoutBase + cycle) % ${LAYOUTS};
   int n = lay == 4 ? 6 : lay + 1;
@@ -219,18 +257,59 @@ void main() {
         if (texelFetch(u_state, ivec2(x, 1), 0).r > 0.5) { seen = true; break; }
       }
       outColor = vec4(seen ? 0.0 : 1.0 / 255.0, float(beat) / 255.0, 0.0, float(config + 1) / 255.0);
+    } else if (px.x == 3 || px.x == 4) {
+      // Read real occupied bounds from the existing column reduction. A
+      // display camera follows growth gently; erosion holds the framing so
+      // the disappearing pile remains visible instead of zooming into dust.
+      float minimum = 24.0 / float(b.y);
+      vec2 centre = sMetaPairs(3);
+      float span = sMetaPairs(4).x * 1.5;
+      if (reset || sMeta(4).b < 0.5) {
+        centre = vec2(0.5);
+        span = drop == 1 || drop == 3 ? 1.0 : minimum;
+      }
+      if (!reset && phase != 5) {
+        ivec2 lo = b, hi = ivec2(0);
+        for (int x = 0; x < GW; x++) {
+          if (x >= b.x) break;
+          vec4 column = texelFetch(u_state, ivec2(x, 1), 0);
+          if (column.a > 0.5) {
+            lo = min(lo, ivec2(x, sByte(column.g)));
+            hi = max(hi, ivec2(x + 1, sByte(column.b) + 1));
+          }
+        }
+        vec2 targetCentre = vec2(0.5);
+        float targetSpan = minimum;
+        if (hi.x > lo.x) {
+          targetCentre = vec2(lo + hi) / (2.0 * vec2(b));
+          vec2 extent = vec2(hi - lo) / vec2(b);
+          targetSpan = clamp(max(extent.x, extent.y) / 0.78, minimum, 1.3);
+        }
+        if (drop == 1) { targetCentre = vec2(0.5); targetSpan = 1.0; }
+        float follow = 1.0 - exp(-max(u_dt, 0.0) * 2.5 / float(${PASSES}));
+        centre = mix(centre, targetCentre, follow);
+        span = mix(span, targetSpan, follow);
+      }
+      outColor = px.x == 3
+        ? vec4(sPack16(int(centre.x * 65535.0 + 0.5)).rg, sPack16(int(centre.y * 65535.0 + 0.5)).rg)
+        : vec4(sPack16(int(span / 1.5 * 65535.0 + 0.5)).rg, 1.0, 0.0);
     } else outColor = vec4(0.0);
     return;
   }
   if (px.y == 1) {
-    // Per-column unstable flag of the current grid (two-pass reduction).
+    // Per-column unstable flag plus exact occupied y bounds. These display
+    // measurements do not enter the toppling or grain-injection rules.
     float flag = 0.0;
+    int lo = 255, hi = 0;
+    bool occupied = false;
     if (px.x < b.x)
       for (int y = 0; y < GH; y++) {
         if (y >= b.y) break;
-        if (sHeight(ivec2(px.x, y)) >= 4) { flag = 1.0; break; }
+        int h = reset ? 0 : sHeight(ivec2(px.x, y));
+        if (h >= 4) flag = 1.0;
+        if (h > 0) { lo = min(lo, y); hi = max(hi, y); occupied = true; }
       }
-    outColor = vec4(flag, 0.0, 0.0, 0.0);
+    outColor = vec4(flag, float(lo) / 255.0, float(hi) / 255.0, occupied ? 1.0 : 0.0);
     return;
   }
 
@@ -244,7 +323,9 @@ void main() {
     // from single cells to board-spanning ones within seconds, then stay
     // critical.
     float r0 = sRand(uint(c.x) * 977u + uint(c.y), 11u);
-    h = drop == 1 ? (r0 < 0.1 ? 0 : r0 < 0.35 ? 1 : r0 < 0.75 ? 2 : 3) : 0;
+    // The reset advances phase 0 to 1 in this same write, so Identity must
+    // actually start from sixes before its first stabilisation.
+    h = drop == 3 ? 6 : drop == 1 ? (r0 < 0.1 ? 0 : r0 < 0.35 ? 1 : r0 < 0.75 ? 2 : 3) : 0;
     glow = 0;
   } else {
     int self = sHeight(c);
@@ -283,7 +364,7 @@ void main() {
     }
     // A kick drops a heap: on a random cell (rain) or a random source.
     if (kicked && phase != 5 && drop != 3) {
-      int size = int(kick * mix(24.0, 640.0, u_level));
+      int size = int(kick * mix(24.0, 640.0, u_level) * (u_rhythmEnabled ? u_rhythmHit.z : 1.0));
       ivec2 t = drop == 1
         ? ivec2(floor(vec2(sRand(tick, 400u), sRand(tick, 401u)) * vec2(b)))
         : sSource(int(sRand(tick, 402u) * float(n)) % n, n, b, turn);
@@ -307,7 +388,10 @@ void main() {
   ivec2 b = sBoard(board);
   int phase = sByte(sMeta(0).b);
   int shape = (layoutBase + sByte(sMeta(0).a)) % ${SHAPES};
-  vec2 g = v_uv * vec2(b);
+  vec2 centre = sMetaPairs(3);
+  float span = sMetaPairs(4).x * 1.5;
+  if (sMeta(4).b < 0.5) { centre = vec2(0.5); span = 1.0; }
+  vec2 g = ((v_uv - 0.5) * span + centre) * vec2(b);
   ivec2 c = ivec2(floor(g));
   vec3 ground = u_secondary * 0.04 + vec3(0.004, 0.005, 0.01);
   if (!sInShape(c, b, drop, shape)) {
@@ -318,28 +402,37 @@ void main() {
   float glow = float(sGlow(c)) / 255.0;
   // One colour per grain count: the classic four-colour sandpile.
   float drift = hue + u_time * 0.004;
-  vec3 colour = h == 0 ? ground
-    : h == 1 ? palette(fract(drift + 0.18)) * 0.42
-    : h == 2 ? palette(fract(drift + 0.5)) * 0.72
-    : h == 3 ? palette(fract(drift + 0.86))
-    : mix(u_accent, vec3(1.0), 0.55) * 1.15; // toppling right now
+  int heightClass = h & 3;
+  vec3 colour = heightClass == 0 ? ground
+    : heightClass == 1 ? palette(fract(drift + 0.18)) * 0.34
+    : heightClass == 2 ? palette(fract(drift + 0.5)) * 0.54
+    : palette(fract(drift + 0.86)) * 0.74;
   // Avalanches: recently toppled cells and their neighbours glow.
   float near = glow;
   near = max(near, 0.6 * float(sGlow(c + ivec2(1, 0))) / 255.0);
   near = max(near, 0.6 * float(sGlow(c - ivec2(1, 0))) / 255.0);
   near = max(near, 0.6 * float(sGlow(c + ivec2(0, 1))) / 255.0);
   near = max(near, 0.6 * float(sGlow(c - ivec2(0, 1))) / 255.0);
-  float flash = glowAmount * near * near * (0.6 + 0.6 * u_level);
+  // The fresh front lasts about 80 ms; the half-second history stays dim.
+  // Interpolate toward a coloured signal instead of adding enough white
+  // energy to clip away all four height classes during dense avalanches.
+  float front = max(h >= 4 ? 1.0 : 0.0, smoothstep(0.85, 1.0, glow));
+  vec3 signal = mix(u_accent, u_primary, 0.2) * 0.82;
+  float flash = glowAmount * (0.18 * near * near + 0.24 * front) * (0.8 + 0.2 * u_level);
   // On a critical board the grains are a quiet carpet and the avalanches
   // (self-organised criticality: every size, from one cell to the board)
   // are the picture.
   if (drop == 1) {
-    colour *= 0.32;
-    flash = glowAmount * near * (0.7 + 0.5 * u_level);
+    colour *= 0.4;
+    flash = glowAmount * (0.16 * near * near + 0.70 * front);
   }
-  colour += mix(u_accent, u_primary, 0.3) * flash * 0.7;
+  colour = mix(colour, signal, clamp(flash + front * u_rhythm.x * 0.34, 0.0, drop == 1 ? 0.92 : 0.72));
+  // Display accents never add grains: show the true toppling front and a height cohort.
+  colour += signal * front * u_rhythm.x * 0.065;
+  if (h < 4 && (h > 0 || glow > 0.0) && heightClass == int(mod(u_rhythmCount.y, 4.0)))
+    colour = mix(colour, palette(fract(drift + float(heightClass) * 0.24)) * 0.78, u_rhythm.y * 0.3);
   // Crisp cells: a gutter once a cell is big enough to show one.
-  float cellPx = u_resolution.y / float(b.y);
+  float cellPx = u_resolution.y / (float(b.y) * span);
   vec2 f = fract(g);
   float edge = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) * cellPx;
   float gutter = smoothstep(0.0, 1.0, edge / max(0.6, gap * 0.12 * cellPx));
@@ -436,6 +529,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("avalanche-front", 0, "Avalanche light", "Emphasise cells that actually toppled and their immediate neighbours."),
+    familyEffect("grain-height", 1, "Height-class light", "Highlight one of the four stable grain-count classes.", { period: 3, strength: 0.4 }),
+    familyEffect("grain-heap", 2, "Add grain heap", "Add a bounded heap at a source or rain cell; the Abelian toppling continues.", { period: 8, strength: 0.55, duration: 0.25, kind: "simulation", variants: [0, 1, 2] }),
+  ],
   id: "sandpile",
   number: 67,
   name: "Abelian Sandpile",

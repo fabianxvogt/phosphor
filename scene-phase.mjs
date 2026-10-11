@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 const schema = [
   { key: 'coupling', label: 'Coupling', min: 0, max: 6, step: 0.01, default: 2.8 },
   { key: 'noise', label: 'Phase noise', min: 0, max: 1, step: 0.01, default: 0.04 },
@@ -145,12 +147,20 @@ void main() {
   color = mix(color, u_secondary * 0.12, clamp(boundary * 0.6, 0.0, 0.7));
   color += u_accent * boundary * (0.3 + 0.25 * clamp(u_energy, 0.0, 1.0));
   float vignette = 1.0 - 0.55 * smoothstep(0.15, 0.8, length(aspectUV()));
+  float phaseCohort = pow(max(0.0, cos(theta - u_rhythmCount.x * 1.04719755)), 12.0);
+  color += u_primary * phaseCohort * order * u_rhythm.x * 0.6;
+  color += u_accent * boundary * u_rhythm.y * 0.75;
   color *= vignette;
   outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }
 `;
 
 export default {
+  rhythm: [
+    familyEffect("phase-cohort", 0, "Coherent-region light", "Select a narrow angular phase cohort inside synchronised regions."),
+    familyEffect("phase-boundary", 1, "Boundary light", "Highlight measured incoherent borders between oscillator domains.", { period: 3, strength: 0.5 }),
+    familyEffect("phase-impulse", 2, "Local phase impulse", "Locally perturb oscillator phase and watch coupling propagate it.", { period: 16, strength: 0.6, duration: 0.25, kind: "simulation" }),
+  ],
   id: 'phase',
   // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
   aspect: 16 / 9,

@@ -2,7 +2,7 @@
 // The stage owns live playback once open; control reloads never stop the show.
 import scenes from "./scenes.mjs";
 import { Engine } from "./engine.mjs";
-import { ControlPreview } from "./control-preview.mjs";
+import { ControlPreview, performanceBeat } from "./control-preview.mjs";
 import { presetSnapshot, DEFAULT_PALETTE } from "./session.mjs";
 import { MOODS, PALETTES, paletteById } from "./palettes.mjs";
 import {
@@ -29,6 +29,8 @@ import {
 import { Thumbnails } from "./catalog-thumbs.mjs";
 import { CatalogPanel } from "./control-catalog.mjs";
 import { setupControlUI } from "./control-ui.mjs";
+import { RhythmPanel } from "./control-rhythm.mjs";
+import { effectDefinitions, validatePattern } from "./rhythm.mjs";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...children) => {
@@ -59,6 +61,10 @@ let localPerformance = null;
 let handoffPending = false;
 let stageWindow = null;
 let saveTimer = null;
+let rhythmPanel = null;
+let rhythmPreviewActive = false;
+// Optimistic desired patterns protect edits from an older in-flight status.
+const rhythmEdits = new Map();
 
 // --- messages --------------------------------------------------------------
 function log(message) {
@@ -313,6 +319,7 @@ channel.onmessage = ({ data }) => {
       set.shared = { ...data.status.shared };
       set.autopilot.enabled = data.status.autopilot.enabled;
       set.autopilot.random = data.status.autopilot.random;
+      syncRhythmStatus(data.status.rhythm);
       renderStatus();
       break;
     case "stage-ready":
@@ -590,6 +597,7 @@ function renderStatus() {
       `pill ${a.source === "off" ? "" : a.locked ? "ok" : "warn"}`;
   }
   renderShared();
+  rhythmPanel?.update(s);
   if (!activeIsFader()) renderFamily();
   renderChecks();
 }
@@ -698,23 +706,160 @@ const catalog = new CatalogPanel({
 // Harness hooks (tests/browser): the catalog and its thumbnail renderer.
 Object.assign(window.__phosphorControl, { catalog, thumbnails });
 
+function rhythmEditKey(action) {
+  return action.scope === "global"
+    ? "global"
+    : action.scope === "look"
+      ? `look:${action.look}`
+      : `family:${action.family}`;
+}
+function commitRhythm(action) {
+  const key = rhythmEditKey(action);
+  rhythmEdits.set(key, {
+    pattern: structuredClone(action.pattern),
+    until: performance.now() + 3000,
+  });
+  if (action.scope === "global")
+    set.rhythm.global = structuredClone(action.pattern);
+  else if (action.scope === "family")
+    set.rhythm.families[action.family] = structuredClone(action.pattern);
+  else {
+    const look = set.looks.find((item) => item.id === action.look);
+    if (look)
+      look.rhythm =
+        action.pattern === null ? null : structuredClone(action.pattern);
+    if (draft?.id === action.look && !draft.rhythmEdited)
+      draft.rhythm = action.pattern && structuredClone(action.pattern);
+  }
+  // Show.command owns application timing. Sending a full set here would
+  // bypass the queued downbeat and interrupt another rhythm target's edits.
+  saveSoon();
+  act(action);
+}
+function syncRhythmStatus(rhythm) {
+  if (!rhythm?.settings) return;
+  const desired = structuredClone(rhythm.settings);
+  const overrides = { ...rhythm.overrides };
+  for (const [key, edit] of rhythmEdits) {
+    const actual =
+      key === "global"
+        ? desired.global
+        : key.startsWith("look:")
+          ? (overrides[key.slice(5)] ?? null)
+          : desired.families[key.slice(7)];
+    if (
+      JSON.stringify(actual) === JSON.stringify(edit.pattern) ||
+      performance.now() > edit.until
+    )
+      rhythmEdits.delete(key);
+    else if (key === "global") desired.global = structuredClone(edit.pattern);
+    else if (key.startsWith("look:"))
+      overrides[key.slice(5)] = structuredClone(edit.pattern);
+    else desired.families[key.slice(7)] = structuredClone(edit.pattern);
+  }
+  let changedRhythm = JSON.stringify(set.rhythm) !== JSON.stringify(desired);
+  set.rhythm = desired;
+  for (const look of set.looks) {
+    const pattern = overrides[look.id] ?? null;
+    if (JSON.stringify(look.rhythm ?? null) !== JSON.stringify(pattern)) {
+      look.rhythm = structuredClone(pattern);
+      changedRhythm = true;
+    }
+  }
+  if (changedRhythm) saveSoon();
+}
+function previewDraftRhythm(pattern) {
+  if (!draft || !editorEngine) return;
+  if (pattern) {
+    const alreadyPreviewing = rhythmPreviewActive;
+    rhythmPreviewActive = true;
+    draft.rhythm = structuredClone(pattern);
+    if (alreadyPreviewing) draft.rhythmEdited = true;
+    if (alreadyPreviewing) editDraft();
+    else previewDraft();
+  } else if (stageAlive()) {
+    const frame = status?.status?.rhythm;
+    if (frame)
+      editorEngine.setRhythmFrame?.({
+        ...frame,
+        settings: frame.applied,
+        overrides: frame.appliedOverrides,
+      });
+  } else if (rhythmPreviewActive) {
+    const clip = draftClip();
+    delete clip.rhythm;
+    localPerformance?.select(clip, now(), false);
+  }
+  if (!pattern) rhythmPreviewActive = false;
+}
+function saveRhythmOverride(target, pattern) {
+  if (settingsLocked || !target?.own) return;
+  const look = set.looks.find((item) => item.id === target.look);
+  if (!look) return;
+  if (target.preview && look.snapshot.scene !== target.scene.id) {
+    toast(
+      "Save this draft's new family as an own look before saving its rhythm.",
+    );
+    return;
+  }
+  commitRhythm({
+    type: "rhythm",
+    scope: "look",
+    look: look.id,
+    family: look.snapshot.scene,
+    pattern,
+    quantize: "bar",
+  });
+  if (draft?.id === look.id) draft.rhythm = pattern && structuredClone(pattern);
+  if (draft?.id === look.id) draft.rhythmEdited = false;
+  reindexLooks();
+  toast(
+    pattern
+      ? `Saved the rhythm for “${look.name}”.`
+      : `“${look.name}” now uses its family pattern.`,
+  );
+  if (target.preview) previewDraft();
+}
+rhythmPanel = new RhythmPanel({
+  root: $("rhythmControls"),
+  scenes,
+  getSet: () => set,
+  getStatus: performanceStatus,
+  getDraft: () => draft,
+  onCommand: commitRhythm,
+  onDraftPreview: previewDraftRhythm,
+  onSaveOverride: saveRhythmOverride,
+  isLocked: () => settingsLocked,
+});
+Object.assign(window.__phosphorControl, { rhythmPanel });
+
 // --- look editor (D68) ---------------------------------------------------------
 // The draft as a playable clip; its id is the look's, so live edits of the
 // look on screen update it in place.
 function draftClip() {
-  return clipFrom(draft.snapshot, {
+  const clip = clipFrom(draft.snapshot, {
     id: draft.id,
     name: draft.name,
     palette: draft.palette,
     transition: draft.transition,
   });
+  const rhythm = rhythmPanel?.preview
+    ? rhythmPanel.previewPattern()
+    : draft.rhythmEdited
+      ? draft.rhythm
+      : null;
+  if (rhythm) clip.rhythm = structuredClone(rhythm);
+  return clip;
 }
 function previewDraft(manual = true) {
   if (!editorEngine || !draft) return;
   resumeLocalPerformance();
   if (stageAlive()) {
     editorEngine.setLevel(0.5, 0);
-    editorEngine.load(draftClip().snapshot, 0, { energy: 0.5 });
+    editorEngine.load(draftClip().snapshot, 0, {
+      energy: 0.5,
+      lookId: draft.id,
+    });
   } else localPerformance.select(draftClip(), now(), manual);
 }
 function editDraft() {
@@ -743,11 +888,16 @@ function selectLook(id, preview = true, manual = true) {
     snapshot,
     palette,
     transition: look.transition ?? "auto",
+    rhythm: look.rhythm && structuredClone(look.rhythm),
+    rhythmEdited: false,
   };
-  if (preview) previewDraft(manual);
+  rhythmPreviewActive = false;
+  if (rhythmPanel?.preview) previewDraftRhythm(rhythmPanel.previewPattern());
+  else if (preview) previewDraft(manual);
   renderEditor();
   catalog.setSelected(look.id);
   updateSettingsLock();
+  rhythmPanel?.update();
 }
 function field(label, input) {
   return el(
@@ -793,6 +943,7 @@ function renderEditor() {
         };
         draft.name = next.presets[0].name;
         draft.base = `${next.id}:0`;
+        draft.rhythm = null;
         previewDraft();
         renderEditor();
       },
@@ -947,6 +1098,9 @@ function renderEditor() {
   );
 }
 function ownLookFromDraft(id) {
+  const rhythm = draft.rhythmEdited
+    ? draft.rhythm
+    : set.looks.find((look) => look.id === draft.id)?.rhythm;
   return {
     id,
     name: draft.name.trim() || "Untitled",
@@ -954,6 +1108,13 @@ function ownLookFromDraft(id) {
     snapshot: structuredClone(draft.snapshot),
     palette: draft.palette,
     transition: draft.transition ?? "auto",
+    // Saving ordinary picture changes preserves an existing override.
+    rhythm: rhythm
+      ? validatePattern(
+          rhythm,
+          effectDefinitions(sceneById(draft.snapshot.scene)),
+        )
+      : null,
   };
 }
 // Saving never touches an authored look: it creates or updates an own look.
@@ -1062,7 +1223,23 @@ function animateEditor(ms) {
   }
   resumeLocalPerformance();
   if (stageAlive()) {
-    editorEngine.beat = status.status.clock.beat;
+    editorEngine.beat = performanceBeat(status, lastStatusAt / 1000, ms / 1000);
+    const frame = status.status.rhythm;
+    if (frame)
+      editorEngine.setRhythmFrame?.({
+        beat: editorEngine.beat,
+        origin: frame.origin,
+        settings: frame.applied,
+        activations: frame.activations,
+        overrides: {
+          ...frame.appliedOverrides,
+          ...(rhythmPanel?.preview && draft
+            ? { [draft.id]: rhythmPanel.previewPattern() }
+            : {}),
+        },
+        style: frame.style,
+        enabled: true,
+      });
     editorEngine.advance(dt, false);
   } else localPerformance?.tick(ms / 1000, dt);
   if (!$("localPreview").hidden)
@@ -1294,6 +1471,7 @@ function updateSettingsLock() {
     $(id).disabled = settingsLocked || !alive;
   $("audioStageNote").hidden = alive;
   for (const id of ["pattern", "exportLog"]) $(id).disabled = !alive;
+  if (rhythmPanel?.preview && settingsLocked) rhythmPanel.setPreview(false);
   // A MIDI learn started before locking must not alter the mappings later.
   if (settingsLocked) {
     midiLearn = null;
@@ -1466,6 +1644,8 @@ $("importSet").onchange = async () => {
       return;
     }
     set = result.set;
+    rhythmEdits.clear();
+    rhythmPanel?.setPreview(false);
     $("importReport").replaceChildren(
       ...result.report.map((line) => el("li", { textContent: line })),
     );

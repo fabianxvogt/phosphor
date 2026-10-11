@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Domain Colouring (#82): a complex function f shown on the plane, hue by
 // arg f, light by log |f|. Lines of constant phase and constant log
 // modulus form a conformal grid: they cross at right angles everywhere
@@ -93,7 +95,7 @@ void main() {
   float glow = u_params[7];
   float t = mod(u_time, 3600.0);
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
-  float beatPulse = u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
+  float beatPulse = u_rhythmEnabled ? 0.0 : u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
   vec2 uv = aspectUV();
 
   vec2 F;
@@ -103,8 +105,8 @@ void main() {
   if (variant == 0) {
     vec2 z = uv * 3.2 / zoom;
     // Zeros and poles trade places every 8 beats (over one beat).
-    float swap = smoothstep(0.0, 1.0, clamp(mod(beats, 8.0), 0.0, 1.0));
-    bool odd = mod(floor(beats / 8.0), 2.0) > 0.5;
+    float swap = u_rhythmEnabled ? smoothstep(0.0, 1.0, 1.0 - min(u_rhythm.z * 1.5, 1.0)) : smoothstep(0.0, 1.0, clamp(mod(beats, 8.0), 0.0, 1.0));
+    bool odd = mod(u_rhythmEnabled ? u_rhythmCount.z : floor(beats / 8.0), 2.0) > 0.5;
     float w = odd ? 1.0 - swap : swap;
     F = vec2(1.0, 0.0);
     for (int k = 0; k < 3; k++) {
@@ -133,7 +135,7 @@ void main() {
   } else {
     vec2 z = uv * 3.2 / zoom;
     vec2 c = vec2(-0.75, 0.12) + 0.08 * vec2(cos(t * motion * 0.11), sin(t * motion * 0.17));
-    int n = 1 + int(mod(floor(beats / 8.0), 6.0));
+    int n = 1 + int(mod(u_rhythmEnabled ? u_rhythmCount.z : floor(beats / 8.0), 6.0));
     F = z;
     for (int i = 0; i < 6; i++) {
       if (i >= n) break;
@@ -165,6 +167,9 @@ void main() {
   float zeroGlow = exp(-m * 6.0);
   float poleGlow = usePoles ? exp(-6.0 / m) : 0.0;
   colour += mix(u_accent, vec3(1.0), 0.5) * (zeroGlow + poleGlow) * glow * (0.7 + 0.6 * beatPulse);
+  colour += mix(u_accent, vec3(1.0), 0.4) * (!usePoles || mod(u_rhythmCount.x, 2.0) < 1.0 ? zeroGlow : poleGlow) * u_rhythm.x * 0.65;
+  float modulusCohort = exp(-pow((band - mod(u_rhythmCount.y, 4.0) * 0.25) / 0.055, 2.0));
+  colour += colourWheel(ph) * modulusCohort * u_rhythm.y * light * 0.5;
   outColor = vec4(clamp(colour * trust, 0.0, 1.0), 1.0);
 }
 `;
@@ -245,11 +250,16 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("zero-pole", 0, "Zero/pole light", "Independently reveal the function's genuine zeros and poles."),
+    familyEffect("modulus-band", 1, "Modulus-band light", "Select a logarithmic modulus contour of the evaluated complex function.", { period: 3, strength: 0.55 }),
+    familyEffect("conformal-change", 2, "Conformal structure change", "Schedule a rational zero/pole exchange or an iterated-map depth change.", { period: 8, strength: 0.65, duration: 1.5, kind: "motion", variants: [0, 3] }),
+  ],
   id: "domain",
   number: 82,
   name: "Domain Colouring",
   description:
-    "Complex functions on the plane: hue by phase, light by log modulus, and a conformal grid of phase and modulus lines that cross at right angles everywhere but at zeros and poles. Bands flow, so zeros send rings out and poles swallow them. Three zeros and three poles orbit and trade places; the Riemann zeta function travels along its critical line with its zeros lined up on Re s = ½; a Möbius map draws Steiner circles and loxodromes; iterating z² + c doubles the degree on the beat.",
+    "Complex functions on the plane: hue by phase, light by log modulus, and a conformal grid of phase and modulus lines that cross at right angles everywhere but at zeros and poles. Bands flow, so zeros send rings out and poles swallow them. Three zeros and three poles orbit and trade places; the Riemann zeta function travels along its critical line with its zeros lined up on Re s = ½; a Möbius map draws Steiner circles and loxodromes; iterating z² + c doubles the degree on scheduled structure events. Independent zero/pole and modulus-band tracks illuminate the evaluated function.",
   energy: {
     motion: { mul: [0.5, 2] },
     flow: { mul: [0.5, 2] },

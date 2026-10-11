@@ -14,13 +14,15 @@ precision highp int;
 uniform vec2 u_resolution;
 uniform float u_time, u_dt, u_seed, u_energy, u_bass, u_mid, u_high, u_onset, u_beat;
 uniform float u_low, u_flux, u_hit, u_kick;
+uniform vec4 u_rhythm, u_rhythmCount, u_rhythmHit;
+uniform bool u_rhythmEnabled;
 // Live show energy 0..1 (contract v3): for responses no parameter expresses.
 uniform float u_level;
 uniform highp uint u_seedBits, u_tick;
 uniform float u_raySteps;
 uniform vec3 u_primary, u_secondary, u_accent;
 uniform float u_params[8];
-uniform sampler2D u_state, u_previous;
+uniform sampler2D u_state, u_previous, u_field;
 uniform bool u_reset;
 uniform vec3 u_gesture;
 in vec2 v_uv;
@@ -109,10 +111,12 @@ vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t
 export const particleHeader = `#version 300 es
 precision highp float;
 precision highp int;
-uniform sampler2D u_state;
+uniform sampler2D u_state, u_field;
 uniform vec2 u_resolution;
 uniform float u_time, u_beat, u_level;
 uniform float u_energy, u_low, u_bass, u_mid, u_high, u_onset, u_flux, u_hit, u_kick;
+uniform vec4 u_rhythm, u_rhythmCount, u_rhythmHit;
+uniform bool u_rhythmEnabled;
 uniform highp uint u_seedBits;
 uniform vec3 u_primary, u_secondary, u_accent;
 uniform float u_params[8];

@@ -12,6 +12,11 @@
 // scrolled into view. Favourites always come first (D68).
 import { sortCatalog, ratingOf, lookPalette, MAX_RATING } from "./catalog.mjs";
 import { paletteById } from "./palettes.mjs";
+import {
+  catalogFamilies,
+  matchesCatalogIdentity,
+  VISUAL_STYLES,
+} from "./family-catalog.mjs";
 
 const el = (tag, props = {}, ...children) => {
   const node = Object.assign(document.createElement(tag), props);
@@ -162,6 +167,7 @@ export class CatalogPanel {
     list, // scroll container
     search,
     family,
+    character = document.getElementById("catalogCharacter"), // visual-style select
     show, // select: SHOW
     sortButton,
     title,
@@ -182,6 +188,7 @@ export class CatalogPanel {
       list,
       search,
       family,
+      character,
       show,
       sortButton,
       title,
@@ -210,6 +217,12 @@ export class CatalogPanel {
       ),
     );
     this.#families();
+    character?.replaceChildren(
+      el("option", { value: "", textContent: "All visual styles" }),
+      ...VISUAL_STYLES.map(([value, textContent]) =>
+        el("option", { value, textContent }),
+      ),
+    );
     this.observer =
       "IntersectionObserver" in globalThis
         ? new IntersectionObserver(
@@ -228,6 +241,7 @@ export class CatalogPanel {
         : null;
     search.addEventListener("input", () => this.sort());
     family.addEventListener("change", () => this.sort());
+    character?.addEventListener("change", () => this.sort());
     show.addEventListener("change", () => this.sort());
     sortButton.addEventListener("click", () => this.sort());
     list.addEventListener("pointerenter", () => (this.pointerInside = true));
@@ -244,24 +258,27 @@ export class CatalogPanel {
 
   #families() {
     const value = this.family.value;
+    const families = catalogFamilies(this.looks, this.families);
     this.family.replaceChildren(
       el("option", {
         value: "",
-        textContent: `All families (${this.families.length})`,
+        textContent: `All families (${families.length})`,
       }),
-      ...this.families.map((f) =>
+      ...families.map((f) =>
         el("option", {
           value: f.id,
-          textContent: `${f.name} (${this.looks.filter((l) => l.sceneId === f.id).length})`,
+          textContent: `${f.name} (${f.count})`,
         }),
       ),
     );
-    this.family.value = value;
+    this.family.value =
+      families.find((f) => f.id === value || f.sceneIds.includes(value))?.id ??
+      "";
     this.title.replaceChildren(
       "Catalog",
       el("span", {
         className: "catalog-total",
-        textContent: `${this.looks.length} looks · ${this.families.length} families`,
+        textContent: `${this.looks.length} looks · ${families.length} families`,
       }),
     );
   }
@@ -339,9 +356,16 @@ export class CatalogPanel {
       onclick: () => this.#favorite(look.id),
     });
     heart.addEventListener("mousedown", (event) => event.preventDefault());
+    const identity = look.variant
+      ? `${look.family} · ${look.variant}`
+      : look.family;
     const node = el(
       "article",
-      { className: "look", role: "listitem", ariaLabel: look.name },
+      {
+        className: "look",
+        role: "listitem",
+        ariaLabel: `${look.name} · ${identity}`,
+      },
       thumb,
       el(
         "div",
@@ -356,6 +380,11 @@ export class CatalogPanel {
           }),
           heart,
         ),
+        el("div", {
+          className: "look-meta",
+          textContent: identity,
+          title: identity,
+        }),
         el(
           "details",
           { className: "look-tools" },
@@ -363,15 +392,14 @@ export class CatalogPanel {
             textContent: "Rate & edit",
             ariaLabel: `Rate and edit ${look.name}`,
           }),
-          el("div", {
-            className: "look-meta",
-            textContent: look.variant
-              ? `${look.family} · ${look.variant}`
-              : look.family,
-            title: look.variant
-              ? `${look.family} · ${look.variant}`
-              : look.family,
-          }),
+          el(
+            "p",
+            { className: "look-algorithm" },
+            el("strong", {
+              textContent: look.algorithm ?? "Generative visual",
+            }),
+            document.createTextNode(`. ${look.description ?? ""}`),
+          ),
           widget.node,
           el(
             "div",
@@ -407,7 +435,9 @@ export class CatalogPanel {
       heart,
       key,
       snapshot,
-      text: fold(`${look.name} ${look.family} ${look.variant ?? ""}`),
+      text: fold(
+        `${look.name} ${look.family} ${look.sourceFamily ?? ""} ${look.variant ?? ""} ${look.algorithm ?? ""} ${look.description ?? ""} ${look.styles?.join(" ") ?? ""}`,
+      ),
     };
     node.card = card;
     this.cards.set(look.id, card);
@@ -456,7 +486,13 @@ export class CatalogPanel {
   }
 
   #visible(look, ratings, favorites, words, family, show) {
-    if (family && look.sceneId !== family) return false;
+    if (
+      !matchesCatalogIdentity(look, {
+        family,
+        style: this.character?.value ?? "",
+      })
+    )
+      return false;
     const rating = ratingOf(ratings, look.id);
     if (show === "favorites" && !favorites.has(look.id)) return false;
     if (show === "rated" && rating === null) return false;
@@ -504,6 +540,7 @@ export class CatalogPanel {
             onclick: () => {
               this.search.value = "";
               this.family.value = "";
+              if (this.character) this.character.value = "";
               this.show.value = "all";
               this.show.dispatchEvent(new Event("change"));
             },

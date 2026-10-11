@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Projected, depth-tested parametric tubes and ruled ribbons, not a noise field.
 // Geometry and illumination depend only on a periodic loop coordinate. Families
 // are artistic morphs: crossings are possible and knot preservation is not claimed.
@@ -195,6 +197,9 @@ vec3 meltShade(vec3 normal, vec3 position, float along, float strand, float cycl
     float band = pow(.5 + .5 * cos(n.y * 10.0 + n.x * 5.0), 6.0);
     color = base * (.12 + .35 * diffuse + .65 * band) + u_accent * rim * .35 + vec3(.7) * pow(max(dot(n, halfVector), 0.0), 160.0);
   }
+  float pathLight = pow(max(0.0, cos(along - u_rhythmCount.x * 2.399963)), 12.0);
+  color += mix(base, u_accent, 0.45) * pathLight * u_rhythm.x * 0.8;
+  color += base * rim * u_rhythm.y * 0.85;
   return clamp(color, 0.0, 1.0);
 }
 
@@ -292,6 +297,10 @@ void main() {
 `;
 
 export default {
+  rhythm: [
+    familyEffect("surface-path", 0, "Surface-path light", "Chase a bounded segment along the knot or surface's own parameter."),
+    familyEffect("surface-rim", 1, "Surface-rim light", "Illuminate grazing surface normals while preserving the geometry.", { period: 4, strength: 0.55, duration: 0.75 }),
+  ],
   id: "melt",
   // Contract v3 performance metadata; see scene-acid.mjs. Shorter loops
   // move faster.

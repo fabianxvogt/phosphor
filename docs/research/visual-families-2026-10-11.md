@@ -1,0 +1,72 @@
+# Visual families: research evidence and beat candidates
+
+Date: 2026-10-11. Classification: **EXPLORATORY**. Research supporting the agreed product direction: **a good unattended show, improve existing visuals first, preserve each family's identity, retain the current UI style**. The owner approved comparing Physarum, geometric caustics and Space Colonization through moving studies after the existing-catalog improvements; the subsequent implementation compared and added all three with distinct bounded models (see [executed evidence](../EVIDENCE.md#visual-rhythms-and-catalog-expansion-2026-10-11)). The earlier warm/retro wording was withdrawn as a new design instruction. The agreed plan and complete existing-family audit are in [family-rhythm-audit-2026-10-11.md](family-rhythm-audit-2026-10-11.md).
+
+**Labels:** EMPIRICAL = local code/catalog inspection; REPORTED = primary-source description; SPECULATIVE = proposed pictures, musical mappings, browser approach and cost. This research entry records the preimplementation evidence; subsequent rendering, timing and model limits are recorded separately in the linked evidence log.
+
+## Existing coverage and implications
+
+**EMPIRICAL:** importing [scenes.mjs](../../scenes.mjs) produces **36 families and 304 authored looks**, matching [CATALOG.md](../CATALOG.md). Existing algorithms already cover reaction–diffusion, continuous/discrete CAs, dye advection, feedback, waves, Kuramoto oscillators, attractors, multiple fractal constructions, tilings, Voronoi/Lloyd geometry, sandpiles, turmites, oscillator/space-filling curves, golden-angle packing, 4D/Hopf geometry, plate modes and complex functions. Physarum, DLA, Boids and L-systems are explicitly listed as unbuilt; no WFC, caustic-map or level-set scene is registered. [Catalog](../CATALOG.md), [registry](../../scenes.mjs).
+
+Two apparent overlaps are important: Acid/Evolution both compute Gray–Scott; Particle Swarm's “flock” follows a stateless curl-noise field rather than neighbouring agents. Aquarium is explicitly Lenia-inspired, not a Physarum trail-feedback model. [Acid](../../scene-acid.mjs), [Evolution](../../scene-evolution.mjs), [Swarm](../../scene-swarm.mjs), [Aquarium](../../scene-aquarium.mjs).
+
+**Inference:** family identity should come from visible algorithm structure and its response. Three candidate identities below are especially different from the current catalog; this is a qualitative comparison, not a decision to add them. Their proposed effects should have automatic authored patterns and useful recovery time. “Beat” and “accent” are independent event types; an accent could run on beat 1, every two bars or another chosen pattern.
+
+## Three strongest distinct picture candidates
+
+### Physarum transport networks
+
+**REPORTED:** Jones's agents sample a trail field ahead/left/right, turn toward stronger trail and deposit after successful movement; diffusion/dissipation couples movement back into the field. The paper reports emergent networks and different foraging/minimisation regimes, not guaranteed globally optimal networks. [Jones, author manuscript](https://arxiv.org/pdf/1503.06579). MCPM is a later probabilistic generalisation producing continuous network morphologies. [Elek et al., 2022](https://arxiv.org/abs/2204.01256).
+
+**SPECULATIVE picture/rhythm:** luminous braided channels with carriers visibly moving through them. On a beat, tag a carrier cohort and briefly increase its deposition; the light follows current transport paths. On an accent, activate/move a source or briefly change sensing, then let the network reroute over subsequent beats. This exposes agent–environment feedback rather than another concentration texture.
+
+**SPECULATIVE browser approach/limits:** agent state, a separate deposit target and trail diffusion passes. Rasterising agents into the trail target could work in WebGL2; a WebGPU migration is not established as necessary. The current engine draws additive particles into the picture, so extra targets/passes are needed. Jones's exclusive occupancy/collision rules are harder than a continuous inspired model and must be distinguished. Several dependent passes, deposit saturation and long-term collapse are unmeasured risks. [Engine](../../engine.mjs), [contract](../../scene-contract.mjs).
+
+### Geometric caustics
+
+**REPORTED:** caustics focus light by reflection/refraction; map sampling can cause aliasing and unstable patterns between frames. [Wyman and Nichols, 2009](https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1467-8659.2009.01370.x). Wallace's first-party WebGL Water demo demonstrates heightfield simulation, refraction and caustics; its renderer uses a pre/post-refraction area ratio to vary intensity. This establishes a browser precedent, not Phosphor performance. [Demo](https://madebyevan.com/webgl-water/), [source](https://github.com/evanw/webgl-water/blob/master/renderer.js).
+
+**SPECULATIVE picture/rhythm:** sharp folds and cusps sliding across a dark receiver beneath unseen glass/water. On a beat, a bounded local surface impulse produces an expanding caustic fold. On an accent, steer the light or change a lens region's curvature and let folds collect into a focus. A selected refracted-ray bundle could be highlighted without changing the simulation. This differs from Ripple's scalar-wave amplitude and analytic moiré.
+
+**SPECULATIVE browser approach/limits:** start with one heightfield, one flat receiver and a projected refractive mesh/caustic target. Extra geometry/targets extend the current scene contract. Sample count, filtering and output resolution dominate unknown costs; singular-looking peaks need finite filtering and bounded exposure. Avoid expanding the first experiment into a complete photorealistic glass renderer.
+
+### Space colonization
+
+**REPORTED:** Runions, Lane and Prusinkiewicz grow a branching skeleton toward nearby attraction points representing available space; reached points are removed. Growth ends when points are consumed, unreachable or an iteration limit is met. It is spatial competition, not L-system symbol rewriting. [Author paper](https://algorithmicbotany.org/papers/colonization.egwnp2007.pdf), [publication page](https://algorithmicbotany.org/papers/colonization.egwnp2007.html).
+
+**SPECULATIVE picture/rhythm:** open canopy/root/coral graphs with active tips and disappearing attraction points. On a beat, reveal one actual growth iteration, or send a pulse along parent–child edges. On an accent, introduce a new attractor region or open another volume. Growth must retain enough open space for branch ancestry to remain legible; Phyllotaxis currently places points rather than growing this graph.
+
+**SPECULATIVE browser approach/limits:** bounded spatial queries in a worker, uploaded branch geometry, instanced segments; begin in 2D or shallow 3D. This needs a geometry/worker hook. Query density and branch count are unknown costs. Because the source procedure terminates, an unattended show needs successive growing regions, with renewal presented clearly rather than a full-screen reset.
+
+## Four shorter alternatives
+
+| Candidate and established fact | Proposed picture, beat and accent | Browser hypothesis and limitation |
+| --- | --- | --- |
+| **DLA. REPORTED:** walkers stick when they reach the existing aggregate; classic work is Witten–Sander. [Original](https://doi.org/10.1103/PhysRevLett.47.1400), [Sander/Somfai introduction](https://www.szfki.hu/~ellak/papers/sander-chaos-2005.pdf). | **SPECULATIVE:** sparse frost/metal dendrites. Beat reveals buffered genuine adhesion events; accent starts a new seed/sector. Irreversible exposed-tip growth differs from Sandpile toppling. | Worker grid and sequential walkers; stream events to GPU. Adhesion time is variable, so launching a walker does not guarantee same-beat attachment. Finite clusters need succession; erosion changes classic DLA. Throughput unmeasured. |
+| **True Boids. REPORTED:** separation, alignment and cohesion use nearby positions/velocities. Naive all-pairs cost is O(n²); spatial structures reduce it. [Reynolds](https://www.red3d.com/cwr/boids/index.html), [paper](https://www.red3d.com/cwr/papers/1987/boids.html). | **SPECULATIVE:** oriented glyphs forming collective ribbons/flocks. Beat introduces a local steering impulse; accent introduces an obstacle/target that splits and rejoins the flock. | Worker spatial hashing plus instanced glyphs, or a GPU neighbour-grid pipeline. Existing Swarm's 65k count is not a defensible budget. Dense clustering and capped neighbours change cost/model; visual overlap with Swarm must be tested. |
+| **WFC. REPORTED:** sample an allowed pattern, often at lowest nonzero entropy, then propagate exclusions; contradictions can leave no possibilities. It does not perform quantum mechanics. [Author README](https://github.com/mxgmn/WaveFunctionCollapse), [model](https://github.com/mxgmn/WaveFunctionCollapse/blob/master/Model.cs). | **SPECULATIVE:** crisp circuits/mazes resolving from visible possibilities. Beat commits a tile and shows the propagation frontier; accent begins another compatible patch. A finished random tilemap overlaps Truchet. | Worker bitsets/queue and a GPU tile atlas. Prepare bounded successful patches ahead of display; a solve cannot be assumed to finish on a beat. Tileset quality, contradictions and endless compatible boundaries are the hard parts. |
+| **Level-set fronts. REPORTED:** an interface is embedded as a zero contour; curvature/flow can drive it, while merges/splits arise in the representation. [Osher–Sethian](https://math.berkeley.edu/~sethian/Papers/sethian.osher.88.pdf), [Sethian explanation](https://math.berkeley.edu/~sethian/2006/Explanations/level_set_explain.html). | **SPECULATIVE:** fine contours merging, pinching and smoothing. Beat applies a bounded local normal-speed pulse; accent births another contour. Show interface velocity/curvature to distinguish it from generic melting blobs. | Small signed-field simulation and antialiased contour rendering; possibly reinitialisation passes. Storage precision, curvature noise and stable timesteps need a numerical probe. Shrinking fronts can vanish; sustained births are explicit artistic forcing. |
+
+## Existing improvements with immediate identity value
+
+The “present” column is **EMPIRICAL**. The selectable gestures are **SPECULATIVE**, except when exposing an existing mechanism. None requires manual intervention to look good.
+
+| Family | Present response and proposed extension |
+| --- | --- |
+| **Penrose/aperiodic tilings** | Selected de Bruijn ribbons already light each beat. Expose ribbon chase independently; add a rhombus-class/vertex gesture, and a slower highlight of actual offset-induced phason rearrangements. [Scene](../../scene-quasicrystal.mjs). |
+| **Voronoi** | Beat site jolts/cell heat and 16-beat regional scatter/heal already exist. Give jolt, highlight and regional shockwave separate patterns instead of inventing duplicates. [Scene](../../scene-voronoi.mjs). |
+| **Truchet / Phyllotaxis / space-filling curves** | Respectively: connected path pulses and rerouting; beat rings/Fibonacci arm cycling; comet/locality colouring and refinement. Separate nondestructive light travel from slower structural changes. [Truchet](../families/truchet.md), [Phyllotaxis](../families/phyllotaxis.md), [curves](../families/hilbert.md). |
+| **Ripple / Chladni** | Existing source impulses/array steering and grain migration/mode changes give clear family gestures. Keep per-beat wave/vibration impulses distinct from slower steering/mode accents; grains need time to settle. [Ripple](../families/ripple.md), [Chladni](../families/chladni.md). |
+| **Life / Sandpile** | Separate marking actual births/toppling fronts from explicitly injected gliders/heaps. This preserves the rule's visual causality and lets a useful light-only beat exist at low energy. [Life](../families/life.md), [Sandpile](../families/sandpile.md). |
+| **Attractors / Newton** | Attractors already surge along the flow and show divergence cohorts: schedule those separately, giving cohorts time to stretch. Newton could highlight a root basin/iteration band each beat and reserve bounded root motion for accents. [Attractors](../families/attractor.md), [Newton](../families/newton.md). |
+| **Wallpaper** | Exact group symmetry and a 16-beat wave reroll already exist. Beat highlights should select symmetry-related motif orbits; reroll becomes a separate accent while preserving the group action. [Scene](../../scene-wallpaper.mjs). |
+
+**Inference:** the Penrose principle already exists in several families. Naming, exposing and scheduling their mechanisms consistently may yield more value than simply increasing the family count. Repeated structural mutations can erase a family's identity; larger effects need recovery/development time.
+
+## Overlap and evidence limits
+
+**REPORTED:** L-systems use rewriting plus turtle interpretation and also generate classic space-filling curves. A branching grammar family remains valid, but another Hilbert/Koch drawing is insufficient differentiation; L-systems and Space Colonization have different core computations. [Prusinkiewicz](https://algorithmicbotany.org/papers/graphical.gi86.html). Hyperuniformity is a structural/statistical class covering multiple constructions, not one unique generator; an evenly spaced-looking picture does not establish it. Choose a concrete generator before proposing that family. [Torquato](https://arxiv.org/abs/1801.06924).
+
+**EMPIRICAL:** the current engine offers RGBA8 simulation ping-pong state, optional points and fullscreen picture passes. Trail deposits, branch geometry, worker-produced state and heterogeneous passes need extensions. [Contract](../../scene-contract.mjs), [engine](../../engine.mjs). Output now renders at native physical resolution without automatic downgrades. Older family/authoring pages still mention render-width caps and millisecond estimates; those are not current full-output timing evidence. [Current policy](../README.md), [roadmap](../../ROADMAP.md).
+
+The next evidence for any candidate is one recognisable view, one short beat response, one slower accent, and unattended renewal. Compare it in grayscale with its nearest existing family at calm/mid/high energy; check its defining update/invariant and failure recovery; measure native-output frame cost including two active families during a fade. This note settles no family variants, presets, UI or release scope.

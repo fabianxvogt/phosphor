@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Mandelbrot Dive (#66): an endless escape-time deep zoom. Each dive flies
 // from the whole set down to ~1e-10..1e-12 at a verified boundary point (a
 // minibrot nucleus or a Misiurewicz point), surfaces on a fast eased glide
@@ -379,7 +381,7 @@ void main() {
   hue = fract(hue + u_dt * flow);
   int tid = MB_RT[rs + index];
   // Beat: a small dive along the zoom axis, part of the camera state.
-  punch = 0.08 * clamp(u_kick, 0.0, 1.0) * (0.3 + 0.7 * level);
+  punch = 0.08 * clamp(u_rhythmEnabled ? u_rhythm.z : u_kick, 0.0, 1.0) * (0.3 + 0.7 * level);
   if (fresh) { lastView = depth + punch; lastTurn = turn; lastTarget = uint(tid); }
   if (p.y == 0) {
     uint v = 0u;
@@ -580,6 +582,9 @@ ${loops}
     col = bandColour * near * stripe * (1.0 - edge) * 0.85 +
       lineColour * line * (0.35 + 0.65 * edge) * (1.0 - 0.6 * dust) + vec3(0.18) * line * line * edge;
     col *= 1.0 - 0.45 * dust;
+    float contour = exp(-pow((mod(stretched, 16.0) - mod(u_rhythmCount.x, 8.0) * 2.0) / 0.9, 2.0));
+    col += bandColour * near * contour * u_rhythm.x * 0.65;
+    col += lineColour * line * u_rhythm.y * 0.75;
   } else {
     // Interior stays dark; a rim glow grows towards the boundary, where
     // dz/dc diverges (unresolved exterior lands here as a bright edge).
@@ -660,6 +665,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("escape-band", 0, "Escape-band chase", "Select smooth escape-iteration bands on the deep fractal image."),
+    familyEffect("filament-rim", 1, "Filament-rim light", "Emphasise resolved exterior distance-estimator filaments.", { period: 3, strength: 0.5 }),
+    familyEffect("depth-excursion", 2, "Dive-depth accent", "Apply a small bounded depth excursion along the authored deep-zoom route.", { period: 8, strength: 0.55, duration: 1, kind: "motion" }),
+  ],
   id: "mandelbrot",
   energy: {
     speed: { mul: [0.4, 1.9] },

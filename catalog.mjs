@@ -8,6 +8,11 @@ import { presetSnapshot } from "./session.mjs";
 import { PALETTES } from "./palettes.mjs";
 import { clipFrom } from "./show-set.mjs";
 import { CURATED } from "./catalog-curated.mjs";
+import {
+  familyMetadata,
+  catalogVariant,
+  catalogStyles,
+} from "./family-catalog.mjs";
 
 export const UNRATED_WEIGHT = 5;
 export const MAX_RATING = 10;
@@ -33,10 +38,11 @@ export function ratingOf(ratings, id) {
   return validRating(ratings[id]) ? ratings[id] : null;
 }
 
-// The human label of a look's structural type, from the type parameter's
-// schema label ("Form · bars / tunnel / grid / shards" → "tunnel"). Labels
-// without a list fall back to their head and the value ("Composition 2").
+// Registered families have explicit structural names. The schema parser is
+// a fallback for newly added scenes, not the public naming source of truth.
 export function variantLabel(scene, params) {
+  const explicit = catalogVariant(scene, params);
+  if (explicit) return explicit;
   const key = scene.type?.key;
   const field = key && scene.schema.find((f) => f.key === key);
   if (!field) return null;
@@ -68,11 +74,12 @@ export function catalogLooks(scenes, own = []) {
       return {
         id: lookId(snapshot),
         sceneId: scene.id,
-        family: scene.name,
+        ...familyMetadata(scene),
         number: scene.number ?? s + 1,
         index,
         name: preset.name,
         variant: variantLabel(scene, snapshot.params),
+        styles: catalogStyles(scene, snapshot.params),
         snapshot,
         own: false,
       };
@@ -87,16 +94,20 @@ export function catalogLooks(scenes, own = []) {
       {
         id: look.id,
         sceneId: scene.id,
-        family: scene.name,
+        ...familyMetadata(scene),
         number: scene.number ?? s + 1,
         index: 100000 + i,
         name: look.name,
         variant: variantLabel(scene, look.snapshot.params),
+        styles: catalogStyles(scene, look.snapshot.params),
         snapshot: look.snapshot,
         own: true,
         base: look.base ?? null,
         palette: look.palette ?? null,
         transition: look.transition ?? "auto",
+        ...(look.rhythm === undefined
+          ? {}
+          : { rhythm: structuredClone(look.rhythm) }),
       },
     ];
   });
@@ -195,5 +206,8 @@ export function catalogClip(look, { id = look.id, palette } = {}) {
     name: look.name,
     palette: palette ?? look.palette ?? lookPalette(look),
     transition: look.transition ?? "auto",
+    ...(look.rhythm === undefined
+      ? {}
+      : { rhythm: structuredClone(look.rhythm) }),
   });
 }

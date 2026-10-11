@@ -34,6 +34,9 @@ import phyllotaxis from "./scene-phyllotaxis.mjs";
 import hopf from "./scene-hopf.mjs";
 import chladni from "./scene-chladni.mjs";
 import domain from "./scene-domain.mjs";
+import physarum from "./scene-physarum.mjs";
+import caustics from "./scene-caustics.mjs";
+import colonization from "./scene-colonization.mjs";
 
 export default [
   acid,
@@ -72,6 +75,9 @@ export default [
   hopf,
   chladni,
   domain,
+  physarum,
+  caustics,
+  colonization,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

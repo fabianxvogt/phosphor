@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Chladni Figures (#81): a vibrating plate throws sand off its moving
 // parts; grains come to rest only where the plate stands still, so 65 536
 // grains draw the nodal lines of the current mode. Every few beats the
@@ -106,9 +108,12 @@ float chMode(int variant, float k, vec2 p, float t) {
 // The plate's amplitude now: hold a mode for 'hold' beats, crossfade
 // into the next over 1.5 beats (the morph variant glides all the time).
 float chField(vec2 p, int variant, float beats, float hold, float t) {
-  float k = floor(beats / hold);
-  float into = beats - k * hold;
-  float s = variant == 1 ? smoothstep(0.0, 1.0, into / hold) : smoothstep(0.0, 1.5, into);
+  float k = u_rhythmEnabled ? u_rhythmCount.z : floor(beats / hold);
+  float into = beats - floor(beats / hold) * hold;
+  float s = u_rhythmEnabled ? (variant == 1
+    ? smoothstep(0.0, 1.0, 0.5 + 0.5 * sin(t * 0.07 + k * 0.314)) * (1.0 - min(u_rhythm.z * 1.5, 1.0))
+    : smoothstep(0.0, 1.0, 1.0 - min(u_rhythm.z * 1.5, 1.0)))
+    : variant == 1 ? smoothstep(0.0, 1.0, into / hold) : smoothstep(0.0, 1.5, into);
   return mix(chMode(variant, k - 1.0, p, t), chMode(variant, k, p, t), s);
 }
 float chHold(float idx) { return idx < 0.5 ? 8.0 : idx < 1.5 ? 16.0 : idx < 2.5 ? 32.0 : 64.0; }
@@ -119,7 +124,7 @@ void main() {
   ivec2 cell = ivec2(gl_FragCoord.xy);
   int variant = int(floor(u_params[0] + 0.5));
   float hold = chHold(u_params[1]);
-  float vibration = u_params[2];
+  float vibration = u_params[2] * (1.0 + u_rhythm.y * 1.8);
   float settle = u_params[3];
   float t = mod(u_time, 3600.0);
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
@@ -163,6 +168,8 @@ void main() {
     float a = chField(p, variant, beats, hold, t);
     float shimmer = 0.6 + 0.4 * sin(t * 40.0);
     colour = u_secondary * 0.06 + palette(0.35 + 0.4 * a) * abs(a) * field * 0.35 * shimmer;
+    float node = exp(-abs(a) * 28.0);
+    colour += u_accent * node * u_rhythm.x * 0.85;
   }
   float edge = variant == 2 ? abs(length(p) - 1.0) : abs(max(abs(p.x), abs(p.y)) - 1.0);
   colour += mix(u_primary, vec3(1.0), 0.3) * (1.0 - smoothstep(0.0, 2.5 * px, edge)) * 0.5;
@@ -285,11 +292,16 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("nodal-lines", 0, "Nodal-line light", "Illuminate the current plate's actual zero-amplitude lines.", { strength: 0.5 }),
+    familyEffect("vibration", 1, "Vibration impulse", "Lift grains where the resonant field has amplitude; they settle back onto nodes.", { period: 4, strength: 0.45, duration: 0.5, kind: "simulation" }),
+    familyEffect("mode", 2, "Change resonant mode", "Choose the next square, circular or Faraday resonance and allow grains to settle.", { period: 32, strength: 0.65, duration: 1.5, kind: "simulation" }),
+  ],
   id: "chladni",
   number: 81,
   name: "Chladni Figures",
   description:
-    "A vibrating plate throws sand off its moving parts, so 65,536 grains come to rest on the nodal lines of the current mode. Every few beats the plate jumps to a new mode and the sand visibly migrates into the next figure. Square plates use the classic cos-combination modes; the morph variant never lets the sand settle; the circular plate shows Bessel rings and slowly turning diameters; Faraday hexagons come from three standing waves at 60°.",
+    "A vibrating plate throws sand off its moving parts, so 65,536 grains come to rest on the nodal lines of the current mode. Scheduled mode changes make the sand visibly migrate into the next figure; independent nodal light and vibration tracks reveal the resonance. Square plates use the classic cos-combination modes; the morph variant never lets the sand settle; the circular plate shows Bessel rings and slowly turning diameters; Faraday hexagons come from three standing waves at 60°.",
   energy: {
     vibration: { mul: [0.6, 1.6] },
     glow: [-0.1, 0.2],

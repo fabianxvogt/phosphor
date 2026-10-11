@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Ripple Tank (#72): the discrete wave equation u_tt = c²∇²u on a 400×225
 // grid, leapfrog in time, four steps per frame, with absorbing sponge
 // borders. The state keeps u and u_prev (16 bit each) and a time-averaged
@@ -91,9 +93,9 @@ void main() {
   bool fresh = u_reset || meta.a < 0.5;
   float phase = fresh ? 0.0 : unpack16(meta.rg);
   int lastBeat = int(meta.b * 255.0 + 0.5);
-  float beatF = floor(max(u_beat, 0.0));
+  float beatF = floor(u_rhythmEnabled ? u_rhythmCount.z : max(u_beat, 0.0));
   int beat = int(beatF) & 255;
-  bool event = !fresh && beat != lastBeat;
+  bool event = !fresh && (u_rhythmEnabled ? u_rhythmHit.z > 0.0 : beat != lastBeat);
   float freq = 0.5 / lambda; // cycles per step at phase speed 0.5 cells/step
 
   if (px.y == 2 * GH) {
@@ -123,14 +125,14 @@ void main() {
   float un = (2.0 - gamma) * u - (1.0 - gamma) * up + C2 * speed2 * lap;
 
   // Sources (soft: added, so returning waves pass through them).
-  float beatPulse = u_beat > 0.0 ? exp(-4.0 * fract(u_beat)) : 0.0;
+  float beatPulse = u_rhythmEnabled ? 0.0 : u_beat > 0.0 ? exp(-4.0 * fract(u_beat)) : 0.0;
   float amp = (0.55 + 0.45 * beatPulse) * (0.75 + 0.5 * u_level);
   float omega = TAU * freq;
   if ((variant == 0 || variant == 2) && px.x == int(SOURCE_X))
     un += amp * omega * 1.0 * sin(TAU * phase);
   if (variant == 3) {
     int K = rEmitters(count);
-    float theta = rTheta(max(u_beat, 0.0), t);
+    float theta = rTheta(u_rhythmEnabled ? u_rhythmCount.y : max(u_beat, 0.0), t) + u_rhythm.y * 0.12;
     for (int k = 0; k < 16; k++) {
       if (k >= K) break;
       float yk = float(GH) * 0.5 + (float(k) - float(K - 1) * 0.5) * gap;
@@ -142,7 +144,7 @@ void main() {
   if (drops > 0.05) {
     if (event) {
       vec2 dc = vec2(mix(30.0, float(GW) - 30.0, rRand(uint(beatF), 1u)), mix(25.0, float(GH) - 25.0, rRand(uint(beatF), 2u)));
-      float d = exp(-dot(c - dc, c - dc) / 7.0) * (0.6 + 0.6 * drops);
+      float d = exp(-dot(c - dc, c - dc) / 7.0) * (0.6 + 0.6 * drops) * (u_rhythmEnabled ? u_rhythmHit.z : 1.0);
       un += d;
       u += d;
     }
@@ -192,6 +194,7 @@ void main() {
   float si = 1.0 - exp(-I * g * 1.4);
   vec3 pattern = palette(0.15 + 0.8 * si) * si;
   vec3 colour = waves * (1.0 - 0.65 * fringes) + pattern * fringes * 1.1;
+  colour += waves * pow(su, 2.0) * u_rhythm.x * 0.8;
 
   vec3 neon = mix(u_accent, vec3(1.0), 0.35);
   if (rWall(floor(cell), variant, count, gap, lambda)) colour = neon * (0.55 + 0.35 * u_level);
@@ -307,6 +310,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("wavefront", 0, "Wavefront light", "Emphasise crests in the simulated wave displacement."),
+    familyEffect("emitter-steering", 1, "Emitter steering", "Change the phased-array steering angle so interference propagates through the tank.", { period: 4, strength: 0.55, duration: 1, kind: "motion", variants: [3] }),
+    familyEffect("point-drop", 2, "Point drop", "Drop a local packet into the finite-difference wave equation.", { period: 4, strength: 0.65, duration: 0.25, kind: "simulation" }),
+  ],
   id: "ripple",
   number: 72,
   name: "Ripple Tank",
