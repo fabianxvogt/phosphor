@@ -6,6 +6,7 @@ import {
   AudioFeatureBus,
   DARK_TECHNO_PATTERN,
 } from "../audio.mjs";
+import { ShowClock } from "../show-clock.mjs";
 import { synth } from "./beat-synth.mjs";
 
 test("F1 MIDI connect shares pending and completed access without duplicate delivery", async () => {
@@ -240,4 +241,56 @@ test("D61 broadband noise bursts produce flux and respect the 120 ms hit refract
   assert.ok(rows.at(-1).flux < peakFlux * 0.2, "noise flux releases");
   for (let i = 1; i < hits.length; i++)
     assert.ok(hits[i].time - hits[i - 1].time >= 0.12);
+});
+
+test("demo scheduler follows show tempo and audible phase, skipping missed beats", () => {
+  const audio = new AudioEngine();
+  audio.context = {
+    currentTime: 0,
+    getOutputTimestamp: () => ({ contextTime: 0, performanceTime: 1000 }),
+  };
+  let clock = { time: 1, beat: 0.5, origin: 0, period: 0.4, bpm: 150 };
+  audio.setDemoClock(() => clock);
+  const notes = [];
+  const rounded = () => notes.map(([time, step]) => [Number(time.toFixed(4)), step]);
+  try {
+    audio.scheduleDemo(4, (time, step) => notes.push([time, step]));
+    assert.equal(audio.tempo, 150);
+    assert.deepEqual(rounded(), [[0, 2], [0.1, 3]]);
+    audio.context.currentTime = 0.15;
+    audio.pumpDemo();
+    assert.deepEqual(rounded().at(-1), [0.2, 4]);
+    // Continuous beat position at the tempo change; next unscheduled step
+    // lands at 0.28 rather than the old tempo's 0.30 seconds.
+    clock = { time: 1.2, beat: 1, origin: 0, period: 0.32, bpm: 187.5 };
+    audio.context.currentTime = 0.21;
+    audio.pumpDemo();
+    assert.equal(audio.tempo, 187.5);
+    assert.deepEqual(rounded().at(-1), [0.28, 5]);
+    // A throttled tab does not emit a burst of all the missed notes.
+    const count = notes.length;
+    audio.context.currentTime = 5;
+    audio.pumpDemo();
+    assert.ok(notes.length - count <= 2);
+    assert.equal(new Set(notes.map(([, step]) => step)).size, notes.length);
+    assert.ok(notes.slice(count).every(([time]) => time >= 5 && time < 5.12));
+  } finally { audio.stop(); }
+});
+
+test("marking a downbeat changes the demo pattern without dropping scheduled subdivisions", () => {
+  const clock = new ShowClock({ bpm: 120, mode: "manual" });
+  const audio = new AudioEngine();
+  audio.context = { currentTime: 0.52, getOutputTimestamp: () => ({contextTime: 0, performanceTime: 1000}) };
+  audio.setDemoClock(() => ({ ...clock.at(audio.context.currentTime), time: audio.context.currentTime + 1, period: clock.period }));
+  const notes = [];
+  try {
+    audio.scheduleDemo(4, (time, step) => notes.push([Number(time.toFixed(4)), step]));
+    assert.deepEqual(notes, [[0.625, 5]]);
+    clock.downbeat(0.55);
+    for (let t = 0.55; t < 0.925; t += 0.025) {
+      audio.context.currentTime = t;
+      audio.pumpDemo();
+    }
+    assert.deepEqual(notes.slice(1), [[0.75, 2], [0.875, 3], [1, 4]]);
+  } finally { audio.stop(); }
 });

@@ -117,6 +117,7 @@ export class AudioEngine {
     this.bus = new AudioFeatureBus();
     this.features = this.bus.features;
     this.tempo = 120; // demo beat (the default source on a fresh stage)
+    this.demoClock = null;
     this.voices = new Set();
     this.noise = null;
   }
@@ -179,6 +180,50 @@ export class AudioEngine {
         0.02,
       );
   }
+  // The show owns tempo and phase for its synthetic demo. The callback reads
+  // the current transport, including after a Stage handoff replaces its clock.
+  setDemoClock(readClock) {
+    this.demoClock = readClock;
+  }
+  scheduleDemo(subdivision, play) {
+    let next = this.context.currentTime;
+    let step = null;
+    this.pumpDemo = () => {
+      const audioNow = this.context.currentTime;
+      const clock = this.demoClock?.();
+      let duration = 60 / this.tempo / subdivision;
+      let patternOffset = 0;
+      if (clock) {
+        this.tempo = clock.bpm;
+        duration = clock.period / subdivision;
+        // Schedule against audible output time, not the independently started
+        // AudioContext origin. This also follows tap/downbeat and tempo edits.
+        const stamp = this.context.getOutputTimestamp?.();
+        const audibleTime = stamp?.performanceTime > 0
+          ? stamp.performanceTime / 1000 + audioNow - stamp.contextTime
+          : performance.now() / 1000;
+        const position = clock.beat + (audibleTime - clock.time) / clock.period;
+        patternOffset = Math.round(clock.origin * subdivision);
+        const first = Math.ceil(position * subdivision - 1e-7);
+        if (step === null || step < first || step > first + subdivision * 2)
+          step = first;
+        next = audioNow + (step / subdivision - position) * clock.period;
+      } else {
+        step ??= 0;
+        if (next < audioNow - 0.12) {
+          const missed = Math.ceil((audioNow - next) / duration);
+          step += missed;
+          next += missed * duration;
+        }
+      }
+      while (next < audioNow + 0.12) {
+        play(Math.max(audioNow, next), step++ - patternOffset);
+        next += duration;
+      }
+    };
+    this.pumpDemo();
+    this.timer = setInterval(this.pumpDemo, 25);
+  }
   async demo(mode = "techno") {
     this.stop();
     const token = this.generation;
@@ -197,20 +242,11 @@ export class AudioEngine {
     this.source = osc;
     this.sourceGain = gain;
     this.kind = "demo";
-    let next = this.context.currentTime;
-    this.pumpDemo = () => {
-      const now = this.context.currentTime;
-      // Drop missed beats after a stalled timer instead of scheduling a burst.
-      if (next < now - 0.12) next = now;
-      while (next < now + 0.12) {
-        gain.gain.setValueAtTime(0.001, next);
-        gain.gain.linearRampToValueAtTime(0.7, next + 0.008);
-        gain.gain.exponentialRampToValueAtTime(0.001, next + 0.23);
-        next += 60 / this.tempo;
-      }
-    };
-    this.pumpDemo();
-    this.timer = setInterval(this.pumpDemo, 25);
+    this.scheduleDemo(1, (time) => {
+      gain.gain.setValueAtTime(0.001, time);
+      gain.gain.linearRampToValueAtTime(0.7, time + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.23);
+    });
     this.onStatus("Original demo pulse");
   }
   technoDemo() {
@@ -230,8 +266,6 @@ export class AudioEngine {
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     }
-    let next = context.currentTime,
-      step = 0;
     const voice = (time, amplitude, frequency, decay, noise = false) => {
       if (!amplitude) return;
       const source = noise
@@ -269,27 +303,15 @@ export class AudioEngine {
       source.start(time);
       source.stop(time + decay + 0.01);
     };
-    this.pumpDemo = () => {
-      const now = context.currentTime;
-      const duration = 60 / this.tempo / 4;
-      if (next < now - 0.12) {
-        const missed = Math.ceil((now - next) / duration);
-        step += missed;
-        next += missed * duration;
-      }
-      while (next < now + 0.12) {
-        const pattern = DARK_TECHNO_PATTERN[step++ % 16];
-        voice(next, pattern.kick * 0.8, 125, 0.22);
-        voice(next, pattern.bass * 0.14, 49, 0.16);
-        voice(next, pattern.clap * 0.2, 1200, 0.12, true);
-        voice(next, pattern.hat * 0.12, 6500, 0.035, true);
-        voice(next, pattern.openHat * 0.09, 5000, 0.16, true);
-        voice(next, pattern.perc * 0.13, 300, 0.06);
-        next += 60 / this.tempo / 4;
-      }
-    };
-    this.pumpDemo();
-    this.timer = setInterval(this.pumpDemo, 25);
+    this.scheduleDemo(4, (time, step) => {
+      const pattern = DARK_TECHNO_PATTERN[((step % 16) + 16) % 16];
+      voice(time, pattern.kick * 0.8, 125, 0.22);
+      voice(time, pattern.bass * 0.14, 49, 0.16);
+      voice(time, pattern.clap * 0.2, 1200, 0.12, true);
+      voice(time, pattern.hat * 0.12, 6500, 0.035, true);
+      voice(time, pattern.openHat * 0.09, 5000, 0.16, true);
+      voice(time, pattern.perc * 0.13, 300, 0.06);
+    });
     this.onStatus("Dark techno · 16-step lookahead");
   }
   async file(file) {

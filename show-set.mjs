@@ -25,6 +25,8 @@ import {
   OWN_PREFIX,
 } from "./catalog.mjs";
 
+import { OUTPUT_RESOLUTIONS } from "./display-resolution.mjs";
+
 export const FORMAT = "phosphor-set-v5";
 const V4 = "phosphor-set-v4";
 const PAGES = 8; // v4 and older
@@ -129,6 +131,7 @@ export function initialShowSet(scenes) {
     favorites: [],
     keys: defaultKeys(scenes),
     mood: null,
+    palette: null,
     shared: { ...DEFAULT_SHARED },
     autopilot: {
       enabled: true,
@@ -158,6 +161,7 @@ export function defaultKeys(scenes, set = null) {
 function defaultOptions() {
   return {
     pixelBudget: NATIVE_BUDGET,
+    outputResolution: "native",
     bloom: 0.15,
     echo: 0,
     chroma: 0,
@@ -265,6 +269,11 @@ function validateCommon(value, scenes) {
     },
     options: {
       pixelBudget: oneOf(options.pixelBudget, PIXEL_BUDGETS, "Pixel budget"),
+      outputResolution: oneOf(
+        options.outputResolution ?? "native",
+        OUTPUT_RESOLUTIONS,
+        "Output resolution",
+      ),
       bloom: finite(options.bloom, 0, 1, "Bloom"),
       echo: finite(options.echo, 0, 1, "Echo"),
       chroma: finite(options.chroma, 0, 1, "Chroma"),
@@ -412,6 +421,9 @@ export function validateShowSet(value, scenes) {
       value.mood === null || value.mood === undefined
         ? null
         : oneOf(value.mood, MOODS, "Mood"),
+    // Optional for older sets. The control enables a shared show palette;
+    // legacy playback can still use the authored palettes when absent.
+    palette: validateShowPalette(value.palette),
     shared: common.shared,
     autopilot: {
       ...common.autopilot,
@@ -424,6 +436,26 @@ export function validateShowSet(value, scenes) {
     lineages: common.lineages,
     rhythm: validateRhythm(value.rhythm, scenes),
   };
+}
+
+export function validateShowPalette(value) {
+  if (value == null) return null;
+  if (typeof value === "string" && paletteById(value)) return value;
+  if (
+    record(value) &&
+    ["primary", "secondary", "accent"].every((key) =>
+      /^#[0-9a-f]{6}$/i.test(value[key] ?? ""),
+    )
+  )
+    return Object.fromEntries(
+      ["primary", "secondary", "accent"].map((key) => [
+        key,
+        value[key].toLowerCase(),
+      ]),
+    );
+  throw new Error(
+    "Show palette must name a palette or contain three hex colours",
+  );
 }
 
 const sameParams = (a, b) =>

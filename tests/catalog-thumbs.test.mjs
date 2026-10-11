@@ -131,3 +131,25 @@ test("cancelling compilation keeps already queued catalog work running", async (
   h.encoders[0](new Blob(["catalog"]));
   assert.deepEqual(h.ready, ["catalog"]);
 });
+
+test("baked authored previews need no renderer, including after colour changes", async (t) => {
+  const h = harness(t);
+  const { thumbnailKey } = await import("../thumbnail-palette.mjs");
+  const snapshot = {
+    scene: "test",
+    preset: "One",
+    seed: 1,
+    params: { scale: 2 },
+    palette: { primary: "#ffffff" },
+  };
+  h.thumbnails.paletteIndependent = true;
+  h.thumbnails.previews = {
+    look: { key: thumbnailKey(snapshot), url: "data:image/webp;base64,AA==" },
+  };
+  h.thumbnails.want("look", snapshot);
+  h.thumbnails.want("look", { ...snapshot, palette: { primary: "#000000" } });
+  await h.drain();
+  assert.equal(h.loaded.length, 0);
+  assert.deepEqual(h.ready, ["look"]);
+  assert.equal(h.thumbnails.get("look").url, "data:image/webp;base64,AA==");
+});

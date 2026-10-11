@@ -26,12 +26,13 @@ test("HTML entrypoints walk nested, side-effect, re-export and literal dynamic i
   try {
     await mkdir(join(root, "nested"));
     const files = {
-      "index.html": '<link href="./style.css?v=1"><script type="module" src="./main.mjs"></script>',
+      "index.html": '<link href="./style.css?v=1" data-license="./LICENSE.txt"><script type="module" src="./main.mjs"></script>',
       "stage.html": '<script src="./stage.mjs"></script>',
       "update.html": '<script type="module" src="./update.mjs"></script>',
       "update.mjs": 'export {};',
       "beat-worklet.mjs": "export {};",
       "style.css": "body{}",
+      "LICENSE.txt": "Fixture asset license",
       "main.mjs": '// import "./absent-comment.mjs";\nconst text = \'import "./absent-string.mjs";\';\nimport "./nested/side.mjs"; export { x } from "./nested/value.mjs"; import("./lazy.mjs");',
       "nested/side.mjs": 'import { x } from "./value.mjs";',
       "nested/value.mjs": "export const x=1;",

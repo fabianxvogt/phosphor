@@ -202,6 +202,30 @@ try {
     "control sees the stage",
   );
   pass("control opens the stage, the stage starts and reports back");
+  await waitFor(
+    control,
+    () => {
+      const images = [...document.querySelectorAll("#catalogList .thumb img")];
+      return (
+        images.length >= 8 &&
+        images
+          .slice(0, 8)
+          .every(
+            (image) =>
+              image.naturalWidth === 512 && image.naturalHeight === 288,
+          )
+      );
+    },
+    null,
+    "baked catalog images appear immediately",
+  );
+  assert.equal(
+    await control.evaluate(
+      () => window.__phosphorControl.thumbnails.engine === undefined,
+    ),
+    true,
+    "authored catalog does not start a thumbnail renderer",
+  );
 
   const { lookTotal, familyTotal } = await stage.evaluate(async () => {
     const { familyMetadata } = await import("./family-catalog.mjs");
@@ -226,6 +250,84 @@ try {
     await control.locator("html").getAttribute("data-theme"),
     savedTheme,
   );
+  await control
+    .getByRole("button", { name: "Edit primary colour", exact: true })
+    .click();
+  const pad = control.locator(".color-sv");
+  const bounds = await pad.boundingBox();
+  await control.mouse.move(
+    bounds.x + bounds.width * 0.2,
+    bounds.y + bounds.height * 0.25,
+  );
+  await control.mouse.down();
+  await control.mouse.move(
+    bounds.x + bounds.width * 0.7,
+    bounds.y + bounds.height * 0.4,
+    { steps: 4 },
+  );
+  await control.mouse.up();
+  await waitFor(
+    control,
+    () => {
+      const saturation = Number(document.querySelector(".color-s").value);
+      const brightness = Number(document.querySelector(".color-v").value);
+      return Math.abs(saturation - 70) < 2 && Math.abs(brightness - 60) < 2;
+    },
+    null,
+    "2D colour field changes saturation and brightness together",
+  );
+  await control
+    .getByRole("textbox", { name: "Hex colour", exact: true })
+    .fill("#8844cc");
+  await waitFor(
+    stage,
+    () =>
+      window.__phosphorStage.show.currentSnapshot().palette.primary ===
+      "#8844cc",
+    null,
+    "custom colour reaches stage",
+  );
+  await waitFor(
+    control,
+    () =>
+      [...document.querySelectorAll(".look")].every(
+        (card) => card.card.snapshot.palette.primary === "#8844cc",
+      ),
+    null,
+    "all catalog snapshots share the live palette",
+  );
+  await pad.press("ArrowDown");
+  assert.equal(
+    await control.getByLabel("Colour brightness", { exact: true }).inputValue(),
+    "79",
+  );
+  await control.locator(".color-presets > summary").click();
+  await control
+    .getByRole("button", { name: "Use Symbiosis palette", exact: true })
+    .click();
+  await control
+    .getByRole("button", { name: "Close colour picker", exact: true })
+    .click();
+  await waitFor(
+    stage,
+    () =>
+      window.__phosphorStage.show.currentSnapshot().palette.primary ===
+      "#bfe7d8",
+    null,
+    "palette preset restores shared colours",
+  );
+  assert.equal(
+    await control.evaluate(
+      () => window.__phosphorControl.thumbnails.engine === undefined,
+    ),
+    true,
+    "palette changes never start a thumbnail renderer",
+  );
+  pass(
+    "2D colour dragging, keyboard controls, hex input and presets reach stage and catalog",
+  );
+
+  await control.locator('[data-setup-open="audio"]').click();
   await control.locator("#tab-audio").press("ArrowRight");
   assert.equal(
     await control.locator("#tab-midi").getAttribute("aria-selected"),
@@ -233,12 +335,14 @@ try {
   );
   assert.equal(await control.locator("#setup-audio").isVisible(), false);
   await control.locator("#tab-audio").click();
+  await control.locator("#closeSetup").click();
   await control.locator("#catalogSearch").fill("no-such-look-ui-check");
   assert.equal(await control.locator(".catalog-empty").isVisible(), true);
   await control.getByRole("button", { name: "Explore all looks" }).click();
   assert.equal(await control.locator(".look").count(), lookTotal);
   pass("theme switch, keyboard setup tabs and empty-catalog recovery");
 
+  await control.locator('[data-setup-open="audio"]').click();
   await control.locator("#audioMute").check();
   await waitFor(
     stage,
@@ -335,6 +439,7 @@ try {
     true,
   );
   await control.locator("#tab-audio").click();
+  await control.locator("#closeSetup").click();
   await control.mouse.move(2, 2);
   const heart = control.locator(".look .heart").first();
   await heart.press("Space");
@@ -343,7 +448,6 @@ try {
     true,
   );
   await heart.press("Space"); // restore the fixture's favourite state
-  await control.locator("#tab-audio").click();
   pass(
     "checklist, set faders and keyboard favourites retain focus through updates",
   );
@@ -435,7 +539,9 @@ try {
     "Blackout button blacks out within two frames even with a slider focused, and recovers",
   );
 
+  await control.locator(".performance-options > summary").click();
   await control.locator("#safe").click();
+  await control.locator(".performance-options > summary").click();
   await waitFor(
     stage,
     () =>
@@ -460,7 +566,7 @@ try {
 
   // Set edits remain available while the stage is connected.
   const name = `Harness ${Date.now()}`;
-  await control.locator("#tab-set").click();
+  await control.locator('[data-setup-open="set"]').click();
   await control.locator("#setFields input").first().fill(name);
   await control.locator("#setFields input").first().dispatchEvent("change");
   await waitFor(
@@ -470,6 +576,7 @@ try {
     "set edit reaches the stage",
   );
   pass("configuration edits reach the stage");
+  await control.locator("#closeSetup").click();
 
   // Catalog (D65, D68): every look is listed; a star rating and a favourite
   // reach the stage's set; the keys follow the view; Play plays live.
@@ -485,11 +592,11 @@ try {
   const cards = control.locator(".look");
   const rated = await cards.nth(2).evaluate((node) => node.card.look.id);
   await cards.nth(2).locator("summary").click();
-  await cards
-    .nth(2)
-    .locator(".star")
-    .nth(9)
-    .click({ position: { x: 12, y: 9 } });
+  const lastStar = cards.nth(2).locator(".star").nth(9);
+  const starBox = await lastStar.boundingBox();
+  await lastStar.click({
+    position: { x: starBox.width * 0.9, y: starBox.height / 2 },
+  });
   await waitFor(
     stage,
     (id) => window.__phosphorStage.show.set.ratings[id] === 10,
@@ -709,7 +816,40 @@ try {
   await rhythmCue("quasicrystal:Penrose Rhombs");
   const ribbon = control.locator('[data-effect="ribbon"]');
   await ribbon.waitFor();
-  const length = ribbon.getByLabel("Ribbon chase loop length in steps");
+  const compactCell = ribbon.locator(".rhythm-mini button").nth(1);
+  await compactCell.click();
+  await waitFor(
+    stage,
+    () => {
+      const track = window.__phosphorStage.show.rhythmFrame(
+        performance.now() / 1000,
+      ).settings.families.quasicrystal.tracks[0];
+      return track.division === 4 && track.steps[1] > 0;
+    },
+    null,
+    "compact cell edits the live pattern without expanding the panel",
+  );
+  await control.keyboard.down("KeyL");
+  await waitFor(
+    stage,
+    () => window.__phosphorStage.engine.flashHeld,
+    null,
+    "Flash held before opening rhythm options",
+  );
+  await ribbon
+    .getByRole("button", { name: "Ribbon chase settings", exact: true })
+    .click();
+  const ribbonOptions = control.locator('[data-effect-options="ribbon"]');
+  await ribbonOptions.getByLabel("Ribbon chase strength").focus();
+  await control.keyboard.up("KeyL");
+  await waitFor(
+    stage,
+    () => !window.__phosphorStage.engine.flashHeld,
+    null,
+    "Flash releases inside rhythm options",
+  );
+  await ribbonOptions.getByLabel("Ribbon chase resolution").selectOption("1");
+  const length = ribbonOptions.getByLabel("Ribbon chase loop length in steps");
   await length.fill("3");
   await length.dispatchEvent("change");
   await waitFor(
@@ -723,8 +863,20 @@ try {
     null,
     "three-beat family loop applies on the music clock",
   );
-  const globalMute = control.locator('[data-effect="brightness"] .rhythm-mute');
+  await ribbonOptions
+    .getByRole("button", { name: "Close rhythm options" })
+    .click();
+  await control.locator("#rhythmGlobalView").click();
+  await control
+    .locator('[data-effect="brightness"] .rhythm-effect-name')
+    .click();
+  const globalOptions = control.locator('[data-effect-options="brightness"]');
+  const globalMute = globalOptions.locator(".rhythm-mute");
   await globalMute.click();
+  await globalOptions
+    .getByRole("button", { name: "Close rhythm options" })
+    .click();
+  await control.locator("#rhythmFamilyView").click();
   await waitFor(
     stage,
     () =>
@@ -741,8 +893,9 @@ try {
   await waitFor(
     control,
     () =>
-      document.querySelector('[data-effect="ribbon"] input[type="number"]')
-        .value === "3",
+      document.querySelector(
+        '[data-effect-options="ribbon"] input[type="number"]',
+      ).value === "3",
     null,
     "protected family pattern returns unchanged",
   );
@@ -753,7 +906,7 @@ try {
     "live rhythm grid applies independent loops, protects edits and retains global effects across families",
   );
 
-  await control.locator("#tab-checks").click();
+  await control.locator('[data-setup-open="checks"]').click();
   await control.locator("#pattern").click();
   await waitFor(
     stage,
@@ -784,6 +937,7 @@ try {
     null,
     "stage closure resumes local performance and unlocks settings",
   );
+  await control.locator("#closeSetup").click();
   await control.locator("#blackout").click();
   await waitFor(
     control,
@@ -855,6 +1009,7 @@ try {
   await control.locator("#saveAsLook").click();
   await control.locator("body").focus();
   await control.keyboard.down("KeyL");
+  await control.locator("#lookMenu > summary").click();
   await control.locator("#deleteLook").click();
   await control.keyboard.up("KeyL");
   assert.equal(
@@ -863,7 +1018,8 @@ try {
     "confirmation must not swallow held Flash release",
   );
   await control.locator("#confirmNo").click();
-  await control.locator("#tab-set").click();
+  await control.locator("#lookMenu > summary").click();
+  await control.locator('[data-setup-open="set"]').click();
   const [download] = await Promise.all([
     control.waitForEvent("download"),
     control.locator("#exportSet").click(),

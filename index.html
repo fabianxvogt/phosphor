@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#191b19" />
+    <meta name="theme-color" content="#181a1a" />
     <meta
       name="description"
       content="Phosphor: a local GPU VJ instrument for live DJ sets."
@@ -11,36 +11,51 @@
     <title>Phosphor · control</title>
     <script src="control-theme.js"></script>
     <link rel="stylesheet" href="control.css" />
+    <link rel="stylesheet" href="control-skin.css" />
+    <link rel="stylesheet" href="control-chassis.css" />
+    <link
+      rel="preload"
+      href="public/fonts/Forum-Regular.ttf"
+      data-license="public/fonts/Forum-LICENSE.txt"
+      as="font"
+      type="font/ttf"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      as="image"
+      href="public/ui/biomechanical-page-portrait.png"
+      media="(max-width: 1099px)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      href="public/ui/biomechanical-page-shell.png"
+      media="(min-width: 1100px)"
+    />
   </head>
   <body>
     <a class="skip-link" href="#catalogSearch">Skip to catalog</a>
     <header class="topbar">
       <span class="brand"
-        ><svg class="brand-mark" viewBox="0 0 28 32" aria-hidden="true">
-          <rect
-            x="11"
-            y="1"
-            width="10"
-            height="15"
-            rx="5"
-            transform="rotate(38 16 8)"
-          />
-          <rect
-            x="4"
-            y="11"
-            width="10"
-            height="15"
-            rx="5"
-            transform="rotate(38 9 18)"
-          />
-          <rect
-            x="12"
-            y="17"
-            width="10"
-            height="15"
-            rx="5"
-            transform="rotate(38 17 24)"
-          /></svg
+        ><svg
+          class="brand-mark"
+          viewBox="0 0 40 40"
+          fill="none"
+          aria-hidden="true"
+        >
+          <g stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+            <path
+              d="M20 4c-2 8 3 10 0 16s-3 9 0 16M5 14c6-5 9 4 15 6s10-4 15-1M9 32c4-5 9-3 11-12s7-9 11-8M20 20c-3-7-7-6-8-11m8 11c8 1 6 10 12 12"
+            />
+            <path d="M20 13c-7 0-8 12 0 14 7 2 9-12 0-14Z" />
+            <circle cx="20" cy="4" r="1.8" />
+            <circle cx="5" cy="14" r="2.5" />
+            <circle cx="9" cy="32" r="1.5" />
+            <circle cx="31" cy="12" r="2" />
+            <circle cx="32" cy="32" r="2.2" />
+            <circle cx="20" cy="20" r="2" />
+          </g></svg
         >PHOSPHOR</span
       >
       <button class="set-name" id="editSetName" title="Edit set name">
@@ -133,23 +148,31 @@
               <div class="preview-caption">
                 <span id="nowReadout">—</span>
                 <div class="preview-tempo">
-                  <span><span id="bpm">—</span> BPM</span>
+                  <button
+                    id="previewTempo"
+                    class="preview-setting"
+                    popovertarget="tempoSettings"
+                    aria-label="Set tempo"
+                    title="Set tempo"
+                  >
+                    <span id="bpm">—</span> BPM
+                    <span aria-hidden="true">⌄</span>
+                  </button>
                   <div class="beats" id="beats" aria-label="Beat in bar">
                     <i></i><i></i><i></i><i></i>
                   </div>
                 </div>
               </div>
-              <label class="preview-size"
-                ><span class="sr-only">Preview resolution</span
-                ><select
+              <span class="preview-size"
+                ><button
                   id="previewResolution"
-                  title="Local preview resolution"
+                  class="preview-setting"
+                  popovertarget="resolutionSettings"
+                  aria-label="Set output resolution"
+                  title="Set preview and stage resolution"
                 >
-                  <option value="480x270">480 × 270</option>
-                  <option value="960x540">960 × 540</option>
-                  <option value="1280x720">1280 × 720</option>
-                  <option value="1920x1080">1920 × 1080</option>
-                </select></label
+                  Native
+                </button></span
               >
             </div>
           </div>
@@ -175,6 +198,9 @@
                 <div class="readout">
                   <span>Palette</span><span id="paletteReadout">—</span>
                 </div>
+                <button id="previewFit" aria-pressed="false">
+                  Show entire frame
+                </button>
                 <p class="note" id="previewNote" hidden>
                   Stage live: the monitor shows the stage's stream. The editor
                   uses a smaller preview to leave the GPU to the stage.
@@ -182,12 +208,6 @@
               </div>
             </details>
           </div>
-        </section>
-        <section class="panel rhythm-panel" aria-labelledby="rhythmTitle">
-          <h2 id="rhythmTitle">
-            Rhythm <span class="section-hint">Music shapes the picture</span>
-          </h2>
-          <div id="rhythmControls"></div>
         </section>
         <section class="panel catalog" aria-labelledby="catalogTitle">
           <div class="catalog-head">
@@ -224,13 +244,23 @@
                 My looks
               </button>
             </div>
-            <select id="catalogFamily" aria-label="Family filter"></select
-            ><select
-              id="catalogCharacter"
-              class="catalog-character"
-              aria-label="Visual style filter"
-            ></select
-            ><select
+            <details class="catalog-refine">
+              <summary
+                aria-label="More catalog filters"
+                title="Family and visual style filters"
+              >
+                Filters
+              </summary>
+              <div class="catalog-refine-body">
+                <select id="catalogFamily" aria-label="Family filter"></select
+                ><select
+                  id="catalogCharacter"
+                  class="catalog-character"
+                  aria-label="Visual style filter"
+                ></select>
+              </div>
+            </details>
+            <select
               id="catalogShow"
               aria-label="Show"
               class="sr-only"
@@ -269,7 +299,27 @@
           class="panel look-panel settings-controls"
           aria-label="Look editor"
         >
-          <h2>Look <span class="section-hint">Make it yours</span></h2>
+          <div class="panel-heading">
+            <h2>Look</h2>
+            <details class="panel-menu" id="lookMenu">
+              <summary
+                aria-label="More look settings"
+                title="More look settings"
+              >
+                •••
+              </summary>
+              <div class="panel-menu-body">
+                <div id="editorMore" class="fields"></div>
+                <div class="menu-actions">
+                  <button id="auditionLook" title="Play the current draft">
+                    Play draft <span aria-hidden="true">↗</span></button
+                  ><button id="saveLook" class="accent" hidden>
+                    Save changes</button
+                  ><button id="deleteLook" class="danger" hidden>Delete</button>
+                </div>
+              </div>
+            </details>
+          </div>
           <div class="look-heading">
             <canvas
               id="editorCanvas"
@@ -284,12 +334,15 @@
             </div>
           </div>
           <div class="fields" id="editor"></div>
+          <div id="paletteControl"></div>
           <div class="editor-actions">
             <button id="breedLook" title="Create six variations of this look">
               Variations</button
-            ><button id="auditionLook" title="Play the current draft">
-              Play draft <span aria-hidden="true">↗</span></button
-            ><button id="saveAsLook" class="save-look">
+            ><button
+              id="saveAsLook"
+              class="save-look"
+              title="Save as your own look"
+            >
               <svg
                 class="icon"
                 viewBox="0 0 24 24"
@@ -302,37 +355,42 @@
               >
                 <path d="M6 3h12v18l-6-4-6 4Z" />
               </svg>
-              Save as own look</button
-            ><button id="saveLook" class="accent" hidden>Save changes</button
-            ><button id="deleteLook" class="danger" hidden>Delete</button>
+              Save look
+            </button>
           </div>
-          <div class="grid variations" id="variations"></div>
+          <div
+            class="grid variations"
+            id="variations"
+            popover="auto"
+            role="dialog"
+            aria-label="Look variations"
+          ></div>
         </section>
         <section class="panel performance-panel" aria-label="Performance">
           <h2>Performance</h2>
           <div class="faders" id="shared"></div>
-          <div class="speed-control">
-            <span>Speed</span>
-            <div class="segmented">
-              <button id="half" aria-pressed="false" title="Half speed (9)">
-                ½×</button
-              ><button
-                id="normalSpeed"
-                aria-pressed="true"
-                title="Normal speed"
-              >
-                1×</button
-              ><button
-                id="double"
-                aria-pressed="false"
-                title="Double speed (0)"
-              >
-                2×
-              </button>
+          <div class="performance-transport">
+            <div class="speed-control">
+              <span>Speed</span>
+              <div class="segmented">
+                <button id="half" aria-pressed="false" title="Half speed (9)">
+                  ½×</button
+                ><button
+                  id="normalSpeed"
+                  aria-pressed="true"
+                  title="Normal speed"
+                >
+                  1×</button
+                ><button
+                  id="double"
+                  aria-pressed="false"
+                  title="Double speed (0)"
+                >
+                  2×
+                </button>
+              </div>
+              <output id="speedReadout">1×</output>
             </div>
-            <output id="speedReadout">1×</output>
-          </div>
-          <div class="actions">
             <button id="autopilot" aria-pressed="false" title="Autopilot (P)">
               <svg
                 class="icon"
@@ -347,29 +405,11 @@
                 <path
                   d="M12 12c-2-3-3-4-5-4a4 4 0 1 0 0 8c2 0 3-1 5-4s3-4 5-4a4 4 0 1 1 0 8c-2 0-3-1-5-4Z"
                 /></svg
-              ><span>Autopilot</span></button
-            ><button
-              id="random"
-              aria-pressed="true"
-              title="Random looks and evolving parameters"
-            >
-              <svg
-                class="icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="4" y="4" width="16" height="16" rx="4" />
-                <path
-                  d="M8 8h.01M16 8h.01M12 12h.01M8 16h.01M16 16h.01"
-                  stroke-width="3"
-                /></svg
-              ><span>Random</span></button
-            ><button id="next" title="Next look (Shift + Space)">
+              ><span>Autopilot</span>
+            </button>
+          </div>
+          <div class="actions performance-primary">
+            <button id="next" title="Next look (Shift + Space)">
               <svg
                 class="icon"
                 viewBox="0 0 24 24"
@@ -382,8 +422,9 @@
               >
                 <path d="m6 5 10 7-10 7Z" fill="currentColor" stroke="none" />
                 <path d="M18 5v14" /></svg
-              ><span>Next</span></button
-            ><button id="freeze" aria-pressed="false" title="Freeze (O)">
+              ><span>Next</span>
+            </button>
+            <button id="freeze" aria-pressed="false" title="Freeze (O)">
               <svg
                 class="icon"
                 viewBox="0 0 24 24"
@@ -395,8 +436,9 @@
                 aria-hidden="true"
               >
                 <path d="M8 5v14M16 5v14" stroke-width="4" /></svg
-              ><span>Freeze</span></button
-            ><button id="flash" aria-pressed="false" title="Hold to flash (L)">
+              ><span>Freeze</span>
+            </button>
+            <button id="blackout" class="blackout" aria-pressed="false">
               <svg
                 class="icon"
                 viewBox="0 0 24 24"
@@ -407,44 +449,74 @@
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <circle cx="12" cy="12" r="4" />
-                <path
-                  d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
-                /></svg
-              ><span>Flash</span></button
-            ><button id="safe">
-              <svg
-                class="icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="m12 3 8 3v6c0 4-8 9-8 9s-8-5-8-9V6Z" />
-                <path d="M12 3v18" /></svg
-              ><span>Safe look</span>
+                <circle cx="12" cy="12" r="8" stroke-width="2.5" /></svg
+              ><span>Blackout</span>
             </button>
           </div>
-          <button id="blackout" class="blackout" aria-pressed="false">
-            <svg
-              class="icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="8" stroke-width="2.5" /></svg
-            ><span>Blackout</span>
-          </button>
           <details class="advanced performance-options">
             <summary>Performance options</summary>
             <div class="detail-body">
+              <div class="faders" id="sharedMore"></div>
+              <div class="actions performance-secondary">
+                <button
+                  id="random"
+                  aria-pressed="true"
+                  title="Random looks and evolving parameters"
+                >
+                  <svg
+                    class="icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="4" y="4" width="16" height="16" rx="4" />
+                    <path
+                      d="M8 8h.01M16 8h.01M12 12h.01M8 16h.01M16 16h.01"
+                      stroke-width="3"
+                    /></svg
+                  ><span>Random</span>
+                </button>
+                <button
+                  id="flash"
+                  aria-pressed="false"
+                  title="Hold to flash (L)"
+                >
+                  <svg
+                    class="icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="4" />
+                    <path
+                      d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
+                    /></svg
+                  ><span>Flash</span>
+                </button>
+                <button id="safe">
+                  <svg
+                    class="icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m12 3 8 3v6c0 4-8 9-8 9s-8-5-8-9V6Z" />
+                    <path d="M12 3v18" /></svg
+                  ><span>Safe look</span>
+                </button>
+              </div>
               <div class="row">
                 <button id="favoritesOnly" aria-pressed="false">♥ only</button
                 ><select
@@ -457,175 +529,260 @@
             </div>
           </details>
         </section>
-        <section class="panel setup-panel" aria-label="Setup">
-          <div class="setup-tabs" role="tablist" aria-label="Setup">
+        <section class="panel rhythm-panel" aria-labelledby="rhythmTitle">
+          <div class="rhythm-heading">
+            <h2 id="rhythmTitle">Rhythm</h2>
             <button
-              role="tab"
-              id="tab-audio"
-              aria-controls="setup-audio"
-              aria-selected="true"
+              id="rhythmOptions"
+              popovertarget="rhythmSettings"
+              aria-label="Rhythm options"
             >
-              Audio</button
-            ><button
-              role="tab"
-              id="tab-midi"
-              aria-controls="setup-midi"
-              aria-selected="false"
-              tabindex="-1"
-            >
-              MIDI</button
-            ><button
-              role="tab"
-              id="tab-set"
-              aria-controls="setup-set"
-              aria-selected="false"
-              tabindex="-1"
-            >
-              Set</button
-            ><button
-              role="tab"
-              id="tab-checks"
-              aria-controls="setup-checks"
-              aria-selected="false"
-              tabindex="-1"
-            >
-              Pre-show
+              •••
             </button>
           </div>
-          <div id="setup-audio" role="tabpanel" aria-labelledby="tab-audio">
-            <div class="setup-heading">
-              <h3>Audio source</h3>
-              <span class="pill" id="audioPill">Audio off</span>
-            </div>
-            <div class="settings-controls">
-              <div class="fields">
-                <label class="field"
-                  ><span>Line input</span
-                  ><select id="audioDevice"></select
-                ></label>
-              </div>
-              <div class="row" style="margin-top: 8px">
-                <button id="useInput" class="accent">Use input</button>
-                <label class="file"
-                  >Rehearse with file<input
-                    id="audioFile"
-                    type="file"
-                    accept="audio/*"
-                /></label>
-                <button id="useDemo">Demo beat</button>
-                <button id="audioOff">Off</button>
-                <label class="row"
-                  ><input id="audioMute" type="checkbox" /> Mute
-                  file/demo</label
-                >
-              </div>
-              <p class="note">
-                Line input is analysed only and never sent to the speakers.
-              </p>
-              <p class="note" id="audioStageNote">
-                Open the stage to use line input or rehearse with an audio file.
-              </p>
-            </div>
-            <div class="tempo-section">
-              <h3>Tempo</h3>
-              <div class="tempo-controls">
-                <label class="bpm-input"
-                  ><input
-                    id="manualBpm"
-                    type="number"
-                    min="40"
-                    max="200"
-                    step="0.1"
-                    aria-label="Tempo in BPM"
-                  /><span>BPM</span></label
-                ><button id="tap" title="Tap tempo (Space)">
-                  Tap <kbd>Space</kbd>
-                </button>
-              </div>
-              <details class="advanced">
-                <summary>Timing controls</summary>
-                <div class="detail-body row">
-                  <button id="downbeat">Downbeat <kbd>Enter</kbd></button
-                  ><button id="nudgeBack" aria-label="Nudge earlier">←</button
-                  ><button id="nudgeForward" aria-label="Nudge later">→</button
-                  ><button id="autoClock">Follow audio</button
-                  ><span id="latency" class="note"></span>
-                </div>
-              </details>
-            </div>
+          <div class="rhythm-scope" role="group" aria-label="Rhythm tracks">
+            <button id="rhythmFamilyView" aria-pressed="true">Family</button
+            ><button id="rhythmGlobalView" aria-pressed="false">Global</button>
           </div>
-          <div
-            id="setup-midi"
-            class="settings-controls"
-            role="tabpanel"
-            aria-labelledby="tab-midi"
-            hidden
-          >
-            <h3>MIDI controller</h3>
-            <p class="note">
-              Connect a controller, choose a target, then move a control to map
-              it.
-            </p>
-            <div class="row">
-              <button id="midiConnect">Connect MIDI</button>
-              <select id="midiTarget" aria-label="Learn target"></select>
-              <button id="midiLearn">Learn next control</button>
-            </div>
-            <ul class="log" id="midiMaps"></ul>
+          <div id="rhythmControls" data-compact="true"></div>
+          <div class="setup-launchers" role="group" aria-label="Open setup">
+            <button data-setup-open="audio">Audio</button
+            ><button data-setup-open="midi">MIDI</button
+            ><button data-setup-open="set">Set</button
+            ><button data-setup-open="checks">Pre-show</button>
           </div>
-          <div
-            id="setup-set"
-            class="settings-controls"
-            role="tabpanel"
-            aria-labelledby="tab-set"
-            hidden
-          >
-            <h3>Set settings</h3>
-            <div class="fields" id="setFields"></div>
-            <div class="row" style="margin-top: 10px">
-              <button id="exportSet">Export set</button>
-              <label class="file"
-                >Import set<input
-                  id="importSet"
-                  type="file"
-                  accept="application/json,.json"
-              /></label>
-            </div>
-            <ul class="log" id="importReport"></ul>
-          </div>
-          <div
-            id="setup-checks"
-            role="tabpanel"
-            aria-labelledby="tab-checks"
-            hidden
-          >
-            <h3>Ready for the stage</h3>
-            <div id="checks"></div>
-            <div class="row" style="margin-top: 8px">
-              <button id="pattern" aria-pressed="false">Framing pattern</button>
-              <button id="exportLog">Export rehearsal log</button>
-            </div>
-          </div>
-          <div class="setup-footer">
-            <label
-              class="settings-lock"
-              title="Lock configuration while the stage is connected"
-              ><input
-                id="settingsLock"
-                type="checkbox"
-                role="switch"
-                disabled
-              />
-              Lock settings</label
-            ><a href="update.html">Update app ↗</a>
-          </div>
-          <details class="advanced messages">
-            <summary>Messages</summary>
-            <ul class="log" id="log"></ul>
-          </details>
         </section>
       </div>
     </main>
+    <dialog
+      id="setupDialog"
+      class="setup-dialog"
+      aria-labelledby="setupDialogTitle"
+    >
+      <div class="dialog-heading">
+        <h2 id="setupDialogTitle">Setup</h2>
+        <button id="closeSetup" class="icon-button" aria-label="Close setup">
+          ×
+        </button>
+      </div>
+      <section class="setup-panel" aria-label="Setup">
+        <div class="setup-tabs" role="tablist" aria-label="Setup">
+          <button
+            role="tab"
+            id="tab-audio"
+            aria-controls="setup-audio"
+            aria-selected="true"
+          >
+            Audio</button
+          ><button
+            role="tab"
+            id="tab-midi"
+            aria-controls="setup-midi"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            MIDI</button
+          ><button
+            role="tab"
+            id="tab-set"
+            aria-controls="setup-set"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            Set</button
+          ><button
+            role="tab"
+            id="tab-checks"
+            aria-controls="setup-checks"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            Pre-show
+          </button>
+        </div>
+        <div id="setup-audio" role="tabpanel" aria-labelledby="tab-audio">
+          <div class="setup-heading">
+            <h3>Audio source</h3>
+            <span class="pill" id="audioPill">Audio off</span>
+          </div>
+          <div class="settings-controls">
+            <div class="fields">
+              <label class="field"
+                ><span>Line input</span
+                ><select id="audioDevice"></select
+              ></label>
+            </div>
+            <div class="row" style="margin-top: 8px">
+              <button id="useInput" class="accent">Use input</button>
+              <label class="file"
+                >Rehearse with file<input
+                  id="audioFile"
+                  type="file"
+                  accept="audio/*"
+              /></label>
+              <button id="useDemo">Demo beat</button>
+              <button id="audioOff">Off</button>
+              <label class="row"
+                ><input id="audioMute" type="checkbox" /> Mute file/demo</label
+              >
+            </div>
+            <p class="note">
+              Line input is analysed only and never sent to the speakers.
+            </p>
+            <p class="note" id="audioStageNote">
+              Open the stage to use line input or rehearse with an audio file.
+            </p>
+          </div>
+          <div class="tempo-section">
+            <h3>Tempo</h3>
+            <div class="tempo-controls">
+              <label class="bpm-input"
+                ><input
+                  id="manualBpm"
+                  type="number"
+                  min="40"
+                  max="200"
+                  step="0.1"
+                  aria-label="Tempo in BPM"
+                /><span>BPM</span></label
+              ><button id="tap" title="Tap tempo (Space)">
+                Tap <kbd>Space</kbd>
+              </button>
+            </div>
+            <details class="advanced">
+              <summary>Timing controls</summary>
+              <div class="detail-body row">
+                <button id="downbeat">Downbeat <kbd>Enter</kbd></button
+                ><button id="nudgeBack" aria-label="Nudge earlier">←</button
+                ><button id="nudgeForward" aria-label="Nudge later">→</button
+                ><button id="autoClock">Follow audio</button
+                ><span id="latency" class="note"></span>
+              </div>
+            </details>
+          </div>
+        </div>
+        <div
+          id="setup-midi"
+          class="settings-controls"
+          role="tabpanel"
+          aria-labelledby="tab-midi"
+          hidden
+        >
+          <h3>MIDI controller</h3>
+          <p class="note">
+            Connect a controller, choose a target, then move a control to map
+            it.
+          </p>
+          <div class="row">
+            <button id="midiConnect">Connect MIDI</button>
+            <select id="midiTarget" aria-label="Learn target"></select>
+            <button id="midiLearn">Learn next control</button>
+          </div>
+          <ul class="log" id="midiMaps"></ul>
+        </div>
+        <div
+          id="setup-set"
+          class="settings-controls"
+          role="tabpanel"
+          aria-labelledby="tab-set"
+          hidden
+        >
+          <h3>Set settings</h3>
+          <div class="fields" id="setFields"></div>
+          <div class="row" style="margin-top: 10px">
+            <button id="exportSet">Export set</button>
+            <label class="file"
+              >Import set<input
+                id="importSet"
+                type="file"
+                accept="application/json,.json"
+            /></label>
+          </div>
+          <ul class="log" id="importReport"></ul>
+        </div>
+        <div
+          id="setup-checks"
+          role="tabpanel"
+          aria-labelledby="tab-checks"
+          hidden
+        >
+          <h3>Ready for the stage</h3>
+          <div id="checks"></div>
+          <div class="row" style="margin-top: 8px">
+            <button id="pattern" aria-pressed="false">Framing pattern</button>
+            <button id="exportLog">Export rehearsal log</button>
+          </div>
+        </div>
+        <div class="setup-footer">
+          <label
+            class="settings-lock"
+            title="Lock configuration while the stage is connected"
+            ><input id="settingsLock" type="checkbox" role="switch" disabled />
+            Lock settings</label
+          ><a href="update.html">Update app ↗</a>
+        </div>
+        <details class="advanced messages">
+          <summary>Messages</summary>
+          <ul class="log" id="log"></ul>
+        </details>
+      </section>
+    </dialog>
+    <div
+      id="tempoSettings"
+      class="preview-settings"
+      popover
+      aria-labelledby="tempoTitle"
+    >
+      <div class="quick-settings-heading">
+        <h3 id="tempoTitle">Tempo</h3>
+        <button
+          popovertarget="tempoSettings"
+          popovertargetaction="hide"
+          aria-label="Close tempo settings"
+        >
+          ×
+        </button>
+      </div>
+      <div class="quick-tempo-controls">
+        <button id="tempoSlower" aria-label="Decrease tempo">−</button>
+        <label
+          ><input
+            id="quickBpm"
+            type="number"
+            min="40"
+            max="200"
+            step="0.1"
+            aria-label="Quick tempo in BPM"
+          /><span>BPM</span></label
+        >
+        <button id="tempoFaster" aria-label="Increase tempo">+</button>
+        <button id="quickTap">Tap</button>
+      </div>
+      <p>Visuals &amp; demo audio share this tempo.</p>
+    </div>
+    <div
+      id="resolutionSettings"
+      class="preview-settings settings-controls"
+      popover
+      aria-labelledby="resolutionTitle"
+    >
+      <div class="quick-settings-heading">
+        <h3 id="resolutionTitle">Resolution</h3>
+        <button
+          popovertarget="resolutionSettings"
+          popovertargetaction="hide"
+          aria-label="Close resolution settings"
+        >
+          ×
+        </button>
+      </div>
+      <label for="outputResolution">Preview &amp; stage</label>
+      <select id="outputResolution"></select>
+      <p>
+        Native uses the full display resolution. Lower settings reduce rendering
+        load.
+      </p>
+    </div>
     <div class="toast" id="toast" hidden role="status"></div>
     <script type="module" src="control.mjs"></script>
   </body>

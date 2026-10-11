@@ -93,6 +93,7 @@ export class Show {
     this.paletteValues = new Uint32Array(3);
     this.paletteFrom = new Uint32Array(3);
     this.paletteTo = new Uint32Array(3);
+    if (set.palette) this.#setPalette(set.palette, now, 0);
     this.resumeEnergy = null; // energy to resume after the safe look
     this.speed = 1;
     this.shared = { ...set.shared };
@@ -128,6 +129,12 @@ export class Show {
 
   // An edited set from the control (stage `set` message, local preview).
   updateSet(set, t = this.rhythmTime ?? this.clock.last) {
+    if (set.palette && !same(set.palette, this.palette)) {
+      this.#setPalette(set.palette, t, 0);
+      if (this.live) this.live.clip.snapshot.palette = this.paletteColors;
+      if (this.safeShowing) this.safeFrame.palette = this.paletteColors;
+      this.paletteDirty = true;
+    }
     const looksChanged = set.looks !== this.set.looks;
     const desired = validateRhythm(set.rhythm, [...this.scenes.values()]);
     const overrides = this.#ownRhythms(set);
@@ -847,8 +854,10 @@ export class Show {
     if (same && this.paletteColors) return;
     this.palette = typeof palette === "string" ? palette : { ...palette };
     this.autopilot.palettePlayed(palette);
-    if (!this.paletteColors) {
-      this.paletteColors = { ...colors };
+    if (!this.paletteColors || beats <= 0) {
+      if (this.paletteColors) Object.assign(this.paletteColors, colors);
+      else this.paletteColors = { ...colors };
+      this.paletteGlide = null;
       this.#rememberColors();
       return;
     }
@@ -902,7 +911,7 @@ export class Show {
     if (now.beat + 1e-9 < p.at) return [];
     this.pending = null;
     this.#advancePalette(t);
-    if (p.adoptPalette || this.palette === null)
+    if (!this.set.palette && (p.adoptPalette || this.palette === null))
       this.#setPalette(
         p.clip.palette === "custom" ? p.clip.snapshot.palette : p.clip.palette,
         t,
@@ -1122,7 +1131,8 @@ export class Show {
         return [{ type: "energy", value: this.energy, seconds: 0.25 }];
       case "palette":
         this.#manual(t);
-        this.#setPalette(action.value, t);
+        if (this.set.palette) this.set.palette = structuredClone(action.value);
+        this.#setPalette(action.value, t, action.beats ?? PALETTE_BEATS);
         if (this.live) this.live.clip.snapshot.palette = this.paletteColors;
         if (this.safeShowing) this.safeFrame.palette = this.paletteColors;
         return this.currentSnapshot() ? [PARAMS] : [];
@@ -1192,7 +1202,8 @@ export class Show {
   tick(t, { tracker = null, event = null } = {}) {
     if (tracker) this.clock.track(t, tracker);
     this.#advanceRhythm(t);
-    let paramsChanged = this.#advancePalette(t);
+    let paramsChanged = this.#advancePalette(t) || this.paletteDirty;
+    this.paletteDirty = false;
     const actions = this.#fire(t);
     const now = this.clock.at(t);
     if (now.bar !== this.lastBar || event) {
@@ -1218,7 +1229,8 @@ export class Show {
         } else if (a.type === "speed") {
           this.speed = a.value;
           actions.push({ type: "speed", value: a.value });
-        } else if (a.type === "palette") this.#setPalette(a.id, t, a.beats);
+        } else if (a.type === "palette" && !this.set.palette)
+          this.#setPalette(a.id, t, a.beats);
         else if (a.type === "drift") this.#startDrift(t, a.bars, now.bpm);
       }
     }
@@ -1367,6 +1379,11 @@ export class Show {
     this.blackout = saved.blackout;
     this.autopilot.enabled = saved.autopilot;
     this.clock.restore(saved.clock, t);
+    if (this.set.palette) {
+      // Set data wins over a stale runtime recovered after a reload.
+      this.palette = null;
+      this.#setPalette(this.set.palette, t, 0);
+    }
     this.rhythmTime = t;
     this.#restoreRhythm(saved.rhythm, t);
     const actions = [

@@ -1,5 +1,56 @@
 // Presentation-only navigation. Playback and saved show state stay in control.mjs.
 export function setupControlUI() {
+  for (const [popupId, anchorId] of [
+    ["tempoSettings", "previewTempo"],
+    ["resolutionSettings", "previewResolution"],
+  ]) {
+    const popup = document.getElementById(popupId);
+    const anchor = document.getElementById(anchorId);
+    const position = () => {
+      if (!popup.matches(":popover-open")) return;
+      const rect = anchor.getBoundingClientRect();
+      const box = popup.getBoundingClientRect();
+      popup.style.left = `${Math.max(12, Math.min(rect.right - box.width, innerWidth - box.width - 12))}px`;
+      popup.style.top = `${Math.max(12, Math.min(rect.top - box.height - 12, innerHeight - box.height - 12))}px`;
+    };
+    popup.addEventListener("toggle", position);
+    popup.addEventListener("keydown", (event) => event.stopPropagation());
+    addEventListener("resize", position);
+    addEventListener("scroll", position, true);
+  }
+  const rhythmRoot = document.getElementById("rhythmControls");
+  for (const [id, global] of [
+    ["rhythmFamilyView", false],
+    ["rhythmGlobalView", true],
+  ]) {
+    document.getElementById(id).addEventListener("click", () => {
+      rhythmRoot.classList.toggle("rhythm-show-global", global);
+      document.getElementById("rhythmFamilyView").ariaPressed = String(!global);
+      document.getElementById("rhythmGlobalView").ariaPressed = String(global);
+      const settings = document.getElementById("rhythmSettings");
+      if (settings) settings.dataset.scope = global ? "global" : "family";
+    });
+  }
+  document.getElementById("previewFit").addEventListener("click", (event) => {
+    const fit = event.currentTarget.ariaPressed !== "true";
+    event.currentTarget.ariaPressed = String(fit);
+    document.querySelector(".preview").classList.toggle("preview-fit", fit);
+  });
+  const setupDialog = document.getElementById("setupDialog");
+  document
+    .getElementById("closeSetup")
+    .addEventListener("click", () => setupDialog.close());
+  setupDialog.addEventListener("click", (event) => {
+    if (event.target !== setupDialog) return;
+    const box = setupDialog.getBoundingClientRect();
+    if (
+      event.clientX < box.left ||
+      event.clientX > box.right ||
+      event.clientY < box.top ||
+      event.clientY > box.bottom
+    )
+      setupDialog.close();
+  });
   const tabs = [...document.querySelectorAll('.setup-tabs [role="tab"]')];
   function selectTab(tab, focus = false) {
     for (const item of tabs) {
@@ -27,7 +78,16 @@ export function setupControlUI() {
       selectTab(tabs[target], true);
     });
   }
+  for (const button of document.querySelectorAll("[data-setup-open]"))
+    button.addEventListener("click", () => {
+      setupDialog.showModal();
+      selectTab(
+        document.getElementById(`tab-${button.dataset.setupOpen}`),
+        true,
+      );
+    });
   document.getElementById("editSetName").addEventListener("click", () => {
+    setupDialog.showModal();
     selectTab(document.getElementById("tab-set"));
     const input = document.querySelector("#setFields input");
     input?.focus();
@@ -76,4 +136,17 @@ export function setupControlUI() {
     )
       event.stopPropagation();
   });
+}
+
+// Only validated palette values become CSS colours. Repeated status messages
+// do not rewrite styles; the skin keeps text and surface contrast independent.
+export function syncControlPalette(palette) {
+  if (!palette) return;
+  for (const key of ["primary", "secondary"]) {
+    const color = palette[key];
+    if (!/^#[0-9a-f]{6}$/i.test(color ?? "")) continue;
+    const property = `--scene-${key}`;
+    if (document.documentElement.style.getPropertyValue(property) !== color)
+      document.documentElement.style.setProperty(property, color);
+  }
 }

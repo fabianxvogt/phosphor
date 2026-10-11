@@ -11,6 +11,7 @@
 // family filter changes, or Sort is pressed — then the last rated card is
 // scrolled into view. Favourites always come first (D68).
 import { sortCatalog, ratingOf, lookPalette, MAX_RATING } from "./catalog.mjs";
+import { paletteMatrix } from "./thumbnail-palette.mjs";
 import { paletteById } from "./palettes.mjs";
 import {
   catalogFamilies,
@@ -181,6 +182,7 @@ export class CatalogPanel {
     onEdit, // (look)
     onOrder, // ([id]) after every sort: the visible order
     thumbnails, // Thumbnails
+    palette = null, // shared show colours, if enabled
   }) {
     Object.assign(this, {
       looks,
@@ -202,7 +204,17 @@ export class CatalogPanel {
       onEdit,
       onOrder,
       thumbnails,
+      palette,
     });
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "palette-filter-defs");
+    svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML =
+      '<defs><filter id="catalog-palette" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" /></filter></defs>';
+    this.paletteMatrix = svg.querySelector("feColorMatrix");
+    if (palette)
+      this.paletteMatrix.setAttribute("values", paletteMatrix(palette));
+    document.body.append(svg);
     this.cards = new Map(); // id → { node, look, widget, thumb, … }
     this.order = [];
     this.stale = 0; // ratings or favourites changed since the last sort
@@ -229,6 +241,7 @@ export class CatalogPanel {
             (entries) => {
               for (const entry of entries) {
                 const card = entry.target.card;
+                card.visible = entry.isIntersecting;
                 if (entry.isIntersecting)
                   thumbnails?.want(card.look.id, card.snapshot);
                 else thumbnails?.forget(card.look.id);
@@ -307,8 +320,9 @@ export class CatalogPanel {
         : look.palette === "custom"
           ? { colors: look.snapshot.palette }
           : paletteById(lookPalette(look));
-    const snapshot = { ...look.snapshot, palette: { ...palette.colors } };
-    const { primary, secondary, accent } = palette.colors;
+    const colors = this.palette ?? palette.colors;
+    const snapshot = { ...look.snapshot, palette: { ...colors } };
+    const { primary, secondary, accent } = colors;
     const thumb = el("div", {
       className: "thumb",
       style: `background:linear-gradient(120deg,${secondary},${primary} 55%,${accent})`,
@@ -617,6 +631,16 @@ export class CatalogPanel {
         decoding: "async",
       }),
     );
+  }
+
+  setPalette(colors) {
+    if (JSON.stringify(colors) === JSON.stringify(this.palette)) return;
+    this.palette = { ...colors };
+    this.paletteMatrix.setAttribute("values", paletteMatrix(colors));
+    for (const card of this.cards.values()) {
+      card.snapshot.palette = { ...colors };
+      card.thumb.style.background = `linear-gradient(120deg,${colors.secondary},${colors.primary} 55%,${colors.accent})`;
+    }
   }
 
   // Live / pending look ids from the show status.

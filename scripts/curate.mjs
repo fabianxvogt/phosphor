@@ -509,7 +509,17 @@ for (const e of entries)
 for (const id of ids)
   if (!entries.some((e) => e.id === id))
     throw new Error(`${id} has no place in the order`);
-entries.sort((a, b) => b.score - a.score || b.F - a.F);
+// The opening tray follows the living-systems visual direction: networks,
+// cellular membranes, liquid light, toroidal particles and organic spirals.
+const opening = [
+  "physarum:Honeycomb Transport", "voronoi:Honeycomb Relax",
+  "caustics:Pool of Light", "magnetic:Breathing Halo",
+  "phyllotaxis:Fibonacci Arms", "interference:Moire Veil",
+  "magnetic:Liquid Silk", "aquarium:Moon Jellies · Gyre",
+];
+for (const id of opening) if (!ids.has(id)) throw new Error(`unknown opening look ${id}`);
+const priority = (entry) => { const index = opening.indexOf(entry.id); return index < 0 ? opening.length : index; };
+entries.sort((a, b) => priority(a) - priority(b) || b.score - a.score || b.F - a.F);
 
 const file = new URL("../catalog-curated.mjs", import.meta.url);
 const src = readFileSync(file, "utf8");
