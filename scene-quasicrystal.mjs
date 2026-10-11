@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Aperiodic Tilings (#70): de Bruijn's multigrid method. D families of
 // parallel grid lines (directions e_j, offsets γ_j) cut the plane; every
 // intersection of two lines becomes a rhombus spanned by e_r and e_s,
@@ -102,7 +104,7 @@ void main() {
   float g[MAX_D];
   float stepAngle = (D % 2 == 1 ? 2.0 : 1.0) * PI / float(D);
   float mean = 0.0;
-  float flip = t * phason * 0.06 + seed;
+  float flip = t * phason * 0.06 + seed + u_rhythm.z * 0.18;
   for (int j = 0; j < MAX_D; j++) {
     if (j >= D) break;
     e[j] = vec2(cos(float(j) * stepAngle), sin(float(j) * stepAngle));
@@ -170,20 +172,23 @@ void main() {
     float inset = min(min(fa, 1.0 - fa), min(fb, 1.0 - fb)) * fdet;
     float glass = 0.12 + 0.6 * smoothstep(0.0, 0.42, inset);
     colour = tile * fill * glass;
+    // A second track selects an angle class, rather than a grid ribbon.
+    if (cls == 1 + int(mod(u_rhythmCount.y, float(max(D / 2, 1)))))
+      colour += tile * glass * u_rhythm.y * 0.8;
 
     // Ribbons (Conway worms): the rhombi dual to one grid line of family j
     // form a chain sharing edges parallel to e_j. On every beat the next
     // family lights every third ribbon, with a pulse running along it.
-    int lit = int(floor(max(u_beat, 0.0))) % D;
+    int lit = int(floor(u_rhythmEnabled ? u_rhythmCount.x : max(u_beat, 0.0))) % D;
     float beatPhase = fract(max(u_beat, 0.0));
     float kLit = fr == lit ? fkr : fks;
     bool onRibbon = (fr == lit || fs == lit) &&
-      mod(kLit + floor(max(u_beat, 0.0) / float(D)), 3.0) < 0.5;
+      mod(kLit + floor((u_rhythmEnabled ? u_rhythmCount.x : max(u_beat, 0.0)) / float(D)), 3.0) < 0.5;
     if (onRibbon) {
       vec2 along = vec2(-e[lit].y, e[lit].x);
       float pulse = 0.55 + 0.45 * sin(dot(x, along) * 0.7 - t * 2.4);
-      float hit = 0.35 + 0.65 * (1.0 - beatPhase) * (1.0 - beatPhase);
-      colour += mix(u_accent, vec3(1.0), 0.25) * ribbons * hit * pulse * 0.75;
+      float hit = u_rhythmEnabled ? u_rhythm.x : 0.35 + 0.65 * (1.0 - beatPhase) * (1.0 - beatPhase);
+      colour += mix(u_accent, vec3(1.0), 0.25) * ribbons * hit * pulse * 1.6;
     }
 
     // Luminous edges, constant in pixels.
@@ -278,11 +283,16 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("ribbon", 0, "Ribbon chase", "Light a selected de Bruijn grid ribbon; each event advances its direction."),
+    familyEffect("tile-class", 1, "Tile-class light", "Highlight one rhombus angle class independently of the ribbon.", { period: 3, duration: 0.75, strength: 0.55 }),
+    familyEffect("phason", 2, "Phason excursion", "Bounded offset excursion rearranges valid multigrid rhombi.", { period: 16, duration: 2, strength: 0.45, kind: "motion" }),
+  ],
   id: "quasicrystal",
   number: 70,
   name: "Aperiodic Tilings",
   description:
-    "De Bruijn's multigrid: families of parallel lines whose crossings become rhombi. Five families give Penrose's never-repeating rhombus tiling, four the eight-fold Ammann–Beenker tiling, seven and six heptagonal and dodecagonal ones. Thick and thin rhombi glow in their own colours; on the beat the ribbons of one grid family light up (they are the grid lines); drifting offsets make phason flips, tiles flipping in place while the tiling stays aperiodic.",
+    "De Bruijn's multigrid: families of parallel lines whose crossings become rhombi. Five families give Penrose's never-repeating rhombus tiling, four the eight-fold Ammann–Beenker tiling, seven and six heptagonal and dodecagonal ones. Thick and thin rhombi glow in their own colours; independent rhythm tracks light ribbons of one grid family (the grid lines) and selected rhombus angle classes; drifting offsets make phason flips, tiles flipping in place while the tiling stays aperiodic.",
   energy: {
     phason: { mul: [0.4, 2.2] },
     drift: { mul: [0.5, 2] },

@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Wallpaper Groups (#76): all 17 plane symmetry groups, made with Frank
 // Farris' wave-function method. A lattice-periodic complex function
 // f(X, Y) = Σ a_j·exp(2πi(n_j X + m_j Y)) (X, Y in lattice coordinates)
@@ -185,7 +187,7 @@ void main() {
   float spin = u_params[7];
   float t = mod(u_time, 3600.0);
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
-  float beatPulse = u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
+  float beatPulse = u_rhythmEnabled ? 0.0 : u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
 
   // Screen → plane → lattice coordinates.
   vec2 p = rot2(t * spin * 0.03) * aspectUV() * scale + vec2(t * 0.02, t * 0.013);
@@ -193,9 +195,9 @@ void main() {
   vec2 X = inverse(B) * p;
 
   // Two generations of coefficients crossfade every 16 beats (morph).
-  float era = beats / 16.0 * (0.25 + 0.75 * morph);
-  uint g0 = uint(floor(era)), g1 = g0 + 1u;
-  float mixG = smoothstep(0.0, 1.0, fract(era));
+  float era = u_rhythmEnabled ? u_rhythmCount.z : beats / 16.0 * (0.25 + 0.75 * morph);
+  uint g0 = uint(max(floor(era) - (u_rhythmEnabled ? 1.0 : 0.0), 0.0)), g1 = uint(floor(era)) + (u_rhythmEnabled ? 0u : 1u);
+  float mixG = u_rhythmEnabled ? smoothstep(0.0, 1.0, 1.0 - min(u_rhythm.z * 1.5, 1.0)) : smoothstep(0.0, 1.0, fract(era));
   vec2 F = vec2(0.0);
   int start = GROUP_START[group], count = GROUP_COUNT[group];
   for (int j = 0; j < ${MAX_TERMS}; j++) {
@@ -224,6 +226,10 @@ void main() {
   float band = 0.5 + 0.5 * cos(TAU * (log2(max(m, 1e-4)) * 1.2 - beats * 0.25));
   vec3 colour = colourWheel(phase + 0.1 * beatPulse) * light * (1.0 - rings * 0.35 * (1.0 - band));
   colour += mix(u_accent, vec3(1.0), 0.5) * rings * 0.45 * smoothstep(0.88, 1.0, band) * light;
+  float orbitCohort = pow(max(0.0, cos(phase * TAU - u_rhythmCount.x * 1.04719755)), 10.0);
+  colour += colourWheel(phase) * orbitCohort * light * u_rhythm.x * 0.6;
+  float modulusBand = exp(-pow((fract(log2(max(m, 1e-4))) - mod(u_rhythmCount.y, 4.0) * 0.25) / 0.06, 2.0));
+  colour += u_accent * modulusBand * light * u_rhythm.y * 0.5;
   // The unit cell, faint.
   vec2 fx = abs(fract(X + 0.5) - 0.5) / max(fwidth(X), vec2(1e-5));
   float grid = 1.0 - smoothstep(0.5, 1.6, min(fx.x, fx.y));
@@ -331,11 +337,16 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("symmetry-orbit", 0, "Symmetry-orbit light", "Select equal phase values of the group-symmetrised Fourier field."),
+    familyEffect("modulus-ring", 1, "Modulus-ring light", "Independently accent a logarithmic modulus band of the same symmetric field.", { period: 3, strength: 0.5 }),
+    familyEffect("coefficient-generation", 2, "Symmetric coefficient change", "Crossfade coefficient generations with the chosen wallpaper group operations intact.", { period: 16, strength: 0.65, duration: 2, kind: "motion" }),
+  ],
   id: "wallpaper",
   number: 76,
   name: "Wallpaper Groups",
   description:
-    "All 17 plane symmetry groups, made with Farris' wave-function method: a lattice-periodic complex function averaged over the group's mirrors, glides and rotations, so the pattern has exactly that symmetry. Domain colouring shows its phase as hue and its modulus as light, with contour rings; the zeros, where all hues meet, sit pinned on the rotation centres. The waves turn and re-roll every 16 beats while the symmetry never breaks.",
+    "All 17 plane symmetry groups, made with Farris' wave-function method: a lattice-periodic complex function averaged over the group's mirrors, glides and rotations, so the pattern has exactly that symmetry. Domain colouring shows its phase as hue and its modulus as light, with contour rings; the zeros, where all hues meet, sit pinned on the rotation centres. The waves turn continuously; scheduled coefficient changes preserve the exact symmetry, with separate phase-orbit and modulus-band light tracks.",
   energy: { flow: { mul: [0.5, 2] }, morph: [-0.2, 0.3], rings: [-0.1, 0.2] },
   beat: { punch: 0.6, pulse: 1 },
   audio: [

@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Fractal Flight (v6 port, D32/D33): a flight through an infinite recursive
 // sponge. Ported as an idea, not code: a GPU raymarcher on contract v3 with
 // four authored camera paths instead of manual flying (the keys are the
@@ -234,11 +236,11 @@ void main() {
   float level = clamp(u_level, 0.0, 1.0);
   // D61 envelopes are attack/release smoothed and fade out with beat lock.
   float bass = smoothstep(0.0, 1.0, clamp(u_low, 0.0, 1.0));
-  float kick = u_kick * smoothstep(0.15, 1.0, level);
+  float kick = (u_rhythmEnabled ? u_rhythm.y : u_kick) * smoothstep(0.15, 1.0, level);
   float glowAmount = u_params[5];
   float fog = u_params[6];
   float light = u_params[7];
-  float s = phase.x * 6.0;
+  float s = phase.x * 6.0 + u_rhythm.y * 0.025;
   vec3 ro, fw;
   float extraRoll;
   ffCamera(path, s, ro, fw, extraRoll);
@@ -289,6 +291,8 @@ void main() {
     float shade = 0.2 + light * 1.15 * diffuse * diffuse;
     shade = max(0.0, 0.4 + (shade - 0.4) * (0.7 + 1.1 * u_level));
     col = material * shade * occlusion;
+    float orbitCohort = exp(-pow((fract(trap * 0.27) - mod(u_rhythmCount.x, 5.0) * 0.2) / 0.055, 2.0));
+    col += material * orbitCohort * u_rhythm.x * occlusion * 0.75;
     float rim = pow(max(1.0 - abs(dot(n, -rd)), 0.0), 3.0);
     col += palette(fract(trap * 0.27 + 0.72)) * rim * glowAmount *
       (0.08 + level * 0.22 + bass * (0.18 + level * 0.7));
@@ -304,6 +308,10 @@ void main() {
 `;
 
 export default {
+  rhythm: [
+    familyEffect("fractal-orbit", 0, "Fractal-orbit light", "Reveal one cohort of the actual folded fractal orbit trap."),
+    familyEffect("flight-impulse", 1, "Flight impulse", "Advance the authored camera path a bounded distance and settle back.", { period: 4, strength: 0.55, duration: 1, kind: "motion" }),
+  ],
   id: "flight",
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: {

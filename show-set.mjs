@@ -12,6 +12,12 @@ import {
 } from "./session.mjs";
 import { MOODS, PALETTES, paletteById } from "./palettes.mjs";
 import {
+  initialRhythm,
+  validateRhythm,
+  validatePattern,
+  effectDefinitions,
+} from "./rhythm.mjs";
+import {
   validRating,
   catalogLooks,
   sortCatalog,
@@ -82,7 +88,14 @@ export const DEFAULT_SHARED = Object.freeze({
 
 export function clipFrom(
   snapshot,
-  { id, name, energy = 0.5, palette = "custom", transition = "auto" } = {},
+  {
+    id,
+    name,
+    energy = 0.5,
+    palette = "custom",
+    transition = "auto",
+    rhythm,
+  } = {},
 ) {
   return {
     id,
@@ -97,6 +110,9 @@ export function clipFrom(
     transition,
     quantize: "beat",
     autopilot: true,
+    ...(rhythm === undefined
+      ? {}
+      : { rhythm: rhythm === null ? null : structuredClone(rhythm) }),
   };
 }
 
@@ -126,6 +142,7 @@ export function initialShowSet(scenes) {
     options: defaultOptions(),
     midi: [],
     lineages: [],
+    rhythm: initialRhythm(scenes),
   };
 }
 
@@ -325,17 +342,33 @@ function validateLook(value, scenes, ids) {
   const palette = value.palette ?? null;
   if (palette !== null && palette !== "custom" && !paletteById(palette))
     throw new Error("Unknown look palette");
+  const snapshot = validateSnapshot(value.snapshot, scenes);
+  const rhythm =
+    value.rhythm === undefined
+      ? {}
+      : {
+          rhythm:
+            value.rhythm === null
+              ? null
+              : validatePattern(
+                  value.rhythm,
+                  effectDefinitions(
+                    scenes.find((scene) => scene.id === snapshot.scene),
+                  ),
+                ),
+        };
   return {
     id: value.id,
     name: text(value.name, "Look name"),
     base: KNOWN_ID(value.base) ? value.base : null,
-    snapshot: validateSnapshot(value.snapshot, scenes),
+    snapshot,
     palette,
     transition: oneOf(
       value.transition === undefined ? "auto" : value.transition,
       TRANSITIONS,
       "Look transition",
     ),
+    ...rhythm,
   };
 }
 
@@ -389,6 +422,7 @@ export function validateShowSet(value, scenes) {
     options: common.options,
     midi: common.midi,
     lineages: common.lineages,
+    rhythm: validateRhythm(value.rhythm, scenes),
   };
 }
 

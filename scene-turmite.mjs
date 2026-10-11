@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Langton's Ant (#73): an ant on a grid of coloured cells turns right or
 // left by the colour under it, advances the cell's colour by one and steps
 // forward. With two colours (rule RL) it makes ~10 000 steps of chaos and
@@ -10,7 +12,8 @@
 // debris, which makes new chaos and new highways: it never settles. Up to
 // 12 ants share the grid. Row 180 of the state holds the ants; every
 // simulation pass moves each ant one step (48 passes per frame at full
-// speed). Recently flipped cells glow, so the ant's path reads at once.
+// speed). Row 181 reduces real coloured/trail extents for a display-only
+// camera. Recently flipped cells glow, so the ant's path reads at once.
 
 export const RULES = [
   "RL",
@@ -54,6 +57,27 @@ export function runAnt(rule, steps, { w = GW, h = GH, track = null } = {}) {
   return { grid, x, y, dir };
 }
 
+// Reference for display composition: preserve all coloured/history cells
+// and heads in the framing. Nothing here enters the ant's transition rule.
+export function antFrame(grid, ants, { w = GW, h = GH, heat = null, previous, dt = 1 / 60 } = {}) {
+  let lo = [w, h], hi = [0, 0];
+  const include = (x, y) => {
+    lo = [Math.min(lo[0], x), Math.min(lo[1], y)];
+    hi = [Math.max(hi[0], x + 1), Math.max(hi[1], y + 1)];
+  };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++)
+    if (grid[y * w + x] > 0 || heat?.[y * w + x] > 0) include(x, y);
+  ants.forEach(({ x, y }) => include(x, y));
+  const target = hi[0] > lo[0]
+    ? { center: [(lo[0] + hi[0]) / (2 * w), (lo[1] + hi[1]) / (2 * h)],
+      span: Math.min(1.3, Math.max(24 / h, (hi[0] - lo[0]) / w / 0.78, (hi[1] - lo[1]) / h / 0.78)) }
+    : { center: [0.5, 0.5], span: 24 / h };
+  if (!previous) return target;
+  const amount = 1 - Math.exp(-Math.max(0, dt) * 2.5);
+  return { center: target.center.map((value, axis) => previous.center[axis] + (value - previous.center[axis]) * amount),
+    span: previous.span + (target.span - previous.span) * amount };
+}
+
 const ruleTable = RULES.map((r) => `${ruleMask(r)}`).join(", ");
 const ruleLengths = RULES.map((r) => `${r.length}`).join(", ");
 
@@ -72,6 +96,13 @@ ivec2 tDir(int d) { return d == 0 ? ivec2(0, 1) : d == 1 ? ivec2(1, 0) : d == 2 
 
 const simulation = `${header}
 float tRand(uint a, uint b) { return float(cellHash(uvec3(a, b, 57u)) >> 8u) / 16777216.0; }
+ivec3 tSpawn(int k, int generation, float spread) {
+  uint g = uint(generation) * 131u + uint(k);
+  vec2 off = k == 0 ? vec2(0.0) : (vec2(tRand(g, 1u), tRand(g, 2u)) - 0.5) * vec2(GW, GH) * mix(0.12, 1.0, spread);
+  ivec2 p = ivec2(mod(vec2(GW / 2, GH / 2) + floor(off), vec2(GW, GH)));
+  int d = k == 0 ? 0 : int(tRand(g, 3u) * 4.0) & 3;
+  return ivec3(p, d);
+}
 void main() {
   ivec2 px = ivec2(gl_FragCoord.xy);
   int rule = clamp(int(floor(u_params[0] + 0.5)), 0, ${RULES.length - 1});
@@ -86,22 +117,67 @@ void main() {
   vec4 meta = texelFetch(u_state, ivec2(GW - 1, GH), 0);
   int lastBeat = int(meta.r * 255.0 + 0.5);
   int generation = int(meta.b * 255.0 + 0.5);
-  float beatF = floor(max(u_beat, 0.0));
+  float beatF = floor(u_rhythmEnabled ? u_rhythmCount.z : max(u_beat, 0.0));
   int beat = int(beatF) & 255;
   int period = renew == 1 ? 32 : renew == 2 ? 64 : renew == 3 ? 128 : 0;
-  bool renewNow = period > 0 && meta.a > 0.5 && beat != lastBeat && int(beatF) % period == 0;
+  bool renewNow = meta.a > 0.5 && (u_rhythmEnabled ? u_rhythmHit.z > 0.0 : period > 0 && beat != lastBeat && int(beatF) % period == 0);
   bool fresh = u_reset || meta.a < 0.5 || renewNow || int(meta.g * 255.0 + 0.5) != rule + 1;
   if (fresh) generation = (generation + 1) & 255;
 
   // Does every ant step in this pass? The beat rushes them.
-  float boost = 1.0 + rush * 2.5 * (u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0);
+  float boost = 1.0 + rush * 2.5 * (u_rhythmEnabled ? u_rhythm.y : u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0);
   float sp = clamp(speed * boost, 0.0, 1.0);
   float tk = float(u_tick % 1048576u);
   bool move = !fresh && floor((tk + 1.0) * sp) > floor(tk * sp);
 
+  if (px.y == GH + 1) {
+    // Exact current nonzero-colour / recent-history bounds, one column each.
+    // Zero-colour visited cells remain included while their heat persists.
+    int lo = 255, hi = 0;
+    bool occupied = false;
+    if (!fresh) for (int y = 0; y < GH; y++) {
+      vec4 value = texelFetch(u_state, ivec2(px.x, y), 0);
+      if (value.r > 0.0 || value.g > 0.0) { lo = min(lo, y); hi = max(hi, y); occupied = true; }
+    }
+    outColor = vec4(float(lo), float(hi), occupied ? 255.0 : 0.0, 0.0) / 255.0;
+    return;
+  }
   if (px.y == GH) {
     if (px.x == GW - 1) {
       outColor = vec4(float(beat), float(rule + 1), float(generation), 255.0) / 255.0;
+      return;
+    }
+    if (px.x == GW - 2 || px.x == GW - 3) {
+      // A padded, slowly followed camera exposes the early rule structure
+      // before it fills the torus. All actual heads are included in the fit.
+      ivec2 lo = ivec2(GW, GH), hi = ivec2(0);
+      if (!fresh) for (int x = 0; x < GW; x++) {
+        vec4 column = texelFetch(u_state, ivec2(x, GH + 1), 0);
+        if (column.b > 0.5) {
+          lo = min(lo, ivec2(x, int(column.r * 255.0 + 0.5)));
+          hi = max(hi, ivec2(x + 1, int(column.g * 255.0 + 0.5) + 1));
+        }
+      }
+      for (int k = 0; k < MAX_ANTS; k++) {
+        if (k >= ants) break;
+        ivec3 a = fresh ? tSpawn(k, generation, spread) : tAnt(k);
+        if (a.z >= 0) { lo = min(lo, a.xy); hi = max(hi, a.xy + 1); }
+      }
+      vec2 targetCentre = vec2(lo + hi) / (2.0 * vec2(GW, GH));
+      vec2 extent = vec2(hi - lo) / vec2(GW, GH);
+      float targetSpan = clamp(max(extent.x, extent.y) / 0.78, 24.0 / float(GH), 1.3);
+      vec2 centre = unpack16(texelFetch(u_state, ivec2(GW - 2, GH), 0));
+      vec4 frame = texelFetch(u_state, ivec2(GW - 3, GH), 0);
+      float span = unpack16(frame.rg) * 1.5;
+      if (fresh || frame.b < 0.5) { centre = targetCentre; span = targetSpan; }
+      else if (u_tick % ${PASSES}u == 0u) {
+        // Follow once per complete tick. Re-encoding 48 tiny substeps at
+        // 16-bit precision would introduce a several-cell dead zone.
+        float follow = 1.0 - exp(-max(u_dt, 0.0) * 2.5);
+        centre = mix(centre, targetCentre, follow);
+        span = mix(span, targetSpan, follow);
+      }
+      outColor = px.x == GW - 2 ? pack16(centre) : vec4(pack16(span / 1.5), 1.0, 0.0);
       return;
     }
     int k = px.x;
@@ -111,11 +187,7 @@ void main() {
     if (k >= ants) { outColor = vec4(0.0); return; }
     if (spawn) {
       // The first ant starts in the centre; the others around it.
-      uint g = uint(generation) * 131u + uint(k);
-      vec2 off = k == 0 ? vec2(0.0) : (vec2(tRand(g, 1u), tRand(g, 2u)) - 0.5) * vec2(GW, GH) * mix(0.12, 1.0, spread);
-      ivec2 p = ivec2(mod(vec2(GW / 2, GH / 2) + floor(off), vec2(GW, GH)));
-      int d = k == 0 ? 0 : int(tRand(g, 3u) * 4.0) & 3;
-      a = ivec3(p, d);
+      a = tSpawn(k, generation, spread);
     } else if (move) {
       int c = int(texelFetch(u_state, a.xy, 0).r * 255.0 + 0.5);
       a.z = ((mask >> c) & 1) == 1 ? (a.z + 1) & 3 : (a.z + 3) & 3;
@@ -150,7 +222,14 @@ void main() {
   float fill = u_params[5];
   int n = RULE_N[rule];
 
-  vec2 cellF = v_uv * vec2(GW, GH);
+  vec2 centre = unpack16(texelFetch(u_state, ivec2(GW - 2, GH), 0));
+  vec4 frame = texelFetch(u_state, ivec2(GW - 3, GH), 0);
+  float span = frame.b > 0.5 ? unpack16(frame.rg) * 1.5 : 1.0;
+  if (frame.b < 0.5) centre = vec2(0.5);
+  vec2 cellF = ((v_uv - 0.5) * span + centre) * vec2(GW, GH);
+  if (any(lessThan(cellF, vec2(0.0))) || any(greaterThanEqual(cellF, vec2(GW, GH)))) {
+    outColor = vec4(u_secondary * 0.025, 1.0); return;
+  }
   ivec2 ci = clamp(ivec2(floor(cellF)), ivec2(0), ivec2(GW - 1, GH - 1));
   vec2 f = fract(cellF);
   float px = max(fwidth(cellF.x), 1e-3);
@@ -181,7 +260,7 @@ void main() {
     float r = length(d);
     float nose = length(d - vec2(tDir(a.z)) * 0.55);
     float glow = exp(-r * r / 1.6) + 0.8 * exp(-nose * nose / 0.12);
-    colour += mix(u_primary, vec3(1.0), 0.6) * glow * (0.8 + 0.4 * u_level);
+    colour += mix(u_primary, vec3(1.0), 0.6) * glow * (0.8 + 0.4 * u_level + u_rhythm.x * 1.2 * (mod(float(k) - u_rhythmCount.x, 3.0) < 1.0 ? 1.0 : 0.0));
   }
   outColor = vec4(clamp(colour, 0.0, 1.0), 1.0);
 }
@@ -271,6 +350,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("ant-head", 0, "Ant-head chase", "Accent individual ant heads and their direction of travel."),
+    familyEffect("step-burst", 1, "Rule-step burst", "Briefly speed up genuine rule-preserving ant steps.", { period: 4, strength: 0.6, duration: 0.5, kind: "simulation" }),
+    familyEffect("trail-renewal", 2, "Renew ant field", "Explicitly renew the board and seed the same rule's ants.", { period: 64, strength: 0.55, duration: 0.25, kind: "simulation" }),
+  ],
   id: "turmite",
   number: 73,
   name: "Langton's Ant",
@@ -292,5 +376,5 @@ export default {
   schema,
   presets,
   fragment,
-  simulation: { fragment: simulation, size: [GW, GH + 1], steps: PASSES },
+  simulation: { fragment: simulation, size: [GW, GH + 2], steps: PASSES },
 };

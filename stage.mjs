@@ -71,12 +71,14 @@ function apply(actions) {
   for (const a of actions)
     switch (a.type) {
       case "load":
+        engine.setRhythmFrame(show.rhythmFrame(now()));
         telemetry.clipRequested(performance.now());
         // Energy crossfades with the picture: the outgoing clip moves toward
         // the new energy while the incoming one starts from the old.
         engine.setLevel(a.energy, a.fadeSeconds);
         if (
           engine.load(a.snapshot, a.fadeSeconds, {
+            lookId: a.clipId,
             energy: a.baseEnergy ?? a.energy,
             transition: a.transition,
           }) === false
@@ -84,9 +86,11 @@ function apply(actions) {
           isolate(a.snapshot.scene);
         break;
       case "safe":
+        engine.setRhythmFrame(show.rhythmFrame(now()));
         engine.setLevel(a.energy, 0);
         if (
           engine.load(a.snapshot, 0.4, {
+            lookId: null,
             flashExempt: true,
             energy: a.energy,
           }) === false
@@ -203,6 +207,7 @@ function frame(ms) {
           );
     apply(show.tick(t, { tracker, event }));
     engine.beat = show.clock.at(t).beat;
+    engine.setRhythmFrame(show.rhythmFrame(t));
     engine.features = audio.features(dt);
     engine.advance(dt, frozen);
     telemetry.presented(ms, interval, engine);
@@ -304,7 +309,7 @@ channel.onmessage = async ({ data }) => {
         break;
       case "set": {
         const next = validateShowSet(data.set, scenes);
-        show.updateSet(next);
+        show.updateSet(next, t);
         applyOptions(next.options);
         break;
       }

@@ -5,7 +5,8 @@ The Bak–Tang–Wiesenfeld sandpile. A cell with four or more grains topples an
 ## Signature detail
 
 - **One colour per grain count (0–3).** This is the classic four-colour picture: a growing pile draws the fractal mandala with its D4 symmetry and nested triangles and checkerboards.
-- **Avalanches.** Toppling cells burn white-hot, and recently toppled cells glow in the accent colour. On a critical board (rain), the grains dim to a carpet and the avalanches are the picture: from one cell to the whole board (self-organised criticality).
+- **Avalanches.** A fresh front marks currently unstable cells and the newest ~80 ms of real toppling history. A weaker tail retains the recent half-second history. The signal interpolates toward the accent colour with bounded exposure, so dense avalanches preserve height patterns rather than clipping into a white disc. On a critical board (rain), the grains dim to a carpet and the avalanche fronts become the picture.
+- **Framing follows the real pile.** Exact occupied bounds are reduced from the actual grid. A display-only camera fits them with margin, eases toward growth, and starts with a 24-cell minimum window so a young central pile is visible. Multiple sources remain in view. Critical rain shows the full board. Erosion holds the preceding view so disappearing grains do not cause a zoom into dust. The cells, sources, toppling rule and sinks remain in board coordinates; the camera cannot change them.
 - **The identity of the sandpile group:** (2m − (2m)°)°, with m the board of all threes. A board of sixes stabilises in a storm, the subtraction leaves the famous identity fractal, it holds and breathes, then blows away.
 
 ## Variants (`drop`)
@@ -23,16 +24,21 @@ Mandala Bloom, Grain by Grain (big cells), Four Crowns (four sources, fast), Cri
 
 ## Energy, beat and audio
 
-- Energy: `rate` +0.75 across the range (grain flow 150 → 2500 grains/s), `kick` +0.5, `glow` +0.4. Heap size also grows with energy.
-- Beat: every beat drops a heap (`kick` × 24–640 grains), on a source or on a random cell, so avalanches land on the beat. The shared punch/pulse is 0.6/0.9.
+- Energy: `rate` +0.75 across the range (grain flow 150 → 2500 grains/s), `kick` +0.5, `glow` +0.4. Heap size also grows with energy. The glow remains bounded rather than adding white light to every recent cell.
+- Three independent family tracks: frequent actual avalanche-front light; a stable grain-height class every three beats; and a bounded heap every eight beats by default. Heap events use `kick` × 24–640 grains, scaled by the scheduled hit, on a source or a random rain cell. Identity is incompatible with heap insertion. Muting the heap track does not stop ordinary grain feeding. Display accents do not add grains or brighten empty background cells.
+- The rhythm remains on the music grid when movement speed changes. Shared punch/pulse coefficients are 0.6/0.9 when legacy beat mode is used; the common rhythm controls own the current global gestures.
 - Audio: `rate` ← low, `glow` ← high, `kick` ← onset.
 
 ## State and cost
 
-- 384×218 RGBA8. Rows 2–217 hold the board: 16-bit grain count (r, g) and avalanche glow (b). Row 1 holds per-column "unstable" flags (a two-pass reduction). Row 0 holds the phase, timers, grains added, the stable flag and the last beat.
-- Each pass is one full-texture pass. Board cells do 5 fetches; row-1 texels loop ≤ 216 fetches; one texel loops ≤ 384. Eight passes per tick come to about 0.7 M fetches per frame. The visual pass does 6 fetches per pixel.
+- 384×218 RGBA8. Rows 2–217 hold the board: 16-bit grain count (r, g) and avalanche glow (b). Row 1 holds per-column unstable flags in r, occupied y bounds in g/b and presence in a. Row 0 holds phase, timers, grains added, stable flag and last event; two previously unused texels hold the display camera centre and span at 16-bit precision.
+- Each pass is one full-texture pass. Board cells read their own state and four neighbours; column reductions inspect up to 216 cells; stable/camera reductions inspect up to 384 columns. Framing adds metadata fetches to the visual pass. The state dimensions and eight passes per tick are unchanged; native-output cost still requires measurement.
 - Boards: 128×72, 192×108, 256×144 and 384×216 (16:9, cover-cropped on other screens).
 
 ## Tests (`tests/sandpile.test.mjs`)
 
-CPU reference: single topples and edge loss. The parallel multi-topple equals sequential toppling on random boards (abelian). A central pile is stable, D4-symmetric and conserves grains. The 3×3 identity is 2 1 2 / 1 0 1 / 2 1 2, and e + e = e on several boards. Source layouts stay on the board, and the presets validate.
+CPU reference: single topples and edge loss. The parallel multi-topple equals sequential toppling on random boards (abelian). A central pile is stable, D4-symmetric and conserves grains. The 3×3 identity is 2 1 2 / 1 0 1 / 2 1 2, and e + e = e on several boards. Source layouts stay on the board, and the presets validate. Display tests verify exact bounds, distant-source inclusion, grain-state preservation, fit margins on all board sizes, eased following and dissolve hold.
+
+The 2026-10-11 visibility revision also fixes Identity initialisation: its first reset writes the required sixes before entering stabilisation. Previously the phase advanced while reset cells were still empty, skipping the initial sixes stabilisation. The identity formula and subsequent toppling remain unchanged.
+
+Numerical/metadata checks pass. Updated moving views, high-energy exposure, complete renewal cycles, and native-output performance remain explicit visual-QA checks. Exact occupied bounds include residual grains; they do not silently hide outliers to produce a tighter crop.

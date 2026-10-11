@@ -1519,3 +1519,246 @@ kbd {
 #editor .fader {
   grid-template-columns: 90px minmax(0, 1fr) 36px;
 }
+
+/* Rhythm uses the existing control tokens, with independent scrollable loops. */
+.rhythm-panel h2 {
+  margin-bottom: 12px;
+}
+.rhythm-context,
+.rhythm-section-head,
+.rhythm-pattern-controls,
+.rhythm-save,
+.rhythm-track-head,
+.rhythm-track-timing,
+.rhythm-track-shape {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rhythm-target {
+  margin: 10px 0 4px;
+  font-weight: 550;
+}
+.rhythm-context button,
+.rhythm-pattern-controls button,
+.rhythm-save button {
+  font-size: 11px;
+  padding: 5px 9px;
+  min-height: 30px;
+}
+.rhythm-context > .rhythm-pending {
+  margin-left: auto;
+}
+.rhythm-section {
+  margin-top: 18px;
+}
+.rhythm-global {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.rhythm-section-head {
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.rhythm-section-head h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.rhythm-mode {
+  color: var(--teal);
+  font-size: 10px;
+}
+.rhythm-mode.protected {
+  color: var(--accent);
+}
+.rhythm-pattern-controls select {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 11px;
+}
+.rhythm-pattern-note {
+  margin: 6px 0 10px;
+}
+.rhythm-tracks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.rhythm-track {
+  min-width: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  padding: 10px;
+  background: var(--panel);
+}
+.rhythm-track-head {
+  gap: 6px;
+}
+.rhythm-effect-name {
+  font-weight: 550;
+  font-size: 12px;
+}
+.rhythm-kind {
+  color: var(--muted);
+  font-size: 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.rhythm-inactive {
+  color: var(--muted);
+  font-size: 10px;
+}
+.rhythm-mute {
+  margin-left: auto;
+  min-height: 25px;
+  padding: 2px 7px;
+  font-size: 10px;
+}
+.rhythm-track-timing {
+  margin: 8px 0;
+  gap: 7px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.rhythm-track-timing label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.rhythm-track-timing select,
+.rhythm-track-timing input,
+.rhythm-duration input {
+  padding: 3px 5px;
+  min-height: 26px;
+  font-size: 11px;
+  color: var(--ink);
+  border-radius: 5px;
+}
+.rhythm-track-timing input {
+  width: 46px;
+}
+.rhythm-loop-note {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.rhythm-step-scroll {
+  overflow-x: auto;
+  padding: 4px 3px 8px;
+  margin: -4px -3px 0;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
+.rhythm-steps {
+  display: grid;
+  grid-template-columns: repeat(var(--rhythm-steps), 33px);
+  gap: 3px;
+  width: max-content;
+}
+.rhythm-step {
+  min-height: 31px;
+  padding: 0;
+  border-radius: 5px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.rhythm-step[aria-pressed="true"] {
+  color: var(--ink);
+}
+.rhythm-step.rhythm-accent {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  font-weight: 650;
+}
+.rhythm-step.rhythm-bar-start {
+  border-left-width: 3px;
+}
+.rhythm-step.rhythm-current {
+  box-shadow: inset 0 -3px 0 var(--teal);
+  border-bottom-color: var(--teal);
+}
+.rhythm-track-shape {
+  font-size: 10px;
+  gap: 12px;
+}
+.rhythm-strength {
+  display: flex;
+  flex: 1;
+  min-width: 155px;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.rhythm-strength input {
+  flex: 1;
+  width: 60px;
+  margin: 8px 0;
+}
+.rhythm-strength output {
+  width: 30px;
+  color: var(--ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rhythm-duration {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+}
+.rhythm-duration input {
+  width: 61px;
+}
+.rhythm-save {
+  margin-top: 8px;
+}
+.rhythm-save > .note {
+  margin-right: auto;
+}
+.rhythm-pending {
+  color: var(--pending);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.rhythm-unavailable .rhythm-effect-name,
+.rhythm-muted .rhythm-effect-name {
+  color: var(--muted);
+}
+.rhythm-preview-inactive .rhythm-pattern-note {
+  color: var(--muted);
+}
+.rhythm-guide {
+  margin: 14px 0 0;
+}
+#catalogCharacter {
+  max-width: 170px;
+  font-size: 11px;
+}
+.look-algorithm {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: 6px 0;
+}
+@media (max-width: 1000px) {
+  .rhythm-tracks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .rhythm-context {
+    align-items: start;
+  }
+  .rhythm-context > .rhythm-pending {
+    margin-left: 0;
+  }
+  .rhythm-track-shape {
+    gap: 8px;
+  }
+  #catalogCharacter {
+    max-width: 100%;
+  }
+}

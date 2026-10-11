@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Game of Life family: exact 2D cellular automata on a torus.
 // CPU reference first (tests and pattern data), then the GPU shaders.
 //
@@ -692,8 +694,9 @@ void main() {
   // on a generation boundary. One live event per pass keeps stamping bounded.
   bool gestureOn = u_gesture.z > 0.;
   float spawnChance = clamp(u_gesture.z, 0., 1.) * (.3 + .7 * inject);
-  bool spawn = !reset && gestureOn && (m0.b & 1) == 0
-    && float(seedHash(u_tick * 747796405u + 2891336453u) >> 8) / 16777216. < spawnChance;
+  bool scheduled = u_rhythmEnabled && u_rhythmHit.z > 0.;
+  bool spawn = !reset && (scheduled || (gestureOn && (m0.b & 1) == 0
+    && float(seedHash(u_tick * 747796405u + 2891336453u) >> 8) / 16777216. < spawnChance));
   bool rescue = staleTicks >= int(.75 * PASSES);
   // Rain every 31.5 s at inject 0 … 1.5 s at inject 1.
   bool rain = inject > .02 && !crowded && since >= int(PASSES * (30. * sq(1. - inject) + 1.5));
@@ -834,6 +837,11 @@ void main() {
   float grid = (1. - smoothstep(0., 1.2 * aa, edge)) * smoothstep(9., 14., px);
   vec3 color = ground + u_secondary * .045 * grid;
   color += own * body + halo * (rule == 4 ? .12 : .22);
+  ivec4 currentCell = bytesAt(wrapB(c, B) + ivec2(0, META));
+  float newborn = (currentCell.r & 15) > 0 && currentCell.g < 3 ? 1. : 0.;
+  color += mix(own, u_accent * length(own), .45) * newborn * body * u_rhythm.x * .9;
+  float ageCohort = mod(float(currentCell.g) - u_rhythmCount.y, 6.) < 1. ? 1. : 0.;
+  color += own * body * ageCohort * u_rhythm.y * .7;
 
   // Injection events: corner brackets around the new material, fading.
   int tick16 = int(u_tick & 65535u);
@@ -948,6 +956,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("births", 0, "Birth light", "Emphasise actual young live cells produced by the selected cellular rule."),
+    familyEffect("cell-age", 1, "Cell-age cohort", "Select an age class without changing cellular evolution.", { period: 3, strength: 0.5 }),
+    familyEffect("rule-object", 2, "Spawn rule object", "Introduce a compatible glider, replicator or excitation through the existing rule-aware injector.", { period: 16, strength: 0.65, duration: 0.25, kind: "simulation" }),
+  ],
   id: "life",
   number: 64,
   name: "Game of Life",

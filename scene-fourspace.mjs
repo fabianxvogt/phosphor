@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Fourth Dimension (v6 port, D32/D33): regular four-dimensional shapes
 // rotating through the fourth dimension, drawn as glowing wireframes. Edges
 // are projected 4D → 3D → 2D each frame; colour follows depth in w. Four
@@ -70,7 +72,7 @@ void main() {
   float edgeLength = shape == 0 ? 2.0 : shape == 1 ? 1.98 : shape == 2 ? 1.4143 : 1.2;
   float t = u_time;
   float phase = fract(u_seed * 0.0093) * 6.2831853;
-  mat2 xw = rot2(t * spin * 0.5 + phase), yz = rot2(t * spin * 0.31), zw = rot2(t * spin * 0.23 + 1.0);
+  mat2 xw = rot2(t * spin * 0.5 + phase + u_rhythm.y * 0.24), yz = rot2(t * spin * 0.31), zw = rot2(t * spin * 0.23 + 1.0);
   mat2 xz = rot2(t * tumble * 0.4 + 0.6), xy = rot2(t * tumble * 0.27);
 
   vec3 P[VERTEX_CAP];
@@ -108,17 +110,21 @@ void main() {
     }
   }
   // Vertices glint brightest on the kick.
-  float kick = exp(-fract(u_beat) * 6.0);
+  float kick = u_rhythmEnabled ? u_rhythm.x : exp(-fract(u_beat) * 6.0);
   for (int i = 0; i < VERTEX_CAP; ++i) {
     if (i >= count) break;
     float d = length(p - P[i].xy);
-    col += u_accent * (1.0 - smoothstep(weight * 1.6, weight * 2.6 + aa, d)) * (0.4 + 0.6 * kick * u_level);
+    col += u_accent * (1.0 - smoothstep(weight * 1.6, weight * 2.6 + aa, d)) * (0.4 + (mod(float(i) - u_rhythmCount.x, 4.0) < 1.0 ? 1.5 : 0.0) * kick * u_level);
   }
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `;
 
 export default {
+  rhythm: [
+    familyEffect("vertex-orbit", 0, "Vertex-orbit chase", "Select a cohort of true polytope vertices after 4D projection."),
+    familyEffect("rotation-plane", 1, "4D plane impulse", "Rotate the shape in its x–w plane before perspective projection.", { period: 4, strength: 0.6, duration: 1, kind: "motion" }),
+  ],
   id: "fourspace",
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { spin: [0.1, 1.5], tumble: [0.04, 0.8], glow: [0.5, 1.2] },

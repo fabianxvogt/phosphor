@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Newton Basins (#68): Newton's method z ← z − a·p(z)/p'(z) run on every
 // pixel of the complex plane. Each pixel is coloured by the root it ends up
 // at, shaded by how long it took. Between the basins lies a fractal border
@@ -141,6 +143,12 @@ void main() {
     }
   }
 
+  // Move the roots themselves, preserving the chosen Newton/Halley method.
+  if (method != 3) {
+    int movingRoot = int(mod(u_rhythmCount.z, float(n)));
+    r[movingRoot] = rot2(u_rhythm.z * 0.22) * r[movingRoot];
+  }
+
   // Camera: slow spin and a breathing zoom toward the basin borders, where
   // the beads keep shrinking.
   float breathe = 1.0 + 0.35 * sin(t * 0.07 + seed);
@@ -197,6 +205,10 @@ void main() {
     float light = mix(0.05, 1.0, pow(shade, 1.3));
     light *= mix(1.0, 0.45 + 0.55 * band, rings);
     colour = base * light;
+    int selectedRoot = int(mod(u_rhythmCount.x, float(method == 3 ? 3 : max(n, 3))));
+    if (int(floor(k)) == selectedRoot) colour += base * u_rhythm.x * (0.32 + 0.85 * shade);
+    float selectedBand = exp(-pow((steps - mod(u_rhythmCount.y, 6.0) * 4.0 - 5.0) / 1.6, 2.0));
+    colour += mix(base, u_accent, 0.4) * selectedBand * u_rhythm.y * 0.75;
     colour += mix(u_accent, vec3(1.0), 0.4) * glowAmount * pow(shade, 3.0) * 0.5;
   } else if (method == 3) {
     colour = u_primary * 0.05; // Nova's non-converging "Mandelbrot" body
@@ -295,6 +307,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("root-basin", 0, "Root-basin light", "Select a root's basin; Nova selects its converged angular basin."),
+    familyEffect("iteration-band", 1, "Convergence contour", "Light a narrow band of Newton convergence iterations.", { period: 3, strength: 0.55 }),
+    familyEffect("root-orbit", 2, "Root excursion", "Move one polynomial root on a bounded orbit without replacing the solver.", { period: 16, duration: 2, strength: 0.5, kind: "motion", variants: [0, 1, 2, 4] }),
+  ],
   id: "newton",
   number: 68,
   name: "Newton Basins",

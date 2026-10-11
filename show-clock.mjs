@@ -160,6 +160,48 @@ export class ShowClock {
       mode: this.mode,
       source: this.source,
       latencyMs: this.latencyMs,
+      origin: this.barOffset,
+      position: inBar,
     };
+  }
+
+  // The performance timeline may belong to a new window after recovery.
+  // Resume at the saved music position; wall-clock downtime is not replayed.
+  snapshot(t) {
+    const state = this.at(t);
+    return {
+      mode: this.mode,
+      bpm: state.bpm,
+      latencyMs: this.latencyMs,
+      barOffset: this.barOffset,
+      beat: state.beat,
+      period: this.period,
+      source: this.source,
+    };
+  }
+
+  restore(value, t) {
+    if (!value || !Number.isFinite(t)) return;
+    this.mode = value.mode === "manual" ? "manual" : "auto";
+    this.base = 60 / clampBpm(Number.isFinite(value.bpm) ? value.bpm : 120);
+    this.period =
+      Number.isFinite(value.period) && value.period > 0
+        ? Math.max(
+            this.base * (1 - SLEW),
+            Math.min(this.base * (1 + SLEW), value.period),
+          )
+        : this.base;
+    this.anchorBeat =
+      Number.isFinite(value.beat) && value.beat >= 0 ? value.beat : 0;
+    this.anchorTime = this.last = t;
+    this.barOffset = Number.isFinite(value.barOffset)
+      ? mod(value.barOffset, 4)
+      : 0;
+    this.latencyMs = Number.isFinite(value.latencyMs)
+      ? Math.max(-250, Math.min(250, value.latencyMs))
+      : 0;
+    this.source = this.mode === "manual" ? "manual" : "coast";
+    this.taps = [];
+    this.tracker = null;
   }
 }

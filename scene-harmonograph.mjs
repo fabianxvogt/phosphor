@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Harmonograph (#75): curves drawn by oscillators, like an XY oscilloscope
 // on a phosphor screen. 65 536 points sample the whole curve every frame
 // (stateless, computed in the particle vertex shader); the visual pass
@@ -84,7 +86,7 @@ void main() {
   float spin = u_params[7];
   float t = mod(u_time, 3600.0);
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
-  float beatPulse = u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
+  float beatPulse = u_rhythmEnabled ? u_rhythm.x : u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
   vec2 ab = RATIOS[ri];
   float s = (float(gl_VertexID) + 0.5) / ${SIDE * SIDE}.0;
 
@@ -100,8 +102,8 @@ void main() {
     len = (ab.x + ab.y) * 1.6;
   } else if (variant == 1) {
     // Harmonograph: two damped pendulums per axis, pushed every 16 beats.
-    float push = floor(beats / 16.0);
-    float since = mod(beats, 16.0) / 16.0;
+    float push = u_rhythmEnabled ? u_rhythmCount.z : floor(beats / 16.0);
+    float since = u_rhythmEnabled ? fract(t * 0.125) : mod(beats, 16.0) / 16.0;
     float T = 70.0;
     float u = s * T;
     float pen = since * T * (0.35 + 0.65 * trace) * 1.6;
@@ -143,10 +145,11 @@ void main() {
     float a = t * spin * 0.05;
     p = mat2(cos(a), -sin(a), sin(a), cos(a)) * p;
   }
-  // A comet runs along the curve on the beat.
-  float head = fract(beats * 0.125);
+  // Independent pen-comet and harmonic-lobe tracks illuminate the actual curve.
+  float head = fract(u_rhythmEnabled ? u_rhythmCount.x * 0.125 : beats * 0.125);
   float dh = abs(fract(s - head + 0.5) - 0.5);
-  bright *= 1.0 + 1.5 * exp(-dh * 60.0) * (0.4 + beatPulse) * trace;
+  bright *= 1.0 + 2.0 * exp(-dh * 60.0) * (u_rhythmEnabled ? beatPulse : 0.4 + beatPulse) * trace;
+  bright *= 1.0 + u_rhythm.y * pow(max(0.0, cos(s * TAU_H * ab.x - u_rhythmCount.y)), 8.0);
 
   float minSide = min(u_resolution.x, u_resolution.y);
   gl_Position = vec4(p * 0.86 * minSide / u_resolution, 0.0, 1.0);
@@ -250,11 +253,16 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("pen-comet", 0, "Pen-comet light", "Place a brief comet at a selected parameter position on the actual curve."),
+    familyEffect("curve-lobe", 1, "Curve-lobe light", "Select a harmonic lobe of the parametrically drawn curve.", { period: 3, strength: 0.5 }),
+    familyEffect("pendulum-push", 2, "Pendulum push", "Choose a new phase combination for the damped pendulum trace.", { period: 16, strength: 0.55, duration: 1, kind: "motion", variants: [1] }),
+  ],
   id: "harmonograph",
   number: 75,
   name: "Harmonograph",
   description:
-    "Curves drawn by oscillators on a phosphor screen. A frequency ratio a:b closes into a Lissajous figure and a tiny detuning makes it precess as if turning in space; damped pendulums spiral inward and are pushed again every 16 beats, so the drawing grows from the pen; a spirograph with R:r = a:b has exactly a petals; three frequencies make a Lissajous knot, turned in 3D. A comet runs along the curve on the beat.",
+    "Curves drawn by oscillators on a phosphor screen. A frequency ratio a:b closes into a Lissajous figure and a tiny detuning makes it precess as if turning in space; damped pendulums spiral inward and have an independently scheduled push track, so the drawing grows from the pen; a spirograph with R:r = a:b has exactly a petals; three frequencies make a Lissajous knot, turned in 3D. Independent pen-comet and harmonic-lobe tracks illuminate the actual curve.",
   energy: {
     glow: [-0.1, 0.25],
     detune: { mul: [0.6, 1.8] },

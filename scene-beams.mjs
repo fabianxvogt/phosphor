@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Light Beams (new, D32): laser fans and searchlight beams in haze — the
 // club's own light language, emissive on black. Analytic and cheap; beams
 // switch in beat patterns as energy rises. Four types: fan, pillars,
@@ -47,15 +49,15 @@ void main() {
   float count = floor(u_params[1] + 0.5);
   float width = u_params[2];
   float sweep = u_params[3];
-  float spread = u_params[4];
+  float spread = u_params[4] * (1.0 + u_rhythm.y * 0.22);
   float haze = u_params[5];
   float chase = u_params[6];
   float tilt = u_params[7];
   vec2 p = aspectUV();
   float aspect = u_resolution.x / u_resolution.y;
   float t = u_time * sweep;
-  float beatIndex = floor(u_beat);
-  float kick = exp(-fract(u_beat) * 5.0);
+  float beatIndex = floor(u_rhythmEnabled ? u_rhythmCount.x : u_beat);
+  float kick = u_rhythmEnabled ? u_rhythm.x : exp(-fract(u_beat) * 5.0);
   vec3 col = vec3(0.0);
 
   for (int i = 0; i < BEAM_CAP; ++i) {
@@ -85,17 +87,21 @@ void main() {
     vec2 d = vec2(cos(angle), sin(angle));
     // Beat chase: beams switch on in shifting patterns; steady when zero.
     float on = step(lbHash(fi + beatIndex * 7.0), 1.0 - 0.6 * chase);
-    float gate = mix(1.0, on * (0.55 + 0.45 * kick), chase);
+    float gate = u_rhythmEnabled ? 0.7 + on * kick * chase : mix(1.0, on * (0.55 + 0.45 * kick), chase);
     vec3 ink = palette(fract(fi / max(count, 1.0) * 0.8 + 0.1 * sin(t * 0.3)));
     col += ink * lbBeam(p, o, d, width, haze) * gate;
   }
   // Haze glow near the sources and a whisper of floor light.
-  col *= 0.9 + 0.5 * u_level * kick;
+  col *= 0.9;
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `;
 
 export default {
+  rhythm: [
+    familyEffect("beam-bank", 0, "Beam-bank chase", "Illuminate selected beam banks as the event index advances."),
+    familyEffect("fan-opening", 1, "Fan opening", "Briefly open the actual beam angles while their sources remain fixed.", { period: 4, strength: 0.65, duration: 1, kind: "motion" }),
+  ],
   id: "beams",
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { sweep: [0.1, 1.4], chase: [0, 0.95], count: [5, 18], haze: [0.8, 0.35] },

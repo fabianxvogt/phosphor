@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Truchet Tiles (#77): random tiles, continuous paths. Each square holds
 // one of two Smith tiles (two quarter arcs around opposite corners), picked
 // by a coin toss, and the arcs join into long meandering curves that never
@@ -99,8 +101,8 @@ void main() {
   float spin = u_params[7];
   float t = mod(u_time, 3600.0);
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
-  float bNow = floor(beats);
-  float fade = smoothstep(0.0, 0.22, fract(beats));
+  float bNow = floor(u_rhythmEnabled ? u_rhythmCount.z : beats);
+  float fade = u_rhythmEnabled ? smoothstep(0.0, 1.0, 1.0 - min(u_rhythm.z * 1.5, 1.0)) : smoothstep(0.0, 0.22, fract(beats));
 
   vec2 uv = aspectUV();
   vec2 p;
@@ -153,9 +155,13 @@ void main() {
     float run = variant == 0 || variant == 3 ? fract(s.y * 2.0 - t * flow * 1.5)
       : 0.5 + 0.5 * sin(TAU * s.y * 2.0) * sin(t * flow * 3.0);
     float beam = pow(run, 6.0) * pulse;
+    float pathPulse = pow(max(0.0, cos(s.y * TAU * 2.0 - u_rhythmCount.x * 1.04719755)), 12.0) * u_rhythm.x;
+    float tileCohort = (s.z > 0.5) == (mod(u_rhythmCount.y, 2.0) < 1.0) ? 1.0 : 0.0;
     vec3 base = palette(s.z > 0.5 ? 0.18 : 0.62) * fill * 0.35;
     vec3 c = base * (1.0 - line) + mix(u_primary, vec3(1.0), 0.3) * (line * (0.55 + 0.45 * u_level) + 0.3 * halo);
     c += mix(u_accent, vec3(1.0), 0.5) * beam * (line + 0.15 * halo) * 1.4;
+    c += mix(u_accent, vec3(1.0), 0.3) * pathPulse * (line + 0.1 * halo);
+    c += base * tileCohort * u_rhythm.y * 0.8;
     colour += c * w;
   }
   outColor = vec4(clamp(colour, 0.0, 1.0), 1.0);
@@ -260,11 +266,16 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("connected-path", 0, "Connected-path light", "Illuminate selected local parameters along the edge-matched curves."),
+    familyEffect("tile-colour", 1, "Tile-colour cohort", "Accent the complementary tile classes without rerouting them.", { period: 3, strength: 0.55 }),
+    familyEffect("tile-reroute", 2, "Tile-patch reroute", "Flip a bounded probabilistic set of edge-compatible tiles and crossfade the paths.", { period: 8, strength: 0.65, duration: 0.5, kind: "motion" }),
+  ],
   id: "truchet",
   number: 77,
   name: "Truchet Tiles",
   description:
-    "Random tiles, endless paths. Every square tosses a coin between two Smith tiles, and their quarter arcs join into long meandering curves that never end. The curves split the plane into two colours, which orients them all consistently, so light pulses run along every path without meeting head-on. On each beat a few tiles re-toss and the paths re-route through the field. Variants: Smith arcs, 10 PRINT diagonals, hexagonal tiles, and a log-polar tunnel.",
+    "Random tiles, endless paths. Every square tosses a coin between two Smith tiles, and their quarter arcs join into long meandering curves that never end. The curves split the plane into two colours, which orients them all consistently, so light pulses run along every path without meeting head-on. Independent rhythm tracks light curve segments and tile classes, and schedule compatible tile flips that re-route paths through the field. Variants: Smith arcs, 10 PRINT diagonals, hexagonal tiles, and a log-polar tunnel.",
   energy: { flip: [-0.1, 0.4], flow: { mul: [0.5, 2] }, pulse: [-0.1, 0.25] },
   beat: { punch: 0.6, pulse: 1 },
   audio: [

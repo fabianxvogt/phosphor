@@ -9,7 +9,108 @@ import {
   ControlPreview,
   performanceState,
   restorePerformance,
+  performanceBeat,
 } from "../control-preview.mjs";
+import { defaultPattern, samplePattern } from "../rhythm.mjs";
+
+test("handoff retains an unsaved muted rhythm and its exact look identity", () => {
+  const show = makeShow();
+  const clip = structuredClone(
+    [...show.catalogClips.values()].find(
+      (clip) => clip.snapshot.scene === "quasicrystal",
+    ),
+  );
+  clip.id = "draft-rhythm";
+  const scene = scenes.find((s) => s.id === clip.snapshot.scene);
+  clip.rhythm = defaultPattern(scene.rhythm);
+  clip.rhythm.mode = "locked";
+  clip.rhythm.tracks.forEach((track) => {
+    track.muted = true;
+  });
+  show.command({ type: "audition", clip }, 0);
+  const restored = makeShow();
+  const actions = restorePerformance(restored, performanceState(show, 0.1), 10);
+  assert.equal(actions.find((a) => a.type === "load").clipId, clip.id);
+  assert.deepEqual(restored.rhythmFrame(10).overrides[clip.id], clip.rhythm);
+  assert.equal(
+    restored.set.looks.some((look) => look.id === clip.id),
+    false,
+  );
+});
+
+test("preview clock fills sparse stage packets without dropping sixteenths at 200 BPM", () => {
+  const defs = [
+    {
+      id: "pulse",
+      slot: 0,
+      defaults: {
+        division: 4,
+        length: 4,
+        steps: [1, 1, 1, 1],
+        strength: 1,
+        duration: 0.1,
+        muted: false,
+      },
+    },
+  ];
+  const pattern = defaultPattern(defs);
+  let received = 0,
+    previous = 0,
+    hits = 0;
+  let message = { performance: { beat: 0, period: 0.3 } };
+  for (let i = 1; i <= 30; i++) {
+    const t = i / 30;
+    if (t - received >= 0.1) {
+      received = t;
+      message = { performance: { beat: t / 0.3, period: 0.3 } };
+    }
+    const beat = performanceBeat(message, received, t);
+    assert.ok(beat > previous);
+    if (samplePattern(pattern, defs, beat, previous).hits[0]) hits++;
+    previous = beat;
+  }
+  assert.equal(hits, 13);
+});
+
+test("handoff keeps a saved own-look rhythm edit above the clip's stale copy", () => {
+  const show = makeShow();
+  const own = structuredClone(
+    [...show.catalogClips.values()].find(
+      (clip) => clip.snapshot.scene === "quasicrystal",
+    ),
+  );
+  own.id = "own-handoff";
+  own.rhythm = defaultPattern(
+    scenes.find((s) => s.id === "quasicrystal").rhythm,
+  );
+  own.rhythm.mode = "locked";
+  own.rhythm.tracks[0].strength = 0.1;
+  const set = structuredClone(show.set);
+  set.looks.push(own);
+  show.updateSet(set, 0);
+  show.command({ type: "look", id: own.id, immediate: true }, 0);
+  show.tick(2);
+  const edited = structuredClone(own.rhythm);
+  edited.tracks[0].strength = 0.9;
+  show.command(
+    {
+      type: "rhythm",
+      scope: "look",
+      look: own.id,
+      pattern: edited,
+      quantize: "now",
+    },
+    2.1,
+  );
+  const restored = makeShow();
+  restored.updateSet(structuredClone(show.set), 10);
+  restorePerformance(restored, performanceState(show, 2.1), 10);
+  assert.equal(
+    restored.rhythmFrame(10).overrides[own.id].tracks[0].strength,
+    0.9,
+  );
+  assert.equal(restored.rhythmDrafts[own.id], undefined);
+});
 
 function makeShow() {
   const set = initialShowSet(scenes);

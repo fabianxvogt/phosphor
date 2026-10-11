@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 const schema = [
   {
     key: "composition",
@@ -225,7 +227,7 @@ void main() {
   float orbit = mod(evolution, TAU * 100.0);
   float drift = TAU * mod(evolution, 20.0);
   float travel = sin(orbit * 0.7) * 2.4;
-  float phase = TAU * u_params[3];
+  float phase = TAU * u_params[3] + u_rhythm.z * 0.65;
   float seedAngle = float(seedHash(u_seedBits) >> 8u) / 16777216.0 * TAU;
   float orientation = radians(u_params[4]);
   vec2 screen = aspectUV();
@@ -348,6 +350,9 @@ void main() {
     float fog = 1.0 / (1.0 + depth * 0.16 + depth * depth * 0.012);
     vec3 pigment = palette(clamp(paletteBase + (layer - 1.0) * separation
       + (interference - 0.5) * 0.12, 0.0, 1.0));
+    float fringeCohort = exp(-pow((interference - (0.2 + 0.12 * mod(u_rhythmCount.x, 5.0))) / 0.045, 2.0));
+    pigment += mix(pigment, u_accent, 0.45) * fringeCohort * u_rhythm.x * 0.8;
+    if (abs(layer - mod(u_rhythmCount.y, 3.0)) < 0.5) pigment += pigment * u_rhythm.y * 0.5;
     float opacity = visibility * fog * (0.22 + 0.48 * bands);
     color = mix(color, background + pigment * (0.12 + 0.73 * bands), opacity);
   }
@@ -358,6 +363,11 @@ void main() {
 `;
 
 export default {
+  rhythm: [
+    familyEffect("fringe-band", 0, "Fringe-band light", "Select a narrow interference-amplitude band on the wave surfaces."),
+    familyEffect("wave-layer", 1, "Wave-layer light", "Independently accent one of the composed interference surfaces.", { period: 3, strength: 0.5 }),
+    familyEffect("source-phase", 2, "Source-phase excursion", "Shift a source's phase so the actual interference fringes migrate.", { period: 8, duration: 1.5, strength: 0.55, kind: "motion" }),
+  ],
   id: "interference",
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { fields: [1, 3], motion: { mul: [0.08, 2.2] } },

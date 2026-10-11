@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Fractal Flames (#69): the chaos game. 65,536 GPU particles each pick one
 // of a few transforms at random every tick (weighted), apply it and land
 // somewhere on the attractor of the iterated function system; drawn
@@ -301,7 +303,7 @@ void main() {
   }
   int n = s == 4 ? 4 : s == 5 ? 2 : 3;
   // Reset frames iterate a few times so the first picture is converged.
-  int hops = u_reset ? 24 : 1;
+  int hops = u_reset ? 24 : 1 + (u_rhythmHit.z > 0.0 ? 2 : 0);
   for (int h = 0; h < 24; h++) {
     if (h >= hops) break;
     float pick = tickHash(cell, 20u + uint(h));
@@ -371,7 +373,9 @@ void main() {
   // dragons that tile the plane (or the fronds of a snowflake) read apart.
   float copyHue = s >= 4 && copies > 1 ? float(gl_VertexID % copies) / float(copies) : 0.0;
   float hue = fract(p.z * 0.85 + u_params[7] + t * 0.003 + copyHue * 0.6);
-  v_color = palette(hue) * u_params[6] * 0.07 * (0.75 + 0.5 * u_level);
+  float transformCohort = exp(-pow((p.z - (0.15 + 0.2 * mod(u_rhythmCount.x, 4.0))) / 0.08, 2.0));
+  float branchCohort = pow(max(0.0, cos(atan(p.y - centre.y, p.x - centre.x) - u_rhythmCount.y * 2.399963)), 8.0);
+  v_color = palette(hue) * u_params[6] * 0.07 * (0.75 + 0.5 * u_level) * (1.0 + transformCohort * u_rhythm.x * 1.8 + branchCohort * u_rhythm.y);
 }
 `,
 };
@@ -460,6 +464,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("ifs-colour", 0, "IFS-cohort light", "Select the transform-history colour coordinate carried by flame samples."),
+    familyEffect("flame-branch", 1, "Branch-cohort light", "Illuminate one angular branch of the current attractor population.", { period: 3, strength: 0.55 }),
+    familyEffect("ifs-flow", 2, "IFS iteration burst", "Apply two additional valid IFS iterations to the current population; preserve its attractor.", { period: 8, strength: 0.55, duration: 0.25, kind: "simulation" }),
+  ],
   id: "flame",
   number: 69,
   name: "Fractal Flames",

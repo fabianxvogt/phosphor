@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Hyperbolic Loom (v6 port, D32/D33): regular tilings of the hyperbolic
 // plane in the Poincaré disk, drifting under Möbius motion so the weave
 // flows endlessly toward the rim. Each point is reflected into the
@@ -80,16 +82,24 @@ void main() {
   float spoke = (1.0 - smoothstep(weight * 0.5 * scale - aa2, weight * 0.5 * scale + aa2, dSpoke)) * spokes;
   float tile = mod(parity, 2.0);
   vec3 ink = palette(fract(0.15 + 0.5 * tile + 0.1 * sin(t * 0.1)));
-  float kick = exp(-fract(u_beat) * 6.0);
+  float kick = u_rhythmEnabled ? u_rhythm.x : exp(-fract(u_beat) * 6.0);
+  float depthCohort = mod(parity - u_rhythmCount.x, 5.0) < 1.0 ? 1.0 : 0.0;
   vec3 col = ink * fillAmount * 0.18 * (0.6 + 0.4 * tile);
-  col += mix(u_primary, u_accent, tile) * edge * (0.85 + 0.4 * kick * u_level);
+  col += mix(u_primary, u_accent, tile) * edge * (0.85 + 1.0 * kick * depthCohort * u_level);
   col += u_secondary * spoke * 0.6;
+  float hyperbolicRadius = log((1.0 + sqrt(rr)) / max(1.0 - sqrt(rr), 0.001));
+  float ringWave = exp(-pow((hyperbolicRadius - (0.5 + mod(u_rhythmCount.y, 5.0) * 0.6)) / 0.16, 2.0));
+  col += ink * ringWave * u_rhythm.y * (0.2 + 0.8 * edge);
   col += u_accent * glow * 0.25 * smoothstep(0.55, 1.0, rr);
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `;
 
 export default {
+  rhythm: [
+    familyEffect("reflection-depth", 0, "Tile-depth light", "Select tiles by their reflection depth in the hyperbolic folding."),
+    familyEffect("geodesic-ring", 1, "Geodesic-ring light", "Light a ring at constant hyperbolic radius on the Poincaré disk.", { period: 3, strength: 0.55, duration: 0.75 }),
+  ],
   id: "hyperbolic",
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { drift: [0.06, 1.2], turn: { mul: [0.4, 2.5] }, fill: [0.15, 0.6] },

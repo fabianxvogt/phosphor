@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Indra's Pearls (#74): limit sets of groups of Möbius maps, drawn per pixel
 // by walking each point back into a fundamental domain. Every step applies
 // one generator (a circle inversion composed with a reflection); the number
@@ -88,7 +90,7 @@ void main() {
   float rim = u_params[6];
   float fill = u_params[7];
   float t = mod(u_time, 3600.0);
-  float beatPulse = u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
+  float beatPulse = u_rhythmEnabled ? u_rhythm.z : u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
 
   vec2 zs = aspectUV() * 2.3 / zoom;
   float px = max(length(fwidth(zs)) * 0.7, 1e-6);
@@ -222,13 +224,17 @@ void main() {
 
   // Shading: pearls by word length, glowing rims, a bright limit set.
   float edge = dLocal / max(der, 1e-9) / px;
-  float rimBoost = 1.0 + 0.8 * beatPulse * u_level;
+  float rimBoost = 1.0;
   float line = exp(-edge * edge / (1.0 + 8.0 * rim));
   vec3 neon = mix(u_primary, vec3(1.0), 0.35);
   float hue = fract(0.17 * depth + 0.29 * last + 0.05);
   vec3 pearl = palette(hue) * fill * (0.25 + 0.75 * exp(-0.05 * depth)) * (0.45 + 0.55 * sqrt(inner));
   vec3 colour = outside ? u_secondary * 0.03 : pearl;
   colour += neon * line * (0.5 + 0.5 * rim) * rimBoost * (outside ? 0.6 : 1.0);
+  float depthCohort = mod(depth - u_rhythmCount.x, 5.0) < 1.0 ? 1.0 : 0.0;
+  float generatorCohort = mod(floor(last) - u_rhythmCount.y, 3.0) < 1.0 ? 1.0 : 0.0;
+  colour += neon * line * depthCohort * u_rhythm.x * 0.8;
+  colour += pearl * generatorCohort * u_rhythm.y * 0.65;
   // The limit set: where the pearls shrink below a pixel.
   if (limit) colour = mix(pearl, mix(neon, vec3(1.0), 0.2), 0.6) * (0.65 + 0.35 * u_level);
   outColor = vec4(clamp(colour, 0.0, 1.0), 1.0);
@@ -320,6 +326,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("word-depth", 0, "Recursion-depth light", "Select pearls by the inversion word length producing them."),
+    familyEffect("generator-group", 1, "Pearl-cohort light", "Select circle-generator, annular inversion or pearl-size cohorts within the chosen construction.", { period: 3, strength: 0.55 }),
+    familyEffect("schottky-kiss", 2, "Schottky-circle excursion", "Boundedly change the paired generator-circle geometry while retaining the Schottky construction.", { period: 16, strength: 0.55, duration: 2, kind: "motion", variants: [1] }),
+  ],
   id: "kleinian",
   number: 74,
   name: "Indra's Pearls",

@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Gray–Scott morphogens, rendered as an illustrative flowering garden.
 // Two 16-bit concentrations occupy RG and BA in the RGBA8 simulation texture.
 const chemistry = `
@@ -26,6 +28,11 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("growth-front", 0, "Growth-front light", "Illuminate the reaction concentration forming the plant's growing rim."),
+    familyEffect("petal-cohort", 1, "Petal-cohort light", "Select oriented petals in developed reaction crowns.", { period: 3, strength: 0.5 }),
+    familyEffect("morphogen-feed", 2, "Local morphogen feed", "Seed a bounded patch into the continuing garden chemistry.", { period: 16, strength: 0.55, duration: 0.25, kind: "simulation" }),
+  ],
   id: 'evolution',
   // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
   aspect: 16 / 9,
@@ -101,6 +108,9 @@ void main() {
   float audioBloom = 1. + .14 * clamp(u_energy, 0., 1.) + .08 * clamp(u_onset, 0., 1.);
   vec3 color = mix(soil, flower * relief * petalLight * u_params[6] * audioBloom, island);
   color += edge * u_primary * .12 + veins * u_accent * .14;
+  color += edge * u_primary * u_rhythm.x * .7;
+  float petalCohort = pow(max(0., cos(angle * 6. - u_rhythmCount.y * 1.04719755)), 5.);
+  color += flower * crown * petalCohort * u_rhythm.y * .65;
   vec2 frame = v_uv * (1. - v_uv);
   float vignette = .67 + .33 * pow(clamp(frame.x * frame.y * 16., 0., 1.), .3);
   color *= vignette;

@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Conservative signed-distance architecture with four bounded camera grammars.
 const schema = [
   {
@@ -365,7 +367,7 @@ void main() {
   float level = clamp(u_level, 0., 1.);
   // D61 envelopes are attack/release smoothed and fade out with beat lock.
   float bass = smoothstep(0., 1., clamp(u_low, 0., 1.));
-  float kick = u_kick * smoothstep(.15, 1., level);
+  float kick = (u_rhythmEnabled ? 0. : u_kick) * smoothstep(.15, 1., level);
   vec2 state = fract(unpack16(texture(u_state, vec2(.25, .5))) +
     (unpack16(texture(u_state, vec2(.75, .5))) - .5) / 65535.);
   crystalTurn = state.y * TAU * 100.;
@@ -481,6 +483,13 @@ void main() {
     float emissive = glass.x * (1. - isFloor) *
       (.04 + .12 * level + bass * (.15 + .7 * level));
     color += glassPalette(fract(glass.y + .23), material) * emissive * glow;
+    // Light belongs to architecture: bays/facets first, glass sectors independently.
+    float section = family > .5 && family < 1.5 ? floor((atan(p.z, p.x) / TAU + .5) * 8.) : floor(p.z / bay);
+    float bayLight = mod(section - u_rhythmCount.x, 6.) < 1. ? 1. : 0.;
+    color += base * (1. - isFloor) * bayLight * u_rhythm.x * (.3 + .7 * glass.x);
+    float sector = floor((atan(p.y - .6, p.x) / TAU + .5) * 12.);
+    float paneLight = mod(sector - u_rhythmCount.y, 4.) < 1. ? 1. : 0.;
+    color += glassPalette(fract(glass.y + .23), material) * paneLight * u_rhythm.y * transmission * .7;
     float fog = 1. - exp(-distance * extinction);
     color = mix(color, atmosphere, fog);
   }
@@ -495,6 +504,10 @@ void main() {
 `;
 
 export default {
+  rhythm: [
+    familyEffect("architecture-bays", 0, "Architectural light", "Light successive nave bays, folds or reliquary facets rather than the whole camera.", { strength: 0.75, duration: 0.65 }),
+    familyEffect("glass-sectors", 1, "Glass-sector accent", "Select angular stained-glass sectors and let their material transmit the accent.", { period: 4, strength: 0.7, duration: 1 }),
+  ],
   id: "cathedral",
   // Contract v3 performance metadata; see scene-acid.mjs.
   energy: { speed: [0.05, 1.3], recursion: [1, 4] },

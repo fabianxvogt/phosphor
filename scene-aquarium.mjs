@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Artistic continuous-cell model, inspired by Lenia: a normalized annular
 // convolution feeds a bell-shaped growth response. Nutrient consumption and
 // bilinear field advection are additions, not a biological or research claim.
@@ -176,12 +178,19 @@ void main() {
   vec2 grainCell = floor(v_uv * vec2(320.0, 210.0));
   float speck = step(0.997, hash(grainCell)) * state.g;
   color += u_secondary * speck * 0.10;
+  color += mix(organism, u_accent, 0.5) * rim * u_rhythm.x * 0.75;
+  color += organism * inner * u_rhythm.y * 0.65;
   color *= 1.0 + min(u_energy, 1.0) * 0.08;
   outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }
 `;
 
 export default {
+  rhythm: [
+    familyEffect("membrane", 0, "Membrane light", "Illuminate the organism's measured outer membrane."),
+    familyEffect("inner-layer", 1, "Inner-layer light", "Accent a separate concentration layer inside living organisms.", { period: 3, strength: 0.5 }),
+    familyEffect("nutrients", 2, "Nutrient feeding", "Deliver a local bounded feeding patch to the habitat.", { period: 16, strength: 0.65, duration: 0.25, kind: "simulation" }),
+  ],
   id: 'aquarium',
   // Simulation grid authored for a 16:9 frame; other screens cover-crop it (D7).
   aspect: 16 / 9,

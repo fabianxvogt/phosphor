@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 // Hopf Fibration (#80): the 3-sphere S³ ⊂ C² is a bundle of great
 // circles, one over every point of the 2-sphere. The Hopf map
 // (z1, z2) → (2·z1·z̄2, |z1|² − |z2|²) sends each circle to one point.
@@ -68,7 +70,7 @@ void main() {
   float glow = u_params[6];
   float persistence = clamp(u_params[7], 0.0, 0.95);
   float t = mod(u_time, 3600.0);
-  float beatPulse = u_beat > 0.0 ? exp(-4.0 * fract(u_beat)) : 0.0;
+  float beatPulse = u_rhythmEnabled ? u_rhythm.x : u_beat > 0.0 ? exp(-4.0 * fract(u_beat)) : 0.0;
 
   int f = gl_VertexID / ${POINTS};
   int k = gl_VertexID % ${POINTS};
@@ -78,7 +80,7 @@ void main() {
 
   // Base point (θ polar, φ longitude) on S² for each fibre.
   float theta, phi;
-  float breathe = 0.12 * sin(t * 0.21) + 0.08 * beatPulse * u_level;
+  float breathe = 0.12 * sin(t * 0.21) + 0.12 * u_rhythm.y * sin(float(f) * 0.13 + u_rhythmCount.y);
   if (variant == 0) {
     // One circle of latitude: a torus of Villarceau circles.
     theta = clamp(latitude * PI_H + breathe, 0.05, 3.09);
@@ -128,7 +130,12 @@ void main() {
   float fog = clamp(1.4 - 0.12 * depth, 0.35, 1.3);
   float light = glow * 0.6 * (1.0 - 0.85 * persistence) * fog * (0.55 + 0.45 * u_level);
   if (variant == 3) light *= 2.2;
-  v_color = palette(hue) * light * (0.6 + 0.4 * sin(theta)) * (1.0 + 0.6 * beatPulse);
+  float cohort = mod(float(f) - u_rhythmCount.x, 8.0) < 1.0 ? 1.0 : 0.0;
+  // An entire linked fibre grows legible, preserving its exact curve.
+  gl_PointSize *= 1.0 + cohort * beatPulse * 0.7;
+  float latitudeWave = exp(-pow((theta / PI_H - fract(u_rhythmCount.y * 0.173)) / 0.16, 2.0));
+  v_color = palette(hue) * light * (0.6 + 0.4 * sin(theta)) * (1.0 + cohort * beatPulse * 2.4);
+  v_color += mix(palette(hue), u_accent, 0.5) * light * latitudeWave * u_rhythm.y * 0.8;
 }
 `.replace(/PI_H/g, "3.141592653589793"),
 };
@@ -209,6 +216,10 @@ const presets = [
 ];
 
 export default {
+  rhythm: [
+    familyEffect("linked-fibres", 0, "Linked-fibre chase", "Light one interleaved group of complete Hopf circles."),
+    familyEffect("latitude-sweep", 1, "Latitude sweep", "Illuminate and gently move a base-sphere latitude cohort; fibres remain linked.", { period: 4, duration: 1.5, strength: 0.55, kind: "motion" }),
+  ],
   id: "hopf",
   number: 80,
   name: "Hopf Fibration",

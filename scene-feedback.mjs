@@ -1,3 +1,5 @@
+import { familyEffect } from "./family-rhythm.mjs";
+
 const schema = [
   {
     key: "persistence",
@@ -256,6 +258,12 @@ void main() {
     colorPhase = column * 0.13 + floor(q.y) * 0.21;
   }
 
+  // Re-emphasise a ring only where stored recursive pigment already exists.
+  float recursiveRing = fcStroke(length(p) - (0.10 + 0.055 * mod(u_rhythmCount.x, 6.0)), width, aa);
+  ink = max(ink, recursiveRing * smoothstep(0.015, 0.12, max(history.r, max(history.g, history.b))) * u_rhythm.x);
+  float seedCohort = mod(floor(colorPhase * 12.0) - u_rhythmCount.y, 3.0) < 1.0 ? 1.0 : 0.0;
+  ink = clamp(ink * (1.0 + seedCohort * u_rhythm.y * 0.8), 0.0, 1.0);
+
   // Gesture and shared beat injection use the same bounded history path.
   vec2 gesture = (u_gesture.xy - 0.5) * vec2(aspect, 1.0);
   float brushRadius = 0.03 + 0.012 * bass;
@@ -276,6 +284,11 @@ void main() {
 `;
 
 export default {
+  rhythm: [
+    familyEffect("recursive-ring", 0, "Recursion-ring light", "Re-ink a selected ring only where recursive history contains pigment."),
+    familyEffect("seed-cohort", 1, "Seed-cohort light", "Accent one cohort of the current family-specific ink geometry.", { period: 3, strength: 0.5 }),
+    familyEffect("seed-stamp", 2, "Local seed stamp", "Introduce a bounded seed into the contractive history path.", { period: 16, strength: 0.6, duration: 0.25, kind: "simulation" }),
+  ],
   id: "feedback",
   // Contract v3 performance metadata; see scene-acid.mjs. Signed motions
   // scale their magnitude with energy instead of shifting.

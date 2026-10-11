@@ -4,6 +4,14 @@ import { Show } from "./show.mjs";
 import { presetSnapshot } from "./session.mjs";
 import { ShowClock } from "./show-clock.mjs";
 
+// Stage messages are sparse; editor animation must still advance between
+// them. Both timestamps are in seconds on the receiving window's clock.
+export function performanceBeat(message, receivedAt, t) {
+  const beat = message.performance?.beat ?? message.status.clock.beat;
+  const period = message.performance?.period ?? 60 / message.status.clock.bpm;
+  return beat + Math.max(0, t - receivedAt) / period;
+}
+
 export function performanceState(show, t) {
   return {
     runtime: show.snapshot(t),
@@ -21,6 +29,8 @@ export function performanceState(show, t) {
     },
     disabled: [...show.disabled],
     clip: show.live ? structuredClone(show.live.clip) : null,
+    draftRhythm: show.live && show.rhythmDrafts[show.live.clip.id]
+      ? structuredClone(show.rhythmDrafts[show.live.clip.id]) : null,
     freeze: show.freeze,
     flash: show.flash,
   };
@@ -60,15 +70,19 @@ export function restorePerformance(show, state, t) {
     clip.snapshot.palette = show.paletteColors;
     show.safeShowing = false;
     show.live = { clip, base: clip.snapshot.params };
+    if (state.draftRhythm)
+      show.refreshDraftRhythm({ ...clip, rhythm: state.draftRhythm }, t);
     const load = actions.find((a) => a.type === "load");
     if (load)
       Object.assign(load, {
+        clipId: clip.id,
         snapshot: clip.snapshot,
         baseEnergy: clip.energy,
       });
     else
       actions.unshift({
         type: "load",
+        clipId: clip.id,
         snapshot: clip.snapshot,
         fadeSeconds: 0,
         transition: "crossfade",
@@ -137,6 +151,7 @@ export class ControlPreview {
       clip: copy,
       base: copy.snapshot.params,
     };
+    this.show.refreshDraftRhythm(copy, t);
     this.show.drift = null;
     this.apply(
       this.show.command(
@@ -155,6 +170,7 @@ export class ControlPreview {
   tick(t, dt) {
     this.apply(this.show.tick(t));
     this.engine.beat = this.show.clock.at(t).beat;
+    this.engine.setRhythmFrame?.(this.show.rhythmFrame(t));
     this.engine.advance(dt, this.show.freeze);
   }
   status(t) {
@@ -171,8 +187,10 @@ export class ControlPreview {
       switch (action.type) {
         case "load":
         case "safe":
+          this.engine.setRhythmFrame?.(this.show.rhythmFrame(this.show.rhythmTime ?? this.show.clock.last));
           this.engine.setLevel(action.energy, action.fadeSeconds ?? 0);
           this.engine.load(action.snapshot, action.fadeSeconds ?? 0.4, {
+            lookId: action.clipId,
             energy: action.baseEnergy ?? action.energy,
             transition: action.transition,
             flashExempt: action.type === "safe",
