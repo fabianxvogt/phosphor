@@ -50,7 +50,9 @@ Drag the dotted seams to resize the panels in either layout; the middle seam als
 
 ## Living worlds
 
-Switch the Catalog from **Looks** to **Worlds**. **Prepare** selects a world and its starting development without changing the playing picture. Choose a 4-, 8- or 16-bar transition, optionally **Carry traces**, then **Start transition**: it starts on the next bar. **Space** pauses/resumes the picture, transition and music together. The Look panel offers the active world's three developments; **Free play** or a catalog look returns to the full library. Autopilot and Next stay within an active world; changing worlds always needs your start command.
+Fresh app sessions open **Looks** with Autopilot running, even if it was switched off in the previous session. Reconnecting to an already-running Stage preserves that performance and its Autopilot state.
+
+Switch the Catalog from **Looks** to **Worlds · Beta**. **Prepare** selects a world and its starting development without changing the playing picture. Choose a 4-, 8- or 16-bar transition, optionally **Carry traces**, then **Start transition**: it starts on the next bar. **Space** pauses/resumes the picture, transition and music together. The Look panel offers the active world's three developments; **Free play** or a catalog look returns to the full library. Autopilot and Next stay within an active world; changing worlds always needs your start command.
 
 **Unfolding Garden** is a continuously playable world: **Filaments → Membrane → Blossom** changes the same connected form. Start it from Worlds, then use **Development** in the Look panel to move freely in either direction. Or choose a state and **4 / 8 / 16 bars**; the transformation starts on the next bar. Dragging takes over immediately, including during a timed transformation or while paused. Centres, branches, seed, palette and motion stay continuous. Stage handoff retains the development position and easing phase. Six Living Forms looks are also available in the regular catalog.
 

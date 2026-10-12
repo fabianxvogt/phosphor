@@ -27,6 +27,9 @@ export class WorldPanel {
     });
     this.looksTab = button(tr("Looks"), () => this.setView(false));
     this.worldsTab = button(tr("Worlds"), () => this.setView(true));
+    this.worldsTab.append(
+      node("span", { className: "world-beta", textContent: tr("Beta") }),
+    );
     tabs.append(this.looksTab, this.worldsTab);
     document.querySelector(".catalog-heading").append(tabs);
     this.list = node("div", {

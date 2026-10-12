@@ -8,9 +8,24 @@
   margin-left: auto;
 }
 .world-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 5px 12px;
   font-size: 12px;
   min-height: 28px;
+}
+.world-beta {
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 body[data-catalog-mode="worlds"] #catalogList,
 body[data-catalog-mode="worlds"] .catalog-head > :not(.catalog-heading),

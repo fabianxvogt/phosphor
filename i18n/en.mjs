@@ -1731,6 +1731,7 @@ export default {
   "Catalog view": "Catalog view",
   "Looks": "Looks",
   "Worlds": "Worlds",
+  "Beta": "Beta",
   "Curated worlds": "Curated worlds",
   "Prepare here, then start on the next bar. Look keys still play the catalog.": "Prepare here, then start on the next bar. Look keys still play the catalog.",
   "Prepare again": "Prepare again",

@@ -2,6 +2,14 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Worlds beta and fresh-session defaults 2026-10-12
+
+**INCREMENTAL / EMPIRICAL.** The catalog's Worlds button now includes a theme-aware Beta badge. Fresh control sessions enable catalog Autopilot even when the previous session saved it Off. The existing Stage status handshake remains authoritative on reconnection; later set imports keep their settings.
+
+**Verification:** the saved-Off reload failed in the browser before the fix and passed afterward, returning from Worlds to Looks with no active world. A live Stage reconnect kept Autopilot Off and reattached its preview. Both themes display the badge without document overflow. All 539 active tests passed (12 optional probes skipped), alongside typecheck, formatting, build and distribution checks. The browser regression now covers saved-Off startup and waits for actual video-track reconnection before checking Stage ownership. Independent review found no production blockers and corrected that test's readiness gate.
+
+**Browser-suite limit:** the preceding `abd33ea` GitHub run passed all 334 looks, family energy/aspect/fade/preparation checks and the control/Stage workflow, then timed out waiting for a variation thumbnail on software rendering. Native browser checks produced all six images during playback and pause without console errors. The functional CI variation check now holds the large live preview while generating thumbnails, then resumes after selection. This isolates generation from competing GPU work; it does not prove the earlier timeout's root cause or concurrent throughput on SwiftShader. Full remote rerun remains separate from these local results.
+
 ## Continuous world development 2026-10-12
 
 **INCREMENTAL / EMPIRICAL.** Integrated the owner-approved transformation study as Unfolding Garden / Living Forms: connected filaments fill into membranes and open into blossoms. One deterministic mesh, seed and branch ancestry persist through a reversible Development slider and 4/8/16-bar state cues. Existing simulation-field worlds remain available. Six real 512×288 catalog previews bring the authored library to 334 looks, 39 catalog families and 40 renderers.

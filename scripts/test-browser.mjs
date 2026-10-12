@@ -979,6 +979,15 @@ try {
   await control
     .getByRole("combobox", { name: "Look family", exact: true })
     .selectOption("interference");
+  // This checks independent thumbnail generation, not concurrent GPU timing.
+  // Hold the full-size preview so software rendering cannot starve idle work.
+  await control.locator("#previewPause").click();
+  await waitFor(
+    control,
+    () => document.getElementById("previewPause").ariaPressed === "true",
+    null,
+    "pause the preview before generating variations",
+  );
   await control.evaluate(async () => {
     const { Engine } = await import("./engine.mjs");
     const load = Engine.prototype.load;
@@ -1008,6 +1017,7 @@ try {
   );
   await control.evaluate(() => window.__restoreVariationProbe());
   await control.locator("#variations button").first().click();
+  await control.locator("#previewPause").click();
   assert.equal(
     await control
       .getByRole("combobox", { name: "Look family", exact: true })

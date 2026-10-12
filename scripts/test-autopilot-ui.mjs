@@ -139,6 +139,29 @@ try {
   console.log(
     "PASS Manual draft edits are not overwritten by subsequent status",
   );
+  // Reloading a remote must not restart Autopilot on an existing live Stage.
+  await control.locator("#autopilot").click();
+  await control.waitForFunction(
+    () => document.getElementById("autopilot").ariaPressed === "false",
+  );
+  await control.reload();
+  await control.waitForFunction(() =>
+    document
+      .getElementById("preview")
+      .srcObject?.getVideoTracks()
+      .some((track) => track.readyState === "live"),
+  );
+  await control.waitForFunction(
+    () => document.getElementById("autopilot").ariaPressed === "false",
+  );
+  assert.equal(
+    await stage.evaluate(() => window.__phosphorStage.show.autopilot.enabled),
+    false,
+    "An existing Stage keeps its Autopilot state after control reload",
+  );
+  console.log(
+    "PASS Control reload preserves a running Stage's Autopilot state",
+  );
   assert.deepEqual(errors, []);
   await context.close();
 
@@ -147,7 +170,12 @@ try {
     viewport: { width: 1280, height: 850 },
   });
   const set = initialShowSet(scenes);
-  set.autopilot = { ...set.autopilot, random: false, everyBars: 8 };
+  set.autopilot = {
+    ...set.autopilot,
+    enabled: false,
+    random: false,
+    everyBars: 8,
+  };
   set.clock = { ...set.clock, mode: "manual", manualBpm: 200 };
   await local.addInitScript(
     ({ key, set }) => localStorage.setItem(key, JSON.stringify(set)),
@@ -158,6 +186,18 @@ try {
   page.on("pageerror", (error) => localErrors.push(error.message));
   await page.goto(server.url + APP);
   await page.waitForFunction(() => !!window.__phosphorControl?.catalog.live);
+  assert.equal(
+    await page.locator("body").getAttribute("data-catalog-mode"),
+    "looks",
+  );
+  assert.equal(
+    await page.locator("#autopilot").getAttribute("aria-pressed"),
+    "true",
+  );
+  assert.equal(await page.locator(".world-live").isVisible(), false);
+  console.log(
+    "PASS Fresh session starts with Looks and Autopilot despite saved Off",
+  );
   const initial = await page.evaluate(
     () => window.__phosphorControl.catalog.live,
   );

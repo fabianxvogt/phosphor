@@ -6,6 +6,8 @@ State: production candidate; canonical branch `main`; [Vercel](https://phosphor-
 
 First show: **2026-12-17** (planning placeholder until a real date exists). Feature freeze two weeks before. The date is fixed; scope flexes.
 
+**Delivered 2026-10-12 — Worlds beta / startup (INCREMENTAL):** the Worlds catalog button carries a Beta badge in both themes. Fresh sessions start the Looks catalog with Autopilot on; reconnecting to a running Stage preserves its playback state. Saved filters, looks and layout remain intact.
+
 **Delivered 2026-10-12 — Living worlds (INCREMENTAL):** two curated worlds with three developments each, explicit preparation/next-bar start, four/eight-bar transitions, real Acid ↔ Evolution field inheritance, world-contained autopilot, shared pause and portable definitions. Slider joins and height-responsive panel density refined without changing the chassis. [Evidence](docs/EVIDENCE.md#living-worlds-and-panel-refinement-2026-10-12). Next: owner aesthetic review of the developments and venue-length/external-output rehearsal before expanding the world library.
 
 **Delivered 2026-10-12 — Continuous world development (INCREMENTAL):** the approved transformation study is integrated as Unfolding Garden / Living Forms. One connected mesh changes from filaments into membranes and blossoms, with a reversible Development fader, 4/8/16-bar cues, exact pause and phase-preserving Stage handoff. Six catalog looks and real renderer previews added. [Evidence](docs/EVIDENCE.md#continuous-world-development-2026-10-12). Next: owner play-through of the integrated controls, then native external-display timing and endurance before extending this model to more worlds.

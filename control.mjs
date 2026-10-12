@@ -73,6 +73,10 @@ const stageParams = (scene) =>
     .map((d) => d.key);
 
 let { set, report } = loadSet(localStorage, scenes);
+// A fresh control session starts with catalog Autopilot. An already-running
+// Stage remains authoritative and restores its state through the hello/status
+// handshake below; importing a set later still honors its saved settings.
+set.autopilot.enabled = true;
 set.palette ??= "symbiosis";
 const showColors = () => paletteById(set.palette)?.colors ?? set.palette;
 let status = null; // last stage status
