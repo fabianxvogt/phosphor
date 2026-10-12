@@ -10,13 +10,17 @@ import {
   resolutionLimits,
 } from "./display-resolution.mjs";
 import { Show } from "./show.mjs";
-import { performanceState, restorePerformance } from "./control-preview.mjs";
+import {
+  performanceState,
+  restorePerformance,
+  presentPausedOutput,
+} from "./control-preview.mjs";
 import { validateShowSet } from "./show-set.mjs";
 import { presetSnapshot } from "./session.mjs";
 import { StageAudio } from "./stage-audio.mjs";
 import { EnergyEvents } from "./energy-events.mjs";
 import { loadSet, saveRuntime, loadRuntime } from "./show-storage.mjs";
-import { actionFor } from "./keymap.mjs";
+import { actionFor, isPauseShortcut } from "./keymap.mjs";
 import { drawPattern } from "./stage-pattern.mjs";
 import { Pacer } from "./pacer.mjs";
 import { Telemetry } from "./telemetry.mjs";
@@ -125,6 +129,13 @@ function apply(actions) {
       case "freeze":
         frozen = a.on;
         break;
+      case "pause":
+        audio.engine
+          .setPaused(a.on)
+          .catch((error) =>
+            post({ type: "error", message: `Audio: ${error.message}` }),
+          );
+        break;
       case "flash":
         engine.flashHeld = a.on;
         break;
@@ -134,6 +145,7 @@ function apply(actions) {
         break;
       }
     }
+  presentPausedOutput(engine, actions, show.clock.paused);
 }
 
 // Native is the default; an explicit lower resolution preserves aspect ratio.
@@ -170,7 +182,7 @@ let audioChoice = saved?.audio ?? { source: "demo" };
 let audioStart = null;
 function startAudio(event) {
   if (event?.code === "Escape") return;
-  audio.context?.resume().catch(() => {}); // inside a gesture this unblocks
+  audio.engine.setPaused(show.clock.paused).catch(() => {});
   audioStart ??= audio.use(audioChoice).catch((error) => {
     audioStart = null;
     post({ type: "error", message: `Audio: ${error.message}` });
@@ -209,8 +221,10 @@ function frame(ms) {
     apply(show.tick(t, { tracker, event }));
     engine.beat = show.clock.at(t).beat;
     engine.setRhythmFrame(show.rhythmFrame(t));
-    engine.features = audio.features(dt);
-    engine.advance(dt, frozen);
+    if (!show.clock.paused) {
+      engine.features = audio.features(dt);
+      engine.advance(dt, frozen);
+    }
     telemetry.presented(ms, interval, engine);
   } catch (error) {
     // Never freeze the show on one bad frame: fall back to the safe look.
@@ -307,6 +321,7 @@ channel.onmessage = async ({ data }) => {
         break;
       case "action":
         apply(show.command(data.action, t));
+        sendStatus(t, performance.now());
         break;
       case "set": {
         const next = validateShowSet(data.set, scenes);
@@ -369,6 +384,20 @@ addEventListener("blur", () => {
   heldFlash = false;
   apply(show.command({ type: "flash", on: false }, now()));
 });
+for (const kind of ["keydown", "keyup"])
+  window.addEventListener(
+    kind,
+    (event) => {
+      if (!$("overlay").hidden || !isPauseShortcut(event)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (kind === "keydown" && !event.repeat) {
+        apply(show.command({ type: "pause" }, now()));
+        sendStatus(now(), performance.now());
+      }
+    },
+    { capture: true },
+  );
 for (const kind of ["keydown", "keyup"])
   window.addEventListener(kind, (event) => {
     if (!$("overlay").hidden) return;

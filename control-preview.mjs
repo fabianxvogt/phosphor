@@ -9,7 +9,9 @@ import { ShowClock } from "./show-clock.mjs";
 export function performanceBeat(message, receivedAt, t) {
   const beat = message.performance?.beat ?? message.status.clock.beat;
   const period = message.performance?.period ?? 60 / message.status.clock.bpm;
-  return beat + Math.max(0, t - receivedAt) / period;
+  return message.status?.paused || message.performance?.runtime?.clock?.paused
+    ? beat
+    : beat + Math.max(0, t - receivedAt) / period;
 }
 
 export function performanceState(show, t) {
@@ -102,6 +104,23 @@ export function restorePerformance(show, state, t) {
   return actions;
 }
 
+// Output controls still work while transport is held. Present once without
+// advancing simulation, transition time or the show clock.
+export function presentPausedOutput(engine, actions, paused) {
+  if (
+    !paused ||
+    !actions.some((a) =>
+      ["blackout", "safe", "load", "shared", "flash", "params"].includes(
+        a.type,
+      ),
+    )
+  )
+    return false;
+  engine.blackout = engine.blackoutTarget;
+  engine.present();
+  return true;
+}
+
 export class ControlPreview {
   constructor(engine, set, scenes, t) {
     this.engine = engine;
@@ -171,10 +190,17 @@ export class ControlPreview {
     this.apply(this.show.command(action, t));
   }
   tick(t, dt) {
+    if (this.show.clock.paused) {
+      const dirty = !!this.dirty;
+      this.dirty = false;
+      return dirty;
+    }
     this.apply(this.show.tick(t));
     this.engine.beat = this.show.clock.at(t).beat;
     this.engine.setRhythmFrame?.(this.show.rhythmFrame(t));
     this.engine.advance(dt, this.show.freeze);
+    this.dirty = false;
+    return true;
   }
   status(t) {
     return this.show.status(t);
@@ -227,5 +253,7 @@ export class ControlPreview {
         // Freeze is owned by Show and applied in tick, including safe reset.
       }
     }
+    if (presentPausedOutput(this.engine, actions, this.show.clock.paused))
+      this.dirty = true;
   }
 }

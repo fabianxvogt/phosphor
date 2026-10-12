@@ -125,6 +125,54 @@ function makeShow() {
   });
 }
 
+test("transport pause holds picture, rhythm, and handoff phase until resumed", () => {
+  const show = makeShow();
+  show.begin(0);
+  let frames = 0;
+  const preview = Object.assign(Object.create(ControlPreview.prototype), {
+    show,
+    engine: {
+      advance() {
+        frames++;
+      },
+      setRhythmFrame() {},
+    },
+    apply() {},
+  });
+  preview.tick(1, 1 / 30);
+  show.command({ type: "pause" }, 1.375);
+  const look = show.live.clip.id;
+  const clock = show.status(1.375).clock;
+  preview.tick(100, 1 / 30);
+  assert.equal(frames, 1);
+  assert.equal(show.status(100).clock.beat, clock.beat);
+  assert.equal(show.live.clip.id, look);
+  const state = performanceState(show, 100);
+  assert.equal(performanceBeat({ performance: state }, 100, 200), clock.beat);
+  const stage = makeShow();
+  restorePerformance(stage, state, 500);
+  assert.equal(stage.status(700).paused, true);
+  assert.equal(stage.status(700).clock.beat, clock.beat);
+  stage.command({ type: "pause" }, 700);
+  assert.equal(stage.status(700.125).clock.beat, clock.beat + 0.25);
+  show.command({ type: "pause" }, 100);
+  preview.tick(100.125, 1 / 30);
+  assert.equal(frames, 2);
+});
+
+test("paused palette and drift glides resume with their remaining duration", () => {
+  const show = makeShow();
+  show.begin(0);
+  show.command({ type: "palette", value: "ember", beats: 4 }, 1);
+  const initial = show.paletteGlide?.t0;
+  show.command({ type: "pause" }, 1.5);
+  const snapshot = show.snapshot(1.5);
+  assert.deepEqual(show.snapshot(50).paletteColors, snapshot.paletteColors);
+  assert.deepEqual(show.snapshot(50).paletteGlide, snapshot.paletteGlide);
+  show.command({ type: "pause" }, 51.5);
+  assert.equal(show.paletteGlide.t0, initial + 50);
+});
+
 test("local preview receives every energy-post ceiling on set edits", () => {
   const show = makeShow();
   const engine = { options: {} };
@@ -333,4 +381,31 @@ test("safe-look handoff carries its palette without inventing a live clip", () =
     stage.currentSnapshot().palette,
     paletteById("ember").colors,
   );
+});
+
+test("blackout and unblack present immediately during transport pause", () => {
+  const show = makeShow();
+  show.command({ type: "pause", on: true }, 1.375);
+  const frames = [];
+  const engine = {
+    blackout: 0,
+    present() {
+      frames.push(this.blackout);
+    },
+  };
+  const preview = Object.assign(Object.create(ControlPreview.prototype), {
+    show,
+    engine,
+  });
+  preview.command({ type: "blackout", on: true }, 10);
+  assert.deepEqual(frames, [1]);
+  assert.equal(
+    preview.tick(20, 1),
+    true,
+    "new frame copied to local preview once",
+  );
+  assert.equal(preview.tick(21, 1), false);
+  preview.command({ type: "blackout", on: false }, 22);
+  assert.deepEqual(frames, [1, 0]);
+  assert.equal(show.clock.beatAt(22), 2.75);
 });

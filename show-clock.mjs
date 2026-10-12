@@ -26,13 +26,22 @@ export class ShowClock {
     this.source = mode === "auto" ? "coast" : "manual";
     this.last = now;
     this.tracker = null;
+    this.paused = false;
   }
 
   beatAt(t) {
+    if (this.paused) return this.anchorBeat;
     return (
       this.anchorBeat +
       (Math.max(t, this.anchorTime) - this.anchorTime) / this.period
     );
+  }
+
+  setPaused(t, paused) {
+    if (this.paused === paused) return;
+    this.#rebase(t);
+    this.paused = paused;
+    this.taps = [];
   }
 
   #rebase(t) {
@@ -73,7 +82,7 @@ export class ShowClock {
   // Beat tracker state, with nextBeatTime already on this clock's timeline.
   track(t, state) {
     this.tracker = state;
-    if (this.mode !== "auto") return;
+    if (this.mode !== "auto" || this.paused) return;
     if (
       !state?.locked ||
       !Number.isFinite(state.nextBeatTime) ||
@@ -90,7 +99,7 @@ export class ShowClock {
     );
   }
 
-  // Space: tap tempo. Switches to manual; the tap is a beat.
+  // Tap tempo switches to manual; the tap is a beat.
   tap(t) {
     if (this.taps.length && t - this.taps.at(-1) > TAP_RESET) this.taps = [];
     this.taps.push(t);
@@ -143,6 +152,7 @@ export class ShowClock {
     // Manual steering relaxes back to the target tempo after one beat.
     if (
       this.mode === "manual" &&
+      !this.paused &&
       this.period !== this.base &&
       t - this.anchorTime > this.period
     ) {
@@ -162,6 +172,7 @@ export class ShowClock {
       latencyMs: this.latencyMs,
       origin: this.barOffset,
       position: inBar,
+      paused: this.paused,
     };
   }
 
@@ -177,6 +188,7 @@ export class ShowClock {
       beat: state.beat,
       period: this.period,
       source: this.source,
+      paused: this.paused,
     };
   }
 
@@ -203,5 +215,6 @@ export class ShowClock {
     this.source = this.mode === "manual" ? "manual" : "coast";
     this.taps = [];
     this.tracker = null;
+    this.paused = value.paused === true;
   }
 }

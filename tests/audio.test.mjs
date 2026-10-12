@@ -1,5 +1,51 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+test("pause suspends existing audio and retains the file position and scheduled demo", async () => {
+  const audio = new AudioEngine();
+  const calls = [];
+  audio.context = {
+    currentTime: 12.375,
+    state: "running",
+    async suspend() {
+      this.state = "suspended";
+      calls.push("suspend");
+    },
+    async resume() {
+      this.state = "running";
+      calls.push("resume");
+    },
+  };
+  const media = (audio.media = {
+    currentTime: 8.375,
+    paused: false,
+    pause() {
+      this.paused = true;
+    },
+    async play() {
+      this.paused = false;
+    },
+  });
+  const notes = [];
+  try {
+    audio.scheduleDemo(4, (...note) => notes.push(note));
+    const count = notes.length;
+    await audio.setPaused(true);
+    audio.pumpDemo();
+    assert.equal(notes.length, count);
+    assert.equal(audio.context.state, "suspended");
+    assert.equal(media.paused, true);
+    assert.equal(media.currentTime, 8.375);
+    await audio.setPaused(false);
+    assert.equal(audio.media, media);
+    assert.equal(media.currentTime, 8.375);
+    assert.equal(media.paused, false);
+    assert.equal(audio.context.currentTime, 12.375);
+    assert.deepEqual(calls, ["suspend", "resume"]);
+  } finally {
+    clearInterval(audio.timer);
+  }
+});
 import {
   MidiInput,
   AudioEngine,
@@ -145,9 +191,13 @@ test("R8 dark techno matches B's exact sixteen-step pattern", () => {
 // feature seam as AnalyserNode's unsmoothed decibel spectrum.
 function spectrumDB(samples) {
   const size = samples.length;
-  const real = Float64Array.from(samples, (x, i) =>
-    x * (0.42 - 0.5 * Math.cos(2 * Math.PI * i / size) +
-      0.08 * Math.cos(4 * Math.PI * i / size)),
+  const real = Float64Array.from(
+    samples,
+    (x, i) =>
+      x *
+      (0.42 -
+        0.5 * Math.cos((2 * Math.PI * i) / size) +
+        0.08 * Math.cos((4 * Math.PI * i) / size)),
   );
   const imaginary = new Float64Array(size);
   for (let i = 1, j = 0; i < size; i++) {
@@ -157,11 +207,13 @@ function spectrumDB(samples) {
     if (i < j) [real[i], real[j]] = [real[j], real[i]];
   }
   for (let width = 2; width <= size; width *= 2) {
-    const angle = -2 * Math.PI / width;
+    const angle = (-2 * Math.PI) / width;
     for (let start = 0; start < size; start += width) {
       for (let j = 0; j < width / 2; j++) {
-        const a = start + j, b = a + width / 2;
-        const cosine = Math.cos(angle * j), sine = Math.sin(angle * j);
+        const a = start + j,
+          b = a + width / 2;
+        const cosine = Math.cos(angle * j),
+          sine = Math.sin(angle * j);
         const r = real[b] * cosine - imaginary[b] * sine;
         const im = real[b] * sine + imaginary[b] * cosine;
         real[b] = real[a] - r;
@@ -171,8 +223,9 @@ function spectrumDB(samples) {
       }
     }
   }
-  return Float32Array.from({ length: size / 2 }, (_, i) =>
-    20 * Math.log10(Math.hypot(real[i], imaginary[i]) / size),
+  return Float32Array.from(
+    { length: size / 2 },
+    (_, i) => 20 * Math.log10(Math.hypot(real[i], imaginary[i]) / size),
   );
 }
 
@@ -185,7 +238,10 @@ function extractSignal(samples, sampleRate, dt = 0.01) {
     frame.fill(0);
     const start = Math.max(0, end - frame.length);
     frame.set(samples.subarray(start, end), frame.length - (end - start));
-    rows.push({ time: t, ...bus.sample(frame, spectrumDB(frame), sampleRate, t, dt) });
+    rows.push({
+      time: t,
+      ...bus.sample(frame, spectrumDB(frame), sampleRate, t, dt),
+    });
   }
   return rows;
 }
@@ -252,11 +308,15 @@ test("demo scheduler follows show tempo and audible phase, skipping missed beats
   let clock = { time: 1, beat: 0.5, origin: 0, period: 0.4, bpm: 150 };
   audio.setDemoClock(() => clock);
   const notes = [];
-  const rounded = () => notes.map(([time, step]) => [Number(time.toFixed(4)), step]);
+  const rounded = () =>
+    notes.map(([time, step]) => [Number(time.toFixed(4)), step]);
   try {
     audio.scheduleDemo(4, (time, step) => notes.push([time, step]));
     assert.equal(audio.tempo, 150);
-    assert.deepEqual(rounded(), [[0, 2], [0.1, 3]]);
+    assert.deepEqual(rounded(), [
+      [0, 2],
+      [0.1, 3],
+    ]);
     audio.context.currentTime = 0.15;
     audio.pumpDemo();
     assert.deepEqual(rounded().at(-1), [0.2, 4]);
@@ -274,23 +334,149 @@ test("demo scheduler follows show tempo and audible phase, skipping missed beats
     assert.ok(notes.length - count <= 2);
     assert.equal(new Set(notes.map(([, step]) => step)).size, notes.length);
     assert.ok(notes.slice(count).every(([time]) => time >= 5 && time < 5.12));
-  } finally { audio.stop(); }
+  } finally {
+    audio.stop();
+  }
 });
 
 test("marking a downbeat changes the demo pattern without dropping scheduled subdivisions", () => {
   const clock = new ShowClock({ bpm: 120, mode: "manual" });
   const audio = new AudioEngine();
-  audio.context = { currentTime: 0.52, getOutputTimestamp: () => ({contextTime: 0, performanceTime: 1000}) };
-  audio.setDemoClock(() => ({ ...clock.at(audio.context.currentTime), time: audio.context.currentTime + 1, period: clock.period }));
+  audio.context = {
+    currentTime: 0.52,
+    getOutputTimestamp: () => ({ contextTime: 0, performanceTime: 1000 }),
+  };
+  audio.setDemoClock(() => ({
+    ...clock.at(audio.context.currentTime),
+    time: audio.context.currentTime + 1,
+    period: clock.period,
+  }));
   const notes = [];
   try {
-    audio.scheduleDemo(4, (time, step) => notes.push([Number(time.toFixed(4)), step]));
+    audio.scheduleDemo(4, (time, step) =>
+      notes.push([Number(time.toFixed(4)), step]),
+    );
     assert.deepEqual(notes, [[0.625, 5]]);
     clock.downbeat(0.55);
     for (let t = 0.55; t < 0.925; t += 0.025) {
       audio.context.currentTime = t;
       audio.pumpDemo();
     }
-    assert.deepEqual(notes.slice(1), [[0.75, 2], [0.875, 3], [1, 4]]);
-  } finally { audio.stop(); }
+    assert.deepEqual(notes.slice(1), [
+      [0.75, 2],
+      [0.875, 3],
+      [1, 4],
+    ]);
+  } finally {
+    audio.stop();
+  }
+});
+
+test("resume waits for the audio clock and rejects stale output timestamps", async () => {
+  const audio = new AudioEngine();
+  let resolveResume;
+  const stampTime = performance.now();
+  let clock = {
+    time: stampTime / 1000,
+    beat: 2,
+    origin: 0,
+    period: 0.5,
+    bpm: 120,
+  };
+  audio.context = {
+    currentTime: 1,
+    state: "running",
+    getOutputTimestamp: () => ({ contextTime: 1, performanceTime: stampTime }),
+    async suspend() {
+      this.state = "suspended";
+    },
+    resume() {
+      return new Promise((resolve) => {
+        resolveResume = () => {
+          this.state = "running";
+          resolve();
+        };
+      });
+    },
+  };
+  audio.setDemoClock(() => clock);
+  const notes = [];
+  try {
+    audio.scheduleDemo(4, (time, step) => notes.push([time, step]));
+    assert.deepEqual(
+      notes.map(([time, step]) => [Number(time.toFixed(6)), step]),
+      [[1, 8]],
+    );
+    await audio.setPaused(true);
+    clock = { ...clock, time: clock.time + 50 };
+    const before = notes.length;
+    const resumed = audio.setPaused(false);
+    audio.pumpDemo();
+    assert.equal(notes.length, before, "suspended clock must not schedule");
+    resolveResume();
+    await resumed;
+    audio.context.currentTime = 1.125;
+    clock = { ...clock, time: clock.time + 0.125, beat: 2.25 };
+    audio.pumpDemo();
+    assert.deepEqual(
+      notes
+        .slice(before)
+        .map(([time, step]) => [Number(time.toFixed(6)), step]),
+      [[1.125, 9]],
+    );
+    assert.ok(
+      notes.slice(before).every(([, step]) => step >= 8),
+      "old timestamps must not rewind the pattern",
+    );
+  } finally {
+    clearInterval(audio.timer);
+  }
+});
+
+test("pausing pending file playback retains the selected file", async () => {
+  const previousAudio = globalThis.Audio;
+  const audio = new AudioEngine();
+  let rejectPlay;
+  globalThis.Audio = class {
+    currentTime = 2.75;
+    paused = true;
+    play() {
+      this.paused = false;
+      return new Promise((_, reject) => {
+        rejectPlay = reject;
+      });
+    }
+    pause() {
+      this.paused = true;
+      rejectPlay?.(new DOMException("Paused", "AbortError"));
+    }
+  };
+  audio.context = {
+    state: "running",
+    async resume() {
+      this.state = "running";
+    },
+    async suspend() {
+      this.state = "suspended";
+    },
+    createMediaElementSource() {
+      return { connect() {}, disconnect() {} };
+    },
+  };
+  try {
+    const file = new Blob(["test"], { type: "audio/wav" });
+    const loading = audio.file(file);
+    await new Promise((resolve) => setImmediate(resolve));
+    const media = audio.media;
+    assert.ok(media);
+    await audio.setPaused(true);
+    await loading;
+    assert.equal(audio.media, media);
+    assert.equal(audio.kind, "file");
+    assert.equal(media.currentTime, 2.75);
+  } finally {
+    audio.stop();
+    if (previousAudio === undefined) delete globalThis.Audio;
+    else globalThis.Audio = previousAudio;
+  }
 });

@@ -6,7 +6,130 @@ import {
   resizeTrack,
   editPatternTrack,
   rhythmTarget,
+  RhythmPanel,
 } from "../control-rhythm.mjs";
+
+function playheadFixture() {
+  const classList = () => {
+    const names = new Set();
+    return {
+      contains: (n) => names.has(n),
+      add: (n) => names.add(n),
+      remove: (n) => names.delete(n),
+      toggle: (n, on) => (on ? names.add(n) : names.delete(n)),
+    };
+  };
+  const rows = [4, 3, 32].map((length) => ({
+    track: {
+      length,
+      division: 1,
+      steps: Array.from({ length }, (_, i) => (i === 0 ? 1 : 0)),
+    },
+    root: { classList: classList() },
+    definition: { label: `${length}-beat loop` },
+    miniCells: Array.from({ length: 16 }, () => ({ classList: classList() })),
+    buttons: [],
+    active: -1,
+  }));
+  const group = {
+    scope: "family",
+    bar: 0,
+    follow: true,
+    barCount: 8,
+    rows: new Map(rows.map((r, i) => [i, r])),
+    barLabel: {},
+    previous: {},
+    next: {},
+    live: {},
+  };
+  const panel = {
+    compact: true,
+    preview: false,
+    clock: { enabled: true },
+    groups: new Map([["family", group]]),
+  };
+  return {
+    rows,
+    group,
+    paint: (position) =>
+      RhythmPanel.prototype.paintPlayheads.call(panel, position),
+  };
+}
+
+test("live bars align playheads while retaining three-, four- and 32-beat loops", () => {
+  const { rows, group, paint } = playheadFixture();
+  paint(5.5);
+  assert.deepEqual(
+    rows.map((row) => row.miniActive),
+    [6, 6, 6],
+  );
+  assert.equal(group.bar, 1);
+  assert.deepEqual(
+    rows.map((row) => row.miniPhase),
+    [4, 4, 4],
+  );
+  assert.equal(rows[1].miniCells[8].classList.contains("on"), true); // beat 6 in a three-beat loop
+  assert.equal(
+    rows[2].miniCells.some((cell) => cell.classList.contains("on")),
+    false,
+  );
+  paint(32.25);
+  assert.deepEqual(
+    rows.map((row) => row.miniActive),
+    [1, 1, 1],
+  );
+  assert.equal(group.barLabel.textContent, "Bar 1 / 8");
+  assert.equal(rows[2].miniCells[0].classList.contains("on"), true);
+  assert.deepEqual(
+    rows.map((row) => row.track.length),
+    [4, 3, 32],
+  );
+});
+
+test("bar display wraps indefinitely without resetting polymetric tracks", () => {
+  const { rows, group, paint } = playheadFixture();
+  for (const bar of [0, 7, 8, 151, 10000]) {
+    paint(bar * 4 + 0.5);
+    assert.equal(group.barLabel.textContent, `Bar ${(bar % 8) + 1} / 8`);
+    assert.equal(group.previous.disabled, bar % 8 === 0);
+    assert.equal(group.next.disabled, bar % 8 === 7);
+    assert.equal(
+      rows[1].miniCells[0].classList.contains("on"),
+      (bar * 4) % 3 === 0,
+    );
+    assert.deepEqual(
+      rows.map((row) => row.miniActive),
+      [2, 2, 2],
+    );
+  }
+});
+
+test("editing a fixed bar hides unrelated live playheads and Live resumes following", () => {
+  const { rows, group, paint } = playheadFixture();
+  group.follow = false;
+  group.bar = 2;
+  paint(5.5);
+  assert.deepEqual(
+    rows.map((row) => row.miniActive),
+    [-1, -1, -1],
+  );
+  assert.deepEqual(
+    rows.map((row) => row.miniPhase),
+    [8, 8, 8],
+  );
+  paint(9.5);
+  assert.deepEqual(
+    rows.map((row) => row.miniActive),
+    [6, 6, 6],
+  );
+  group.follow = true;
+  paint(13.5);
+  assert.equal(group.bar, 3);
+  assert.deepEqual(
+    rows.map((row) => row.miniActive),
+    [6, 6, 6],
+  );
+});
 
 test("rhythm grid labels communicate bars, beats and subdivisions", () => {
   assert.equal(stepLabel(0, 1), "1.1");

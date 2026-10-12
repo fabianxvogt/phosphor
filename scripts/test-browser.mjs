@@ -421,7 +421,7 @@ try {
   await control.locator("#tab-checks").click();
   const checklist = control.locator("#checks input").first();
   await checklist.focus();
-  await checklist.press("Space");
+  await checklist.click();
   await control.waitForTimeout(700); // multiple periodic stage status paints
   assert.equal(await checklist.isChecked(), true);
   assert.equal(
@@ -442,12 +442,28 @@ try {
   await control.locator("#closeSetup").click();
   await control.mouse.move(2, 2);
   const heart = control.locator(".look .heart").first();
-  await heart.press("Space");
+  await heart.press("Enter");
   assert.equal(
     await heart.evaluate((node) => node === document.activeElement),
     true,
   );
-  await heart.press("Space"); // restore the fixture's favourite state
+  await heart.press("Enter"); // restore the fixture's favourite state
+  const favouriteBeforePause = await heart.getAttribute("aria-pressed");
+  await heart.press("Space");
+  await waitFor(
+    stage,
+    () => window.__phosphorStage.show.clock.paused,
+    null,
+    "Space pauses from a focused button",
+  );
+  assert.equal(await heart.getAttribute("aria-pressed"), favouriteBeforePause);
+  await heart.press("Space");
+  await waitFor(
+    stage,
+    () => !window.__phosphorStage.show.clock.paused,
+    null,
+    "Space resumes",
+  );
   pass(
     "checklist, set faders and keyboard favourites retain focus through updates",
   );

@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { actionFor, GRID_CODES, keyLabels } from "../keymap.mjs";
+import {
+  actionFor,
+  isPauseShortcut,
+  GRID_CODES,
+  keyLabels,
+} from "../keymap.mjs";
 
 const input = (type) => ({
   closest: (selector) =>
@@ -40,11 +45,11 @@ test("typing in a text field does not trigger clips", () => {
   });
 });
 
-test("Shift+Space plays autopilot's next pick; Space alone stays tap (D66)", () => {
+test("Shift+Space plays autopilot's next pick; Space pauses or resumes", () => {
   assert.deepEqual(actionFor(key("Space", { shiftKey: true })), {
     type: "next",
   });
-  assert.deepEqual(actionFor(key("Space")), { type: "tap" });
+  assert.deepEqual(actionFor(key("Space")), { type: "pause" });
   assert.equal(actionFor(key("Space", { shiftKey: true, repeat: true })), null);
   assert.equal(
     actionFor(key("Space", { shiftKey: true, target: input("search") })),
@@ -54,7 +59,7 @@ test("Shift+Space plays autopilot's next pick; Space alone stays tap (D66)", () 
 });
 
 test("tempo, energy, speed and toggles", () => {
-  assert.deepEqual(actionFor(key("Space")), { type: "tap" });
+  assert.deepEqual(actionFor(key("Space")), { type: "pause" });
   assert.deepEqual(actionFor(key("Enter")), { type: "downbeat" });
   assert.deepEqual(actionFor(key("ArrowLeft")), {
     type: "nudge",
@@ -106,4 +111,22 @@ test("releasing Flash still works if a modifier was pressed while holding it", (
         on: false,
       },
     );
+});
+
+test("plain Space is captured on buttons and sliders, while text input remains editable", () => {
+  for (const target of [undefined, input("range"), input("checkbox")]) {
+    assert.equal(isPauseShortcut(key("Space", { target })), true);
+    assert.equal(
+      isPauseShortcut({ type: "keyup", code: "Space", target }),
+      true,
+    );
+  }
+  for (const extra of [
+    { shiftKey: true },
+    { metaKey: true },
+    { ctrlKey: true },
+    { altKey: true },
+    { target: input("text") },
+  ])
+    assert.equal(isPauseShortcut(key("Space", extra)), false);
 });

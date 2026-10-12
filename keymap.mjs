@@ -43,6 +43,19 @@ export function isTextEntry(target) {
   return !!input && TEXT_TYPES.has(input.type || "text");
 }
 
+// Captured before focused buttons/popovers handle native Space activation.
+// Text input and modified browser shortcuts retain their normal meanings.
+export function isPauseShortcut(event) {
+  return (
+    event.code === "Space" &&
+    !event.shiftKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    !isTextEntry(event.target)
+  );
+}
+
 // Returns an action object or null. Escape has no performance action.
 // Shortcuts are ignored while
 // typing, on key repeat, and with Ctrl/Cmd/Alt so browser shortcuts stay.
@@ -57,8 +70,7 @@ export function actionFor(event) {
     return { type: "slot", index: SLOT_BY_CODE.get(code) };
   switch (code) {
     case "Space":
-      // Shift+Space: autopilot's next pick now (D66); Space alone taps.
-      return { type: shiftKey ? "next" : "tap" };
+      return { type: shiftKey ? "next" : "pause" };
     case "Enter":
     case "NumpadEnter":
       return { type: "downbeat" };

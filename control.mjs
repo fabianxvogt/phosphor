@@ -23,7 +23,12 @@ import {
   MIDI_TARGETS,
 } from "./show-set.mjs";
 import { loadSet, saveSet } from "./show-storage.mjs";
-import { actionFor, keyLabels, GRID_CODES } from "./keymap.mjs";
+import {
+  actionFor,
+  isPauseShortcut,
+  keyLabels,
+  GRID_CODES,
+} from "./keymap.mjs";
 import { mutatePreset } from "./evolution.mjs";
 import { AudioEngine, MidiInput } from "./audio.mjs";
 import { routeMidi } from "./midi-map.mjs";
@@ -225,6 +230,13 @@ function act(action) {
   resumeLocalPerformance();
   if (stageAlive()) send({ type: "action", action });
   else localPerformance?.command(action, now());
+  if (action.type === "pause" && !stageAlive()) {
+    demoAudio
+      .setPaused(!!localPerformance?.show.clock.paused)
+      .then(renderLocalAudio)
+      .catch(() => {});
+    if (!localPerformance?.show.clock.paused) syncLocalDemo();
+  }
   // A grid key or a catalog Play also opens that look in the editor.
   const id =
     action.type === "slot"
@@ -265,13 +277,15 @@ function renderLocalAudio() {
   if (stageAlive()) return;
   const playing =
     demoAudio.kind === "demo" && demoAudio.context?.state === "running";
-  $("audioPill").textContent = playing
-    ? demoAudio.muted
-      ? "Demo · muted"
-      : `Demo · ${demoAudio.tempo.toFixed(1)} BPM`
-    : demoRequested
-      ? "Demo · click to hear"
-      : "Audio off";
+  $("audioPill").textContent = demoAudio.paused
+    ? "Paused"
+    : playing
+      ? demoAudio.muted
+        ? "Demo · muted"
+        : `Demo · ${demoAudio.tempo.toFixed(1)} BPM`
+      : demoRequested
+        ? "Demo · click to hear"
+        : "Audio off";
   $("audioPill").className = `pill ${playing && !demoAudio.muted ? "ok" : ""}`;
 }
 function stopLocalDemo() {
@@ -283,9 +297,10 @@ function syncLocalDemo() {
     return;
   }
   if (!navigator.userActivation?.hasBeenActive || demoStarting) return;
+  demoAudio.paused = !!localPerformance?.show.clock.paused;
   if (demoAudio.kind === "demo") {
-    demoAudio.context
-      .resume()
+    demoAudio
+      .setPaused(demoAudio.paused)
       .then(renderLocalAudio)
       .catch(() => {});
     return;
@@ -392,6 +407,17 @@ channel.onmessage = ({ data }) => {
 };
 
 // --- keys --------------------------------------------------------------------
+for (const kind of ["keydown", "keyup"])
+  window.addEventListener(
+    kind,
+    (event) => {
+      if (!isPauseShortcut(event)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (kind === "keydown" && !event.repeat) act({ type: "pause" });
+    },
+    { capture: true },
+  );
 let heldFlash = false;
 function holdFlash(on) {
   heldFlash = on;
@@ -403,12 +429,6 @@ window.addEventListener("blur", () => {
 for (const kind of ["keydown", "keyup"])
   window.addEventListener(kind, (event) => {
     if (!$("confirm").hidden && !(kind === "keyup" && event.code === "KeyL"))
-      return;
-    // Space belongs to a focused native checkbox, not the tap-tempo shortcut.
-    if (
-      event.code === "Space" &&
-      event.target?.matches?.('input[type="checkbox"], input[type="radio"]')
-    )
       return;
     const action = actionFor(event);
     if (!action) return;
@@ -623,6 +643,11 @@ function renderStatus() {
     if (document.activeElement !== $(id)) $(id).value = displayedBpm.toFixed(1);
   $("blackout").ariaPressed = String(s.blackout);
   $("freeze").ariaPressed = String(s.freeze);
+  $("previewPause").textContent = s.paused ? "Play" : "Pause";
+  $("previewPause").ariaPressed = String(!!s.paused);
+  $("previewPause").ariaLabel = s.paused
+    ? "Resume playback (Space)"
+    : "Pause playback (Space)";
   $("flash").ariaPressed = String(s.flash);
   $("autopilot").ariaPressed = String(ap.enabled);
   $("random").ariaPressed = String(ap.random);
@@ -632,8 +657,9 @@ function renderStatus() {
   if (alive) {
     const a = status.audio;
     $("audioMute").checked = !!a.muted;
-    $("audioPill").textContent =
-      a.source === "off"
+    $("audioPill").textContent = s.paused
+      ? "Paused"
+      : a.source === "off"
         ? "Audio off"
         : `${a.source} · ${a.muted && a.source !== "input" ? "muted · " : ""}${a.locked ? (a.coasting ? "holding" : `${a.bpm?.toFixed(1)} BPM`) : "listening"}`;
     $("audioPill").className =
@@ -1334,6 +1360,7 @@ function animateEditor(ms) {
     fpsSince = ms;
   }
   resumeLocalPerformance();
+  let presented = false;
   if (stageAlive()) {
     editorEngine.beat = performanceBeat(status, lastStatusAt / 1000, ms / 1000);
     const frame = status.status.rhythm;
@@ -1352,9 +1379,9 @@ function animateEditor(ms) {
         style: frame.style,
         enabled: true,
       });
-    editorEngine.advance(dt, false);
-  } else localPerformance?.tick(ms / 1000, dt);
-  if (!$("localPreview").hidden)
+    if (!status.status.paused) editorEngine.advance(dt, false);
+  } else presented = !!localPerformance?.tick(ms / 1000, dt);
+  if (!$("localPreview").hidden && presented)
     localPreviewContext.drawImage($("editorCanvas"), 0, 0);
   if (!stageAlive() && ms - lastLocalStatus >= 200) {
     lastLocalStatus = ms;
@@ -1619,6 +1646,7 @@ $("outputResolution").onchange = (event) =>
 $("blackout").onclick = () => act({ type: "blackout" });
 $("safe").onclick = () => act({ type: "safe" });
 $("freeze").onclick = () => act({ type: "freeze" });
+$("previewPause").onclick = () => act({ type: "pause" });
 $("autopilot").onclick = () => act({ type: "autopilot" });
 $("random").onclick = () => act({ type: "random" });
 $("next").onclick = () => act({ type: "next" });

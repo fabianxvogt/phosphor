@@ -1,5 +1,8 @@
+import { setupPanelLayout } from "./control-layout.mjs";
 // Presentation-only navigation. Playback and saved show state stay in control.mjs.
 export function setupControlUI() {
+  setupPanelLayout();
+  setupPanelMenus();
   for (const [popupId, anchorId] of [
     ["tempoSettings", "previewTempo"],
     ["resolutionSettings", "previewResolution"],
@@ -136,6 +139,54 @@ export function setupControlUI() {
     )
       event.stopPropagation();
   });
+}
+
+// Keep disclosures above scrollable panels while preserving their DOM ancestry
+// (settings locks and existing event handlers depend on it).
+function setupPanelMenus() {
+  for (const popup of document.querySelectorAll(
+    ".panel-menu-body, .performance-options > .detail-body, .catalog-refine-body",
+  )) {
+    const details = popup.parentElement;
+    const anchor = details.querySelector("summary");
+    popup.popover = "auto";
+    popup.classList.add("panel-floating-menu");
+    const position = () => {
+      if (!popup.matches(":popover-open")) return;
+      const scale =
+        popup.getBoundingClientRect().width / popup.offsetWidth || 1;
+      popup.style.maxWidth = `${(innerWidth - 24) / scale}px`;
+      popup.style.maxHeight = `${(innerHeight - 24) / scale}px`;
+      const rect = anchor.getBoundingClientRect();
+      const box = popup.getBoundingClientRect();
+      const above = rect.bottom + 8 + box.height > innerHeight - 12;
+      const x = Math.max(
+        12,
+        Math.min(rect.right - box.width, innerWidth - box.width - 12),
+      );
+      const y = Math.max(
+        12,
+        Math.min(
+          above ? rect.top - box.height - 8 : rect.bottom + 8,
+          innerHeight - box.height - 12,
+        ),
+      );
+      popup.style.left = `${x / scale}px`;
+      popup.style.top = `${y / scale}px`;
+    };
+    details.addEventListener("toggle", () => {
+      if (details.open) {
+        popup.showPopover();
+        position();
+      } else popup.hidePopover();
+    });
+    popup.addEventListener("toggle", (event) => {
+      if (event.newState === "closed") details.open = false;
+    });
+    popup.addEventListener("keydown", (event) => event.stopPropagation());
+    addEventListener("resize", position);
+    addEventListener("scroll", position, true);
+  }
 }
 
 // Only validated palette values become CSS colours. Repeated status messages

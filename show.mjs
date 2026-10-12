@@ -99,6 +99,7 @@ export class Show {
     this.shared = { ...set.shared };
     this.blackout = false;
     this.freeze = false;
+    this.pausedAt = null;
     this.flash = false;
     this.lastBar = null;
     this.disabled = new Set(); // families whose shaders failed
@@ -1047,6 +1048,20 @@ export class Show {
   }
 
   command(action, t) {
+    if (action.type === "pause") {
+      const paused = action.on ?? !this.clock.paused;
+      if (paused === this.clock.paused) return [];
+      if (paused) this.pausedAt = t;
+      else {
+        const elapsed = Math.max(0, t - this.pausedAt);
+        if (this.drift) this.drift.t0 += elapsed;
+        if (this.paletteGlide) this.paletteGlide.t0 += elapsed;
+        this.pausedAt = null;
+      }
+      this.clock.setPaused(t, paused);
+      return [{ type: "pause", on: paused }];
+    }
+    if (this.clock.paused) t = this.pausedAt;
     switch (action.type) {
       case "rhythm":
         this.#advanceRhythm(t);
@@ -1200,6 +1215,7 @@ export class Show {
   // Call every frame. tracker: beat-tracker state on this clock's timeline;
   // event: "build" | "drop" | "breakdown" from loudness analysis.
   tick(t, { tracker = null, event = null } = {}) {
+    if (this.clock.paused) return [];
     if (tracker) this.clock.track(t, tracker);
     this.#advanceRhythm(t);
     let paramsChanged = this.#advancePalette(t) || this.paletteDirty;
@@ -1272,6 +1288,7 @@ export class Show {
       shared: { ...this.shared },
       blackout: this.blackout,
       freeze: this.freeze,
+      paused: this.clock.paused,
       flash: this.flash,
       autopilot: {
         enabled: this.autopilot.enabled,
@@ -1328,6 +1345,7 @@ export class Show {
 
   // Runtime state for crash recovery (decision D9), separate from the set.
   snapshot(t) {
+    if (this.clock.paused) t = this.pausedAt;
     this.#advanceRhythm(t);
     const paletteColors = this.#colorsAt(t);
     return {
@@ -1379,6 +1397,7 @@ export class Show {
     this.blackout = saved.blackout;
     this.autopilot.enabled = saved.autopilot;
     this.clock.restore(saved.clock, t);
+    this.pausedAt = this.clock.paused ? t : null;
     if (this.set.palette) {
       // Set data wins over a stale runtime recovered after a reload.
       this.palette = null;
@@ -1390,6 +1409,7 @@ export class Show {
       { type: "shared", shared: { ...this.shared } },
       { type: "speed", value: this.speed },
       { type: "blackout", on: this.blackout },
+      { type: "pause", on: this.clock.paused },
     ];
     // A catalog look comes back by its id (D65, D68); an unsaved draft
     // cannot.

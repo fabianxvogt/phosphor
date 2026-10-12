@@ -19,8 +19,10 @@ export const DARK_TECHNO_PATTERN = Object.freeze([
 ]);
 
 function followEnvelope(value, target, dt, attack, release) {
-  return value + (target - value) *
-    (1 - Math.exp(-dt / (target > value ? attack : release)));
+  return (
+    value +
+    (target - value) * (1 - Math.exp(-dt / (target > value ? attack : release)))
+  );
 }
 
 // D61: one causal, allocation-free feature extractor for every audio source.
@@ -33,8 +35,17 @@ export class AudioFeatureBus {
   }
   reset() {
     Object.assign(this.features, {
-      energy: 0, low: 0, bass: 0, mid: 0, high: 0, onset: 0, flux: 0,
-      hit: false, hitId: 0, active: false, locked: false,
+      energy: 0,
+      low: 0,
+      bass: 0,
+      mid: 0,
+      high: 0,
+      onset: 0,
+      flux: 0,
+      hit: false,
+      hitId: 0,
+      active: false,
+      locked: false,
     });
     this.previousSpectrum.fill(0);
     this.ceiling = 0.1;
@@ -51,12 +62,17 @@ export class AudioFeatureBus {
     f.active = rms >= 0.001;
     this.ceiling = Math.max(0.04, rms, this.ceiling * Math.exp(-dt / 8));
     const energy = f.active ? Math.min(1, rms / this.ceiling) : 0;
-    let lowPower = 0, midPower = 0, highPower = 0, fluxPower = 0;
+    let lowPower = 0,
+      midPower = 0,
+      highPower = 0,
+      fluxPower = 0;
     const binHz = sampleRate / (spectrum.length * 2);
     for (let i = 1; i < spectrum.length; i++) {
       const hz = i * binHz;
-      const magnitude = f.active && Number.isFinite(spectrum[i])
-        ? Math.pow(10, spectrum[i] / 20) : 0;
+      const magnitude =
+        f.active && Number.isFinite(spectrum[i])
+          ? Math.pow(10, spectrum[i] / 20)
+          : 0;
       const rise = Math.max(0, magnitude - this.previousSpectrum[i]);
       this.previousSpectrum[i] = magnitude;
       if (hz < 35 || hz > 12000) continue;
@@ -67,15 +83,21 @@ export class AudioFeatureBus {
     }
     // Blackman FFT window compensation, then normalize against the same
     // slow loudness ceiling. Quiet bands cannot amplify themselves to 1.
-    const scale = 1.6 * Math.SQRT2 / this.ceiling;
+    const scale = (1.6 * Math.SQRT2) / this.ceiling;
     const low = Math.min(1, Math.sqrt(lowPower) * scale);
     const mid = Math.min(1, Math.sqrt(midPower) * scale);
     const high = Math.min(1, Math.sqrt(highPower) * scale);
     const flux = Math.min(1, Math.sqrt(fluxPower) * scale);
-    const onset = Math.max(0, energy - this.previousEnergy,
-      low - this.previousLow, flux);
-    const threshold = Math.max(0.12,
-      this.onsetMean + 2.5 * Math.sqrt(this.onsetVariance));
+    const onset = Math.max(
+      0,
+      energy - this.previousEnergy,
+      low - this.previousLow,
+      flux,
+    );
+    const threshold = Math.max(
+      0.12,
+      this.onsetMean + 2.5 * Math.sqrt(this.onsetVariance),
+    );
     const above = f.active && onset > threshold;
     f.hit = above && !this.onsetAbove && now - this.lastHit >= 0.12;
     if (f.hit) {
@@ -86,7 +108,8 @@ export class AudioFeatureBus {
     const adapt = 1 - Math.exp(-dt / 0.7);
     const difference = onset - this.onsetMean;
     this.onsetMean += difference * adapt;
-    this.onsetVariance += (difference * difference - this.onsetVariance) * adapt;
+    this.onsetVariance +=
+      (difference * difference - this.onsetVariance) * adapt;
     this.previousEnergy = energy;
     this.previousLow = low;
     f.energy = followEnvelope(f.energy, energy, dt, 0.025, 0.25);
@@ -113,6 +136,10 @@ export class AudioEngine {
     this.pumpDemo = null;
     this.kind = "silent";
     this.muted = false;
+    this.paused = false;
+    this.pauseRevision = 0;
+    this.audioTransition = false;
+    this.outputTimestampAfter = 0;
     this.generation = 0;
     this.bus = new AudioFeatureBus();
     this.features = this.bus.features;
@@ -135,7 +162,42 @@ export class AudioEngine {
       this.monitor.gain.value = this.muted ? 0 : 0.65;
       this.monitor.connect(this.context.destination);
     }
-    await this.context.resume();
+    await this.setPaused(this.paused);
+  }
+  async setPaused(value) {
+    const revision = ++this.pauseRevision;
+    this.paused = !!value;
+    if (this.paused) this.media?.pause();
+    if (!this.context) return;
+    const desiredState = this.paused ? "suspended" : "running";
+    if (this.context.state !== desiredState || this.audioTransition) {
+      this.audioTransition = true;
+      try {
+        await (this.paused ? this.context.suspend() : this.context.resume());
+      } finally {
+        if (revision === this.pauseRevision) {
+          this.audioTransition = false;
+          // getOutputTimestamp can still describe audio before the pause.
+          this.outputTimestampAfter = performance.now();
+        }
+      }
+    }
+    if (revision === this.pauseRevision && !this.paused && this.media?.paused)
+      await this.playMedia(this.media);
+  }
+  async playMedia(media) {
+    const revision = this.pauseRevision;
+    try {
+      await media.play();
+    } catch (error) {
+      // A pause (including a rapid pause/resume) intentionally interrupts play.
+      if (
+        error.name === "AbortError" &&
+        (this.paused || revision !== this.pauseRevision || media !== this.media)
+      )
+        return;
+      throw error;
+    }
   }
   stop() {
     this.generation++;
@@ -189,6 +251,12 @@ export class AudioEngine {
     let next = this.context.currentTime;
     let step = null;
     this.pumpDemo = () => {
+      if (
+        this.paused ||
+        this.audioTransition ||
+        (this.context.state && this.context.state !== "running")
+      )
+        return;
       const audioNow = this.context.currentTime;
       const clock = this.demoClock?.();
       let duration = 60 / this.tempo / subdivision;
@@ -199,9 +267,10 @@ export class AudioEngine {
         // Schedule against audible output time, not the independently started
         // AudioContext origin. This also follows tap/downbeat and tempo edits.
         const stamp = this.context.getOutputTimestamp?.();
-        const audibleTime = stamp?.performanceTime > 0
-          ? stamp.performanceTime / 1000 + audioNow - stamp.contextTime
-          : performance.now() / 1000;
+        const audibleTime =
+          stamp?.performanceTime > this.outputTimestampAfter
+            ? stamp.performanceTime / 1000 + audioNow - stamp.contextTime
+            : clock.time;
         const position = clock.beat + (audibleTime - clock.time) / clock.period;
         patternOffset = Math.round(clock.origin * subdivision);
         const first = Math.ceil(position * subdivision - 1e-7);
@@ -326,7 +395,7 @@ export class AudioEngine {
     this.source.connect(this.analyser);
     this.source.connect(this.monitor);
     try {
-      await this.media.play();
+      if (!this.paused) await this.playMedia(this.media);
       if (token !== this.generation) return;
       this.kind = "file";
       this.onStatus(file.name + " · looping");
@@ -399,9 +468,7 @@ export class AudioEngine {
       this.source = this.context.createMediaStreamSource(stream);
       this.source.connect(this.analyser); // Analysis only.
       this.kind = "tab";
-      this.onStatus(
-        "Tab audio active · analysis only · speakers disabled",
-      );
+      this.onStatus("Tab audio active · analysis only · speakers disabled");
       stream.getAudioTracks()[0].onended = () => this.stop();
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
@@ -429,8 +496,11 @@ export class AudioEngine {
     this.analyser.getFloatTimeDomainData(this.samples);
     this.analyser.getFloatFrequencyData(this.spectrum);
     return this.bus.sample(
-      this.samples, this.spectrum, this.context.sampleRate,
-      this.context.currentTime, dt,
+      this.samples,
+      this.spectrum,
+      this.context.sampleRate,
+      this.context.currentTime,
+      dt,
     );
   }
   dispose() {

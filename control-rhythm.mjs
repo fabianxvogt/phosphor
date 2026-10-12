@@ -242,7 +242,7 @@ export class RhythmPanel {
       if (!this.document.hidden)
         this.paintPlayheads(
           this.clock.position +
-            (this.clock.enabled
+            (this.clock.enabled && !this.clock.paused
               ? (Math.max(0, ms - this.clock.time) / 60000) * this.clock.bpm
               : 0),
         );
@@ -340,6 +340,7 @@ export class RhythmPanel {
       bpm: status?.clock?.bpm ?? 120,
       time: performance.now(),
       enabled: rhythm?.enabled ?? !!target,
+      paused: !!status?.paused,
     };
     this.playingButton.ariaPressed = String(!this.preview);
     this.previewButton.ariaPressed = String(this.preview);
@@ -430,16 +431,12 @@ export class RhythmPanel {
       pattern = defaultPattern(definitions, status.rhythm.style);
     Object.assign(group, { pattern, definitions, target, targetKey });
     if (this.compact) {
-      const bars = Math.max(
+      group.barCount = Math.max(
         1,
         ...pattern.tracks.map((track) =>
           Math.ceil(track.length / track.division / 4),
         ),
       );
-      group.bar = Math.min(group.bar, bars - 1);
-      group.barLabel.textContent = `Bar ${group.bar + 1} / ${bars}`;
-      group.previous.disabled = group.bar === 0;
-      group.next.disabled = group.bar >= bars - 1;
       group.quickAuto.textContent = pattern.mode === "auto" ? "Auto" : "Edited";
       group.quickAuto.ariaPressed = String(pattern.mode === "auto");
       group.quickAuto.title =
@@ -534,7 +531,15 @@ export class RhythmPanel {
 
   buildGroup(scope, root, key) {
     const el = (...args) => element(this.document, ...args);
-    const group = { scope, root, key, rows: new Map(), bar: 0 };
+    const group = {
+      scope,
+      root,
+      key,
+      rows: new Map(),
+      bar: 0,
+      follow: true,
+      barCount: 1,
+    };
     group.title = el("h3");
     group.mode = el("span", { className: "rhythm-mode" });
     group.auto = el("button", {
@@ -624,7 +629,12 @@ export class RhythmPanel {
       );
       this.settings.append(group.settings);
       const turn = (delta) => {
-        group.bar += delta;
+        group.follow = false;
+        const start = Math.floor(group.bar / group.barCount) * group.barCount;
+        group.bar = Math.max(
+          start,
+          Math.min(start + group.barCount - 1, group.bar + delta),
+        );
         this.update();
       };
       group.previous = el("button", {
@@ -639,7 +649,23 @@ export class RhythmPanel {
         ariaLabel: `${scope} next rhythm bar`,
         onclick: () => turn(1),
       });
-      group.barLabel = el("span", { className: "rhythm-bar-label" });
+      group.barLabel = el("span", {
+        className: "rhythm-bar-label",
+        title:
+          "Bars in the longest track. Shorter loops continue across this cycle without restarting.",
+      });
+      group.live = el("button", {
+        type: "button",
+        className: "rhythm-live-toggle",
+        textContent: "Live",
+        ariaLabel: `${scope} follow live rhythm bar`,
+        title:
+          "Follow the shared live bar · each track keeps its own loop length",
+        onclick: () => {
+          group.follow = !group.follow;
+          this.paintPlayheads(this.clock.position);
+        },
+      });
       group.quickAuto = el("button", {
         type: "button",
         className: "rhythm-auto-toggle",
@@ -653,6 +679,7 @@ export class RhythmPanel {
           group.previous,
           group.barLabel,
           group.next,
+          group.live,
           group.quickAuto,
         ),
       );
@@ -716,6 +743,10 @@ export class RhythmPanel {
           }
         : {}),
     });
+    if (this.compact) {
+      row.loopBadge = el("span", { className: "rhythm-loop-badge" });
+      row.name.append(row.loopBadge);
+    }
     row.kind = el("span", {
       className: "rhythm-kind",
       textContent:
@@ -819,16 +850,23 @@ export class RhythmPanel {
           ? {
               type: "button",
               tabIndex: index === 0 ? 0 : -1,
-              onclick: (event) =>
+              onclick: (event) => {
+                group.follow = false;
                 edit(
                   (track) =>
                     editCompactStep(track, group.bar, index, event.shiftKey),
                   "step",
-                ),
-              onfocus: () =>
+                );
+              },
+              onpointerdown: () => {
+                group.follow = false;
+              },
+              onfocus: () => {
+                group.follow = false;
                 row.miniCells.forEach((cell, at) => {
                   cell.tabIndex = at === index ? 0 : -1;
-                }),
+                });
+              },
             }
           : {},
       ),
@@ -954,6 +992,11 @@ export class RhythmPanel {
       if (this.compact) cell.disabled = inactive;
     });
     const beats = track.length / track.division;
+    if (row.loopBadge)
+      row.loopBadge.textContent =
+        beats % 4
+          ? `${Number(beats.toFixed(2))} beats`
+          : `${beats / 4} ${beats === 4 ? "bar" : "bars"}`;
     row.loop.textContent = `${Number(beats.toFixed(2))} beats${beats % 4 ? " · crosses bars" : ` · ${beats / 4} ${beats === 4 ? "bar" : "bars"}`}`;
     if (row.buttons.length > track.length) {
       const activeIndex = row.buttons.indexOf(this.document.activeElement);
@@ -1011,7 +1054,18 @@ export class RhythmPanel {
   }
 
   paintPlayheads(position) {
-    for (const group of this.groups.values())
+    const liveBar = Math.max(0, Math.floor(position / 4));
+    for (const group of this.groups.values()) {
+      if (this.compact) {
+        if (group.follow) group.bar = liveBar;
+        const displayBar = modulo(group.bar, group.barCount);
+        const label = `${group.follow ? "Bar" : "Edit bar"} ${displayBar + 1} / ${group.barCount}`;
+        if (group.barLabel.textContent !== label)
+          group.barLabel.textContent = label;
+        group.previous.disabled = displayBar === 0;
+        group.next.disabled = displayBar === group.barCount - 1;
+        group.live.ariaPressed = String(group.follow);
+      }
       for (const row of group.rows.values()) {
         const available =
           !row.root.classList.contains("rhythm-unavailable") &&
@@ -1024,8 +1078,9 @@ export class RhythmPanel {
           row.miniCells.forEach((cell, index) => {
             if (this.compact) {
               cell.ariaPressed = String(steps[index] > 0);
-              cell.ariaLabel = `${row.definition.label}, bar ${group.bar + 1}, beat ${Math.floor(index / 4) + 1}, subdivision ${(index % 4) + 1}, ${steps[index] === 1 ? "accent" : steps[index] > 0 ? "on" : "off"}`;
-              cell.title = `${stepLabel(group.bar * 16 + index, 4)} · click to change, Shift-click for accent`;
+              const displayBar = modulo(group.bar, group.barCount);
+              cell.ariaLabel = `${row.definition.label}, bar ${displayBar + 1}, beat ${Math.floor(index / 4) + 1}, subdivision ${(index % 4) + 1}, ${steps[index] === 1 ? "accent" : steps[index] > 0 ? "on" : "off"}`;
+              cell.title = `${stepLabel(displayBar * 16 + index, 4)} · click to change, Shift-click for accent`;
             }
             cell.classList.toggle(
               "on",
@@ -1038,15 +1093,10 @@ export class RhythmPanel {
           });
           row.miniPhase = phase;
         }
-        const loopPosition = modulo(
-          position,
-          row.track.length / row.track.division,
-        );
-        const inViewedBar =
-          !this.compact || Math.floor(loopPosition / 4) === group.bar;
+        const inViewedBar = !this.compact || liveBar === group.bar;
         const miniActive =
           this.clock.enabled && available && inViewedBar
-            ? Math.floor(modulo(this.compact ? loopPosition : position, 4) * 4)
+            ? Math.floor(modulo(position, 4) * 4)
             : -1;
         if (miniActive !== row.miniActive) {
           row.miniCells[row.miniActive]?.classList.remove("current");
@@ -1073,6 +1123,7 @@ export class RhythmPanel {
           row.buttons[next].setAttribute("aria-current", "step");
         }
       }
+    }
   }
 }
 

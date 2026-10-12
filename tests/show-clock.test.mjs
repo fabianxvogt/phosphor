@@ -2,6 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ShowClock } from "../show-clock.mjs";
 
+test("pause holds fractional beat and resume excludes elapsed wall time", () => {
+  const clock = new ShowClock({ bpm: 120, mode: "manual" });
+  clock.setPaused(1.375, true);
+  assert.equal(clock.at(100).beat, 2.75);
+  assert.equal(clock.at(100).paused, true);
+  clock.track(100, { locked: true, bpm: 140, nextBeatTime: 100.1 });
+  assert.equal(clock.at(100).beat, 2.75);
+  const saved = clock.snapshot(100);
+  const restored = new ShowClock();
+  restored.restore(saved, 500);
+  assert.equal(restored.at(800).beat, 2.75);
+  restored.setPaused(800, false);
+  assert.equal(restored.at(800).beat, 2.75);
+  assert.equal(restored.at(800.125).beat, 3);
+});
+
 function sample(clock, from, to, step = 0.005, each) {
   let previous = -Infinity;
   for (let t = from; t <= to; t += step) {
