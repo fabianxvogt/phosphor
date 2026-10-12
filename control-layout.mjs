@@ -313,6 +313,10 @@ export function setupPanelLayout() {
     );
     panels.forEach((panel, i) => {
       rect(panel, geometry.panels[i]);
+      panel.style.setProperty(
+        "--panel-height",
+        `${geometry.panels[i].height}px`,
+      );
       panel.classList.toggle("panel-narrow", geometry.panels[i].width < 370);
       panel.classList.toggle("panel-short", geometry.panels[i].height < 190);
     });

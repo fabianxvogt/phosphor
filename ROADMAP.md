@@ -6,6 +6,8 @@ State: production candidate; canonical branch `main`; [Vercel](https://phosphor-
 
 First show: **2026-12-17** (planning placeholder until a real date exists). Feature freeze two weeks before. The date is fixed; scope flexes.
 
+**Delivered 2026-10-12 — Living worlds (INCREMENTAL):** two curated worlds with three developments each, explicit preparation/next-bar start, four/eight-bar transitions, real Acid ↔ Evolution field inheritance, world-contained autopilot, shared pause and portable definitions. Slider joins and height-responsive panel density refined without changing the chassis. [Evidence](docs/EVIDENCE.md#living-worlds-and-panel-refinement-2026-10-12). Next: owner aesthetic review of the developments and venue-length/external-output rehearsal before expanding the world library.
+
 ## Product shape
 
 - **Play:** one catalog of every look — authored and own — with favourites and 0–10 ratings; the first 32 cards of the current view are on the keyboard (physical key positions, so QWERTZ works) (D65, D68). Configuration stays accessible; an optional stage-only settings lock protects it without disabling performance (D52). Local preview plays at 120 BPM with autopilot and Random on; opening the stage transfers the current performance. Autopilot plays rated catalog looks (optionally favourites only) for 8, 12 or 16 bars with smooth three-bar changes; **Next** skips ahead (D66). Any manual trigger takes over and hands back after 32 idle bars.

@@ -2,6 +2,20 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Living worlds and panel refinement 2026-10-12
+
+**INCREMENTAL / EMPIRICAL.** Two authored worlds, three developments each, sit above the unchanged look catalog. Prepare is silent; explicit Start queues the next bar, with four/eight-bar beat-based fades. Autopilot stays inside the world, manual catalog playback leaves it. Acid and Evolution inherit the packed UV chemical field into both incoming simulation buffers, skip reseeding/warm-up and keep simulation time. Other families crossfade. Shared clock/palette and Space pause remain intact; Freeze holds the visual fade while its clock continues and rebases the fade on release. World definitions and curated parameter overrides validate and roundtrip with the set.
+
+Executed checks:
+
+- Model tests cover silent preparation, quantization, four/eight bars, palette retention, pause/Freeze, pending cancellation, bounded autopilot, free play, recovery, schema bounds, authored-copy localization and in-place UI deletion of referenced own looks. Independent review found and drove fixes for Freeze timing, stale queued definitions and referenced-look deletion; regression cases are included in `tests/worlds.test.mjs`.
+- Native browser GPU fixture `tests/browser/worlds.html`: exact normalized-nearest transfer from Acid 320×192 to Evolution 384×384 (zero invalid texels), evolved field after transfer, no reset, same-family/reverse carry, half-speed beat timing, exact paused field/phase, at most two slots and no GPU errors. Nearest sampling preserves the packed 16-bit concentrations; interpolating encoded bytes would corrupt them.
+- A 96-second accelerated fixed-step world cycle passed occupancy checks every simulated second after warm-up: Mycelium occupied 89–92% at 20–40s, Garden 82–91% at 50–90s. This drove stable curated chemistry overrides; it is a bounded local check, not multi-hour/venue certification.
+- Final checks after integrating the latest renderer optimizations: 530 tests passed, 12 optional browser-runner tests skipped; typecheck, build and distribution verification passed. Independent targeted re-review found no remaining blockers.
+- Browser visual checks exercised Prepare/Start and a running world in the organic two-column chassis, including enlarged Look and reduced Performance panels. In a one-column 950×1492 CSS-pixel viewport the document height equalled the viewport and a 191px Performance panel had no internal overflow; the temporary viewport override was reset. A queued world stayed at exactly two beats while Space-paused and resumed on release. Height-based density compacts faders when a panel is short; larger panels distribute controls and grow rhythm cells. The continuous SVG slider thumb has a rounded taper and its fill ends beneath the bulb instead of exposing a vertical seam. Themes/frame artwork are retained.
+
+Limits: two worlds, not arbitrary cross-family continuity. Different simulation grids resample normalized coordinates; topology preservation is not claimed. A new window, GPU context loss or restored runtime starts a fresh field while retaining the logical world; textures are never serialized. Optional graphical browser-suite runners remain separately gated. Next: owner aesthetic review, German/English layout follow-up as the library grows, and the existing external-display/full-night rehearsal.
+
 ## Exact GPU data caches and third performance sweep 2026-10-12
 
 **INCREMENTAL / EMPIRICAL.** Remeasured all **39 renderers / 178 declared variants** at 4K and 1080p on the native M3 Pro. Mandelbrot decodes its original reference orbit once per draw; Space-filling Curves caches exact integer maps; Voronoi caches power-diagram radii. Full output resolution, geometry, simulation sizes, iteration budgets and picture arithmetic are retained. The optional RGBA32F data pass refreshes on paused edits, recovers after context loss and falls back to the original shader when float targets are unavailable.

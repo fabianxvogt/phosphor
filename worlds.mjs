@@ -1,3 +1,4 @@
+import { tr } from "./i18n/index.mjs";
 // Curated performances above the look catalog. Definitions travel with a set;
 // runtime selection/transport belongs to Show, never to the catalog UI.
 export const WORLD_DURATIONS = [4, 8]; // bars, always measured on the show clock
@@ -59,7 +60,7 @@ export function validateWorlds(value, lookIds, scenes = [], catalog = []) {
   const known = new Set(lookIds);
   if (value === undefined) return defaultWorlds(known);
   if (!Array.isArray(value) || value.length > 32)
-    throw new Error("At most 32 worlds");
+    throw new Error(tr("At most 32 worlds"));
   const ids = new Set();
   const text = (x, max) => typeof x === "string" && x.trim() && x.length <= max;
   return value.map((w) => {
@@ -92,12 +93,14 @@ export function validateWorlds(value, lookIds, scenes = [], catalog = []) {
       w.states.length < 2 ||
       w.states.length > 16
     )
-      throw new Error("Invalid world definition");
+      throw new Error(tr("Invalid world definition"));
     ids.add(w.id);
     const looks = new Set();
     const states = w.states.map((s) => {
       if (!s || !text(s.name, 80) || !known.has(s.look) || looks.has(s.look))
-        throw new Error("World developments must name distinct catalog looks");
+        throw new Error(
+          tr("World developments must name distinct catalog looks"),
+        );
       looks.add(s.look);
       const params = {};
       const scene = scenes.find(
@@ -112,7 +115,7 @@ export function validateWorlds(value, lookIds, scenes = [], catalog = []) {
           typeof s.params !== "object" ||
           Array.isArray(s.params)
         )
-          throw new Error("Invalid world development parameters");
+          throw new Error(tr("Invalid world development parameters"));
         for (const [key, value] of Object.entries(s.params)) {
           const field = scene?.schema.find((field) => field.key === key);
           if (
@@ -123,7 +126,7 @@ export function validateWorlds(value, lookIds, scenes = [], catalog = []) {
             (field.step === 1 && !Number.isInteger(value))
           )
             throw new Error(
-              "World development parameter outside family bounds",
+              tr("World development parameter outside family bounds"),
             );
           params[key] = value;
         }
@@ -153,4 +156,28 @@ export function withoutWorldLook(worlds, id) {
   return (worlds ?? [])
     .map((w) => ({ ...w, states: w.states.filter((s) => s.look !== id) }))
     .filter((w) => w.states.length >= 2);
+}
+
+// Translate only untouched authored copy. Portable/user-edited names remain data.
+export function worldPresentation(world, language) {
+  const authored = AUTHORED.find(
+    (a) => a.id === world.id && a.name === world.name,
+  );
+  if (!authored) return world;
+  return {
+    ...world,
+    name: tr(world.name, {}, language),
+    description:
+      world.description === authored.description
+        ? tr(world.description, {}, language)
+        : world.description,
+    states: world.states.map((state) => ({
+      ...state,
+      name: authored.states.some(
+        (s) => s.look === state.look && s.name === state.name,
+      )
+        ? tr(state.name, {}, language)
+        : state.name,
+    })),
+  };
 }

@@ -73,6 +73,7 @@ const weightedPick = (pool, random) =>
 export class Show {
   constructor({ set, safeSnapshot, scenes = [], now = 0, seed = 1 }) {
     this.set = set;
+    this.worldDefinitions = JSON.stringify(set.worlds ?? []);
     this.safeSnapshot = safeSnapshot;
     this.safeFrame = structuredClone(safeSnapshot);
     this.safeShowing = false;
@@ -127,6 +128,7 @@ export class Show {
   }
 
   #indexCatalog() {
+    this.lookDefinitions = JSON.stringify(this.set.looks ?? []);
     this.catalog = catalogLooks([...this.scenes.values()], this.set.looks);
     this.catalogClips = new Map(
       this.catalog.map((look) => [look.id, catalogClip(look)]),
@@ -141,8 +143,13 @@ export class Show {
       if (this.safeShowing) this.safeFrame.palette = this.paletteColors;
       this.paletteDirty = true;
     }
-    const worldsChanged = !same(set.worlds, this.set.worlds);
-    const looksChanged = set.looks !== this.set.looks;
+    // Local controls edit their shared set before updateSet; compare against
+    // independent definitions, not two aliases of the already edited object.
+    const definitions = JSON.stringify(set.worlds ?? []);
+    const worldsChanged = definitions !== this.worldDefinitions;
+    this.worldDefinitions = definitions;
+    const looksChanged =
+      JSON.stringify(set.looks ?? []) !== this.lookDefinitions;
     const desired = validateRhythm(set.rhythm, [...this.scenes.values()]);
     const overrides = this.#ownRhythms(set);
     if (!same(desired.global, this.rhythmDesired.global))

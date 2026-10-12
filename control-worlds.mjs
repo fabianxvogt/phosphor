@@ -1,3 +1,5 @@
+import { worldPresentation } from "./worlds.mjs";
+import { tr } from "./i18n/index.mjs";
 // A small remote for Show's world commands. No playback state is owned here:
 // the same controls follow local preview and the Stage's status messages.
 const node = (tag, props = {}, ...children) => {
@@ -21,17 +23,17 @@ export class WorldPanel {
     const tabs = node("div", {
       className: "world-tabs",
       role: "group",
-      ariaLabel: "Catalog view",
+      ariaLabel: tr("Catalog view"),
     });
-    this.looksTab = button("Looks", () => this.setView(false));
-    this.worldsTab = button("Worlds", () => this.setView(true));
+    this.looksTab = button(tr("Looks"), () => this.setView(false));
+    this.worldsTab = button(tr("Worlds"), () => this.setView(true));
     tabs.append(this.looksTab, this.worldsTab);
     document.querySelector(".catalog-heading").append(tabs);
     this.list = node("div", {
       className: "world-list",
       id: "worldList",
       role: "list",
-      ariaLabel: "Curated worlds",
+      ariaLabel: tr("Curated worlds"),
     });
     this.dock = node("div", { className: "world-dock" });
     this.worldView = node(
@@ -44,8 +46,9 @@ export class WorldPanel {
     this.footer = node("span", {
       className: "world-footer-note",
       hidden: true,
-      textContent:
+      textContent: tr(
         "Prepare here, then start on the next bar. Look keys still play the catalog.",
+      ),
     });
     catalog.querySelector(".catalog-footer").append(this.footer);
     this.live = node("div", { className: "world-live", hidden: true });
@@ -80,17 +83,24 @@ export class WorldPanel {
     if (signature !== this.signature) {
       this.signature = signature;
       const previous = this.renderedPrepared;
-      this.render(worlds, status);
+      this.render(
+        worlds.map((world) => worldPresentation(world)),
+        status,
+      );
       if (ws.prepared && previous !== ws.prepared.id)
         this.worldView.scrollTop = 0;
       this.renderedPrepared = ws.prepared?.id;
     }
     if (this.progress) {
       this.progress.value = ws.transition?.progress ?? 0;
-      this.progress.ariaValueText = `${Math.round(this.progress.value * 100)} percent`;
+      this.progress.ariaValueText = tr("{value1} percent", {
+        value1: Math.round(this.progress.value * 100),
+      });
     }
     if (this.liveLabel && ws.queued)
-      this.liveLabel.textContent = `Next bar · ${Math.ceil(status.pending?.beats ?? 0)} beats`;
+      this.liveLabel.textContent = tr("Next bar · {value1} beats", {
+        value1: Math.ceil(status.pending?.beats ?? 0),
+      });
   }
   render(worlds, status) {
     const ws = this.status;
@@ -106,8 +116,9 @@ export class WorldPanel {
           alt: "",
           loading: "lazy",
         });
-        const prepare = button(running ? "Prepare again" : "Prepare", () =>
-          this.act({ type: "world-prepare", id: world.id }),
+        const prepare = button(
+          running ? tr("Prepare again") : tr("Prepare"),
+          () => this.act({ type: "world-prepare", id: world.id }),
         );
         prepare.disabled =
           busy || status.disabled?.includes(world.states[0].look.split(":")[0]);
@@ -124,10 +135,10 @@ export class WorldPanel {
             node("span", {
               className: "world-eyebrow",
               textContent: running
-                ? "LIVE WORLD"
+                ? tr("LIVE WORLD")
                 : selected
-                  ? "PREPARED"
-                  : "LIVING WORLD",
+                  ? tr("PREPARED")
+                  : tr("LIVING WORLD"),
             }),
             node("h3", { textContent: world.name }),
             node("p", { textContent: world.description }),
@@ -148,7 +159,7 @@ export class WorldPanel {
       this.list.append(
         node("p", {
           className: "note",
-          textContent: "This show contains no worlds.",
+          textContent: tr("This show contains no worlds."),
         }),
       );
     this.dock.replaceChildren();
@@ -166,7 +177,7 @@ export class WorldPanel {
           textContent: `${active.name} · ${state?.name ?? ""}`,
         }),
       );
-      const leave = button("Free play", () =>
+      const leave = button(tr("Free play"), () =>
         this.act({ type: "world-leave" }),
       );
       this.developments.append(
@@ -180,7 +191,7 @@ export class WorldPanel {
       const choices = node("div", {
         className: "world-state-choices",
         role: "group",
-        ariaLabel: "World development",
+        ariaLabel: tr("World development"),
       });
       active.states.forEach((state, i) => {
         const b = button(state.name, () =>
@@ -196,21 +207,22 @@ export class WorldPanel {
       this.progress = node("progress", {
         max: 1,
         value: ws.transition.progress,
-        ariaLabel: "World transition",
+        ariaLabel: tr("World transition"),
       });
       this.live.append(this.progress);
       this.dock.append(
         node("p", {
           className: "note",
-          textContent:
+          textContent: tr(
             "Growing into the next development. Space pauses the entire transition.",
+          ),
         }),
       );
     } else if (prepared) {
       const change = (patch) =>
         this.act({ type: "world-prepare", ...ws.prepared, ...patch });
       const state = node("select", {
-        ariaLabel: "Starting development",
+        ariaLabel: tr("Starting development"),
         disabled: ws.queued,
       });
       prepared.states.forEach((s, i) =>
@@ -219,12 +231,15 @@ export class WorldPanel {
       state.value = String(ws.prepared.state);
       state.onchange = () => change({ state: Number(state.value) });
       const duration = node("select", {
-        ariaLabel: "World transition duration",
+        ariaLabel: tr("World transition duration"),
         disabled: ws.queued,
       });
       [4, 8].forEach((n) =>
         duration.append(
-          node("option", { value: String(n), textContent: `${n} bars` }),
+          node("option", {
+            value: String(n),
+            textContent: tr("{value1} bars", { value1: n }),
+          }),
         ),
       );
       duration.value = String(ws.prepared.bars);
@@ -236,17 +251,21 @@ export class WorldPanel {
       });
       carry.onchange = () => change({ carry: carry.checked });
       const start = button(
-        ws.queued ? "Waiting for next bar…" : "Start transition",
+        ws.queued ? tr("Waiting for next bar…") : tr("Start transition"),
         () => this.act({ type: "world-start" }),
       );
       start.className = "accent";
       start.disabled = busy;
-      const cancel = button("Cancel", () => this.act({ type: "world-cancel" }));
+      const cancel = button(tr("Cancel"), () =>
+        this.act({ type: "world-cancel" }),
+      );
       this.dock.append(
         node(
           "div",
           { className: "world-dock-heading" },
-          node("strong", { textContent: `${prepared.name} · ready` }),
+          node("strong", {
+            textContent: tr("{value1} · ready", { value1: prepared.name }),
+          }),
           cancel,
         ),
         node(
@@ -254,19 +273,23 @@ export class WorldPanel {
           { className: "world-transition-controls" },
           state,
           duration,
-          node("label", {}, carry, "Carry traces"),
+          node("label", {}, carry, tr("Carry traces")),
           start,
         ),
         node("p", {
           className: "note",
           textContent:
             ws.prepared.compatible && ws.prepared.carry
-              ? "Grown filaments and chemical concentrations continue in the new world."
-              : "A soft crossfade introduces a freshly grown world.",
+              ? tr(
+                  "Grown filaments and chemical concentrations continue in the new world.",
+                )
+              : tr("A soft crossfade introduces a freshly grown world."),
         }),
       );
       this.liveLabel = button(
-        ws.queued ? "Next bar…" : `${prepared.name} ready → Start`,
+        ws.queued
+          ? tr("Next bar…")
+          : tr("{value1} ready → Start", { value1: prepared.name }),
         () => this.act({ type: "world-start" }),
       );
       this.liveLabel.disabled = busy;
@@ -276,8 +299,12 @@ export class WorldPanel {
         node("p", {
           className: "note",
           textContent: active
-            ? "Autopilot develops this world. Only you can start a different one."
-            : "Choose a world to prepare. The current visual keeps playing until you start.",
+            ? tr(
+                "Autopilot develops this world. Only you can start a different one.",
+              )
+            : tr(
+                "Choose a world to prepare. The current visual keeps playing until you start.",
+              ),
         }),
       );
   }

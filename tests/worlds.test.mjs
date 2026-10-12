@@ -340,3 +340,44 @@ test("restoring free play into a frozen world clears its identity and held beat"
   assert.equal(show.world, null);
   assert.equal(show.worldFreezeBeat, null);
 });
+
+test("in-place control edits invalidate a deleted queued development and its cached look", async () => {
+  const { withoutWorldLook } = await import("../worlds.mjs");
+  const show = make();
+  const set = show.set;
+  set.looks.push({
+    id: "own-world",
+    name: "My roots",
+    snapshot: presetSnapshot(scenes.find((s) => s.id === "acid")),
+    base: "acid:Mycelial City",
+    palette: "custom",
+    transition: "crossfade",
+  });
+  set.worlds[0].states[0].look = "own-world";
+  show.updateSet(set, 0);
+  prepare(show, "mycelium");
+  start(show);
+  set.looks = [];
+  set.worlds = withoutWorldLook(set.worlds, "own-world");
+  show.updateSet(validateShowSet(set, scenes), 0.5);
+  show.tick(2);
+  assert.equal(show.pending, null);
+  assert.equal(show.preparedWorld, null);
+  assert.equal(show.world, null);
+  assert.equal(show.clipFor("own-world"), null);
+});
+
+test("world presentation translates authored copy and preserves user edits", async () => {
+  const { worldPresentation } = await import("../worlds.mjs");
+  const world = initialShowSet(scenes).worlds[0];
+  const german = worldPresentation(world, "de");
+  assert.equal(german.name, "Lebendes Myzel");
+  assert.equal(german.states[0].name, "Unterholz");
+  world.states[0].name = "My private roots";
+  assert.equal(
+    worldPresentation(world, "de").states[0].name,
+    "My private roots",
+  );
+  world.name = "My world";
+  assert.deepEqual(worldPresentation(world, "de"), world);
+});
