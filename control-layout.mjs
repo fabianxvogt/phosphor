@@ -4,7 +4,6 @@ import {
   defaultPanelLayout,
   readPanelLayout,
   savePanelLayout,
-  desktopLimits,
   resizeDesktop,
   resizePortrait,
   portraitLimits,
@@ -107,14 +106,14 @@ export function setupPanelLayout() {
         .reduce((sum, gap) => sum + gap, 0);
     return key === "split"
       ? state.desktop.split
-      : state.desktop.seams[{ upper: 0, left: 1, lower: 2 }[key]];
+      : geometry.seams[{ upper: 0, left: 1, lower: 2 }[key]];
   }
   function limits(key) {
-    if (mode === "desktop") return desktopLimits(key);
+    if (mode === "desktop") return geometry.limits[key];
     return portraitLimits(geometry, Number(key));
   }
   function change(key, value) {
-    if (mode === "desktop") resizeDesktop(state, key, value);
+    if (mode === "desktop") resizeDesktop(state, key, value, geometry);
     else resizePortrait(state, geometry, Number(key), value);
     schedule();
   }

@@ -13,11 +13,13 @@
 body[data-panel-layout] {
   height: var(--chassis-height);
   min-height: var(--chassis-height);
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 html:has(body[data-panel-layout]) {
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-x: clip;
+  overflow-y: auto;
 }
 body[data-panel-layout]::before {
   display: none;
@@ -80,7 +82,7 @@ body.resizing-panels {
 body[data-panel-layout] main .panel:not(.monitor-panel) {
   overflow: auto;
   scrollbar-width: thin;
-  overscroll-behavior: contain;
+  overscroll-behavior-y: auto;
   scroll-padding: 18px;
   container-type: size;
 }
@@ -96,6 +98,7 @@ body[data-panel-layout] .catalog-list {
   flex: 1;
   min-height: 60px;
   max-height: none;
+  overscroll-behavior-y: auto;
   grid-template-columns: repeat(auto-fill, minmax(min(145px, 100%), 1fr));
 }
 body[data-panel-layout] .look-panel {

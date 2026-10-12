@@ -2,6 +2,12 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Readable panel minimums and scroll chaining 2026-10-12
+
+**INCREMENTAL / EMPIRICAL.** Supersedes the earlier always-fit-page rule at the owner's request. Both chassis mappings now reserve readable minimum heights, with extra space for narrow wrapping controls. The page grows only when the viewport cannot contain these minimums; larger viewports are filled. Saved seam preferences remain separate from temporary viewport constraints. Native vertical scroll chaining lets panel/catalog content scroll first, then the page at either end.
+
+**Verification:** seven geometry/storage tests cover short and tall viewports, every authored seam extreme, per-panel minima, rigid corner bands, redistribution, corrupt preferences and geometry-aware edits preserving the other column. Independent review found and corrected cross-column preference overwriting and ineffective panel-self container rules. Exact-size browser fixtures verified a scrollable 390×746 page and full-height filling at 1440×1800 and 950×2800. Wheel input moved the catalog to its 260px limit while leaving the page in place; the next gesture advanced the page. Reversing direction first returned the catalog to its start, then moved the page upward. Regular controls fit their panels; additional world controls and longer libraries keep normal panel scrolling. No renderer changes are involved. Build, typecheck, formatting and distribution verification passed; the full local suite passed 541 tests with 12 optional probes skipped. External-device/touch momentum remains a separate check.
+
 ## Worlds beta and fresh-session defaults 2026-10-12
 
 **INCREMENTAL / EMPIRICAL.** The catalog's Worlds button now includes a theme-aware Beta badge. Fresh control sessions enable catalog Autopilot even when the previous session saved it Off. The existing Stage status handshake remains authoritative on reconnection; later set imports keep their settings.

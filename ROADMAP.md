@@ -6,6 +6,8 @@ State: production candidate; canonical branch `main`; [Vercel](https://phosphor-
 
 First show: **2026-12-17** (planning placeholder until a real date exists). Feature freeze two weeks before. The date is fixed; scope flexes.
 
+**Delivered 2026-10-12 — Readable panel minimums (INCREMENTAL):** both layouts fill tall viewports and scroll the page on short screens, preserving minimum panel heights and the organic frame. Narrow controls receive more room. Panel and catalog scrolling hands off to the page at either edge; resizing a column preserves the other column’s saved split.
+
 **Delivered 2026-10-12 — Worlds beta / startup (INCREMENTAL):** the Worlds catalog button carries a Beta badge in both themes. Fresh sessions start the Looks catalog with Autopilot on; reconnecting to a running Stage preserves its playback state. Saved filters, looks and layout remain intact.
 
 **Delivered 2026-10-12 — Living worlds (INCREMENTAL):** two curated worlds with three developments each, explicit preparation/next-bar start, four/eight-bar transitions, real Acid ↔ Evolution field inheritance, world-contained autopilot, shared pause and portable definitions. Slider joins and height-responsive panel density refined without changing the chassis. [Evidence](docs/EVIDENCE.md#living-worlds-and-panel-refinement-2026-10-12). Next: owner aesthetic review of the developments and venue-length/external-output rehearsal before expanding the world library.

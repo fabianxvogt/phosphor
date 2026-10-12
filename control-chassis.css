@@ -184,13 +184,7 @@ body::before {
     padding: 18px calc(40px * var(--ui-scale));
   }
 }
-@media (min-width: 1100px) and (max-height: 850px) {
-  main .panel:not(.monitor-panel) {
-    padding: 13px 20px;
-  }
-  .look-panel {
-    gap: 5px;
-  }
+@container (max-height: 230px) {
   h2 {
     font-size: 19px;
   }
@@ -729,16 +723,13 @@ h2 {
     font-size: 21px;
   }
 }
-@media (min-width: 1100px) and (max-height: 850px) {
+@container (max-height: 230px) {
   h2,
   .rhythm-heading h2 {
     font-size: 23px;
   }
   .look-heading h3 {
     font-size: 19px;
-  }
-  main .panel:not(.monitor-panel) {
-    padding-block: calc(16px * var(--ui-scale));
   }
   #rhythmControls:not(.rhythm-expanded) .rhythm-tracks {
     gap: 3px;
