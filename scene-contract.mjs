@@ -4,7 +4,12 @@ export const reduceSeed = (seed) => seed % 8192;
 // D61 mapping amounts are signed fractions of a parameter's schema range.
 export const AUDIO_MAPPING_CAP = 0.18;
 export const AUDIO_FEATURES = Object.freeze([
-  "low", "mid", "high", "onset", "flux", "hit",
+  "low",
+  "mid",
+  "high",
+  "onset",
+  "flux",
+  "hit",
 ]);
 
 // All scene shaders are GLSL ES 3.00 bodies appended to this shared header.
@@ -146,3 +151,9 @@ void main() {
   outColor = vec4(v_color * m, 1.0);
 }
 `;
+
+// geometry {create(seed),attributes,vertex,fragment} optionally draws a persistent
+// triangle mesh after the background pass. create returns interleaved float data;
+// attributes lists component sizes. Only seed changes rebuild it. Full GLSL
+// programs use the same performance/palette uniforms and native output resolution.
+// Visual targets gain a depth attachment; buffers are released with the slot.

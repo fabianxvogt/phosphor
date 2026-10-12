@@ -24,15 +24,15 @@ const prepare = (show, id = "garden", extra = {}, t = 0.2) =>
   show.command({ type: "world-prepare", id, ...extra }, t);
 const start = (show, t = 0.2) => show.command({ type: "world-start" }, t);
 
-test("world definitions roundtrip and old sets gain the two curated worlds", () => {
+test("world definitions roundtrip and old sets gain the curated worlds", () => {
   const set = initialShowSet(scenes);
-  assert.equal(set.worlds.length, 2);
+  assert.equal(set.worlds.length, 3);
   assert.deepEqual(
     validateShowSet(JSON.parse(JSON.stringify(set)), scenes).worlds,
     set.worlds,
   );
   delete set.worlds;
-  assert.equal(validateShowSet(set, scenes).worlds.length, 2);
+  assert.equal(validateShowSet(set, scenes).worlds.length, 3);
   assert.deepEqual(defaultWorlds([]), []);
 });
 test("reject malformed, duplicate and unknown world definitions", () => {
@@ -314,7 +314,7 @@ test("removing a referenced own look keeps portable world definitions valid", as
   set.worlds = withoutWorldLook(set.worlds, "own-world");
   assert.equal(validateShowSet(set, scenes).worlds[0].states.length, 2);
   set.worlds = withoutWorldLook(set.worlds, set.worlds[0].states[0].look);
-  assert.equal(validateShowSet(set, scenes).worlds.length, 1);
+  assert.equal(validateShowSet(set, scenes).worlds.length, 2);
 });
 
 test("untouched early world definitions gain stable chemistry without replacing customized worlds", () => {

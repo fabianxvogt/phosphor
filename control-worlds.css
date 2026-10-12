@@ -198,3 +198,35 @@ body[data-catalog-mode="worlds"] .chassis-catalog-footer > * {
 .world-tabs {
   flex-shrink: 0;
 }
+
+.world-development-fader {
+  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(70px, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 11px;
+}
+.world-development-fader input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.world-development-fader output {
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  text-align: right;
+  opacity: 0.7;
+}
+.world-state-choices select {
+  font-size: 11px;
+  padding: 4px 8px;
+  min-width: 0;
+}
+.world-development-hint {
+  flex-basis: 100%;
+  font-size: 10px;
+  line-height: 1.4;
+  margin: 0;
+  opacity: 0.65;
+}

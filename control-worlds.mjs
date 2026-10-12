@@ -1,4 +1,4 @@
-import { worldPresentation } from "./worlds.mjs";
+import { worldPresentation, WORLD_DURATIONS } from "./worlds.mjs";
 import { tr } from "./i18n/index.mjs";
 // A small remote for Show's world commands. No playback state is owned here:
 // the same controls follow local preview and the Stage's status messages.
@@ -74,7 +74,12 @@ export class WorldPanel {
     const worlds = this.getSet().worlds ?? [];
     const signature = JSON.stringify([
       worlds,
-      ws.active,
+      ws.active && {
+        id: ws.active.id,
+        state: ws.active.state,
+        development: !!ws.active.development,
+      },
+      ws.bars,
       ws.prepared,
       ws.queued,
       !!ws.transition,
@@ -91,6 +96,25 @@ export class WorldPanel {
         this.worldView.scrollTop = 0;
       this.renderedPrepared = ws.prepared?.id;
     }
+    this.developmentButtons?.forEach((b, i) => {
+      const selected = ws.active.development
+        ? Math.abs(
+            ws.active.development.value - ws.active.development.positions[i],
+          ) < 0.001
+        : i === ws.active.state;
+      b.ariaPressed = String(selected);
+      b.disabled = !!ws.queued || !!ws.transition || selected;
+    });
+    if (this.developmentDuration)
+      this.developmentDuration.value = String(ws.bars);
+    if (this.developmentRange && ws.active?.development) {
+      const d = ws.active.development;
+      if (document.activeElement !== this.developmentRange || !this.dragging)
+        this.developmentRange.value = d.value;
+      this.paintDevelopment();
+      this.developmentRange.disabled =
+        !!ws.transition && ws.transition.kind !== "morph";
+    }
     if (this.progress) {
       this.progress.value = ws.transition?.progress ?? 0;
       this.progress.ariaValueText = tr("{value1} percent", {
@@ -101,6 +125,124 @@ export class WorldPanel {
       this.liveLabel.textContent = tr("Next bar · {value1} beats", {
         value1: Math.ceil(status.pending?.beats ?? 0),
       });
+  }
+  paintDevelopment() {
+    const input = this.developmentRange;
+    const x =
+      (Number(input.value) - Number(input.min)) /
+      (Number(input.max) - Number(input.min));
+    input.style.setProperty(
+      "--fill-center",
+      `calc(${x * 100}% + ${29 - 42 * x}px)`,
+    );
+    input.style.setProperty("--fill", `${x * 100}%`);
+    this.developmentOutput.value = tr("{value1} percent", {
+      value1: Math.round(x * 100),
+    });
+  }
+  renderDevelopment(active, ws) {
+    this.developments.replaceChildren();
+    this.developmentRange = null;
+    this.developmentDuration = null;
+    this.developmentButtons = [];
+    this.dragging = false;
+    if (!active) return;
+    const busy = ws.queued || !!ws.transition;
+    const leave = button(tr("Free play"), () =>
+      this.act({ type: "world-leave" }),
+    );
+    this.developments.append(
+      node(
+        "div",
+        { className: "world-development-title" },
+        node("span", { textContent: active.name }),
+        leave,
+      ),
+    );
+    const choices = node("div", {
+      className: "world-state-choices",
+      role: "group",
+      ariaLabel: tr("World development"),
+    });
+    active.states.forEach((state, i) => {
+      const b = button(state.name, () =>
+        this.act({ type: "world-develop", state: i }),
+      );
+      b.ariaPressed = String(i === ws.active.state);
+      b.disabled = busy || i === ws.active.state;
+      choices.append(b);
+      this.developmentButtons.push(b);
+    });
+    this.developments.append(choices);
+    if (ws.active.development) {
+      const d = ws.active.development;
+      const duration = node("select", {
+        ariaLabel: tr("Development duration"),
+      });
+      WORLD_DURATIONS.forEach((bars) =>
+        duration.append(
+          node("option", {
+            value: String(bars),
+            textContent: tr("{value1} bars", { value1: bars }),
+          }),
+        ),
+      );
+      duration.value = String(ws.bars);
+      duration.onchange = () =>
+        this.act({ type: "world-duration", bars: Number(duration.value) });
+      choices.append(duration);
+      this.developmentDuration = duration;
+      this.developmentRange = node("input", {
+        id: "worldDevelopment",
+        type: "range",
+        min: String(d.min),
+        max: String(d.max),
+        step: "0.001",
+        value: String(d.value),
+        ariaLabel: tr("Development"),
+      });
+      this.developmentOutput = node("output", {
+        htmlFor: "worldDevelopment",
+      });
+      this.developmentRange.onpointerdown = (event) => {
+        this.dragging = true;
+        this.developmentRange.setPointerCapture(event.pointerId);
+      };
+      this.developmentRange.onpointerup =
+        this.developmentRange.onpointercancel =
+        this.developmentRange.onblur =
+          () => {
+            this.dragging = false;
+          };
+      this.developmentRange.oninput = () => {
+        this.paintDevelopment();
+        this.act({
+          type: "world-seek",
+          value: Number(this.developmentRange.value),
+        });
+      };
+      this.developments.append(
+        node(
+          "div",
+          { className: "world-development-fader" },
+          node("label", {
+            htmlFor: "worldDevelopment",
+            textContent: tr("Development"),
+          }),
+          this.developmentRange,
+          this.developmentOutput,
+        ),
+      );
+      this.developments.append(
+        node("p", {
+          className: "world-development-hint",
+          textContent: tr(
+            "Move freely, or choose a state for a timed transformation. Centres and branches stay connected.",
+          ),
+        }),
+      );
+      this.paintDevelopment();
+    }
   }
   render(worlds, status) {
     const ws = this.status;
@@ -164,7 +306,6 @@ export class WorldPanel {
       );
     this.dock.replaceChildren();
     this.live.replaceChildren();
-    this.developments.replaceChildren();
     this.live.hidden = !active && !prepared;
     this.developments.hidden = !active;
     this.progress = null;
@@ -177,32 +318,17 @@ export class WorldPanel {
           textContent: `${active.name} · ${state?.name ?? ""}`,
         }),
       );
-      const leave = button(tr("Free play"), () =>
-        this.act({ type: "world-leave" }),
-      );
-      this.developments.append(
-        node(
-          "div",
-          { className: "world-development-title" },
-          node("span", { textContent: active.name }),
-          leave,
-        ),
-      );
-      const choices = node("div", {
-        className: "world-state-choices",
-        role: "group",
-        ariaLabel: tr("World development"),
-      });
-      active.states.forEach((state, i) => {
-        const b = button(state.name, () =>
-          this.act({ type: "world-develop", state: i }),
-        );
-        b.ariaPressed = String(i === ws.active.state);
-        b.disabled = busy || i === ws.active.state;
-        choices.append(b);
-      });
-      this.developments.append(choices);
     }
+    // Transport status must never detach the native range under a held pointer.
+    const developmentSignature = JSON.stringify([
+      active,
+      !!ws.active?.development,
+    ]);
+    if (developmentSignature !== this.developmentSignature) {
+      this.developmentSignature = developmentSignature;
+      this.renderDevelopment(active, ws);
+    }
+
     if (ws.transition) {
       this.progress = node("progress", {
         max: 1,
@@ -234,7 +360,7 @@ export class WorldPanel {
         ariaLabel: tr("World transition duration"),
         disabled: ws.queued,
       });
-      [4, 8].forEach((n) =>
+      WORLD_DURATIONS.forEach((n) =>
         duration.append(
           node("option", {
             value: String(n),

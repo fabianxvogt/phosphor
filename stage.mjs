@@ -140,21 +140,23 @@ function apply(actions) {
         frozen = a.on;
         break;
       case "pause":
-        audio.engine
-          .setPaused(a.on)
-          .catch((error) =>
-            post({
-              type: "error",
-              message: tr("Audio: {value1}", { value1: errorText(error) }),
-            }),
-          );
+        audio.engine.setPaused(a.on).catch((error) =>
+          post({
+            type: "error",
+            message: tr("Audio: {value1}", { value1: errorText(error) }),
+          }),
+        );
         break;
       case "flash":
         engine.flashHeld = a.on;
         break;
       case "params": {
         const snapshot = show.currentSnapshot();
-        if (snapshot) engine.setSnapshot(snapshot);
+        if (snapshot)
+          engine.setSnapshot(snapshot, {
+            lookId: a.clipId,
+            redraw: show.clock.paused || show.freeze,
+          });
         break;
       }
     }
@@ -240,7 +242,7 @@ function frame(ms) {
     if (!show.clock.paused) {
       engine.features = audio.features(dt);
       engine.advance(dt, frozen);
-    }
+    } else if (engine.pipeline.refreshPending) engine.present();
     telemetry.presented(ms, interval, engine);
   } catch (error) {
     // Never freeze the show on one bad frame: fall back to the safe look.

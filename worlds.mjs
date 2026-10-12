@@ -1,7 +1,7 @@
 import { tr } from "./i18n/index.mjs";
 // Curated performances above the look catalog. Definitions travel with a set;
 // runtime selection/transport belongs to Show, never to the catalog UI.
-export const WORLD_DURATIONS = [4, 8]; // bars, always measured on the show clock
+export const WORLD_DURATIONS = [4, 8, 16]; // bars, always measured on the show clock
 const AUTHORED = [
   {
     id: "mycelium",
@@ -49,6 +49,17 @@ const AUTHORED = [
       },
     ],
   },
+  {
+    id: "unfolding",
+    name: "Unfolding Garden",
+    description:
+      "The same branching form fills with membranes and opens into blossoms. Play every stage in between.",
+    states: [
+      { name: "Filaments", look: "metamorphosis:First Filaments" },
+      { name: "Membrane", look: "metamorphosis:Pearl Membranes" },
+      { name: "Blossom", look: "metamorphosis:Open Blossom" },
+    ],
+  },
 ];
 export function defaultWorlds(lookIds) {
   const known = new Set(lookIds);
@@ -61,6 +72,16 @@ export function validateWorlds(value, lookIds, scenes = [], catalog = []) {
   if (value === undefined) return defaultWorlds(known);
   if (!Array.isArray(value) || value.length > 32)
     throw new Error(tr("At most 32 worlds"));
+  // Only the untouched two-world library gains the new authored world.
+  // Custom, empty or deliberately reduced libraries remain exact portable data.
+  if (
+    value.length === 2 &&
+    value.every((w) =>
+      AUTHORED.slice(0, 2).some((a) => JSON.stringify(a) === JSON.stringify(w)),
+    ) &&
+    known.has("metamorphosis:First Filaments")
+  )
+    value = [...value, structuredClone(AUTHORED[2])];
   const ids = new Set();
   const text = (x, max) => typeof x === "string" && x.trim() && x.length <= max;
   return value.map((w) => {
@@ -179,5 +200,34 @@ export function worldPresentation(world, language) {
         ? tr(state.name, {}, language)
         : state.name,
     })),
+  };
+}
+
+// A continuous world must share its generator, seed and every non-development
+// parameter. Incompatible/custom states keep the ordinary world transition.
+export function continuousDevelopment(clips, scene) {
+  const key = scene?.development;
+  const field = scene?.schema.find((f) => f.key === key);
+  const first = clips[0]?.snapshot;
+  if (
+    !key ||
+    !field ||
+    !first ||
+    !clips.every(
+      (c) =>
+        c?.snapshot?.scene === scene.id &&
+        c.snapshot.seed === first.seed &&
+        scene.schema.every(
+          (f) =>
+            f.key === key || c.snapshot.params[f.key] === first.params[f.key],
+        ),
+    )
+  )
+    return null;
+  return {
+    key,
+    min: field.min,
+    max: field.max,
+    positions: clips.map((c) => c.snapshot.params[key]),
   };
 }

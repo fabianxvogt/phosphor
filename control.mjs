@@ -248,6 +248,10 @@ function performanceStatus() {
   return stageAlive() ? status?.status : localPerformance?.status(now());
 }
 function act(action) {
+  if (action.type === "world-duration" && [4, 8, 16].includes(action.bars)) {
+    set.worldBars = action.bars;
+    saveSoon();
+  }
   if (action.type === "tap") requestedTempo = null;
   resumeLocalPerformance();
   if (stageAlive()) send({ type: "action", action });
@@ -384,6 +388,7 @@ channel.onmessage = ({ data }) => {
       // The stage may change shared controls and autopilot from its own keys
       // and autopilot; keep the set in step so a later edit doesn't undo them.
       set.shared = { ...data.status.shared };
+      if (data.status.worlds?.bars) set.worldBars = data.status.worlds.bars;
       set.autopilot.enabled = data.status.autopilot.enabled;
       set.autopilot.random = data.status.autopilot.random;
       syncRhythmStatus(data.status.rhythm);

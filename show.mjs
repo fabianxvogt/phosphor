@@ -1,4 +1,8 @@
-import { WORLD_DURATIONS, canCarryTraces } from "./worlds.mjs";
+import {
+  WORLD_DURATIONS,
+  canCarryTraces,
+  continuousDevelopment,
+} from "./worlds.mjs";
 // Show controller: turns performer actions, the clock and autopilot into
 // renderer actions. Pure (no DOM, no WebGL) so the output window can own it
 // (decision D8) and tests can drive it with synthetic time.
@@ -87,6 +91,7 @@ export class Show {
     this.world = null;
     this.preparedWorld = null;
     this.worldTransition = null;
+    this.worldMorph = null;
     this.worldFreezeBeat = null;
     this.live = null; // { clip, base } — clip.id is the look id; base: authored params
     this.drift = null; // { keys, from, to, t0, seconds } while params glide
@@ -776,6 +781,32 @@ export class Show {
     };
   }
 
+  #development(world = this.#world()) {
+    if (!world) return null;
+    const clips = world.states.map((_, i) => this.#worldClip(world, i));
+    return continuousDevelopment(
+      clips,
+      this.scenes.get(clips[0]?.snapshot.scene),
+    );
+  }
+
+  #advanceWorldMorph(t) {
+    const morph = this.worldMorph,
+      timing = this.worldTransition;
+    if (!morph || !timing || !this.live) return false;
+    const x = clamp01(
+      (this.#worldBeat(t) - timing.start) / (timing.end - timing.start),
+    );
+    const k = x * x * (3 - 2 * x);
+    this.live.clip.snapshot.params[morph.key] =
+      morph.from + (morph.to - morph.from) * k;
+    if (x >= 1) {
+      this.worldMorph = null;
+      this.worldTransition = null;
+    }
+    return true;
+  }
+
   #worldBeat(t) {
     return this.worldFreezeBeat ?? this.clock.at(t).beat;
   }
@@ -783,12 +814,17 @@ export class Show {
   #leaveWorld() {
     this.world = null;
     this.worldTransition = null;
+    this.worldMorph = null;
     this.worldFreezeBeat = null;
     if (this.pending?.world) this.pending = null;
   }
 
   #worldBusy(t) {
-    if (this.worldTransition && this.#worldBeat(t) >= this.worldTransition.end)
+    if (
+      !this.worldMorph &&
+      this.worldTransition &&
+      this.#worldBeat(t) >= this.worldTransition.end
+    )
       this.worldTransition = null;
     return !!(this.pending?.world || this.worldTransition);
   }
@@ -802,7 +838,9 @@ export class Show {
     this.preparedWorld = {
       id: world.id,
       state,
-      bars: WORLD_DURATIONS.includes(action.bars) ? action.bars : 4,
+      bars: WORLD_DURATIONS.includes(action.bars)
+        ? action.bars
+        : (this.set.worldBars ?? 4),
       carry: action.carry !== false,
     };
   }
@@ -822,6 +860,7 @@ export class Show {
       transition: "crossfade",
       world: world.id,
       carryTraces: prepared.carry,
+      morph: world.id === this.world && !!this.#development(world),
     };
     return [];
   }
@@ -838,6 +877,10 @@ export class Show {
         id: world.id,
         name: world.name,
         state: world.states.findIndex((s) => s.look === this.live?.clip.id),
+        development: this.#development(world) && {
+          ...this.#development(world),
+          value: this.live?.clip.snapshot.params[this.#development(world).key],
+        },
       },
       prepared: prepared && {
         ...prepared,
@@ -846,6 +889,7 @@ export class Show {
           this.scenes.get(target?.snapshot.scene),
         ),
       },
+      bars: this.set.worldBars ?? 4,
       queued: !!this.pending?.world,
       transition: this.worldTransition && {
         ...this.worldTransition,
@@ -927,11 +971,12 @@ export class Show {
       this.pending = {
         clip: a.clip,
         at: clock.beat - clock.beatInBar + 4,
-        fade: 16,
+        fade: (this.set.worldBars ?? 4) * 4,
         adoptPalette: false,
         transition: "crossfade",
         world: world.id,
         carryTraces: true,
+        morph: !!this.#development(world),
       };
       return [];
     }
@@ -1072,6 +1117,28 @@ export class Show {
     const now = this.clock.at(t);
     if (now.beat + 1e-9 < p.at) return [];
     this.pending = null;
+    const development =
+      p.morph && this.world === p.world ? this.#development() : null;
+    if (development) {
+      const from = this.live.clip.snapshot.params[development.key];
+      const to = p.clip.snapshot.params[development.key];
+      const previous = this.live.clip.snapshot;
+      const clip = structuredClone(p.clip);
+      clip.snapshot = {
+        ...previous,
+        preset: p.clip.snapshot.preset,
+        params: { ...previous.params },
+      };
+      this.live = { clip, base: p.clip.snapshot.params };
+      this.worldTransition = { start: p.at, end: p.at + p.fade, kind: "morph" };
+      this.worldMorph = { key: development.key, from, to };
+      this.drift = null;
+      this.preparedWorld = null;
+      this.autopilot.played(clip.id);
+      this.#advanceWorldMorph(t);
+      return [{ type: "params", clipId: clip.id }];
+    }
+    this.worldMorph = null;
     if (p.world) {
       this.world = p.world;
       this.worldTransition = { start: p.at, end: p.at + p.fade };
@@ -1255,13 +1322,31 @@ export class Show {
         this.preparedWorld = null;
         this.#manual(t);
         return [];
+      case "world-duration":
+        if (WORLD_DURATIONS.includes(action.bars))
+          this.set.worldBars = action.bars;
+        return [];
+      case "world-seek": {
+        const development = this.#development();
+        if (!development || !Number.isFinite(action.value)) return [];
+        this.#manual(t);
+        this.worldMorph = null;
+        this.worldTransition = null;
+        this.worldFreezeBeat = null;
+        if (this.pending?.world) this.pending = null;
+        this.live.clip.snapshot.params[development.key] = Math.max(
+          development.min,
+          Math.min(development.max, action.value),
+        );
+        return [PARAMS];
+      }
       case "world-develop": {
         const world = this.#world();
         if (!world || !world.states[action.state]) return [];
         return this.#startWorld(t, {
           id: world.id,
           state: action.state,
-          bars: 4,
+          bars: this.set.worldBars ?? 4,
           carry: true,
         });
       }
@@ -1445,7 +1530,9 @@ export class Show {
     if (this.clock.paused) return [];
     if (tracker) this.clock.track(t, tracker);
     this.#advanceRhythm(t);
-    let paramsChanged = this.#advancePalette(t) || this.paletteDirty;
+    const morphChanged = this.#advanceWorldMorph(t);
+    let paramsChanged =
+      this.#advancePalette(t) || this.paletteDirty || morphChanged;
     this.paletteDirty = false;
     const actions = this.#fire(t);
     const now = this.clock.at(t);
@@ -1582,6 +1669,17 @@ export class Show {
       safeShowing: this.safeShowing,
       worlds: {
         active: this.world,
+        bars: this.set.worldBars ?? 4,
+        development: this.#development() && {
+          value: this.live?.clip.snapshot.params[this.#development().key],
+          morph: this.worldMorph && { ...this.worldMorph },
+          duration: this.worldMorph
+            ? this.worldTransition.end - this.worldTransition.start
+            : 0,
+          remaining: this.worldMorph
+            ? Math.max(0, this.worldTransition.end - this.#worldBeat(t))
+            : 0,
+        },
         prepared: structuredClone(this.preparedWorld),
         pending: this.pending?.world
           ? {
@@ -1692,8 +1790,52 @@ export class Show {
       : null;
     this.preparedWorld = null;
     this.worldTransition = null;
+    this.worldMorph = null;
     this.worldFreezeBeat = null;
     this.pending = null;
+    if (WORLD_DURATIONS.includes(saved.worlds?.bars))
+      this.set.worldBars = saved.worlds.bars;
+    const development = this.#development(),
+      held = saved.worlds?.development;
+    if (
+      development &&
+      Number.isFinite(held?.value) &&
+      held.value >= development.min &&
+      held.value <= development.max
+    ) {
+      this.live.clip.snapshot.params[development.key] = held.value;
+      const m = held.morph;
+      if (
+        m?.key === development.key &&
+        Number.isFinite(m.to) &&
+        m.to >= development.min &&
+        m.to <= development.max &&
+        Number.isFinite(held.remaining) &&
+        held.remaining > 0 &&
+        held.remaining <= 64
+      ) {
+        const exactPhase =
+          Number.isFinite(held.duration) &&
+          held.duration >= held.remaining &&
+          held.duration <= 64 &&
+          Number.isFinite(m.from) &&
+          m.from >= development.min &&
+          m.from <= development.max;
+        // Retain the original easing phase; old snapshots can still resume from
+        // their held value when they predate duration persistence.
+        this.worldMorph = {
+          key: development.key,
+          from: exactPhase ? m.from : held.value,
+          to: m.to,
+        };
+        const beat = this.clock.at(t).beat;
+        this.worldTransition = {
+          start: exactPhase ? beat + held.remaining - held.duration : beat,
+          end: beat + held.remaining,
+          kind: "morph",
+        };
+      }
+    }
     if (saved.worlds?.prepared) this.#prepareWorld(saved.worlds.prepared);
     const queued = saved.worlds?.pending;
     if (

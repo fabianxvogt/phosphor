@@ -117,6 +117,7 @@ export function presentPausedOutput(engine, actions, paused) {
   )
     return false;
   engine.blackout = engine.blackoutTarget;
+  engine.pipeline?.requestRefresh();
   engine.present();
   return true;
 }
@@ -191,7 +192,8 @@ export class ControlPreview {
   }
   tick(t, dt) {
     if (this.show.clock.paused) {
-      const dirty = !!this.dirty;
+      const dirty = !!this.dirty || !!this.engine.pipeline?.refreshPending;
+      if (this.engine.pipeline?.refreshPending) this.engine.present();
       this.dirty = false;
       return dirty;
     }
@@ -258,7 +260,11 @@ export class ControlPreview {
           break;
         case "params": {
           const snapshot = this.show.currentSnapshot();
-          if (snapshot) this.engine.setSnapshot(snapshot);
+          if (snapshot)
+            this.engine.setSnapshot(snapshot, {
+              lookId: action.clipId,
+              redraw: this.show.clock.paused || this.show.freeze,
+            });
           break;
         }
         // Freeze is owned by Show and applied in tick, including safe reset.

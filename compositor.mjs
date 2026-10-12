@@ -324,6 +324,7 @@ export class Compositor {
     return target;
   }
   resize() {
+    this.refreshPending = false;
     this.readback.cancel();
     for (const target of this.targets) this.engine.deleteTarget(target);
     this.targets.length =
@@ -438,14 +439,19 @@ export class Compositor {
     const bloom = raw
       ? 0
       : bloomAmount(
-          e.finite(e.options.bloom ?? 0.15, 0), level,
+          e.finite(e.options.bloom ?? 0.15, 0),
+          level,
           e.finite(e.audioFeatures?.low ?? 0),
         );
     // The same two history targets serve echo and melt, never both at once.
     const echo =
       raw || melt
         ? 0
-        : Math.min(0.92, e.finite(e.options.echo ?? 0, 0) * postCurve(level, 0.15) + e.finite(e.beatFx?.echo ?? 0, 0));
+        : Math.min(
+            0.92,
+            e.finite(e.options.echo ?? 0, 0) * postCurve(level, 0.15) +
+              e.finite(e.beatFx?.echo ?? 0, 0),
+          );
     if ((echo > 0.01 || melt) && !this.echoTarget) {
       this.echoTarget = this.target(e.width, e.height);
       this.echoNextTarget = this.target(e.width, e.height);
@@ -483,7 +489,12 @@ export class Compositor {
       raw ? 0 : e.finite(e.options.vignette ?? 0.15, 0) * postCurve(level, 0.3),
     );
     gl.uniform2f(u.resolution, e.width, e.height);
-    gl.uniform1f(u.hue, raw ? 0 : e.finite(e.view?.hue ?? 0, 0) + e.finite(e.beatFx?.colour ?? 0, 0));
+    gl.uniform1f(
+      u.hue,
+      raw
+        ? 0
+        : e.finite(e.view?.hue ?? 0, 0) + e.finite(e.beatFx?.colour ?? 0, 0),
+    );
     gl.uniform1f(
       u.zoom,
       raw ? 1 : Math.max(0.25, e.finite(e.view?.zoom ?? 1, 1)),
@@ -577,6 +588,13 @@ export class Compositor {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     this.canvasValid = true;
   }
+  // Paused edits keep presenting without advancing simulation until the latest
+  // revision is approved. Retain in-flight candidates so rapid input cannot
+  // starve approval by repeatedly cancelling a GPU fence.
+  requestRefresh() {
+    this.refreshRevision = (this.refreshRevision ?? 0) + 1;
+    this.refreshPending = true;
+  }
   present(target = null, raw = false) {
     const e = this.engine;
     const exempt = e.flashExempt || e.blackoutTarget > 0;
@@ -589,6 +607,7 @@ export class Compositor {
     }
     if (e.options.flashLimit === false || exempt) {
       this.readback.cancel();
+      this.refreshPending = false;
       this.displayValid = false;
       this.limiter.reset(e.blackoutTarget > 0 ? 0 : null);
       this.render(target, raw);
@@ -602,9 +621,18 @@ export class Compositor {
       );
     }
     const pixels = this.readback.poll();
-    if (pixels) this.approve();
+    if (pixels) {
+      this.approve();
+      // A paused bright edit may need to wait out the flash budget. Keep
+      // approving the held image until its protected gain can recover fully.
+      this.refreshPending =
+        this.refreshPending &&
+        (this.candidateRevision !== this.refreshRevision ||
+          this.limiter.limited);
+    }
     if (!this.readback.sync) {
       this.render(this.frames[1], false);
+      this.candidateRevision = this.refreshRevision;
       this.mean(this.frames[1]);
     }
     // Preserve the actual canvas while the first approval is pending. A resize

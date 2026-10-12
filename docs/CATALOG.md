@@ -1,6 +1,6 @@
 # Phosphor catalog: families, variants, looks
 
-Status 2026-10-11: **39 renderers, 38 catalog families, 328 authored looks**. The unified catalog includes every authored look and the owner's own looks. No scene, preset, favourite, rating or own-look id is removed by the naming cleanup.
+Status 2026-10-12: **40 renderers, 39 catalog families, 334 authored looks**. The unified catalog includes every authored look and the owner's own looks. No scene, preset, favourite, rating or own-look id is removed by the naming cleanup.
 
 - A **family** has a coherent visual and algorithmic principle. Related renderers can share a catalog identity.
 - A **variant** changes a rule, map, topology, lattice, symmetry, projection or meaningful rendering structure.
@@ -69,6 +69,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | Physarum Networks | physarum | Agent chemotaxis with a diffusing trail field | Free Foraging / Food Nodes / Food Ring / Moving Food Nodes | 8 |
 | Geometric Caustics | caustics | Snell refraction through a moving heightfield | Point Waves / Crossing Wave Banks / Lens Sheet | 8 |
 | Space Colonization | colonization | Nearest-branch attraction and reached-point removal | Canopy / Root Fan / Coral Arbor | 8 |
+| [Living Forms](families/metamorphosis.md) | metamorphosis | Connected parametric surface deformation | Filaments / Membrane / Blossom | 6 |
 
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 

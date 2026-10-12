@@ -12,6 +12,13 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  metamorphosis: {
+    algorithm: "Continuous deformation of a connected parametric mesh",
+    description:
+      "One geometric organism becomes filaments, membranes and blossoms without replacing its centres or branches.",
+    styles: ["organic", "spatial"],
+    variants: ["Filaments", "Membrane", "Blossom"],
+  },
   physarum: {
     algorithm: "Agent chemotaxis with a diffusing trail field",
     description:

@@ -1,5 +1,5 @@
 import { tr } from "./i18n/index.mjs";
-import { defaultWorlds, validateWorlds } from "./worlds.mjs";
+import { defaultWorlds, validateWorlds, WORLD_DURATIONS } from "./worlds.mjs";
 // Portable show set, format v5 (D68): the look catalog is the whole
 // library — ratings, favourites and the owner's own looks — plus the looks
 // on the 32 grid keys, shared mixer controls, autopilot, clock and options.
@@ -145,6 +145,7 @@ export function initialShowSet(scenes) {
     version: 5,
     name: tr("New show"),
     looks: [],
+    worldBars: 4,
     worlds: defaultWorlds(catalogLooks(scenes).map((look) => look.id)),
     ratings: {},
     favorites: [],
@@ -452,6 +453,7 @@ export function validateShowSet(value, scenes) {
     version: 5,
     name: common.name,
     looks,
+    worldBars: WORLD_DURATIONS.includes(value.worldBars) ? value.worldBars : 4,
     worlds: validateWorlds(
       value.worlds,
       catalogLooks(scenes, looks).map((look) => look.id),

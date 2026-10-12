@@ -2,6 +2,16 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Continuous world development 2026-10-12
+
+**INCREMENTAL / EMPIRICAL.** Integrated the owner-approved transformation study as Unfolding Garden / Living Forms: connected filaments fill into membranes and open into blossoms. One deterministic mesh, seed and branch ancestry persist through a reversible Development slider and 4/8/16-bar state cues. Existing simulation-field worlds remain available. Six real 512×288 catalog previews bring the authored library to 334 looks, 39 catalog families and 40 renderers.
+
+**Verification:** 539 tests pass, 12 optional probes skipped; typecheck, formatting, build and distribution checks pass. Eight new model tests cover durations, fractional pause, Freeze, manual takeover, set migration, deterministic geometry and exact handoff trajectory. The native browser GPU harness verifies visible deformation with the same slot/VAO, no intra-world crossfade or reseed, exact pixel pause, flash-limited paused editing, portrait resize and bounded textures with no GPU errors. The previous worlds harness still passes actual field transfer, reverse carry, half-speed beat timing and pause. Full-app testing covers preparing/starting, state cues, taking over a moving slider and paused seeking.
+
+**Review corrections:** preserve the range DOM during transport changes; retain the original easing phase on Stage handoff. The full-app test exposed asynchronous flash approval leaving a paused edit one frame behind. Paused output now settles the latest requested frame without advancing simulation; revision tracking keeps rapid edits from starving approval and allows protected brightness to recover. The flash limiter remains enabled.
+
+**Limits / next check:** authored parametric deformation, not biological growth or collision-free topology proof. New-family 4K venue cadence, external-display rehearsal and multi-hour endurance remain unmeasured. Next is the owner's integrated play-through before expanding the world library. Source and bounded model: [Living Forms](families/metamorphosis.md).
+
 ## Fourth 4K performance pass with strict visual gates 2026-10-12
 
 **INCREMENTAL / EMPIRICAL.** Remeasured all **39 renderers / 178 declared variants** at 4K and 1080p. Cathedral caches its crystal transforms once per draw; Flight stops only when no finer cross can change its minimum or first material winner; Fourspace caches projected geometry and evaluates every original edge in a compact ordered loop. Full output resolution, ray budgets, geometry and simulation sizes are retained. Baseline shaders are `074d8b4`; both versions use the same fixed runtime at `675d977`.

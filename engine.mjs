@@ -39,6 +39,7 @@ const programKeys = [
   "field",
   "deposit",
   "precompute",
+  "geometry",
 ];
 const vertex = `#version 300 es
 layout(location=0) in vec2 position; out vec2 v_uv;
@@ -285,6 +286,12 @@ export class Engine {
           true,
           particleHeader + scene.particles.vertex,
         );
+      if (scene.geometry)
+        programs.geometry = this.program(
+          scene.geometry.fragment,
+          true,
+          scene.geometry.vertex,
+        );
       if (scene.field) {
         programs.field = this.program(
           shaderHeader + scene.field.fragment,
@@ -504,6 +511,7 @@ export class Engine {
       filter = "nearest",
       bytes = false,
       floatData = false,
+      depth = false,
     } = {},
   ) {
     const gl = this.gl;
@@ -555,18 +563,35 @@ export class Engine {
       texture,
       0,
     );
+    let depthBuffer = null;
+    if (depth) {
+      depthBuffer = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(
+        gl.FRAMEBUFFER,
+        gl.DEPTH_ATTACHMENT,
+        gl.RENDERBUFFER,
+        depthBuffer,
+      );
+    }
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
       throw new Error(tr("GPU framebuffer unavailable"));
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    return { texture, fbo, w, h, floating };
+    return { texture, fbo, w, h, floating, depthBuffer };
   }
   deleteTarget(t) {
     this.gl.deleteTexture(t.texture);
     this.liveTextures--;
     this.gl.deleteFramebuffer(t.fbo);
+    if (t.depthBuffer) this.gl.deleteRenderbuffer(t.depthBuffer);
   }
   destroySlot(s) {
+    if (s.mesh) {
+      this.gl.deleteBuffer(s.mesh.buffer);
+      this.gl.deleteVertexArray(s.mesh.vao);
+    }
     for (const t of s.visual) this.deleteTarget(t);
     for (const t of s.sim) this.deleteTarget(t);
     for (const t of s.field ?? []) this.deleteTarget(t);
@@ -609,7 +634,10 @@ export class Engine {
     for (const s of this.slots) {
       const old = s.visual;
       const [vw, vh] = this.visualSize(s.scene);
-      const next = [this.target(vw, vh), this.target(vw, vh)];
+      const next = [
+        this.target(vw, vh, { depth: !!s.scene.geometry }),
+        this.target(vw, vh, { depth: !!s.scene.geometry }),
+      ];
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, old[s.vi].fbo);
       gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, next[0].fbo);
       gl.blitFramebuffer(
@@ -633,6 +661,32 @@ export class Engine {
   }
   prepareSnapshot(s, snapshot) {
     const previous = s.snapshot;
+    if (s.scene.geometry && (!s.mesh || previous?.seed !== snapshot.seed)) {
+      const gl = this.gl,
+        geometry = s.scene.geometry,
+        data = geometry.create(snapshot.seed);
+      if (!s.mesh)
+        s.mesh = { vao: gl.createVertexArray(), buffer: gl.createBuffer() };
+      gl.bindVertexArray(s.mesh.vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, s.mesh.buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      const stride = geometry.attributes.reduce((a, b) => a + b, 0);
+      let offset = 0;
+      geometry.attributes.forEach((size, index) => {
+        gl.enableVertexAttribArray(index);
+        gl.vertexAttribPointer(
+          index,
+          size,
+          gl.FLOAT,
+          false,
+          stride * 4,
+          offset * 4,
+        );
+        offset += size;
+      });
+      s.mesh.count = data.length / stride;
+      gl.bindVertexArray(this.vao);
+    }
     if (
       !previous ||
       previous.scene !== snapshot.scene ||
@@ -689,7 +743,10 @@ export class Engine {
     const stateOptions = { simulation: true, filter: scene.simulation?.filter };
     const slot = {
       scene,
-      visual: [this.target(...visualSize), this.target(...visualSize)],
+      visual: [
+        this.target(...visualSize, { depth: !!scene.geometry }),
+        this.target(...visualSize, { depth: !!scene.geometry }),
+      ],
       sim: [
         this.target(...size, stateOptions),
         this.target(...size, stateOptions),
@@ -836,14 +893,19 @@ export class Engine {
     slot.warmTicks -= count;
     if (count && !slot.warmTicks) slot.time = 0;
   }
-  setSnapshot(snapshot) {
+  setSnapshot(snapshot, { lookId, redraw = false } = {}) {
     const s = this.slots.at(-1);
     if (!s) {
       this.active = structuredClone(snapshot);
       return;
     }
     this.prepareSnapshot(s, snapshot);
+    if (lookId) {
+      s.lookId = lookId;
+      this.activeOptions = { ...this.activeOptions, lookId };
+    }
     this.active = s.snapshot;
+    if (s.mesh && redraw) this.drawSlot(s, 0);
   }
   bind(program, target) {
     const gl = this.gl;
@@ -1075,6 +1137,20 @@ export class Engine {
       s.visualReset,
     );
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+    const geometry = this.programs.get(s.scene.id).geometry;
+    if (geometry?.uniforms && s.mesh) {
+      const gl = this.gl;
+      this.bind(geometry, target);
+      this.uniforms(geometry, s, target, dt, false);
+      gl.clearDepth(1);
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      gl.bindVertexArray(s.mesh.vao);
+      gl.drawArrays(gl.TRIANGLES, 0, s.mesh.count);
+      gl.bindVertexArray(this.vao);
+      gl.disable(gl.DEPTH_TEST);
+    }
     const particles = this.programs.get(s.scene.id).particles;
     if (particles?.uniforms) {
       const gl = this.gl;
