@@ -35,7 +35,13 @@ test(
           },
           server.url,
         );
-        for (const sceneId of ["hilbert", "mandelbrot", "voronoi"]) {
+        for (const sceneId of [
+          "hilbert",
+          "mandelbrot",
+          "voronoi",
+          "cathedral",
+          "fourspace",
+        ]) {
           const health = await page.evaluate(renderLook, {
             sceneId,
             index: 0,

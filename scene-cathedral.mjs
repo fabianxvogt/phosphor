@@ -196,6 +196,12 @@ const fragment = `
 const int RAY_CAP = 96;
 const int GENERATION_CAP = 4;
 float crystalTurn;
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+mat2 crystalRotation;
+vec4 crystalBranches[4];
+mat2 crystalBranchRotations[4];
+#endif
 
 float boxSDF(vec3 p, vec3 b) {
   vec3 q = abs(p) - b;
@@ -238,7 +244,11 @@ vec2 familySDF(vec3 p, float family) {
     // A free-standing reliquary and orbiting facet clusters, not another aisle.
     vec3 c = p - vec3(0., .5, 0.);
     float turn = crystalTurn;
+#ifdef PRECOMPUTED
+    c.xz = crystalRotation * c.xz;
+#else
     c.xz = rot2(turn) * c.xz;
+#endif
     c.xy = rot2(.35) * c.xy;
     // Peak opens real axial apertures through the main relic, not a tint or
     // engraving change on the same opaque silhouette.
@@ -248,10 +258,19 @@ vec2 familySDF(vec3 p, float family) {
     for (int i = 0; i < GENERATION_CAP; ++i) {
       if (float(i) >= generations) break;
       float k = float(i), angle = k * 2.4 + turn * .7;
+#ifdef PRECOMPUTED
+      vec3 center = crystalBranches[i].xyz;
+#else
       vec3 center = vec3(2.15 * cos(angle), .8 * sin(angle * 1.7), 1.4 * sin(angle));
+#endif
       vec3 branch = c - center;
+#ifdef PRECOMPUTED
+      branch.yz = crystalBranchRotations[i] * branch.yz;
+      float radius = crystalBranches[i].w;
+#else
       branch.yz = rot2(angle) * branch.yz;
       float radius = (.75 - .09 * k) * clamp(generations - k, 0., 1.);
+#endif
       result = nearer(result, vec2(crystalSDF(branch, radius), 2.));
     }
     // Wide walls reveal a faceted chamber instead of empty lateral margins.
@@ -363,6 +382,13 @@ vec3 glassPalette(float t, float material) {
   return mix(color, shared, .78);
 }
 void main() {
+#ifdef PRECOMPUTED
+  crystalRotation = mat2(texelFetch(u_precomputed, ivec2(0, 0), 0));
+  for (int i = 0; i < 4; i++) {
+    crystalBranches[i] = texelFetch(u_precomputed, ivec2(i + 1, 0), 0);
+    crystalBranchRotations[i] = mat2(texelFetch(u_precomputed, ivec2(i + 5, 0), 0));
+  }
+#endif
   float bay = bayLength();
   float level = clamp(u_level, 0., 1.);
   // D61 envelopes are attack/release smoothed and fade out with beat lock.
@@ -503,6 +529,23 @@ void main() {
 }
 `;
 
+const precompute = `
+void main() {
+  vec2 state = fract(unpack16(texture(u_state, vec2(.25, .5))) +
+    (unpack16(texture(u_state, vec2(.75, .5))) - .5) / 65535.);
+  float turn = state.y * TAU * 100.;
+  int i = int(gl_FragCoord.x);
+  if (i == 0) { mat2 r = rot2(turn); outColor = vec4(r[0], r[1]); return; }
+  float k = float((i - 1) % 4), angle = k * 2.4 + turn * .7;
+  if (i < 5) {
+    vec3 center = vec3(2.15 * cos(angle), .8 * sin(angle * 1.7), 1.4 * sin(angle));
+    float generations = clamp(u_params[1], 1., 4.);
+    float radius = (.75 - .09 * k) * clamp(generations - k, 0., 1.);
+    outColor = vec4(center, radius);
+  } else { mat2 r = rot2(angle); outColor = vec4(r[0], r[1]); }
+}
+`;
+
 export default {
   rhythm: [
     familyEffect("architecture-bays", 0, "Architectural light", "Light successive nave bays, folds or reliquary facets rather than the whole camera.", { strength: 0.75, duration: 0.65 }),
@@ -526,5 +569,6 @@ export default {
   schema,
   presets,
   fragment,
+  precompute: { fragment: precompute, size: [9, 1] },
   simulation: { fragment: simulation, size: [2, 1], steps: 1 },
 };

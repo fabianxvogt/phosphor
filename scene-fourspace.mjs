@@ -50,7 +50,29 @@ export const FOURSPACE_EDGES = [0, 1, 2, 3].map(shape => {
   return edges;
 });
 
-const fragment = `
+// The data pass and float-target fallback share the original projection math.
+const projection = `  int shape = int(floor(u_params[0] + 0.5));
+  float spin = u_params[1], tumble = u_params[2], fold = u_params[3];
+  float size = u_params[4], weight = u_params[5], glow = u_params[6], tint = u_params[7];
+  int count = shape == 0 ? 16 : shape == 1 ? 8 : shape == 2 ? 24 : 36;
+  float t = u_time;
+  float phase = fract(u_seed * 0.0093) * 6.2831853;
+  mat2 xw = rot2(t * spin * 0.5 + phase + u_rhythm.y * 0.24), yz = rot2(t * spin * 0.31), zw = rot2(t * spin * 0.23 + 1.0);
+  mat2 xz = rot2(t * tumble * 0.4 + 0.6), xy = rot2(t * tumble * 0.27);
+
+  vec3 P[VERTEX_CAP];
+  for (int i = 0; i < VERTEX_CAP; ++i) {
+    if (i >= count) break;
+    vec4 v = fdVertex(shape, i);
+    v.xw = xw * v.xw; v.yz = yz * v.yz; v.zw = zw * v.zw;
+    // 4D → 3D perspective, then a gentle 3D tumble and 3D → 2D perspective.
+    vec3 q = v.xyz / (fold - v.w);
+    q.xz = xz * q.xz; q.xy = xy * q.xy;
+    float z = 3.2 - q.z;
+    P[i] = vec3(q.xy / z * 2.2 * size, v.w);
+  }
+`;
+const geometry = `
 const int VERTEX_CAP = 36;
 
 vec4 fdVertex(int shape, int i) {
@@ -83,54 +105,86 @@ vec4 fdVertex(int shape, int i) {
   return vec4(cos(u), sin(u), cos(w), sin(w)) * 1.2;
 }
 
+`;
+// Row 0: projected vertices; row 1: edge palette/depth; row 2: endpoints.
+// Every edge retains its original order, infinite halo and distance arithmetic.
+const precompute = geometry + `
+void main() {
+${projection}
+  ivec2 cell = ivec2(gl_FragCoord.xy);
+  if (cell.y == 0) { outColor = cell.x < count ? vec4(P[cell.x], 1.0) : vec4(0.0); return; }
+  vec3 a, b;
+  ${FOURSPACE_EDGES.map((edges, shape) => `
+  ${shape ? 'else ' : ''}if (shape == ${shape}) {
+    ${edges.map(([i,j], k) => `${k?'else ':''}if (cell.x == ${k}) { a=P[${i}]; b=P[${j}]; }`).join('\n    ')}
+    else { outColor = vec4(0.0); return; }
+  }`).join('\n')}
+  float depth = 0.5 + 0.25 * (a.z + b.z);
+  vec3 ink = palette(fract(mix(0.35, depth * 0.8, tint)));
+  outColor = cell.y == 1 ? vec4(ink, depth) : vec4(a.xy, b.xy);
+}
+`;
+const fragment = geometry + `
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+#endif
 float fdSegment(vec2 p, vec2 a, vec2 b) {
   vec2 pa = p - a, ba = b - a;
   float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
   return length(pa - ba * h);
 }
 
-vec3 fdEdge(vec2 p, vec3 a, vec3 b, float weight, float glow, float tint, float aa) {
+vec3 fdEdge(vec2 p, vec3 a, vec3 b, float weight, float glow, float tint, float aa, int edge) {
   float d = fdSegment(p, a.xy, b.xy);
+#ifdef PRECOMPUTED
+  vec4 style = texelFetch(u_precomputed, ivec2(edge, 1), 0);
+  float depth = style.a;
+#else
   float depth = 0.5 + 0.25 * (a.z + b.z);
+#endif
   float core = 1.0 - smoothstep(weight - aa, weight + aa, d);
   float halo = glow * 0.004 / (d * d * 40.0 + 0.004);
+#ifdef PRECOMPUTED
+  vec3 ink = style.rgb;
+#else
   vec3 ink = palette(fract(mix(0.35, depth * 0.8, tint)));
+#endif
   return ink * (core + halo * 0.12) * (0.55 + 0.45 * depth);
 }
 
 void main() {
+#ifndef PRECOMPUTED
+${projection}
+#else
   int shape = int(floor(u_params[0] + 0.5));
-  float spin = u_params[1], tumble = u_params[2], fold = u_params[3];
-  float size = u_params[4], weight = u_params[5], glow = u_params[6], tint = u_params[7];
   int count = shape == 0 ? 16 : shape == 1 ? 8 : shape == 2 ? 24 : 36;
-  float t = u_time;
-  float phase = fract(u_seed * 0.0093) * 6.2831853;
-  mat2 xw = rot2(t * spin * 0.5 + phase + u_rhythm.y * 0.24), yz = rot2(t * spin * 0.31), zw = rot2(t * spin * 0.23 + 1.0);
-  mat2 xz = rot2(t * tumble * 0.4 + 0.6), xy = rot2(t * tumble * 0.27);
-
-  vec3 P[VERTEX_CAP];
-  for (int i = 0; i < VERTEX_CAP; ++i) {
-    if (i >= count) break;
-    vec4 v = fdVertex(shape, i);
-    v.xw = xw * v.xw; v.yz = yz * v.yz; v.zw = zw * v.zw;
-    // 4D → 3D perspective, then a gentle 3D tumble and 3D → 2D perspective.
-    vec3 q = v.xyz / (fold - v.w);
-    q.xz = xz * q.xz; q.xy = xy * q.xy;
-    float z = 3.2 - q.z;
-    P[i] = vec3(q.xy / z * 2.2 * size, v.w);
-  }
+  float weight = u_params[5], glow = u_params[6], tint = u_params[7];
+#endif
   vec2 p = aspectUV();
   float aa = fwidth(p.x) * 1.5;
   vec3 col = vec3(0.0);
+#ifdef PRECOMPUTED
+  int edges = ${FOURSPACE_EDGES.map((edges, shape) => shape < 3 ? `shape == ${shape} ? ${edges.length} : ` : edges.length).join('')};
+  for (int edge = 0; edge < 96; ++edge) {
+    if (edge >= edges) break;
+    vec4 points = texelFetch(u_precomputed, ivec2(edge, 2), 0);
+    col = max(col, fdEdge(p, vec3(points.xy, 0.0), vec3(points.zw, 0.0), weight, glow, tint, aa, edge));
+  }
+#else
   ${FOURSPACE_EDGES.map((edges, shape) => `
   ${shape ? "else " : ""}if (shape == ${shape}) {
-    ${edges.map(([i, j]) => `col = max(col, fdEdge(p, P[${i}], P[${j}], weight, glow, tint, aa));`).join("\n    ")}
+    ${edges.map(([i, j], edge) => `col = max(col, fdEdge(p, P[${i}], P[${j}], weight, glow, tint, aa, ${edge}));`).join("\n    ")}
   }`).join("\n")}
+#endif
   // Vertices glint brightest on the kick.
   float kick = u_rhythmEnabled ? u_rhythm.x : exp(-fract(u_beat) * 6.0);
   for (int i = 0; i < VERTEX_CAP; ++i) {
     if (i >= count) break;
+#ifdef PRECOMPUTED
+    float d = length(p - texelFetch(u_precomputed, ivec2(i, 0), 0).xy);
+#else
     float d = length(p - P[i].xy);
+#endif
     col += u_accent * (1.0 - smoothstep(weight * 1.6, weight * 2.6 + aa, d)) * (0.4 + (mod(float(i) - u_rhythmCount.x, 4.0) < 1.0 ? 1.5 : 0.0) * kick * u_level);
   }
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
@@ -155,4 +209,5 @@ export default {
   schema,
   presets,
   fragment,
+  precompute: { fragment: precompute, size: [96, 3] },
 };

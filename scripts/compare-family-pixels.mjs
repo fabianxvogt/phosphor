@@ -21,6 +21,8 @@ const args = options({
   look: { type: "string" },
   impulse: { type: "string" },
   frames: { type: "string", default: "30" },
+  params: { type: "string" },
+  seed: { type: "string" },
   "refinement-count": { type: "string" },
   refinement: { type: "string" },
 });
@@ -29,6 +31,23 @@ if (!Number.isInteger(Number(args.frames)) || Number(args.frames) < 1)
 for (const key of ["refinement-count", "refinement"])
   if (args[key] !== undefined && !Number.isFinite(Number(args[key])))
     throw new Error(`${key} must be finite`);
+const params = args.params === undefined ? null : JSON.parse(args.params);
+if (
+  params !== null &&
+  (Array.isArray(params) ||
+    typeof params !== "object" ||
+    Object.values(params).some(
+      (value) => typeof value !== "number" || !Number.isFinite(value),
+    ))
+)
+  throw new Error("params must be an object of finite numeric overrides");
+if (
+  args.seed !== undefined &&
+  (!Number.isInteger(Number(args.seed)) ||
+    Number(args.seed) < 0 ||
+    Number(args.seed) > 0xffffffff)
+)
+  throw new Error("seed must be an unsigned 32-bit integer");
 const out = await outputDirectory("performance/pixels", args.out);
 const reference = execFileSync(
   "git",
@@ -101,13 +120,25 @@ try {
   );
   const old = baseline.page;
   const looks = await current.page.evaluate(
-    (families) =>
+    ({ families, params, seed }) =>
       window.__phosphorLab.scenes
         .filter((s) => families.includes(s.id))
         .flatMap((s) =>
-          s.presets.map((p, index) => ({ sceneId: s.id, index, name: p.name })),
+          s.presets.map((p, index) => {
+            const look = { sceneId: s.id, index, name: p.name };
+            if (params !== null || seed !== undefined) {
+              const snapshot = window.__phosphorLab.presetSnapshot(s, index);
+              for (const key of Object.keys(params ?? {}))
+                if (!s.schema.some((def) => def.key === key))
+                  throw new Error(`Unknown ${s.id} parameter: ${key}`);
+              Object.assign(snapshot.params, params);
+              if (seed !== undefined) snapshot.seed = Number(seed);
+              look.snapshot = snapshot;
+            }
+            return look;
+          }),
         ),
-    families,
+    { families, params, seed: args.seed },
   );
   for (const look of looks.filter(
     (look) => args.look === undefined || look.index === Number(args.look),

@@ -1,144 +1,146 @@
 # Family performance measurements — 12 October 2026
 
-**INCREMENTAL / EMPIRICAL.** Third performance pass, compared with `65b5a67`. All **39 renderers / 178 declared variants** were measured again at 4K, followed by a complete 1080p sweep. The final shared runtime includes the localization work at `e918a18`; baseline and optimized runs use that same engine and harness. Earlier isolated experiments used `65b5a67` and are recorded separately.
+**INCREMENTAL / EMPIRICAL.** Fourth performance pass, compared with scene shaders at `074d8b4`. All **39 renderers / 178 declared variants** were measured again at 4K and 1080p. Both versions use the same fixed runtime at `675d977` plus the scoped changes. The [third-pass report](https://github.com/fabianxvogt/phosphor/blob/074d8b4/docs/families/PERFORMANCE.md) preserves the earlier measurements.
 
-Hardware: ANGLE Metal on Apple M3 Pro, Chrome 155.0.8059.39. Each variant uses the median of 20 synchronously completed frames after warm-up, at energy 0.95 and full physical output resolution. Post-processing is included. A one-pixel read forces GPU completion; asynchronous flash approval is disabled. These are local throughput measurements, **not display cadence or venue acceptance**. GPU/system load varies, including for unchanged families.
+Hardware: ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version), Chrome 155.0.8059.39. Each full-sweep variant uses the median of 20 synchronously completed frames after warm-up, energy 0.95 and full physical output resolution. Simulation and post-processing are included. A one-pixel read forces GPU completion; asynchronous flash approval is disabled. These are local throughput measurements, **not display cadence or venue acceptance**. GPU/system load varies; the alternating comparisons below better separate the retained changes from sequential load drift.
 
-## Changes
+## Retained changes
 
-- **Mandelbrot:** decode the existing reference-orbit bytes once per frame into a tiny RGBA32F texture. Every pixel reads the same float32 values with one fetch instead of two fetches and byte decoding per iteration. All five sets retain their reference orbits, iteration budgets, derivatives, supersampling and history.
-- **Space-filling Curves:** cache exact integer forward/inverse maps for the active and parent orders. The picture shader retains the original gliding coordinates, segment order and distance arithmetic. Cached floating coordinates changed near-tie winners in an experiment and were rejected.
-- **Voronoi:** calculate the power-diagram site radii once per frame. The Lloyd simulation, site count, score metric, weight rings and borders remain intact.
-- The optional GPU data pass refreshes on every visual draw, including paused edits, and follows slot cleanup/context recovery. GPUs without float render targets retain the original shaders. The picture still shades every output pixel; these data grids are not reduced-resolution pictures.
+- **Cathedral:** calculate the crystal rotation, branch centers, radii and branch rotations once per visual draw in a 9×1 RGBA32F data texture. It decodes the original packed simulation state and uses the original formulas. Ray steps, normals, ambient occlusion and geometry are unchanged. The measurable gain is concentrated in the crystal look.
+- **Flight:** stop the recursive cross search when its current minimum is already at or below the lower bound of every remaining level. The first material winner is retained on ties. No ray budget or fractal detail is reduced.
+- **Fourspace:** cache projected vertices, edge endpoints, palette colors and depths in a 96×3 RGBA32F data texture. A compact ordered loop replaces the large unrolled edge shader. All 32/24/96/72 edges, infinite halos and vertex glints retain their original distance and composition arithmetic.
+- The data textures refresh during paused edits, follow slot disposal/context recovery and retain the original no-float-target shader fallback. Every output pixel is shaded at native resolution. Simulation sizes, presets and visual controls are unchanged.
 
-Fourspace projection/unrolling/bounds/vertex-stage experiments were slower or inconclusive. Cathedral and Flight ray-arithmetic experiments did not retain a measurable gain in the repeat run. Those renderers are unchanged by this pass.
+## Alternating 4K confirmation
 
-## All families
-
-The table reports the slowest declared variant within each family.
-
-At 4K, variants above 16.67 ms: **73 → 53**; above 33.34 ms: **33 → 13**. At 1080p, **176/178** variant medians are below 16.67 ms. Count changes include load variation in unchanged families and must not all be attributed to these edits.
-
-| Family | Before, 4K ms | After, 4K ms | After, 1080p ms |
-| --- | ---: | ---: | ---: |
-| Acid Mycelium | 11.5 | 13.0 | 3.5 |
-| Magnetic Choir | 10.6 | 11.5 | 3.1 |
-| Cathedrals of Error | 79.3 | 88.0 | 17.7 |
-| Alien Aquarium | 9.7 | 12.5 | 3.5 |
-| Causal Tapestry | 11.6 | 13.8 | 2.9 |
-| Feedback Chapel | 10.1 | 12.1 | 3.0 |
-| Interference Rituals | 16.2 | 18.4 | 3.8 |
-| Topological Melt | 12.5 | 15.6 | 3.4 |
-| Phase Transition Theatre | 11.9 | 13.5 | 3.7 |
-| Evolution Garden | 11.4 | 14.6 | 3.0 |
-| Pulse Geometry | 10.1 | 11.9 | 2.9 |
-| Fractal Flight | 55.2 | 72.8 | 13.0 |
-| Light Beams | 21.5 | 18.5 | 6.0 |
-| Julia Observatory | 23.6 | 18.6 | 5.7 |
-| Fourth Dimension | 66.3 | 62.9 | 15.7 |
-| Hyperbolic Loom | 9.4 | 10.2 | 2.9 |
-| Particle Swarm | 17.3 | 13.8 | 8.8 |
-| Game of Life | 20.3 | 18.9 | 5.3 |
-| Strange Attractors | 12.3 | 7.8 | 4.0 |
-| Mandelbrot Dive | 81.4 | 37.0 | 13.0 |
-| Abelian Sandpile | 14.9 | 7.9 | 4.4 |
-| Newton Basins | 31.3 | 20.0 | 5.9 |
-| Fractal Flames | 12.7 | 7.8 | 3.2 |
-| Aperiodic Tilings | 77.3 | 48.1 | 17.7 |
-| Voronoi Cells | 56.6 | 42.1 | 13.7 |
-| Ripple Tank | 13.0 | 9.2 | 3.3 |
-| Langton's Ant | 20.9 | 14.3 | 7.8 |
-| Indra's Pearls | 11.4 | 7.6 | 2.6 |
-| Harmonograph | 12.6 | 9.3 | 4.3 |
-| Wallpaper Groups | 45.6 | 32.7 | 9.0 |
-| Truchet Tiles | 20.1 | 13.4 | 4.2 |
-| Space-filling Curves | 58.3 | 17.5 | 5.0 |
-| Phyllotaxis | 12.0 | 8.5 | 3.5 |
-| Hopf Fibration | 11.8 | 8.4 | 3.4 |
-| Chladni Figures | 17.1 | 11.3 | 4.3 |
-| Domain Colouring | 21.7 | 14.4 | 4.1 |
-| Physarum Networks | 12.8 | 8.1 | 3.3 |
-| Geometric Caustics | 13.8 | 8.0 | 3.3 |
-| Space Colonization | 12.6 | 8.0 | 3.3 |
-
-## Changed variants
-
-These are the same 20-frame full-sweep medians, with the representative authored look used for each declared variant.
-
-| Family / look | Before, 4K ms | After, 4K ms | Change |
-| --- | ---: | ---: | ---: |
-| Mandelbrot Dive / Seahorse Valley | 71.8 | 31.6 | -56% |
-| Mandelbrot Dive / Burning Armada | 77.7 | 37.0 | -52% |
-| Mandelbrot Dive / Tricorn Nursery | 81.4 | 36.4 | -55% |
-| Mandelbrot Dive / Cubic Bloom | 53.3 | 26.0 | -51% |
-| Mandelbrot Dive / Celtic Braid | 54.6 | 26.5 | -51% |
-| Space-filling Curves / Hilbert Refinement | 50.2 | 14.1 | -72% |
-| Space-filling Curves / Moore Loop | 58.3 | 16.6 | -72% |
-| Space-filling Curves / Peano Weave | 38.6 | 17.5 | -55% |
-| Space-filling Curves / Locality Blocks | 52.8 | 14.1 | -73% |
-| Voronoi Cells / Honeycomb Relax | 37.9 | 24.6 | -35% |
-| Voronoi Cells / Metric Morph | 37.8 | 23.9 | -37% |
-| Voronoi Cells / Power Bubbles | 43.0 | 20.5 | -52% |
-| Voronoi Cells / Delaunay Net | 56.6 | 42.1 | -26% |
-
-The full table above includes the final Voronoi adjustment that leaves non-power site reads unchanged. The improvements shown for those unchanged variants illustrate why the full-sweep percentages are not reliable estimates of optimization gains.
-
-## Targeted confirmation
-
-A separate 40-frame completed-frame repeat, running each family's baseline and optimized version consecutively, measured:
-
-| Family / look | Before, 4K ms | After, 4K ms |
-| --- | ---: | ---: |
-| Space-filling Curves / Hilbert Refinement | 28.6 | 12.8 |
-| Space-filling Curves / Moore Loop | 35.5 | 14.4 |
-| Space-filling Curves / Peano Weave | 23.1 | 13.3 |
-| Space-filling Curves / Locality Blocks | 30.1 | 11.6 |
-| Mandelbrot Dive / Seahorse Valley | 56.2 | 36.2 |
-| Mandelbrot Dive / Burning Armada | 74.8 | 37.6 |
-| Mandelbrot Dive / Tricorn Nursery | 56.7 | 39.6 |
-| Mandelbrot Dive / Cubic Bloom | 35.5 | 27.7 |
-| Mandelbrot Dive / Celtic Braid | 34.7 | 27.5 |
-| Voronoi Cells / Honeycomb Relax | 26.4 | 30.9 |
-| Voronoi Cells / Metric Morph | 25.5 | 32.1 |
-| Voronoi Cells / Power Bubbles | 29.4 | 28.3 |
-| Voronoi Cells / Delaunay Net | 38.4 | 50.4 |
-
-Curves and Mandelbrot improved again. Voronoi's unchanged variants slowed by 17–31%, while the optimized power variant improved by only 4% in this sequential run. An earlier isolated repeat found Mandelbrot improvements of 20–31% across all five variants. Initial apparent Cathedral/Flight ray-loop gains disappeared on repetition and were discarded.
-
-To reduce sequential load drift, a final probe alternated baseline/optimized draw order in one browser and engine, using identical simulation state, uniforms and input picture history within each pair. Forty samples per version at 4K measured **draw plus post-processing only**, including the new data pass but excluding simulation advancement. These absolute times are not comparable to the completed-frame sweeps above.
+One browser/engine alternates baseline and optimized draw order with identical simulation state, uniforms and input picture history within each pair. Forty samples per version measure **draw plus post-processing**, including the data pass but **excluding simulation advancement**. These absolute values are not comparable to completed-frame values in the next section.
 
 | Representative look | Before, draw + post ms | After, draw + post ms | Less time |
 | --- | ---: | ---: | ---: |
-| Moore Loop | 47.8 | 18.7 | 61% |
-| Tricorn Nursery | 68.2 | 50.7 | 26% |
-| Power Bubbles | 40.2 | 26.7 | 34% |
+| Prismatic Nave | 35.5 | 35.3 | 1% |
+| Opal Reliquary | 52.7 | 49.6 | 6% |
+| Midnight Rose | 25.5 | 24.4 | 4% |
+| Enamel Glide | 47.2 | 46.2 | 2% |
+| Long Corridor | 30.6 | 27.5 | 10% |
+| Corkscrew | 46.3 | 40.2 | 13% |
+| Mine Shaft | 28.6 | 26.0 | 9% |
+| Narrows | 26.8 | 25.9 | 3% |
+| Turning Tesseract | 23.5 | 16.2 | 31% |
+| Sixteen Cell | 26.7 | 13.0 | 51% |
+| Twenty-four Cell | 53.9 | 31.6 | 41% |
+| Duoprism Torus | 50.8 | 25.3 | 50% |
 
-All three retained a gain with alternating order. This remains a short local experiment under variable GPU load, not a guarantee for every look, zoom or show condition. Its source and raw samples are retained locally as `artifacts/performance/round3-paired.mjs` and `round3-paired.json`.
+Dense Fourspace improved by **41–50%**, Flight by **3–13%** across its paths, and Cathedral's crystal look by **6%**. Small differences in unchanged Cathedral paths are measurement noise, not evidence of broader Cathedral acceleration. An earlier alternating run also measured the crystal look at 76.0 → 68.6 ms and the two dense Fourspace shapes at 65.5 → 37.1 and 65.9 → 31.7 ms under heavier load.
+
+The unchanged tilings serve as a control in the same final probe:
+
+| Unchanged look | Before, draw + post ms | After, draw + post ms |
+| --- | ---: | ---: |
+| Penrose Rhombs | 21.1 | 21.1 |
+| Ammann–Beenker | 13.1 | 13.6 |
+| Heptagonal Lace | 50.9 | 50.6 |
+| Dodecagonal Star | 34.3 | 33.7 |
+
+## All families
+
+The table reports each family's slowest declared variant. At 4K, variants above 16.67 ms were **29 → 27**, and above 33.34 ms **6 → 5**. All **178/178** optimized 1080p medians were below 16.67 ms. These count changes include system-load variation in unchanged families and must not all be attributed to the edits.
+
+| Family | Before, 4K ms | After, 4K ms | After, 1080p ms |
+| --- | ---: | ---: | ---: |
+| Acid Mycelium | 6.0 | 5.6 | 2.1 |
+| Magnetic Choir | 5.9 | 5.5 | 1.8 |
+| Cathedrals of Error | 51.3 | 48.9 | 11.2 |
+| Alien Aquarium | 5.5 | 5.3 | 1.8 |
+| Causal Tapestry | 6.0 | 6.5 | 2.0 |
+| Feedback Chapel | 5.5 | 6.5 | 1.9 |
+| Interference Rituals | 16.5 | 10.3 | 2.4 |
+| Topological Melt | 6.7 | 7.3 | 2.1 |
+| Phase Transition Theatre | 9.0 | 7.1 | 2.0 |
+| Evolution Garden | 7.4 | 6.8 | 2.0 |
+| Pulse Geometry | 5.2 | 5.5 | 1.6 |
+| Fractal Flight | 42.0 | 38.4 | 8.0 |
+| Light Beams | 12.6 | 14.3 | 3.0 |
+| Julia Observatory | 13.3 | 14.0 | 3.3 |
+| Fourth Dimension | 45.3 | 25.0 | 6.1 |
+| Hyperbolic Loom | 4.7 | 4.7 | 1.7 |
+| Particle Swarm | 9.0 | 9.8 | 5.7 |
+| Game of Life | 11.9 | 12.1 | 3.2 |
+| Strange Attractors | 7.6 | 6.1 | 2.2 |
+| Mandelbrot Dive | 30.2 | 31.7 | 7.7 |
+| Abelian Sandpile | 5.9 | 5.8 | 2.5 |
+| Newton Basins | 15.8 | 15.4 | 4.1 |
+| Fractal Flames | 5.7 | 5.9 | 2.0 |
+| Aperiodic Tilings | 45.2 | 40.4 | 9.9 |
+| Voronoi Cells | 28.5 | 29.3 | 7.8 |
+| Ripple Tank | 6.1 | 5.9 | 1.9 |
+| Langton's Ant | 11.5 | 8.9 | 8.4 |
+| Indra's Pearls | 4.9 | 4.8 | 2.4 |
+| Harmonograph | 5.2 | 5.2 | 2.8 |
+| Wallpaper Groups | 23.3 | 22.7 | 9.2 |
+| Truchet Tiles | 9.2 | 9.0 | 4.9 |
+| Space-filling Curves | 10.9 | 11.5 | 5.6 |
+| Phyllotaxis | 5.1 | 5.6 | 3.0 |
+| Hopf Fibration | 5.2 | 5.4 | 2.8 |
+| Chladni Figures | 6.9 | 6.9 | 3.6 |
+| Domain Colouring | 9.7 | 10.7 | 4.0 |
+| Physarum Networks | 5.5 | 5.8 | 2.9 |
+| Geometric Caustics | 5.6 | 5.7 | 2.6 |
+| Space Colonization | 5.3 | 6.0 | 2.7 |
+
+These are the changed families' representative looks from that same whole-frame sweep:
+
+| Look | Before, 4K ms | After, 4K ms |
+| --- | ---: | ---: |
+| Prismatic Nave | 32.9 | 33.6 |
+| Opal Reliquary | 51.3 | 48.9 |
+| Midnight Rose | 23.1 | 22.9 |
+| Enamel Glide | 44.0 | 39.7 |
+| Long Corridor | 25.0 | 24.6 |
+| Corkscrew | 42.0 | 38.4 |
+| Mine Shaft | 22.2 | 24.9 |
+| Narrows | 24.4 | 22.1 |
+| Turning Tesseract | 18.7 | 12.9 |
+| Sixteen Cell | 19.6 | 9.6 |
+| Twenty-four Cell | 43.9 | 25.0 |
+| Duoprism Torus | 45.3 | 21.7 |
 
 ## Quality and lifecycle checks
 
-- **329 strict before/after image comparisons passed**, maximum channel difference 1/255. This includes 270 frames across all 30 changed looks, three energies and three show times (0.5, 123.4 and 43,200 seconds); 54 additional parent/child refinement comparisons; two Mandelbrot captures after 1,800 advancing frames; and one full 3840×2160 capture for each changed family. Hilbert and Mandelbrot were pixel-identical in all their comparisons. Representative final captures were visually inspected.
-- The new native GPU test checked **62,770 cached curve cells** against independent CPU maps (both directions and parent orders), **2,560 orbit components** against the original byte decoding, paused refresh without a simulation tick, missing-float-extension fallback, context restoration and exact texture accounting/disposal.
-- The existing exhaustive GPU integer-map probe passed **110,113 cells / 18 kind-order combinations**.
-- All **328 authored looks** rendered; every family passed energy extremes, 32:9/square/portrait output and fade cleanup; all 24 simulation preparation/held-transition contracts passed. No GPU or non-finite errors occurred in the complete timing sweeps.
-- **510 unit/browser-harness tests passed, 12 optional tests skipped**; the new native GPU test passed separately. Typecheck, formatting, build and distribution checks passed (100 reachable assets). Independent code review found no actionable issues.
+- **199 strict before/after image comparisons passed**: 181 captures of the changed renderers and 18 controls for the preserved tilings. Maximum channel difference was **2/255**, reached only by the 4K Opal Reliquary capture; every other comparison was at most 1/255. The two-step per-channel gate was not relaxed. The Cathedral 4K mean absolute channel difference was 0.000052/255.
+- Coverage includes all 19 changed authored looks at three energies; Fourspace at 0.5, 123.4 and 3599.75 seconds; Cathedral/Flight after 1, 120 and 600 advancing frames; Fourspace rhythm impulses; extreme tiling scale/phason/drift/seed on 32:9; and six full 3840×2160 comparisons. Representative final before/after images were visually inspected.
+- The native Flight probe continued the complete search after the proposed early stop at **25,165,824 sample points / 384 cases**. Neither the minimum nor the first material winner changed, including fractional recursion levels, all four paths, three openings and four depth slices.
+- The native data-cache test covered all five cached families, exact agreement for **62,770 curve-map cells** and **2,560 orbit components**, paused refresh, missing-float-extension fallback, context restoration and texture accounting/disposal.
+- All **328 authored looks** rendered. Every family passed energy extremes, 32:9/square/portrait output and fade cleanup; all **24 simulation preparation/held-transition contracts** passed. All three complete timing sweeps and the alternating probe reported no GPU, non-finite or page errors.
+- **530 tests passed, 12 optional tests skipped**; the native cache test ran separately. Typecheck, formatting, build and distribution verification passed. Independent final code review found no actionable issues.
 
-These are sampled visual comparisons and exact finite-domain data checks, not a proof over every input or driver. Full-resolution external-display cadence, crossfades under timing load and long venue soaks remain separate rig checks. Dense Fourspace, Cathedral, Flight, Mandelbrot and heptagonal tilings still need attention at 4K; no geometry, ray-step, iteration, simulation-size or output-resolution cuts were used to meet a timing target.
+These are sampled visual comparisons and finite-domain GPU checks, not a proof across every input or driver. Cathedral, Flight and the slow tilings still exceed the 60 Hz throughput budget at 4K. External-display cadence, crossfade timing and full-night operation remain separate rig checks.
+
+## Rejected experiments and remaining tiling work
+
+The spatial Quasicrystal cache initially saved 28–32% draw/post time, but did **not** clear the final image gate. Review found that phason flips could produce rounded, overlapping rhombi away from edges; a containment check alone could choose a different first hit. A grid-clearance guard fixed that reproduction, but a later Phason Storm frame at 3599.75 seconds still differed by 75/255 at four post-processed pixels. Filling the cache entirely with rejected candidates preserved that failure, implicating compilation changes in the original fallback near a tile boundary. Larger edge margins, separated helpers and an experimental separate resolve pass did not establish equivalence. All tiling/engine prototype changes were discarded. The shipped tiling shader is byte-for-byte unchanged from the baseline.
+
+A Wallpaper coefficient cache improved timing but failed strict images (up to 65/255), so it was also discarded. Cathedral/Flight specialization, Cathedral box bounds and an unrolled Fourspace cache were rejected for image differences or inconsistent/slower timings. None of these experiments contributes to the shipped gain claims.
+
+Next: retain the slow tilings' exact candidate order and fallback arithmetic in any replacement, and test both phason degeneracies and late wrapped-time boundary cases before judging timing. Continue profiling Cathedral's other geometries and Flight's corkscrew without cutting ray budgets.
 
 ## Reproduce
 
 ```sh
-node scripts/profile-families.mjs --reference 65b5a67 --types --frames 20 --width 3840 --height 2160 --out artifacts/performance/before
-node scripts/profile-families.mjs --types --frames 20 --width 3840 --height 2160 --out artifacts/performance/after
-node scripts/profile-families.mjs --types --frames 20 --width 1920 --height 1080 --out artifacts/performance/after-1080
-node scripts/profile-families.mjs --reference 65b5a67 --families hilbert --types --frames 40 --width 3840 --height 2160 --out artifacts/performance/confirm-before
-node scripts/profile-families.mjs --families hilbert --types --frames 40 --width 3840 --height 2160 --out artifacts/performance/confirm-after
-node scripts/compare-family-pixels.mjs --reference 65b5a67 --families hilbert,mandelbrot,voronoi --times 0.5,123.4,43200
-node scripts/compare-family-pixels.mjs --reference 65b5a67 --families hilbert --refinement-count 5 --refinement 0.5
-node scripts/compare-family-pixels.mjs --reference 65b5a67 --families mandelbrot --look 5 --levels 0.95 --frames 1800
+node scripts/profile-families.mjs --reference 074d8b4 --types --frames 20 --width 3840 --height 2160 --out artifacts/performance/before-4k
+node scripts/profile-families.mjs --types --frames 20 --width 3840 --height 2160 --out artifacts/performance/after-4k
+node scripts/profile-families.mjs --types --frames 20 --out artifacts/performance/after-1080
+node scripts/compare-family-pixels.mjs --reference 074d8b4 --families cathedral,flight --frames 600
+node scripts/compare-family-pixels.mjs --reference 074d8b4 --families fourspace --frames 4 --times 0.5,123.4,3599.75
+node scripts/check-flight-bounds.mjs
 PHOSPHOR_PRECOMPUTE_GPU=1 node --test tests/browser/precompute.test.mjs
-node scripts/check-curve-maps.mjs
 node scripts/test-browser.mjs --native-gpu --only lab
 ```
 
-Run GPU probes sequentially. The profile command exits nonzero for variants beyond its frame budget as well as for rendering errors; inspect `profile.json` to distinguish them. Raw reports, captures and logs are retained locally under `artifacts/performance/round3-*`; they are not published. Earlier experiments are under `round3-workspace/artifacts/performance/`. The [second-pass report](https://github.com/fabianxvogt/phosphor/blob/65b5a67/docs/families/PERFORMANCE.md) records the prior Melt, Peano and Quasicrystal work.
+Tiling precision regression inputs for future attempts:
+
+```sh
+node scripts/compare-family-pixels.mjs --reference 074d8b4 --families quasicrystal --look 1 --times 3599.75 --frames 4 --levels 0.5
+node scripts/compare-family-pixels.mjs --reference 074d8b4 --families quasicrystal --look 6 --params '{"scale":10,"phason":1,"drift":0,"spin":0}' --seed 997 --refinement 0 --times 23.47965,23.479658,23.47967,23.47968,23.47969
+```
+
+Run GPU checks sequentially. Full sweeps return a nonzero exit when a timing budget is exceeded as well as for rendering errors; inspect `profile.json` to distinguish them. Raw reports, captures, prototypes and the paired probe remain local under `artifacts/performance/round4-*`. The final snapshot's source hashes are in `round4-snapshot.json`; the repeatable orchestration is `round4-final-run.py` and the alternating probe is `round4-paired.mjs`. Bulk generated artifacts are not committed.

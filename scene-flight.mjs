@@ -190,6 +190,9 @@ float ffMap(vec3 p, out float trap) {
     float c = ffCross(q, w * clamp(levels - float(i), 0.0, 1.0)) / scale;
     if (c < holes) { holes = c; trap = float(i); }
     scale *= 3.0;
+    // Every later cross is at least -w / scale. It cannot replace this
+    // minimum (including its first-hit trap) once that bound is reached.
+    if (holes <= -w / scale) break;
   }
   // Twist stretches the distance field; bound its Jacobian over the step.
   return -holes / (twistBound + (twistBound > 1.0 ? PI * abs(holes) : 0.0));
