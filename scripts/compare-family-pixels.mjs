@@ -36,6 +36,14 @@ const sources = new Map(
     }),
   ]),
 );
+// Melt's sampled bounds and geometry must come from the same revision.
+if (families.includes("melt"))
+  sources.set(
+    "/melt-geometry.mjs",
+    execFileSync("git", ["show", `${reference}:melt-geometry.mjs`], {
+      encoding: "utf8",
+    }),
+  );
 const selectedScenes =
   families.map((id, i) => `import s${i} from '/scene-${id}.mjs';`).join("\n") +
   `\nexport default [${families.map((_, i) => `s${i}`).join(",")}];`;
@@ -100,6 +108,8 @@ try {
       for (const level of args.levels.split(",").map(Number)) {
         const captures = [];
         for (const page of [old, current.page]) {
+          // Keep asynchronous health readback polling on the foreground page.
+          await page.bringToFront();
           // Fresh engine: the same frame counter, post history and rhythm state.
           await page.reload();
           await page.waitForFunction(() => !!window.__phosphorLab);
@@ -110,6 +120,7 @@ try {
             height: Number(args.height),
             frames: 30,
             capture: false,
+            pollHealth: false,
           });
           assert.equal(health.glError, 0);
           assert.equal(health.nonFinite, 0);
@@ -129,10 +140,19 @@ try {
               canvas.height = engine.height;
               const ctx = canvas.getContext("2d");
               ctx.drawImage(engine.canvas, 0, 0);
+              const rgba = ctx.getImageData(
+                0,
+                0,
+                canvas.width,
+                canvas.height,
+              ).data;
+              // A byte string avoids serializing a million separate numbers
+              // through the browser protocol for each small comparison image.
+              let bytes = "";
+              for (let i = 0; i < rgba.length; i += 32768)
+                bytes += String.fromCharCode(...rgba.subarray(i, i + 32768));
               return {
-                rgba: Array.from(
-                  ctx.getImageData(0, 0, canvas.width, canvas.height).data,
-                ),
+                rgbaBase64: btoa(bytes),
                 png: canvas.toDataURL("image/png").split(",")[1],
                 width: canvas.width,
                 height: canvas.height,
@@ -148,13 +168,17 @@ try {
           assert.equal(image.glError, 0);
           assert.equal(image.nonFinite, 0);
           assert.deepEqual(image.errors, []);
-          captures.push(image);
+          captures.push({
+            ...image,
+            rgba: Buffer.from(image.rgbaBase64, "base64"),
+          });
         }
         const [before, after] = captures;
         let max = 0,
           sum = 0,
           changed = 0,
-          over2 = 0;
+          over2 = 0,
+          worstPixel = null;
         for (let i = 0; i < before.rgba.length; i += 4) {
           let pixel = 0;
           for (let c = 0; c < 3; c++) {
@@ -163,6 +187,14 @@ try {
             sum += d;
             pixel = Math.max(pixel, d);
           }
+          if (pixel > (worstPixel?.difference ?? 0))
+            worstPixel = {
+              x: (i / 4) % before.width,
+              y: Math.floor(i / 4 / before.width),
+              difference: pixel,
+              before: Array.from(before.rgba.subarray(i, i + 3)),
+              after: Array.from(after.rgba.subarray(i, i + 3)),
+            };
           if (pixel) changed++;
           if (pixel > 2) over2++;
         }
@@ -174,15 +206,16 @@ try {
           mean: sum / (before.width * before.height * 3),
           changedFraction: changed / (before.width * before.height),
           over2Fraction: over2 / (before.width * before.height),
+          ...(max > 2 ? { worstPixel } : {}),
         };
         rows.push(row);
         console.log(JSON.stringify(row));
-        if (level === 0.5)
+        if (level === 0.5 || max > 2)
           for (const [i, label] of ["before", "after"].entries())
             await writeFile(
               resolve(
                 out,
-                `${look.sceneId}-${look.index}-${time}-${label}.png`,
+                `${look.sceneId}-${look.index}-${level}-${time}-${label}.png`,
               ),
               Buffer.from(captures[i].png, "base64"),
             );

@@ -111,6 +111,36 @@ export function peanoXy2d(k, [x, y]) {
   return d;
 }
 
+// The orders are small and fixed. Constant ternary divisors avoid dynamically
+// indexing digit arrays in every candidate segment, with identical integer maps.
+const peanoFragment = (k) => `
+ivec2 pD2xy${k}(int d) {
+  int x = 0, y = 0, sx = 0, sy = 0;
+  ${Array.from({ length: k }, (_, i) => `{
+    int ax = (d / ${3 ** (2 * (k - i) - 1)}) % 3;
+    int ay = (d / ${3 ** (2 * (k - i) - 2)}) % 3;
+    x = x * 3 + (sy % 2 == 1 ? 2 - ax : ax);
+    sx += ax;
+    y = y * 3 + (sx % 2 == 1 ? 2 - ay : ay);
+    sy += ay;
+  }`).join("\n  ")}
+  return ivec2(x, y);
+}
+int pXy2d${k}(ivec2 p) {
+  int d = 0, sx = 0, sy = 0;
+  ${Array.from({ length: k }, (_, i) => `{
+    int x = (p.x / ${3 ** (k - i - 1)}) % 3;
+    int y = (p.y / ${3 ** (k - i - 1)}) % 3;
+    int ax = sy % 2 == 1 ? 2 - x : x;
+    sx += ax;
+    int ay = sx % 2 == 1 ? 2 - y : y;
+    sy += ay;
+    d = d * 9 + ax * 3 + ay;
+  }`).join("\n  ")}
+  return d;
+}
+`;
+
 const fragment = `
 void hRot(int n, inout ivec2 p, int rx, int ry) {
   if (ry == 0) {
@@ -154,36 +184,14 @@ int mXy2d(int n, ivec2 p) {
   ivec2 local = left ? ivec2(l.y, m - 1 - l.x) : ivec2(m - 1 - l.y, l.x);
   return q * m * m + hXy2d(m, local);
 }
+${[1, 2, 3, 4, 5].map(peanoFragment).join("\n")}
 ivec2 pD2xy(int k, int d) {
-  int digits[10];
-  for (int i = 9; i >= 0; i--) { digits[i] = d % 3; d /= 3; }
-  int x = 0, y = 0, sx = 0, sy = 0;
-  for (int i = 0; i < 5; i++) {
-    if (i >= k) break;
-    int ax = digits[10 - 2 * k + 2 * i], ay = digits[10 - 2 * k + 2 * i + 1];
-    x = x * 3 + (sy % 2 == 1 ? 2 - ax : ax);
-    sx += ax;
-    y = y * 3 + (sx % 2 == 1 ? 2 - ay : ay);
-    sy += ay;
-  }
-  return ivec2(x, y);
+  ${[1, 2, 3, 4].map(k => `if (k == ${k}) return pD2xy${k}(d);`).join("\n  ")}
+  return pD2xy5(d);
 }
 int pXy2d(int k, ivec2 p) {
-  int xs[5], ys[5];
-  for (int i = 4; i >= 0; i--) {
-    if (i >= k) { xs[i] = 0; ys[i] = 0; continue; }
-    xs[i] = p.x % 3; ys[i] = p.y % 3; p /= 3;
-  }
-  int d = 0, sx = 0, sy = 0;
-  for (int i = 0; i < 5; i++) {
-    if (i >= k) break;
-    int ax = sy % 2 == 1 ? 2 - xs[i] : xs[i];
-    sx += ax;
-    int ay = sx % 2 == 1 ? 2 - ys[i] : ys[i];
-    sy += ay;
-    d = d * 9 + ax * 3 + ay;
-  }
-  return d;
+  ${[1, 2, 3, 4].map(k => `if (k == ${k}) return pXy2d${k}(p);`).join("\n  ")}
+  return pXy2d5(p);
 }
 // Curve kind: 0 Hilbert, 1 Moore, 2 Peano. Order o: n = 2^o or 3^o.
 int sSide(int kind, int o) { return kind == 2 ? int(pow(3.0, float(o)) + 0.5) : 1 << o; }

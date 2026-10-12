@@ -44,6 +44,7 @@ Reference rig: MacBook Pro M3 Pro, Chrome, 2.1 MP output, frame p99 ≤ 34 ms fo
 - All loops have constant caps (`for (int i = 0; i < CAP; i++) { if (i >= n) break; … }`).
 - Visual passes retain full output resolution; `maxRenderWidth` is legacy metadata and does not cap live shading. Remove repeated work before reducing algorithm detail: precompute fixed topology and expose constant loop/index bounds where the algorithm permits it. Preserve candidate order and compare seeded frames at low/mid/high energy and late show times.
 - `node scripts/profile-families.mjs --types` measures all family variants on the native GPU. Add `--reference <commit>` for a shader baseline and `--width 3840 --height 2160` for 4K. This synchronous throughput probe includes post-processing but excludes asynchronous flash approval; use the Stage timing runner for display cadence and rig acceptance.
+- Bounds-based skips must conservatively include antialiasing and preserve depth/candidate order. Keep derivatives outside per-pixel fallback branches. Verify exact integer-map changes on the GPU with `node scripts/check-curve-maps.mjs`; CPU-only agreement does not exercise shader compilation.
 - Simulation textures stay small (≤ 1024² for cheap rules, ≤ 512² for heavy rules), with `steps` per 60 Hz tick ≤ 8. The engine copies the whole state texture every step, so one step costs one full-texture pass.
 - Particles: one point per simulation texel; 256² = 65,536 is the proven size.
 

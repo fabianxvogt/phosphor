@@ -1,3 +1,4 @@
+import { MELT_BLOCK } from "./melt-geometry.mjs";
 import { familyEffect } from "./family-rhythm.mjs";
 
 // Projected, depth-tested parametric tubes and ruled ribbons, not a noise field.
@@ -206,6 +207,11 @@ vec3 meltShade(vec3 normal, vec3 position, float along, float strand, float cycl
 void meltTube(vec2 uv, vec3 a, vec3 b, vec2 pa, vec2 pb, float radius, float along,
               inout float depth, inout vec3 normal, inout vec3 position,
               inout vec2 material, inout float coverage) {
+  // The whole capsule lies inside the segment bounds plus its largest
+  // perspective radius. Keep an extra numerical margin at grazing edges.
+  float bound = radius * 1.78 / (4.1 - max(a.z, b.z)) + 1.5 / u_resolution.y + .00001;
+  if (any(lessThan(uv, min(pa, pb) - bound)) ||
+      any(greaterThan(uv, max(pa, pb) + bound))) return;
   vec2 ab = pb - pa;
   float h = clamp(dot(uv - pa, ab) / max(dot(ab, ab), .000001), 0.0, 1.0);
   vec3 center = mix(a, b, h);
@@ -229,6 +235,10 @@ void meltTube(vec2 uv, vec3 a, vec3 b, vec2 pa, vec2 pb, float radius, float alo
 void meltTriangle(vec2 uv, vec3 a, vec3 b, vec3 c, vec2 pa, vec2 pb, vec2 pc, float along, float strand, bool second,
                   inout float depth, inout vec3 normal, inout vec3 position,
                   inout vec2 material, inout float coverage) {
+  // Barycentric coverage cannot extend outside the projected triangle.
+  // The margin keeps floating-point edge decisions in the original test.
+  if (any(lessThan(uv, min(pa, min(pb, pc)) - .00001)) ||
+      any(greaterThan(uv, max(pa, max(pb, pc)) + .00001))) return;
   vec2 e0 = pb - pa, e1 = pc - pa, q = uv - pa;
   float determinant = e0.x * e1.y - e0.y * e1.x;
   if (abs(determinant) < .0000001) return;
@@ -268,26 +278,32 @@ void main() {
       if (strandIndex==1 && family!=3) break;
       float strand=float(strandIndex);
       int offset=strandIndex*81;
-      vec3 a=meltPoint(offset,family<2?0:2);
-      vec2 pa=meltPoint(offset,family<2?1:4).xy;
-      vec3 a1=family<2?vec3(0.):meltPoint(offset,3);
-      vec2 pa1=family<2?vec2(0.):meltPoint(offset,5).xy;
-      for (int i=0; i<MELT_SEGMENTS; i++) {
-        float along=TAU_MELT*(float(i)+.5)/float(MELT_SEGMENTS);
-        int point=offset+i+1;
-        vec3 b=meltPoint(point,family<2?0:2);
-        vec2 pb=meltPoint(point,family<2?1:4).xy;
-        if (family<2) {
-          meltTube(uv,a,b,pa,pb,thickness,along,depth,normal,position,material,coverage);
-        } else {
-          vec3 b1=meltPoint(point,3);
-          vec2 pb1=meltPoint(point,5).xy;
-          meltTriangle(uv,a,b,b1,pa,pb,pb1,along,strand,false,depth,normal,position,material,coverage);
-          meltTriangle(uv,a,b1,a1,pa,pb1,pa1,along,strand,true,depth,normal,position,material,coverage);
-          a1=b1;pa1=pb1;
+      for (int first=0; first<MELT_SEGMENTS; first+=${MELT_BLOCK}) {
+        vec4 bounds=texelFetch(u_geometry,ivec2(offset+first,6),0);
+        float margin=1.5/u_resolution.y;
+        if (any(lessThan(uv,bounds.xy-margin)) || any(greaterThan(uv,bounds.zw+margin))) continue;
+        vec3 a=meltPoint(offset+first,family<2?0:2);
+        vec2 pa=meltPoint(offset+first,family<2?1:4).xy;
+        vec3 a1=family<2?vec3(0.):meltPoint(offset+first,3);
+        vec2 pa1=family<2?vec2(0.):meltPoint(offset+first,5).xy;
+        for (int local=0; local<${MELT_BLOCK}; local++) {
+          int i=first+local;
+          float along=TAU_MELT*(float(i)+.5)/float(MELT_SEGMENTS);
+          int point=offset+i+1;
+          vec3 b=meltPoint(point,family<2?0:2);
+          vec2 pb=meltPoint(point,family<2?1:4).xy;
+          if (family<2) {
+            meltTube(uv,a,b,pa,pb,thickness,along,depth,normal,position,material,coverage);
+          } else {
+            vec3 b1=meltPoint(point,3);
+            vec2 pb1=meltPoint(point,5).xy;
+            meltTriangle(uv,a,b,b1,pa,pb,pb1,along,strand,false,depth,normal,position,material,coverage);
+            meltTriangle(uv,a,b1,a1,pa,pb1,pa1,along,strand,true,depth,normal,position,material,coverage);
+            a1=b1;pa1=pb1;
+          }
+          a=b;
+          pa=pb;
         }
-        a=b;
-        pa=pb;
       }
     }
   }

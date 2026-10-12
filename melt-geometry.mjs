@@ -1,7 +1,8 @@
 // Camera-space vertices and their projections. RGBA32F is a core WebGL2
 // sampled format; no float framebuffer or blending extension is required.
 export const MELT_POINTS = 162;
-export const MELT_ROWS = 6;
+export const MELT_ROWS = 7;
+export const MELT_BLOCK = 8;
 
 export function updateMeltGeometry(params, time, data) {
   const tau = Math.PI * 2;
@@ -79,6 +80,30 @@ export function updateMeltGeometry(params, time, data) {
         data[projected] = vx * scale;
         data[projected + 1] = vy * scale;
       }
+    }
+    // One conservative box per eight adjacent segments. Use the stored float
+    // vertices/projections, matching what the shader samples, including both
+    // endpoints. The shader adds its resolution-dependent antialiasing margin.
+    for (let first = 0; first < 80; first += MELT_BLOCK) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (let i = first; i <= first + MELT_BLOCK; i++) {
+        const point = (strand * 81 + i) * 4;
+        for (let side = 0; side < (family < 2 ? 1 : 2); side++) {
+          const row = family < 2 ? 1 : 4 + side;
+          const at = row * rowSize + point;
+          const radius = family < 2 ? params[1] * 1.78 / (4.1 - data[point + 2]) : 0;
+          minX = Math.min(minX, data[at] - radius);
+          minY = Math.min(minY, data[at + 1] - radius);
+          maxX = Math.max(maxX, data[at] + radius);
+          maxY = Math.max(maxY, data[at + 1] + radius);
+        }
+      }
+      const at = 6 * rowSize + (strand * 81 + first) * 4;
+      // Outward padding also covers Float32 rounding of the stored box.
+      data[at] = minX - .00001;
+      data[at + 1] = minY - .00001;
+      data[at + 2] = maxX + .00001;
+      data[at + 3] = maxY + .00001;
     }
   }
 }

@@ -44,11 +44,11 @@ try {
       { encoding: "utf8" },
     ).trim();
     const sources = new Map();
-    // Route just scene modules; the same harness and engine measure both sides.
+    // Route scenes and their geometry helper; keep the harness/engine identical.
     browser = {
       newContext: async (options) => {
         const context = await runtime.browser.newContext(options);
-        await context.route("**/scene-*.mjs", (route) => {
+        await context.route(/\/(scene-[^/]+|melt-geometry)\.mjs$/, (route) => {
           const file = new URL(route.request().url()).pathname.slice(1);
           if (!sources.has(file))
             sources.set(
@@ -128,6 +128,7 @@ try {
       frames: 4,
       level: 0.95,
       capture: false,
+      pollHealth: false,
     });
     if (health.glError || health.nonFinite || health.peak <= 0)
       throw new Error(`Invalid render: ${look.sceneId}:${look.index}`);

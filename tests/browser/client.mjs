@@ -55,6 +55,7 @@ export async function renderLook({
   height = 180,
   capture = true,
   gray = false,
+  pollHealth = true,
 }) {
   const { engine, scenes, presetSnapshot } = window.__phosphorLab;
   const scene = scenes.find((s) => s.id === sceneId);
@@ -99,17 +100,22 @@ export async function renderLook({
   engine.present();
   // The health mean (0–255) arrives through an asynchronous readback. Drain
   // any readback still in flight from earlier frames, then measure this one.
-  const frame = () => new Promise((done) => requestAnimationFrame(done));
-  for (let i = 0; i < 60 && engine.healthReadback.sync; i++) {
-    await frame();
-    engine.pollHealth();
-  }
-  engine.lastHealth.pending = true;
-  let health = engine.health();
-  for (let i = 0; i < 60 && health.pending; i++) {
-    await frame();
-    engine.pollHealth();
-    health = engine.lastHealth;
+  let health = null;
+  // Pixel comparisons already synchronize/read pixels below; they can skip
+  // polling the independent asynchronous health monitor between captures.
+  if (pollHealth) {
+    const frame = () => new Promise((done) => requestAnimationFrame(done));
+    for (let i = 0; i < 60 && engine.healthReadback.sync; i++) {
+      await frame();
+      engine.pollHealth();
+    }
+    engine.lastHealth.pending = true;
+    health = engine.health();
+    for (let i = 0; i < 60 && health.pending; i++) {
+      await frame();
+      engine.pollHealth();
+      health = engine.lastHealth;
+    }
   }
   // Brightest pixel of a 64×36 downsample (synchronous read; test only):
   // dim looks with thin bright lines are fine, an all-black frame is not.
