@@ -1,3 +1,4 @@
+import { tr } from "./i18n/index.mjs";
 import {
   PANEL_NAMES,
   defaultPanelLayout,
@@ -54,11 +55,11 @@ export function setupPanelLayout() {
   github.target = "_blank";
   github.rel = "noopener noreferrer";
   github.textContent = "GitHub ↗";
-  github.setAttribute("aria-label", "Phosphor on GitHub (new tab)");
+  github.setAttribute("aria-label", tr("Phosphor on GitHub (new tab)"));
   const reset = document.createElement("button");
   reset.type = "button";
-  reset.textContent = "Reset layout";
-  reset.title = "Restore panel sizes for this layout";
+  reset.textContent = tr("Reset layout");
+  reset.title = tr("Restore panel sizes for this layout");
   footer.append(github, reset);
   panels[4].after(footer);
   const filterHome = document.createComment("catalog filter position");
@@ -72,7 +73,7 @@ export function setupPanelLayout() {
   filterSelect.removeAttribute("tabindex");
   filterSelect.classList.remove("sr-only");
   filterSelect.classList.add("catalog-filter-select");
-  filterSelect.setAttribute("aria-label", "Filter looks");
+  filterSelect.setAttribute("aria-label", tr("Filter looks"));
   filterBar.append(
     filterGroup,
     document.querySelector(".catalog-refine"),
@@ -129,14 +130,20 @@ export function setupPanelLayout() {
     const parts =
       mode === "desktop"
         ? [
-            ["split", "Column width"],
-            ["left", "Preview and Catalog heights"],
-            ["upper", "Look and Performance heights"],
-            ["lower", "Performance and Rhythm heights"],
+            ["split", tr("Column width")],
+            ["left", tr("Preview and Catalog heights")],
+            ["upper", tr("Look and Performance heights")],
+            ["lower", tr("Performance and Rhythm heights")],
           ]
         : PANEL_NAMES.slice(0, 4).map((name, i) => [
             String(i),
-            `${name[0].toUpperCase()}${name.slice(1)} and ${PANEL_NAMES[i + 1]} heights`,
+            tr("Panel heights: {first} / {second}", {
+              first: tr(name[0].toUpperCase() + name.slice(1)),
+              second: tr(
+                PANEL_NAMES[i + 1][0].toUpperCase() +
+                  PANEL_NAMES[i + 1].slice(1),
+              ),
+            }),
           ]);
     grips.replaceChildren(
       ...parts.map(([key, label]) => {
@@ -165,7 +172,10 @@ export function setupPanelLayout() {
             .map((panel) => panel.id)
             .join(" "),
         );
-        button.title = `${label} · Drag or use arrow keys · Double-click to reset`;
+        button.title = tr(
+          "{value1} · Drag or use arrow keys · Double-click to reset",
+          { value1: label },
+        );
         const dots = document.createElement("span");
         dots.textContent = key === "split" ? "⋮" : "•••";
         dots.setAttribute("aria-hidden", "true");
@@ -327,10 +337,14 @@ export function setupPanelLayout() {
       button.setAttribute(
         "aria-valuetext",
         key === "split"
-          ? `${Math.round(current(key))}% left column`
+          ? tr("{value1}% left column", { value1: Math.round(current(key)) })
           : mode === "portrait"
-            ? `${Math.round(geometry.panels[key].height)} pixels`
-            : `${Math.round((current(key) / 1924) * 100)}% down the frame`,
+            ? tr("{value1} pixels", {
+                value1: Math.round(geometry.panels[key].height),
+              })
+            : tr("{value1}% down the frame", {
+                value1: Math.round((current(key) / 1924) * 100),
+              }),
       );
     }
   }

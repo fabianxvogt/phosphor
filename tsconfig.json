@@ -10,6 +10,12 @@
     "types": [],
     "skipLibCheck": true
   },
-  "include": ["*.js", "*.mjs", "scripts/**/*.mjs", "tests/browser/**/*.mjs"],
+  "include": [
+    "*.js",
+    "*.mjs",
+    "i18n/**/*.mjs",
+    "scripts/**/*.mjs",
+    "tests/browser/**/*.mjs"
+  ],
   "exclude": ["dist", "node_modules", "artifacts"]
 }

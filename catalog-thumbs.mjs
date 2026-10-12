@@ -1,3 +1,4 @@
+import { tr, errorText } from "./i18n/index.mjs";
 import { THUMBNAIL_PALETTE, thumbnailKey } from "./thumbnail-palette.mjs";
 // Catalog thumbnails (D65): one small offscreen Engine renders one look at a
 // time in idle slices, like the browser harness's renderLook (load, warm a
@@ -118,7 +119,11 @@ export class Thumbnails {
       Object.assign(this.engine.options, { flashLimit: true, kaleido: 1 });
     } catch (error) {
       this.engine = null;
-      this.onError(`Catalog thumbnails unavailable: ${error.message}`);
+      this.onError(
+        tr("Catalog thumbnails unavailable: {message}", {
+          message: errorText(error),
+        }),
+      );
     }
     return this.engine;
   }

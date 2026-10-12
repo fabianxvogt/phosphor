@@ -1,3 +1,4 @@
+import { tr } from "./i18n/index.mjs";
 // Framing test pattern for the venue line check (D7, D10): screen edges,
 // centre, aspect ratio, resolution and a black-level ramp.
 export function drawPattern(canvas, engine) {
@@ -47,7 +48,13 @@ export function drawPattern(canvas, engine) {
   g.font = `${Math.round(h / 24)}px system-ui, sans-serif`;
   g.textAlign = "center";
   g.fillText(
-    `${w}×${h} · ${ratio.toFixed(3)}:1 · render ${engine.width}×${engine.height}`,
+    tr("{value1}×{value2} · {value3}:1 · render {value4}×{value5}", {
+      value1: w,
+      value2: h,
+      value3: ratio.toFixed(3),
+      value4: engine.width,
+      value5: engine.height,
+    }),
     w / 2,
     h * 0.3,
   );

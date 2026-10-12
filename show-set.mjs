@@ -1,3 +1,4 @@
+import { tr } from "./i18n/index.mjs";
 // Portable show set, format v5 (D68): the look catalog is the whole
 // library — ratings, favourites and the owner's own looks — plus the looks
 // on the 32 grid keys, shared mixer controls, autopilot, clock and options.
@@ -67,17 +68,33 @@ export const MIDI_TARGETS = [
 const record = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
 const finite = (x, min, max, label) => {
   if (typeof x !== "number" || !Number.isFinite(x) || x < min || x > max)
-    throw new Error(`${label} must be ${min}–${max}`);
+    throw new Error(
+      tr("{value1} must be {value2}–{value3}", {
+        value1: label,
+        value2: min,
+        value3: max,
+      }),
+    );
   return x;
 };
 const text = (x, label, max = 80) => {
   if (typeof x !== "string" || !x.trim() || x.length > max)
-    throw new Error(`${label} must be 1–${max} characters`);
+    throw new Error(
+      tr("{value1} must be 1–{value2} characters", {
+        value1: label,
+        value2: max,
+      }),
+    );
   return x;
 };
 const oneOf = (x, list, label) => {
   if (!list.includes(x))
-    throw new Error(`${label} must be one of ${list.join(", ")}`);
+    throw new Error(
+      tr("{value1} must be one of {value2}", {
+        value1: label,
+        value2: list.join(", "),
+      }),
+    );
   return x;
 };
 
@@ -125,7 +142,7 @@ export function initialShowSet(scenes) {
   return {
     format: FORMAT,
     version: 5,
-    name: "New show",
+    name: tr("New show"),
     looks: [],
     ratings: {},
     favorites: [],
@@ -177,9 +194,9 @@ function emptyV4() {
   return {
     format: V4,
     version: 4,
-    name: "New show",
+    name: tr("New show"),
     pages: Array.from({ length: PAGES }, (_, p) => ({
-      name: `Page ${p + 1}`,
+      name: tr("Page {value1}", { value1: p + 1 }),
       mood: null,
       slots: Array(SLOTS).fill(null),
     })),
@@ -211,13 +228,13 @@ function validateRatings(value) {
 
 function validateClip(value, scenes, ids) {
   if (value === null) return null;
-  if (!record(value)) throw new Error("Invalid clip");
-  const id = text(value.id, "Clip id");
-  if (ids.has(id)) throw new Error("Duplicate clip id");
+  if (!record(value)) throw new Error(tr("Invalid clip"));
+  const id = text(value.id, tr("Clip id"));
+  if (ids.has(id)) throw new Error(tr("Duplicate clip id"));
   ids.add(id);
   const palette = value.palette;
   if (palette !== "custom" && !paletteById(palette))
-    throw new Error("Unknown clip palette");
+    throw new Error(tr("Unknown clip palette"));
   const snapshot = validateSnapshot(
     palette === "custom"
       ? value.snapshot
@@ -226,17 +243,17 @@ function validateClip(value, scenes, ids) {
   );
   return {
     id,
-    name: text(value.name, "Clip name"),
+    name: text(value.name, tr("Clip name")),
     snapshot,
     palette,
-    energy: finite(value.energy, 0, 1, "Clip energy"),
-    fade: finite(value.fade, 0, 32, "Clip fade beats"),
+    energy: finite(value.energy, 0, 1, tr("Clip energy")),
+    fade: finite(value.fade, 0, 32, tr("Clip fade beats")),
     transition: oneOf(
       value.transition === undefined ? "auto" : value.transition,
       TRANSITIONS,
-      "Clip transition",
+      tr("Clip transition"),
     ),
-    quantize: oneOf(value.quantize, QUANTIZE, "Clip quantize"),
+    quantize: oneOf(value.quantize, QUANTIZE, tr("Clip quantize")),
     autopilot: value.autopilot !== false,
   };
 }
@@ -247,61 +264,74 @@ function validateCommon(value, scenes) {
   const clock = record(value.clock) ? value.clock : {};
   const options = record(value.options) ? value.options : {};
   if (!Array.isArray(value.midi) || value.midi.length > 64)
-    throw new Error("Invalid MIDI mappings");
+    throw new Error(tr("Invalid MIDI mappings"));
   return {
-    name: text(value.name, "Set name"),
+    name: text(value.name, tr("Set name")),
     shared: {
-      master: finite(shared.master, 0, 1, "Master"),
-      hue: finite(shared.hue, -0.5, 0.5, "Hue"),
-      zoom: finite(shared.zoom, 0.5, 2, "Zoom"),
-      mirror: finite(shared.mirror, 1, 12, "Mirror"),
+      master: finite(shared.master, 0, 1, tr("Master")),
+      hue: finite(shared.hue, -0.5, 0.5, tr("Hue")),
+      zoom: finite(shared.zoom, 0.5, 2, tr("Zoom")),
+      mirror: finite(shared.mirror, 1, 12, tr("Mirror")),
     },
     autopilot: {
       enabled: autopilot.enabled !== false,
       random: autopilot.random !== false,
-      everyBars: oneOf(autopilot.everyBars, AUTOPILOT_BARS, "Autopilot bars"),
-      handBackBars: finite(autopilot.handBackBars, 4, 256, "Hand-back bars"),
+      everyBars: oneOf(
+        autopilot.everyBars,
+        AUTOPILOT_BARS,
+        tr("Autopilot bars"),
+      ),
+      handBackBars: finite(
+        autopilot.handBackBars,
+        4,
+        256,
+        tr("Hand-back bars"),
+      ),
     },
     clock: {
-      mode: oneOf(clock.mode, ["auto", "manual"], "Clock mode"),
-      manualBpm: finite(clock.manualBpm, 40, 200, "Manual tempo"),
-      latencyMs: finite(clock.latencyMs, -250, 250, "Latency offset"),
+      mode: oneOf(clock.mode, ["auto", "manual"], tr("Clock mode")),
+      manualBpm: finite(clock.manualBpm, 40, 200, tr("Manual tempo")),
+      latencyMs: finite(clock.latencyMs, -250, 250, tr("Latency offset")),
     },
     options: {
-      pixelBudget: oneOf(options.pixelBudget, PIXEL_BUDGETS, "Pixel budget"),
+      pixelBudget: oneOf(
+        options.pixelBudget,
+        PIXEL_BUDGETS,
+        tr("Pixel budget"),
+      ),
       outputResolution: oneOf(
         options.outputResolution ?? "native",
         OUTPUT_RESOLUTIONS,
-        "Output resolution",
+        tr("Output resolution"),
       ),
-      bloom: finite(options.bloom, 0, 1, "Bloom"),
-      echo: finite(options.echo, 0, 1, "Echo"),
-      chroma: finite(options.chroma, 0, 1, "Chroma"),
+      bloom: finite(options.bloom, 0, 1, tr("Bloom")),
+      echo: finite(options.echo, 0, 1, tr("Echo")),
+      chroma: finite(options.chroma, 0, 1, tr("Chroma")),
       grain: finite(
         options.grain === undefined ? 0.12 : options.grain,
         0,
         1,
-        "Grain",
+        tr("Grain"),
       ),
       vignette: finite(
         options.vignette === undefined ? 0.15 : options.vignette,
         0,
         1,
-        "Vignette",
+        tr("Vignette"),
       ),
       autoRecovery: options.autoRecovery !== false,
       reducedMotion: options.reducedMotion === true,
     },
     midi: value.midi.map((m) => {
       if (!record(m) || !["cc", "note"].includes(m.type))
-        throw new Error("Invalid MIDI mapping");
+        throw new Error(tr("Invalid MIDI mapping"));
       if (!Number.isInteger(m.channel) || !Number.isInteger(m.number))
-        throw new Error("MIDI channel and number must be integers");
+        throw new Error(tr("MIDI channel and number must be integers"));
       return {
         type: m.type,
-        channel: finite(m.channel, 0, 15, "MIDI channel"),
-        number: finite(m.number, 0, 127, "MIDI number"),
-        target: oneOf(m.target, MIDI_TARGETS, "MIDI target"),
+        channel: finite(m.channel, 0, 15, tr("MIDI channel")),
+        number: finite(m.number, 0, 127, tr("MIDI number")),
+        target: oneOf(m.target, MIDI_TARGETS, tr("MIDI target")),
       };
     }),
     lineages: validateLineages(value.lineages, scenes),
@@ -311,9 +341,11 @@ function validateCommon(value, scenes) {
 // A v4 set (pages of clips), only on the way to v5.
 function validateV4(value, scenes) {
   if (!record(value) || value.format !== V4 || value.version !== 4)
-    throw new Error("Expected a Phosphor v4 set");
+    throw new Error(tr("Expected a Phosphor v4 set"));
   if (!Array.isArray(value.pages) || value.pages.length !== PAGES)
-    throw new Error(`A v4 set has exactly ${PAGES} pages`);
+    throw new Error(
+      tr("A v4 set has exactly {value1} pages", { value1: PAGES }),
+    );
   const ids = new Set();
   const pages = value.pages.map((page, p) => {
     if (
@@ -321,10 +353,16 @@ function validateV4(value, scenes) {
       !Array.isArray(page.slots) ||
       page.slots.length !== SLOTS
     )
-      throw new Error(`Page ${p + 1} must have ${SLOTS} slots`);
+      throw new Error(
+        tr("Page {value1} must have {value2} slots", {
+          value1: p + 1,
+          value2: SLOTS,
+        }),
+      );
     return {
-      name: text(page.name, "Page name", 40),
-      mood: page.mood === null ? null : oneOf(page.mood, MOODS, "Page mood"),
+      name: text(page.name, tr("Page name"), 40),
+      mood:
+        page.mood === null ? null : oneOf(page.mood, MOODS, tr("Page mood")),
       slots: page.slots.map((clip) => validateClip(clip, scenes, ids)),
     };
   });
@@ -343,14 +381,14 @@ const KNOWN_ID = (id) =>
 
 // An own look (D68): a saved edit or variation of a family.
 function validateLook(value, scenes, ids) {
-  if (!record(value)) throw new Error("Invalid look");
+  if (!record(value)) throw new Error(tr("Invalid look"));
   if (typeof value.id !== "string" || !LOOK_ID.test(value.id))
-    throw new Error("Own look ids are own-<letters, digits, - or _>");
-  if (ids.has(value.id)) throw new Error("Duplicate look id");
+    throw new Error(tr("Own look ids are own-<letters, digits, - or _>"));
+  if (ids.has(value.id)) throw new Error(tr("Duplicate look id"));
   ids.add(value.id);
   const palette = value.palette ?? null;
   if (palette !== null && palette !== "custom" && !paletteById(palette))
-    throw new Error("Unknown look palette");
+    throw new Error(tr("Unknown look palette"));
   const snapshot = validateSnapshot(value.snapshot, scenes);
   const rhythm =
     value.rhythm === undefined
@@ -368,14 +406,14 @@ function validateLook(value, scenes, ids) {
         };
   return {
     id: value.id,
-    name: text(value.name, "Look name"),
+    name: text(value.name, tr("Look name")),
     base: KNOWN_ID(value.base) ? value.base : null,
     snapshot,
     palette,
     transition: oneOf(
       value.transition === undefined ? "auto" : value.transition,
       TRANSITIONS,
-      "Look transition",
+      tr("Look transition"),
     ),
     ...rhythm,
   };
@@ -393,12 +431,12 @@ function validateIds(value, max, own) {
 
 export function validateShowSet(value, scenes) {
   if (!record(value) || value.format !== FORMAT || value.version !== 5)
-    throw new Error("Expected a Phosphor v5 set");
+    throw new Error(tr("Expected a Phosphor v5 set"));
   if (
     !Array.isArray(value.looks ?? []) ||
     (value.looks ?? []).length > MAX_LOOKS
   )
-    throw new Error(`At most ${MAX_LOOKS} own looks`);
+    throw new Error(tr("At most {value1} own looks", { value1: MAX_LOOKS }));
   const ids = new Set();
   const looks = (value.looks ?? []).map((look) =>
     validateLook(look, scenes, ids),
@@ -420,7 +458,7 @@ export function validateShowSet(value, scenes) {
     mood:
       value.mood === null || value.mood === undefined
         ? null
-        : oneOf(value.mood, MOODS, "Mood"),
+        : oneOf(value.mood, MOODS, tr("Mood")),
     // Optional for older sets. The control enables a shared show palette;
     // legacy playback can still use the authored palettes when absent.
     palette: validateShowPalette(value.palette),
@@ -454,7 +492,7 @@ export function validateShowPalette(value) {
       ]),
     );
   throw new Error(
-    "Show palette must name a palette or contain three hex colours",
+    tr("Show palette must name a palette or contain three hex colours"),
   );
 }
 
@@ -504,17 +542,25 @@ export function migrateV4(v4, scenes) {
     }
   if (looks.length)
     report.push(
-      `${looks.length} edited clip(s) from the pages are now own looks in the catalog.`,
+      tr(
+        "{value1} edited clip(s) from the pages are now own looks in the catalog.",
+        { value1: looks.length },
+      ),
     );
   if (kept)
     report.push(
-      `${kept} page clip(s) were authored looks; they are in the catalog as before.`,
+      tr(
+        "{value1} page clip(s) were authored looks; they are in the catalog as before.",
+        { value1: kept },
+      ),
     );
-  report.push("Pages are gone: the catalog holds every look (D68).");
+  report.push(tr("Pages are gone: the catalog holds every look (D68)."));
   const options = { ...old.options };
   if (options.pixelBudget === OLD_DEFAULT_BUDGET) {
     options.pixelBudget = NATIVE_BUDGET;
-    report.push("Stage resolution raised from 2.1 MP to native (up to 4K).");
+    report.push(
+      tr("Stage resolution raised from 2.1 MP to native (up to 4K)."),
+    );
   }
   const next = {
     format: FORMAT,
@@ -548,7 +594,11 @@ export function migrateV2(v2, scenes) {
   const report = [];
   set.name = v2.name;
   if (v2.cues.length > PAGES * SLOTS)
-    report.push(`Only the first ${PAGES * SLOTS} cues fit the grid.`);
+    report.push(
+      tr("Only the first {value1} cues fit the grid.", {
+        value1: PAGES * SLOTS,
+      }),
+    );
   v2.cues.slice(0, PAGES * SLOTS).forEach((cue, i) => {
     set.pages[Math.floor(i / SLOTS)].slots[i % SLOTS] = {
       id: `clip-${i}`,
@@ -563,11 +613,17 @@ export function migrateV2(v2, scenes) {
   const keyframed = v2.cues.filter((c) => c.keyframes.length).length;
   if (keyframed)
     report.push(
-      `Keyframes dropped from ${keyframed} cue(s); the linear score is retired.`,
+      tr(
+        "Keyframes dropped from {value1} cue(s); the linear score is retired.",
+        { value1: keyframed },
+      ),
     );
   if (v2.mappings.length)
     report.push(
-      `${v2.mappings.length} audio routing(s) dropped; families now define their own energy response.`,
+      tr(
+        "{value1} audio routing(s) dropped; families now define their own energy response.",
+        { value1: v2.mappings.length },
+      ),
     );
   set.clock.manualBpm = Math.max(40, Math.min(200, v2.tempo));
   set.shared.master = v2.options.brightness;
@@ -582,7 +638,10 @@ export function migrateV2(v2, scenes) {
   const targets = { brightness: "master", blackout: "blackout" };
   for (const m of v2.midi) {
     if (targets[m.target]) set.midi.push({ ...m, target: targets[m.target] });
-    else report.push(`MIDI mapping to "${m.target}" dropped.`);
+    else
+      report.push(
+        tr('MIDI mapping to "{value1}" dropped.', { value1: m.target }),
+      );
   }
   set.lineages = structuredClone(v2.lineages);
   const migrated = migrateV3(set, scenes);
@@ -593,7 +652,7 @@ export function migrateV2(v2, scenes) {
 // The result continues to v5.
 export function migrateV3(v3, scenes) {
   if (!record(v3) || v3.format !== "phosphor-set-v3" || v3.version !== 3)
-    throw new Error("Expected a Phosphor v3 set");
+    throw new Error(tr("Expected a Phosphor v3 set"));
   const next = structuredClone(v3);
   next.format = V4;
   next.version = 4;

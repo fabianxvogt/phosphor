@@ -453,3 +453,39 @@ The isolated live Foil Ribbon Eclipse run at 1920×1080 output delivered 888 ren
 Ten owner-requested Sol 6.1 medium workers implemented one scene each against a shared contract. Separate engine/offline/output and workflow reviews identified integration defects; fixes cover cue identity, manual override, clock/edge semantics, source ownership, recording bounds, export snapshots, cache generations, context recovery, hidden output and responsive layout. Focused final reviews reported no additional findings in interrupted-transition buffer ownership/global grading, shading budgets, source-worker cache behavior, effective tempo, demo scheduling/teardown and recording setup. Workflow review also exposed transport edges; runtime verification and fixes followed. Review is bounded evidence, not proof that the entire application contains no defects.
 
 Final persistence review found retained, unsupported lineage properties could inflate pretty-printed exports beyond the import bound. Canonical field whitelisting fixes it; the regression failed before and passed after. Actual browser File/DOM ingestion of an 8 MB synthetic extension produced an 8,454-byte canonical set that reopened successfully, with structured output and GPU error zero. A separate security review reported no evidence-backed finding in its bounded import/DOM/audio/output/cache read set; this is not a security certification.
+
+
+## Languages (2026-10-12)
+
+**INCREMENTAL / EMPIRICAL.** German and English now cover the control window,
+all 328 built-in looks, family/variant descriptions, parameters, rhythm gestures,
+palettes, setup, accessibility labels, status/error messages, Stage, framing pattern
+and updater. `i18n/en.mjs` and `i18n/de.mjs` contain 1,728 matching messages.
+Browser language preference order selects `de` or `en`, including regional tags;
+unsupported preferences fall back to English. Numbers follow the chosen locale.
+Saved IDs and protocol values stay canonical; own look and set names stay as written.
+The catalog searches both original and translated metadata.
+
+- `npm test`: 510 passed, 11 existing skips, no failures (521 total).
+- `node --test tests/i18n.test.mjs`: all five checks passed, including language
+  fallback, dictionary/placeholder parity, every catalog/parameter/effect label,
+  preserved custom names and all declared message references.
+- `npm run typecheck`, `npm run format:check`, `npm run build`,
+  `npm run check:dist`: passed; both dictionaries belong to the revisioned offline
+  asset graph (101 build assets / 100 reachable assets).
+- `npm run test:i18n -- --native-gpu`: passed in German and English on local
+  Chrome, at 1440×1000 and 390×844. Checked search in either language, theme labels,
+  tempo including German decimals, pointer ratings, palette/rhythm/setup popovers,
+  deliberately named own looks, saved set names, malformed import, reload, Stage
+  gate and updater. No page errors. Screenshots and copy snapshots are under
+  ignored `artifacts/i18n/`; both layouts were visually inspected.
+- `npm run test:browser -- --only show --native-gpu`: passed through stage start,
+  palette changes, ratings/favourites, keys, blackout, safe look, reload/reconnect,
+  rhythm, framing pattern and own-look variations. No GPU or page errors.
+- `npm run test:output-controls -- --native-gpu`: passed local/Stage BPM controls,
+  demo synchronization, selectable resolution and saved preferences.
+
+Narrow preview controls now wrap so the resolution button cannot cover beat
+indicators. Open catalog cards keep all ten stars and translated action buttons
+inside their bounds. These checks cover local UI/translation behavior, not venue
+endurance or external-display timing.

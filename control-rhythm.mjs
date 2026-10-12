@@ -1,3 +1,4 @@
+import { tr, lookName, beatCount } from "./i18n/index.mjs";
 // Stable performance controls: read the playing family, edit desired patterns,
 // and update only the playhead while the transport advances.
 import {
@@ -79,6 +80,7 @@ export function rhythmTarget(status, scenes, draft, preview = false) {
       scene,
       look: draft.id,
       name: draft.name,
+      nameEdited: !!draft.nameEdited,
       own: !!draft.own,
       variant: scene?.type ? draft.snapshot.params[scene.type.key] : null,
       preview: true,
@@ -156,13 +158,13 @@ export class RhythmPanel {
     this.targetLabel = el("p", { className: "rhythm-target" });
     this.playingButton = el("button", {
       type: "button",
-      textContent: "Playing visual",
+      textContent: tr("Playing visual"),
       ariaPressed: "true",
       onclick: () => this.setPreview(false),
     });
     this.previewButton = el("button", {
       type: "button",
-      textContent: "Preview draft rhythm",
+      textContent: tr("Preview draft rhythm"),
       ariaPressed: "false",
       onclick: () => this.setPreview(true),
     });
@@ -173,11 +175,11 @@ export class RhythmPanel {
     this.contextNote = el("p", { className: "note" });
     this.familyRoot = el("div", {
       className: "rhythm-section",
-      ariaLabel: "Family rhythm effects",
+      ariaLabel: tr("Family rhythm effects"),
     });
     this.globalRoot = el("div", {
       className: "rhythm-section rhythm-global",
-      ariaLabel: "Global rhythm effects",
+      ariaLabel: tr("Global rhythm effects"),
     });
     this.root.append(
       el(
@@ -197,8 +199,9 @@ export class RhythmPanel {
       this.globalRoot,
       el("p", {
         className: "note rhythm-guide",
-        textContent:
+        textContent: tr(
           "Click a step: off → on → accent. Shift-click for an accent. Arrow keys move between steps. Loops keep running across bars; Speed only changes movement.",
+        ),
       }),
     );
     if (this.compact) {
@@ -209,7 +212,7 @@ export class RhythmPanel {
       });
       this.settings.dataset.scope = "family";
       this.settings.append(
-        this.optionHeading("Rhythm options", this.settings),
+        this.optionHeading(tr("Rhythm options"), this.settings),
         this.root.querySelector(".rhythm-context"),
         this.targetLabel,
         this.contextNote,
@@ -268,7 +271,7 @@ export class RhythmPanel {
       el("button", {
         type: "button",
         textContent: "×",
-        ariaLabel: "Close rhythm options",
+        ariaLabel: tr("Close rhythm options"),
         onclick: () => popover.hidePopover(),
       }),
     );
@@ -346,13 +349,17 @@ export class RhythmPanel {
     this.previewButton.ariaPressed = String(this.preview);
     this.previewButton.disabled = !this.getDraft() || this.isLocked();
     this.targetLabel.textContent = target
-      ? `${this.preview ? "Draft preview" : "Playing"} · ${target.name} · ${target.scene?.name ?? "Family"}`
-      : "Family effects appear when a visual is playing.";
+      ? `${this.preview ? tr("Draft preview") : tr("Playing")} · ${lookName(target)} · ${tr(target.scene?.name ?? "Family")}`
+      : tr("Family effects appear when a visual is playing.");
     this.contextNote.textContent = this.preview
-      ? "Family pattern preview. Changes stay in this draft until you explicitly save an own-look pattern. Global tracks below remain set-wide."
+      ? tr(
+          "Family pattern preview. Changes stay in this draft until you explicitly save an own-look pattern. Global tracks below remain set-wide.",
+        )
       : rhythm?.enabled === false
-        ? "Rhythm is paused for the safe look. Saved patterns are retained."
-        : "Family gestures follow the music beat. Your edits are protected until you choose Automatic.";
+        ? tr("Rhythm is paused for the safe look. Saved patterns are retained.")
+        : tr(
+            "Family gestures follow the music beat. Your edits are protected until you choose Automatic.",
+          );
     const pending = rhythm?.pending ?? [];
     const relevant = pending.filter(
       (item) =>
@@ -370,7 +377,11 @@ export class RhythmPanel {
         )
       : null;
     this.pendingLabel.textContent =
-      next === null ? "" : `Queued · ${Math.ceil(next * 4) / 4} beats`;
+      next === null
+        ? ""
+        : tr("Queued · {value1}", {
+            value1: beatCount(Math.ceil(next * 4) / 4),
+          });
     if (target?.scene)
       this.updateGroup(
         "family",
@@ -437,17 +448,20 @@ export class RhythmPanel {
           Math.ceil(track.length / track.division / 4),
         ),
       );
-      group.quickAuto.textContent = pattern.mode === "auto" ? "Auto" : "Edited";
+      group.quickAuto.textContent =
+        pattern.mode === "auto" ? tr("Auto") : tr("Edited");
       group.quickAuto.ariaPressed = String(pattern.mode === "auto");
       group.quickAuto.title =
         pattern.mode === "auto"
-          ? "Automatic patterns · click to protect"
-          : "Your edits are protected · click to restore automatic patterns";
+          ? tr("Automatic patterns · click to protect")
+          : tr(
+              "Your edits are protected · click to restore automatic patterns",
+            );
     }
     group.title.textContent =
-      scope === "global" ? "Global effects" : target.scene.name;
+      scope === "global" ? tr("Global effects") : tr(target.scene.name);
     group.mode.textContent =
-      pattern.mode === "locked" ? "Protected" : "Automatic";
+      pattern.mode === "locked" ? tr("Protected") : tr("Automatic");
     group.mode.className = `rhythm-mode ${pattern.mode === "locked" ? "protected" : ""}`;
     group.auto.ariaPressed = String(pattern.mode === "auto");
     group.lock.ariaPressed = String(pattern.mode === "locked");
@@ -455,14 +469,18 @@ export class RhythmPanel {
       group.style.value = pattern.style;
     group.note.textContent =
       pattern.mode === "auto"
-        ? `Authored patterns · ${status?.rhythm?.style ?? pattern.style} phrase`
-        : "Your steps stay fixed. Energy changes intensity.";
+        ? tr("Authored patterns · {value1} phrase", {
+            value1: tr(
+              "rhythm.style." + (status?.rhythm?.style ?? pattern.style),
+            ),
+          })
+        : tr("Your steps stay fixed. Energy changes intensity.");
     group.override.hidden = scope !== "family" || !target?.own;
     group.override.textContent = target?.preview
-      ? "Save pattern for this look"
+      ? tr("Save pattern for this look")
       : override
-        ? "Save current look pattern"
-        : "Save as look override";
+        ? tr("Save current look pattern")
+        : tr("Save as look override");
     const savedLook =
       target?.own &&
       this.getSet().looks.find((look) => look.id === target.look);
@@ -470,21 +488,21 @@ export class RhythmPanel {
       target?.preview && savedLook?.snapshot.scene !== target.scene.id;
     group.override.disabled = this.isLocked() || differentDraftFamily;
     group.override.title = differentDraftFamily
-      ? "Save this draft's new family as an own look first."
-      : "Save a pattern override for this own look.";
+      ? tr("Save this draft's new family as an own look first.")
+      : tr("Save a pattern override for this own look.");
     group.inherit.hidden =
       scope !== "family" || !target?.own || (!override && !target?.preview);
     group.inherit.disabled = this.isLocked() || differentDraftFamily;
     group.scopeNote.textContent =
       scope === "global"
-        ? "Shared by every visual in this set"
+        ? tr("Shared by every visual in this set")
         : target.preview
-          ? "Unsaved draft pattern"
+          ? tr("Unsaved draft pattern")
           : target.audition
-            ? "Playing audition · edit with Preview draft rhythm"
+            ? tr("Playing audition · edit with Preview draft rhythm")
             : override
-              ? "Override for this own look"
-              : "Shared by this family in this set";
+              ? tr("Override for this own look")
+              : tr("Shared by this family in this set");
     const disabled =
       (this.preview && scope === "global") ||
       (!this.preview && scope === "family" && target.audition);
@@ -523,9 +541,9 @@ export class RhythmPanel {
           : item.look === target.look,
     );
     group.pending.textContent = pending.some((item) => item.quantize === "bar")
-      ? "Queued for the next 1"
+      ? tr("Queued for the next 1")
       : pending.length
-        ? "Queued for the next grid point"
+        ? tr("Queued for the next grid point")
         : "";
   }
 
@@ -544,7 +562,7 @@ export class RhythmPanel {
     group.mode = el("span", { className: "rhythm-mode" });
     group.auto = el("button", {
       type: "button",
-      textContent: "Automatic",
+      textContent: tr("Automatic"),
       onclick: () => {
         const pattern = defaultPattern(group.definitions, group.pattern.style);
         this.submit(group, { ...pattern, mode: "auto" }, "bar");
@@ -552,14 +570,16 @@ export class RhythmPanel {
     });
     group.lock = el("button", {
       type: "button",
-      textContent: "Protect",
+      textContent: tr("Protect"),
       onclick: () =>
         this.submit(group, { ...group.pattern, mode: "locked" }, "now"),
     });
     group.style = el(
       "select",
       {
-        ariaLabel: `${scope === "global" ? "Global" : "Family"} authored pattern`,
+        ariaLabel: tr("{value1} authored pattern", {
+          value1: tr(scope === "global" ? "Global" : "Family"),
+        }),
         onchange: () => {
           const pattern = defaultPattern(group.definitions, group.style.value);
           this.submit(group, { ...pattern, mode: "locked" }, "bar");
@@ -568,7 +588,7 @@ export class RhythmPanel {
       ...["restrained", "driving", "accented"].map((style) =>
         el("option", {
           value: style,
-          textContent: `${style[0].toUpperCase()}${style.slice(1)}`,
+          textContent: tr("rhythm.style." + style),
         }),
       ),
     );
@@ -585,7 +605,7 @@ export class RhythmPanel {
     });
     group.inherit = el("button", {
       type: "button",
-      textContent: "Use family pattern",
+      textContent: tr("Use family pattern"),
       onclick: () => {
         if (this.isLocked()) return;
         this.onSaveOverride?.(group.target, null);
@@ -596,7 +616,7 @@ export class RhythmPanel {
     group.tracks = el("div", { className: "rhythm-tracks" });
     group.empty = el("p", {
       className: "note",
-      textContent: "This family has no rhythm effects yet.",
+      textContent: tr("This family has no rhythm effects yet."),
     });
     root.replaceChildren(
       el("div", { className: "rhythm-section-head" }, group.title, group.mode),
@@ -640,27 +660,35 @@ export class RhythmPanel {
       group.previous = el("button", {
         type: "button",
         textContent: "‹",
-        ariaLabel: `${scope} previous rhythm bar`,
+        ariaLabel: tr("{value1} previous rhythm bar", {
+          value1: tr(scope === "global" ? "Global" : "Family"),
+        }),
         onclick: () => turn(-1),
       });
       group.next = el("button", {
         type: "button",
         textContent: "›",
-        ariaLabel: `${scope} next rhythm bar`,
+        ariaLabel: tr("{value1} next rhythm bar", {
+          value1: tr(scope === "global" ? "Global" : "Family"),
+        }),
         onclick: () => turn(1),
       });
       group.barLabel = el("span", {
         className: "rhythm-bar-label",
-        title:
+        title: tr(
           "Bars in the longest track. Shorter loops continue across this cycle without restarting.",
+        ),
       });
       group.live = el("button", {
         type: "button",
         className: "rhythm-live-toggle",
-        textContent: "Live",
-        ariaLabel: `${scope} follow live rhythm bar`,
-        title:
+        textContent: tr("Live"),
+        ariaLabel: tr("{value1} follow live rhythm bar", {
+          value1: tr(scope === "global" ? "Global" : "Family"),
+        }),
+        title: tr(
           "Follow the shared live bar · each track keeps its own loop length",
+        ),
         onclick: () => {
           group.follow = !group.follow;
           this.paintPlayheads(this.clock.position);
@@ -733,12 +761,16 @@ export class RhythmPanel {
     const row = { definition, buttons: [], active: -1 };
     row.name = el(this.compact ? "button" : "span", {
       className: "rhythm-effect-name",
-      textContent: definition.label,
+      textContent: tr(definition.label),
       ...(this.compact
         ? {
             type: "button",
-            title: `${definition.label} · track settings`,
-            ariaLabel: `${definition.label} settings`,
+            title: tr("{value1} · track settings", {
+              value1: tr(definition.label),
+            }),
+            ariaLabel: tr("{value1} settings", {
+              value1: tr(definition.label),
+            }),
             onclick: () => row.options.togglePopover(),
           }
         : {}),
@@ -751,28 +783,28 @@ export class RhythmPanel {
       className: "rhythm-kind",
       textContent:
         definition.kind === "simulation"
-          ? "Simulation"
+          ? tr("Simulation")
           : definition.kind === "motion"
-            ? "Motion"
-            : "Accent",
+            ? tr("Motion")
+            : tr("Accent"),
     });
     row.inactive = el("span", {
       className: "rhythm-inactive",
-      textContent: "Inactive for this variant",
+      textContent: tr("Inactive for this variant"),
       hidden: true,
     });
     row.mute = el("button", {
       type: "button",
       className: "rhythm-mute",
-      textContent: "Mute",
-      ariaLabel: `Mute ${definition.label}`,
+      textContent: tr("Mute"),
+      ariaLabel: tr("Mute {value1}", { value1: tr(definition.label) }),
       onclick: () =>
         edit((track) => ({ ...track, muted: !track.muted }), "now"),
     });
     row.division = el(
       "select",
       {
-        ariaLabel: `${definition.label} resolution`,
+        ariaLabel: tr("{value1} resolution", { value1: tr(definition.label) }),
         onchange: () =>
           edit(
             (track) =>
@@ -785,17 +817,21 @@ export class RhythmPanel {
           ),
       },
       ...[
-        [1, "Quarter"],
-        [2, "Eighth"],
-        [4, "Sixteenth"],
-      ].map(([value, textContent]) => el("option", { value, textContent })),
+        [1, tr("Quarter")],
+        [2, tr("Eighth")],
+        [4, tr("Sixteenth")],
+      ].map(([value, textContent]) =>
+        el("option", { value, textContent: tr(textContent) }),
+      ),
     );
     row.length = el("input", {
       type: "number",
       min: 1,
       max: 256,
       step: 1,
-      ariaLabel: `${definition.label} loop length in steps`,
+      ariaLabel: tr("{value1} loop length in steps", {
+        value1: tr(definition.label),
+      }),
       onchange: () => {
         if (!Number.isFinite(row.length.valueAsNumber)) return this.update();
         edit((track) => resizeTrack(track, row.length.valueAsNumber), "bar");
@@ -807,7 +843,7 @@ export class RhythmPanel {
       min: 0,
       max: 1,
       step: 0.01,
-      ariaLabel: `${definition.label} strength`,
+      ariaLabel: tr("{value1} strength", { value1: tr(definition.label) }),
       oninput: () =>
         edit(
           (track) => ({ ...track, strength: Number(row.strength.value) }),
@@ -820,7 +856,9 @@ export class RhythmPanel {
       min: 0.0625,
       max: 8,
       step: 0.0625,
-      ariaLabel: `${definition.label} duration in beats`,
+      ariaLabel: tr("{value1} duration in beats", {
+        value1: tr(definition.label),
+      }),
       onchange: () => {
         if (!Number.isFinite(row.duration.valueAsNumber)) return this.update();
         edit(
@@ -835,12 +873,15 @@ export class RhythmPanel {
     row.steps = el("div", {
       className: "rhythm-steps",
       role: "group",
-      ariaLabel: `${definition.label} loop steps`,
+      ariaLabel: tr("{value1} loop steps", { value1: tr(definition.label) }),
     });
     row.mini = el("div", {
       className: "rhythm-mini",
       ...(this.compact
-        ? { role: "group", ariaLabel: `${definition.label} pattern` }
+        ? {
+            role: "group",
+            ariaLabel: tr("{value1} pattern", { value1: tr(definition.label) }),
+          }
         : { ariaHidden: "true" }),
     });
     row.miniCells = Array.from({ length: 16 }, (_, index) =>
@@ -890,7 +931,7 @@ export class RhythmPanel {
     row.root.append(
       el(
         "div",
-        { className: "rhythm-track-head", title: definition.description },
+        { className: "rhythm-track-head", title: tr(definition.description) },
         row.name,
         row.kind,
         row.inactive,
@@ -899,8 +940,8 @@ export class RhythmPanel {
       el(
         "div",
         { className: "rhythm-track-timing" },
-        el("label", {}, "Grid ", row.division),
-        el("label", {}, "Steps ", row.length),
+        el("label", {}, tr("Grid "), row.division),
+        el("label", {}, tr("Steps "), row.length),
         row.loop,
       ),
       el("div", { className: "rhythm-step-scroll", tabIndex: -1 }, row.steps),
@@ -911,16 +952,16 @@ export class RhythmPanel {
         el(
           "label",
           { className: "rhythm-strength" },
-          "Strength",
+          tr("Strength"),
           row.strength,
           row.strengthValue,
         ),
         el(
           "label",
           { className: "rhythm-duration" },
-          "Duration",
+          tr("Duration"),
           row.duration,
-          el("span", { className: "note", textContent: "beats" }),
+          el("span", { className: "note", textContent: tr("beats") }),
         ),
       ),
     );
@@ -931,7 +972,7 @@ export class RhythmPanel {
       });
       row.options.dataset.effectOptions = definition.id;
       row.options.append(
-        this.optionHeading(definition.label, row.options),
+        this.optionHeading(tr(definition.label), row.options),
         row.kind,
         row.inactive,
         row.mute,
@@ -974,7 +1015,7 @@ export class RhythmPanel {
     row.root.classList.toggle("rhythm-muted", track.muted);
     row.inactive.hidden = available;
     row.mute.ariaPressed = String(track.muted);
-    row.mute.textContent = track.muted ? "Muted" : "Mute";
+    row.mute.textContent = track.muted ? tr("Muted") : tr("Mute");
     for (const [input, value] of [
       [row.division, track.division],
       [row.length, track.length],
@@ -995,9 +1036,13 @@ export class RhythmPanel {
     if (row.loopBadge)
       row.loopBadge.textContent =
         beats % 4
-          ? `${Number(beats.toFixed(2))} beats`
-          : `${beats / 4} ${beats === 4 ? "bar" : "bars"}`;
-    row.loop.textContent = `${Number(beats.toFixed(2))} beats${beats % 4 ? " · crosses bars" : ` · ${beats / 4} ${beats === 4 ? "bar" : "bars"}`}`;
+          ? beatCount(beats)
+          : `${beats / 4} ${beats === 4 ? tr("bar") : tr("bars")}`;
+    row.loop.textContent =
+      beatCount(beats) +
+      (beats % 4
+        ? tr(" · crosses bars")
+        : ` · ${beats / 4} ${beats === 4 ? tr("bar") : tr("bars")}`);
     if (row.buttons.length > track.length) {
       const activeIndex = row.buttons.indexOf(this.document.activeElement);
       for (const button of row.buttons.splice(track.length)) button.remove();
@@ -1038,8 +1083,32 @@ export class RhythmPanel {
       const strength = track.steps[index];
       button.textContent = stepLabel(index, track.division);
       button.ariaPressed = String(strength > 0);
-      button.ariaLabel = `${definition.label}, loop bar ${Math.floor(index / track.division / 4) + 1}, beat ${(Math.floor(index / track.division) % 4) + 1}${track.division > 1 ? `, subdivision ${(index % track.division) + 1} of ${track.division}` : ""}, ${strength <= 0 ? "off" : strength === 1 ? "accent" : "on"}`;
-      button.title = `Loop ${stepLabel(index, track.division)} · ${strength <= 0 ? "off" : strength === 1 ? "accent" : "on"}`;
+      button.ariaLabel = tr(
+        "{value1}, loop bar {value2}, beat {value3}{value4}, {value5}",
+        {
+          value1: tr(definition.label),
+          value2: Math.floor(index / track.division / 4) + 1,
+          value3: (Math.floor(index / track.division) % 4) + 1,
+          value4:
+            track.division > 1
+              ? tr(", subdivision {value1} of {value2}", {
+                  value1: (index % track.division) + 1,
+                  value2: track.division,
+                })
+              : "",
+          value5:
+            strength <= 0
+              ? tr("off")
+              : strength === 1
+                ? tr("accent")
+                : tr("on"),
+        },
+      );
+      button.title = tr("Loop {value1} · {value2}", {
+        value1: stepLabel(index, track.division),
+        value2:
+          strength <= 0 ? tr("off") : strength === 1 ? tr("accent") : tr("on"),
+      });
       button.classList.toggle("rhythm-accent", strength === 1);
       button.classList.toggle(
         "rhythm-bar-start",
@@ -1059,7 +1128,7 @@ export class RhythmPanel {
       if (this.compact) {
         if (group.follow) group.bar = liveBar;
         const displayBar = modulo(group.bar, group.barCount);
-        const label = `${group.follow ? "Bar" : "Edit bar"} ${displayBar + 1} / ${group.barCount}`;
+        const label = `${group.follow ? tr("Bar") : tr("Edit bar")} ${displayBar + 1} / ${group.barCount}`;
         if (group.barLabel.textContent !== label)
           group.barLabel.textContent = label;
         group.previous.disabled = displayBar === 0;
@@ -1079,8 +1148,25 @@ export class RhythmPanel {
             if (this.compact) {
               cell.ariaPressed = String(steps[index] > 0);
               const displayBar = modulo(group.bar, group.barCount);
-              cell.ariaLabel = `${row.definition.label}, bar ${displayBar + 1}, beat ${Math.floor(index / 4) + 1}, subdivision ${(index % 4) + 1}, ${steps[index] === 1 ? "accent" : steps[index] > 0 ? "on" : "off"}`;
-              cell.title = `${stepLabel(displayBar * 16 + index, 4)} · click to change, Shift-click for accent`;
+              cell.ariaLabel = tr(
+                "{value1}, bar {value2}, beat {value3}, subdivision {value4}, {value5}",
+                {
+                  value1: tr(row.definition.label),
+                  value2: displayBar + 1,
+                  value3: Math.floor(index / 4) + 1,
+                  value4: (index % 4) + 1,
+                  value5:
+                    steps[index] === 1
+                      ? tr("accent")
+                      : steps[index] > 0
+                        ? tr("on")
+                        : tr("off"),
+                },
+              );
+              cell.title = tr(
+                "{value1} · click to change, Shift-click for accent",
+                { value1: stepLabel(displayBar * 16 + index, 4) },
+              );
             }
             cell.classList.toggle(
               "on",

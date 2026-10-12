@@ -1,3 +1,4 @@
+import { tr, translateDocument } from "./i18n/index.mjs";
 // HSV editing preserves hue while saturation/value pass through white or black.
 export function hexToHsv(hex) {
   const [r, g, b] = hex
@@ -50,18 +51,19 @@ export class PalettePicker {
     this.isLocked = isLocked;
     this.key = "primary";
     root.classList.add("palette-control");
-    root.innerHTML = '<span>Palette</span><div class="palette-swatches"></div>';
+    root.innerHTML =
+      '<span data-i18n="Palette">Palette</span><div class="palette-swatches"></div>';
     this.buttons = {};
     const names = {
-      primary: "Primary",
-      secondary: "Secondary",
-      accent: "Accent",
+      primary: tr("Edit primary colour"),
+      secondary: tr("Edit secondary colour"),
+      accent: tr("Edit accent colour"),
     };
     for (const key of Object.keys(names)) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "palette-swatch";
-      button.ariaLabel = `Edit ${names[key].toLowerCase()} colour`;
+      button.ariaLabel = names[key];
       button.ariaHasPopup = "dialog";
       button.onclick = () => {
         if (isLocked()) return;
@@ -82,15 +84,17 @@ export class PalettePicker {
     this.popover.className = "color-popover settings-controls";
     this.popover.setAttribute("popover", "auto");
     this.popover.role = "dialog";
-    this.popover.ariaLabel = "Show palette colour picker";
+    this.popover.ariaLabel = tr("Show palette colour picker");
     this.popover.innerHTML = `
-      <div class="color-heading"><strong></strong><button type="button" class="color-close" aria-label="Close colour picker">×</button></div>
-      <div class="color-sv" tabindex="0" role="group" aria-label="Saturation and brightness. Arrow keys adjust; Shift makes larger changes."><i></i></div>
-      <label class="color-hue-label"><span>Hue</span><input class="color-hue" type="range" min="0" max="360" step="1" aria-label="Colour hue"></label>
-      <div class="color-values"><label>Hex<input class="color-hex" type="text" maxlength="7" spellcheck="false" aria-label="Hex colour"></label><label>Saturation<input class="color-s" type="number" min="0" max="100" aria-label="Colour saturation"></label><label>Brightness<input class="color-v" type="number" min="0" max="100" aria-label="Colour brightness"></label></div>
-      <p class="color-note">Shared by the preview, catalog and rhythm.</p>
-      <details class="color-presets"><summary>Palette presets</summary><div></div></details>`;
+      <div class="color-heading"><strong></strong><button type="button" class="color-close" aria-label="Close colour picker" data-i18n-aria-label="Close colour picker">×</button></div>
+      <div class="color-sv" tabindex="0" role="group" aria-label="Saturation and brightness. Arrow keys adjust; Shift makes larger changes." data-i18n-aria-label="Saturation and brightness. Arrow keys adjust; Shift makes larger changes."><i></i></div>
+      <label class="color-hue-label"><span data-i18n="Hue">Hue</span><input class="color-hue" type="range" min="0" max="360" step="1" aria-label="Colour hue" data-i18n-aria-label="Colour hue"></label>
+      <div class="color-values"><label><span data-i18n="Hex">Hex</span><input class="color-hex" type="text" maxlength="7" spellcheck="false" aria-label="Hex colour" data-i18n-aria-label="Hex colour"></label><label><span data-i18n="Saturation">Saturation</span><input class="color-s" type="number" min="0" max="100" aria-label="Colour saturation" data-i18n-aria-label="Colour saturation"></label><label><span data-i18n="Brightness">Brightness</span><input class="color-v" type="number" min="0" max="100" aria-label="Colour brightness" data-i18n-aria-label="Colour brightness"></label></div>
+      <p class="color-note" data-i18n="Shared by the preview, catalog and rhythm.">Shared by the preview, catalog and rhythm.</p>
+      <details class="color-presets"><summary data-i18n="Palette presets">Palette presets</summary><div></div></details>`;
     document.body.append(this.popover);
+    translateDocument(root);
+    translateDocument(this.popover);
     const q = (selector) => this.popover.querySelector(selector);
     this.pad = q(".color-sv");
     this.hue = q(".color-hue");
@@ -175,8 +179,10 @@ export class PalettePicker {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "color-preset";
-      button.ariaLabel = `Use ${palette.name} palette`;
-      button.append(document.createTextNode(palette.name));
+      button.ariaLabel = tr("Use {value1} palette", {
+        value1: tr(palette.name),
+      });
+      button.append(document.createTextNode(tr(palette.name)));
       for (const color of Object.values(palette.colors)) {
         const dot = document.createElement("i");
         dot.style.background = color;
@@ -212,15 +218,22 @@ export class PalettePicker {
   paint() {
     for (const [key, button] of Object.entries(this.buttons)) {
       button.style.setProperty("--swatch", this.colors[key]);
-      button.title = `${key}: ${this.colors[key]}`;
+      button.title = `${tr("palette." + key)}: ${this.colors[key]}`;
     }
-    this.popover.querySelector("strong").textContent =
-      `${this.key[0].toUpperCase() + this.key.slice(1)} colour`;
+    this.popover.querySelector("strong").textContent = tr("{value1} colour", {
+      value1: tr("palette." + this.key),
+    });
     this.pad.style.backgroundColor = hsvToHex({ h: this.hsv.h, s: 1, v: 1 });
     const marker = this.pad.firstElementChild;
     marker.style.left = `${this.hsv.s * 100}%`;
     marker.style.top = `${(1 - this.hsv.v) * 100}%`;
-    this.pad.ariaDescription = `${Math.round(this.hsv.s * 100)}% saturation, ${Math.round(this.hsv.v * 100)}% brightness`;
+    this.pad.ariaDescription = tr(
+      "{value1}% saturation, {value2}% brightness",
+      {
+        value1: Math.round(this.hsv.s * 100),
+        value2: Math.round(this.hsv.v * 100),
+      },
+    );
     this.hue.value = this.hsv.h;
     if (document.activeElement !== this.hex)
       this.hex.value = this.colors[this.key].toUpperCase();

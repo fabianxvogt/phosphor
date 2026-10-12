@@ -1,3 +1,4 @@
+import { tr, lookName, variantName, formatNumber } from "./i18n/index.mjs";
 // Catalog panel of the control window (D65, D68): every look — authored and
 // own — as a card with a thumbnail, a favourite heart, a 0–10 half-star
 // rating, Play and Edit. The first 32 cards of the current view carry the
@@ -32,7 +33,7 @@ const format = (rating) =>
     ? "—"
     : Number.isInteger(rating)
       ? `${rating}`
-      : rating.toFixed(1);
+      : formatNumber(rating, 1);
 
 // The rating widget: a role="slider" with ten stars (half steps) and a
 // separate "never" (0) toggle. Arrow keys move in 0.5 steps; Home/End go to
@@ -57,19 +58,20 @@ function ratingWidget(look, getRating, setRating) {
     className: "stars",
     role: "slider",
     tabIndex: 0,
-    ariaLabel: `Rating for ${look.name}`,
+    ariaLabel: tr("Rating for {value1}", { value1: lookName(look) }),
     ariaValueMin: "0",
     ariaValueMax: String(MAX_RATING),
-    title:
+    title: tr(
       "Rate 0.5–10 (left half of a star: half). Click the current value to clear.",
+    ),
   });
   slider.append(...stars);
   const never = el("button", {
     className: "never",
     type: "button",
     textContent: "0",
-    title: "Never play (rating 0)",
-    ariaLabel: `Never play ${look.name}`,
+    title: tr("Never play (rating 0)"),
+    ariaLabel: tr("Never play {value1}", { value1: lookName(look) }),
   });
   // The value badge sits on the thumbnail; it previews the pointed value.
   const value = el("output", { className: "badge" });
@@ -81,7 +83,7 @@ function ratingWidget(look, getRating, setRating) {
     const preview = shown !== (rating ?? 0);
     value.textContent =
       !preview && rating === 0
-        ? "never"
+        ? tr("never")
         : `★ ${format(preview ? shown : rating)}`;
     value.hidden = !preview && rating === null;
     value.classList.toggle("never", !preview && rating === 0);
@@ -94,10 +96,10 @@ function ratingWidget(look, getRating, setRating) {
     else slider.ariaValueNow = String(rating);
     slider.ariaValueText =
       rating === null
-        ? "unrated"
+        ? tr("unrated")
         : rating === 0
-          ? "0, never"
-          : `${rating} of 10`;
+          ? tr("0, never")
+          : tr("{value1} of 10", { value1: formatNumber(rating, 1) });
     never.ariaPressed = String(rating === 0);
   };
   const pointed = (event) => {
@@ -154,11 +156,11 @@ function ratingWidget(look, getRating, setRating) {
 }
 
 export const SHOW = [
-  ["all", "All looks"],
-  ["favorites", "Favourites"],
-  ["rated", "Rated"],
-  ["unrated", "Unrated"],
-  ["own", "Own looks"],
+  ["all", tr("All looks")],
+  ["favorites", tr("Favourites")],
+  ["rated", tr("Rated")],
+  ["unrated", tr("Unrated")],
+  ["own", tr("Own looks")],
 ];
 
 export class CatalogPanel {
@@ -225,14 +227,14 @@ export class CatalogPanel {
     this.selected = null;
     show.replaceChildren(
       ...SHOW.map(([value, label]) =>
-        el("option", { value, textContent: label }),
+        el("option", { value, textContent: tr(label) }),
       ),
     );
     this.#families();
     character?.replaceChildren(
-      el("option", { value: "", textContent: "All visual styles" }),
+      el("option", { value: "", textContent: tr("All visual styles") }),
       ...VISUAL_STYLES.map(([value, textContent]) =>
-        el("option", { value, textContent }),
+        el("option", { value, textContent: tr(textContent) }),
       ),
     );
     this.observer =
@@ -275,12 +277,12 @@ export class CatalogPanel {
     this.family.replaceChildren(
       el("option", {
         value: "",
-        textContent: `All families (${families.length})`,
+        textContent: tr("All families ({value1})", { value1: families.length }),
       }),
       ...families.map((f) =>
         el("option", {
           value: f.id,
-          textContent: `${f.name} (${f.count})`,
+          textContent: `${tr(f.name)} (${f.count})`,
         }),
       ),
     );
@@ -288,10 +290,13 @@ export class CatalogPanel {
       families.find((f) => f.id === value || f.sceneIds.includes(value))?.id ??
       "";
     this.title.replaceChildren(
-      "Catalog",
+      tr("Catalog"),
       el("span", {
         className: "catalog-total",
-        textContent: `${this.looks.length} looks · ${families.length} families`,
+        textContent: tr("{value1} looks · {value2} families", {
+          value1: this.looks.length,
+          value2: families.length,
+        }),
       }),
     );
   }
@@ -338,14 +343,15 @@ export class CatalogPanel {
       thumb.append(
         el("span", {
           className: "own",
-          textContent: "own",
-          title: "Your own look",
+          textContent: tr("own"),
+          title: tr("Your own look"),
         }),
       );
     // The thumbnail plays the look, like a grid key, with native keyboard semantics.
+    thumb.dataset.playingLabel = tr("Playing");
     thumb.role = "button";
     thumb.tabIndex = 0;
-    thumb.ariaLabel = `Play ${look.name}`;
+    thumb.ariaLabel = tr("Play {value1}", { value1: lookName(look) });
     thumb.addEventListener("click", () => this.onPlay(look));
     thumb.addEventListener("keydown", (event) => {
       if (
@@ -360,25 +366,25 @@ export class CatalogPanel {
       event.stopPropagation();
       if (!event.repeat) this.onPlay(look);
     });
-    thumb.title = "Play (preview here; live when the stage is open)";
+    thumb.title = tr("Play (preview here; live when the stage is open)");
     const heart = el("button", {
       className: "heart",
       type: "button",
       textContent: "♡",
-      title: "Favourite: in your live set, listed first",
-      ariaLabel: `Favourite ${look.name}`,
+      title: tr("Favourite: in your live set, listed first"),
+      ariaLabel: tr("Favourite {value1}", { value1: lookName(look) }),
       onclick: () => this.#favorite(look.id),
     });
     heart.addEventListener("mousedown", (event) => event.preventDefault());
     const identity = look.variant
-      ? `${look.family} · ${look.variant}`
-      : look.family;
+      ? `${tr(look.family)} · ${variantName(look.variant)}`
+      : tr(look.family);
     const node = el(
       "article",
       {
         className: "look",
         role: "listitem",
-        ariaLabel: `${look.name} · ${identity}`,
+        ariaLabel: `${lookName(look)} · ${identity}`,
       },
       thumb,
       el(
@@ -389,8 +395,8 @@ export class CatalogPanel {
           { className: "look-title" },
           el("div", {
             className: "look-name",
-            textContent: look.name,
-            title: look.name,
+            textContent: lookName(look),
+            title: lookName(look),
           }),
           heart,
         ),
@@ -403,16 +409,16 @@ export class CatalogPanel {
           "details",
           { className: "look-tools" },
           el("summary", {
-            textContent: "Rate & edit",
-            ariaLabel: `Rate and edit ${look.name}`,
+            textContent: tr("Rate & edit"),
+            ariaLabel: tr("Rate and edit {value1}", { value1: lookName(look) }),
           }),
           el(
             "p",
             { className: "look-algorithm" },
             el("strong", {
-              textContent: look.algorithm ?? "Generative visual",
+              textContent: tr(look.algorithm ?? "Generative visual"),
             }),
-            document.createTextNode(`. ${look.description ?? ""}`),
+            document.createTextNode(`. ${tr(look.description)}`),
           ),
           widget.node,
           el(
@@ -421,15 +427,17 @@ export class CatalogPanel {
             el("button", {
               className: "play",
               type: "button",
-              textContent: "▶ Play",
-              title: "Preview here; plays live when the stage is open",
+              textContent: tr("▶ Play"),
+              title: tr("Preview here; plays live when the stage is open"),
               onclick: () => this.onPlay(look),
             }),
             el("button", {
               className: "edit",
               type: "button",
-              textContent: "Edit",
-              title: "Open in the look editor (save changes as an own look)",
+              textContent: tr("Edit"),
+              title: tr(
+                "Open in the look editor (save changes as an own look)",
+              ),
               onclick: () => this.onEdit(look),
             }),
           ),
@@ -450,7 +458,7 @@ export class CatalogPanel {
       key,
       snapshot,
       text: fold(
-        `${look.name} ${look.family} ${look.sourceFamily ?? ""} ${look.variant ?? ""} ${look.algorithm ?? ""} ${look.description ?? ""} ${look.styles?.join(" ") ?? ""}`,
+        `${look.name} ${look.family} ${look.sourceFamily ?? ""} ${look.variant ?? ""} ${look.algorithm ?? ""} ${look.description ?? ""} ${tr(look.description)} ${look.styles?.join(" ") ?? ""} ${lookName(look)} ${tr(look.family)} ${tr(look.sourceFamily)} ${variantName(look.variant)} ${tr(look.algorithm)} ${look.styles?.map((style) => tr(VISUAL_STYLES.find(([id]) => id === style)?.[1])).join(" ") ?? ""}`,
       ),
     };
     node.card = card;
@@ -494,9 +502,13 @@ export class CatalogPanel {
   #updateCount() {
     const shown = this.order.length;
     this.count.textContent =
-      shown === this.looks.length ? "" : `${shown} shown`;
+      shown === this.looks.length
+        ? ""
+        : tr("{value1} shown", { value1: shown });
     this.sortButton.hidden = !this.stale;
-    this.sortButton.textContent = `Sort (${this.stale} changed)`;
+    this.sortButton.textContent = tr("Sort ({value1} changed)", {
+      value1: this.stale,
+    });
   }
 
   #visible(look, ratings, favorites, words, family, show) {
@@ -541,16 +553,18 @@ export class CatalogPanel {
           { className: "catalog-empty", role: "status" },
           el("strong", {
             textContent: own
-              ? "Your next look starts here"
-              : "No matching looks",
+              ? tr("Your next look starts here")
+              : tr("No matching looks"),
           }),
           el("p", {
             textContent: own
-              ? "Choose a look, make it yours, then save it as an own look."
-              : "Try another search or reset the filters to explore the catalog.",
+              ? tr("Choose a look, make it yours, then save it as an own look.")
+              : tr(
+                  "Try another search or reset the filters to explore the catalog.",
+                ),
           }),
           el("button", {
-            textContent: "Explore all looks",
+            textContent: tr("Explore all looks"),
             onclick: () => {
               this.search.value = "";
               this.family.value = "";

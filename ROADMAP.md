@@ -16,6 +16,8 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 
 ## Now (2026-10-08)
 
+German and English (2026-10-12): browser language detection, complete interface/catalog/rhythm dictionaries, bilingual catalog search, preserved user names and set compatibility. Copy is direct and informal with subtle atmosphere in visual names. [Verification](docs/EVIDENCE.md#languages-2026-10-12).
+
 Resizable organic layout and transport pause (2026-10-12, INCREMENTAL): both layouts fit the viewport, preserve independent saved splits and allow broad panel resizing. Catalog/footer controls are grouped, Rhythm follows one aligned Live bar with a bounded counter, and Space pauses/resumes the exact visual/audio position. Original frame artwork is retained. [Verification and limits](docs/EVIDENCE.md#resizable-panels-live-rhythm-and-pause-2026-10-12).
 
 Further family performance (2026-10-12, INCREMENTAL): full 39-renderer / 178-variant sweep repeated. Melt is roughly 3–7× faster and Peano about 2.7× faster in the targeted 4K repeat, with exact sampled images. Quasicrystal's first-pass edge discrepancy is fixed; its correctness fallback adds cost. All measured 1080p variant medians are below 16.67 ms; 36 remain above it at 4K. [Complete measurements and quality checks](docs/families/PERFORMANCE.md).

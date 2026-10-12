@@ -1,12 +1,14 @@
+import { tr, errorText, translateDocument } from "./i18n/index.mjs";
+translateDocument();
 const status = document.getElementById("updateStatus");
 const button = document.getElementById("applyUpdate");
 
 button.onclick = async () => {
   button.disabled = true;
-  status.textContent = "Downloading the latest complete release…";
+  status.textContent = tr("Downloading the latest complete release…");
   try {
     if (!("serviceWorker" in navigator))
-      throw new Error("Offline updates require HTTPS or localhost.");
+      throw new Error(tr("Offline updates require HTTPS or localhost."));
     const registration = await navigator.serviceWorker.register("./sw.js", {
       updateViaCache: "none",
     });
@@ -21,7 +23,7 @@ button.onclick = async () => {
           } else if (installing.state === "redundant") {
             installing.removeEventListener("statechange", changed);
             reject(
-              new Error("The release could not be downloaded completely."),
+              new Error(tr("The release could not be downloaded completely.")),
             );
           }
         };
@@ -30,14 +32,14 @@ button.onclick = async () => {
       });
     }
     const worker = registration.waiting ?? registration.active;
-    if (!worker) throw new Error("No complete release is available yet.");
+    if (!worker) throw new Error(tr("No complete release is available yet."));
     const channel = new MessageChannel();
     const result = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         channel.port1.close();
         reject(
           new Error(
-            "The update did not respond. Your current app is unchanged.",
+            tr("The update did not respond. Your current app is unchanged."),
           ),
         );
       }, 10000);
@@ -49,11 +51,12 @@ button.onclick = async () => {
       worker.postMessage({ type: "activate-release" }, [channel.port2]);
     });
     if (result.blocked) {
-      status.textContent =
-        "Close other Phosphor tabs and windows, including the stage, then try again. Keep this updater open. Their output has not been interrupted.";
+      status.textContent = tr(
+        "Close other Phosphor tabs and windows, including the stage, then try again. Keep this updater open. Their output has not been interrupted.",
+      );
       return;
     }
-    if (!result.ready) throw new Error("The release was not activated.");
+    if (!result.ready) throw new Error(tr("The release was not activated."));
     // Activation finishes only after clients.claim(), so navigation and the
     // entire module graph use the new offline generation, not the old cache.
     if (worker.state !== "activated") {
@@ -64,7 +67,7 @@ button.onclick = async () => {
             resolve();
           } else if (worker.state === "redundant") {
             worker.removeEventListener("statechange", changed);
-            reject(new Error("The release could not be activated."));
+            reject(new Error(tr("The release could not be activated.")));
           }
         };
         worker.addEventListener("statechange", changed);
@@ -73,7 +76,9 @@ button.onclick = async () => {
     }
     location.replace("./");
   } catch (error) {
-    status.textContent = `Update failed: ${error.message}`;
+    status.textContent = tr("Update failed: {value1}", {
+      value1: errorText(error),
+    });
   } finally {
     button.disabled = false;
   }

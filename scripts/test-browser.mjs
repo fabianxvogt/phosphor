@@ -947,7 +947,7 @@ try {
   await waitFor(
     control,
     () =>
-      document.getElementById("stagePill").textContent === "Stage not open" &&
+      document.getElementById("stagePill").textContent === "Stage closed" &&
       document.getElementById("settingsLock").disabled &&
       !document.getElementById("settingsLock").checked,
     null,

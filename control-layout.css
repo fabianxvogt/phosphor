@@ -313,3 +313,41 @@ body .panel-floating-menu[popover]:not(:popover-open) {
     width: 44px;
   }
 }
+
+/* Translated transport labels need their own row in a narrow monitor. */
+body[data-panel-layout] .monitor-panel.panel-narrow .preview-overlay {
+  flex-wrap: wrap;
+}
+body[data-panel-layout] .monitor-panel.panel-narrow .preview-caption {
+  flex: 1 0 100%;
+  align-items: flex-start;
+}
+body[data-panel-layout] .monitor-panel.panel-narrow .preview-tempo {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+body[data-panel-layout] .monitor-panel.panel-narrow .preview-size {
+  margin-left: auto;
+}
+
+/* Open cards must also fit long translated actions and all ten rating stars. */
+.look-tools .rating {
+  flex-wrap: wrap;
+}
+.look-tools .stars {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  flex: 1 0 100%;
+  width: 100%;
+  font-size: 11px;
+}
+.look-tools .stars .star {
+  width: auto;
+  min-width: 0;
+}
+.look-tools .look-actions {
+  flex-wrap: wrap;
+}
+.look-tools .look-actions button {
+  flex: 1 1 80px;
+}

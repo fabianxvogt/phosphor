@@ -1,3 +1,5 @@
+import { tr, errorText, translateDocument } from "./i18n/index.mjs";
+translateDocument();
 // Stage window (decision D8): renders at the screen's native size within the
 // GPU limits and owns the show — controller, clock, autopilot, audio and
 // beat tracking. The control window is a remote; if it crashes or reloads
@@ -133,7 +135,10 @@ function apply(actions) {
         audio.engine
           .setPaused(a.on)
           .catch((error) =>
-            post({ type: "error", message: `Audio: ${error.message}` }),
+            post({
+              type: "error",
+              message: tr("Audio: {value1}", { value1: errorText(error) }),
+            }),
           );
         break;
       case "flash":
@@ -185,7 +190,10 @@ function startAudio(event) {
   audio.engine.setPaused(show.clock.paused).catch(() => {});
   audioStart ??= audio.use(audioChoice).catch((error) => {
     audioStart = null;
-    post({ type: "error", message: `Audio: ${error.message}` });
+    post({
+      type: "error",
+      message: tr("Audio: {value1}", { value1: errorText(error) }),
+    });
   });
   return audioStart;
 }
@@ -230,7 +238,9 @@ function frame(ms) {
     // Never freeze the show on one bad frame: fall back to the safe look.
     post({
       type: "error",
-      message: `Frame error: ${error.message}. Safe look loaded.`,
+      message: tr("Frame error: {value1}. Safe look loaded.", {
+        value1: errorText(error),
+      }),
     });
     try {
       apply(show.command({ type: "safe" }, t));
@@ -373,7 +383,7 @@ channel.onmessage = async ({ data }) => {
         break;
     }
   } catch (error) {
-    post({ type: "error", message: error.message });
+    post({ type: "error", message: errorText(error) });
   }
 };
 

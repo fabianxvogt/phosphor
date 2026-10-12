@@ -976,7 +976,7 @@ kbd {
   padding: 2px 6px;
 }
 .look.live .thumb::after {
-  content: "Playing";
+  content: attr(data-playing-label);
   position: absolute;
   left: 7px;
   top: 7px;

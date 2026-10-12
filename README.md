@@ -27,6 +27,21 @@ For a headless control/stage smoke on a local machine with Chrome installed, run
 Microphone, MIDI, the offline cache and screen placement need HTTPS or localhost.
 If an older offline release still shows **Enter Show mode** or **Prep: click a slot to edit it**, save your clip edits and open [Update Phosphor](https://phosphor-performance.vercel.app/update.html) in that same tab. Close the stage and any other Phosphor tabs/windows, keeping the updater open; click **Update and open Phosphor**. Saved sets are retained.
 
+## Languages
+
+Phosphor follows the browser’s ordered language preferences: German and English,
+including regional variants such as `de-AT` and `en-GB`. If neither is supported,
+it uses English. Reload after changing the browser’s language preferences.
+Controls, catalog names and descriptions, rhythm gestures, accessibility labels,
+Stage and the updater share dictionaries in [`i18n/`](i18n/). Your own look and set
+names stay as written; saved IDs, ratings, MIDI mappings and exports stay compatible.
+Catalog search accepts both translated and original names. Interface copy stays
+direct and informal; look and palette names carry the quieter, mystical tone.
+
+Run `npm run test:i18n -- --native-gpu` after building to check both languages in
+Chrome, including narrow layouts, custom names and error messages. The dictionaries
+are bundled into the same offline release as the app.
+
 ## Appearance and navigation
 
 Use the sun/moon button to switch between light and dark themes. Phosphor starts in dark mode and remembers your choice in this browser. A single sculpted biomechanical frame connects Preview and Catalog on the left with Look, Performance and Rhythm on the right. Narrow screens use a matching one-column frame with all five panels stacked. Inset controls keep clear of the organic edges; Forum lettering gives the logo and headings a quieter, mystical character. **Rate & edit** on each card reveals its rating and editing controls. Audio, MIDI, Set and Pre-show open a keyboard-accessible setup dialog; Escape closes it. Click the set name to rename it, or the **•••** menus for additional look and performance controls. The rhythm grid is directly editable: click a cell to cycle off/on/accent, or Shift-click for an accent. Bar arrows reach longer loops without expanding the panel. Click a track name for its small timing/strength menu; **•••** opens pattern presets and draft/own-look options. Edits stay protected until you switch back to **Auto**. Enter activates focused buttons, arrow keys adjust focused sliders, and Shift+Space still plays Next. Space pauses/resumes playback, including when a button or slider is focused; text fields keep normal typing.

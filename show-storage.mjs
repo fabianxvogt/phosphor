@@ -1,3 +1,4 @@
+import { tr, errorText } from "./i18n/index.mjs";
 // Local persistence (D9): the control saves v5 sets on edits; the stage
 // saves runtime state each second. Old set entries remain as migration backups.
 import { initialShowSet, parseShowSet, validateShowSet } from "./show-set.mjs";
@@ -32,17 +33,25 @@ export function loadSet(storage, scenes) {
       return {
         set: initialShowSet(scenes),
         report: [
-          `Saved show unreadable: ${error.message}. The original is kept in local storage under "${preservedAt}".`,
+          tr(
+            'Saved show unreadable: {value1}. The original is kept in local storage under "{value2}".',
+            { value1: errorText(error), value2: preservedAt },
+          ),
         ],
       };
     }
     if (key !== SET_KEY) {
-      loaded.report.unshift(`Migrated the saved ${key.slice(-2)} set.`);
+      loaded.report.unshift(
+        tr("Migrated the saved {value1} set.", { value1: key.slice(-2) }),
+      );
       try {
         saveSet(storage, loaded.set);
       } catch (error) {
         loaded.report.push(
-          `Could not save the migrated set (${error.message}); the original is still kept under "${key}".`,
+          tr(
+            'Could not save the migrated set ({value1}); the original is still kept under "{value2}".',
+            { value1: errorText(error), value2: key },
+          ),
         );
       }
     }

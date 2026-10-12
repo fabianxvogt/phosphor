@@ -1,3 +1,4 @@
+import { tr } from "./i18n/index.mjs";
 // MIDI learn routing for v3 shows (D5): CCs drive shared and family faders;
 // notes and CC edges trigger actions. Pure, so it is tested without devices.
 const CONTINUOUS = {
@@ -40,7 +41,7 @@ export function routeMidi(
         ),
     );
     if (rest.length >= 64)
-      return { actions: [], error: "MIDI mapping limit reached" };
+      return { actions: [], error: tr("MIDI mapping limit reached") };
     return {
       maps: [
         ...rest,

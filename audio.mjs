@@ -1,3 +1,4 @@
+import { tr } from "./i18n/index.mjs";
 // Pattern only from B core.mjs:16–33; scheduling stays on A's audio clock.
 export const DARK_TECHNO_PATTERN = Object.freeze([
   { kick: 1, clap: 0, hat: 0, openHat: 0, bass: 1, perc: 0 },
@@ -151,7 +152,7 @@ export class AudioEngine {
   async start() {
     if (!this.context) {
       const C = window.AudioContext || window.webkitAudioContext;
-      if (!C) throw new Error("Web Audio is unavailable");
+      if (!C) throw new Error(tr("Web Audio is unavailable"));
       this.context = new C();
       this.analyser = this.context.createAnalyser();
       this.analyser.fftSize = 2048;
@@ -231,7 +232,7 @@ export class AudioEngine {
     this.url = null;
     this.kind = "silent";
     this.bus.reset();
-    this.onStatus("Silent / manual tempo");
+    this.onStatus(tr("Silent / manual tempo"));
   }
   mute(value) {
     this.muted = value;
@@ -316,7 +317,7 @@ export class AudioEngine {
       gain.gain.linearRampToValueAtTime(0.7, time + 0.008);
       gain.gain.exponentialRampToValueAtTime(0.001, time + 0.23);
     });
-    this.onStatus("Original demo pulse");
+    this.onStatus(tr("Original demo pulse"));
   }
   technoDemo() {
     const context = this.context;
@@ -381,7 +382,7 @@ export class AudioEngine {
       voice(time, pattern.openHat * 0.09, 5000, 0.16, true);
       voice(time, pattern.perc * 0.13, 300, 0.06);
     });
-    this.onStatus("Dark techno · 16-step lookahead");
+    this.onStatus(tr("Dark techno · 16-step lookahead"));
   }
   async file(file) {
     this.stop();
@@ -398,12 +399,12 @@ export class AudioEngine {
       if (!this.paused) await this.playMedia(this.media);
       if (token !== this.generation) return;
       this.kind = "file";
-      this.onStatus(file.name + " · looping");
+      this.onStatus(file.name + tr(" · looping"));
     } catch (e) {
       if (token !== this.generation) return;
       this.stop();
       throw new Error(
-        "Playback blocked or unsupported audio. Choose another file.",
+        tr("Playback blocked or unsupported audio. Choose another file."),
       );
     }
   }
@@ -414,7 +415,7 @@ export class AudioEngine {
     if (token !== this.generation) return;
     if (!navigator.mediaDevices?.getUserMedia)
       throw new Error(
-        "Audio input requires HTTPS or localhost and microphone support",
+        tr("Audio input requires HTTPS or localhost and microphone support"),
       );
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -432,7 +433,7 @@ export class AudioEngine {
     this.source = this.context.createMediaStreamSource(stream);
     this.source.connect(this.analyser); // Never connect live input to monitor/speakers.
     this.kind = "input";
-    this.onStatus("Live input · monitoring disabled");
+    this.onStatus(tr("Live input · monitoring disabled"));
     stream.getAudioTracks()[0].onended = () => this.stop();
   }
   async tab() {
@@ -440,11 +441,13 @@ export class AudioEngine {
     const token = this.generation;
     if (!navigator.mediaDevices?.getDisplayMedia)
       throw new Error(
-        "Tab audio unavailable · desktop Chromium required; try a local audio file.",
+        tr(
+          "Tab audio unavailable · desktop Chromium required; try a local audio file.",
+        ),
       );
     let stream;
     try {
-      this.onStatus("Choose a browser tab and enable Share tab audio");
+      this.onStatus(tr("Choose a browser tab and enable Share tab audio"));
       // Invoke the chooser synchronously in the click's user gesture.
       const pending = navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: "browser" },
@@ -457,7 +460,9 @@ export class AudioEngine {
       stream.getVideoTracks().forEach((track) => track.stop());
       if (!stream.getAudioTracks().length)
         throw new Error(
-          "No audio was shared · select a browser tab and enable Share tab audio.",
+          tr(
+            "No audio was shared · select a browser tab and enable Share tab audio.",
+          ),
         );
       await this.start();
       if (token !== this.generation) {
@@ -468,14 +473,16 @@ export class AudioEngine {
       this.source = this.context.createMediaStreamSource(stream);
       this.source.connect(this.analyser); // Analysis only.
       this.kind = "tab";
-      this.onStatus("Tab audio active · analysis only · speakers disabled");
+      this.onStatus(tr("Tab audio active · analysis only · speakers disabled"));
       stream.getAudioTracks()[0].onended = () => this.stop();
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
       if (token !== this.generation) return;
       const message =
         error.name === "NotAllowedError" || error.name === "AbortError"
-          ? "Tab audio sharing denied or cancelled · try a local audio file."
+          ? tr(
+              "Tab audio sharing denied or cancelled · try a local audio file.",
+            )
           : error.message;
       this.onStatus(message);
       throw new Error(message);
@@ -487,7 +494,7 @@ export class AudioEngine {
       .filter((d) => d.kind === "audioinput")
       .map((d, i) => ({
         id: d.deviceId,
-        name: d.label || `Audio input ${i + 1}`,
+        name: d.label || tr("Audio input {value1}", { value1: i + 1 }),
       }));
   }
   sample(dt = 1 / 60) {
@@ -524,7 +531,7 @@ export class MidiInput {
     if (this.access) return this.access;
     if (this.connecting) return this.connecting;
     if (!navigator.requestMIDIAccess)
-      throw new Error("Web MIDI unavailable · Chromium required");
+      throw new Error(tr("Web MIDI unavailable · Chromium required"));
     this.disposed = false;
     this.connecting = (async () => {
       const access = await navigator.requestMIDIAccess({ sysex: false });
@@ -533,7 +540,9 @@ export class MidiInput {
       const attach = () => {
         for (const input of access.inputs.values())
           input.onmidimessage = (e) => this.message(e);
-        this.onStatus(`${access.inputs.size} MIDI input(s)`);
+        this.onStatus(
+          tr("{value1} MIDI input(s)", { value1: access.inputs.size }),
+        );
       };
       access.onstatechange = attach;
       attach();

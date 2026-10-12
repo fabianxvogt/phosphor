@@ -106,7 +106,7 @@ try {
   await stage.close();
   await control.waitForFunction(
     () =>
-      document.getElementById("stagePill").textContent === "Stage not open" &&
+      document.getElementById("stagePill").textContent === "Stage closed" &&
       !document.getElementById("localPreview").hidden,
   );
   const capture = () => {

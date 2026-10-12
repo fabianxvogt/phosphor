@@ -7,8 +7,9 @@
     <meta
       name="description"
       content="Phosphor: a local GPU VJ instrument for live DJ sets."
+      data-i18n-content="Phosphor: a local GPU VJ instrument for live DJ sets."
     />
-    <title>Phosphor · control</title>
+    <title data-i18n="Phosphor · control">Phosphor · control</title>
     <script src="control-theme.js"></script>
     <link rel="stylesheet" href="control.css" />
     <link rel="stylesheet" href="control-skin.css" />
@@ -36,7 +37,9 @@
     />
   </head>
   <body>
-    <a class="skip-link" href="#catalogSearch">Skip to catalog</a>
+    <a class="skip-link" href="#catalogSearch" data-i18n="Skip to catalog"
+      >Skip to catalog</a
+    >
     <header class="topbar">
       <span class="brand"
         ><svg
@@ -59,7 +62,12 @@
           </g></svg
         >PHOSPHOR</span
       >
-      <button class="set-name" id="editSetName" title="Edit set name">
+      <button
+        class="set-name"
+        id="editSetName"
+        title="Edit set name"
+        data-i18n-title="Edit set name"
+      >
         <span id="setName"></span
         ><svg
           class="icon"
@@ -75,15 +83,20 @@
         </svg>
       </button>
       <span class="spacer"></span>
-      <span class="pill" id="stagePill" role="status">Stage not open</span>
+      <span class="pill" id="stagePill" role="status" data-i18n="Stage not open"
+        >Stage not open</span
+      >
       <button id="openStage" class="accent">
-        Open stage <span aria-hidden="true">↗</span>
+        <span data-i18n="Open stage">Open stage</span>
+        <span aria-hidden="true">↗</span>
       </button>
       <button
         id="themeToggle"
         class="icon-button"
         aria-label="Switch to light mode"
         title="Switch to light mode"
+        data-i18n-title="Switch to light mode"
+        data-i18n-aria-label="Switch to light mode"
       >
         <svg
           class="icon theme-sun"
@@ -122,18 +135,23 @@
       aria-labelledby="confirmText"
     >
       <span id="confirmText"></span
-      ><button id="confirmYes" class="accent">Yes</button
-      ><button id="confirmNo">Cancel</button>
+      ><button id="confirmYes" class="accent" data-i18n="Yes">Yes</button
+      ><button id="confirmNo" data-i18n="Cancel">Cancel</button>
     </div>
     <main>
       <div class="workspace-column">
-        <section class="panel monitor-panel" aria-label="Stage monitor">
+        <section
+          class="panel monitor-panel"
+          aria-label="Stage monitor"
+          data-i18n-aria-label="Stage monitor"
+        >
           <div class="preview">
             <canvas
               id="localPreview"
               width="480"
               height="270"
               aria-label="Selected visual preview"
+              data-i18n-aria-label="Selected visual preview"
             ></canvas>
             <video
               id="preview"
@@ -141,8 +159,13 @@
               hidden
               playsinline
               aria-label="Stage preview"
+              data-i18n-aria-label="Stage preview"
             ></video>
-            <div class="empty" id="previewEmpty">
+            <div
+              class="empty"
+              id="previewEmpty"
+              data-i18n="Preview unavailable. Open the stage to try its renderer."
+            >
               Preview unavailable. Open the stage to try its renderer.
             </div>
             <div class="preview-overlay">
@@ -155,6 +178,9 @@
                     aria-label="Pause playback (Space)"
                     aria-pressed="false"
                     title="Pause / resume (Space)"
+                    data-i18n-title="Pause / resume (Space)"
+                    data-i18n-aria-label="Pause playback (Space)"
+                    data-i18n="Pause"
                   >
                     Pause
                   </button>
@@ -164,11 +190,18 @@
                     popovertarget="tempoSettings"
                     aria-label="Set tempo"
                     title="Set tempo"
+                    data-i18n-title="Set tempo"
+                    data-i18n-aria-label="Set tempo"
                   >
                     <span id="bpm">—</span> BPM
                     <span aria-hidden="true">⌄</span>
                   </button>
-                  <div class="beats" id="beats" aria-label="Beat in bar">
+                  <div
+                    class="beats"
+                    id="beats"
+                    aria-label="Beat in bar"
+                    data-i18n-aria-label="Beat in bar"
+                  >
                     <i></i><i></i><i></i><i></i>
                   </div>
                 </div>
@@ -180,6 +213,9 @@
                   popovertarget="resolutionSettings"
                   aria-label="Set output resolution"
                   title="Set preview and stage resolution"
+                  data-i18n-title="Set preview and stage resolution"
+                  data-i18n-aria-label="Set output resolution"
+                  data-i18n="Native"
                 >
                   Native
                 </button></span
@@ -188,30 +224,44 @@
           </div>
           <div class="monitor-footer">
             <span class="monitor-label"
-              ><span class="live-dot"></span> Preview</span
+              ><span class="live-dot"></span>
+              <span data-i18n="Preview">Preview</span></span
             ><span id="renderReadout">—</span>
             <details class="monitor-details">
-              <summary>Details</summary>
+              <summary data-i18n="Details">Details</summary>
               <div class="readouts">
                 <div class="readout">
-                  <span>Tempo</span><span id="tempoSource">no tempo</span>
+                  <span data-i18n="Tempo">Tempo</span
+                  ><span id="tempoSource" data-i18n="no tempo">no tempo</span>
                 </div>
                 <div class="readout">
-                  <span>Bar</span><span id="bar">—</span>
+                  <span data-i18n="Bar">Bar</span><span id="bar">—</span>
                 </div>
                 <div class="readout">
-                  <span>Autopilot</span><span id="autopilotReadout">—</span>
+                  <span data-i18n="Autopilot">Autopilot</span
+                  ><span id="autopilotReadout">—</span>
                 </div>
                 <div class="readout">
-                  <span>Energy</span><span id="energyReadout">—</span>
+                  <span data-i18n="Energy">Energy</span
+                  ><span id="energyReadout">—</span>
                 </div>
                 <div class="readout">
-                  <span>Palette</span><span id="paletteReadout">—</span>
+                  <span data-i18n="Palette">Palette</span
+                  ><span id="paletteReadout">—</span>
                 </div>
-                <button id="previewFit" aria-pressed="false">
+                <button
+                  id="previewFit"
+                  aria-pressed="false"
+                  data-i18n="Show entire frame"
+                >
                   Show entire frame
                 </button>
-                <p class="note" id="previewNote" hidden>
+                <p
+                  class="note"
+                  id="previewNote"
+                  hidden
+                  data-i18n="Stage live: the monitor shows the stage&#x27;s stream. The editor uses a smaller preview to leave the GPU to the stage."
+                >
                   Stage live: the monitor shows the stage's stream. The editor
                   uses a smaller preview to leave the GPU to the stage.
                 </p>
@@ -222,7 +272,7 @@
         <section class="panel catalog" aria-labelledby="catalogTitle">
           <div class="catalog-head">
             <div class="catalog-heading">
-              <h2 id="catalogTitle">Catalog</h2>
+              <h2 id="catalogTitle" data-i18n="Catalog">Catalog</h2>
               <span class="note" id="catalogCount"></span>
             </div>
             <label class="search-field"
@@ -243,14 +293,38 @@
                 type="search"
                 placeholder="Search looks"
                 aria-label="Search the catalog"
+                data-i18n-aria-label="Search the catalog"
+                data-i18n-placeholder="Search looks"
             /></label>
-            <div class="catalog-filters" role="group" aria-label="Filter looks">
-              <button data-catalog-filter="all" aria-pressed="true">All</button
-              ><button data-catalog-filter="favorites" aria-pressed="false">
+            <div
+              class="catalog-filters"
+              role="group"
+              aria-label="Filter looks"
+              data-i18n-aria-label="Filter looks"
+            >
+              <button
+                data-catalog-filter="all"
+                aria-pressed="true"
+                data-i18n="All"
+              >
+                All</button
+              ><button
+                data-catalog-filter="favorites"
+                aria-pressed="false"
+                data-i18n="Favourites"
+              >
                 Favourites</button
-              ><button data-catalog-filter="rated" aria-pressed="false">
+              ><button
+                data-catalog-filter="rated"
+                aria-pressed="false"
+                data-i18n="Rated"
+              >
                 Rated</button
-              ><button data-catalog-filter="own" aria-pressed="false">
+              ><button
+                data-catalog-filter="own"
+                aria-pressed="false"
+                data-i18n="My looks"
+              >
                 My looks
               </button>
             </div>
@@ -258,15 +332,23 @@
               <summary
                 aria-label="More catalog filters"
                 title="Family and visual style filters"
+                data-i18n-title="Family and visual style filters"
+                data-i18n-aria-label="More catalog filters"
+                data-i18n="Filters"
               >
                 Filters
               </summary>
               <div class="catalog-refine-body">
-                <select id="catalogFamily" aria-label="Family filter"></select
+                <select
+                  id="catalogFamily"
+                  aria-label="Family filter"
+                  data-i18n-aria-label="Family filter"
+                ></select
                 ><select
                   id="catalogCharacter"
                   class="catalog-character"
                   aria-label="Visual style filter"
+                  data-i18n-aria-label="Visual style filter"
                 ></select>
               </div>
             </details>
@@ -275,29 +357,42 @@
               aria-label="Show"
               class="sr-only"
               tabindex="-1"
+              data-i18n-aria-label="Show"
             ></select
-            ><button id="catalogSort" type="button" hidden>Sort</button>
+            ><button id="catalogSort" type="button" hidden data-i18n="Sort">
+              Sort
+            </button>
           </div>
           <div
             class="catalog-list"
             id="catalogList"
             role="list"
             aria-label="Looks: favourites first, then best rated"
+            data-i18n-aria-label="Looks: favourites first, then best rated"
           ></div>
           <div class="catalog-footer">
             <span
-              ><kbd>1–8</kbd><kbd>Q–I</kbd><kbd>A–K</kbd><kbd>Y–,</kbd> Play the
-              first 32 looks</span
+              ><kbd>1–8</kbd><kbd>Q–I</kbd><kbd>A–K</kbd><kbd>Y–,</kbd>
+              <span data-i18n="Play the first 32 looks"
+                >Play the first 32 looks</span
+              ></span
             >
             <details>
-              <summary>Catalog guide</summary>
-              <p class="note">
+              <summary data-i18n="Catalog guide">Catalog guide</summary>
+              <p
+                class="note"
+                data-i18n="Click a thumbnail to play. Use ♥ to favourite and Edit to make your own version. Rate with half stars or the arrow keys; 0 means never play. Higher-rated looks play more often in Autopilot. The list re-sorts when the pointer leaves it."
+              >
                 Click a thumbnail to play. Use ♥ to favourite and Edit to make
                 your own version. Rate with half stars or the arrow keys; 0
                 means never play. Higher-rated looks play more often in
                 Autopilot. The list re-sorts when the pointer leaves it.
               </p>
-              <button data-catalog-filter="unrated" aria-pressed="false">
+              <button
+                data-catalog-filter="unrated"
+                aria-pressed="false"
+                data-i18n="Show unrated looks"
+              >
                 Show unrated looks
               </button>
             </details>
@@ -308,24 +403,44 @@
         <section
           class="panel look-panel settings-controls"
           aria-label="Look editor"
+          data-i18n-aria-label="Look editor"
         >
           <div class="panel-heading">
-            <h2>Look</h2>
+            <h2 data-i18n="Look">Look</h2>
             <details class="panel-menu" id="lookMenu">
               <summary
                 aria-label="More look settings"
                 title="More look settings"
+                data-i18n-title="More look settings"
+                data-i18n-aria-label="More look settings"
               >
                 •••
               </summary>
               <div class="panel-menu-body">
                 <div id="editorMore" class="fields"></div>
                 <div class="menu-actions">
-                  <button id="auditionLook" title="Play the current draft">
-                    Play draft <span aria-hidden="true">↗</span></button
-                  ><button id="saveLook" class="accent" hidden>
+                  <button
+                    id="auditionLook"
+                    title="Play the current draft"
+                    data-i18n-title="Play the current draft"
+                  >
+                    <span data-i18n="Play draft">Play draft</span>
+                    <span aria-hidden="true">↗</span></button
+                  ><button
+                    id="saveLook"
+                    class="accent"
+                    hidden
+                    data-i18n="Save changes"
+                  >
                     Save changes</button
-                  ><button id="deleteLook" class="danger" hidden>Delete</button>
+                  ><button
+                    id="deleteLook"
+                    class="danger"
+                    hidden
+                    data-i18n="Delete"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             </details>
@@ -337,21 +452,28 @@
               width="480"
               height="270"
               aria-label="Look editor preview"
+              data-i18n-aria-label="Look editor preview"
             ></canvas>
             <div>
-              <h3 id="editorTitle">Look</h3>
+              <h3 id="editorTitle" data-i18n="Look">Look</h3>
               <span class="note" id="editorFamily"></span>
             </div>
           </div>
           <div class="fields" id="editor"></div>
           <div id="paletteControl"></div>
           <div class="editor-actions">
-            <button id="breedLook" title="Create six variations of this look">
+            <button
+              id="breedLook"
+              title="Create six variations of this look"
+              data-i18n-title="Create six variations of this look"
+              data-i18n="Variations"
+            >
               Variations</button
             ><button
               id="saveAsLook"
               class="save-look"
               title="Save as your own look"
+              data-i18n-title="Save as your own look"
             >
               <svg
                 class="icon"
@@ -365,7 +487,7 @@
               >
                 <path d="M6 3h12v18l-6-4-6 4Z" />
               </svg>
-              Save look
+              <span data-i18n="Save look">Save look</span>
             </button>
           </div>
           <div
@@ -374,34 +496,51 @@
             popover="auto"
             role="dialog"
             aria-label="Look variations"
+            data-i18n-aria-label="Look variations"
           ></div>
         </section>
-        <section class="panel performance-panel" aria-label="Performance">
-          <h2>Performance</h2>
+        <section
+          class="panel performance-panel"
+          aria-label="Performance"
+          data-i18n-aria-label="Performance"
+        >
+          <h2 data-i18n="Performance">Performance</h2>
           <div class="faders" id="shared"></div>
           <div class="performance-transport">
             <div class="speed-control">
-              <span>Speed</span>
+              <span data-i18n="Speed">Speed</span>
               <div class="segmented">
-                <button id="half" aria-pressed="false" title="Half speed (9)">
+                <button
+                  id="half"
+                  aria-pressed="false"
+                  title="Half speed (9)"
+                  data-i18n-title="Half speed (9)"
+                >
                   ½×</button
                 ><button
                   id="normalSpeed"
                   aria-pressed="true"
                   title="Normal speed"
+                  data-i18n-title="Normal speed"
                 >
                   1×</button
                 ><button
                   id="double"
                   aria-pressed="false"
                   title="Double speed (0)"
+                  data-i18n-title="Double speed (0)"
                 >
                   2×
                 </button>
               </div>
               <output id="speedReadout">1×</output>
             </div>
-            <button id="autopilot" aria-pressed="false" title="Autopilot (P)">
+            <button
+              id="autopilot"
+              aria-pressed="false"
+              title="Autopilot (P)"
+              data-i18n-title="Autopilot (P)"
+            >
               <svg
                 class="icon"
                 viewBox="0 0 24 24"
@@ -415,11 +554,15 @@
                 <path
                   d="M12 12c-2-3-3-4-5-4a4 4 0 1 0 0 8c2 0 3-1 5-4s3-4 5-4a4 4 0 1 1 0 8c-2 0-3-1-5-4Z"
                 /></svg
-              ><span>Autopilot</span>
+              ><span data-i18n="Autopilot">Autopilot</span>
             </button>
           </div>
           <div class="actions performance-primary">
-            <button id="next" title="Next look (Shift + Space)">
+            <button
+              id="next"
+              title="Next look (Shift + Space)"
+              data-i18n-title="Next look (Shift + Space)"
+            >
               <svg
                 class="icon"
                 viewBox="0 0 24 24"
@@ -432,9 +575,14 @@
               >
                 <path d="m6 5 10 7-10 7Z" fill="currentColor" stroke="none" />
                 <path d="M18 5v14" /></svg
-              ><span>Next</span>
+              ><span data-i18n="Next">Next</span>
             </button>
-            <button id="freeze" aria-pressed="false" title="Freeze (O)">
+            <button
+              id="freeze"
+              aria-pressed="false"
+              title="Freeze (O)"
+              data-i18n-title="Freeze (O)"
+            >
               <svg
                 class="icon"
                 viewBox="0 0 24 24"
@@ -446,7 +594,7 @@
                 aria-hidden="true"
               >
                 <path d="M8 5v14M16 5v14" stroke-width="4" /></svg
-              ><span>Freeze</span>
+              ><span data-i18n="Freeze">Freeze</span>
             </button>
             <button id="blackout" class="blackout" aria-pressed="false">
               <svg
@@ -460,11 +608,13 @@
                 aria-hidden="true"
               >
                 <circle cx="12" cy="12" r="8" stroke-width="2.5" /></svg
-              ><span>Blackout</span>
+              ><span data-i18n="Blackout">Blackout</span>
             </button>
           </div>
           <details class="advanced performance-options">
-            <summary>Performance options</summary>
+            <summary data-i18n="Performance options">
+              Performance options
+            </summary>
             <div class="detail-body">
               <div class="faders" id="sharedMore"></div>
               <div class="actions performance-secondary">
@@ -472,6 +622,7 @@
                   id="random"
                   aria-pressed="true"
                   title="Random looks and evolving parameters"
+                  data-i18n-title="Random looks and evolving parameters"
                 >
                   <svg
                     class="icon"
@@ -488,12 +639,13 @@
                       d="M8 8h.01M16 8h.01M12 12h.01M8 16h.01M16 16h.01"
                       stroke-width="3"
                     /></svg
-                  ><span>Random</span>
+                  ><span data-i18n="Random">Random</span>
                 </button>
                 <button
                   id="flash"
                   aria-pressed="false"
                   title="Hold to flash (L)"
+                  data-i18n-title="Hold to flash (L)"
                 >
                   <svg
                     class="icon"
@@ -509,7 +661,7 @@
                     <path
                       d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
                     /></svg
-                  ><span>Flash</span>
+                  ><span data-i18n="Flash">Flash</span>
                 </button>
                 <button id="safe">
                   <svg
@@ -524,27 +676,50 @@
                   >
                     <path d="m12 3 8 3v6c0 4-8 9-8 9s-8-5-8-9V6Z" />
                     <path d="M12 3v18" /></svg
-                  ><span>Safe look</span>
+                  ><span data-i18n="Safe look">Safe look</span>
                 </button>
               </div>
               <div class="row">
-                <button id="favoritesOnly" aria-pressed="false">♥ only</button
+                <button
+                  id="favoritesOnly"
+                  aria-pressed="false"
+                  data-i18n="♥ only"
+                >
+                  ♥ only</button
                 ><select
                   id="minRating"
                   aria-label="Autopilot minimum rating"
+                  data-i18n-aria-label="Autopilot minimum rating"
                 ></select>
               </div>
-              <h3>Playing look · <span id="familyTitle">Family</span></h3>
+              <h3>
+                <span data-i18n="Playing look ·">Playing look ·</span>
+                <span id="familyTitle" data-i18n="Family">Family</span>
+              </h3>
               <div class="faders" id="family"></div>
             </div>
           </details>
         </section>
         <section class="panel rhythm-panel" aria-labelledby="rhythmTitle">
           <div class="rhythm-heading">
-            <h2 id="rhythmTitle">Rhythm</h2>
-            <div class="rhythm-scope" role="group" aria-label="Rhythm tracks">
-              <button id="rhythmFamilyView" aria-pressed="true">Family</button
-              ><button id="rhythmGlobalView" aria-pressed="false">
+            <h2 id="rhythmTitle" data-i18n="Rhythm">Rhythm</h2>
+            <div
+              class="rhythm-scope"
+              role="group"
+              aria-label="Rhythm tracks"
+              data-i18n-aria-label="Rhythm tracks"
+            >
+              <button
+                id="rhythmFamilyView"
+                aria-pressed="true"
+                data-i18n="Family"
+              >
+                Family</button
+              ><button
+                id="rhythmGlobalView"
+                aria-pressed="false"
+                data-i18n="Global"
+              >
                 Global
               </button>
             </div>
@@ -552,16 +727,24 @@
               id="rhythmOptions"
               popovertarget="rhythmSettings"
               aria-label="Rhythm options"
+              data-i18n-aria-label="Rhythm options"
             >
               •••
             </button>
           </div>
           <div id="rhythmControls" data-compact="true"></div>
-          <div class="setup-launchers" role="group" aria-label="Open setup">
-            <button data-setup-open="audio">Audio</button
+          <div
+            class="setup-launchers"
+            role="group"
+            aria-label="Open setup"
+            data-i18n-aria-label="Open setup"
+          >
+            <button data-setup-open="audio" data-i18n="Audio">Audio</button
             ><button data-setup-open="midi">MIDI</button
-            ><button data-setup-open="set">Set</button
-            ><button data-setup-open="checks">Pre-show</button>
+            ><button data-setup-open="set" data-i18n="Set">Set</button
+            ><button data-setup-open="checks" data-i18n="Pre-show">
+              Pre-show
+            </button>
           </div>
         </section>
       </div>
@@ -572,18 +755,33 @@
       aria-labelledby="setupDialogTitle"
     >
       <div class="dialog-heading">
-        <h2 id="setupDialogTitle">Setup</h2>
-        <button id="closeSetup" class="icon-button" aria-label="Close setup">
+        <h2 id="setupDialogTitle" data-i18n="Setup">Setup</h2>
+        <button
+          id="closeSetup"
+          class="icon-button"
+          aria-label="Close setup"
+          data-i18n-aria-label="Close setup"
+        >
           ×
         </button>
       </div>
-      <section class="setup-panel" aria-label="Setup">
-        <div class="setup-tabs" role="tablist" aria-label="Setup">
+      <section
+        class="setup-panel"
+        aria-label="Setup"
+        data-i18n-aria-label="Setup"
+      >
+        <div
+          class="setup-tabs"
+          role="tablist"
+          aria-label="Setup"
+          data-i18n-aria-label="Setup"
+        >
           <button
             role="tab"
             id="tab-audio"
             aria-controls="setup-audio"
             aria-selected="true"
+            data-i18n="Audio"
           >
             Audio</button
           ><button
@@ -600,6 +798,7 @@
             aria-controls="setup-set"
             aria-selected="false"
             tabindex="-1"
+            data-i18n="Set"
           >
             Set</button
           ><button
@@ -608,45 +807,56 @@
             aria-controls="setup-checks"
             aria-selected="false"
             tabindex="-1"
+            data-i18n="Pre-show"
           >
             Pre-show
           </button>
         </div>
         <div id="setup-audio" role="tabpanel" aria-labelledby="tab-audio">
           <div class="setup-heading">
-            <h3>Audio source</h3>
-            <span class="pill" id="audioPill">Audio off</span>
+            <h3 data-i18n="Audio source">Audio source</h3>
+            <span class="pill" id="audioPill" data-i18n="Audio off"
+              >Audio off</span
+            >
           </div>
           <div class="settings-controls">
             <div class="fields">
               <label class="field"
-                ><span>Line input</span
+                ><span data-i18n="Line input">Line input</span
                 ><select id="audioDevice"></select
               ></label>
             </div>
             <div class="row" style="margin-top: 8px">
-              <button id="useInput" class="accent">Use input</button>
+              <button id="useInput" class="accent" data-i18n="Use input">
+                Use input
+              </button>
               <label class="file"
-                >Rehearse with file<input
-                  id="audioFile"
-                  type="file"
-                  accept="audio/*"
+                ><span data-i18n="Rehearse with file">Rehearse with file</span
+                ><input id="audioFile" type="file" accept="audio/*"
               /></label>
-              <button id="useDemo">Demo beat</button>
-              <button id="audioOff">Off</button>
+              <button id="useDemo" data-i18n="Demo beat">Demo beat</button>
+              <button id="audioOff" data-i18n="Off">Off</button>
               <label class="row"
-                ><input id="audioMute" type="checkbox" /> Mute file/demo</label
+                ><input id="audioMute" type="checkbox" />
+                <span data-i18n="Mute file/demo">Mute file/demo</span></label
               >
             </div>
-            <p class="note">
+            <p
+              class="note"
+              data-i18n="Line input is analysed only and never sent to the speakers."
+            >
               Line input is analysed only and never sent to the speakers.
             </p>
-            <p class="note" id="audioStageNote">
+            <p
+              class="note"
+              id="audioStageNote"
+              data-i18n="Open the stage to use line input or rehearse with an audio file."
+            >
               Open the stage to use line input or rehearse with an audio file.
             </p>
           </div>
           <div class="tempo-section">
-            <h3>Tempo</h3>
+            <h3 data-i18n="Tempo">Tempo</h3>
             <div class="tempo-controls">
               <label class="bpm-input"
                 ><input
@@ -656,16 +866,37 @@
                   max="200"
                   step="0.1"
                   aria-label="Tempo in BPM"
+                  data-i18n-aria-label="Tempo in BPM"
                 /><span>BPM</span></label
-              ><button id="tap" title="Tap tempo">Tap</button>
+              ><button
+                id="tap"
+                title="Tap tempo"
+                data-i18n-title="Tap tempo"
+                data-i18n="Tap"
+              >
+                Tap
+              </button>
             </div>
             <details class="advanced">
-              <summary>Timing controls</summary>
+              <summary data-i18n="Timing controls">Timing controls</summary>
               <div class="detail-body row">
-                <button id="downbeat">Downbeat <kbd>Enter</kbd></button
-                ><button id="nudgeBack" aria-label="Nudge earlier">←</button
-                ><button id="nudgeForward" aria-label="Nudge later">→</button
-                ><button id="autoClock">Follow audio</button
+                <button id="downbeat">
+                  <span data-i18n="Downbeat">Downbeat</span>
+                  <kbd>Enter</kbd></button
+                ><button
+                  id="nudgeBack"
+                  aria-label="Nudge earlier"
+                  data-i18n-aria-label="Nudge earlier"
+                >
+                  ←</button
+                ><button
+                  id="nudgeForward"
+                  aria-label="Nudge later"
+                  data-i18n-aria-label="Nudge later"
+                >
+                  →</button
+                ><button id="autoClock" data-i18n="Follow audio">
+                  Follow audio</button
                 ><span id="latency" class="note"></span>
               </div>
             </details>
@@ -678,15 +909,26 @@
           aria-labelledby="tab-midi"
           hidden
         >
-          <h3>MIDI controller</h3>
-          <p class="note">
+          <h3 data-i18n="MIDI controller">MIDI controller</h3>
+          <p
+            class="note"
+            data-i18n="Connect a controller, choose a target, then move a control to map it."
+          >
             Connect a controller, choose a target, then move a control to map
             it.
           </p>
           <div class="row">
-            <button id="midiConnect">Connect MIDI</button>
-            <select id="midiTarget" aria-label="Learn target"></select>
-            <button id="midiLearn">Learn next control</button>
+            <button id="midiConnect" data-i18n="Connect MIDI">
+              Connect MIDI
+            </button>
+            <select
+              id="midiTarget"
+              aria-label="Learn target"
+              data-i18n-aria-label="Learn target"
+            ></select>
+            <button id="midiLearn" data-i18n="Learn next control">
+              Learn next control
+            </button>
           </div>
           <ul class="log" id="midiMaps"></ul>
         </div>
@@ -697,12 +939,13 @@
           aria-labelledby="tab-set"
           hidden
         >
-          <h3>Set settings</h3>
+          <h3 data-i18n="Set settings">Set settings</h3>
           <div class="fields" id="setFields"></div>
           <div class="row" style="margin-top: 10px">
-            <button id="exportSet">Export set</button>
+            <button id="exportSet" data-i18n="Export set">Export set</button>
             <label class="file"
-              >Import set<input
+              ><span data-i18n="Import set">Import set</span
+              ><input
                 id="importSet"
                 type="file"
                 accept="application/json,.json"
@@ -716,23 +959,32 @@
           aria-labelledby="tab-checks"
           hidden
         >
-          <h3>Ready for the stage</h3>
+          <h3 data-i18n="Ready for the stage">Ready for the stage</h3>
           <div id="checks"></div>
           <div class="row" style="margin-top: 8px">
-            <button id="pattern" aria-pressed="false">Framing pattern</button>
-            <button id="exportLog">Export rehearsal log</button>
+            <button
+              id="pattern"
+              aria-pressed="false"
+              data-i18n="Framing pattern"
+            >
+              Framing pattern
+            </button>
+            <button id="exportLog" data-i18n="Export rehearsal log">
+              Export rehearsal log
+            </button>
           </div>
         </div>
         <div class="setup-footer">
           <label
             class="settings-lock"
             title="Lock configuration while the stage is connected"
+            data-i18n-title="Lock configuration while the stage is connected"
             ><input id="settingsLock" type="checkbox" role="switch" disabled />
-            Lock settings</label
-          ><a href="update.html">Update app ↗</a>
+            <span data-i18n="Lock settings">Lock settings</span></label
+          ><a href="update.html" data-i18n="Update app ↗">Update app ↗</a>
         </div>
         <details class="advanced messages">
-          <summary>Messages</summary>
+          <summary data-i18n="Messages">Messages</summary>
           <ul class="log" id="log"></ul>
         </details>
       </section>
@@ -744,17 +996,24 @@
       aria-labelledby="tempoTitle"
     >
       <div class="quick-settings-heading">
-        <h3 id="tempoTitle">Tempo</h3>
+        <h3 id="tempoTitle" data-i18n="Tempo">Tempo</h3>
         <button
           popovertarget="tempoSettings"
           popovertargetaction="hide"
           aria-label="Close tempo settings"
+          data-i18n-aria-label="Close tempo settings"
         >
           ×
         </button>
       </div>
       <div class="quick-tempo-controls">
-        <button id="tempoSlower" aria-label="Decrease tempo">−</button>
+        <button
+          id="tempoSlower"
+          aria-label="Decrease tempo"
+          data-i18n-aria-label="Decrease tempo"
+        >
+          −
+        </button>
         <label
           ><input
             id="quickBpm"
@@ -763,12 +1022,21 @@
             max="200"
             step="0.1"
             aria-label="Quick tempo in BPM"
+            data-i18n-aria-label="Quick tempo in BPM"
           /><span>BPM</span></label
         >
-        <button id="tempoFaster" aria-label="Increase tempo">+</button>
-        <button id="quickTap">Tap</button>
+        <button
+          id="tempoFaster"
+          aria-label="Increase tempo"
+          data-i18n-aria-label="Increase tempo"
+        >
+          +
+        </button>
+        <button id="quickTap" data-i18n="Tap">Tap</button>
       </div>
-      <p>Visuals &amp; demo audio share this tempo.</p>
+      <p data-i18n="Visuals &amp; demo audio share this tempo.">
+        Visuals &amp; demo audio share this tempo.
+      </p>
     </div>
     <div
       id="resolutionSettings"
@@ -777,18 +1045,23 @@
       aria-labelledby="resolutionTitle"
     >
       <div class="quick-settings-heading">
-        <h3 id="resolutionTitle">Resolution</h3>
+        <h3 id="resolutionTitle" data-i18n="Resolution">Resolution</h3>
         <button
           popovertarget="resolutionSettings"
           popovertargetaction="hide"
           aria-label="Close resolution settings"
+          data-i18n-aria-label="Close resolution settings"
         >
           ×
         </button>
       </div>
-      <label for="outputResolution">Preview &amp; stage</label>
+      <label for="outputResolution" data-i18n="Preview &amp; stage"
+        >Preview &amp; stage</label
+      >
       <select id="outputResolution"></select>
-      <p>
+      <p
+        data-i18n="Native uses the full display resolution. Lower settings reduce rendering load."
+      >
         Native uses the full display resolution. Lower settings reduce rendering
         load.
       </p>

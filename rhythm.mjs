@@ -1,3 +1,4 @@
+import { tr } from "./i18n/index.mjs";
 // Rhythm patterns use the music clock, never the scene's movement speed.
 // These functions are pure: stored tracks and scene defaults are not edited.
 const STYLES = ["restrained", "driving", "accented"];
@@ -15,11 +16,17 @@ const number = (value, min, max, name) => {
     value < min ||
     value > max
   )
-    throw new Error(`${name} must be ${min}–${max}`);
+    throw new Error(
+      tr("{value1} must be {value2}–{value3}", {
+        value1: name,
+        value2: min,
+        value3: max,
+      }),
+    );
   return value;
 };
 const styleOf = (value) => {
-  if (!STYLES.includes(value)) throw new Error("Unknown rhythm style");
+  if (!STYLES.includes(value)) throw new Error(tr("Unknown rhythm style"));
   return value;
 };
 const globalEffect = (id, slot, label, description, defaults) =>
@@ -39,8 +46,8 @@ export const GLOBAL_EFFECTS = Object.freeze([
   globalEffect(
     "brightness",
     0,
-    "Brightness pulse",
-    "A brief light accent across the mixed picture.",
+    tr("Brightness pulse"),
+    tr("A brief light accent across the mixed picture."),
     {
       division: 1,
       length: 4,
@@ -53,8 +60,8 @@ export const GLOBAL_EFFECTS = Object.freeze([
   globalEffect(
     "zoom",
     1,
-    "Zoom punch",
-    "A small camera emphasis on the first beat.",
+    tr("Zoom punch"),
+    tr("A small camera emphasis on the first beat."),
     {
       division: 1,
       length: 8,
@@ -67,8 +74,8 @@ export const GLOBAL_EFFECTS = Object.freeze([
   globalEffect(
     "echo",
     2,
-    "Echo impulse",
-    "A short impression of the previous mixed picture.",
+    tr("Echo impulse"),
+    tr("A short impression of the previous mixed picture."),
     {
       division: 1,
       length: 16,
@@ -81,8 +88,8 @@ export const GLOBAL_EFFECTS = Object.freeze([
   globalEffect(
     "colour",
     3,
-    "Colour accent",
-    "A gentle shift through the current palette.",
+    tr("Colour accent"),
+    tr("A gentle shift through the current palette."),
     {
       division: 1,
       length: 8,
@@ -104,27 +111,29 @@ function validateTrack(value) {
     typeof value.effect !== "string" ||
     !ID.test(value.effect)
   )
-    throw new Error("Invalid rhythm effect id");
+    throw new Error(tr("Invalid rhythm effect id"));
   if (!DIVISIONS.includes(value.division))
-    throw new Error("Rhythm division must be 1, 2 or 4");
+    throw new Error(tr("Rhythm division must be 1, 2 or 4"));
   if (
     !Number.isInteger(value.length) ||
     value.length < 1 ||
     value.length > 256 ||
     value.length / value.division > 64
   )
-    throw new Error("Rhythm loop must have 1–256 steps and at most 64 beats");
+    throw new Error(
+      tr("Rhythm loop must have 1–256 steps and at most 64 beats"),
+    );
   if (!Array.isArray(value.steps) || value.steps.length !== value.length)
-    throw new Error("Rhythm steps must match the loop length");
+    throw new Error(tr("Rhythm steps must match the loop length"));
   if (typeof value.muted !== "boolean")
-    throw new Error("Rhythm mute must be boolean");
+    throw new Error(tr("Rhythm mute must be boolean"));
   return {
     effect: value.effect,
     division: value.division,
     length: value.length,
-    steps: value.steps.map((step) => number(step, 0, 1, "Rhythm step")),
-    strength: number(value.strength, 0, 1, "Rhythm strength"),
-    duration: number(value.duration, 0.0625, 8, "Rhythm duration"),
+    steps: value.steps.map((step) => number(step, 0, 1, tr("Rhythm step"))),
+    strength: number(value.strength, 0, 1, tr("Rhythm strength")),
+    duration: number(value.duration, 0.0625, 8, tr("Rhythm duration")),
     muted: value.muted,
   };
 }
@@ -134,14 +143,16 @@ function validateTrack(value) {
 // no slot and cannot trigger until their descriptor is available again.
 export function validatePattern(value, definitions = []) {
   if (!record(value) || !["auto", "locked"].includes(value.mode))
-    throw new Error("Rhythm pattern mode must be auto or locked");
+    throw new Error(tr("Rhythm pattern mode must be auto or locked"));
   const style = styleOf(value.style);
   if (!Array.isArray(value.tracks) || value.tracks.length > MAX_TRACKS)
-    throw new Error(`Rhythm pattern has at most ${MAX_TRACKS} tracks`);
+    throw new Error(
+      tr("Rhythm pattern has at most {value1} tracks", { value1: MAX_TRACKS }),
+    );
   const seen = new Set();
   const tracks = value.tracks.map((track) => {
     const result = validateTrack(track);
-    if (seen.has(result.effect)) throw new Error("Duplicate rhythm effect");
+    if (seen.has(result.effect)) throw new Error(tr("Duplicate rhythm effect"));
     seen.add(result.effect);
     return result;
   });
@@ -149,7 +160,8 @@ export function validatePattern(value, definitions = []) {
   // default. Muting an effect is explicit; leaving out a track is not mute.
   for (const definition of definitions) {
     if (seen.has(definition.id)) continue;
-    if (tracks.length >= MAX_TRACKS) throw new Error("Too many rhythm tracks");
+    if (tracks.length >= MAX_TRACKS)
+      throw new Error(tr("Too many rhythm tracks"));
     tracks.push(styledTrack(definition, style));
     seen.add(definition.id);
   }
@@ -199,14 +211,16 @@ export function initialRhythm(scenes) {
 export function validateRhythm(value, scenes) {
   if (value === undefined) return initialRhythm(scenes);
   if (!record(value) || !record(value.families))
-    throw new Error("Invalid show rhythm");
+    throw new Error(tr("Invalid show rhythm"));
   const entries = Object.entries(value.families);
   if (entries.length > MAX_FAMILIES)
-    throw new Error(`At most ${MAX_FAMILIES} rhythm families`);
+    throw new Error(
+      tr("At most {value1} rhythm families", { value1: MAX_FAMILIES }),
+    );
   const byId = new Map(scenes.map((scene) => [scene.id, scene]));
   const families = {};
   for (const [id, pattern] of entries) {
-    if (!ID.test(id)) throw new Error("Invalid rhythm family id");
+    if (!ID.test(id)) throw new Error(tr("Invalid rhythm family id"));
     Object.defineProperty(families, id, {
       value: validatePattern(pattern, effectDefinitions(byId.get(id))),
       enumerable: true,

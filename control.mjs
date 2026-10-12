@@ -1,3 +1,12 @@
+import {
+  tr,
+  errorText,
+  translateDocument,
+  lookName,
+  locale,
+  formatNumber,
+} from "./i18n/index.mjs";
+translateDocument();
 // Control window: owns set editing and local performance until a stage connects.
 // The stage owns live playback once open; control reloads never stop the show.
 import scenes from "./scenes.mjs";
@@ -87,7 +96,7 @@ const rhythmEdits = new Map();
 // --- messages --------------------------------------------------------------
 function log(message) {
   const item = el("li", {
-    textContent: `${new Date().toLocaleTimeString()} · ${message}`,
+    textContent: `${new Date().toLocaleTimeString(locale)} · ${message}`,
   });
   $("log").prepend(item);
   while ($("log").children.length > 50) $("log").lastChild.remove();
@@ -109,7 +118,11 @@ function saveSoon() {
     try {
       saveSet(localStorage, set);
     } catch (error) {
-      toast(`Could not save locally (${error.message}). Export the set.`);
+      toast(
+        tr("Could not save locally ({value1}). Export the set.", {
+          value1: errorText(error),
+        }),
+      );
     }
   }, 300);
 }
@@ -167,7 +180,7 @@ function scheduleRender() {
 // --- stage window --------------------------------------------------------------
 async function openStage() {
   if (stageAlive()) {
-    toast("The stage is already running.");
+    toast(tr("The stage is already running."));
     return;
   }
   // Open first, while the click's user activation is still valid; then move
@@ -180,7 +193,9 @@ async function openStage() {
   );
   if (!stageWindow) {
     toast(
-      "The browser blocked the stage window. Allow pop-ups for this site, then click Open stage again.",
+      tr(
+        "The browser blocked the stage window. Allow pop-ups for this site, then click Open stage again.",
+      ),
     );
     return;
   }
@@ -191,14 +206,18 @@ async function openStage() {
     const details = await window.getScreenDetails();
     const external = details.screens.find((s) => s !== details.currentScreen);
     if (!external) {
-      log("Only one screen found: drag the stage window to the projector.");
+      log(tr("Only one screen found: drag the stage window to the projector."));
       return;
     }
     stageWindow.moveTo(external.availLeft, external.availTop);
     stageWindow.resizeTo(external.availWidth, external.availHeight);
-    log(`Stage placed on ${external.label || "the external screen"}.`);
+    log(
+      tr("Stage placed on {value1}.", {
+        value1: external.label || tr("the external screen"),
+      }),
+    );
   } catch {
-    log("Drag the stage window to the projector screen.");
+    log(tr("Drag the stage window to the projector screen."));
   }
 }
 // Status cadence is not window liveness: a slow frame must never hand venue
@@ -278,14 +297,16 @@ function renderLocalAudio() {
   const playing =
     demoAudio.kind === "demo" && demoAudio.context?.state === "running";
   $("audioPill").textContent = demoAudio.paused
-    ? "Paused"
+    ? tr("Paused")
     : playing
       ? demoAudio.muted
-        ? "Demo · muted"
-        : `Demo · ${demoAudio.tempo.toFixed(1)} BPM`
+        ? tr("Demo · muted")
+        : tr("Demo · {value1} BPM", {
+            value1: formatNumber(demoAudio.tempo, 1, 1),
+          })
       : demoRequested
-        ? "Demo · click to hear"
-        : "Audio off";
+        ? tr("Demo · click to hear")
+        : tr("Audio off");
   $("audioPill").className = `pill ${playing && !demoAudio.muted ? "ok" : ""}`;
 }
 function stopLocalDemo() {
@@ -311,7 +332,7 @@ function syncLocalDemo() {
     .demo()
     .catch((error) => {
       demoRequested = false;
-      toast(`Demo audio: ${error.message}`);
+      toast(tr("Demo audio: {value1}", { value1: errorText(error) }));
     })
     .finally(() => {
       demoStarting = false;
@@ -366,7 +387,7 @@ channel.onmessage = ({ data }) => {
       renderStatus();
       break;
     case "stage-ready":
-      log("Stage opened.");
+      log(tr("Stage opened."));
       if (handoffPending) {
         if (localPerformance)
           send({ type: "preview-state", state: localPerformance.state(now()) });
@@ -381,7 +402,7 @@ channel.onmessage = ({ data }) => {
       send({ type: "set", set });
       break;
     case "stage-started":
-      log("Stage started.");
+      log(tr("Stage started."));
       break;
     case "devices":
       renderDevices(data.devices);
@@ -401,7 +422,7 @@ channel.onmessage = ({ data }) => {
       );
       break;
     case "audio-status":
-      log(`Audio: ${data.text}`);
+      log(tr("Audio: {value1}", { value1: data.text }));
       break;
   }
 };
@@ -439,19 +460,20 @@ for (const kind of ["keydown", "keyup"])
 
 // --- rendering: readouts -------------------------------------------------------
 const SHARED = [
-  { key: "master", label: "Master", min: 0, max: 1, step: 0.01 },
-  { key: "energy", label: "Energy", min: 0, max: 1, step: 0.01 },
-  { key: "hue", label: "Hue", min: -0.5, max: 0.5, step: 0.01 },
-  { key: "zoom", label: "Zoom", min: 0.5, max: 2, step: 0.01 },
-  { key: "mirror", label: "Mirror", min: 1, max: 12, step: 1 },
+  { key: "master", label: tr("Master"), min: 0, max: 1, step: 0.01 },
+  { key: "energy", label: tr("Energy"), min: 0, max: 1, step: 0.01 },
+  { key: "hue", label: tr("Hue"), min: -0.5, max: 0.5, step: 0.01 },
+  { key: "zoom", label: tr("Zoom"), min: 0.5, max: 2, step: 0.01 },
+  { key: "mirror", label: tr("Mirror"), min: 1, max: 12, step: 1 },
 ];
 function faderValue(input) {
   const value = Number(input.value);
   if (["fader-master", "fader-energy", "fader-zoom"].includes(input.id))
     return `${Math.round(value * 100)}%`;
   if (input.id === "fader-hue") return `${Math.round(value * 360)}°`;
-  if (input.id === "fader-mirror") return value === 1 ? "Off" : `${value}×`;
-  return value.toFixed(Number(input.step) < 1 ? 2 : 0);
+  if (input.id === "fader-mirror") return value === 1 ? tr("Off") : `${value}×`;
+  const digits = Number(input.step) < 1 ? 2 : 0;
+  return formatNumber(value, digits, digits);
 }
 function paintFader(input) {
   const min = Number(input.min),
@@ -477,7 +499,7 @@ function fader({ key, label, min, max, step }, value, oninput) {
   return el(
     "div",
     { className: "fader" },
-    el("label", { htmlFor: id, textContent: label, title: label }),
+    el("label", { htmlFor: id, textContent: tr(label), title: tr(label) }),
     input,
     output,
   );
@@ -528,7 +550,7 @@ function renderFamily() {
     return;
   }
   familyKey = key;
-  $("familyTitle").textContent = scene ? scene.name : "Family";
+  $("familyTitle").textContent = scene ? tr(scene.name) : tr("Family");
   $("family").replaceChildren(
     ...(scene
       ? stageParams(scene).map((k) => {
@@ -542,7 +564,7 @@ function renderFamily() {
       : [
           el("p", {
             className: "note",
-            textContent: "Controls for the playing family appear here.",
+            textContent: tr("Controls for the playing family appear here."),
           }),
         ]),
   );
@@ -556,6 +578,14 @@ function liveClip() {
 // Re-render faders only when the user isn't dragging one.
 const activeIsFader = () => document.activeElement?.type === "range";
 
+function liveLookName(live) {
+  const original = lookById(live.look);
+  return lookName({
+    ...live,
+    nameEdited: !original || original.name !== live.name,
+  });
+}
+
 function renderStatus() {
   const s = performanceStatus();
   const alive = stageAlive();
@@ -565,10 +595,10 @@ function renderStatus() {
   $("stagePill").textContent = alive
     ? status.stage.started
       ? windowed
-        ? "Stage not fullscreen · click the stage"
-        : "Stage live"
-      : "Stage open · click it to start"
-    : "Stage not open";
+        ? tr("Stage not fullscreen · click the stage")
+        : tr("Stage live")
+      : tr("Stage open · click it to start")
+    : tr("Stage not open");
   $("stagePill").className =
     `pill ${alive ? (status.stage.started && !windowed ? "ok" : "warn") : ""}`;
   $("openStage").disabled = alive;
@@ -586,13 +616,15 @@ function renderStatus() {
   )
     requestedTempo = null;
   const displayedBpm = requestedTempo?.bpm ?? clock.bpm;
-  $("bpm").textContent = displayedBpm.toFixed(1);
+  $("bpm").textContent = formatNumber(displayedBpm, 1, 1);
   const source = clock.mode === "manual" ? "manual" : clock.source;
   $("tempoSource").replaceChildren(
     el("span", { className: `light ${source}` }),
-    { auto: "following audio", coast: "holding tempo", manual: "manual tap" }[
-      source
-    ] ?? source,
+    {
+      auto: tr("following audio"),
+      coast: tr("holding tempo"),
+      manual: tr("manual tap"),
+    }[source] ?? source,
   );
   [...$("beats").children].forEach((cell, i) =>
     cell.classList.toggle("on", i === Math.floor(clock.beatInBar)),
@@ -602,27 +634,34 @@ function renderStatus() {
   const ap = s.autopilot;
   // Random mode shows the bars left of the current clip's random duration.
   $("autopilotReadout").textContent = !ap.enabled
-    ? "off"
+    ? tr("off")
     : ap.active
       ? ap.random
-        ? `random · ${ap.nextChangeIn ?? "—"}/${ap.duration ?? "—"} bars`
-        : `in order · next in ${ap.nextChangeIn ?? "—"}`
-      : `paused · back in ${ap.handBackIn} bars`;
+        ? tr("random · {value1}/{value2} bars", {
+            value1: ap.nextChangeIn ?? "—",
+            value2: ap.duration ?? "—",
+          })
+        : tr("in order · next in {value1}", { value1: ap.nextChangeIn ?? "—" })
+      : tr("paused · back in {value1} bars", { value1: ap.handBackIn });
   const live = s.live;
   const liveScene = live && sceneById(live.scene);
-  $("nowReadout").textContent = live ? live.name : s.blackout ? "black" : "—";
+  $("nowReadout").textContent = live
+    ? liveLookName(live)
+    : s.blackout
+      ? tr("black")
+      : "—";
   $("nowReadout").title = live
-    ? `${live.name} · ${liveScene?.name ?? live.scene}${lookById(live.look) ? "" : " · unsaved draft"}`
+    ? `${liveLookName(live)} · ${tr(liveScene?.name ?? live.scene)}${lookById(live.look) ? "" : tr(" · unsaved draft")}`
     : "";
   catalog?.setStatus(live?.look ?? null, s.pending?.look ?? null);
   syncPlayingLook(live);
   $("favoritesOnly").ariaPressed = String(set.autopilot.favoritesOnly);
   if (document.activeElement !== $("minRating"))
     $("minRating").value = String(set.autopilot.minRating);
-  $("energyReadout").textContent = s.energy.toFixed(2);
+  $("energyReadout").textContent = formatNumber(s.energy, 2, 2);
   $("paletteReadout").textContent =
-    paletteById(s.palette)?.name ?? (s.palette ? "Custom" : "—");
-  $("speedReadout").textContent = `${s.speed}×`;
+    tr(paletteById(s.palette)?.name) || (s.palette ? tr("Custom") : "—");
+  $("speedReadout").textContent = `${formatNumber(s.speed)}×`;
   applyPreviewSize();
   const st = alive
     ? status.stage
@@ -633,21 +672,27 @@ function renderStatus() {
       };
   $("renderReadout").textContent =
     editorEngine || alive
-      ? `${st.width}×${st.height} · ${st.fps ? Math.round(st.fps) : "—"} fps`
+      ? tr("{value1}×{value2} · {value3} fps", {
+          value1: st.width,
+          value2: st.height,
+          value3: st.fps ? Math.round(st.fps) : "—",
+        })
       : "—";
-  $("renderReadout").title = alive ? "Stage output" : "Local preview";
+  $("renderReadout").title = alive ? tr("Stage output") : tr("Local preview");
   $("latency").textContent =
-    clock.mode === "auto" ? `latency ${clock.latencyMs} ms` : "";
+    clock.mode === "auto"
+      ? tr("latency {value1} ms", { value1: clock.latencyMs })
+      : "";
   $("autoClock").ariaPressed = String(clock.mode === "auto");
   for (const id of ["manualBpm", "quickBpm"])
     if (document.activeElement !== $(id)) $(id).value = displayedBpm.toFixed(1);
   $("blackout").ariaPressed = String(s.blackout);
   $("freeze").ariaPressed = String(s.freeze);
-  $("previewPause").textContent = s.paused ? "Play" : "Pause";
+  $("previewPause").textContent = s.paused ? tr("Play") : tr("Pause");
   $("previewPause").ariaPressed = String(!!s.paused);
   $("previewPause").ariaLabel = s.paused
-    ? "Resume playback (Space)"
-    : "Pause playback (Space)";
+    ? tr("Resume playback (Space)")
+    : tr("Pause playback (Space)");
   $("flash").ariaPressed = String(s.flash);
   $("autopilot").ariaPressed = String(ap.enabled);
   $("random").ariaPressed = String(ap.random);
@@ -658,10 +703,10 @@ function renderStatus() {
     const a = status.audio;
     $("audioMute").checked = !!a.muted;
     $("audioPill").textContent = s.paused
-      ? "Paused"
+      ? tr("Paused")
       : a.source === "off"
-        ? "Audio off"
-        : `${a.source} · ${a.muted && a.source !== "input" ? "muted · " : ""}${a.locked ? (a.coasting ? "holding" : `${a.bpm?.toFixed(1)} BPM`) : "listening"}`;
+        ? tr("Audio off")
+        : `${tr("audio.source." + a.source)} · ${a.muted && a.source !== "input" ? tr("muted · ") : ""}${a.locked ? (a.coasting ? tr("holding") : tr("{value1} BPM", { value1: a.bpm == null ? "—" : formatNumber(a.bpm, 1, 1) })) : tr("listening")}`;
     $("audioPill").className =
       `pill ${a.source === "off" ? "" : a.locked ? "ok" : "warn"}`;
   }
@@ -675,11 +720,11 @@ function renderStatus() {
 let editorEngine = null;
 try {
   editorEngine = new Engine($("editorCanvas"), scenes, (m) =>
-    log(`Editor: ${m}`),
+    log(tr("Editor: {value1}", { value1: m })),
   );
   editorEngine.resize(480, 270);
 } catch (error) {
-  log(`Editor preview unavailable: ${error.message}`);
+  log(tr("Editor preview unavailable: {value1}", { value1: errorText(error) }));
 }
 if (editorEngine)
   localPerformance = new ControlPreview(editorEngine, set, scenes, now());
@@ -712,7 +757,7 @@ function applyPreviewSize() {
   const shown = alive ? [status.stage.width, status.stage.height] : [w, h];
   const choice = set.options.outputResolution ?? "native";
   $("previewResolution").textContent =
-    `${choice === "native" ? "Native · " : ""}${shown[0]} × ${shown[1]} ⌄`;
+    `${choice === "native" ? tr("Native · ") : ""}${shown[0]} × ${shown[1]} ⌄`;
   for (const id of ["outputResolution", "setOutputResolution"])
     if ($(id)) $(id).value = choice;
   $("previewNote").hidden = !alive;
@@ -776,7 +821,8 @@ const thumbnails = new Thumbnails({
   previews: PREVIEWS,
   createEngine: () =>
     new Engine(document.createElement("canvas"), scenes, (message) => {
-      if (thumbnailErrors++ < 3) log(`Catalog thumbnails: ${message}`);
+      if (thumbnailErrors++ < 3)
+        log(tr("Catalog thumbnails: {value1}", { value1: message }));
     }),
   // Never take time from a transition on the stage or the local preview.
   busy: () =>
@@ -908,7 +954,9 @@ function saveRhythmOverride(target, pattern) {
   if (!look) return;
   if (target.preview && look.snapshot.scene !== target.scene.id) {
     toast(
-      "Save this draft's new family as an own look before saving its rhythm.",
+      tr(
+        "Save this draft's new family as an own look before saving its rhythm.",
+      ),
     );
     return;
   }
@@ -925,8 +973,8 @@ function saveRhythmOverride(target, pattern) {
   reindexLooks();
   toast(
     pattern
-      ? `Saved the rhythm for “${look.name}”.`
-      : `“${look.name}” now uses its family pattern.`,
+      ? tr("Saved the rhythm for “{value1}”.", { value1: look.name })
+      : tr("“{value1}” now uses its family pattern.", { value1: look.name }),
   );
   if (target.preview) previewDraft();
 }
@@ -1099,11 +1147,11 @@ function field(label, input) {
 }
 function renderEditor() {
   if (!draft) {
-    $("editorTitle").textContent = "Look";
+    $("editorTitle").textContent = tr("Look");
     $("editor").replaceChildren(
       el("p", {
         className: "note",
-        textContent: "Pick a look in the catalog.",
+        textContent: tr("Pick a look in the catalog."),
       }),
     );
     return;
@@ -1111,17 +1159,18 @@ function renderEditor() {
   const look = lookById(draft.id);
   $("editorTitle").textContent = draft.own
     ? (look?.name ?? draft.name)
-    : draft.name;
-  $("editorFamily").textContent = sceneById(draft.snapshot.scene)?.name ?? "";
+    : lookName(draft);
+  $("editorFamily").textContent = tr(sceneById(draft.snapshot.scene)?.name);
   $("saveLook").hidden = !draft.own;
   $("deleteLook").hidden = !draft.own;
   const scene = sceneById(draft.snapshot.scene);
   const name = el("input", {
-    value: draft.name,
+    value: lookName(draft),
     maxLength: 80,
     oninput: () => {
       editorFollowsLive = false;
-      draft.name = name.value.trim() || "Untitled";
+      draft.name = name.value.trim() || tr("Untitled");
+      draft.nameEdited = true;
     },
   });
   const family = el(
@@ -1135,6 +1184,7 @@ function renderEditor() {
           palette: draft.snapshot.palette,
         };
         draft.name = next.presets[0].name;
+        draft.nameEdited = false;
         draft.base = `${next.id}:0`;
         draft.rhythm = null;
         previewDraft();
@@ -1144,7 +1194,7 @@ function renderEditor() {
     ...scenes.map((s) =>
       el("option", {
         value: s.id,
-        textContent: s.name,
+        textContent: tr(s.name),
         selected: s.id === scene.id,
       }),
     ),
@@ -1161,14 +1211,18 @@ function renderEditor() {
           palette: draft.snapshot.palette,
         };
         draft.name = scene.presets[index].name;
+        draft.nameEdited = false;
         draft.base = `${scene.id}:${index}`;
         previewDraft();
         renderEditor();
       },
     },
-    el("option", { value: -1, textContent: "Start from an authored look…" }),
+    el("option", {
+      value: -1,
+      textContent: tr("Start from an authored look…"),
+    }),
     ...scene.presets.map((p, i) =>
-      el("option", { value: i, textContent: p.name }),
+      el("option", { value: i, textContent: tr(p.name) }),
     ),
   );
   const params = scene.schema.map((def) =>
@@ -1207,28 +1261,28 @@ function renderEditor() {
       el("option", {
         value: kind,
         textContent: {
-          auto: "Auto",
-          crossfade: "Crossfade",
-          cut: "Cut (downbeat, manual only)",
-          dissolve: "Noise dissolve",
-          melt: "Feedback melt",
+          auto: tr("Auto"),
+          crossfade: tr("Crossfade"),
+          cut: tr("Cut (downbeat, manual only)"),
+          dissolve: tr("Noise dissolve"),
+          melt: tr("Feedback melt"),
         }[kind],
         selected: kind === (draft.transition ?? "auto"),
       }),
     ),
   );
-  family.ariaLabel = "Look family";
+  family.ariaLabel = tr("Look family");
   $("editorFamily").replaceChildren(family);
   const heroKeys = stageParams(scene);
   $("editor").replaceChildren(
     ...params.filter((_, index) => heroKeys.includes(scene.schema[index].key)),
   );
   $("editorMore").replaceChildren(
-    field("Name", name),
-    field("Look", preset),
-    field("Transition", transition),
+    field(tr("Name"), name),
+    field(tr("Look"), preset),
+    field(tr("Transition"), transition),
     ...params.filter((_, index) => !heroKeys.includes(scene.schema[index].key)),
-    field("Seed", seed),
+    field(tr("Seed"), seed),
   );
 }
 function ownLookFromDraft(id) {
@@ -1237,7 +1291,7 @@ function ownLookFromDraft(id) {
     : set.looks.find((look) => look.id === draft.id)?.rhythm;
   return {
     id,
-    name: draft.name.trim() || "Untitled",
+    name: lookName(draft).trim() || tr("Untitled"),
     base: draft.base ?? null,
     snapshot: structuredClone(draft.snapshot),
     palette: draft.palette,
@@ -1260,7 +1314,7 @@ function saveLook(asNew) {
     );
     changed();
     reindexLooks();
-    toast(`Saved “${draft.name}”.`);
+    toast(tr("Saved “{value1}”.", { value1: draft.name }));
     return;
   }
   const look = ownLookFromDraft(freeLookId(set));
@@ -1269,21 +1323,28 @@ function saveLook(asNew) {
   reindexLooks();
   selectLook(look.id, false);
   catalog.reveal(look.id);
-  toast(`“${look.name}” is now an own look in the catalog.`);
+  toast(
+    tr("“{value1}” is now an own look in the catalog.", { value1: look.name }),
+  );
 }
 function deleteLook() {
   if (!draft?.own || settingsLocked) return;
   const { id, base, name } = draft;
-  confirm(`Delete the own look “${name}”? Authored looks stay.`, () => {
-    if (settingsLocked) return;
-    set.looks = set.looks.filter((look) => look.id !== id);
-    delete set.ratings[id];
-    set.favorites = set.favorites.filter((f) => f !== id);
-    set.keys = set.keys.map((k) => (k === id ? null : k));
-    changed();
-    reindexLooks();
-    selectLook(lookById(base) ? base : looks[0].id, false);
-  });
+  confirm(
+    tr("Delete the own look “{value1}”? Authored looks stay.", {
+      value1: name,
+    }),
+    () => {
+      if (settingsLocked) return;
+      set.looks = set.looks.filter((look) => look.id !== id);
+      delete set.ratings[id];
+      set.favorites = set.favorites.filter((f) => f !== id);
+      set.keys = set.keys.map((k) => (k === id ? null : k));
+      changed();
+      reindexLooks();
+      selectLook(lookById(base) ? base : looks[0].id, false);
+    },
+  );
 }
 function clearVariations() {
   for (const id of variationCards.keys()) thumbnails.invalidate(id);
@@ -1324,7 +1385,7 @@ function breed() {
         "button",
         {
           className: "cell",
-          ariaLabel: `Variation ${child.name}`,
+          ariaLabel: tr("Variation {value1}", { value1: index + 1 }),
           onclick: () => {
             if (draft !== parentDraft || settingsLocked) return;
             draft.snapshot = {
@@ -1338,7 +1399,10 @@ function breed() {
           },
         },
         thumb,
-        el("span", { className: "family", textContent: child.name }),
+        el("span", {
+          className: "family",
+          textContent: tr("Variation {value1}", { value1: index + 1 }),
+        }),
       );
     }),
   );
@@ -1402,8 +1466,8 @@ function resolutionOptions() {
       value: choice,
       textContent:
         choice === "native"
-          ? "Native · full display"
-          : `Up to ${choice} px · longest side`,
+          ? tr("Native · full display")
+          : tr("Up to {value1} px · longest side", { value1: choice }),
       selected: choice === (set.options.outputResolution ?? "native"),
     }),
   );
@@ -1435,7 +1499,7 @@ function renderSetFields() {
     value: set.name,
     maxLength: 80,
     onchange: () => {
-      set.name = name.value || "Untitled show";
+      set.name = name.value || tr("Untitled show");
       changed();
     },
   });
@@ -1443,8 +1507,9 @@ function renderSetFields() {
     "select",
     {
       id: "autopilotEvery",
-      title:
+      title: tr(
         "In-order autopilot changes clip every N bars; Random plays each clip 8, 12 or 16 bars",
+      ),
       onchange: () => {
         set.autopilot.everyBars = Number(every.value);
         changed();
@@ -1453,7 +1518,7 @@ function renderSetFields() {
     ...AUTOPILOT_BARS.map((b) =>
       el("option", {
         value: b,
-        textContent: `${b} bars`,
+        textContent: tr("{value1} bars", { value1: b }),
         selected: b === set.autopilot.everyBars,
       }),
     ),
@@ -1485,21 +1550,21 @@ function renderSetFields() {
     },
   });
   $("setFields").replaceChildren(
-    field("Show name", name),
-    field("In order every", every),
-    field("Stage resolution", budget),
-    option("bloom", "Bloom ceiling"),
-    option("echo", "Echo ceiling"),
-    option("chroma", "Chroma ceiling"),
-    option("grain", "Grain ceiling"),
-    option("vignette", "Vignette ceiling"),
-    field("Reduced motion", reduced),
+    field(tr("Show name"), name),
+    field(tr("In order every"), every),
+    field(tr("Stage resolution"), budget),
+    option("bloom", tr("Bloom ceiling")),
+    option("echo", tr("Echo ceiling")),
+    option("chroma", tr("Chroma ceiling")),
+    option("grain", tr("Grain ceiling")),
+    option("vignette", tr("Vignette ceiling")),
+    field(tr("Reduced motion"), reduced),
   );
 }
 function renderDevices(devices) {
   const current = $("audioDevice").value;
   $("audioDevice").replaceChildren(
-    el("option", { value: "", textContent: "Default input" }),
+    el("option", { value: "", textContent: tr("Default input") }),
     ...devices.map((d) =>
       el("option", {
         value: d.id,
@@ -1518,11 +1583,11 @@ navigator.permissions
   })
   .catch(() => {});
 const manualChecks = [
-  "Laptop on mains power",
-  "Do Not Disturb on, notifications off",
-  "Sleep and screen saver off",
-  "Chrome: “Warn before quitting (⌘Q)” on",
-  "Projector / LED wall resolution confirmed with the framing pattern",
+  tr("Laptop on mains power"),
+  tr("Do Not Disturb on, notifications off"),
+  tr("Sleep and screen saver off"),
+  tr("Chrome: “Warn before quitting (⌘Q)” on"),
+  tr("Projector / LED wall resolution confirmed with the framing pattern"),
 ];
 const ticked = new Set();
 // Automatic preflight checks (D10), from the stage's status.
@@ -1530,26 +1595,26 @@ function preflight() {
   const st = stageAlive() ? status?.stage : null,
     a = status?.audio;
   return [
-    ["Stage open and started", !!st?.started],
+    [tr("Stage open and started"), !!st?.started],
     [
-      "Stage fullscreen on the external screen",
+      tr("Stage fullscreen on the external screen"),
       !!st?.fullscreen && st.external === true,
     ],
-    ["Screen wake lock held", !!st?.wakeLock],
-    ["Framing pattern shown on the stage", !!st?.patternShown],
+    [tr("Screen wake lock held"), !!st?.wakeLock],
+    [tr("Framing pattern shown on the stage"), !!st?.patternShown],
     [
-      "Microphone permission granted for this site",
+      tr("Microphone permission granted for this site"),
       micPermission === "granted",
     ],
     [
-      "Live audio input has signal (not the demo or a file)",
+      tr("Live audio input has signal (not the demo or a file)"),
       !!a && a.source === "input" && a.level > 0.02,
     ],
     [
-      "Beat tracker locked (or manual tempo set)",
+      tr("Beat tracker locked (or manual tempo set)"),
       !!(a?.locked || status?.status.clock.mode === "manual"),
     ],
-    ["No GPU errors", st?.counters.gpuErrors === 0],
+    [tr("No GPU errors"), st?.counters.gpuErrors === 0],
   ];
 }
 const checkRows = [];
@@ -1575,7 +1640,7 @@ function renderChecks() {
     );
   auto.forEach(([, ok], index) => {
     checkRows[index].light.className = `light ${ok ? "auto" : "coast"}`;
-    checkRows[index].state.textContent = ok ? "ok" : "check";
+    checkRows[index].state.textContent = ok ? tr("ok") : tr("check");
   });
 }
 
@@ -1612,7 +1677,7 @@ function updateSettingsLock() {
   // A MIDI learn started before locking must not alter the mappings later.
   if (settingsLocked) {
     midiLearn = null;
-    $("midiLearn").textContent = "Learn next control";
+    $("midiLearn").textContent = tr("Learn next control");
   }
 }
 $("settingsLock").onchange = () => {
@@ -1638,8 +1703,7 @@ for (const [id, delta] of [
   ["tempoSlower", -1],
   ["tempoFaster", 1],
 ])
-  $(id).onclick = () =>
-    setClock("manual", Number($("bpm").textContent) + delta);
+  $(id).onclick = () => setClock("manual", Number($("quickBpm").value) + delta);
 $("outputResolution").replaceChildren(...resolutionOptions());
 $("outputResolution").onchange = (event) =>
   setOutputResolution(event.target.value);
@@ -1658,7 +1722,7 @@ $("minRating").replaceChildren(
   ...Array.from({ length: MAX_RATING + 1 }, (_, r) =>
     el("option", {
       value: r,
-      textContent: r ? `≥ ${r} ★` : "any rating",
+      textContent: r ? `≥ ${r} ★` : tr("any rating"),
     }),
   ),
 );
@@ -1741,29 +1805,42 @@ const midi = new MidiInput(
     if (result.error) toast(result.error);
     if (result.maps) {
       set.midi = result.maps;
-      toast(`Learnt ${message.type} ${message.number} → ${midiLearn}`);
+      toast(
+        tr("Learnt {value1} {value2} → {value3}", {
+          value1: message.type,
+          value2: message.number,
+          value3: midiTargetName(midiLearn),
+        }),
+      );
       midiLearn = null;
-      $("midiLearn").textContent = "Learn next control";
+      $("midiLearn").textContent = tr("Learn next control");
       changed();
       renderMidi();
     }
     for (const action of result.actions) act(action);
   },
-  (text) => log(`MIDI: ${text}`),
+  (text) => log(tr("MIDI: {value1}", { value1: text })),
 );
+function midiTargetName(target) {
+  if (target?.startsWith("slot."))
+    return tr("Catalog key {value1}", { value1: Number(target.slice(5)) + 1 });
+  return tr("midi." + target);
+}
 function renderMidi() {
   if (!$("midiTarget").children.length)
     $("midiTarget").replaceChildren(
-      ...MIDI_TARGETS.map((t) => el("option", { value: t, textContent: t })),
+      ...MIDI_TARGETS.map((target) =>
+        el("option", { value: target, textContent: midiTargetName(target) }),
+      ),
     );
   $("midiMaps").replaceChildren(
     ...set.midi.map((m, i) =>
       el(
         "li",
         {},
-        `${m.type} ${m.channel + 1}/${m.number} → ${m.target} `,
+        `${m.type} ${m.channel + 1}/${m.number} → ${midiTargetName(m.target)} `,
         el("button", {
-          textContent: "Forget",
+          textContent: tr("Forget"),
           onclick: () => {
             set.midi.splice(i, 1);
             changed();
@@ -1775,12 +1852,12 @@ function renderMidi() {
   );
 }
 $("midiConnect").onclick = () =>
-  midi.connect().catch((error) => toast(error.message));
+  midi.connect().catch((error) => toast(errorText(error)));
 $("midiLearn").onclick = () => {
   midiLearn = midiLearn ? null : $("midiTarget").value;
   $("midiLearn").textContent = midiLearn
-    ? `Move a control for ${midiLearn}…`
-    : "Learn next control";
+    ? tr("Move a control for {value1}…", { value1: midiTargetName(midiLearn) })
+    : tr("Learn next control");
 };
 $("importSet").onchange = async () => {
   const file = $("importSet").files[0];
@@ -1788,10 +1865,10 @@ $("importSet").onchange = async () => {
   if (!file) return;
   try {
     if (file.size > 32 * 1024 * 1024)
-      throw new Error("Sets are limited to 32 MB");
+      throw new Error(tr("Sets are limited to 32 MB"));
     const result = parseShowSet(JSON.parse(await file.text()), scenes);
     if (settingsLocked) {
-      toast("Unlock settings before importing a set.");
+      toast(tr("Unlock settings before importing a set."));
       return;
     }
     set = result.set;
@@ -1807,9 +1884,9 @@ $("importSet").onchange = async () => {
     reindexLooks(); // the imported set brings its own looks and ratings
     catalog.refresh();
     selectLook(catalog.first() ?? looks[0].id, true, false);
-    toast(`Imported “${set.name}”.`);
+    toast(tr("Imported “{value1}”.", { value1: set.name }));
   } catch (error) {
-    toast(`Import failed: ${error.message}`);
+    toast(tr("Import failed: {value1}", { value1: errorText(error) }));
   }
 };
 $("useInput").onclick = async () => {
@@ -1825,7 +1902,9 @@ $("useInput").onclick = async () => {
     stream.getTracks().forEach((t) => t.stop());
   } catch (error) {
     if (request === audioRequest)
-      toast(`Microphone permission: ${error.message}`);
+      toast(
+        tr("Microphone permission: {value1}", { value1: errorText(error) }),
+      );
     return;
   }
   if (
@@ -1913,7 +1992,9 @@ if ("serviceWorker" in navigator)
       const notify = () => {
         if (registration.waiting && navigator.serviceWorker.controller)
           log(
-            "New release cached. Close the stage and other Phosphor tabs/windows, then open Update app in this tab; saved sets are retained.",
+            tr(
+              "New release cached. Close the stage and other Phosphor tabs/windows, then open Update app in this tab; saved sets are retained.",
+            ),
           );
       };
       notify();
@@ -1922,10 +2003,14 @@ if ("serviceWorker" in navigator)
       );
     })
     .catch(() =>
-      log("Offline cache unavailable here (needs HTTPS or localhost)."),
+      log(tr("Offline cache unavailable here (needs HTTPS or localhost).")),
     );
 
 setupControlUI();
+addEventListener("phosphor-theme-change", () =>
+  translateDocument($("themeToggle")),
+);
+translateDocument($("themeToggle"));
 labels = await keyLabels();
 catalog.refreshKeys();
 selectLook(catalog.first() ?? looks[0].id, true, false);

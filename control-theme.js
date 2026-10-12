@@ -12,8 +12,12 @@
       theme === "light" ? "#e5e7e2" : "#181a1a";
     const button = document.getElementById("themeToggle");
     if (button) {
-      button.ariaLabel = `Switch to ${theme === "light" ? "dark" : "light"} mode`;
-      button.title = button.ariaLabel;
+      const label = `Switch to ${theme === "light" ? "dark" : "light"} mode`;
+      button.dataset.i18nAriaLabel = label;
+      button.dataset.i18nTitle = label;
+      button.ariaLabel = label;
+      button.title = label;
+      window.dispatchEvent(new Event("phosphor-theme-change"));
     }
   };
   apply();
