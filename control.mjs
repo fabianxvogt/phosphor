@@ -7,6 +7,8 @@ import {
   formatNumber,
 } from "./i18n/index.mjs";
 translateDocument();
+import { withoutWorldLook } from "./worlds.mjs";
+import { WorldPanel } from "./control-worlds.mjs";
 // Control window: owns set editing and local performance until a stage connects.
 // The stage owns live playback once open; control reloads never stop the show.
 import scenes from "./scenes.mjs";
@@ -89,6 +91,7 @@ let handoffPending = false;
 let stageWindow = null;
 let saveTimer = null;
 let rhythmPanel = null;
+let worldPanel = null;
 let rhythmPreviewActive = false;
 // Optimistic desired patterns protect edits from an older in-flight status.
 const rhythmEdits = new Map();
@@ -478,6 +481,16 @@ function faderValue(input) {
 function paintFader(input) {
   const min = Number(input.min),
     max = Number(input.max);
+  const fraction = Math.max(
+    0,
+    Math.min(1, (Number(input.value) - min) / (max - min || 1)),
+  );
+  // Native range thumbs travel width minus thumb width. Hide the fill's end
+  // inside the opaque bulb at every value, including both endpoints.
+  input.style.setProperty(
+    "--fill-center",
+    `calc(${fraction * 100}% + ${29 - 42 * fraction}px)`,
+  );
   input.style.setProperty(
     "--fill",
     `${(100 * (Number(input.value) - min)) / (max - min || 1)}%`,
@@ -655,6 +668,7 @@ function renderStatus() {
     : "";
   catalog?.setStatus(live?.look ?? null, s.pending?.look ?? null);
   syncPlayingLook(live);
+  worldPanel?.update(s);
   $("favoritesOnly").ariaPressed = String(set.autopilot.favoritesOnly);
   if (document.activeElement !== $("minRating"))
     $("minRating").value = String(set.autopilot.minRating);
@@ -858,6 +872,11 @@ const catalog = new CatalogPanel({
   onEdit: (look) => selectLook(look.id, true),
   onOrder: setKeys,
   thumbnails,
+});
+worldPanel = new WorldPanel({
+  getSet: () => set,
+  act,
+  preview: (id) => PREVIEWS[id]?.url,
 });
 // Harness hooks (tests/browser): the catalog and its thumbnail renderer.
 Object.assign(window.__phosphorControl, { catalog, thumbnails });
@@ -1330,13 +1349,21 @@ function saveLook(asNew) {
 function deleteLook() {
   if (!draft?.own || settingsLocked) return;
   const { id, base, name } = draft;
+  const used = set.worlds?.some((w) => w.states.some((s) => s.look === id));
   confirm(
     tr("Delete the own look “{value1}”? Authored looks stay.", {
       value1: name,
-    }),
+    }) +
+      (used
+        ? " " +
+          tr(
+            "Its world developments will also be removed; worlds need at least two developments.",
+          )
+        : ""),
     () => {
       if (settingsLocked) return;
       set.looks = set.looks.filter((look) => look.id !== id);
+      set.worlds = withoutWorldLook(set.worlds, id);
       delete set.ratings[id];
       set.favorites = set.favorites.filter((f) => f !== id);
       set.keys = set.keys.map((k) => (k === id ? null : k));

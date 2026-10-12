@@ -224,8 +224,19 @@ export class ControlPreview {
             lookId: action.clipId,
             energy: action.baseEnergy ?? action.energy,
             transition: action.transition,
+            carryTraces: action.carryTraces,
+            beatTransition: action.beatTransition,
             flashExempt: action.type === "safe",
           });
+          break;
+        case "world-timing":
+          if (
+            this.engine.transition &&
+            Number.isFinite(this.engine.transition.beatEnd)
+          ) {
+            this.engine.transition.beatStart = action.start;
+            this.engine.transition.beatEnd = action.end;
+          }
           break;
         case "energy":
           this.engine.setLevel(action.value, action.seconds);

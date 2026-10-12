@@ -1,0 +1,200 @@
+.world-tabs,
+.world-state-choices {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.world-tabs {
+  margin-left: auto;
+}
+.world-tabs button {
+  padding: 5px 12px;
+  font-size: 12px;
+  min-height: 28px;
+}
+body[data-catalog-mode="worlds"] #catalogList,
+body[data-catalog-mode="worlds"] .catalog-head > :not(.catalog-heading),
+body[data-catalog-mode="worlds"] .catalog-footer > :not(.world-footer-note),
+body[data-catalog-mode="worlds"] #catalogCount {
+  display: none !important;
+}
+body[data-catalog-mode="worlds"] .chassis-catalog-footer > * {
+  visibility: hidden;
+}
+.world-view {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  scrollbar-width: thin;
+  padding: 4px 2px;
+}
+.world-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 14px;
+}
+.world-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+}
+.world-card.prepared {
+  border-color: var(--accent);
+}
+.world-card img {
+  width: 100%;
+  aspect-ratio: 2.7;
+  object-fit: cover;
+  display: block;
+  filter: url(#catalog-palette);
+}
+.world-card-body {
+  padding: 14px;
+}
+.world-eyebrow {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  opacity: 0.65;
+}
+.world-card h3 {
+  font-family: Forum, Georgia, serif;
+  font-size: 27px;
+  font-weight: 400;
+  margin: 5px 0 7px;
+}
+.world-card p {
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.8;
+  margin: 0 0 12px;
+}
+.world-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10px;
+}
+.world-card-bottom button {
+  font-size: 12px;
+  padding: 6px 12px;
+  flex-shrink: 0;
+}
+.world-dock {
+  margin: 0 0 14px;
+  padding: 2px 2px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.world-dock-heading,
+.world-transition-controls,
+.world-development-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.world-dock-heading {
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.world-dock-heading button {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+.world-transition-controls select,
+.world-transition-controls button {
+  font-size: 12px;
+  min-width: 0;
+  padding: 7px 10px;
+}
+.world-transition-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.world-transition-controls input {
+  width: auto;
+  margin: 0;
+}
+.world-dock .note {
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+.world-footer-note {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.world-live {
+  position: absolute;
+  top: 22px;
+  left: 26px;
+  right: 26px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 3;
+}
+.world-live > * {
+  pointer-events: auto;
+}
+.world-live-name,
+.world-live button {
+  font-size: 11px;
+  padding: 7px 11px;
+  background: rgb(15 23 20 / 0.8);
+  color: #e5eee7;
+  border: 1px solid rgb(224 239 230 / 0.25);
+  border-radius: 20px;
+  backdrop-filter: blur(12px);
+}
+.world-live progress {
+  width: 80px;
+  height: 4px;
+  accent-color: #c3dcc7;
+}
+.world-developments {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+.world-development-title {
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 7px;
+}
+.world-development-title button,
+.world-state-choices button {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+.world-state-choices button[aria-pressed="true"] {
+  opacity: 1;
+}
+.world-live[hidden],
+.world-view[hidden],
+.world-developments[hidden],
+.world-footer-note[hidden] {
+  display: none;
+}
+
+.world-developments {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 0;
+}
+.world-development-title {
+  margin-bottom: 0;
+}
+.world-tabs {
+  flex-shrink: 0;
+}

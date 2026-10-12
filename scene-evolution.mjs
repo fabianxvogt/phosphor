@@ -46,7 +46,7 @@ export default {
   description: 'A Gray–Scott morphogen garden: diffusing concentrations become budding islands and petal relief. Breed any scene’s bounded parameters in the lineage instrument; this is an artistic reaction–diffusion model, not a botanical simulation.',
   schema,
   presets,
-  simulation: {
+  simulation: { continuity: "gray-scott-uv16-v1",
     size: [384, 384],
     steps: 2,
     fragment: chemistry + `

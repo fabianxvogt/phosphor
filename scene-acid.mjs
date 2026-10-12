@@ -326,5 +326,5 @@ export default {
   // finite [0,1] state for every advertised setting. Projection is a numerical
   // bound, not a claim of exact chemistry. RG/BA stores 16 bits per species;
   // nearest rounding error <= 1/(2*65535), avoiding RG8 reaction pinning.
-  simulation: { fragment: simulationFragment, size: [320, 192], steps: 8 },
+  simulation: { continuity: "gray-scott-uv16-v1", fragment: simulationFragment, size: [320, 192], steps: 8 },
 };

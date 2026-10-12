@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><title>Living worlds verification</title>
+  <style>
+    body {
+      margin: 30px;
+      background: #19221f;
+      color: #e4efe7;
+      font: 15px system-ui;
+    }
+    button {
+      padding: 12px;
+    }
+    canvas {
+      width: 640px;
+      max-width: 100%;
+      display: block;
+      margin: 20px 0;
+    }
+    pre {
+      white-space: pre-wrap;
+    }
+    #captures {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    figure {
+      margin: 0;
+      width: 320px;
+    }
+    figure img {
+      width: 100%;
+    }
+  </style>
+  <h1>Living worlds GPU verification</h1>
+  <button id="run">Run verification</button>
+  <pre id="result" role="status">Ready</pre>
+  <canvas id="canvas" width="640" height="360"></canvas>
+  <div id="captures"></div>
+  <script type="module" src="worlds.mjs"></script>
+</html>

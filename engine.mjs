@@ -1,4 +1,5 @@
 import { tr } from "./i18n/index.mjs";
+import { carryTraces } from "./engine-memory.mjs";
 import {
   shaderHeader,
   reduceSeed,
@@ -468,11 +469,19 @@ export class Engine {
       const frame = this.rhythmFrame;
       const position = (frame?.beat ?? kickBeat) - (frame?.origin ?? 0);
       const pattern = frame?.settings?.global ?? authoredRhythm(GLOBAL_EFFECTS);
-      const global = samplePattern(pattern, GLOBAL_EFFECTS, position, this.rhythmGlobalPosition, {
-        style: frame?.style, activation: frame?.activations?.global,
-      });
+      const global = samplePattern(
+        pattern,
+        GLOBAL_EFFECTS,
+        position,
+        this.rhythmGlobalPosition,
+        {
+          style: frame?.style,
+          activation: frame?.activations?.global,
+        },
+      );
       this.rhythmGlobalPosition = position;
-      const gain = calm || frame?.enabled === false ? 0 : rhythmResponse(this.level);
+      const gain =
+        calm || frame?.enabled === false ? 0 : rhythmResponse(this.level);
       this.beatFx.pulse = global.values[0] * gain * 0.65;
       this.beatFx.punch = global.values[1] * gain * 0.12;
       this.beatFx.echo = global.values[2] * gain * 0.65;
@@ -774,6 +783,9 @@ export class Engine {
       } else this.destroySlot(this.slots.shift());
     }
     const slot = this.createSlot(snapshot);
+    const carried =
+      opts?.carryTraces === true &&
+      carryTraces(this.gl, this.slots.at(-1), slot);
     slot.lookId = opts?.lookId ?? `${snapshot.scene}:${snapshot.preset}`;
     slot.baseLevel = Number.isFinite(opts?.energy) ? opts.energy : this.level;
     sampleSceneRhythm(slot, this.rhythmFrame, this.beat, this.level, false);
@@ -788,6 +800,8 @@ export class Engine {
       this.transition = {
         elapsed: 0,
         duration: seconds,
+        beatStart: opts?.beatTransition?.start,
+        beatEnd: opts?.beatTransition?.end,
         kind:
           opts?.transition === "dissolve" || opts?.transition === "melt"
             ? opts.transition
@@ -806,9 +820,11 @@ export class Engine {
     }
     this.accumulator = 0;
     this.gesture[2] = 0;
-    slot.warmTicks = slot.scene.simulation
-      ? (slot.scene.simulation.warmTicks ?? 120)
-      : 0;
+    slot.warmTicks = carried
+      ? 0
+      : slot.scene.simulation
+        ? (slot.scene.simulation.warmTicks ?? 120)
+        : 0;
     this.warmSlot(slot);
     this.drawSlot(slot, 1 / 60);
     this.present();
@@ -964,7 +980,10 @@ export class Engine {
         s.cpuParams[definition.key] = s.params[i];
       });
       const bytes = s.scene.simulation.cpu.step(s.cpu, {
-        dt: step, params: s.cpuParams, level: this.level, reset: s.reset,
+        dt: step,
+        params: s.cpuParams,
+        level: this.level,
+        reset: s.reset,
         rhythm: s.rhythm ? { ...s.rhythm, hits: s.rhythmPending } : null,
       });
       if (bytes) {
@@ -1001,7 +1020,8 @@ export class Engine {
     if (s.field) this.tickField(s, step);
   }
   tickField(s, dt) {
-    const gl = this.gl, programs = this.programs.get(s.scene.id);
+    const gl = this.gl,
+      programs = this.programs.get(s.scene.id);
     const target = s.field[1 - s.fi];
     this.bind(programs.field, target);
     this.uniforms(programs.field, s, target, dt, s.fieldReset);
@@ -1097,7 +1117,12 @@ export class Engine {
           this.time += 1 / 60;
           for (const s of this.slots)
             if (s !== incoming || !preparing) this.tickSlot(s, 1 / 60);
-          if (this.transition && !this.transition.manual && !preparing) {
+          if (
+            this.transition &&
+            !Number.isFinite(this.transition.beatEnd) &&
+            !this.transition.manual &&
+            !preparing
+          ) {
             this.transition.elapsed += 1 / 60;
             if (this.transition.elapsed >= this.transition.duration) {
               this.destroySlot(this.slots.shift());
@@ -1106,6 +1131,22 @@ export class Engine {
             }
           }
           this.accumulator = Math.max(0, this.accumulator - 1 / 60);
+        }
+        if (this.transition && Number.isFinite(this.transition.beatEnd)) {
+          const tr = this.transition;
+          const progress = Math.max(
+            0,
+            Math.min(
+              1,
+              (this.beat - tr.beatStart) / (tr.beatEnd - tr.beatStart),
+            ),
+          );
+          tr.elapsed = progress * tr.duration;
+          if (progress >= 1) {
+            this.destroySlot(this.slots.shift());
+            this.transition = null;
+            this.flashExempt = false;
+          }
         }
         for (const s of this.slots)
           this.drawSlot(s, Math.min(0.1, dt) * this.speed);

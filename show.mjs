@@ -1,3 +1,4 @@
+import { WORLD_DURATIONS, canCarryTraces } from "./worlds.mjs";
 // Show controller: turns performer actions, the clock and autopilot into
 // renderer actions. Pure (no DOM, no WebGL) so the output window can own it
 // (decision D8) and tests can drive it with synthetic time.
@@ -82,6 +83,10 @@ export class Show {
       now,
     });
     this.autopilot = new Autopilot({ ...set.autopilot, seed });
+    this.world = null;
+    this.preparedWorld = null;
+    this.worldTransition = null;
+    this.worldFreezeBeat = null;
     this.live = null; // { clip, base } — clip.id is the look id; base: authored params
     this.drift = null; // { keys, from, to, t0, seconds } while params glide
     this.scenes = new Map(scenes.map((s) => [s.id, s]));
@@ -136,6 +141,7 @@ export class Show {
       if (this.safeShowing) this.safeFrame.palette = this.paletteColors;
       this.paletteDirty = true;
     }
+    const worldsChanged = !same(set.worlds, this.set.worlds);
     const looksChanged = set.looks !== this.set.looks;
     const desired = validateRhythm(set.rhythm, [...this.scenes.values()]);
     const overrides = this.#ownRhythms(set);
@@ -179,6 +185,18 @@ export class Show {
     this.autopilot.handBackBars = set.autopilot.handBackBars;
     this.autopilot.randomMode = set.autopilot.random;
     if (looksChanged) this.#indexCatalog();
+    if (
+      this.world &&
+      !this.#world(this.world)?.states.some(
+        (s) => s.look === this.live?.clip.id,
+      )
+    )
+      this.#leaveWorld();
+    // Definition edits invalidate preparation rather than silently retargeting it.
+    if (worldsChanged) {
+      this.preparedWorld = null;
+      if (this.pending?.world) this.pending = null;
+    }
   }
 
   #ownRhythms(set) {
@@ -734,6 +752,104 @@ export class Show {
     return clip && !this.disabled.has(clip.snapshot.scene) ? clip : null;
   }
 
+  #world(id = this.world) {
+    return this.set.worlds?.find((w) => w.id === id) ?? null;
+  }
+
+  #worldClip(world, state) {
+    const definition = world?.states[state];
+    const clip = definition && this.clipFor(definition.look);
+    if (!clip) return null;
+    return {
+      ...clip,
+      snapshot: {
+        ...clip.snapshot,
+        params: { ...clip.snapshot.params, ...definition.params },
+      },
+    };
+  }
+
+  #worldBeat(t) {
+    return this.worldFreezeBeat ?? this.clock.at(t).beat;
+  }
+
+  #leaveWorld() {
+    this.world = null;
+    this.worldTransition = null;
+    this.worldFreezeBeat = null;
+    if (this.pending?.world) this.pending = null;
+  }
+
+  #worldBusy(t) {
+    if (this.worldTransition && this.#worldBeat(t) >= this.worldTransition.end)
+      this.worldTransition = null;
+    return !!(this.pending?.world || this.worldTransition);
+  }
+
+  #prepareWorld(action) {
+    if (this.pending?.world) return;
+    const world = this.#world(action.id);
+    const state = Number.isInteger(action.state) ? action.state : 0;
+    const clip = this.#worldClip(world, state);
+    if (!clip || this.disabled.has(clip.snapshot.scene)) return;
+    this.preparedWorld = {
+      id: world.id,
+      state,
+      bars: WORLD_DURATIONS.includes(action.bars) ? action.bars : 4,
+      carry: action.carry !== false,
+    };
+  }
+
+  #startWorld(t, prepared = this.preparedWorld) {
+    if (!prepared || this.#worldBusy(t)) return [];
+    const world = this.#world(prepared.id);
+    const clip = this.#worldClip(world, prepared.state);
+    if (!clip || this.disabled.has(clip.snapshot.scene)) return [];
+    this.#manual(t);
+    const clock = this.clock.at(t);
+    this.pending = {
+      clip,
+      at: clock.beat - clock.beatInBar + 4,
+      fade: prepared.bars * 4,
+      adoptPalette: false,
+      transition: "crossfade",
+      world: world.id,
+      carryTraces: prepared.carry,
+    };
+    return [];
+  }
+
+  #worldStatus(t) {
+    this.#worldBusy(t);
+    const world = this.#world();
+    const prepared = this.preparedWorld;
+    const target =
+      prepared &&
+      this.clipFor(this.#world(prepared.id)?.states[prepared.state]?.look);
+    return {
+      active: world && {
+        id: world.id,
+        name: world.name,
+        state: world.states.findIndex((s) => s.look === this.live?.clip.id),
+      },
+      prepared: prepared && {
+        ...prepared,
+        compatible: canCarryTraces(
+          this.scenes.get(this.live?.clip.snapshot.scene),
+          this.scenes.get(target?.snapshot.scene),
+        ),
+      },
+      queued: !!this.pending?.world,
+      transition: this.worldTransition && {
+        ...this.worldTransition,
+        progress: clamp01(
+          (this.#worldBeat(t) - this.worldTransition.start) /
+            (this.worldTransition.end - this.worldTransition.start),
+        ),
+      },
+    };
+  }
+
   // Every look autopilot may play (D66, D68): never at 0 stars, only
   // favourites or only looks rated at least `minRating` when the set says
   // so; best first (the in-order walk), weighted by rating in random mode.
@@ -747,26 +863,46 @@ export class Show {
       minRating: autopilot.minRating,
     };
     const pool = [];
-    for (const look of sortCatalog(this.catalog, ratings, favorites)) {
+    const world = this.#world();
+    const allowed = world && new Set(world.states.map((s) => s.look));
+    const catalog = allowed
+      ? this.catalog.filter((l) => allowed.has(l.id))
+      : this.catalog;
+    const ordered = world
+      ? world.states
+          .map((s) => catalog.find((l) => l.id === s.look))
+          .filter(Boolean)
+      : sortCatalog(catalog, ratings, favorites);
+    for (const look of ordered) {
       if (this.disabled.has(look.sceneId) || !autopilotMay(look, rules))
         continue;
       pool.push({
         order: pool.length,
-        clip: this.catalogClips.get(look.id),
+        clip: world
+          ? this.#worldClip(
+              world,
+              world.states.findIndex((s) => s.look === look.id),
+            )
+          : this.catalogClips.get(look.id),
         weight: ratingWeight(ratingOf(ratings, look.id)),
       });
     }
     // Favourites only, but none playable: fall back to the whole catalog
     // rather than standing still.
     if (!pool.length && (rules.favoritesOnly || rules.minRating > 0))
-      for (const look of this.catalog)
+      for (const look of catalog)
         if (
           !this.disabled.has(look.sceneId) &&
           autopilotMay(look, { ratings, favorites })
         )
           pool.push({
             order: pool.length,
-            clip: this.catalogClips.get(look.id),
+            clip: world
+              ? this.#worldClip(
+                  world,
+                  world.states.findIndex((s) => s.look === look.id),
+                )
+              : this.catalogClips.get(look.id),
             weight: ratingWeight(ratingOf(ratings, look.id)),
           });
     return pool;
@@ -774,6 +910,24 @@ export class Show {
 
   // An autopilot trigger: always a catalog look, keeping the show palette.
   #autoTrigger(t, a) {
+    if (this.#worldBusy(t)) return [];
+    if (this.world) {
+      const world = this.#world();
+      const state = world.states.findIndex((s) => s.look === a.clip.id);
+      if (state < 0) return [];
+      // Developments share the clock and field just like a world change.
+      const clock = this.clock.at(t);
+      this.pending = {
+        clip: a.clip,
+        at: clock.beat - clock.beatInBar + 4,
+        fade: 16,
+        adoptPalette: false,
+        transition: "crossfade",
+        world: world.id,
+        carryTraces: true,
+      };
+      return [];
+    }
     return this.#schedule(t, a.clip, {
       quantize: a.quantize,
       fade: a.fade,
@@ -907,10 +1061,19 @@ export class Show {
 
   #fire(t) {
     const p = this.pending;
-    if (!p) return [];
+    if (!p || (p.world && this.freeze)) return [];
     const now = this.clock.at(t);
     if (now.beat + 1e-9 < p.at) return [];
     this.pending = null;
+    if (p.world) {
+      this.world = p.world;
+      this.worldTransition = { start: p.at, end: p.at + p.fade };
+      if (this.preparedWorld?.id === p.world) this.preparedWorld = null;
+    } else if (
+      this.world &&
+      !this.#world()?.states.some((s) => s.look === p.clip.id)
+    )
+      this.#leaveWorld();
     this.#advancePalette(t);
     if (!this.set.palette && (p.adoptPalette || this.palette === null))
       this.#setPalette(
@@ -945,6 +1108,12 @@ export class Show {
         snapshot: this.live.clip.snapshot,
         fadeSeconds: (p.fade * 60) / now.bpm,
         transition: p.transition,
+        ...(p.world
+          ? {
+              carryTraces: p.carryTraces,
+              beatTransition: { ...this.worldTransition },
+            }
+          : {}),
         energy: this.energy,
         // Authored at the clip's stored energy: the family's energy curves
         // move parameters from there to the show energy.
@@ -968,6 +1137,8 @@ export class Show {
   }
 
   safe(t, energy = this.energy) {
+    this.#leaveWorld();
+    this.preparedWorld = null;
     this.pending = null;
     this.live = this.drift = null;
     this.safeShowing = true;
@@ -1063,6 +1234,30 @@ export class Show {
     }
     if (this.clock.paused) t = this.pausedAt;
     switch (action.type) {
+      case "world-prepare":
+        this.#prepareWorld(action);
+        return [];
+      case "world-start":
+        return this.#startWorld(t);
+      case "world-cancel":
+        this.preparedWorld = null;
+        if (this.pending?.world) this.pending = null;
+        return [];
+      case "world-leave":
+        this.#leaveWorld();
+        this.preparedWorld = null;
+        this.#manual(t);
+        return [];
+      case "world-develop": {
+        const world = this.#world();
+        if (!world || !world.states[action.state]) return [];
+        return this.#startWorld(t, {
+          id: world.id,
+          state: action.state,
+          bars: 4,
+          carry: true,
+        });
+      }
       case "rhythm":
         this.#advanceRhythm(t);
         this.#rhythmCommand(action, t);
@@ -1073,6 +1268,7 @@ export class Show {
         if (!(action.index >= 0 && action.index < KEYS)) return [];
         const clip = this.clipFor(this.set.keys[action.index]);
         if (!clip) return [];
+        this.#leaveWorld();
         this.#manual(t);
         return this.#schedule(t, clip);
       }
@@ -1080,6 +1276,7 @@ export class Show {
         // Play from the catalog (D68): the look's own palette, at once.
         const clip = this.clipFor(action.id);
         if (!clip) return [];
+        this.#leaveWorld();
         if (action.manual !== false) this.#manual(t);
         return this.#schedule(t, clip, { quantize: "now" });
       }
@@ -1087,6 +1284,7 @@ export class Show {
         // Play an unsaved clip (the editor's draft). Showing the first clip
         // when the control window opens is not a performer takeover (D53).
         if (!action.clip?.snapshot) return [];
+        this.#leaveWorld();
         if (action.manual !== false) this.#manual(t);
         return this.#schedule(t, action.clip, {
           quantize: "now",
@@ -1118,6 +1316,10 @@ export class Show {
         return [];
       case "downbeat":
         this.clock.downbeat(t);
+        if (this.pending?.world) {
+          const clock = this.clock.at(t);
+          this.pending.at = clock.beat - clock.beatInBar + 4;
+        }
         // Pending changes follow the corrected 1/subdivision, rather than
         // an old bar line hidden behind the performer's phase correction.
         for (const pending of this.rhythmPending.values()) {
@@ -1166,6 +1368,7 @@ export class Show {
         if (!this.autopilot.randomMode) this.drift = null;
         return [];
       case "next": {
+        if (this.#worldBusy(t)) return [];
         // Next (D66): autopilot's next pick now, on the next beat with the
         // regular fade. Not a takeover; works with autopilot off too.
         const pick = this.autopilot.next({
@@ -1175,9 +1378,26 @@ export class Show {
         });
         return pick ? this.#autoTrigger(t, pick) : [];
       }
-      case "freeze":
-        this.freeze = action.on ?? !this.freeze;
-        return [{ type: "freeze", on: this.freeze }];
+      case "freeze": {
+        const on = action.on ?? !this.freeze;
+        if (on === this.freeze) return [];
+        const beat = this.clock.at(t).beat;
+        if (on && this.worldTransition) this.worldFreezeBeat = beat;
+        const actions = [{ type: "freeze", on }];
+        if (!on) {
+          if (this.worldTransition && this.worldFreezeBeat !== null) {
+            const elapsed = beat - this.worldFreezeBeat;
+            this.worldTransition.start += elapsed;
+            this.worldTransition.end += elapsed;
+            actions.push({ type: "world-timing", ...this.worldTransition });
+          }
+          this.worldFreezeBeat = null;
+          if (this.pending?.world)
+            this.pending.at = beat - this.clock.at(t).beatInBar + 4;
+        }
+        this.freeze = on;
+        return actions;
+      }
       case "flash":
         this.flash = !!action.on;
         return [{ type: "flash", on: this.flash }];
@@ -1222,7 +1442,7 @@ export class Show {
     this.paletteDirty = false;
     const actions = this.#fire(t);
     const now = this.clock.at(t);
-    if (now.bar !== this.lastBar || event) {
+    if (!this.#worldBusy(t) && (now.bar !== this.lastBar || event)) {
       this.lastBar = now.bar;
       const auto = this.autopilot.update({
         bar: now.bar,
@@ -1247,7 +1467,8 @@ export class Show {
           actions.push({ type: "speed", value: a.value });
         } else if (a.type === "palette" && !this.set.palette)
           this.#setPalette(a.id, t, a.beats);
-        else if (a.type === "drift") this.#startDrift(t, a.bars, now.bpm);
+        else if (a.type === "drift" && !this.world)
+          this.#startDrift(t, a.bars, now.bpm);
       }
     }
     if (this.drift && this.live) {
@@ -1268,6 +1489,7 @@ export class Show {
     const clock = this.#advanceRhythm(t);
     const scene = this.live && this.scenes.get(this.live.clip.snapshot.scene);
     return {
+      worlds: this.#worldStatus(t),
       // A clip's id is its look id ("<scene>:<preset>" or "own-…"); an
       // unsaved editor draft has its own id and no catalog entry.
       live: this.live && {
@@ -1351,6 +1573,21 @@ export class Show {
     return {
       live: this.live && { clipId: this.live.clip.id },
       safeShowing: this.safeShowing,
+      worlds: {
+        active: this.world,
+        prepared: structuredClone(this.preparedWorld),
+        pending: this.pending?.world
+          ? {
+              id: this.pending.world,
+              state: this.#world(this.pending.world)?.states.findIndex(
+                (s) => s.look === this.pending.clip.id,
+              ),
+              bars: this.pending.fade / 4,
+              carry: this.pending.carryTraces,
+              remaining: Math.max(0, this.pending.at - this.clock.at(t).beat),
+            }
+          : null,
+      },
       energy: this.energy,
       palette: structuredClone(this.palette),
       paletteColors: paletteColors && { ...paletteColors },
@@ -1413,7 +1650,15 @@ export class Show {
     ];
     // A catalog look comes back by its id (D65, D68); an unsaved draft
     // cannot.
-    const clip = saved.live && this.clipFor(saved.live.clipId);
+    const savedWorld = saved.worlds?.active
+      ? this.#world(saved.worlds.active)
+      : null;
+    const state =
+      savedWorld?.states.findIndex((s) => s.look === saved.live?.clipId) ?? -1;
+    const clip =
+      state >= 0
+        ? this.#worldClip(savedWorld, state)
+        : saved.live && this.clipFor(saved.live.clipId);
     if (clip) {
       if (this.palette === null)
         this.#setPalette(
@@ -1433,6 +1678,28 @@ export class Show {
         clipId: clip.id,
       });
     } else if (saved.safeShowing) actions.unshift(this.safe(t));
+    // A new renderer cannot recover GPU history. Restore the live development
+    // directly, plus a prepared/queued choice; never pretend a fade survived.
+    this.world = savedWorld?.states.some((s) => s.look === clip?.id)
+      ? saved.worlds.active
+      : null;
+    this.preparedWorld = null;
+    this.worldTransition = null;
+    this.worldFreezeBeat = null;
+    this.pending = null;
+    if (saved.worlds?.prepared) this.#prepareWorld(saved.worlds.prepared);
+    const queued = saved.worlds?.pending;
+    if (
+      queued &&
+      Number.isFinite(queued.remaining) &&
+      queued.remaining >= 0 &&
+      queued.remaining <= 4
+    ) {
+      this.#prepareWorld(queued);
+      this.#startWorld(t);
+      if (this.pending?.world)
+        this.pending.at = this.clock.at(t).beat + queued.remaining;
+    }
     return actions;
   }
 }

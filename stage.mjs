@@ -96,9 +96,17 @@ function apply(actions) {
             lookId: a.clipId,
             energy: a.baseEnergy ?? a.energy,
             transition: a.transition,
+            carryTraces: a.carryTraces,
+            beatTransition: a.beatTransition,
           }) === false
         )
           isolate(a.snapshot.scene);
+        break;
+      case "world-timing":
+        if (engine.transition && Number.isFinite(engine.transition.beatEnd)) {
+          engine.transition.beatStart = a.start;
+          engine.transition.beatEnd = a.end;
+        }
         break;
       case "safe":
         engine.setRhythmFrame(show.rhythmFrame(now()));
