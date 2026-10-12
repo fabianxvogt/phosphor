@@ -24,6 +24,8 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 
 ## Now (2026-10-08)
 
+Look/Performance resize grip (2026-10-12, INCREMENTAL): centred on the actual rail between the panel openings at every resized height; keyboard resizing and saved splits remain intact. [Verification](docs/EVIDENCE.md#lookperformance-grip-alignment-2026-10-12).
+
 German and English (2026-10-12): browser language detection, complete interface/catalog/rhythm dictionaries, bilingual catalog search, preserved user names and set compatibility. Copy is direct and informal with subtle atmosphere in visual names. [Verification](docs/EVIDENCE.md#languages-2026-10-12).
 
 Resizable organic layout and transport pause (2026-10-12, INCREMENTAL): both layouts fit the viewport, preserve independent saved splits and allow broad panel resizing. Catalog/footer controls are grouped, Rhythm follows one aligned Live bar with a bounded counter, and Space pauses/resumes the exact visual/audio position. Original frame artwork is retained. [Verification and limits](docs/EVIDENCE.md#resizable-panels-live-rhythm-and-pause-2026-10-12).

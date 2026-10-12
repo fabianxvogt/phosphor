@@ -2,6 +2,12 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Look/Performance grip alignment 2026-10-12
+
+**INCREMENTAL / EMPIRICAL.** The upper desktop grip used the resize anchor instead of the centre of the authored rail, placing it 7.55px too high at 1440×1800. Its position now comes from the midpoint between the mapped Look bottom and Performance top. Frame artwork, resize anchors and saved preferences are unchanged.
+
+**Verification:** the geometry probe failed before the fix and passed afterward across 48 viewport/split/height combinations. All seven panel-layout tests pass. Browser inspection confirmed a centre error below 0.02px before and after keyboard resizing, and the focused grip is visually centred. Independent review found no issues with drag scaling or persistence.
+
 ## Readable panel minimums and scroll chaining 2026-10-12
 
 **INCREMENTAL / EMPIRICAL.** Supersedes the earlier always-fit-page rule at the owner's request. Both chassis mappings now reserve readable minimum heights, with extra space for narrow wrapping controls. The page grows only when the viewport cannot contain these minimums; larger viewports are filled. Saved seam preferences remain separate from temporary viewport constraints. Native vertical scroll chaining lets panel/catalog content scroll first, then the page at either end.

@@ -293,7 +293,11 @@ export function panelGeometry(
       handles: {
         split: [c, height * 0.52],
         left: [leftCenter, left * ys],
-        upper: [rightCenter, upper * ys],
+        // The authored Look/Performance rail is below its resize anchor.
+        upper: [
+          rightCenter,
+          (panels[2].top + panels[2].height + panels[3].top) / 2,
+        ],
         lower: [rightCenter, lower * ys],
       },
       footer: [
