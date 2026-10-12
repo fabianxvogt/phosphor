@@ -473,11 +473,25 @@ const loops = STEPS.map(
   }`,
 ).join("\n");
 
+const precompute = `${common}
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy) + ivec2(0, 1);
+  outColor = vec4(mbF(p), mbF(p + ivec2(0, 4)), 0., 1.);
+}
+`;
+
 const fragment = `${common}
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+#endif
 const int CAP = ${ITERATION_CAP};
 vec2 mbZ(int m) {
+#ifdef PRECOMPUTED
+  return texelFetch(u_precomputed, ivec2(m & 63, m >> 6), 0).xy;
+#else
   ivec2 p = ivec2(m & 63, 1 + (m >> 6));
   return vec2(mbF(p), mbF(p + ivec2(0, 4)));
+#endif
 }
 vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
 float diffAbs(float c, float d) {
@@ -691,5 +705,6 @@ export default {
   schema,
   presets,
   fragment,
+  precompute: { fragment: precompute, size: [64, 4] },
   simulation: { fragment: simulation, size: [64, 9], steps: 1 },
 };

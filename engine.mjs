@@ -31,7 +31,14 @@ const featureUniforms = [
 const paletteKeys = ["primary", "secondary", "accent"];
 const paletteUniforms = ["u_primary", "u_secondary", "u_accent"];
 const noAudioMappings = [];
-const programKeys = ["visual", "simulation", "particles", "field", "deposit"];
+const programKeys = [
+  "visual",
+  "simulation",
+  "particles",
+  "field",
+  "deposit",
+  "precompute",
+];
 const vertex = `#version 300 es
 layout(location=0) in vec2 position; out vec2 v_uv;
 void main(){v_uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
@@ -252,7 +259,18 @@ export class Engine {
       const header = scene.fragment.includes("u_previous")
         ? shaderHeader
         : this.pictureHeader;
-      programs.visual = this.program(header + scene.fragment, true);
+      // Optional exact per-frame data cache; unsupported float targets keep
+      // the original visual path, including on context restoration.
+      const precompute = scene.precompute && this.floatPicture;
+      programs.visual = this.program(
+        header + (precompute ? "#define PRECOMPUTED\n" : "") + scene.fragment,
+        true,
+      );
+      if (precompute)
+        programs.precompute = this.program(
+          shaderHeader + scene.precompute.fragment,
+          true,
+        );
       if (scene.simulation?.fragment && !scene.simulation.cpu)
         programs.simulation = this.program(
           shaderHeader + scene.simulation.fragment,
@@ -469,9 +487,19 @@ export class Engine {
     this.counters.nonFinite++;
     return fallback;
   }
-  target(w, h, { simulation = false, filter = "nearest", bytes = false } = {}) {
+  target(
+    w,
+    h,
+    {
+      simulation = false,
+      filter = "nearest",
+      bytes = false,
+      floatData = false,
+    } = {},
+  ) {
     const gl = this.gl;
-    const floating = this.floatPicture && !simulation && !bytes;
+    const floating =
+      this.floatPicture && (floatData || (!simulation && !bytes));
     const texture = gl.createTexture();
     this.liveTextures++;
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -481,12 +509,12 @@ export class Engine {
       // Never SRGB8_ALPHA8: state is byte data and scenes author display-encoded
       // palettes. Float pictures extend precision/range, not colour semantics.
       // The limiter alone measures/applies linear light.
-      floating ? gl.RGBA16F : gl.RGBA8,
+      floatData ? gl.RGBA32F : floating ? gl.RGBA16F : gl.RGBA8,
       w,
       h,
       0,
       gl.RGBA,
-      floating ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE,
+      floatData ? gl.FLOAT : floating ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE,
       null,
     );
     gl.texParameteri(
@@ -533,6 +561,7 @@ export class Engine {
     for (const t of s.visual) this.deleteTarget(t);
     for (const t of s.sim) this.deleteTarget(t);
     for (const t of s.field ?? []) this.deleteTarget(t);
+    if (s.precompute) this.deleteTarget(s.precompute);
     if (s.geometryTexture) {
       this.gl.deleteTexture(s.geometryTexture);
       this.liveTextures--;
@@ -687,6 +716,11 @@ export class Engine {
       });
       slot.cpuParams = { ...snapshot.params };
     }
+    if (this.programs.get(scene.id).precompute)
+      slot.precompute = this.target(...scene.precompute.size, {
+        simulation: true,
+        floatData: true,
+      });
     if (scene.id === "melt") {
       const gl = this.gl;
       slot.geometry = new Float32Array(MELT_POINTS * MELT_ROWS * 4);
@@ -908,6 +942,11 @@ export class Engine {
       );
       gl.uniform1i(u.u_field, 3);
     }
+    if (u.u_precomputed != null) {
+      gl.activeTexture(gl.TEXTURE4);
+      gl.bindTexture(gl.TEXTURE_2D, s.precompute.texture);
+      gl.uniform1i(u.u_precomputed, 4);
+    }
     if (u.u_geometry != null) {
       gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_2D, s.geometryTexture);
@@ -997,6 +1036,13 @@ export class Engine {
         gl.FLOAT,
         s.geometry,
       );
+    }
+    // Refresh on every visual draw, including paused parameter/rhythm edits.
+    if (s.precompute) {
+      const precompute = this.programs.get(s.scene.id).precompute;
+      this.bind(precompute, s.precompute);
+      this.uniforms(precompute, s, s.precompute, dt, false);
+      this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
     }
     const target = s.visual[1 - s.vi],
       program = this.programs.get(s.scene.id).visual;
@@ -1138,7 +1184,8 @@ export class Engine {
           s.visual.length +
           s.sim.length +
           (s.field?.length ?? 0) +
-          (s.geometryTexture ? 1 : 0),
+          (s.geometryTexture ? 1 : 0) +
+          (s.precompute ? 1 : 0),
         1 + this.pipeline.targets.length,
       ),
       liveTextures: this.liveTextures,

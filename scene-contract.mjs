@@ -99,6 +99,12 @@ vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t
 // Visual u_dt is frame dt; simulation u_dt is fixed 1/60 before reduced-motion
 // scaling. u_time is accumulated fixed-tick scene time. u_tick advances on
 // each simulation write (or visual frame), independent of floating-point time.
+// precompute {fragment,size:[w,h]} optionally prepares an RGBA32F data texture
+// once per visual draw. The visual body receives PRECOMPUTED and may declare
+// uniform highp sampler2D u_precomputed. Keep an equivalent fallback path:
+// without EXT_color_buffer_float no cache is created and no macro is defined.
+// Data passes use their own size for u_resolution; they retain visual-time
+// uniforms and the latest simulation state, without advancing that state.
 // simulation {fragment,size:[w,h],steps,filter?} ping-pongs RGBA8 state;
 // filter:'linear' is only for unpacked state, never packed phase/16-bit bytes.
 // u_reset is true on first write; u_gesture=(x,y,strength).

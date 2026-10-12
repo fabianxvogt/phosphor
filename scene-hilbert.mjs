@@ -141,7 +141,43 @@ int pXy2d${k}(ivec2 p) {
 }
 `;
 
-const fragment = `
+const schedule = `
+  int variant = int(floor(u_params[0] + 0.5));
+  int kind = variant == 3 ? 0 : variant;
+  int maxOrder = int(floor(u_params[1] + 0.5));
+  if (kind == 2) maxOrder = min(maxOrder, 4);
+  if (kind == 1) maxOrder = max(maxOrder, 2);
+  int stepIdx = int(floor(u_params[2] + 0.5));
+  float flow = u_params[3];
+  float width = u_params[4];
+  float fill = u_params[5];
+  float comet = u_params[6];
+  float zoom = u_params[7];
+  float t = mod(u_time, 3600.0);
+  float beats = u_beat > 0.0 ? u_beat : t * 2.0;
+
+  // Refinement schedule: ping-pong between order 1 (2 for Moore) and max.
+  int lo = kind == 1 ? 2 : 1;
+  int span = max(maxOrder - lo, 1);
+  float per = stepIdx == 0 ? 4.0 : stepIdx == 1 ? 8.0 : stepIdx == 2 ? 16.0 : 32.0;
+  float k = u_rhythmEnabled ? u_rhythmCount.z : beats / per;
+  int stepN = int(floor(k)) % (2 * span);
+  float within = u_rhythmEnabled ? 1.0 - min(u_rhythm.z * 1.5, 1.0) : fract(k);
+  // Up: order lo+1 … max gliding out of parents; down: the reverse.
+  bool upward = stepN < span;
+  int o = upward ? lo + 1 + stepN : maxOrder - (stepN - span);
+  float s = smoothstep(0.0, 0.5, within);
+  if (!upward) s = 1.0 - s; // coarsening: vertices glide back into parents
+  int n = sSide(kind, o);
+  int total = n * n;
+
+`;
+
+const curveFunctions = `
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+int sOrder;
+#endif
 void hRot(int n, inout ivec2 p, int rx, int ry) {
   if (ry == 0) {
     if (rx == 1) p = ivec2(n - 1) - p;
@@ -196,12 +232,20 @@ int pXy2d(int k, ivec2 p) {
 // Curve kind: 0 Hilbert, 1 Moore, 2 Peano. Order o: n = 2^o or 3^o.
 int sSide(int kind, int o) { return kind == 2 ? int(pow(3.0, float(o)) + 0.5) : 1 << o; }
 ivec2 sD2xy(int kind, int o, int d) {
+#ifdef PRECOMPUTED
+  return ivec2(texelFetch(u_precomputed, ivec2(d % 128, d / 128 + (o == sOrder ? 128 : 256)), 0).xy);
+#else
   int n = sSide(kind, o);
   return kind == 0 ? hD2xy(n, d) : kind == 1 ? mD2xy(n, d) : pD2xy(o, d);
+#endif
 }
 int sXy2d(int kind, int o, ivec2 p) {
+#ifdef PRECOMPUTED
+  return int(texelFetch(u_precomputed, p, 0).x);
+#else
   int n = sSide(kind, o);
   return kind == 0 ? hXy2d(n, p) : kind == 1 ? mXy2d(n, p) : pXy2d(o, p);
+#endif
 }
 // Vertex d of order o, gliding out of its parent's centre (s: 0 → 1).
 vec2 sVertex(int kind, int o, int d, float s) {
@@ -217,36 +261,32 @@ float sSeg(vec2 p, vec2 a, vec2 b, out float h) {
   return length(p - a - ab * h);
 }
 
+`;
+
+// Cache exact integer maps only; keep the gliding-coordinate arithmetic in
+// the picture shader so segment ties retain their original float rounding.
+const precompute = curveFunctions + `
 void main() {
-  int variant = int(floor(u_params[0] + 0.5));
-  int kind = variant == 3 ? 0 : variant;
-  int maxOrder = int(floor(u_params[1] + 0.5));
-  if (kind == 2) maxOrder = min(maxOrder, 4);
-  if (kind == 1) maxOrder = max(maxOrder, 2);
-  int stepIdx = int(floor(u_params[2] + 0.5));
-  float flow = u_params[3];
-  float width = u_params[4];
-  float fill = u_params[5];
-  float comet = u_params[6];
-  float zoom = u_params[7];
-  float t = mod(u_time, 3600.0);
-  float beats = u_beat > 0.0 ? u_beat : t * 2.0;
-
-  // Refinement schedule: ping-pong between order 1 (2 for Moore) and max.
-  int lo = kind == 1 ? 2 : 1;
-  int span = max(maxOrder - lo, 1);
-  float per = stepIdx == 0 ? 4.0 : stepIdx == 1 ? 8.0 : stepIdx == 2 ? 16.0 : 32.0;
-  float k = u_rhythmEnabled ? u_rhythmCount.z : beats / per;
-  int stepN = int(floor(k)) % (2 * span);
-  float within = u_rhythmEnabled ? 1.0 - min(u_rhythm.z * 1.5, 1.0) : fract(k);
-  // Up: order lo+1 … max gliding out of parents; down: the reverse.
-  bool upward = stepN < span;
-  int o = upward ? lo + 1 + stepN : maxOrder - (stepN - span);
-  float s = smoothstep(0.0, 0.5, within);
-  if (!upward) s = 1.0 - s; // coarsening: vertices glide back into parents
-  int n = sSide(kind, o);
-  int total = n * n;
-
+${schedule}
+  ivec2 cell = ivec2(gl_FragCoord.xy);
+  if (cell.y < 128) {
+    if (any(greaterThanEqual(cell, ivec2(n)))) { outColor = vec4(0.); return; }
+    outColor = vec4(float(sXy2d(kind, o, cell)), 0., 0., 1.);
+  } else {
+    int order = cell.y < 256 ? o : max(o - 1, 1);
+    int d = cell.x + 128 * (cell.y % 128);
+    int side = sSide(kind, order);
+    if (d >= side * side) { outColor = vec4(0.); return; }
+    outColor = vec4(vec2(sD2xy(kind, order, d)), 0., 1.);
+  }
+}
+`;
+const fragment = curveFunctions + `
+void main() {
+${schedule}
+#ifdef PRECOMPUTED
+  sOrder = o;
+#endif
   // Square of curve space; mirrored copies left and right.
   vec2 q = aspectUV() / zoom + 0.5;
   float copy = floor(q.x);
@@ -395,4 +435,5 @@ export default {
   schema,
   presets,
   fragment,
+  precompute: { fragment: precompute, size: [128, 384] },
 };

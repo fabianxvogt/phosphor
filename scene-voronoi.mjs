@@ -72,6 +72,9 @@ export function lloydStep(sites, { p = 2, relax = 1 } = {}) {
 }
 
 const header = `
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+#endif
 const int MAX_N = ${MAX_SITES};
 const vec2 W = vec2(${WORLD[0].toFixed(7)}, 1.0);
 vec2 vSite(int i) { return unpack16(texelFetch(u_state, ivec2(i, 0), 0)); }
@@ -93,8 +96,12 @@ float vMetric(int variant, float metric, float t) {
 }
 // Power-diagram weight w = r²; r breathes per site.
 float vRadius(int i, float t, float sp) {
+#ifdef PRECOMPUTED
+  return texelFetch(u_precomputed, ivec2(i, 0), 0).z;
+#else
   float h = float(seedHash(uint(i) * 2654435761u + 17u) >> 8u) / 16777216.0;
   return sp * (0.12 + 0.5 * (0.5 + 0.5 * sin(t * (0.25 + 0.5 * h) + h * TAU)));
+#endif
 }
 float vScore(vec2 d, int i, int variant, float p, float t, float sp) {
   float l = mLen(d, p);
@@ -185,6 +192,15 @@ void main() {
   vec2 move = count > 0.0 ? relax * acc / count : vec2(0.0);
   if (event) move += vEvent(i, s, beatF, jolt, burst, sp).xy;
   outColor = pack16(fract(s + move / W));
+}
+`;
+
+const precompute = `${header}
+void main() {
+  int i = int(gl_FragCoord.x);
+  int N = clamp(int(floor(u_params[1] + 0.5)), 8, MAX_N);
+  float t = mod(u_time, 3600.0);
+  outColor = vec4(0., 0., vRadius(i, t, vSpacing(N)), 1.);
 }
 `;
 
@@ -390,5 +406,6 @@ export default {
   schema,
   presets,
   fragment,
+  precompute: { fragment: precompute, size: [MAX_SITES, 1] },
   simulation: { fragment: simulation, size: [MAX_SITES, 2], steps: 1 },
 };

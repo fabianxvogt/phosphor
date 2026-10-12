@@ -20,7 +20,15 @@ const args = options({
   times: { type: "string", default: "0.5" },
   look: { type: "string" },
   impulse: { type: "string" },
+  frames: { type: "string", default: "30" },
+  "refinement-count": { type: "string" },
+  refinement: { type: "string" },
 });
+if (!Number.isInteger(Number(args.frames)) || Number(args.frames) < 1)
+  throw new Error("frames must be a positive integer");
+for (const key of ["refinement-count", "refinement"])
+  if (args[key] !== undefined && !Number.isFinite(Number(args[key])))
+    throw new Error(`${key} must be finite`);
 const out = await outputDirectory("performance/pixels", args.out);
 const reference = execFileSync(
   "git",
@@ -118,7 +126,7 @@ try {
             level,
             width: Number(args.width),
             height: Number(args.height),
-            frames: 30,
+            frames: Number(args.frames),
             capture: false,
             pollHealth: false,
           });
@@ -126,12 +134,16 @@ try {
           assert.equal(health.nonFinite, 0);
           assert.ok(health.peak > 0);
           const image = await page.evaluate(
-            ({ time, impulse }) => {
+            ({ time, impulse, refinementCount, refinement }) => {
               const { engine, errors } = window.__phosphorLab,
                 slot = engine.slots.at(-1);
               slot.time = time;
               if (impulse !== undefined && slot.rhythm)
                 slot.rhythm.values[1] = Number(impulse);
+              if (refinementCount !== undefined && slot.rhythm)
+                slot.rhythm.counts[2] = Number(refinementCount);
+              if (refinement !== undefined && slot.rhythm)
+                slot.rhythm.values[2] = Number(refinement);
               engine.uniformFrame++;
               engine.drawSlot(slot, 1 / 60);
               engine.present();
@@ -163,7 +175,12 @@ try {
                 errors: [...errors],
               };
             },
-            { time, impulse: args.impulse },
+            {
+              time,
+              impulse: args.impulse,
+              refinementCount: args["refinement-count"],
+              refinement: args.refinement,
+            },
           );
           assert.equal(image.glError, 0);
           assert.equal(image.nonFinite, 0);
@@ -202,6 +219,13 @@ try {
           ...look,
           level,
           time,
+          frames: Number(args.frames),
+          ...(args["refinement-count"] !== undefined
+            ? { refinementCount: Number(args["refinement-count"]) }
+            : {}),
+          ...(args.refinement !== undefined
+            ? { refinement: Number(args.refinement) }
+            : {}),
           max,
           mean: sum / (before.width * before.height * 3),
           changedFraction: changed / (before.width * before.height),
