@@ -16,6 +16,8 @@ First show: **2026-12-17** (planning placeholder until a real date exists). Feat
 
 ## Now (2026-10-08)
 
+Family performance (2026-10-12, INCREMENTAL): all 39 renderers / 178 variants measured at 1080p and 4K on the M3 Pro. Exact topology and constant shader indexing make Fourspace and Quasicrystal roughly 4–8× faster with full resolution, detail and GPU projection retained. All tested variant medians are below 16.67 ms at 1080p; 37 variants still exceed it at 4K, leaving Cathedral, Melt, Space-filling Curves, Mandelbrot and dense Fourspace shapes as the next targets. This is local synchronous throughput, not venue cadence. [Full family table and quality evidence](docs/EVIDENCE.md#family-performance-without-quality-reduction-2026-10-12).
+
 Responsive panel contents (2026-10-12, INCREMENTAL): tall two-column layouts stack slider labels, keep control spacing bounded and adapt rhythm labels/cell height to available space. Family/Global switches share the heading, preserving all four Global rows on shorter panels. Eleven representative viewport sizes and the main control/Stage regression passed; [evidence and limits](docs/EVIDENCE.md#responsive-panel-contents-2026-10-12).
 
 Shared demo/visual BPM and selectable resolution (2026-10-11, INCREMENTAL): preview popovers expose tempo/Tap and output size; native remains the default, lower sizes are saved with the set. The demo follows the show clock without tracker feedback. Unit and local/Stage browser coverage: [evidence](docs/EVIDENCE.md#shared-tempo-and-selectable-output-2026-10-11).

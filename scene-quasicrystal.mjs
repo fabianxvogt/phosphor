@@ -19,7 +19,6 @@ import { familyEffect } from "./family-rhythm.mjs";
 // the tiling stays perfectly aperiodic.
 
 export const TILINGS = [5, 4, 7, 6]; // grid families D
-const MAX_D = 7;
 
 // Directions: odd D use 2πj/D, even D use πj/D (no repeated lines).
 export function directions(D) {
@@ -84,11 +83,10 @@ export function locate(x, D, gamma) {
   return rhombi(x, D, gamma)[0] ?? null;
 }
 
-const fragment = `
-const int MAX_D = ${MAX_D};
-void main() {
-  int tiling = int(floor(u_params[0] + 0.5));
-  int D = tiling == 0 ? 5 : tiling == 1 ? 4 : tiling == 2 ? 7 : 6;
+const tilingFragment = (D) => `
+vec4 tiling${D}() {
+  const int MAX_D = ${D};
+  const int D = ${D};
   float scale = u_params[1];
   float phason = u_params[2];
   float drift = u_params[3];
@@ -126,37 +124,31 @@ void main() {
   int fr = 0, fs = 0;
   float fa = 0.0, fb = 0.0, fdet = 1.0, fkr = 0.0, fks = 0.0;
   vec2 fv = vec2(0.0);
-  for (int r = 0; r < MAX_D; r++) {
-    if (r >= D || found) break;
-    for (int s = 0; s < MAX_D; s++) {
-      if (s >= D || found) break;
-      if (s <= r) continue;
-      float det = e[r].x * e[s].y - e[r].y * e[s].x;
-      float tr = dot(P, e[r]) - g[r], ts = dot(P, e[s]) - g[s];
+  ${Array.from({ length: D }, (_, r) => Array.from({ length: D - r - 1 }, (_, si) => {
+    const s = r + si + 1;
+    return `if (!found) {
+      float det = e[${r}].x * e[${s}].y - e[${r}].y * e[${s}].x;
+      float tr = dot(P, e[${r}]) - g[${r}], ts = dot(P, e[${s}]) - g[${s}];
       for (int dr = -1; dr <= 1; dr++) {
         if (found) break;
         for (int ds = -1; ds <= 1; ds++) {
           float kr = floor(tr) + float(dr), ks = floor(ts) + float(ds);
-          float br = kr + g[r], bs = ks + g[s];
-          vec2 Q = vec2(br * e[s].y - bs * e[r].y, bs * e[r].x - br * e[s].x) / det;
+          float br = kr + g[${r}], bs = ks + g[${s}];
+          vec2 Q = vec2(br * e[${s}].y - bs * e[${r}].y, bs * e[${r}].x - br * e[${s}].x) / det;
           vec2 v0 = vec2(0.0);
-          for (int j = 0; j < MAX_D; j++) {
-            if (j >= D) break;
-            float K = j == r ? kr : j == s ? ks : ceil(dot(Q, e[j]) - g[j]);
-            v0 += K * e[j];
-          }
+          ${Array.from({ length: D }, (_, j) => `v0 += ${j === r ? "kr" : j === s ? "ks" : `ceil(dot(Q, e[${j}]) - g[${j}])`} * e[${j}];`).join("\n          ")}
           vec2 d = x - v0;
-          float a = (d.x * e[s].y - d.y * e[s].x) / det;
-          float b = (e[r].x * d.y - e[r].y * d.x) / det;
+          float a = (d.x * e[${s}].y - d.y * e[${s}].x) / det;
+          float b = (e[${r}].x * d.y - e[${r}].y * d.x) / det;
           if (a >= 0.0 && a <= 1.0 && b >= 0.0 && b <= 1.0) {
-            found = true; fr = r; fs = s; fa = a; fb = b;
+            found = true; fr = ${r}; fs = ${s}; fa = a; fb = b;
             fdet = abs(det); fkr = kr; fks = ks; fv = v0;
             break;
           }
         }
       }
-    }
-  }
+    }`;
+  }).join("\n")).join("\n")}
 
   vec3 colour = u_secondary * 0.02;
   if (found) {
@@ -204,7 +196,19 @@ void main() {
     float star = exp(-dv * dv / (6.0 + 18.0 * edgeWidth));
     colour += mix(u_accent, vec3(1.0), 0.6) * star * (0.5 + 0.5 * u_level);
   }
-  outColor = vec4(clamp(colour, 0.0, 1.0), 1.0);
+  return vec4(clamp(colour, 0.0, 1.0), 1.0);
+}
+`;
+
+// Fixed grid counts let the driver simplify the nested search and direction
+// indexing. Every candidate and the original first-hit order are retained.
+const fragment = TILINGS.map(tilingFragment).join("\n") + `
+void main() {
+  int tiling = int(floor(u_params[0] + 0.5));
+  if (tiling == 0) outColor = tiling5();
+  else if (tiling == 1) outColor = tiling4();
+  else if (tiling == 2) outColor = tiling7();
+  else outColor = tiling6();
 }
 `;
 

@@ -2,6 +2,89 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Family performance without quality reduction 2026-10-12
+
+**INCREMENTAL / EMPIRICAL.** Measured all **39 renderers / 178 declared variants** on Apple M3 Pro, native Metal through Chrome 155.0.8059.39, at energy 0.95. Fourspace repeatedly searched every vertex pair at every pixel; its exact ordered edge list is now generated once and supplied as constant-index shader calls. Quasicrystal now exposes each tiling's constant direction count and ordered grid-pair search to the shader compiler. Projection, edge/halo shading, all search candidates, first-hit order, iteration/detail budgets, simulations and full output resolution are retained.
+
+All 178 variants have median completed-frame time below 16.67 ms at 1920×1080 in the final short probe. The eight changed variants improve by roughly 4–8×. At 3840×2160, **37/178** variants remain above 16.67 ms and **11/178** remain above 33.34 ms; full-resolution 4K is not a universal 60 fps result. Cathedral, Melt, Space-filling Curves, Mandelbrot and the denser Fourspace shapes remain the main 4K targets.
+
+### Changed variants
+
+Times are median completed-frame milliseconds; lower is better.
+
+| Renderer / variant | 1080p before | 1080p after | 4K before | 4K after |
+| --- | ---: | ---: | ---: | ---: |
+| fourspace / 0 | 33.2 | 5.2 | 111.2 | 19.0 |
+| fourspace / 1 | 30.4 | 6.6 | 83.7 | 22.6 |
+| fourspace / 2 | 55.5 | 12.7 | 185.0 | 42.9 |
+| fourspace / 3 | 89.0 | 11.4 | 330.2 | 42.4 |
+| quasicrystal / 0 | 23.7 | 3.6 | 73.5 | 14.9 |
+| quasicrystal / 1 | 10.6 | 2.7 | 36.9 | 9.6 |
+| quasicrystal / 2 | 47.9 | 7.5 | 165.0 | 27.9 |
+| quasicrystal / 3 | 33.7 | 5.4 | 106.3 | 19.7 |
+
+### Every family
+
+Each value is the **slowest variant's median** in that family, rather than a family average. The JSON reports retain per-variant medians, p95, CPU submission times, dimensions and error counts.
+
+| Renderer | Variants | 1080p before (ms) | 1080p after (ms) | 4K after (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| Acid Mycelium (acid) | 6 | 3.8 | 3.0 | 6.8 |
+| Magnetic Choir (magnetic) | 3 | 3.5 | 3.3 | 6.4 |
+| Cathedrals of Error (cathedral) | 4 | 18.1 | 16.3 | 53.5 |
+| Alien Aquarium (aquarium) | 3 | 2.4 | 2.6 | 7.0 |
+| Causal Tapestry (tapestry) | 4 | 2.9 | 3.1 | 7.8 |
+| Feedback Chapel (feedback) | 4 | 1.9 | 2.7 | 5.5 |
+| Interference Rituals (interference) | 6 | 3.2 | 4.1 | 9.2 |
+| Topological Melt (melt) | 4 | 13.9 | 15.6 | 46.4 |
+| Phase Transition Theatre (phase) | 3 | 3.8 | 3.1 | 8.0 |
+| Evolution Garden (evolution) | 4 | 2.6 | 2.1 | 6.1 |
+| Pulse Geometry (pulse) | 4 | 2.1 | 2.0 | 5.5 |
+| Fractal Flight (flight) | 4 | 12.4 | 11.7 | 38.5 |
+| Light Beams (beams) | 4 | 4.8 | 4.9 | 13.2 |
+| Julia Observatory (julia) | 4 | 5.1 | 3.7 | 14.5 |
+| Fourth Dimension (fourspace) | 4 | 89.0 | 12.7 | 42.9 |
+| Hyperbolic Loom (hyperbolic) | 4 | 2.1 | 2.3 | 6.0 |
+| Particle Swarm (swarm) | 4 | 7.1 | 8.1 | 10.0 |
+| Game of Life (life) | 6 | 4.6 | 4.1 | 11.5 |
+| Strange Attractors (attractor) | 6 | 2.9 | 2.5 | 6.5 |
+| Mandelbrot Dive (mandelbrot) | 5 | 16.0 | 12.7 | 42.7 |
+| Abelian Sandpile (sandpile) | 4 | 3.2 | 2.9 | 6.4 |
+| Newton Basins (newton) | 5 | 6.1 | 4.4 | 16.3 |
+| Fractal Flames (flame) | 6 | 3.2 | 2.2 | 7.0 |
+| Aperiodic Tilings (quasicrystal) | 4 | 47.9 | 7.5 | 27.9 |
+| Voronoi Cells (voronoi) | 4 | 10.7 | 10.0 | 29.6 |
+| Ripple Tank (ripple) | 4 | 2.7 | 3.0 | 6.0 |
+| Langton's Ant (turmite) | 6 | 8.6 | 5.7 | 9.2 |
+| Indra's Pearls (kleinian) | 4 | 2.3 | 2.0 | 5.0 |
+| Harmonograph (harmonograph) | 4 | 3.2 | 2.2 | 6.2 |
+| Wallpaper Groups (wallpaper) | 17 | 8.2 | 6.3 | 24.4 |
+| Truchet Tiles (truchet) | 4 | 3.4 | 2.8 | 9.8 |
+| Space-filling Curves (hilbert) | 4 | 14.8 | 12.8 | 44.6 |
+| Phyllotaxis (phyllotaxis) | 4 | 2.7 | 2.5 | 7.0 |
+| Hopf Fibration (hopf) | 4 | 2.2 | 2.2 | 6.8 |
+| Chladni Figures (chladni) | 4 | 2.9 | 2.6 | 8.4 |
+| Domain Colouring (domain) | 4 | 3.4 | 2.7 | 11.6 |
+| Physarum Networks (physarum) | 4 | 2.2 | 2.8 | 6.8 |
+| Geometric Caustics (caustics) | 3 | 2.2 | 2.6 | 6.9 |
+| Space Colonization (colonization) | 3 | 2.3 | 2.3 | 7.2 |
+
+### Reproduction and limits
+
+- Reference scene shaders: `2b6398e06247057fd8bd23024952079c2fef7065`. Run `node scripts/profile-families.mjs --reference 2b6398e --types --frames 20 --out artifacts/performance/baseline`, then omit `--reference` and change `--out` for the current code. Add `--width 3840 --height 2160` for 4K. All shaders are compiled before sampling; each look is seeded and warmed, then three extra frames precede 20 measured frames. Runs are sequential.
+- The synchronous probe drives the real Engine, waits for final canvas readback and includes post-processing. It disables asynchronous flash approval for throughput measurement; production flash limiting is unchanged. It is neither rAF/display cadence nor a crossfade/endurance/venue gate. Short p95 samples include scheduling noise; median figures do not establish sustained 60 fps.
+- All timing rows recorded zero page, GL and non-finite input errors. Local raw reports: `artifacts/performance/{baseline-1080-final,optimized-1080-final,baseline-4k-final,optimized-4k-final}/profile.json`. The 4K baseline repeats the eight changed variants; the final 4K sweep covers all 178. Generated images/logs remain outside Git.
+- A CPU projection experiment failed a late-show pixel comparison and was discarded. The final implementation keeps the original GPU projection. The retained stress case is Hypercube Close-up at time 25994.68 s, energy 0.95 and rotation impulse 0.45.
+
+### Verification
+
+- Pixel comparison against the fixed reference passed all **42 frames** (all 14 changed authored looks at energy 0.1/0.5/0.95, 640×360). Maximum channel difference was 154/255; the largest frame-average channel difference was 0.003387/255. No pixel differed by more than two channel steps. Representative before/after Fourspace and heptagonal tiling images were visually inspected. This is bounded sampled equivalence, not a proof for every parameter, driver and moment.
+- All 12 late-time Fourspace comparisons passed (every authored look at 25994.68 and 28800 seconds, energy 0.95 and rotation impulse 0.45). Eleven were pixel-identical; the remaining frame differed by one channel step at one pixel. Run `node scripts/compare-family-pixels.mjs --reference 2b6398e --families fourspace --levels 0.95 --times 25994.68,28800 --impulse .45`.
+- Topology regression checks retain the exact original edge order, edge counts and vertex degrees for all four polytopes. Existing mathematical tiling and full-resolution tests pass. Independent code review found no remaining actionable issues.
+- Native-GPU browser lab passed all 328 authored looks, energy extremes, 32:9/square/portrait rendering, per-family fades without texture leaks, and all 24 simulation families’ preparation/held-transition contracts (`npm run test:browser -- --only lab --native-gpu --port 48144`).
+- Full unit suite: 501 passed, 11 optional probes skipped, zero failures. Typecheck, formatting, build and offline distribution verification passed.
+
+
 ## Responsive panel contents 2026-10-12
 
 **INCREMENTAL / EMPIRICAL.** Tall two-column windows previously distributed spare height between horizontal faders and centred the rhythm grid, leaving truncated labels and large gaps. Look/Performance now stack labels above full-width sliders in square/portrait desktop windows, with bounded spacing. A size container makes rhythm rows respond to available panel height. Family/Global switches move into the heading to preserve room for all four Global tracks in short landscape panels. The owner-provided chassis images and panel openings are unchanged.

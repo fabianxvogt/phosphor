@@ -25,6 +25,31 @@ const presets = [
   { name: "Spinning Lattice", seed: 9206, params: { shape: 2, spin: 1.1, tumble: 0.6, fold: 2.4, size: 1.2, weight: 0.003, glow: 0.6, depthTint: 0.9 } },
 ];
 
+// Topology never changes during rotation. Build the exact original pair order
+// once when the module loads, instead of testing every pair at every pixel.
+export function fourspaceVertices(shape) {
+  const count = [16, 8, 24, 36][shape];
+  return Array.from({ length: count }, (_, i) => {
+    if (shape === 0) return [1, 2, 4, 8].map(bit => i & bit ? 1 : -1);
+    if (shape === 1) return [0, 1, 2, 3].map(axis => axis === (i >> 1) ? (i & 1 ? 1.4 : -1.4) : 0);
+    if (shape === 2) {
+      const [a, b] = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]][i >> 2];
+      return [0, 1, 2, 3].map(axis => axis === a ? (i & 1 ? 1 : -1) : axis === b ? (i & 2 ? 1 : -1) : 0);
+    }
+    const u = Math.floor(i / 6) * 1.0471976, w = (i % 6) * 1.0471976;
+    return [Math.cos(u), Math.sin(u), Math.cos(w), Math.sin(w)].map(v => v * 1.2);
+  });
+}
+export const FOURSPACE_EDGES = [0, 1, 2, 3].map(shape => {
+  const vertices = fourspaceVertices(shape), edges = [];
+  const length = [2, 1.98, 1.4143, 1.2][shape];
+  for (let i = 0; i < vertices.length; i++)
+    for (let j = i + 1; j < vertices.length; j++)
+      if (Math.abs(Math.hypot(...vertices[i].map((v, axis) => v - vertices[j][axis])) - length) <= 0.05)
+        edges.push([i, j]);
+  return edges;
+});
+
 const fragment = `
 const int VERTEX_CAP = 36;
 
@@ -64,23 +89,29 @@ float fdSegment(vec2 p, vec2 a, vec2 b) {
   return length(pa - ba * h);
 }
 
+vec3 fdEdge(vec2 p, vec3 a, vec3 b, float weight, float glow, float tint, float aa) {
+  float d = fdSegment(p, a.xy, b.xy);
+  float depth = 0.5 + 0.25 * (a.z + b.z);
+  float core = 1.0 - smoothstep(weight - aa, weight + aa, d);
+  float halo = glow * 0.004 / (d * d * 40.0 + 0.004);
+  vec3 ink = palette(fract(mix(0.35, depth * 0.8, tint)));
+  return ink * (core + halo * 0.12) * (0.55 + 0.45 * depth);
+}
+
 void main() {
   int shape = int(floor(u_params[0] + 0.5));
   float spin = u_params[1], tumble = u_params[2], fold = u_params[3];
   float size = u_params[4], weight = u_params[5], glow = u_params[6], tint = u_params[7];
   int count = shape == 0 ? 16 : shape == 1 ? 8 : shape == 2 ? 24 : 36;
-  float edgeLength = shape == 0 ? 2.0 : shape == 1 ? 1.98 : shape == 2 ? 1.4143 : 1.2;
   float t = u_time;
   float phase = fract(u_seed * 0.0093) * 6.2831853;
   mat2 xw = rot2(t * spin * 0.5 + phase + u_rhythm.y * 0.24), yz = rot2(t * spin * 0.31), zw = rot2(t * spin * 0.23 + 1.0);
   mat2 xz = rot2(t * tumble * 0.4 + 0.6), xy = rot2(t * tumble * 0.27);
 
   vec3 P[VERTEX_CAP];
-  vec4 V[VERTEX_CAP];
   for (int i = 0; i < VERTEX_CAP; ++i) {
     if (i >= count) break;
     vec4 v = fdVertex(shape, i);
-    V[i] = v;
     v.xw = xw * v.xw; v.yz = yz * v.yz; v.zw = zw * v.zw;
     // 4D → 3D perspective, then a gentle 3D tumble and 3D → 2D perspective.
     vec3 q = v.xyz / (fold - v.w);
@@ -91,24 +122,10 @@ void main() {
   vec2 p = aspectUV();
   float aa = fwidth(p.x) * 1.5;
   vec3 col = vec3(0.0);
-  float best = 1e9;
-  for (int i = 0; i < VERTEX_CAP; ++i) {
-    if (i >= count) break;
-    for (int j = 0; j < VERTEX_CAP; ++j) {
-      if (j <= i) continue;
-      if (j >= count) break;
-      vec4 d4 = V[i] - V[j];
-      // Edges join vertex pairs at the shape's edge length.
-      if (abs(sqrt(dot(d4, d4)) - edgeLength) > 0.05) continue;
-      float d = fdSegment(p, P[i].xy, P[j].xy);
-      float depth = 0.5 + 0.25 * (P[i].z + P[j].z);
-      float core = 1.0 - smoothstep(weight - aa, weight + aa, d);
-      float halo = glow * 0.004 / (d * d * 40.0 + 0.004);
-      vec3 ink = palette(fract(mix(0.35, depth * 0.8, tint)));
-      col = max(col, ink * (core + halo * 0.12) * (0.55 + 0.45 * depth));
-      best = min(best, d);
-    }
-  }
+  ${FOURSPACE_EDGES.map((edges, shape) => `
+  ${shape ? "else " : ""}if (shape == ${shape}) {
+    ${edges.map(([i, j]) => `col = max(col, fdEdge(p, P[${i}], P[${j}], weight, glow, tint, aa));`).join("\n    ")}
+  }`).join("\n")}
   // Vertices glint brightest on the kick.
   float kick = u_rhythmEnabled ? u_rhythm.x : exp(-fract(u_beat) * 6.0);
   for (int i = 0; i < VERTEX_CAP; ++i) {
