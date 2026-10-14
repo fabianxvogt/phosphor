@@ -793,6 +793,8 @@ summary {
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
+  /* The pill radius of other buttons would clip the first letter here. */
+  border-radius: 0;
 }
 #rhythmControls:not(.rhythm-expanded)
   :is(

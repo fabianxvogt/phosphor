@@ -72,7 +72,9 @@ export async function serve(dist, port) {
 export async function launch({
   rig = false,
   browserName = "chromium",
-  headless = !rig,
+  // PHOSPHOR_HEADLESS_RIG=1 keeps the real GPU (ANGLE Metal) without
+  // opening windows, so parallel review lanes do not cover the desktop.
+  headless = !rig || process.env.PHOSPHOR_HEADLESS_RIG === "1",
   args = [],
 } = {}) {
   const type = { chromium, firefox, webkit }[browserName];
@@ -92,6 +94,12 @@ export async function launch({
         "--use-gl=angle",
         "--use-angle=swiftshader",
         "--enable-unsafe-swiftshader",
+      );
+    else if (rig && headless)
+      launchOptions.args.push(
+        "--use-angle=metal",
+        "--enable-gpu",
+        "--ignore-gpu-blocklist",
       );
     launchOptions.args.push(...args);
   }
