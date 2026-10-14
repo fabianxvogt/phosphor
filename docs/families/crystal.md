@@ -28,6 +28,8 @@ The camera follows a closed path through the periodic cavern (x and y are period
 
 Depth cues: perspective parallax, fog to the palette dark (complete at 25 units), a key light from above, a lamp near the camera with distance falloff, fresnel rims, baked wall glow pools and contact occlusion (three integer states, interpolated), dark bases where prisms meet rock, dark grooves between lining crystals, and many small grains and lining cells against few large columns.
 
+Wave 2 (2026-10-14): every cluster carries a hue drawn from a separate random stream (layouts are unchanged) and spans the palette from `u_secondary` to `u_primary`, so a hall holds several crystal colours. Each wall quad stores its nearest seed light; the shader draws a crisp point-light pool around every seed, so Seeds reads as glowing gems lighting dark rock, not a uniform wash. 520 drifting motes add depth and scale. The camera lamp is dimmer while the seeds are dormant. In Hall the lining is darker and coloured per cell, and its glints and apex lights scale with the energy-driven `detail`, so Hall stays darker at low energy.
+
 Crystal shading: a dark tinted body, facet-flat key and lamp light, fresnel rim, thin-film tint from the palette, and an emissive core seen through a refracted view ray (the closest approach of the refracted ray to the crystal axis), so each facet shows the core displaced. Facet edges are `fwidth`-scaled (about 1.5 px at any output size) and fade on crystals too small to resolve.
 
 ## Energy and rhythm
@@ -40,7 +42,7 @@ Generation clamps every crystal so that its largest possible extent (Hall growth
 
 ## Cost
 
-About 2700 crystals and a 96×144 wall grid: ~228k vertices (18 floats each, ~16 MB). Indicative whole-frame throughput on the shared M3 Pro (other lanes running): **1080p 2.8–3.1 ms p50**, **4K 7.3–8.0 ms p50** (`scripts/profile-families.mjs --types/--presets --families crystal`). Geometry creation takes about 0.15–0.3 s of CPU per new seed on a loaded machine; the last buffer is cached so a second slot with the same seed reuses it.
+About 2700 crystals, a 96×144 wall grid and 520 motes: ~231k vertices (18 floats each, ~17 MB). Indicative whole-frame throughput on the shared M3 Pro (other lanes running): **1080p 2.8–3.1 ms p50**, **4K 7.3–8.0 ms p50** (`scripts/profile-families.mjs --types/--presets --families crystal`). Geometry creation takes about 0.15–0.3 s of CPU per new seed on a loaded machine; the last buffer is cached so a second slot with the same seed reuses it.
 
 ## Verification
 

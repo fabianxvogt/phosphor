@@ -42,7 +42,7 @@ out vec3 v_wall,v_abs;
 flat out vec4 v_info;
 flat out vec3 v_root;
 flat out vec4 v_axis;
-flat out float v_rad;
+flat out float v_rad,v_hue;
 float ss(float a,float b,float x){return smoothstep(a,b,x);}
 vec2 growth(float kind,float birth,float dev,float detail){
  if(kind<1.5){float t=ss(0.,2.,dev);return vec2(.22+.78*t,.7+.3*t);}
@@ -57,12 +57,18 @@ vec2 growth(float kind,float birth,float dev,float detail){
 void main(){
  float dev=u_dev,kind=a_c.w,Z=phaseAt(0)*PERIOD;
  vec3 p,n;float anchor;
- v_info=vec4(kind,a_a.w,a_n.z,0.);v_face=a_n.xy;
+ v_info=vec4(kind,a_a.w,a_n.z,0.);v_face=a_n.xy;v_hue=a_c.z;
  if(kind<.5){
   p=a_p;n=a_n;anchor=a_b.w;v_info.y=a_a.w;
   float s01=clamp(dev,0.,1.),s12=clamp(dev-1.,0.,1.);
   v_wall=vec3(mix(mix(a_a.x,a_a.y,s01),a_a.z,s12),mix(mix(a_b.x,a_b.y,s01),a_b.z,s12),a_c.x);
-  v_root=vec3(0.);v_axis=vec4(0.,0.,1.,0.);v_rad=0.;
+  v_root=vec3(a_a.w,a_c.y,a_c.z);v_axis=vec4(0.,0.,1.,0.);v_rad=0.;
+ }else if(kind>4.5){
+  // Mote: a drifting speck; phases use whole turns of the pulse phase.
+  float pv=phaseAt(1),ph=a_c.y*TAU;
+  p=a_a.xyz+vec3(sin(TAU*pv+ph),.6*sin(TAU*2.*pv+ph*1.7),cos(TAU*pv+ph*2.3))*.22;
+  n=vec3(0.,0.,1.);anchor=a_b.w;v_face=a_p.xy;
+  v_wall=vec3(0.);v_root=vec3(0.);v_axis=vec4(0.,0.,1.,0.);v_rad=a_c.x;
  }else{
   vec3 root=a_a.xyz,d=a_b.xyz;float rnd=a_a.w;
   vec2 g=growth(kind,a_b.w,dev,u_params[6]);
@@ -98,8 +104,12 @@ void main(){
  vec3 u=cross(f,r);
  vec3 q=p-cam;
  v_pos=q;v_normal=n;
- v_root=v_root+vec3(0.,0.,shift)-cam;
+ if(kind>.5&&kind<4.5)v_root=v_root+vec3(0.,0.,shift)-cam;
  vec3 view=vec3(dot(q,r),dot(q,u),dot(q,f));
+ if(kind>4.5){
+  float shown=step(fract(a_a.w*7.31),.25+.75*clamp(u_params[6],0.,1.));
+  view.xy+=a_p.xy*a_c.x*smoothstep(.5,1.5,view.z)*shown;
+ }
  float A=u_resolution.x/u_resolution.y,F=1.55*(1.+.02*u_kick);
  float nearZ=.04,farZ=40.;
  gl_Position=vec4(view.x*F/max(A,1.),view.y*F*min(A,1.),
@@ -113,7 +123,7 @@ in vec3 v_wall,v_abs;
 flat in vec4 v_info;
 flat in vec3 v_root;
 flat in vec4 v_axis;
-flat in float v_rad;
+flat in float v_rad,v_hue;
 uniform float u_time,u_level;
 uniform float u_params[8];
 uniform vec3 u_primary,u_secondary,u_accent;
@@ -130,11 +140,16 @@ void main(){
  vec3 N=normalize(v_normal);
  vec3 K=normalize(vec3(-.35,.85,.45));
  vec3 lamp=vec3(.3,.45,-.3)-v_pos;float lampD=dot(lamp,lamp);lamp*=inversesqrt(lampD);
- float lampA=.8/(1.+.22*lampD);
+ float lampA=.8/(1.+.22*lampD)*mix(.45,1.,smoothstep(0.,1.2,dev));
  vec3 fogC=mix(u_secondary,u_primary,.3)*.035;
  float fog=max(1.-exp(-dist*.07),smoothstep(16.,25.,dist));
  vec3 col;
- if(kind<.5){
+ if(kind>4.5){
+  float r2=dot(v_face,v_face);
+  if(r2>1.)discard;
+  float tw=.55+.45*sin(u_time*1.7+rnd*40.);
+  col=mix(pal(.2+.5*fract(rnd*3.3)),vec3(1.),.4)*(1.-r2)*(1.-r2)*.9*tw*u_params[4];
+ }else if(kind<.5){
   if(dot(N,V)<0.)N=-N;
   // Periodic cellular surface on (theta, z): chipped rock that becomes a
   // druse lining of tiny hexagonal pyramids, first near the clusters.
@@ -160,28 +175,40 @@ void main(){
   float ridgeD=abs(abs(ang-sector)-PI/6.)*r;
   sector-=hc.y*TAU;
   vec2 fd=vec2(cos(sector),sin(sector)),chip=hc-.5;
-  N=normalize(N+((T1*fd.x+T2*fd.y)*1.6*grow+(T1*chip.x+T2*chip.y)*.3*(1.-grow))*detail);
+  N=normalize(N+((T1*fd.x+T2*fd.y)*1.6*grow+(T1*chip.x+T2*chip.y)*.14*(1.-grow))*detail);
   float groove=smoothstep(0.,.16,edge);
-  vec3 rock=mix(u_secondary,vec3(.3),.5)*.075*(.92+.16*hc.x);
+  vec3 rock=mix(u_secondary,vec3(.22),.65)*.07*(.95+.1*hc.x);
   float diff=max(dot(N,K),0.),lit=max(dot(N,lamp),0.)*lampA;
   vec3 stone=rock*(.12+.45*diff+1.6*lit+.25*max(-N.y,0.));
-  stone+=mix(u_primary,u_secondary,.2)*glowN*.3*u_params[4]*(.8+.4*hc.y);
+  float poolK=u_params[4]*mix(.26,.16,smoothstep(1.,2.,dev));
+  vec3 poolC=mix(u_primary,u_secondary,.25);
+  float pool=glowN*glowN*glowN*poolK;
+  stone+=poolC*pool*(.85+.3*hc.y)*1.4;
+  // Crisp point-light pool from the nearest seed crystal (all states).
+  vec3 dl=v_root-v_abs;dl.z=mod(dl.z+PERIOD*.5,PERIOD)-PERIOD*.5;
+  float sd2=dot(dl,dl);
+  float seedI=u_params[4]*(1.+.9*(1.-smoothstep(.3,1.,dev))*(.6+.4*sin(TAU*phaseAt(1)*2.)));
+  float seedPool=seedI*max(dot(N,dl*inversesqrt(sd2+1e-4)),0.)/(1.+sd2*16.)*(1.-smoothstep(.5,1.1,sqrt(sd2)));
+  vec3 seedLC=mix(u_primary,u_accent,.38)*1.15;
+  stone+=seedLC*seedPool*.55;
   // Druse points: glassy facets with a bright apex and sparkle.
   float nv=abs(dot(N,V)),fres=pow(1.-nv,3.);
-  float spec=pow(max(dot(N,normalize(K+V)),0.),110.)+pow(max(dot(N,normalize(lamp+V)),0.),140.)*lampA*1.5;
+  float spec=pow(max(dot(N,normalize(K+V)),0.),220.)+pow(max(dot(N,normalize(lamp+V)),0.),260.)*lampA*1.5;
   float apex=exp(-r*r/.015);
-  vec3 druse=pal(.25+.4*hc.x)*.06*(.3+diff+1.4*lit)
-   +mix(u_secondary,vec3(1.),.5)*fres*.06
-   +mix(u_primary,vec3(1.),.45)*spec*.9*detail
-   +mix(u_primary,u_secondary,.2)*glowN*.12*u_params[4]
-   +mix(u_primary,vec3(1.),.3)*apex*(.25+.75*glowN)*u_params[4]*.55;
+  vec3 cellC=pal(.08+.55*fract(hc.x*1.7+hc.y));
+  float lively=.35+.65*clamp(u_params[6],0.,1.);
+  vec3 druse=cellC*.05*(.25+diff+1.2*lit)
+   +mix(cellC,vec3(1.),.35)*fres*.05
+   +mix(cellC,vec3(1.),.2)*spec*.3*detail*lively
+   +poolC*pool*1.1+seedLC*seedPool*.5
+   +mix(cellC,vec3(1.),.25)*apex*(.15+.7*glowN)*u_params[4]*.45*lively;
   float rfw=fwidth(ridgeD)+1e-4;
-  druse+=mix(pal(.3+.4*hc.x),vec3(1.),.5)*(1.-smoothstep(0.,rfw*1.3,ridgeD))*detail*(.05+.12*glowN)*smoothstep(.05,.3,r);
+  druse+=mix(cellC,vec3(1.),.4)*(1.-smoothstep(0.,rfw*1.3,ridgeD))*detail*(.04+.1*glowN)*smoothstep(.05,.3,r);
   float slot=floor(u_time*2.3+hc.x*7.);
   float tw=step(1.-clamp(u_params[3],0.,2.)*.05-u_rhythm.x*.12,hash1(hc.y*91.+slot*.31))
    *sin(PI*fract(u_time*2.3+hc.x*7.));
-  druse+=mix(u_primary,vec3(1.),.7)*tw*(.4+spec)*detail;
-  col=mix(stone,druse,grow)*(.5+.5*mix(1.,groove,max(grow,.35)));
+  druse+=mix(cellC,vec3(1.),.6)*tw*(1.5*spec+.9*apex)*detail*lively;
+  col=mix(stone,druse,grow)*(.4+.6*mix(1.,groove,max(grow,.12)))*mix(1.,.6,smoothstep(1.,2.,dev));
   col*=mix(.3,1.,v_wall.y);
  }else{
   float face=v_info.z,g=v_info.w;
@@ -201,9 +228,10 @@ void main(){
   float haze=exp(-dc*dc*2.2)*(.2+.8*sAx/len);
   bool seed=kind<1.5;
   float tipZone=smoothstep(.8,1.12,along);
-  vec3 tint=pal(.15+.5*rnd);
+  float hueT=mix(.04,.62,fract(v_hue+.13*rnd));
+  vec3 tint=pal(hueT);
   vec3 body=tint*.035;
-  vec3 coreC=mix(pal(.36+.29*fract(rnd*3.7)),vec3(1.),.35);
+  vec3 coreC=mix(pal(mix(.12,.64,v_hue)),vec3(1.),.3);
   vec3 seedC=mix(u_accent,vec3(1.),.12);
   // Seeds glow in accent; as they grow only their terminations keep it.
   float accentMix=seed?mix(1.,tipZone,smoothstep(.2,1.,dev)):0.;
@@ -212,7 +240,7 @@ void main(){
   float glowP=u_params[4]*(seed?1.2:.75)*(.45+.55*g)*(1.+.45*smoothstep(1.,2.,dev))*(1.+dormant*(.9+.5*sin(TAU*phaseAt(1)*2.+rnd*TAU)));
   col=body*(.3+.7*diff+1.1*lit+.3*max(-N.y,0.));
   col+=tint*haze*.16*glowP;
-  col+=mix(u_secondary,vec3(1.),.5)*fres*.38;
+  col+=mix(tint,vec3(1.),.45)*fres*.38;
   col+=pal(fract(2.2*nv+rnd))*fres*.14;
   col+=mix(u_primary,vec3(1.),.7)*spec*1.1;
   col+=coreC*core*glowP*1.4;
