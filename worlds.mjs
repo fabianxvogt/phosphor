@@ -138,6 +138,17 @@ const AUTHORED = [
       { name: "Shards", look: "fold:Shard Storm" },
     ],
   },
+  {
+    id: "attractor-ribbons",
+    name: "Attractor Ribbons",
+    description:
+      "Hundreds of light ribbons trace the butterfly's wings, swirl into a vortex and lose themselves in a labyrinth the camera flies through.",
+    states: [
+      { name: "Wings", look: "ribbons:Butterfly Wings" },
+      { name: "Vortex", look: "ribbons:Aizawa Vortex" },
+      { name: "Labyrinth", look: "ribbons:Thomas Labyrinth" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

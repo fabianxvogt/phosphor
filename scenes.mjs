@@ -41,6 +41,7 @@ import physarum from "./scene-physarum.mjs";
 import caustics from "./scene-caustics.mjs";
 import colonization from "./scene-colonization.mjs";
 import fibration from "./scene-fibration.mjs";
+import ribbons from "./scene-ribbons.mjs";
 import nebula from "./scene-nebula.mjs";
 import murmuration from "./scene-murmuration.mjs";
 import descent from "./scene-descent.mjs";
@@ -94,6 +95,7 @@ export default [
   murmuration,
   descent,
   mycelium,
+  ribbons,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

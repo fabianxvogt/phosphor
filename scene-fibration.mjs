@@ -106,14 +106,18 @@ void main() {
   float yaw = TAU * phase(0), drift = TAU * phase(3);
   float bloom = smoothstep(0., 2., dev);
   // Elevation sets the look's vantage: 0 the equator, 1 down the axis.
-  float pitch = mix(.3, .5, bloom) + 1.15 * (u_params[6] - .35) + .17 * sin(drift) + .05 * sin(2.3 * drift + 1.);
+  // The bundle is seen from higher up: its nested shells open around the
+  // axis like an eye, and the outer rings frame the image instead of
+  // crossing it.
+  float full = smoothstep(1., 2., dev);
+  float pitch = mix(.3, .5, bloom) + .34 * full + 1.15 * (u_params[6] - .35) + mix(.17, .12, full) * sin(drift) + .05 * sin(2.3 * drift + 1.);
   pitch = clamp(pitch, -.3, 1.32);
-  float dist = u_params[7] * mix(7.2, 8.0, bloom) * (1. + .04 * sin(1.7 * drift));
+  float dist = u_params[7] * (mix(7.2, 8.0, bloom) + .7 * full) * (1. + .04 * sin(1.7 * drift));
   vec3 eye = dist * vec3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw));
   // The tumble moves the core circle's centre to x = tan a; follow it.
-  vec3 target = vec3(.8 * tan(a), mix(-.1, -.45, bloom), 0.);
+  vec3 target = vec3(.8 * tan(a), mix(-.1, -.45, bloom) - .8 * full, 0.);
   vec3 fwd = normalize(target - eye), right = normalize(cross(fwd, vec3(0., 1., 0.))), up = cross(right, fwd);
-  float focal = mix(2.45, 1.6, bloom) * (1. + .022 * u_kick);
+  float focal = (mix(2.45, 1.6, bloom) + .12 * full) * (1. + .022 * u_kick);
   float minSide = min(u_resolution.x, u_resolution.y);
   // Keep every tube at least ~1.3 px wide; thinner tubes dim instead.
   float depth = max(.2, dot(p - eye, fwd));
@@ -138,7 +142,7 @@ void main() {
   v_color *= .82 + .3 * lon;
   if (theta < .01) v_color = mix(u_accent, u_primary, .3);
   v_shell = shellOut;
-  v_heart = smoothstep(1.3, .4, theta);
+  v_heart = smoothstep(1.3, .4, theta) * (1. + .8 * full);
   // Nested occlusion: faces turned towards the core circle sit inside the
   // tori that have already bloomed around it.
   vec3 core = vec3(normalize(p.xz + 1e-5).x, 0., normalize(p.xz + 1e-5).y);
@@ -187,7 +191,7 @@ void main() {
   // Outer shells are glassy (rim-lit, dim body) so inner tori show through.
   float body = 1. - .5 * v_shell;
   vec3 color = base * (.03 + (.74 * diffuse + .14 * wrap) * ao * body);
-  vec3 rim = mix(mix(u_secondary, vec3(1.), .3), u_accent, .22);
+  vec3 rim = mix(mix(u_secondary, vec3(1.), .3), u_accent, .08);
   color += rim * fresnel * (.38 + .5 * v_shell) * (.55 + .45 * ao);
   color += mix(base, vec3(1.), .6) * spec * .42 * ao * body;
   // The circle action: light beads flow along every fibre at once.
@@ -197,13 +201,15 @@ void main() {
   float arg = v_s - TAU * flow;
   float bead = mix(pow(.5 + .5 * cos(n0 * arg + v_phi * 2.), 150.),
                    pow(.5 + .5 * cos((n0 + 1.) * arg + v_phi * 2.), 150.), smoothstep(.2, .8, n - n0));
-  color += (mix(base, u_accent, .6) * 1.1 + .25) * bead * .85;
+  color += (mix(base, u_accent, .3) * 1.1 + .2) * bead * .7;
+  // The core circle (all fibres over the north pole) is the one accent ring.
+  if (v_layer > 7.5) color += u_accent * (.35 + .5 * wrap);
   // The innermost shells are the focus: a faint inner light.
   color += base * v_heart * (.14 + .3 * wrap);
   color += mix(base, u_accent, .6) * v_glow * (.35 + .9 * fresnel);
   float chase = pow(.5 + .5 * cos(v_s - TAU * flow * 3. - v_phi), 8.);
-  color = mix(color, mix(base, u_accent, .45) * (.5 + .9 * diffuse), .55 * v_cohort);
-  color += mix(u_accent, vec3(1.), .25) * v_cohort * 1.4 * chase;
+  color = mix(color, mix(base * 1.5, u_accent, .15) * (.5 + .9 * diffuse), .5 * v_cohort);
+  color += mix(u_accent, vec3(1.), .4) * v_cohort * 1.1 * chase;
   color *= v_cover;
   // Atmosphere: distance fades towards the ground; silhouettes soften into
   // it over about a pixel, which keeps thin tubes from shimmering.

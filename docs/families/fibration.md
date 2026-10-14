@@ -20,7 +20,7 @@ The fibre over the base point (θ, φ) is q(s) = (cos η·e^{i(s+φ)}, sin η·e
 | ----------- | ------ | ------- |
 | 0           | Torus  | One Clifford torus (θ = π/2) of 20 linked Villarceau circles, far camera, telephoto. |
 | 1           | Nest   | Five nested tori (θ = 0.90…2.00); inner shells warm and solid, outer shells glassier. |
-| 2           | Bundle | Eight tori plus the core circle (135 fibres); closer camera, wider lens, parallax through the shells. |
+| 2           | Bundle | Eight tori plus the core circle (135 fibres), seen from higher up: the shells open around the axis like an eye with a glowing heart, framed inside the image. |
 
 Between states, each new torus emerges at its parent's latitude and moves out to its own, while its fibres grow as tapered arcs that close into rings in a seeded sweep. All values in [0, 2] are real geometry; reversal is the same function run backwards. Identity (φ, layer, growth order, arc start) is fixed per seed in the mesh.
 
@@ -51,6 +51,10 @@ The fibration is static mathematics; motion comes from wrapped phases (orbit, fl
 ## Tests (`tests/fibration.test.mjs`)
 
 Hopf map of every visible fibre point equals its base point (also under the tumble); projected fibres are round planar circles; Gauss linking |L| = 1 for sampled pairs at all states; bounded projection over a development × tumble grid and camera clearance; integer states complete (0: torus only; 1: five tori; 2: all), Lipschitz-continuous development, new tori start at the parent latitude; deterministic per-seed identity and exact attribute packing; presets validate and the world is detected as a continuous development.
+
+## Wave 2 (2026-10-14): Bundle as the headline
+
+Intentional visual change after owner review: the Bundle had been the busiest image, not the strongest. Now development 1 → 2 also lifts the camera (+0.34 rad), backs it off (+0.7) and re-aims below the centre so the whole bundle sits inside the frame (outer rings off the edges); the inner shells' light doubles toward the peak; the core circle is the one accent ring; rim and bead accent are reduced (rim accent 0.22 → 0.08, beads 0.6 → 0.3) and the fibre-chase cohort brightens its own colour instead of turning accent. Mathematics, mesh, looks and ids are unchanged; previews rebaked.
 
 ## Limits
 

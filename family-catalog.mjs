@@ -19,6 +19,14 @@ export const FAMILY_CATALOG = {
     styles: ["geometric", "spatial"],
     variants: ["Sheet", "Fold", "Shards"],
   },
+  ribbons: {
+    algorithm:
+      "Fixed-step RK4 trajectories in three flows, drawn as lit ribbons",
+    description:
+      "Hundreds of trajectories integrated at once in the Lorenz, Aizawa and Thomas flows. Development carries the same ribbons from wings through a vortex into a labyrinth.",
+    styles: ["spatial", "particles"],
+    variants: ["Wings", "Vortex", "Labyrinth"],
+  },
   fibration: {
     algorithm: "Stereographic Hopf fibres as lit tube meshes",
     description:

@@ -77,6 +77,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Starling Flock](families/murmuration.md) | murmuration | Topological-neighbour flock with a fold field, startle waves and formations | Loose / Surge / Formation | 7 |
 | [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |
 | [Living Mycelium](families/mycelium.md) | mycelium | Gray–Scott reaction–diffusion as a lit terrain | Understory / Tide / City | 8 |
+| [Attractor Ribbons](families/ribbons.md) (world Attractor Ribbons) | ribbons | Fixed-step RK4 trajectories in three flows, drawn as lit ribbons | Wings / Vortex / Labyrinth | 8 |
 
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 

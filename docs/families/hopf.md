@@ -22,6 +22,10 @@ The 3-sphere S³ ⊂ C² is a bundle of great circles, one over every point of t
 
 Clifford Torus, Thin Torus, Nested Tori, Loxodrome Fibres, Linked Rings, Ring Storm, Through Infinity, Fibre Bloom.
 
+## Light and depth (wave 2, 2026-10-14)
+
+Intentional visual change toward [STYLE.md](../worlds/STYLE.md): every point carries the exact tangent of its fibre (q′(s) = (−q.y, q.x, −q.w, q.z), pushed through the tumble, projection and camera), and fibres are lit as **illuminated lines** (diffuse √(1 − (T·L)²) plus a specular glint), so circles read as lit wires. Palette colour now runs over the base sphere's longitude without a seam and stays out of the accent, which marks only the glints. Distance fades more strongly into the dark. Energy no longer changes brightness (it changed it by ±45 %). Look ids and parameters unchanged; previews rebaked.
+
 ## Energy, beat, endless
 
 - Energy: 4D tumble ×0.6 → ×1.6, light −0.1 → +0.2, camera turn ×0.6 → ×1.8.

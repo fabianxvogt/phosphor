@@ -61,7 +61,7 @@ const projection = `  int shape = int(floor(u_params[0] + 0.5));
   mat2 xw = rot2(turn.x * 0.5 + phase + u_rhythm.y * 0.24), yz = rot2(turn.x * 0.31), zw = rot2(turn.x * 0.23 + 1.0);
   mat2 xz = rot2(turn.y * 0.4 + 0.6), xy = rot2(turn.y * 0.27);
 
-  vec3 P[VERTEX_CAP];
+  vec4 P[VERTEX_CAP];
   for (int i = 0; i < VERTEX_CAP; ++i) {
     if (i >= count) break;
     vec4 v = fdVertex(shape, i);
@@ -70,7 +70,8 @@ const projection = `  int shape = int(floor(u_params[0] + 0.5));
     vec3 q = v.xyz / (fold - v.w);
     q.xz = xz * q.xz; q.xy = xy * q.xy;
     float z = 3.2 - q.z;
-    P[i] = vec3(q.xy / z * 2.2 * size, v.w);
+    // .w: 3D nearness (1 near, 0 far) for line weight and atmosphere.
+    P[i] = vec4(q.xy / z * 2.2 * size, v.w, clamp(1.0 - (z - 2.0) / 2.6, 0.0, 1.0));
   }
 `;
 // Rotation angles ∫spin dt and ∫tumble dt, stored as 24-bit fractions of
@@ -132,14 +133,15 @@ vec4 fdVertex(int shape, int i) {
 }
 
 `;
-// Row 0: projected vertices; row 1: edge palette/depth; row 2: endpoints.
+// Row 0: projected vertices (xy, w, nearness); row 1: edge palette/depth;
+// row 2: endpoints; row 3: endpoint nearness.
 // Every edge retains its original order, infinite halo and distance arithmetic.
 const precompute = geometry + `
 void main() {
 ${projection}
   ivec2 cell = ivec2(gl_FragCoord.xy);
-  if (cell.y == 0) { outColor = cell.x < count ? vec4(P[cell.x], 1.0) : vec4(0.0); return; }
-  vec3 a, b;
+  if (cell.y == 0) { outColor = cell.x < count ? P[cell.x] : vec4(0.0); return; }
+  vec4 a, b;
   ${FOURSPACE_EDGES.map((edges, shape) => `
   ${shape ? 'else ' : ''}if (shape == ${shape}) {
     ${edges.map(([i,j], k) => `${k?'else ':''}if (cell.x == ${k}) { a=P[${i}]; b=P[${j}]; }`).join('\n    ')}
@@ -147,7 +149,7 @@ ${projection}
   }`).join('\n')}
   float depth = 0.5 + 0.25 * (a.z + b.z);
   vec3 ink = palette(fract(mix(0.35, depth * 0.8, tint)));
-  outColor = cell.y == 1 ? vec4(ink, depth) : vec4(a.xy, b.xy);
+  outColor = cell.y == 1 ? vec4(ink, depth) : cell.y == 2 ? vec4(a.xy, b.xy) : vec4(a.w, b.w, 0.0, 0.0);
 }
 `;
 const fragment = geometry + `
@@ -160,22 +162,29 @@ float fdSegment(vec2 p, vec2 a, vec2 b) {
   return length(pa - ba * h);
 }
 
-vec3 fdEdge(vec2 p, vec3 a, vec3 b, float weight, float glow, float tint, float aa, int edge) {
-  float d = fdSegment(p, a.xy, b.xy);
+vec3 fdEdge(vec2 p, vec3 a, vec3 b, vec2 nearness, float weight, float glow, float tint, float aa, int edge) {
+  vec2 pa = p - a.xy, ba = b.xy - a.xy;
+  float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+  float d = length(pa - ba * h);
+  // Depth: near edges are thicker and brighter, far edges thin into the dark.
+  float near = mix(nearness.x, nearness.y, h);
+  float w = weight * mix(0.6, 1.45, near);
 #ifdef PRECOMPUTED
   vec4 style = texelFetch(u_precomputed, ivec2(edge, 1), 0);
   float depth = style.a;
 #else
   float depth = 0.5 + 0.25 * (a.z + b.z);
 #endif
-  float core = 1.0 - smoothstep(weight - aa, weight + aa, d);
-  float halo = glow * 0.004 / (d * d * 40.0 + 0.004);
+  // Lit tube profile: round body plus a specular streak along the edge.
+  float x = clamp(d / max(w, 1e-5), 0.0, 1.0), tube = sqrt(1.0 - x * x);
+  float core = (1.0 - smoothstep(w - aa, w + aa, d)) * (0.45 + 0.55 * tube + 0.6 * pow(tube, 12.0));
+  float halo = glow * 0.004 / (d * d * 40.0 + 0.004) * (0.4 + 0.6 * near);
 #ifdef PRECOMPUTED
   vec3 ink = style.rgb;
 #else
   vec3 ink = palette(fract(mix(0.35, depth * 0.8, tint)));
 #endif
-  return ink * (core + halo * 0.12) * (0.55 + 0.45 * depth);
+  return ink * (core + halo * 0.12) * (0.55 + 0.45 * depth) * mix(0.3, 1.15, near);
 }
 
 void main() {
@@ -194,12 +203,12 @@ ${projection}
   for (int edge = 0; edge < 96; ++edge) {
     if (edge >= edges) break;
     vec4 points = texelFetch(u_precomputed, ivec2(edge, 2), 0);
-    col = max(col, fdEdge(p, vec3(points.xy, 0.0), vec3(points.zw, 0.0), weight, glow, tint, aa, edge));
+    col = max(col, fdEdge(p, vec3(points.xy, 0.0), vec3(points.zw, 0.0), texelFetch(u_precomputed, ivec2(edge, 3), 0).xy, weight, glow, tint, aa, edge));
   }
 #else
   ${FOURSPACE_EDGES.map((edges, shape) => `
   ${shape ? "else " : ""}if (shape == ${shape}) {
-    ${edges.map(([i, j], edge) => `col = max(col, fdEdge(p, P[${i}], P[${j}], weight, glow, tint, aa, ${edge}));`).join("\n    ")}
+    ${edges.map(([i, j], edge) => `col = max(col, fdEdge(p, P[${i}].xyz, P[${j}].xyz, vec2(P[${i}].w, P[${j}].w), weight, glow, tint, aa, ${edge}));`).join("\n    ")}
   }`).join("\n")}
 #endif
   // Vertices glint brightest on the kick.
@@ -207,12 +216,23 @@ ${projection}
   for (int i = 0; i < VERTEX_CAP; ++i) {
     if (i >= count) break;
 #ifdef PRECOMPUTED
-    float d = length(p - texelFetch(u_precomputed, ivec2(i, 0), 0).xy);
+    vec4 vtx = texelFetch(u_precomputed, ivec2(i, 0), 0);
 #else
-    float d = length(p - P[i].xy);
+    vec4 vtx = P[i];
 #endif
-    col += u_accent * (1.0 - smoothstep(weight * 1.6, weight * 2.6 + aa, d)) * (0.4 + (mod(float(i) - u_rhythmCount.x, 4.0) < 1.0 ? 1.5 : 0.0) * kick * u_level);
+    // Vertices are small lit spheres, larger when near.
+    float r = weight * mix(1.5, 2.7, vtx.w);
+    vec2 o = (p - vtx.xy) / r;
+    float o2 = dot(o, o);
+    float mask = 1.0 - smoothstep(1.0 - aa / r, 1.0 + aa / r, sqrt(o2));
+    // Clamp first: far from the vertex o is huge and pow() would overflow to inf.
+    vec2 oc = o / max(1.0, sqrt(o2));
+    vec3 n = vec3(oc, sqrt(max(0.0, 1.0 - dot(oc, oc))));
+    float lit = 0.3 + 0.8 * max(0.0, dot(n, normalize(vec3(-0.45, 0.55, 0.7)))) + 0.8 * pow(max(0.0, dot(n, normalize(vec3(-0.25, 0.3, 1.0)))), 30.0);
+    col += u_accent * mask * lit * mix(0.45, 1.0, vtx.w) * (0.55 + (mod(float(i) - u_rhythmCount.x, 4.0) < 1.0 ? 1.5 : 0.0) * kick * u_level);
   }
+  // A faint ground glow keeps the frame from reading as flat black.
+  col = max(col, u_secondary * 0.035 * exp(-dot(p, p) * 2.0));
   outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `;
@@ -235,6 +255,6 @@ export default {
   schema,
   presets,
   fragment,
-  precompute: { fragment: precompute, size: [96, 3] },
+  precompute: { fragment: precompute, size: [96, 4] },
   simulation: { fragment: simulation, size: [2, 1], steps: 1 },
 };
