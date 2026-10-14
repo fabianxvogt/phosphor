@@ -26,13 +26,15 @@ const start = (show, t = 0.2) => show.command({ type: "world-start" }, t);
 
 test("world definitions roundtrip and old sets gain the curated worlds", () => {
   const set = initialShowSet(scenes);
-  assert.equal(set.worlds.length, 3);
+  const authored = defaultWorlds(scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`))).length;
+  assert.ok(authored >= 3);
+  assert.equal(set.worlds.length, authored);
   assert.deepEqual(
     validateShowSet(JSON.parse(JSON.stringify(set)), scenes).worlds,
     set.worlds,
   );
   delete set.worlds;
-  assert.equal(validateShowSet(set, scenes).worlds.length, 3);
+  assert.equal(validateShowSet(set, scenes).worlds.length, authored);
   assert.deepEqual(defaultWorlds([]), []);
 });
 test("reject malformed, duplicate and unknown world definitions", () => {
@@ -313,8 +315,9 @@ test("removing a referenced own look keeps portable world definitions valid", as
   set.looks = [];
   set.worlds = withoutWorldLook(set.worlds, "own-world");
   assert.equal(validateShowSet(set, scenes).worlds[0].states.length, 2);
+  const count = set.worlds.length;
   set.worlds = withoutWorldLook(set.worlds, set.worlds[0].states[0].look);
-  assert.equal(validateShowSet(set, scenes).worlds.length, 2);
+  assert.equal(validateShowSet(set, scenes).worlds.length, count - 1);
 });
 
 test("untouched early world definitions gain stable chemistry without replacing customized worlds", () => {

@@ -1,0 +1,443 @@
+import { familyEffect } from "./family-rhythm.mjs";
+import {
+  CLOCK_PERIOD,
+  CLOUD,
+  MODES,
+  N,
+  ORBIT_CORE,
+  ORBIT_V,
+  RELAX,
+  RMAX,
+  SHELL,
+} from "./nebula-model.mjs";
+
+// Density Waves (#87): one population of 65 535 stars is a Zel'dovich
+// cosmic-web cloud (Dust), a density-wave spiral galaxy (Spiral) and a
+// filamentary supernova remnant with Sedov–Taylor shock fronts (Nova).
+// nebula-model.mjs is the CPU reference; keep both in step.
+//
+// State texture (RGBA8, 256²): texel 0 is a 32-bit clock (fraction of
+// CLOCK_PERIOD, integrated at the motion speed); every other texel holds the
+// star's extra azimuth ψ as a 32-bit turn fraction. Global cycles use integer
+// counts per period, so uint wrap keeps them exact for a whole night.
+
+const f = (x) => (Number.isInteger(x) ? `${x}.` : `${x}`);
+const common = `
+const float NB_TAU = 6.283185307179586;
+const float NB_P = ${f(CLOCK_PERIOD)};
+const float NB_RMAX = ${f(RMAX)};
+const float NB_CLOUD = ${f(CLOUD)};
+const float NB_SHELL = ${f(SHELL)};
+uint nbHash(uint x) {
+  x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16;
+  return x;
+}
+uint nbKey() { return nbHash(u_seedBits + 0x51ed270bu); }
+float nbRnd(uint key, uint id, uint k) {
+  return float(nbHash((id * 0x9e3779b9u) ^ nbHash(k + key)) >> 8) / 16777216.;
+}
+uint nbWord(vec4 t) {
+  uvec4 b = uvec4(t * 255. + .5);
+  return (b.r << 24) | (b.g << 16) | (b.b << 8) | b.a;
+}
+vec4 nbBytes(uint v) {
+  return vec4(uvec4(v >> 24, (v >> 16) & 255u, (v >> 8) & 255u, v & 255u)) / 255.;
+}
+uint nbClock() { return nbWord(texelFetch(u_state, ivec2(0), 0)); }
+float nbCycle(uint clock, uint n) { return float(clock * n) * (1. / 4294967296.); }
+float nbSq(float x) { return x * x; }
+float nbSmooth(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0., 1.); return t * t * (3. - 2. * t); }
+float nbGauss(float u1, float u2) { return sqrt(-2. * log(max(u1, 1e-7))) * cos(NB_TAU * u2); }
+struct NbStar { int kind; float rank, ang0, a, height, cz, layer, density, tone; vec3 q, shellDir; };
+NbStar nbStar(uint key, uint id) {
+  NbStar s;
+  float kr = nbRnd(key, id, 0u);
+  s.kind = kr < .045 ? 2 : kr < .165 ? 1 : 0;
+  s.rank = nbRnd(key, id, 1u);
+  s.ang0 = NB_TAU * nbRnd(key, id, 2u);
+  float v = nbGauss(nbRnd(key, id, 3u), nbRnd(key, id, 4u));
+  float w = nbGauss(nbRnd(key, id, 5u), nbRnd(key, id, 6u));
+  float L = .72 + .12 * nbRnd(key, 0u, 906u);
+  if (s.kind == 1) { s.a = .03 + .34 * pow(s.rank, 1.7); s.height = 0.; }
+  else {
+    s.a = max(.05, -L * log(1. - s.rank * (1. - exp(-NB_RMAX / L))));
+    s.height = v * (.012 + .05 * exp(-s.a / .5));
+  }
+  float rq = NB_CLOUD * sqrt(s.kind == 1 ? .45 * s.rank : s.rank);
+  s.q = vec3(rq * cos(s.ang0), .42 * NB_CLOUD * w * (1. - .55 * s.rank) * .6, rq * sin(s.ang0));
+  s.cz = s.kind == 1 ? clamp(v * .45, -.96, .96) : 0.;
+  float sz = nbRnd(key, id, 7u) * 2. - 1., saz = NB_TAU * nbRnd(key, id, 8u), sr = sqrt(1. - sz * sz);
+  s.shellDir = vec3(sr * cos(saz), sz, sr * sin(saz));
+  s.layer = nbRnd(key, id, 9u);
+  s.density = nbRnd(key, id, 10u);
+  s.tone = nbRnd(key, id, 11u);
+  return s;
+}
+vec2 nbProgress(float dev, float rank) {
+  float d = clamp(dev, 0., 2.), lo = .5 * rank;
+  return vec2(nbSmooth(lo, lo + .5, d), nbSmooth(lo, lo + .5, d - 1.));
+}
+float nbOmega(float a) { return ${f(ORBIT_V)} / sqrt(a * a + ${f(ORBIT_CORE * ORBIT_CORE)}); }
+`;
+
+// Camera shared by the background and the stars.
+const camera = `
+struct NbCam { vec3 eye, right, up, fwd; float focal, dist; };
+NbCam nbCamera(uint clock, float dev) {
+  NbCam c;
+  uint key = nbKey();
+  float yaw = NB_TAU * (nbCycle(clock, ${N.yaw}u) + nbRnd(key, 0u, 907u));
+  float el = mix(.16, 1.1, clamp(u_params[6], 0., 1.)) + .1 * sin(NB_TAU * nbCycle(clock, ${N.lift}u));
+  c.dist = u_params[5] * (mix(4.6, 2.85, nbSmooth(0., 1., dev)) + 1.05 * nbSmooth(1., 2., dev))
+    * (1. + .04 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u)));
+  c.eye = c.dist * vec3(cos(el) * sin(yaw), sin(el), cos(el) * cos(yaw));
+  c.fwd = normalize(vec3(0., -.06, 0.) - c.eye);
+  c.right = normalize(cross(c.fwd, vec3(0., 1., 0.)));
+  c.up = cross(c.right, c.fwd);
+  c.focal = 1.85 * (1. + .02 * clamp(u_kick, 0., 1.));
+  return c;
+}
+`;
+
+const modes = `
+// Zel'dovich potential modes (seeded). xyz = −∇Φ, w = normalised Σ amp·cos;
+// hess accumulates ∂S/∂q, so the mapped density is 1 / |det(I + D·∂S/∂q)|.
+vec4 nbWeb(uint key, vec3 q, uint clock, out mat3 hess) {
+  vec3 s = vec3(0.); float fsum = 0., total = 0.;
+  hess = mat3(0.);
+  for (int m = 0; m < ${MODES}; m++) {
+    uint um = uint(m);
+    float z = nbRnd(key, um, 900u) * 2. - 1., az = NB_TAU * nbRnd(key, um, 901u), r = sqrt(1. - z * z);
+    vec3 dir = vec3(r * cos(az), z * .55, r * sin(az));
+    float kl = 2.4 + 2.4 * nbRnd(key, um, 902u);
+    vec3 k = normalize(dir) * kl;
+    float amp = .22 + .2 * nbRnd(key, um, 903u);
+    float ph = NB_TAU * nbRnd(key, um, 904u) + NB_TAU * nbCycle(clock, uint(1 + m % ${N.drift}));
+    float arg = dot(k, q) + ph;
+    s += amp / (kl * kl) * sin(arg) * k;
+    hess += outerProduct(k, k) * (amp / (kl * kl) * cos(arg));
+    fsum += amp * cos(arg);
+    total += amp;
+  }
+  return vec4(s, 2. * fsum / total);
+}
+`;
+
+const simulation = `
+${common}
+float nbPsiRate(NbStar s, float dev, float psi) {
+  if (s.kind == 2) return 0.;
+  vec2 pr = nbProgress(dev, s.rank);
+  float spin = max(0., nbOmega(s.a) - NB_TAU * ${N.cloud}. / NB_P);
+  return pr.x * (1. - pr.y) * spin - (1. - pr.x) * ${f(RELAX)} * psi;
+}
+void main() {
+  ivec2 cell = ivec2(gl_FragCoord.xy);
+  uint v = u_reset ? 0u : nbWord(texelFetch(u_state, cell, 0));
+  float rate = clamp(u_params[1], 0., 2.) * u_dt;
+  if (cell == ivec2(0)) {
+    v += uint(rate * (4294967296. / NB_P) + .5);
+  } else {
+    uint id = uint(cell.y * textureSize(u_state, 0).x + cell.x);
+    NbStar s = nbStar(nbKey(), id);
+    // ψ is a signed turn fraction; the relaxation takes the short way home.
+    float psi = float(int(v)) * (NB_TAU / 4294967296.);
+    float dpsi = nbPsiRate(s, u_params[0], psi) * rate;
+    v += uint(int(round(dpsi * (4294967296. / NB_TAU))));
+  }
+  outColor = nbBytes(v);
+}
+`;
+
+const vertex = `
+${common}
+${camera}
+${modes}
+out float v_soft;
+vec3 nbRotY(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(c * p.x - s * p.z, p.y, s * p.x + c * p.z); }
+void main() {
+  gl_Position = vec4(2., 2., 2., 1.);
+  gl_PointSize = 1.;
+  v_color = vec3(0.);
+  v_soft = 0.;
+  uint id = uint(gl_VertexID);
+  if (id == 0u) return;
+  uint key = nbKey(), clock = nbClock();
+  NbStar s = nbStar(key, id);
+  float dev = clamp(u_params[0], 0., 2.);
+  float growth = u_params[2], arms = u_params[3], light = u_params[4], shock = u_params[7];
+  float level = clamp(u_level, 0., 1.);
+  // Energy density: fewer stars at low energy, never a pop.
+  float keep = mix(.52, 1., level);
+  float shown = 1. - nbSmooth(keep - .06, keep, s.density);
+  if (shown <= 0.) return;
+  float psi = float(int(nbWord(particle()))) * (NB_TAU / 4294967296.);
+  vec2 pr = nbProgress(dev, s.rank);
+  float p = pr.x, n = pr.y;
+  float cloud = NB_TAU * nbCycle(clock, ${N.cloud}u);
+  float lambda = s.ang0 + cloud + psi;
+  vec3 pos;
+  float crest = 0., lane = 0., compress = 1.;
+  vec3 hue = u_primary;
+  float bright = 0., size = 1.6, soft = 0.;
+  if (s.kind == 2) {
+    // Distant stars: parallax and scale against the near form.
+    pos = s.shellDir * 9.;
+    bright = .05 + .5 * pow(s.tone, 14.);
+    hue = mix(u_secondary, vec3(1.), .55);
+    size = 1.25 + 1.1 * pow(s.tone, 20.);
+  } else {
+    float rhoG, epsG = 0., yG;
+    if (s.kind == 1) {
+      rhoG = s.a * sqrt(1. - s.cz * s.cz);
+      yG = s.a * s.cz * .72;
+    } else {
+      // Density wave: an ellipse whose orientation turns with radius.
+      float ell = 1. - .32 * nbSmooth(.08, .55, s.a);
+      float twist = (2.2 + .9 * nbRnd(key, 0u, 905u)) * arms;
+      // Each orbit's orientation scatters a little: broad, clumpy arms.
+      float beta = s.a * twist + NB_TAU * nbCycle(clock, ${N.pattern}u) + 1.1 * (s.tone - .5) * s.layer;
+      float u = lambda - beta, cu = cos(u), su = sin(u), b = s.a * ell;
+      epsG = atan((b - s.a) * su * cu, s.a * cu * cu + b * su * su);
+      rhoG = sqrt(s.a * s.a * cu * cu + b * b * su * su);
+      yG = s.height;
+      // Arms are where neighbouring ellipses crowd: u ≈ −π/4 (mod π).
+      float w = u + .7853981634;
+      crest = pow(.5 + .5 * cos(2. * w), 3.);
+      float l = mod(w + .42 + 1.5707963, 3.1415926536) - 1.5707963;
+      lane = exp(-l * l / .03) * nbSmooth(.12, .4, s.a);
+    }
+    float rhoQ = length(s.q.xz);
+    float rho = mix(rhoQ, rhoG, p), y = mix(s.q.y, yG, p);
+    float th = lambda + p * epsG;
+    pos = vec3(rho * cos(th), y, rho * sin(th));
+    if (p < 1.) {
+      // Zel'dovich: x = q + D·S(q); caustics gather the cosmic web.
+      mat3 hess;
+      vec3 S = nbWeb(key, s.q, clock, hess).xyz;
+      // Exact Zel'dovich density: caustics (det → 0) glow as the web.
+      float det = abs(determinant(mat3(1.) + growth * hess));
+      compress = clamp(1. / max(det, .05), .25, 7.);
+      float wob = NB_TAU * nbCycle(clock, ${N.wobble}u) + NB_TAU * s.tone;
+      vec3 jitter = .03 * (.4 + .9 * level) * vec3(sin(wob + s.q.y * 3.), sin(wob * 1. + 1.7 + s.q.x * 2.), cos(wob + s.q.z * 2.));
+      pos += nbRotY(S * growth + jitter, cloud + psi) * (1. - p);
+    }
+    // Dust: gas glows faintly; the web's caustics brighten by crowding.
+    vec3 gas = mix(u_secondary, u_primary, clamp(.1 + .3 * s.tone + .18 * compress, 0., 1.));
+    float dustB = .045 * pow(compress, 1.35) + 1.6 * pow(s.tone, 60.);
+    float dustSize = 2.2 + 3.2 * s.layer;
+    // Spiral: crest stars young and light, inter-arm stars old, lanes dark.
+    vec3 young = mix(u_primary, vec3(1.), .38), old = mix(u_secondary, u_primary, .45);
+    vec3 starHue = s.kind == 1 ? mix(mix(u_primary, u_accent, .3), vec3(1.), .3) : mix(old, young, crest);
+    float starB = s.kind == 1 ? .3 : (.3 + 1.1 * crest) * (1. - .9 * lane) * (.25 + .75 * nbSmooth(.04, .4, s.a)) * (.45 + 2.2 * pow(s.tone, 10.));
+    if (s.kind == 0 && s.tone > .975 && crest > .55) { starHue = u_accent; starB = 1.1; }
+    hue = mix(gas, starHue, p);
+    bright = mix(dustB, starB, p);
+    size = mix(dustSize, s.kind == 1 ? 1.7 : 1.5 + .9 * crest, p);
+    soft = 1. - p;
+    bool cloudlet = s.kind == 0 && s.layer > .8;
+    if (cloudlet) {
+      // Glowing gas: large soft sprites trace the web, then the arms.
+      hue = mix(mix(u_secondary, u_primary, .3 + .2 * s.tone), mix(u_primary, u_accent, .12), p * crest);
+      bright = mix(.06 * pow(compress, 1.1), (.05 + .3 * crest) * (1. - .8 * lane) * nbSmooth(.05, .5, s.a), p);
+      size = mix(12. + 10. * s.tone, 9. + 9. * s.tone, p);
+      soft = 1.;
+    }
+    if (n > 0.) {
+      // Nova: collapse, ignite, then ride out on the filamented shell.
+      float len = max(length(pos), 1e-4);
+      vec3 dir = s.shellDir + .8 * (pos / len) * vec3(1., .3, 1.);
+      vec3 n0 = normalize(dir);
+      vec3 shell;
+      float front = 0., shellCompress = 1.;
+      if (s.kind == 1) {
+        shell = n0 * (.015 + .05 * s.layer * s.layer);
+      } else {
+        mat3 shellHess;
+        vec4 web = nbWeb(key, n0 * 2., clock, shellHess);
+        shellCompress = clamp(1. / max(abs(determinant(mat3(1.) + .7 * growth * shellHess)), .06), .3, 6.);
+        vec3 t = n0 + .35 * growth * (web.xyz - dot(web.xyz, n0) * n0);
+        vec3 nd = normalize(t);
+        float depth = s.layer < .6 ? .92 + .08 * sqrt(s.layer / .6) : .3 + .75 * (s.layer - .6) / .4;
+        float breath = 1. + .03 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u));
+        float R = NB_SHELL * breath * (1. + .16 * web.w) * depth;
+        // Sedov–Taylor shock fronts R ∝ t^(2/5) run through the shell.
+        float c = nbCycle(clock, ${N.shock}u);
+        float F = 2.35 * pow(c, .4);
+        float amp = shock * nbSmooth(0., .05, c) * (1. - c);
+        front = amp * exp(-(R - F) * (R - F) / .006);
+        shell = nd * (R + .08 * front);
+      }
+      float s1 = nbSmooth(0., .3, n), s2 = nbSmooth(.18, 1., n);
+      pos = mix(pos * (1. - .62 * s1), shell, s2);
+      // Ignition: the core flares as it collapses, then settles.
+      float ignite = exp(-nbSq((n - .24) / .1));
+      vec3 rim = mix(u_primary, vec3(1.), .22), ejecta = mix(u_secondary, u_primary, .3);
+      vec3 novaHue = s.kind == 1 ? mix(u_accent, vec3(1.), .45) : (s.layer < .6 ? rim : ejecta);
+      float novaB = s.kind == 1 ? .045 : (s.layer < .6 ? .3 + .22 * shellCompress : .22);
+      novaHue = mix(novaHue, u_accent, .7 * clamp(front, 0., 1.));
+      novaB += 1.3 * front;
+      hue = mix(hue, novaHue, s2);
+      bright = mix(bright, novaB, s2) + ignite * (s.kind == 1 ? .5 : .12);
+      size = mix(size, cloudlet ? 5. + 4. * s.tone : 1.6 + .7 * front, s2);
+      if (cloudlet) bright = mix(bright, (.05 + .05 * shellCompress) + .2 * front, s2);
+      else soft *= 1. - s2;
+    }
+    // Rhythm: arm/filament accent, core flare, outward ripple.
+    float r3 = length(pos);
+    bright += u_rhythm.x * .45 * (p * crest + (1. - p) * pow(s.tone, 6.) + n * float(s.layer < .6) * .5);
+    if (s.kind == 1) { bright += u_rhythm.y * .35; hue = mix(hue, u_accent, .5 * u_rhythm.y); }
+    float ripple = 2.6 * (1. - u_rhythm.z);
+    bright += u_rhythm.z * .6 * exp(-nbSq((r3 - ripple) / .14));
+  }
+  NbCam cam = nbCamera(clock, dev);
+  vec3 v = pos - cam.eye;
+  float z = dot(v, cam.fwd);
+  if (z < .25) return;
+  vec2 screen = vec2(dot(v, cam.right), dot(v, cam.up)) * cam.focal / z;
+  float minSide = min(u_resolution.x, u_resolution.y);
+  float res = minSide / 1080.;
+  gl_Position = vec4(screen * minSide / u_resolution, 0., 1.);
+  // Depth: near stars larger and brighter, far ones recede into the dark.
+  float near = s.kind == 2 ? 1. : clamp(cam.dist / z, .45, 2.6);
+  float fog = s.kind == 2 ? 1. : clamp(exp(-.3 * (z - cam.dist)), .3, 1.7);
+  gl_PointSize = max(1.5 * res, size * res * mix(1., near, .85));
+  // Soft gas keeps its total light as sprites grow; stars stay crisp.
+  float spread = max(1., gl_PointSize / (1.6 * res));
+  spread = mix(spread * spread, spread, soft);
+  v_soft = soft;
+  hue = mix(hue * .8 + u_secondary * .2, hue, clamp(fog, 0., 1.));
+  v_color = hue * bright * fog * light * shown * (1.12 - .2 * level) / spread * 4.2;
+}
+`;
+
+const particleFragment = `#version 300 es
+precision highp float;
+in vec3 v_color;
+in float v_soft;
+out vec4 outColor;
+void main() {
+  vec2 d = gl_PointCoord * 2. - 1.;
+  float r2 = dot(d, d);
+  if (r2 > 1.) discard;
+  float m = mix(exp(-r2 * 4.), exp(-r2 * 2.2) * (1. - r2), v_soft);
+  outColor = vec4(v_color * m, 1.);
+}
+`;
+
+// Background: near-black ground with the cloud's, bulge's or remnant's soft
+// light around the projected centre.
+const fragment = `
+${common}
+${camera}
+void main() {
+  uint clock = nbClock();
+  float dev = clamp(u_params[0], 0., 2.);
+  NbCam cam = nbCamera(clock, dev);
+  vec2 res = u_resolution / min(u_resolution.x, u_resolution.y);
+  vec2 p = (v_uv * 2. - 1.) * res;
+  vec3 v = -cam.eye;
+  float z = dot(v, cam.fwd);
+  vec2 c = vec2(dot(v, cam.right), dot(v, cam.up)) * cam.focal / z;
+  float k = cam.focal / z;
+  float d2 = dot(p - c, p - c) / (k * k);
+  float dust = 1. - nbSmooth(0., 1., dev), spiral = nbSmooth(0., 1., dev) * (1. - nbSmooth(1., 2., dev)), nova = nbSmooth(1., 2., dev);
+  vec3 col = u_secondary * .012 * (1. - .35 * length(p));
+  col += mix(u_secondary, u_primary, .3) * .025 * exp(-d2 / 1.8) * dust;
+  col += mix(u_primary, u_accent, .25) * (.16 * exp(-d2 / .035) + .035 * exp(-d2 / .6)) * spiral;
+  float ignite = exp(-nbSq((dev - 1.3) / .12));
+  col += mix(u_accent, vec3(1.), .4) * (.22 * exp(-d2 / .004) + .3 * ignite * exp(-d2 / .08)) * nova;
+  col += mix(u_secondary, u_primary, .4) * .03 * exp(-d2 / 1.6) * nova;
+  col += u_accent * .04 * u_rhythm.y * exp(-d2 / .05);
+  col *= u_params[4];
+  emit(vec4(col, 1.));
+}
+`;
+
+const schema = [
+  {
+    key: "development",
+    label: "Development · dust / spiral / nova",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 0,
+  },
+  { key: "speed", label: "Motion speed", min: 0, max: 2, step: 0.01, default: 1 },
+  { key: "web", label: "Cosmic web", min: 0.6, max: 2.6, step: 0.01, default: 1.8 },
+  { key: "arms", label: "Arm winding", min: 0.5, max: 1.6, step: 0.01, default: 1 },
+  { key: "light", label: "Starlight", min: 0.3, max: 1.6, step: 0.01, default: 1 },
+  { key: "distance", label: "Camera distance", min: 0.7, max: 1.4, step: 0.01, default: 1 },
+  { key: "height", label: "Camera height", min: 0, max: 1, step: 0.01, default: 0.55 },
+  { key: "shock", label: "Shock fronts", min: 0, max: 1.6, step: 0.01, default: 1 },
+];
+
+const look = (name, seed, development, overrides = {}) => ({
+  name,
+  seed,
+  params: {
+    development,
+    speed: 1,
+    web: 1.8,
+    arms: 1,
+    light: 1,
+    distance: 1,
+    height: 0.55,
+    shock: 1,
+    ...overrides,
+  },
+});
+
+export default {
+  id: "nebula",
+  number: 87,
+  name: "Density Waves",
+  description:
+    "One population of stars condenses from a Zel'dovich cosmic web into a density-wave spiral galaxy, then collapses and ignites into a filamentary supernova shell crossed by Sedov–Taylor shock fronts.",
+  development: "development",
+  schema,
+  presets: [
+    look("Drifting Dust", 3141, 0),
+    look("Grand Spiral", 3141, 1),
+    look("Supernova Shell", 3141, 2),
+    look("Cosmic Web", 1618, 0, { web: 2.4, distance: 0.82, height: 0.3 }),
+    look("Edge-on Lanes", 2718, 1, { height: 0.08, distance: 0.84, arms: 1.25 }),
+    look("Open Whirlpool", 577, 1, { height: 0.95, arms: 0.7, distance: 0.9 }),
+    look("Remnant Bloom", 4669, 2, { distance: 0.78, height: 0.35, shock: 1.3 }),
+  ],
+  stage: ["speed", "web", "shock"],
+  type: { key: "development", values: [0, 1, 2] },
+  energy: { speed: { mul: [0.6, 1.5] }, web: { mul: [0.85, 1.15] }, shock: { mul: [0.6, 1.3] } },
+  beat: { punch: 0.06, pulse: 0.1 },
+  audio: [
+    { param: "web", feature: "low", amount: 0.04 },
+    { param: "shock", feature: "onset", amount: 0.08 },
+    { param: "light", feature: "high", amount: 0.02 },
+  ],
+  rhythm: [
+    familyEffect(
+      "arm-light",
+      0,
+      "Arm light",
+      "Young stars on the arm crests and the web's brightest knots flare.",
+      { period: 4, strength: 0.6, duration: 1 },
+    ),
+    familyEffect(
+      "core-flare",
+      1,
+      "Core flare",
+      "The bulge or the compact remnant flares in the accent.",
+      { period: 8, strength: 0.6, duration: 1 },
+    ),
+    familyEffect(
+      "shock-ripple",
+      2,
+      "Shock ripple",
+      "A bright shell of light runs outward through the same stars.",
+      { period: 16, strength: 0.7, duration: 2 },
+    ),
+  ],
+  fragment,
+  simulation: { fragment: simulation, size: [256, 256], steps: 1 },
+  particles: { vertex, fragment: particleFragment },
+};
