@@ -116,6 +116,17 @@ const AUTHORED = [
       { name: "City", look: "descent:Endless City" },
     ],
   },
+  {
+    id: "murmuration",
+    name: "Dusk Murmuration",
+    description:
+      "Loose starlings gather into a surging, folding cloud that ripples when a falcon strikes, then fly a vortex the camera dives into. The same birds throughout.",
+    states: [
+      { name: "Loose", look: "murmuration:Evening Roost" },
+      { name: "Surge", look: "murmuration:Surging Cloud" },
+      { name: "Formation", look: "murmuration:Vortex Mill" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

@@ -73,6 +73,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Linked Fibres](families/fibration.md) (world Hopf Bloom) | fibration | Stereographic Hopf fibres as lit tube meshes | Torus / Nest / Bundle | 8 |
 | [Crystal Habit](families/crystal.md) | crystal | Lattice-aligned growth of faceted hexagonal prisms | Seeds / Lattice / Hall | 8 |
 | [Density Waves](families/nebula.md) | nebula | Zel'dovich web, density-wave orbits and Sedov–Taylor shells on one star population | Dust / Spiral / Nova | 7 |
+| [Starling Flock](families/murmuration.md) | murmuration | Topological-neighbour flock with a fold field, startle waves and formations | Loose / Surge / Formation | 7 |
 | [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |
 | [Living Mycelium](families/mycelium.md) | mycelium | Gray–Scott reaction–diffusion as a lit terrain | Understory / Tide / City | 8 |
 

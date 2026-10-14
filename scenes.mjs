@@ -41,6 +41,7 @@ import caustics from "./scene-caustics.mjs";
 import colonization from "./scene-colonization.mjs";
 import fibration from "./scene-fibration.mjs";
 import nebula from "./scene-nebula.mjs";
+import murmuration from "./scene-murmuration.mjs";
 import descent from "./scene-descent.mjs";
 import mycelium from "./scene-mycelium.mjs";
 
@@ -88,6 +89,7 @@ export default [
   fibration,
   crystal,
   nebula,
+  murmuration,
   descent,
   mycelium,
 ];

@@ -40,6 +40,14 @@ export const FAMILY_CATALOG = {
     styles: ["organic", "spatial"],
     variants: ["Filaments", "Membrane", "Blossom"],
   },
+  murmuration: {
+    algorithm:
+      "Topological-neighbour flocking with a Lagrangian fold field, an excitable startle lattice and formation springs",
+    description:
+      "Birds that always follow the same few neighbours wander loose, surge into a folding cloud that startle waves cross when a falcon strikes, and fly vortex, ribbon and twister formations.",
+    styles: ["particles", "spatial", "organic"],
+    variants: ["Loose", "Surge", "Formation"],
+  },
   nebula: {
     algorithm:
       "Zel'dovich web, density-wave orbits and Sedov–Taylor shells on one star population",
