@@ -61,6 +61,17 @@ const AUTHORED = [
     ],
   },
 ];
+// Earlier shipped definitions of authored worlds. A saved world identical to
+// one of them (or to its current definition) is untouched authored data and
+// follows the current definition. When an authored world changes, append its
+// previous definition here so existing sets upgrade instead of diverging.
+const HISTORY = AUTHORED.slice(0, 2).map((w) => ({
+  ...w,
+  states: w.states.map(({ params, ...state }) => state),
+}));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const untouched = (w) =>
+  [...AUTHORED, ...HISTORY].some((a) => a.id === w?.id && same(a, w));
 export function defaultWorlds(lookIds) {
   const known = new Set(lookIds);
   return structuredClone(
@@ -72,37 +83,28 @@ export function validateWorlds(value, lookIds, scenes = [], catalog = []) {
   if (value === undefined) return defaultWorlds(known);
   if (!Array.isArray(value) || value.length > 32)
     throw new Error(tr("At most 32 worlds"));
-  // Only the untouched two-world library gains the new authored world.
-  // Custom, empty or deliberately reduced libraries remain exact portable data.
+  // An untouched library saved before newer authored worlds existed is the
+  // authored prefix in order; it gains the worlds added since. Custom, empty
+  // or reordered libraries remain exact portable data.
   if (
-    value.length === 2 &&
-    value.every((w) =>
-      AUTHORED.slice(0, 2).some((a) => JSON.stringify(a) === JSON.stringify(w)),
-    ) &&
-    known.has("metamorphosis:First Filaments")
+    value.length &&
+    value.length < AUTHORED.length &&
+    value.every((w, i) => w?.id === AUTHORED[i].id && untouched(w))
   )
-    value = [...value, structuredClone(AUTHORED[2])];
+    value = [
+      ...value,
+      ...structuredClone(
+        AUTHORED.slice(value.length).filter((w) =>
+          w.states.every((s) => known.has(s.look)),
+        ),
+      ),
+    ];
+  value = value.map((w) =>
+    untouched(w) ? structuredClone(AUTHORED.find((a) => a.id === w.id)) : w,
+  );
   const ids = new Set();
   const text = (x, max) => typeof x === "string" && x.trim() && x.length <= max;
   return value.map((w) => {
-    // Upgrade only the exact untouched pre-release library. Custom/imported
-    // worlds keep their definitions, and unrelated set edits are preserved.
-    const authored = AUTHORED.find(
-      (a) =>
-        a.id === w?.id && a.name === w.name && a.description === w.description,
-    );
-    if (
-      authored &&
-      Array.isArray(w.states) &&
-      w.states?.length === authored.states.length &&
-      w.states.every(
-        (state, i) =>
-          state?.name === authored.states[i].name &&
-          state.look === authored.states[i].look &&
-          state.params === undefined,
-      )
-    )
-      w = structuredClone(authored);
     if (
       !w ||
       !text(w.id, 64) ||

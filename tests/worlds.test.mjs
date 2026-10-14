@@ -381,3 +381,19 @@ test("world presentation translates authored copy and preserves user edits", asy
   world.name = "My world";
   assert.deepEqual(worldPresentation(world, "de"), world);
 });
+
+test("an untouched authored prefix gains newer authored worlds; custom libraries stay exact", () => {
+  const set = initialShowSet(scenes);
+  const all = set.worlds.map((w) => w.id);
+  set.worlds = set.worlds.slice(0, 1);
+  assert.deepEqual(
+    validateShowSet(set, scenes).worlds.map((w) => w.id),
+    all,
+  );
+  set.worlds = initialShowSet(scenes).worlds.slice(0, 1);
+  set.worlds[0].name = "My mycelium";
+  assert.deepEqual(
+    validateShowSet(set, scenes).worlds.map((w) => w.name),
+    ["My mycelium"],
+  );
+});
