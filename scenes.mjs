@@ -41,6 +41,7 @@ import caustics from "./scene-caustics.mjs";
 import colonization from "./scene-colonization.mjs";
 import fibration from "./scene-fibration.mjs";
 import nebula from "./scene-nebula.mjs";
+import descent from "./scene-descent.mjs";
 
 export default [
   acid,
@@ -86,6 +87,7 @@ export default [
   fibration,
   crystal,
   nebula,
+  descent,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

@@ -93,6 +93,17 @@ const AUTHORED = [
       { name: "Nova", look: "nebula:Supernova Shell" },
     ],
   },
+  {
+    id: "descent",
+    name: "Endless Descent",
+    description:
+      "Fly through a sponge corridor as it widens into a sunlit cavern and opens into an endless fractal city.",
+    states: [
+      { name: "Corridor", look: "descent:Sponge Corridor" },
+      { name: "Cavern", look: "descent:Pillared Cavern" },
+      { name: "City", look: "descent:Endless City" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

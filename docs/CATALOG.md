@@ -73,6 +73,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Linked Fibres](families/fibration.md) (world Hopf Bloom) | fibration | Stereographic Hopf fibres as lit tube meshes | Torus / Nest / Bundle | 8 |
 | [Crystal Habit](families/crystal.md) | crystal | Lattice-aligned growth of faceted hexagonal prisms | Seeds / Lattice / Hall | 8 |
 | [Density Waves](families/nebula.md) | nebula | Zel'dovich web, density-wave orbits and Sedov–Taylor shells on one star population | Dust / Spiral / Nova | 7 |
+| [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |
 
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 

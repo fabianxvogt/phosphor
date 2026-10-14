@@ -10,6 +10,7 @@ import scenes from "../scenes.mjs";
 const families = {
   fibration: [8.4,["Full Bundle","Nested Shells","Linked Torus","Cyclide Swing","Bundle Weather","Half Bloom","Glass Nest","Slow Core"]],
   crystal: [8.7,["Geode Hall","Quartz Lattice","Cathedral Geode","Amethyst Vault","Dormant Seeds","Glacier Druse","Needle Grotto","Ember Sprouts"]],
+  descent: [9.4, ["Endless City", "Pillared Cavern", "Sponge Corridor", "Skyfall Streets", "Lantern Arcology", "Ember Gallery", "Quiet Vault", "Narrow Lattice"]],
   metamorphosis: [8.2,["Open Blossom","Pearl Membranes","First Filaments","Evening Blossom","Silver Canopy","Wandering Threads"]],
   nebula: [8.4, ["Grand Spiral", "Supernova Shell", "Drifting Dust", "Remnant Bloom", "Open Whirlpool", "Edge-on Lanes", "Cosmic Web"]],
   physarum: [8.6, ["Honeycomb Transport", "Migrating Stations", "Foraging Veins", "Six Food Stations", "Living Circuit", "Annular Foragers", "Fine Nutrient Roads", "Braided Couriers"]],
