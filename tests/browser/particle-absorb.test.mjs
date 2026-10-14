@@ -27,14 +27,27 @@ test(
               number: 999,
               name: id,
               description: "probe",
-              schema: [{ key: "a", label: "a", min: 0, max: 1, step: 0.01, default: 0.5 }],
+              schema: [
+                {
+                  key: "a",
+                  label: "a",
+                  min: 0,
+                  max: 1,
+                  step: 0.01,
+                  default: 0.5,
+                },
+              ],
               presets: [{ name: "Probe", seed: 1, params: { a: 0.5 } }],
               stage: ["a", "a", "a"],
               type: { key: "a", values: [0, 0.5, 1] },
               energy: {},
               beat: { punch: 0, pulse: 0 },
               fragment: "void main(){emit(vec4(vec3(.4),1.));}",
-              simulation: { fragment: "void main(){outColor=vec4(0.);}", size: [4, 4], steps: 1 },
+              simulation: {
+                fragment: "void main(){outColor=vec4(0.);}",
+                size: [4, 4],
+                steps: 1,
+              },
               particles: {
                 vertex: `void main(){gl_Position=vec4(0.,0.,0.,1.);gl_PointSize=64.;v_color=vec3(0.);}`,
                 fragment: `#version 300 es

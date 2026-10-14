@@ -173,6 +173,17 @@ const AUTHORED = [
       { name: "Horizon", look: "horizon:Blazing Horizon" },
     ],
   },
+  {
+    id: "deep-sea",
+    name: "Abyssal Bloom",
+    description:
+      "Blinking sparks in the dark gather into pulsing jellyfish blooms and open onto a glowing reef under shafts of light. The same animals throughout.",
+    states: [
+      { name: "Sparks", look: "abyss:First Sparks" },
+      { name: "Swarms", look: "abyss:Medusa Bloom" },
+      { name: "Reef", look: "abyss:Lantern Reef" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
