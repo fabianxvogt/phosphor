@@ -93,6 +93,7 @@ export class Show {
     this.worldTransition = null;
     this.worldMorph = null;
     this.worldFreezeBeat = null;
+    this.worldWalk = 1;
     this.live = null; // { clip, base } — clip.id is the look id; base: authored params
     this.drift = null; // { keys, from, to, t0, seconds } while params glide
     this.scenes = new Map(scenes.map((s) => [s.id, s]));
@@ -960,7 +961,8 @@ export class Show {
   }
 
   // An autopilot trigger: always a catalog look, keeping the show palette.
-  #autoTrigger(t, a) {
+  #autoTrigger(t, a, event = null) {
+    if (this.world && this.#development()) return this.#autoDevelop(t, event);
     if (this.#worldBusy(t)) return [];
     if (this.world) {
       const world = this.#world();
@@ -986,6 +988,63 @@ export class Show {
       adoptPalette: false,
       transition: a.transition,
     });
+  }
+
+  // Auto development in a continuous world: builds push one state forward,
+  // drops reach the top state within a bar, breakdowns return to the first
+  // state, and regular phrase changes walk to a neighbouring state and back.
+  // A drop or breakdown may redirect a running morph; anything manual takes
+  // over through the autopilot's hand-back (D66).
+  #autoDevelop(t, event) {
+    const world = this.#world(),
+      development = this.#development(world);
+    if (!development || !this.live || this.pending) return [];
+    const value = this.live.clip.snapshot.params[development.key];
+    const { positions } = development;
+    const last = positions.length - 1;
+    let here = 0;
+    positions.forEach((p, i) => {
+      if (Math.abs(p - value) < Math.abs(positions[here] - value)) here = i;
+    });
+    const redirect = event === "drop" || event === "breakdown";
+    if (this.#worldBusy(t) && !redirect) return [];
+    let state,
+      beats = (this.set.worldBars ?? 4) * 4;
+    if (event === "drop") {
+      state = last;
+      beats = 4;
+    } else if (
+      event === "breakdown" ||
+      this.autopilot.breakdownSince !== null
+    ) {
+      state = 0;
+      beats = 32;
+    } else if (event === "build") {
+      state = Math.min(last, here + 1);
+      beats = 32;
+    } else {
+      if (here + this.worldWalk < 0 || here + this.worldWalk > last)
+        this.worldWalk = -this.worldWalk;
+      state = Math.max(0, Math.min(last, here + this.worldWalk));
+    }
+    if (Math.abs(positions[state] - value) < 1e-6) return [];
+    const clip = this.#worldClip(world, state);
+    if (!clip) return [];
+    const clock = this.clock.at(t);
+    this.pending = {
+      clip,
+      at:
+        event === "drop"
+          ? Math.ceil(clock.beat - 1e-9)
+          : clock.beat - clock.beatInBar + 4,
+      fade: beats,
+      adoptPalette: false,
+      transition: "crossfade",
+      world: world.id,
+      carryTraces: true,
+      morph: true,
+    };
+    return [];
   }
 
   #snapshot(snapshot) {
@@ -1311,8 +1370,20 @@ export class Show {
       case "world-prepare":
         this.#prepareWorld(action);
         return [];
-      case "world-start":
-        return this.#startWorld(t);
+      case "world-start": {
+        const prepared = this.preparedWorld;
+        const actions = this.#startWorld(t);
+        // Entering a continuous world hands development to autopilot once
+        // the entry transition is over, not after the full manual hand-back.
+        const world = this.pending?.world && this.#world(this.pending.world);
+        if (world && prepared && this.#development(world))
+          this.autopilot.manualUntil = Math.min(
+            this.autopilot.manualUntil,
+            Math.ceil((this.pending.at - this.clock.at(t).origin) / 4) +
+              prepared.bars,
+          );
+        return actions;
+      }
       case "world-cancel":
         this.preparedWorld = null;
         if (this.pending?.world) this.pending = null;
@@ -1536,7 +1607,13 @@ export class Show {
     this.paletteDirty = false;
     const actions = this.#fire(t);
     const now = this.clock.at(t);
-    if (!this.#worldBusy(t) && (now.bar !== this.lastBar || event)) {
+    // Inside a continuous world, loudness events may redirect a running
+    // development (a drop lands during a build's morph).
+    const redirect = !!(event && this.worldMorph && !this.pending);
+    if (
+      (redirect || !this.#worldBusy(t)) &&
+      (now.bar !== this.lastBar || event)
+    ) {
       this.lastBar = now.bar;
       const auto = this.autopilot.update({
         bar: now.bar,
@@ -1547,8 +1624,16 @@ export class Show {
         palette: this.palette,
         mood: this.set.mood,
       });
+      if (
+        (event === "build" || event === "breakdown") &&
+        this.world &&
+        this.#development() &&
+        this.autopilot.active(now.bar)
+      )
+        actions.push(...this.#autoDevelop(t, event));
       for (const a of auto) {
-        if (a.type === "trigger") actions.push(...this.#autoTrigger(t, a));
+        if (a.type === "trigger")
+          actions.push(...this.#autoTrigger(t, a, event));
         else if (a.type === "energy") {
           this.energy = clamp01(a.value);
           actions.push({

@@ -180,3 +180,54 @@ test("geometry has deterministic finite connected ancestry and bounded mesh size
   assert.equal(data.length % 24, 0);
   assert.equal(organism(112).length, 8);
 });
+
+function auto() {
+  const set = initialShowSet(scenes);
+  set.clock.mode = "manual";
+  set.autopilot.enabled = true;
+  const show = new Show({
+    set,
+    scenes,
+    safeSnapshot: presetSnapshot(scenes[0]),
+    now: 0,
+  });
+  show.command({ type: "world-prepare", id: "unfolding" }, 0);
+  show.command({ type: "world-start" }, 0);
+  show.tick(2);
+  show.tick(10);
+  return show;
+}
+const run = (show, from, to, events = {}) => {
+  for (let t = from; t <= to; t += 0.25) show.tick(t, { event: events[t] });
+};
+test("auto development: a drop reaches the top state within a bar, a breakdown returns to the first", () => {
+  const s = auto();
+  assert.ok(s.autopilot.active(s.clock.at(12).bar));
+  eps(value(s), 0);
+  run(s, 12, 14, { 12: "drop" });
+  eps(value(s), 2);
+  assert.equal(s.live.clip.snapshot.scene, "metamorphosis");
+  run(s, 14.25, 40, { 16: "breakdown" });
+  eps(value(s), 0);
+});
+test("auto development: a build moves one state forward and a drop redirects the running morph", () => {
+  const s = auto();
+  run(s, 12, 15, { 12: "build" });
+  assert.equal(s.worldMorph?.to, 1);
+  assert.ok(value(s) > 0 && value(s) < 1);
+  run(s, 15.25, 19, { 16: "drop" });
+  eps(value(s), 2);
+});
+test("auto development walks neighbouring states and a manual drag takes over", () => {
+  const s = auto();
+  const seen = new Set();
+  for (let t = 12; t < 400; t += 0.5) {
+    s.tick(t);
+    seen.add(Math.round(value(s) * 100) / 100);
+    if (!s.worldMorph) assert.ok([0, 1, 2].includes(value(s)), `${value(s)}`);
+  }
+  assert.ok(seen.has(1) && seen.has(2), [...seen].join());
+  s.command({ type: "world-seek", value: 0.4 }, 400);
+  run(s, 400, 440);
+  eps(value(s), 0.4);
+});
