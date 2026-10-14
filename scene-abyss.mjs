@@ -111,12 +111,12 @@ DJelly dJelly(int i, float dev, float Z, float swarmParam, float rhythmX) {
   vec3 anchor;
   j.swarm = i >= D_NJ;
   if (!j.swarm) {
-    bool lone = i < 3;
+    bool lone = i < 5;
     float z = fract(float(i) * .618034 + .37 + .05 * dRnd(id, 1u)) * D_PERIOD;
     float h5 = dRnd(id, 5u), h3 = dRnd(id, 3u);
-    j.R = lone ? .7 + .12 * h5 : .3 + .45 * h5 * h5;
+    j.R = lone ? .9 + .15 * h5 : .3 + .45 * h5 * h5;
     float side = dRnd(id, 2u) < .5 ? -1. : 1.;
-    float gap = 1.9 + j.R + (lone ? .6 + 1.6 * h3 : 6. * h3 * sqrt(h3));
+    float gap = 1.9 + j.R + (lone ? .3 + 1.2 * h3 : 4.5 * h3 * sqrt(h3));
     anchor = vec3(dCamX(z) + side * gap, lone ? .8 + 1.4 * dRnd(id, 4u) : -1.3 + 4. * dRnd(id, 4u), z);
     birth = lone ? -1. : .3 + .65 * dRnd(id, 6u);
     j.reveal = lone ? 1. : dSS(birth - .25, birth + .05, dev);
@@ -132,7 +132,7 @@ DJelly dJelly(int i, float dev, float Z, float swarmParam, float rhythmX) {
     anchor = centre + vec3(s * cos(a) * r, u * r * .6, s * sin(a) * r * 1.3);
     float h5 = dRnd(id, 5u);
     j.R = .08 + .12 * h5 * h5;
-    birth = 1. + .9 * dRnd(id, 6u);
+    birth = .8 + 1.1 * dRnd(id, 6u);
     float boost = clamp(swarmParam - .5, -.5, .5) * .5 * dSS(.7, 1.3, dev);
     j.reveal = dSS(birth - .12, birth + .05, dev + boost);
   }
@@ -223,6 +223,7 @@ float dCaustic(vec2 p, uint S) {
 vec3 dWater(vec3 rd, float dev) {
   vec3 deep = mix(u_secondary, u_primary, .3) * .007;
   vec3 col = deep * (.8 + .9 * dSS(-.4, .7, rd.y));
+  col += mix(u_secondary, u_primary, .5) * .012 * dSS(.3, 1.2, dev) * dSS(-.2, .9, rd.y);
   float sun = dSS(.9, 1.9, dev);
   col += mix(u_secondary, vec3(1.), .3) * .04 * sun * pow(dSS(-.1, 1., rd.y), 1.8);
   col += mix(u_primary, u_secondary, .4) * .018 * dSS(1.1, 2., dev) * dSS(.08, -.25, rd.y) * dSS(-1., -.15, rd.y);
@@ -819,7 +820,7 @@ void main() {
     float zr = mod(h4 * 32. - Z + 2., 32.) - 2.;
     p = vec3((h3 - .5) * 26. + .3 * dWave(S, 31u, h1), D_FLOOR - .2 + 9.6 * yf, zr);
     float edge = dSS(0., .06, yf) * dSS(1., .9, yf) * dSS(30., 18., zr) * dSS(13., 10., abs(p.x - c.p.x));
-    float light = .045 + .5 * dShaftReveal(dev) * min(dShaftLight(p, Z), 2.);
+    float light = .065 + .5 * dShaftReveal(dev) * min(dShaftLight(p, Z), 2.);
     light += .06 * dSS(1.2, 2., dev) * dSS(-1., -2.7, p.y);
     col = mix(u_secondary, vec3(1.), .55) * light * edge;
     size = .01 + .012 * h1;
@@ -829,12 +830,12 @@ void main() {
     float h7 = dRnd(uid, 60u), h8 = dRnd(uid, 54u);
     vec4 st = texelFetch(u_state, ivec2(id % ${SIZE[0]}, id / ${SIZE[0]}), 0);
     float g = unpack16(st.rg);
-    float base = .045 * dSS(.5, 1.2, dev);
+    float base = .018 + .057 * dSS(.5, 1.2, dev);
     float blink = 0.;
-    if (h7 < .05) {
+    if (h7 < .05 + .07 * (1. - dSS(.3, 1.2, dev))) {
       float t = mod(u_time, 4096.) * (.25 + .3 * h8) + h7 * 97.;
       float slot = floor(t);
-      blink = step(.55, fract(sin(slot * 12.9898 + h8 * 78.2) * 43758.5453)) * pow(sin(D_PI * fract(t)), 8.);
+      blink = step(.55 - .2 * (1. - dSS(.3, 1.2, dev)), fract(sin(slot * 12.9898 + h8 * 78.2) * 43758.5453)) * pow(sin(D_PI * fract(t)), 8.);
     }
     vec3 pc = dPal(.25 + .4 * h8);
     float e = base + 3.6 * g + 1.6 * blink;
@@ -917,7 +918,7 @@ export default {
     look("Siphonophore Drift", 1709, 0.85, { current: 0.6, pulse: 0.8, gaze: 0.35, sway: 1.3 }),
     look("Midnight Swarm", 433, 1.55, { swarm: 0.9, pulse: 1.3, reactivity: 1.4, gaze: 0.15 }),
     look("Sea Pen Meadow", 2203, 1.9, { current: 0.7, glow: 1.2, gaze: -0.45, swarm: 0.3 }),
-    look("Ghost Bells", 877, 1.15, { glow: 0.75, pulse: 0.6, current: 0.5, reactivity: 0.6, gaze: 0.2 }),
+    look("Ghost Bells", 877, 1.15, { glow: 0.95, pulse: 0.6, current: 0.5, reactivity: 0.6, gaze: 0.2 }),
     look("Abyssal Storm", 3301, 2, { current: 1.6, reactivity: 1.8, swarm: 1, pulse: 1.4 }),
   ],
   stage: ["current", "pulse", "reactivity"],

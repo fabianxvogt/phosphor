@@ -33,7 +33,7 @@ export const KIND = {
 };
 // Counts. The opaque part (floor and reef) has a seed-independent vertex
 // count, so the engine can switch to additive blending at OPAQUE_VERTICES.
-export const NJ = 28; // large medusae (the first three are the lone jellies of Sparks)
+export const NJ = 40; // large medusae (the first five are the lone jellies of Sparks)
 export const NS = 144; // swarm medusae in NG groups
 export const NG = 6;
 export const NCH = 6; // siphonophore chains
@@ -107,11 +107,11 @@ export function floorY(x, z) {
 export function jelly(seed, i) {
   if (i < NJ) {
     const h = (k) => rnd(seed, i, k);
-    const lone = i < 3;
+    const lone = i < 5;
     const z = (((i * 0.618034 + 0.37 + 0.05 * h(1)) % 1) + 1) % 1 * PERIOD;
-    const R = lone ? 0.7 + 0.12 * h(5) : 0.3 + 0.45 * h(5) * h(5);
+    const R = lone ? 0.9 + 0.15 * h(5) : 0.3 + 0.45 * h(5) * h(5);
     const side = h(2) < 0.5 ? -1 : 1;
-    const gap = 1.9 + R + (lone ? 0.6 + 1.6 * h(3) : 6 * h(3) ** 1.5);
+    const gap = 1.9 + R + (lone ? 0.3 + 1.2 * h(3) : 4.5 * h(3) ** 1.5);
     const y = lone ? 0.8 + 1.4 * h(4) : -1.3 + 4 * h(4);
     return {
       anchor: [cameraPath(z).at(0) + side * gap, y, z],
@@ -134,7 +134,7 @@ export function jelly(seed, i) {
   return {
     anchor: group.centre.map((v, k) => v + offset[k]),
     R,
-    birth: 1 + 0.9 * h(6),
+    birth: 0.8 + 1.1 * h(6),
     swarm: true,
     tentacle: R * (3.2 + 3 * h(7)),
   };

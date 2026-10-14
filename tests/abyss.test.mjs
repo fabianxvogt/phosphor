@@ -125,11 +125,12 @@ test("identity is independent of development; growth and reveal are continuous a
   assert.ok(items.length > 1000);
   const jellies = Array.from({ length: NJ + NS }, (_, i) => jelly(61, i));
   const count = (dev) => jellies.filter((j) => jellyReveal(j, dev) > 0.5).length;
-  // Sparks: only the three lone medusae. Swarms: every large medusa, few
+  // Sparks: only the five lone medusae. Swarms: every large medusa, few
   // swarm members. Reef: everything.
-  assert.equal(count(0), 3);
+  assert.equal(count(0), 5);
   assert.equal(jellies.slice(0, NJ).filter((j) => jellyReveal(j, 1) > 0.99).length, NJ);
-  assert.ok(jellies.slice(NJ).filter((j) => jellyReveal(j, 1) > 0.5).length < NS * 0.1);
+  const early = jellies.slice(NJ).filter((j) => jellyReveal(j, 1) > 0.5).length;
+  assert.ok(early > 0 && early < NS * 0.3, `${early} swarm members at Swarms`);
   assert.equal(count(2), NJ + NS);
   for (const j of jellies.slice(0, 40)) {
     let last = jellyReveal(j, 0);
