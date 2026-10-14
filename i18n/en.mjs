@@ -1824,4 +1824,5 @@ export default {
   "Bundle": "Bundle",
   "Hopf Bloom": "Hopf Bloom",
   "One torus of linked circles blooms into nested tori and the whole Hopf bundle. Every pair of fibres stays linked.": "One torus of linked circles blooms into nested tori and the whole Hopf bundle. Every pair of fibres stays linked.",
+  "Camera elevation": "Camera elevation",
 };

@@ -1824,4 +1824,5 @@ export default {
   "Bundle": "Bündel",
   "Hopf Bloom": "Hopf-Blüte",
   "One torus of linked circles blooms into nested tori and the whole Hopf bundle. Every pair of fibres stays linked.": "Ein Torus aus verketteten Kreisen erblüht zu verschachtelten Tori und zum ganzen Hopf-Bündel. Je zwei Fasern bleiben verkettet.",
+  "Camera elevation": "Kamerahöhe",
 };

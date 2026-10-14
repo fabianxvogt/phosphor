@@ -105,7 +105,9 @@ void main() {
   // wider lens, so the bundle's outer shells sweep past with real parallax.
   float yaw = TAU * phase(0), drift = TAU * phase(3);
   float bloom = smoothstep(0., 2., dev);
-  float pitch = mix(.3, .5, bloom) + .17 * sin(drift) + .05 * sin(2.3 * drift + 1.);
+  // Elevation sets the look's vantage: 0 the equator, 1 down the axis.
+  float pitch = mix(.3, .5, bloom) + 1.15 * (u_params[6] - .35) + .17 * sin(drift) + .05 * sin(2.3 * drift + 1.);
+  pitch = clamp(pitch, -.3, 1.32);
   float dist = u_params[7] * mix(7.2, 8.0, bloom) * (1. + .04 * sin(1.7 * drift));
   vec3 eye = dist * vec3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw));
   // The tumble moves the core circle's centre to x = tan a; follow it.
@@ -148,8 +150,10 @@ void main() {
   v_layer = float(layer); v_phi = phi;
   // Rhythm cohorts: x a group of whole fibres, y one latitude torus, z one
   // meridian band of fibres through every torus.
-  float fibreIndex = floor(phi * 3.819718634 + .5);
-  v_cohort = u_rhythm.x * step(mod(fibreIndex + float(layer) * 3. - u_rhythmCount.x * 5., 9.), .5);
+  // φ = twist + (j + jitter)·TAU/n, so this recovers the fibre's index j up
+  // to a per-layer offset: every third fibre of every torus forms a cohort.
+  float fibreIndex = floor(phi * LAYER_N[layer] / TAU + .5);
+  v_cohort = u_rhythm.x * step(mod(fibreIndex - u_rhythmCount.x, 3.), .5);
   float shell = mod(u_rhythmCount.y, 5. + 4. * smoothstep(1., 2., dev));
   v_glow = u_rhythm.y * step(abs(float(layer) - shell), .5);
   float meridian = fract(u_rhythmCount.z * .381966) * TAU;
@@ -181,7 +185,7 @@ void main() {
   float ao = 1. - v_core;
   vec3 base = v_color;
   // Outer shells are glassy (rim-lit, dim body) so inner tori show through.
-  float body = 1. - .62 * v_shell;
+  float body = 1. - .5 * v_shell;
   vec3 color = base * (.03 + (.74 * diffuse + .14 * wrap) * ao * body);
   vec3 rim = mix(mix(u_secondary, vec3(1.), .3), u_accent, .22);
   color += rim * fresnel * (.38 + .5 * v_shell) * (.55 + .45 * ao);
@@ -195,11 +199,12 @@ void main() {
                    pow(.5 + .5 * cos((n0 + 1.) * arg + v_phi * 2.), 150.), smoothstep(.2, .8, n - n0));
   color += (mix(base, u_accent, .6) * 1.1 + .25) * bead * .85;
   // The innermost shells are the focus: a faint inner light.
-  color += base * v_heart * (.1 + .25 * wrap);
-  color += mix(base, u_accent, .7) * v_glow * (.25 + .6 * fresnel);
-  float chase = pow(.5 + .5 * cos(v_s - TAU * flow * 3.), 10.);
-  color += u_accent * v_cohort * (.25 + 1.1 * chase);
-  color *= u_params[6] * v_cover;
+  color += base * v_heart * (.14 + .3 * wrap);
+  color += mix(base, u_accent, .6) * v_glow * (.35 + .9 * fresnel);
+  float chase = pow(.5 + .5 * cos(v_s - TAU * flow * 3. - v_phi), 8.);
+  color = mix(color, mix(base, u_accent, .45) * (.5 + .9 * diffuse), .55 * v_cohort);
+  color += mix(u_accent, vec3(1.), .25) * v_cohort * 1.4 * chase;
+  color *= v_cover;
   // Atmosphere: distance fades towards the ground; silhouettes soften into
   // it over about a pixel, which keeps thin tubes from shimmering.
   vec3 ground = ground(gl_FragCoord.xy);
@@ -224,7 +229,7 @@ const schema = [
   { key: "orbit", label: "Camera orbit", min: -1, max: 1, step: 0.01, default: 0.4 },
   { key: "thickness", label: "Tube thickness", min: 0.5, max: 1.6, step: 0.01, default: 1 },
   { key: "beads", label: "Light beads", min: 0, max: 1, step: 0.01, default: 0.4 },
-  { key: "light", label: "Surface light", min: 0.4, max: 1.6, step: 0.01, default: 1 },
+  { key: "elevation", label: "Camera elevation", min: 0, max: 1, step: 0.01, default: 0.35 },
   { key: "distance", label: "Camera distance", min: 0.85, max: 1.3, step: 0.01, default: 1 },
 ];
 
@@ -238,7 +243,7 @@ const look = (name, seed, development, params = {}) => ({
     orbit: 0.4,
     thickness: 1,
     beads: 0.4,
-    light: 1,
+    elevation: 0.35,
     distance: 1,
     ...params,
   },
@@ -256,11 +261,11 @@ export default {
     look("Linked Torus", 9601, 0),
     look("Nested Shells", 9601, 1),
     look("Full Bundle", 9601, 2),
-    look("Cyclide Swing", 9602, 0, { tumble: 1, orbit: -0.3, thickness: 1.25, beads: 0.2 }),
-    look("Glass Nest", 9603, 1, { flow: 0.6, thickness: 0.7, beads: 0.75, distance: 1.12 }),
-    look("Bundle Weather", 9604, 2, { flow: 1.6, orbit: 0.7, thickness: 0.8, beads: 0.9 }),
-    look("Half Bloom", 9605, 1.5, { tumble: 0.8, orbit: -0.5, distance: 0.92 }),
-    look("Slow Core", 9606, 2, { flow: 0.35, tumble: 0.3, orbit: 0.2, thickness: 1.4, beads: 0.1, distance: 0.9 }),
+    look("Cyclide Swing", 9602, 0, { tumble: 1, orbit: -0.3, thickness: 1.3, beads: 0.2, elevation: 0.08 }),
+    look("Glass Nest", 9603, 1, { flow: 0.6, thickness: 0.7, beads: 0.75, distance: 1.12, elevation: 0.95 }),
+    look("Bundle Weather", 9604, 2, { flow: 1.6, orbit: 0.7, thickness: 0.8, beads: 0.9, elevation: 0.55 }),
+    look("Half Bloom", 9605, 1.5, { tumble: 0.8, orbit: -0.5, distance: 0.92, elevation: 0.15 }),
+    look("Slow Core", 9606, 2, { flow: 0.35, tumble: 0.3, orbit: 0.2, thickness: 1.4, beads: 0.1, distance: 0.88, elevation: 0.75 }),
   ],
   stage: ["flow", "tumble", "orbit"],
   type: { key: "development", values: [0, 1, 2] },

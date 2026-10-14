@@ -4,7 +4,7 @@
 // far each layer has bloomed out of its parent latitude, and how far each
 // fibre has grown around its circle; the vertex shader mirrors the functions
 // below exactly.
-export const SEGMENTS = 96; // around each fibre circle
+export const SEGMENTS = 144; // around each fibre circle
 export const SIDES = 8; // around each tube
 export const PER_FIBRE = SEGMENTS * SIDES * 6;
 export const GROW = 0.3; // development span over which one fibre closes
@@ -162,6 +162,7 @@ const float LAYER_THETA[${LAYERS.length}] = float[](${LAYERS.map((l) => l.theta.
 const int LAYER_FROM[${LAYERS.length}] = int[](${LAYERS.map((l) => l.from).join(",")});
 const float LAYER_A[${LAYERS.length}] = float[](${LAYERS.map((l) => l.a.toFixed(4)).join(",")});
 const float LAYER_B[${LAYERS.length}] = float[](${LAYERS.map((l) => l.b.toFixed(4)).join(",")});
+const float LAYER_N[${LAYERS.length}] = float[](${LAYERS.map((l) => l.count.toFixed(1)).join(",")});
 const int SEGMENTS = ${SEGMENTS}, SIDES = ${SIDES}, PER_FIBRE = ${PER_FIBRE};
 const float GROW = ${GROW.toFixed(4)}, MARGIN = ${MARGIN.toFixed(4)};
 float layerTheta(int k, float dev) {
