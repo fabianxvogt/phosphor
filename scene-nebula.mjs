@@ -22,6 +22,8 @@ import {
 // counts per period, so uint wrap keeps them exact for a whole night.
 
 const f = (x) => (Number.isInteger(x) ? `${x}.` : `${x}`);
+// One point per state texel; texel 0 is the clock, so w·h − 1 stars.
+export const SIZE = [512, 256];
 const common = `
 const float NB_TAU = 6.283185307179586;
 const float NB_P = ${f(CLOCK_PERIOD)};
@@ -225,7 +227,7 @@ void main() {
     // Dust: gas glows faintly; the web's caustics brighten by crowding.
     vec3 gas = mix(u_secondary, u_primary, clamp(.1 + .3 * s.tone + .18 * compress, 0., 1.));
     float dustB = .045 * pow(compress, 1.35) + 1.6 * pow(s.tone, 60.);
-    float dustSize = 2.2 + 3.2 * s.layer;
+    float dustSize = 1.9 + 2.6 * s.layer;
     // Spiral: crest stars young and light, inter-arm stars old, lanes dark.
     vec3 young = mix(u_primary, vec3(1.), .38), old = mix(u_secondary, u_primary, .45);
     vec3 starHue = s.kind == 1 ? mix(mix(u_primary, u_accent, .3), vec3(1.), .3) : mix(old, young, crest);
@@ -235,12 +237,12 @@ void main() {
     bright = mix(dustB, starB, p);
     size = mix(dustSize, s.kind == 1 ? 1.7 : 1.5 + .9 * crest, p);
     soft = 1. - p;
-    bool cloudlet = s.kind == 0 && s.layer > .8;
+    bool cloudlet = s.kind == 0 && s.layer > .9;
     if (cloudlet) {
       // Glowing gas: large soft sprites trace the web, then the arms.
       hue = mix(mix(u_secondary, u_primary, .3 + .2 * s.tone), mix(u_primary, u_accent, .12), p * crest);
-      bright = mix(.06 * pow(compress, 1.1), (.05 + .3 * crest) * (1. - .8 * lane) * nbSmooth(.05, .5, s.a), p);
-      size = mix(12. + 10. * s.tone, 9. + 9. * s.tone, p);
+      bright = mix(.12 * pow(compress, 1.1), (.1 + .6 * crest) * (1. - .8 * lane) * nbSmooth(.05, .5, s.a), p);
+      size = mix(11. + 8. * s.tone, 8. + 7. * s.tone, p);
       soft = 1.;
     }
     if (n > 0.) {
@@ -280,7 +282,7 @@ void main() {
       hue = mix(hue, novaHue, s2);
       bright = mix(bright, novaB, s2) + ignite * (s.kind == 1 ? .5 : .12);
       size = mix(size, cloudlet ? 5. + 4. * s.tone : 1.6 + .7 * front, s2);
-      if (cloudlet) bright = mix(bright, (.05 + .05 * shellCompress) + .2 * front, s2);
+      if (cloudlet) bright = mix(bright, (.1 + .1 * shellCompress) + .4 * front, s2);
       else soft *= 1. - s2;
     }
     // Rhythm: arm/filament accent, core flare, outward ripple.
@@ -301,13 +303,13 @@ void main() {
   // Depth: near stars larger and brighter, far ones recede into the dark.
   float near = s.kind == 2 ? 1. : clamp(cam.dist / z, .45, 2.6);
   float fog = s.kind == 2 ? 1. : clamp(exp(-.3 * (z - cam.dist)), .3, 1.7);
-  gl_PointSize = max(1.5 * res, size * res * mix(1., near, .85));
+  gl_PointSize = max(1.5 * res, size * res * mix(1., near, soft > .99 ? .4 : .85));
   // Soft gas keeps its total light as sprites grow; stars stay crisp.
   float spread = max(1., gl_PointSize / (1.6 * res));
   spread = mix(spread * spread, spread, soft);
   v_soft = soft;
   hue = mix(hue * .8 + u_secondary * .2, hue, clamp(fog, 0., 1.));
-  v_color = hue * bright * fog * light * shown * (1.12 - .2 * level) / spread * 4.2;
+  v_color = hue * bright * fog * light * shown * (1.12 - .2 * level) / spread * ${f(4.2 * 65536 / (SIZE[0] * SIZE[1]))};
 }
 `;
 
@@ -402,7 +404,7 @@ export default {
     look("Supernova Shell", 3141, 2),
     look("Cosmic Web", 1618, 0, { web: 2.4, distance: 0.82, height: 0.3 }),
     look("Edge-on Lanes", 2718, 1, { height: 0.08, distance: 0.84, arms: 1.25 }),
-    look("Open Whirlpool", 577, 1, { height: 0.95, arms: 0.7, distance: 0.9 }),
+    look("Open Whirlpool", 577, 1, { height: 0.92, arms: 0.85, distance: 0.86 }),
     look("Remnant Bloom", 4669, 2, { distance: 0.78, height: 0.35, shock: 1.3 }),
   ],
   stage: ["speed", "web", "shock"],
@@ -438,6 +440,6 @@ export default {
     ),
   ],
   fragment,
-  simulation: { fragment: simulation, size: [256, 256], steps: 1 },
+  simulation: { fragment: simulation, size: SIZE, steps: 1 },
   particles: { vertex, fragment: particleFragment },
 };

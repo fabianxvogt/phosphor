@@ -209,13 +209,18 @@ const rotY = (p, ang) => {
 };
 
 // World position of one particle. env: clock (uint32), psi (rad), dev,
-// growth (Zel'dovich D), twist multiplier (arms).
+// growth (Zel'dovich D), arms (twist multiplier), level (energy), shock.
 export function position(world, ident, env) {
-  const { clock, psi = 0, dev = 0, growth = 1.8, arms = 1 } = env;
-  if (ident.kind === 2) {
-    const r = 9;
-    return ident.shellDir.map((v) => v * r);
-  }
+  const {
+    clock,
+    psi = 0,
+    dev = 0,
+    growth = 1.8,
+    arms = 1,
+    level = 0.5,
+    shock = 1,
+  } = env;
+  if (ident.kind === 2) return ident.shellDir.map((v) => v * 9);
   const { p, n } = progress(dev, ident.rank);
   const cloud = 2 * Math.PI * cycle(clock, N.cloud);
   const lambda = ident.ang0 + cloud + psi;
@@ -228,7 +233,9 @@ export function position(world, ident, env) {
   } else {
     const ell = 1 - 0.32 * smooth(0.08, 0.55, ident.a);
     const beta =
-      ident.a * world.twist * arms + 2 * Math.PI * cycle(clock, N.pattern);
+      ident.a * world.twist * arms +
+      2 * Math.PI * cycle(clock, N.pattern) +
+      1.1 * (ident.tone - 0.5) * ident.layer;
     const e = ellipsePolar(ident.a, ident.a * ell, lambda - beta);
     rhoG = e.rho;
     epsG = e.eps;
@@ -238,47 +245,68 @@ export function position(world, ident, env) {
   const rho = rhoQ + (rhoG - rhoQ) * p;
   const y = ident.q[1] + (yG - ident.q[1]) * p;
   const th = lambda + p * epsG;
-  const base = [rho * Math.cos(th), y, rho * Math.sin(th)];
-  const S = zeldovich(world, ident.q, clock);
-  const disp = rotY(S, cloud + psi).map((v) => v * growth * (1 - p));
-  const galaxy = [base[0] + disp[0], base[1] + disp[1], base[2] + disp[2]];
-  if (n <= 0) return galaxy;
+  let pos = [rho * Math.cos(th), y, rho * Math.sin(th)];
+  if (p < 1) {
+    const S = zeldovich(world, ident.q, clock);
+    const wob =
+      2 * Math.PI * cycle(clock, N.wobble) + 2 * Math.PI * ident.tone;
+    const j = 0.03 * (0.4 + 0.9 * level);
+    const jitter = [
+      j * Math.sin(wob + ident.q[1] * 3),
+      j * Math.sin(wob + 1.7 + ident.q[0] * 2),
+      j * Math.cos(wob + ident.q[2] * 2),
+    ];
+    const disp = rotY(
+      S.map((v, i) => v * growth + jitter[i]),
+      cloud + psi,
+    );
+    pos = pos.map((v, i) => v + disp[i] * (1 - p));
+  }
+  if (n <= 0) return pos;
   // Nova: collapse, then the same star rides out on the shell.
-  const shell = shellPoint(world, ident, galaxy, clock, growth);
+  const shell = shellPoint(world, ident, pos, clock, growth, shock);
   const s1 = smooth(0, 0.3, n),
     s2 = smooth(0.18, 1, n);
   const pull = 1 - 0.62 * s1;
-  return galaxy.map((v, i) => v * pull + (shell[i] - v * pull) * s2);
+  return pos.map((v, i) => v * pull + (shell[i] - v * pull) * s2);
 }
 
 // The shell keeps the star's direction from its galaxy position (arms leave
 // their imprint) mixed with its own random direction; the same potential
 // modes, sampled on the sphere, gather the shell into filaments (tangential
-// Zel'dovich caustics) and Rayleigh–Taylor fingers (radial).
+// Zel'dovich caustics) and Rayleigh–Taylor fingers (radial). Sedov–Taylor
+// fronts F = 2.35·c^(2/5) run through it every cycle c.
 export const SHELL = 1.45;
-export function shellPoint(world, ident, from, clock, growth = 1.8) {
-  const len = Math.hypot(...from) || 1;
-  const radial = from.map((v) => v / len);
+export function shockFront(R, clock, shock = 1) {
+  const c = cycle(clock, N.shock);
+  const F = 2.35 * sedovTaylor(c);
+  const amp = shock * smooth(0, 0.05, c) * (1 - c);
+  return amp * Math.exp(-((R - F) * (R - F)) / 0.006);
+}
+export function shellPoint(world, ident, from, clock, growth = 1.8, shock = 1) {
+  const len = Math.max(Math.hypot(...from), 1e-4);
   const dir = ident.shellDir.map(
-    (v, i) => v + 0.8 * radial[i] * (i === 1 ? 0.3 : 1),
+    (v, i) => v + ((0.8 * from[i]) / len) * (i === 1 ? 0.3 : 1),
   );
-  const dl = Math.hypot(...dir) || 1;
+  const dl = Math.hypot(...dir);
   const n0 = dir.map((v) => v / dl);
-  if (ident.kind === 1) return n0.map((v) => v * (0.04 + 0.05 * ident.layer));
+  if (ident.kind === 1)
+    return n0.map((v) => v * (0.015 + 0.05 * ident.layer * ident.layer));
   const q = n0.map((v) => v * 2);
   const S = zeldovich(world, q, clock);
   const along = S[0] * n0[0] + S[1] * n0[1] + S[2] * n0[2];
   const t = n0.map((v, i) => v + 0.35 * growth * (S[i] - along * v));
-  const tl = Math.hypot(...t) || 1;
+  const tl = Math.hypot(...t);
   const nd = t.map((v) => v / tl);
   const fingers = fingerField(world, q, clock);
   const depth =
-    ident.layer < 0.7
-      ? 0.92 + 0.08 * Math.sqrt(ident.layer / 0.7)
-      : 0.3 + 0.75 * (ident.layer - 0.7) / 0.3;
+    ident.layer < 0.6
+      ? 0.92 + 0.08 * Math.sqrt(ident.layer / 0.6)
+      : 0.3 + (0.75 * (ident.layer - 0.6)) / 0.4;
   const breath = 1 + 0.03 * Math.sin(2 * Math.PI * cycle(clock, N.dolly));
   const R = SHELL * breath * (1 + 0.16 * fingers) * depth;
-  return nd.map((v) => v * R);
+  const front = shockFront(R, clock, shock);
+  return nd.map((v) => v * (R + 0.08 * front));
 }
 // Normalised Σ amp·cos(k·q + φ) in about [−1, 1].
 export function fingerField(world, q, clock) {
