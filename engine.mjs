@@ -1147,7 +1147,21 @@ export class Engine {
       gl.enable(gl.DEPTH_TEST);
       gl.depthFunc(gl.LEQUAL);
       gl.bindVertexArray(s.mesh.vao);
-      gl.drawArrays(gl.TRIANGLES, 0, s.mesh.count);
+      // Optional translucent tail: vertices from additiveFrom on are drawn
+      // additively, depth tested against the opaque part without writing.
+      const split = Math.min(
+        s.mesh.count,
+        s.scene.geometry.additiveFrom ?? s.mesh.count,
+      );
+      gl.drawArrays(gl.TRIANGLES, 0, split);
+      if (split < s.mesh.count) {
+        gl.depthMask(false);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE);
+        gl.drawArrays(gl.TRIANGLES, split, s.mesh.count - split);
+        gl.disable(gl.BLEND);
+        gl.depthMask(true);
+      }
       gl.bindVertexArray(this.vao);
       gl.disable(gl.DEPTH_TEST);
     }
@@ -1157,6 +1171,13 @@ export class Engine {
       this.bind(particles, target);
       this.uniforms(particles, s, target, dt, false);
       const [w, h] = s.scene.simulation.size;
+      // Optional: points hidden behind the opaque mesh (no depth writes).
+      const depth = !!(s.scene.particles.depth && s.mesh && geometry?.uniforms);
+      if (depth) {
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL);
+        gl.depthMask(false);
+      }
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
       // Points need no vertex attributes; the quad's array would be overrun.
@@ -1164,6 +1185,10 @@ export class Engine {
       gl.drawArrays(gl.POINTS, 0, w * h);
       gl.enableVertexAttribArray(0);
       gl.disable(gl.BLEND);
+      if (depth) {
+        gl.depthMask(true);
+        gl.disable(gl.DEPTH_TEST);
+      }
     }
     s.vi = 1 - s.vi;
     s.visualReset = false;

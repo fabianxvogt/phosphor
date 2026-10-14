@@ -9,6 +9,7 @@ import scenes from "../scenes.mjs";
 
 const families = {
   fibration: [8.4,["Full Bundle","Nested Shells","Linked Torus","Cyclide Swing","Bundle Weather","Half Bloom","Glass Nest","Slow Core"]],
+  abyss: [8.9, ["Lantern Reef", "Medusa Bloom", "Abyssal Storm", "Sea Pen Meadow", "Midnight Swarm", "First Sparks", "Siphonophore Drift", "Ghost Bells"]],
   crystal: [8.7,["Geode Hall","Quartz Lattice","Cathedral Geode","Amethyst Vault","Dormant Seeds","Glacier Druse","Needle Grotto","Ember Sprouts"]],
   descent: [9.4, ["Endless City", "Pillared Cavern", "Sponge Corridor", "Skyfall Streets", "Lantern Arcology", "Ember Gallery", "Quiet Vault", "Narrow Lattice"]],
   metamorphosis: [8.2,["Open Blossom","Pearl Membranes","First Filaments","Evening Blossom","Silver Canopy","Wandering Threads"]],

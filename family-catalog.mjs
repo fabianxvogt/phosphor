@@ -26,6 +26,14 @@ export const FAMILY_CATALOG = {
     styles: ["geometric", "spatial"],
     variants: ["Seeds", "Lattice", "Hall"],
   },
+  abyss: {
+    algorithm:
+      "Pulsing parametric medusae, sea-pen light waves and disturbance-lit plankton",
+    description:
+      "Deep water lit only by living light: lone medusae and blinking plankton become pulsing jellyfish blooms and a glowing reef the camera glides over.",
+    styles: ["organic", "spatial", "particles"],
+    variants: ["Sparks", "Swarms", "Reef"],
+  },
   descent: {
     algorithm: "Raymarched multi-scale sponge with a morphing coarse carving",
     description:
