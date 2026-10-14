@@ -31,16 +31,19 @@ function frame(dev, open) {
   };
   const coreY = Math.min(xs[0], 1.6) - b,
     coreZ = xs[1] - b;
-  return { b, xs, narrow, ay: 0.15 * b + 0.5 * coreY, az: 0.15 * b + 0.55 * coreZ };
+  return { b, xs, narrow, deck: 0.4 * city, ay: 0.15 * b + 0.5 * coreY, az: 0.15 * b + 0.55 * coreZ };
 }
 function narrowHall(f, p) {
   const q = p.map((v) => v - Math.floor(v / 6 + 0.5) * 6).map(Math.abs);
   const { xs, zs, ys } = f.narrow;
-  return Math.min(
+  const hall = Math.min(
     Math.max(q[1] - xs[0], q[2] - xs[1]),
     Math.max(q[0] - zs[0], q[1] - zs[1]),
     Math.max(q[0] - ys[0], q[2] - ys[1]),
   );
+  // City decks (assumed present in every block for the bound).
+  const m = ((p[1] % 18) + 18) % 18;
+  return Math.max(hall, f.deck - Math.abs(m - 9));
 }
 
 test("descent shader keeps the mirrored hall and camera expressions", () => {
@@ -55,6 +58,9 @@ test("descent shader keeps the mirrored hall and camera expressions", () => {
     "ys *= mix(1.0, mix(0.6, 1.4, r.z), gVar);",
     "xs.x = mix(xs.x, min(xs.x, 2.7), step(r.w, 0.16) * gCity);",
     "zs.y = mix(zs.y, min(zs.y, 1.6 + 2.2 * r.x), step(0.72, r.w) * gCity);",
+    "zs.x = mix(zs.x, 3.4, avenue);",
+    "deck = 0.4 * gCity * step(fract(r.x * 7.0 + r.w * 3.0), 0.55);",
+    "narrow = max(narrow, 0.4 * gCity - abs(mod(p.y, 18.0) - 9.0));",
     "float coreY = min(gXs.x, 1.6) - b, coreZ = gXs.y - b;",
     "float ay = 0.15 * b + 0.5 * coreY, az = 0.15 * b + 0.55 * coreZ;",
     "vec3 ro = vec3(s, ay * sin(2.0 * w + 1.3), az * sin(w));",
