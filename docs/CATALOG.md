@@ -1,6 +1,6 @@
 # Phosphor catalog: families, variants, looks
 
-Status 2026-10-12: **40 renderers, 39 catalog families, 334 authored looks**. The unified catalog includes every authored look and the owner's own looks. No scene, preset, favourite, rating or own-look id is removed by the naming cleanup.
+Status 2026-10-14: **45 renderers, 44 catalog families, 373 authored looks**, including five continuous world families added in Worlds wave 1. The unified catalog includes every authored look and the owner's own looks. No scene, preset, favourite, rating or own-look id is removed by the naming cleanup.
 
 - A **family** has a coherent visual and algorithmic principle. Related renderers can share a catalog identity.
 - A **variant** changes a rule, map, topology, lattice, symmetry, projection or meaningful rendering structure.
