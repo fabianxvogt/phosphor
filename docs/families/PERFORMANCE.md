@@ -144,3 +144,39 @@ node scripts/compare-family-pixels.mjs --reference 074d8b4 --families quasicryst
 ```
 
 Run GPU checks sequentially. Full sweeps return a nonzero exit when a timing budget is exceeded as well as for rendering errors; inspect `profile.json` to distinguish them. Raw reports, captures, prototypes and the paired probe remain local under `artifacts/performance/round4-*`. The final snapshot's source hashes are in `round4-snapshot.json`; the repeatable orchestration is `round4-final-run.py` and the alternating probe is `round4-paired.mjs`. Bulk generated artifacts are not committed.
+
+## Cathedral exact-bounds pass — 14 October 2026
+
+**INCREMENTAL / EMPIRICAL.** Scene-only change to `scene-cathedral.mjs`, compared with `c8d7295`. Loop caps, ray budgets, geometry, shading and the 9×1 data texture are unchanged; Cathedral remains a gated family.
+
+- **Reliquary branches** read their cached centre/radius/rotation with `texelFetch` inside the generation loop instead of copying them into dynamically indexed local arrays.
+- **Reliquary bound:** the relic and every branch lie within radius 3.05 of the relic centre (|branch centre| ≤ 2.30, branch radius ≤ .75; an octahedron lies inside its sphere), so their distance is at least (|c| − 3.05)/√3. With a .15 margin, when this exceeds the ground (and the 32:9 chamber) the field returns the ground/chamber result in the original order.
+- **Nave bound:** ribs (|z| ≤ .13, y ≥ .12), pillars (|z| ≤ .15, y ≤ .12, ||x| − 2.34| ≤ .12) and tracery (y ≥ .28, |z| within .035 of [.16, .325] bays) are box/intersection-bounded; with a .03 margin, when all exceed the enclosure the enclosure is returned.
+- **Folded-gallery bound:** every box of a row lies within |z| ≤ .22 of its row plane (rows rotate only in xy). When both rows (with .03 margin) are farther than the shell and floor, the shell/floor result is returned.
+
+Each early return happens before the skipped geometry and keeps the original strict-`<` tie order, so the first winner and its material are retained. `scripts/check-cathedral-bounds.mjs` records each proposed return and continues the complete evaluation in the same native-GPU function: **125,829,120 points / 1,920 cases** (nave, reliquary, folds; generations 1/1.5/3/4, bay scale .65/1/1.6, energy 0/1, 16:9 and 32:9, three reliquary turns, eight xz/xy slices), **63,132,256 early returns, zero distance or material differences**. Loosening a bound makes the probe fail.
+
+Paired 4K/1080p throughput (`scripts/alternate-family-timing.mjs`: reference and working-tree pages alternate 4-frame bursts in one browser; whole frames including simulation and post; median of 80/96 frames per side). The GPU was shared with other lanes, so these are **INDICATIVE**; earlier runs under heavier load showed the same direction (reliquary −30 to −48%, folds −15 to −20%, nave −3 to −16%, rose ±5%).
+
+| Geometry | 4K before p50 ms | 4K after p50 ms | Change | 1080p before | 1080p after | Change |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 Nave | 37.4 | 33.0 | −12% | 8.4 | 7.8 | −7% |
+| 1 Reliquary | 55.2 | 29.8 | −46% | 17.6 | 9.6 | −45% |
+| 2 Rose | 24.9 | 25.6 | +3% (noise) | 5.0 | 5.1 | +2% (noise) |
+| 3 Folds | 41.0 | 35.8 | −13% | 8.4 | 7.2 | −14% |
+
+Strict image gate (max channel difference ≤ 2/255 against `c8d7295`, all seven authored looks, energies 0.1/0.5/0.95 unless noted): 640×360 at 30 frames; 600 frames at 0.5, 1234.5 and 3599.75 s; 1 frame; 32:9 at 120 frames; fractional geometry 0.5/1.5/2.5; recursion 4 and 1.5; and **28 full 3840×2160 comparisons** (120 frames, energies 0.5/0.95, 0.5 and 1234.5 s). All **189 comparisons of the shipped shader** had **max 1/255** (4K mean ≤ 0.00005/255). One loaded 600-frame sweep of an intermediate version reported two whole-frame differences (≈ 80% of pixels changed, i.e. different camera state, not a local geometry change); both cases passed when rerun alone and the full sweep passed when repeated.
+
+Rejected: a telescoped single-exponential in-scattering with multiplied shaft power passed the image gate but was not measurably faster (paired run −1 to +4%) and was removed. Manually unrolling the reliquary branches gave −30% there but slowed the other geometries by 5–14%. Non-unrolled `sceneSDF` family loops were 12–21% slower. Any change to the folded-gallery row loop body — a skip inside the loop, a never-taken `continue`, a helper function or a manual unroll — changed compiled arithmetic and failed the gate by up to 138/255 at isolated lattice-boundary pixels, even when the skip could not trigger; caching the row rotations in the data texture was bit-identical but not faster. Bounds therefore return before the unchanged original code instead of guarding parts of it. A second nave early return before the tracery loop gained only ≈3% and was not kept.
+
+Remaining hotspots: the primary march itself (most nave/folds steps are near geometry where no bound applies), the nave arch's two square roots per step, the reliquary's grazing silhouette rays, and normals/AO (seven extra field evaluations per hit). The nave and folds glass patterns (Voronoi cells, lattice seams, dominant-axis projection on 45° shells) amplify last-bit arithmetic changes, so future work there needs early returns ahead of untouched code, not rewrites.
+
+```sh
+PHOSPHOR_HEADLESS_RIG=1 node scripts/check-cathedral-bounds.mjs --port 48354
+PHOSPHOR_HEADLESS_RIG=1 node scripts/alternate-family-timing.mjs --reference c8d7295 --bursts 20 --port 48355
+PHOSPHOR_HEADLESS_RIG=1 node scripts/alternate-family-timing.mjs --reference c8d7295 --width 1920 --height 1080 --bursts 24 --port 48355
+PHOSPHOR_HEADLESS_RIG=1 node scripts/compare-family-pixels.mjs --reference c8d7295 --families cathedral --frames 600 --times 0.5,1234.5,3599.75 --port 48352
+PHOSPHOR_HEADLESS_RIG=1 node scripts/compare-family-pixels.mjs --reference c8d7295 --families cathedral --width 3840 --height 2160 --frames 120 --levels 0.5,0.95 --times 0.5,1234.5 --port 48352
+PHOSPHOR_HEADLESS_RIG=1 node scripts/compare-family-pixels.mjs --reference c8d7295 --families cathedral --width 1280 --height 360 --frames 120 --port 48352
+PHOSPHOR_HEADLESS_RIG=1 node scripts/compare-family-pixels.mjs --reference c8d7295 --families cathedral --params '{"geometry":1.5}' --levels 0.5 --port 48352
+```

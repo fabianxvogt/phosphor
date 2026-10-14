@@ -121,6 +121,6 @@ The compact energy/type sheets are 160×90, not full-resolution artistic certifi
 
 ## Budgets, owner decisions and limits
 
-The primary march remains capped by `min(authored steps, 96, u_raySteps)`. In-scattering reuses the primary distance samples; AO uses three extra SDF samples only on hits. `maxRenderWidth` remains 1280 and the native aspect is preserved. Glow stays an authored control and master remains the shared brightness control; no flash path is added.
+The primary march remains capped by `min(authored steps, 96, u_raySteps)`. In-scattering reuses the primary distance samples; AO uses three extra SDF samples only on hits. Conservative early returns in the nave, reliquary and folded-gallery fields (2026-10-14) keep the exact first winner; see [PERFORMANCE.md](PERFORMANCE.md#cathedral-exact-bounds-pass--14-october-2026) and `scripts/check-cathedral-bounds.mjs`. `maxRenderWidth` remains 1280 and the native aspect is preserved. Glow stays an authored control and master remains the shared brightness control; no flash path is added.
 
 Owner must judge structural diversity, blind energy ordering, the open reliquary/rose at peak, atmosphere, palette readability and banking comfort on the venue screen. Compact pixel metrics cannot approve movement or taste. Procedural stained glass and in-scattering are artistic approximations, not physical optics; recursion stays bounded at four generations. Fine lead/engraving can alias at low pixel budgets; the 40-step emergency tier is not owner art approval. No shared contract change is requested.
