@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { hourClockGlsl } from "./scene-time.mjs";
 
 // Fractal Flames (#69): the chaos game. 65,536 GPU particles each pick one
 // of a few transforms at random every tick (weighted), apply it and land
@@ -199,7 +200,7 @@ export function step(species, m, [x, y, c], random, symmetry = 1) {
 }
 
 // ---------------------------------------------------------------- GPU --
-const common = `
+const common = `${hourClockGlsl}
 const float BOXES[${SPECIES * 4}] = float[${SPECIES * 4}](${BOXES.flat()
   .map((v) => v.toFixed(3))
   .join(", ")});
@@ -285,7 +286,9 @@ void main() {
   ivec2 cell = ivec2(gl_FragCoord.xy);
   int s = int(floor(u_params[0] + 0.5));
   int symmetry = int(floor(u_params[1] + 0.5));
-  float m = mod(u_time, 3600.0) * u_params[2] * 0.12 + float(u_seedBits % 628u) * 0.01;
+  // Morph phase t · morph: clock 0, modulo 500π/3 (m = .12 · it enters with
+  // multipliers 1, .8, .7, .6 and .5, all periodic in 20π).
+  float m = hourClock(u_time * u_params[2], 0) * 0.12 + float(u_seedBits % 628u) * 0.01;
   vec4 box = flBox(s);
   vec3 p;
   bool respawn = u_reset;
@@ -359,11 +362,12 @@ void main() {
     : s == 5 ? (star ? vec2(0.0) : vec2(0.3, 0.2)) : vec2(0.0);
   float fit = s == 4 ? (star ? 0.092 : 0.19) : s == 5 ? (star ? 0.75 : 1.15)
     : s == 3 ? 0.85 : 0.42;
-  float t = mod(u_time, 3600.0);
+  float t = u_time;
   vec2 xy = p.xy;
   int copies = int(floor(u_params[1] + 0.5));
   if (s >= 4 && copies > 1) xy = flRot(6.28318531 * float(gl_VertexID % copies) / float(copies)) * xy;
-  vec2 q = flRot(t * u_params[4] * 0.05) * (xy - centre) * fit * u_params[3];
+  // Turn t · spin: clock 1, modulo 40π.
+  vec2 q = flRot(hourClock(t * u_params[4], 1) * 0.05) * (xy - centre) * fit * u_params[3];
   float aspect = u_resolution.x / u_resolution.y;
   gl_Position = vec4(q.x / aspect, q.y, 0.0, 1.0);
   gl_PointSize = max(1.0, u_resolution.y / 720.0);
@@ -492,4 +496,8 @@ export default {
   fragment,
   simulation: { fragment: simulation, size: [SIDE, SIDE], steps: 1 },
   particles,
+  clocks: [
+    { rate: (p) => p[2], period: (500 * Math.PI) / 3 },
+    { rate: (p) => p[4], period: 40 * Math.PI },
+  ],
 };

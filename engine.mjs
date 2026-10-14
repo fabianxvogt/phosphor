@@ -8,6 +8,7 @@ import {
   AUDIO_MAPPING_CAP,
 } from "./scene-contract.mjs";
 import { Compositor, AsyncReadback } from "./compositor.mjs";
+import { advanceClocks, CLOCK_COUNT } from "./scene-time.mjs";
 import { GLOBAL_EFFECTS, samplePattern } from "./rhythm.mjs";
 import {
   authoredRhythm,
@@ -940,6 +941,21 @@ export class Engine {
     }
     s.uniformFrame = this.uniformFrame;
   }
+  // Optional scene clocks (scene-time.mjs): integrated in double precision
+  // after the first hour, uploaded as float32.
+  sceneClocks(s) {
+    s.clocks ??= { time: NaN, upload: new Float32Array(CLOCK_COUNT) };
+    const values = advanceClocks(
+      s.clocks,
+      s.scene.clocks ?? [],
+      s.time,
+      s.params,
+      this.level,
+    );
+    for (let i = 0; i < CLOCK_COUNT; i++)
+      s.clocks.upload[i] = this.finite(values[i]);
+    return s.clocks.upload;
+  }
   uniforms(program, s, target, dt, reset, simulation = false) {
     const gl = this.gl,
       u = program.uniforms;
@@ -947,6 +963,7 @@ export class Engine {
     if (u.u_resolution != null)
       gl.uniform2f(u.u_resolution, target.w, target.h);
     if (u.u_time != null) gl.uniform1f(u.u_time, this.finite(s.time));
+    if (u.u_clock != null) gl.uniform1fv(u.u_clock, this.sceneClocks(s));
     if (u.u_dt != null) gl.uniform1f(u.u_dt, this.finite(dt, 1 / 60));
     if (u.u_seed != null)
       gl.uniform1f(u.u_seed, reduceSeed(this.finite(s.snapshot.seed)));

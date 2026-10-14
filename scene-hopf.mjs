@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { hourClockGlsl } from "./scene-time.mjs";
 
 // Hopf Fibration (#80): the 3-sphere S³ ⊂ C² is a bundle of great
 // circles, one over every point of the 2-sphere. The Hopf map
@@ -67,7 +68,7 @@ void main() {
 `;
 
 const particles = {
-  vertex: `
+  vertex: `${hourClockGlsl}
 const float TAU_H = 6.283185307179586;
 const float GOLDEN = 2.399963229728653;
 void main() {
@@ -82,7 +83,7 @@ void main() {
   float zoom = u_params[5];
   float glow = u_params[6];
   float persistence = clamp(u_params[7], 0.0, 0.95);
-  float t = mod(u_time, 3600.0);
+  float t = u_time;
   float beatPulse = u_rhythmEnabled ? u_rhythm.x : u_beat > 0.0 ? exp(-4.0 * fract(u_beat)) : 0.0;
 
   int f = gl_VertexID / ${POINTS};
@@ -112,7 +113,8 @@ void main() {
     // Scattered base points (a drifting Fibonacci sphere): linked rings.
     float z = 1.0 - 2.0 * u;
     theta = acos(clamp(z, -1.0, 1.0)) + 0.3 * sin(t * 0.17 + float(f));
-    phi = float(f) * GOLDEN + t * 0.05 * (1.0 + latitude);
+    // Latitude follows audio, so this drift integrates after the first hour.
+    phi = float(f) * GOLDEN + hourClock(t * 0.05 * (1.0 + latitude), 0);
   }
   float s = TAU_H * float(k) / ${POINTS}.0;
   float eta = 0.5 * theta;
@@ -271,4 +273,5 @@ export default {
   fragment,
   simulation: { fragment: simulation, size: [FIBRES, POINTS], steps: 1 },
   particles,
+  clocks: [{ rate: (p) => 0.05 * (1 + p[1]), period: 2 * Math.PI }],
 };

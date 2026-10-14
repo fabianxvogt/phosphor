@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { hourClockGlsl } from "./scene-time.mjs";
 
 // Newton Basins (#68): Newton's method z ← z − a·p(z)/p'(z) run on every
 // pixel of the complex plane. Each pixel is coloured by the root it ends up
@@ -89,7 +90,7 @@ export function basin(z, rs, { relax = 1, halley = false, max = 96 } = {}) {
   return -1;
 }
 
-const fragment = `
+const fragment = `${hourClockGlsl}
 const int ITER_CAP = ${ITER_CAP};
 const int MAX_ROOTS = ${MAX_ROOTS};
 vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
@@ -105,9 +106,11 @@ void main() {
   float glowAmount = u_params[5];
   float rings = u_params[6];
   int detail = int(u_params[7]);
-  // Long periods wrapped by mod keep float time exact over a night.
-  float t = mod(u_time, 3600.0);
-  float turn = t * drift * 0.05;
+  // Drift and spin phases integrate after the first hour (scene-time.mjs).
+  float t = u_time;
+  float driftTime = hourClock(t * drift, 0);
+  float spinTime = hourClock(t * spin, 1);
+  float turn = driftTime * 0.05;
   float seed = float(u_seedBits % 997u) * 0.01;
 
   vec2 r[MAX_ROOTS];
@@ -122,7 +125,7 @@ void main() {
     // The degree glides 3 → 8 → 3. Between degrees the extra root grows out
     // of root 0 while the others spread to the (n+1)-gon, so the n-fold star
     // never jumps.
-    float d = 3.0 + 4.98 * (1.0 - abs(fract(t * drift * 0.01) * 2.0 - 1.0));
+    float d = 3.0 + 4.98 * (1.0 - abs(fract(driftTime * 0.01) * 2.0 - 1.0));
     n = int(floor(d));
     float grow = smoothstep(0.0, 1.0, fract(d));
     for (int k = 0; k < MAX_ROOTS; k++) {
@@ -153,7 +156,7 @@ void main() {
   // the beads keep shrinking.
   float breathe = 1.0 + 0.35 * sin(t * 0.07 + seed);
   vec2 centre = 0.18 * vec2(sin(t * 0.031 + seed), cos(t * 0.023));
-  vec2 z = rot2(t * spin * 0.1) * aspectUV() * (2.4 / (zoom * breathe)) + centre;
+  vec2 z = rot2(spinTime * 0.1) * aspectUV() * (2.4 / (zoom * breathe)) + centre;
   vec2 c = z;
   if (method == 3) z = vec2(1.0, 0.0); // Nova: start at the critical point
 
@@ -216,7 +219,7 @@ void main() {
   // Roots as small bright stars: the attractors themselves.
   for (int k = 0; k < MAX_ROOTS; k++) {
     if (k >= n || method == 3) break;
-    vec2 p = rot2(-t * spin * 0.1) * ((r[k] - centre) * zoom * breathe / 2.4);
+    vec2 p = rot2(-spinTime * 0.1) * ((r[k] - centre) * zoom * breathe / 2.4);
     float d = length(aspectUV() - p);
     colour += u_accent * 0.0009 / (d * d + 0.0004) * (0.4 + 0.6 * u_level);
   }
@@ -333,4 +336,5 @@ export default {
   schema,
   presets,
   fragment,
+  clocks: [{ rate: (p) => p[3] }, { rate: (p) => p[4], period: 20 * Math.PI }],
 };

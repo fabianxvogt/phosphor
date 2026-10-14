@@ -102,7 +102,8 @@ vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t
 // Schema: <=8 {key,label,min,max,step,default}; presets: >=6 bounded looks.
 // Visual shading follows output resolution; simulation grids remain independent.
 // Visual u_dt is frame dt; simulation u_dt is fixed 1/60 before reduced-motion
-// scaling. u_time is accumulated fixed-tick scene time. u_tick advances on
+// scaling. u_time is accumulated fixed-tick scene time (float32 on the GPU;
+// long-show wraps and optional integrated clocks: scene-time.mjs). u_tick advances on
 // each simulation write (or visual frame), independent of floating-point time.
 // precompute {fragment,size:[w,h]} optionally prepares an RGBA32F data texture
 // once per visual draw. The visual body receives PRECOMPUTED and may declare

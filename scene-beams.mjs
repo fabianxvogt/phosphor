@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { hourWrapGlsl } from "./scene-time.mjs";
 
 // Light Beams (new, D32): laser fans and searchlight beams in haze — the
 // club's own light language, emissive on black. Analytic and cheap; beams
@@ -25,7 +26,7 @@ const presets = [
   { name: "Strobe Fan", seed: 8106, params: { form: 0, count: 18, width: 0.003, sweep: 1.1, spread: 0.95, haze: 0.3, chase: 0.95, tilt: 0 } },
 ];
 
-const fragment = `
+const fragment = `${hourWrapGlsl}
 const int BEAM_CAP = 24;
 
 float lbHash(float n) { return fract(sin(n * 127.1 + u_seed * 0.013) * 43758.5453); }
@@ -56,6 +57,10 @@ void main() {
   vec2 p = aspectUV();
   float aspect = u_resolution.x / u_resolution.y;
   float t = u_time * sweep;
+  // Per-beam sums use t modulo the period of their use after the first hour
+  // (scene-time.mjs); pillar phases t · (.7 + .6h) keep the raw product.
+  float tTau = hourWrap(t, 6.2831853);
+  float tTurn = hourWrap(t, 6.2831853 / 0.4);
   float beatIndex = floor(u_rhythmEnabled ? u_rhythmCount.x : u_beat);
   float kick = u_rhythmEnabled ? u_rhythm.x : exp(-fract(u_beat) * 5.0);
   vec3 col = vec3(0.0);
@@ -69,7 +74,7 @@ void main() {
     if (form < 0.5) {
       // Fan: one source below the screen, beams spread and sweep together.
       o = vec2(0.0, -0.62);
-      angle = 1.5708 + tilt * 0.6 + k * spread * 2.4 + sin(t + fi * 0.15) * 0.35 * spread;
+      angle = 1.5708 + tilt * 0.6 + k * spread * 2.4 + sin(tTau + fi * 0.15) * 0.35 * spread;
     } else if (form < 1.5) {
       // Pillars: searchlights along the bottom edge, each swaying alone.
       o = vec2(k * aspect * 0.95, -0.58);
@@ -78,11 +83,11 @@ void main() {
       // Crossfire: two banks from the lower corners crossing in the middle.
       float side = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
       o = vec2(side * aspect * 0.5, -0.5 + 0.08 * floor(fi * 0.5));
-      angle = 1.5708 + side * (0.55 + 0.35 * spread * sin(t + fi * 0.6)) + tilt * 0.4;
+      angle = 1.5708 + side * (0.55 + 0.35 * spread * sin(tTau + fi * 0.6)) + tilt * 0.4;
     } else {
       // Starburst: rays radiating from the centre, rotating.
       o = vec2(0.0);
-      angle = fi / count * 6.2831853 + t * 0.4 + tilt;
+      angle = fi / count * 6.2831853 + tTurn * 0.4 + tilt;
     }
     vec2 d = vec2(cos(angle), sin(angle));
     // Beat chase: beams switch on in shifting patterns; steady when zero.

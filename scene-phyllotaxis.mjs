@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { hourClockGlsl } from "./scene-time.mjs";
 
 // Phyllotaxis (#79): Vogel's model of a sunflower head. Seed n sits at
 // radius c·√n and angle n·α. With α the golden angle 360°·(2 − φ) ≈
@@ -41,7 +42,7 @@ void main() {
 `;
 
 const particles = {
-  vertex: `
+  vertex: `${hourClockGlsl}
 const float GOLDEN = ${GOLDEN_ANGLE.toFixed(10)};
 const float FIB[6] = float[](${FIBONACCI.map((f) => `${f}.0`).join(", ")});
 void main() {
@@ -56,7 +57,9 @@ void main() {
   float arms = u_params[5];
   float glow = u_params[6];
   float persistence = clamp(u_params[7], 0.0, 0.95);
-  float t = mod(u_time, 3600.0);
+  float t = u_time;
+  // Sweep/turn/growth t · speed: clock 0 after the first hour.
+  float speedTime = hourClock(t * speed, 0);
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
   float beatPulse = u_rhythmEnabled ? u_rhythm.x : u_beat > 0.0 ? exp(-4.0 * fract(u_beat)) : 0.0;
   float i = float(gl_VertexID);
@@ -73,14 +76,14 @@ void main() {
   float sizeScale = 1.0;
   if (variant == 1) {
     // Sweep through the golden angle; rational angles make spokes.
-    alpha = GOLDEN + radians(angle * 6.0) * sin(t * speed * 0.15);
+    alpha = GOLDEN + radians(angle * 6.0) * sin(speedTime * 0.15);
   }
   if (variant == 2) {
     // Fibonacci sphere, turned in 3D.
     float z = 1.0 - (2.0 * i + 1.0) / N;
     float r = sqrt(max(1.0 - z * z, 0.0));
     vec3 q = vec3(r * cos(i * alpha), r * sin(i * alpha), z);
-    float yaw = t * speed * 0.3, pitch = 0.6 + 0.3 * sin(t * 0.11);
+    float yaw = speedTime * 0.3, pitch = 0.6 + 0.3 * sin(t * 0.11);
     q.xz = mat2(cos(yaw), -sin(yaw), sin(yaw), cos(yaw)) * q.xz;
     q.yz = mat2(cos(pitch), -sin(pitch), sin(pitch), cos(pitch)) * q.yz;
     float depth = 3.0 + q.z;
@@ -92,7 +95,7 @@ void main() {
     if (variant == 3) {
       // Growth: every seed moves out along the spiral; new ones are born
       // at the centre. Identity stays with the seed across the relabel.
-      float phi = t * speed * N * 0.004;
+      float phi = speedTime * N * 0.004;
       n = i + fract(phi);
       id = i - floor(phi);
     }
@@ -241,4 +244,5 @@ export default {
   fragment,
   simulation: { fragment: simulation, size: [SIDE, SIDE * 2], steps: 1 },
   particles,
+  clocks: [{ rate: (p) => p[3] }],
 };

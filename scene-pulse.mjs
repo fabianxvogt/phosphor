@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { hourWrapGlsl } from "./scene-time.mjs";
 
 // Pulse Geometry (D60): clock-cut strobe geometry, not a full-screen flash.
 // Analytic tiles, broken portals, a block floor and splintered radial blades
@@ -124,7 +125,7 @@ const presets = [
   },
 ];
 
-const fragment = `
+const fragment = `${hourWrapGlsl}
 // Periodic hard bands, filtered before they become sub-pixel at the horizon.
 float pgLines(float v, float weight) {
   float footprint = fwidth(v);
@@ -156,6 +157,8 @@ void main() {
   float configuration = mod(floor(u_rhythmEnabled ? u_rhythmCount.z : u_beat), 4.0);
   float cut = configuration * cutAmt;
   float travel = u_time * speed * 1.5;
+  // After the first hour every use takes travel modulo an exact period of
+  // that use (scene-time.mjs), so the night never loses float precision.
   float seedTurn = fract(u_seed * 0.0137);
   float divisions = 1.0 + floor(u_level * 4.0);
   float layers = smoothstep(0.4, 0.9, u_level);
@@ -170,8 +173,8 @@ void main() {
     vec2 q = rot2(angle) * p;
     vec2 cell = q * vec2(count * 0.3, count);
     float row = floor(cell.y);
-    cell.x += travel + mod(row, 2.0) * 0.5
-            + sin(row * 1.7 + travel) * 0.18 + cut * 0.25;
+    cell.x += hourWrap(travel, 100.0) + mod(row, 2.0) * 0.5
+            + sin(row * 1.7 + hourWrap(travel, TAU)) * 0.18 + cut * 0.25;
     vec2 size = vec2(0.43, 0.08 + weight * 0.35 + fill * 0.035);
     // Broad mid-energy slots read as shutters rather than a generic lattice;
     // subdivision accelerates into five slits per brick at energy 0.9.
@@ -179,7 +182,8 @@ void main() {
     vec3 ink = palette(fract(floor(cell.x) * 0.23 + row * 0.137 + seedTurn));
     col = ink * brick;
     col += ink * glow * 0.12 * pgBox(cell, size + 0.035);
-    vec2 chips = q * vec2(count, count * 0.4) + vec2(-travel, travel * 0.7);
+    float chipTravel = hourWrap(travel, 10.0);
+    vec2 chips = q * vec2(count, count * 0.4) + vec2(-chipTravel, chipTravel * 0.7);
     float chip = pgBox(chips + cut * 0.17, vec2(0.055, 0.36));
     col = max(col, palette(fract(row * 0.19 + 0.8)) * chip * layers * 0.55);
   } else if (form < 1.5) {
@@ -188,7 +192,8 @@ void main() {
     vec2 q = rot2(twist * travel * 0.25 + cut * PI * 0.125) * p;
     q -= vec2(sin(cut * PI * 0.5), cos(cut * PI * 0.5) - 1.0) * 0.06;
     float r = max(abs(q.x), abs(q.y));
-    float z = log(max(r, 0.006)) * count * 0.36 - travel * 2.0;
+    float depthTravel = hourWrap(travel, 500.0);
+    float z = log(max(r, 0.006)) * count * 0.36 - depthTravel * 2.0;
     float tangent = abs(q.x) > abs(q.y) ? q.y : q.x;
     float segments = tangent / max(r, 0.006) * divisions + floor(z) * 0.25;
     // A bounded main portal gives the tunnel a focal silhouette, unlike the
@@ -202,7 +207,7 @@ void main() {
     col += ink * glow * 0.1 * pgLines(z, weight * 1.8) * portal;
     vec2 rear = rot2(-twist * travel * 0.3 - 0.2) * (p - vec2(0.24, 0.09));
     float rr = max(abs(rear.x), abs(rear.y));
-    float rz = log(max(rr, 0.006)) * count * 0.27 + travel * 1.4;
+    float rz = log(max(rr, 0.006)) * count * 0.27 + depthTravel * 1.4;
     float rt = abs(rear.x) > abs(rear.y) ? rear.y : rear.x;
     float back = pgLines(rz, weight)
                * pgLines(rt / max(rr, 0.006) * divisions + cut * 0.25, 0.55)
@@ -215,7 +220,7 @@ void main() {
     float h = 0.18 - q.y;
     float z = 0.22 / max(h, 0.02);
     vec2 cell = vec2((q.x - 0.14) * z * count * 0.32,
-                     z * count * 0.22 - travel * 2.0);
+                     z * count * 0.22 - hourWrap(travel, 500.0) * 2.0);
     cell.x += cut * 0.25;
     float block = pgBox(cell, vec2(0.36 + fill * 0.04, 0.32));
     block *= pgBox(cell * divisions, vec2(0.39, 0.36));
@@ -224,26 +229,31 @@ void main() {
     col = ink * block;
     col += ink * glow * 0.08 * pgBox(cell, vec2(0.4, 0.36));
     float circuit = max(pgLines(cell.x + 0.5, weight * 0.4),
-                        pgLines(cell.y + 0.5 + travel * 0.3, weight * 0.4));
+                        pgLines(cell.y + 0.5 + hourWrap(travel, 10.0) * 0.3, weight * 0.4));
     col = max(col, palette(0.9) * circuit * layers * 0.55);
     col *= depth;
   } else {
     // Radial splinters, not rings: staggered tips, tapered angular blades and
     // radial cuts. A shorter, reversed crown interleaves behind the main fan.
     float r = length(p);
-    float a = atan(p.y, p.x) / TAU + seedTurn + travel * 0.12 + twist * 0.1;
+    // Late show: take whole 2500-unit laps out of travel; each lap turns the
+    // fan by exactly 300 · count sectors, restored in the sector index.
+    float laps = u_time < 3600.0 ? 0.0 : floor(travel / 2500.0);
+    float fanTravel = u_time < 3600.0 ? travel : travel - 2500.0 * laps;
+    float a = atan(p.y, p.x) / TAU + seedTurn + fanTravel * 0.12 + twist * 0.1;
     float spoke = a * count + cut * 0.5;
-    float sector = floor(spoke);
+    float localSector = floor(spoke);
+    float sector = localSector + laps * 300.0 * count;
     float tip = 0.045 + 0.12 * fract(sector * 0.381966);
     float width = max(0.12, 0.32 + weight * 0.4 + fill * 0.1 - r * 0.16);
     float blade = pgLines(spoke, width) * smoothstep(tip, tip + 0.012, r);
-    blade *= mix(1.0, pgLines(r * count * 0.7 - travel + sector * 0.17, 0.64), layers);
+    blade *= mix(1.0, pgLines(r * count * 0.7 - fanTravel + localSector * 0.17, 0.64), layers);
     vec3 ink = palette(fract(sector * 0.173 + seedTurn));
     col = ink * blade;
     col += ink * glow * 0.08 * pgLines(spoke, width + 0.08)
          * smoothstep(tip, tip + 0.012, r);
-    float crown = pgLines((a - travel * 0.24) * count + 0.5 - cut * 0.5, 0.23)
-                * pgLines(r * count - travel * 0.7, 0.72)
+    float crown = pgLines((a - fanTravel * 0.24) * count + 0.5 - cut * 0.5, 0.23)
+                * pgLines(r * count - fanTravel * 0.7, 0.72)
                 * smoothstep(0.04, 0.09, r) * (1.0 - smoothstep(0.28, 0.38, r));
     col = max(col, palette(fract(sector * 0.21 + 0.9)) * crown * layers * 0.6);
   }

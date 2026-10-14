@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { hourClockGlsl, hourWrapGlsl } from "./scene-time.mjs";
 
 // Truchet Tiles (#77): random tiles, continuous paths. Each square holds
 // one of two Smith tiles (two quarter arcs around opposite corners), picked
@@ -39,7 +40,7 @@ export function smith([fx, fy], [cx, cy], b) {
   return { d: Math.abs(dc - 0.5), phi, region };
 }
 
-const fragment = `
+const fragment = `${hourClockGlsl}${hourWrapGlsl}
 float tHash(ivec2 c, float b, uint k) {
   return float(cellHash(uvec3(uint(c.x) * 2654435761u, uint(c.y), uint(int(b)) * 8u + k)) >> 8u) / 16777216.0;
 }
@@ -99,20 +100,32 @@ void main() {
   float width = u_params[5];
   float fill = u_params[6];
   float spin = u_params[7];
-  float t = mod(u_time, 3600.0);
+  float t = u_time;
+  // Spin and flow glide with energy/audio: clocks after the first hour.
+  float spinTime = hourClock(t * spin, 0);
+  float flowTime = hourClock(t * flow, 1);
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
   float bNow = floor(u_rhythmEnabled ? u_rhythmCount.z : beats);
   float fade = u_rhythmEnabled ? smoothstep(0.0, 1.0, 1.0 - min(u_rhythm.z * 1.5, 1.0)) : smoothstep(0.0, 0.22, fract(beats));
 
   vec2 uv = aspectUV();
   vec2 p;
+  float shiftX = 0.0; // whole cells taken out of p.x (log-polar, late show)
   if (variant == 3) {
     // Log-polar: an even number of cells around keeps the colouring whole.
     float n = 2.0 * floor(scale * 0.5 + 0.5);
     float r = max(length(uv), 1e-4);
-    p = vec2(log(r) - t * spin * 0.25, atan(uv.y, uv.x)) * n / TAU;
+    float zoomTurn = spinTime * 0.25;
+    if (u_time < 3600.0) p = vec2(log(r) - zoomTurn, atan(uv.y, uv.x)) * n / TAU;
+    else {
+      // Late show: subtract the whole cells of the shift exactly, so p stays
+      // small (precise edges and footprints) and cell hashes stay continuous.
+      float cells = zoomTurn * n / TAU;
+      shiftX = floor(cells);
+      p = vec2(log(r) * n / TAU - (cells - shiftX), atan(uv.y, uv.x) * n / TAU);
+    }
   } else {
-    p = rot2(t * spin * 0.03) * uv * scale + vec2(t * 0.05, t * 0.031);
+    p = rot2(spinTime * 0.03) * uv * scale + vec2(t * 0.05, t * 0.031);
   }
   float px = max(length(fwidth(p)) * 0.7, 1e-5);
 
@@ -128,6 +141,7 @@ void main() {
   } else {
     ivec2 c = ivec2(floor(p));
     if (variant == 3) {
+      c.x -= int(shiftX);
       int n = int(2.0 * floor(scale * 0.5 + 0.5));
       c.y = ((c.y % n) + n) % n;
     }
@@ -152,8 +166,8 @@ void main() {
     float line = 1.0 - smoothstep(wt - px, wt + px, s.x);
     float halo = exp(-max(s.x - wt, 0.0) / (0.6 * wt + 2.0 * px));
     // Pulses run along the oriented curves (standing on the hex tiles).
-    float run = variant == 0 || variant == 3 ? fract(s.y * 2.0 - t * flow * 1.5)
-      : 0.5 + 0.5 * sin(TAU * s.y * 2.0) * sin(t * flow * 3.0);
+    float run = variant == 0 || variant == 3 ? fract(s.y * 2.0 - hourWrap(flowTime * 1.5, 1.0))
+      : 0.5 + 0.5 * sin(TAU * s.y * 2.0) * sin(flowTime * 3.0);
     float beam = pow(run, 6.0) * pulse;
     float pathPulse = pow(max(0.0, cos(s.y * TAU * 2.0 - u_rhythmCount.x * 1.04719755)), 12.0) * u_rhythm.x;
     float tileCohort = (s.z > 0.5) == (mod(u_rhythmCount.y, 2.0) < 1.0) ? 1.0 : 0.0;
@@ -288,4 +302,5 @@ export default {
   schema,
   presets,
   fragment,
+  clocks: [{ rate: (p) => p[7] }, { rate: (p) => p[3] }],
 };

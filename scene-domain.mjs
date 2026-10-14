@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { hourClockGlsl } from "./scene-time.mjs";
 
 // Domain Colouring (#82): a complex function f as an analytic landscape.
 // Rework 2026-10-14 (look audit #3): log |f| is the height of an oblique
@@ -114,7 +115,7 @@ const coefficients = borweinCoefficients()
 // ζ cache for the terrain march: σ across, t along the view.
 const CACHE = [384, 1024];
 
-const shared = `
+const shared = `${hourClockGlsl}
 const float ZETA_E[${ZETA_TERMS}] = float[](${coefficients});
 vec2 cMul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
 vec2 cDiv(vec2 a, vec2 b) { return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / max(dot(b, b), 1e-30); }
@@ -137,13 +138,13 @@ vec2 dZeta(vec2 s, bool wantDerivative, out vec2 d) {
   return cDiv(eta, D);
 }
 float dHash(float a) { return fract(sin(a * 12.9898 + float(u_seedBits % 991u) * .71) * 43758.5453); }
-vec2 dOrbit(float k, float t, float motion) {
-  float a = TAU * dHash(k) + t * motion * (.15 + .2 * dHash(k + 9.)) * (dHash(k + 4.) < .5 ? 1. : -1.);
+vec2 dOrbit(float k, float mt) {
+  float a = TAU * dHash(k) + mt * (.15 + .2 * dHash(k + 9.)) * (dHash(k + 4.) < .5 ? 1. : -1.);
   float r = .35 + .6 * dHash(k + 2.);
   return r * vec2(cos(a), sin(a) * .8);
 }
 struct Dom {
-  int variant; float t; float beats; float motion; float zoom; float span;
+  int variant; float t; float mt; float beats; float motion; float zoom; float span;
   float swap; bool odd; int nA; int nB; vec2 c; vec2 zeros[3]; vec2 poles[3]; vec2 p; vec2 q;
   vec3 ro; vec3 forward; vec3 right; vec3 up; float dist; vec2 cacheMin; vec2 cacheSize;
 };
@@ -152,7 +153,9 @@ Dom domSetup() {
   d.variant = int(floor(u_params[0] + .5));
   d.zoom = u_params[1];
   d.motion = u_params[2];
-  d.t = mod(u_time, 3600.);
+  d.t = u_time;
+  // Motion phase t · motion; integrated after the first hour (clock 0).
+  d.mt = hourClock(d.t * d.motion, 0);
   d.beats = u_beat > 0. ? u_beat : d.t * 2.;
   // Scheduled structure change over one beat: rational zeros and poles trade
   // places; the iterate's degree steps (its heights blend).
@@ -161,11 +164,11 @@ Dom domSetup() {
   d.odd = mod(era, 2.) > .5;
   d.nB = 1 + int(mod(era + 2., 6.));
   d.nA = 1 + int(mod(era + 1., 6.));
-  d.c = vec2(-.75, .12) + .08 * vec2(cos(d.t * d.motion * .11), sin(d.t * d.motion * .17));
+  d.c = vec2(-.75, .12) + .08 * vec2(cos(d.mt * .11), sin(d.mt * .17));
   // Rational: zeros and poles orbit and trade places (fixed per frame).
   float w = d.odd ? 1. - d.swap : d.swap;
   for (int k = 0; k < 3; k++) {
-    vec2 a = dOrbit(float(k), d.t, d.motion), b = dOrbit(float(k) + 20., d.t, d.motion);
+    vec2 a = dOrbit(float(k), d.mt), b = dOrbit(float(k) + 20., d.mt);
     d.zeros[k] = mix(a, b, w);
     d.poles[k] = mix(b, a, w);
   }
@@ -181,14 +184,14 @@ Dom domSetup() {
   if (d.variant == 1) {
     d.span = 14. / d.zoom;
     // Ping-pong along the line between t ≈ 16 and 30 (zeros 14.1 … 37.6 in view).
-    float centre = 16. + 14. * (.5 - .5 * cos(d.t * d.motion * .03));
+    float centre = 16. + 14. * (.5 - .5 * cos(d.mt * .03));
     focus = vec2(.3, centre);
     yaw = -PI / 2. + .12 * sin(TAU * fract(d.t / 150.));
     pitch = .92 + .06 * sin(TAU * fract(d.t / 90.));
   } else {
     d.span = 3.2 / d.zoom;
     focus = vec2(0.);
-    yaw = d.t * d.motion * .025 + .35 * sin(TAU * fract(d.t / 120.));
+    yaw = d.mt * .025 + .35 * sin(TAU * fract(d.t / 120.));
     pitch = .82 + .1 * lvl + .07 * sin(TAU * fract(d.t / 72.));
   }
   vec2 heading = vec2(sin(yaw), cos(yaw));
@@ -282,7 +285,7 @@ vec4 domainField(vec2 z, Dom d, out float trust) {
     vec2 p = d.p, q = d.q;
     vec2 gm = cDiv(z - p, z - q);
     // Loxodromic twist: the phase picks up log-modulus (|f| unchanged).
-    float twist = .6 * sin(d.t * d.motion * .05);
+    float twist = .6 * sin(d.mt * .05);
     float lg = log(max(length(gm), 1e-20));
     float ang = atan(gm.y, gm.x) + twist * lg;
     F = exp(lg) * vec2(cos(ang), sin(ang));
@@ -387,10 +390,12 @@ void main() {
                   + clamp(hw * .7 + .5 - half1, 0., 1.) * smoothstep(.45, .9, lvl) * .6;
   vec3 phaseColour = palette(.42 - .42 * cos(TAU * ph));
   colour += phaseColour * phaseLine * density * grid * (.55 + .45 * pit) * 1.4;
-  float qn = lm * sectors / TAU - d.t * flow * .1;
+  // Band flow t · flow: clock 1, reduced modulo 10 (both uses are 10-periodic).
+  float ft = hourClock(d.t * flow, 1);
+  float qn = lm * sectors / TAU - ft * .1;
   float wq = max(fwidth(qn), 1e-5);
   float modLine = clamp(hw + .5 - abs(fract(qn + .5) - .5) / wq, 0., 1.) * (1. - smoothstep(.15, .4, wq));
-  float band = fract(lm / log(2.) - d.t * flow * .6);
+  float band = fract(lm / log(2.) - ft * .6);
   colour += mix(u_secondary, vec3(1.), .25) * modLine * grid * (.35 + .3 * bands * band) * pit;
 
   // Poles rise as luminous spires; zeros stay dark pits with an ember at
@@ -514,4 +519,5 @@ export default {
   presets,
   fragment,
   precompute: { fragment: precompute, size: CACHE },
+  clocks: [{ rate: (p) => p[2] }, { rate: (p) => p[5], period: 10 }],
 };
