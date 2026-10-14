@@ -2019,28 +2019,63 @@ setInterval(() => {
   syncLocalDemo();
 }, 1000);
 
-// Releases remain pinned mid-show; the explicit updater checks for any other
-// Phosphor window before activating a complete cached generation.
-if ("serviceWorker" in navigator)
+// A freshly opened window starts on the newest complete release. Once the
+// performer has interacted, or while the stage or any other Phosphor window
+// is open, the running generation stays pinned and the top bar offers the
+// explicit updater instead.
+if ("serviceWorker" in navigator) {
+  const opened = performance.now();
+  let touched = false;
+  for (const type of ["pointerdown", "keydown"])
+    addEventListener(type, () => (touched = true), {
+      capture: true,
+      once: true,
+    });
+  const activate = (worker) =>
+    new Promise((resolve) => {
+      const channel = new MessageChannel();
+      const timer = setTimeout(() => resolve({}), 5000);
+      channel.port1.onmessage = ({ data }) => {
+        clearTimeout(timer);
+        resolve(data ?? {});
+      };
+      worker.postMessage({ type: "activate-release" }, [channel.port2]);
+    });
   navigator.serviceWorker
-    .register("./sw.js")
+    .register("./sw.js", { updateViaCache: "none" })
     .then((registration) => {
-      const notify = () => {
-        if (registration.waiting && navigator.serviceWorker.controller)
-          log(
-            tr(
-              "New release cached. Close the stage and other Phosphor tabs/windows, then open Update app in this tab; saved sets are retained.",
-            ),
+      let pending = false;
+      const notify = async () => {
+        // A first install has nothing older to replace.
+        const worker = registration.waiting;
+        if (!worker || !registration.active || pending) return;
+        pending = true;
+        if (!touched && performance.now() - opened < 20000) {
+          const reload = () => location.reload();
+          navigator.serviceWorker.addEventListener("controllerchange", reload);
+          if ((await activate(worker)).ready) return;
+          navigator.serviceWorker.removeEventListener(
+            "controllerchange",
+            reload,
           );
+        }
+        $("updateReady").hidden = false;
+        log(
+          tr(
+            "New release cached. Close the stage and other Phosphor tabs/windows, then open Update app in this tab; saved sets are retained.",
+          ),
+        );
       };
       notify();
       registration.addEventListener("updatefound", () =>
         registration.installing?.addEventListener("statechange", notify),
       );
+      registration.update().catch(() => {});
     })
     .catch(() =>
       log(tr("Offline cache unavailable here (needs HTTPS or localhost).")),
     );
+}
 
 setupControlUI();
 addEventListener("phosphor-theme-change", () =>

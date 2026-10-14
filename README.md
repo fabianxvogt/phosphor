@@ -25,6 +25,8 @@ npm run preview   # http://localhost:48101 (built, offline-capable)
 For a headless control/stage smoke on a local machine with Chrome installed, run `npm run test:browser -- --only show --native-gpu` after building. Use `npm run test:stage-output -- --native-gpu` for popup, Retina-resolution and preview/audio handoff checks, and `npm run test:output-controls -- --native-gpu` for shared BPM and selectable-resolution controls. The default browser runners use software rendering; neither path applies rig timing gates.
 
 Microphone, MIDI, the offline cache and screen placement need HTTPS or localhost.
+A freshly opened Phosphor window updates itself to the newest complete release (one automatic reload) when no stage or other Phosphor window is open and you have not used it yet. A window you are working in, or any open stage, keeps its release; **Update available ↗** then appears in the top bar and opens the updater. The rhythm panel's track names no longer lose their first letter to the button rounding.
+
 If an older offline release still shows **Enter Show mode** or **Prep: click a slot to edit it**, save your clip edits and open [Update Phosphor](https://phosphor-performance.vercel.app/update.html) in that same tab. Close the stage and any other Phosphor tabs/windows, keeping the updater open; click **Update and open Phosphor**. Saved sets are retained.
 
 ## Languages

@@ -1290,6 +1290,7 @@ export default {
   "Update Phosphor": "Phosphor aktualisieren",
   "Update and open Phosphor": "Aktualisieren und Phosphor öffnen",
   "Update app ↗": "App aktualisieren ↗",
+  "Update available ↗": "Update verfügbar ↗",
   "Update failed: {value1}": "Update fehlgeschlagen: {value1}",
   "Use family pattern": "Familienmuster nutzen",
   "Use input": "Eingang nutzen",

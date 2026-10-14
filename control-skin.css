@@ -103,6 +103,22 @@ body {
   box-shadow: none;
   color: var(--muted);
 }
+.update-ready {
+  padding: 5px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-wash);
+  color: var(--ink);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.update-ready[hidden] {
+  display: none;
+}
+.update-ready:hover {
+  filter: brightness(1.15);
+}
 #themeToggle {
   order: 1;
 }
