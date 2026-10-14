@@ -140,7 +140,11 @@ float pFood(vec2 uv, float habitat) {
   float food = 0.0;
   for (int i = 0; i < 6; i++) {
     float a = float(i) * TAU / 6.0 + float(u_seedBits % 97u) * 0.031;
+#ifdef PHOSPHOR_LATE
     float phase = u_time * 0.015;
+#else
+    float phase = mod(u_time, 3600.0) * 0.015;
+#endif
     float radius = habitat > 2.5 ? 0.19 + 0.10 * sin(phase + float(i) * 1.7) : 0.27;
     vec2 centre = vec2(0.5) + radius * vec2(cos(a + phase), sin(a + phase));
     vec2 d = torusDelta(uv, centre);

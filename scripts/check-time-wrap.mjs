@@ -84,6 +84,8 @@ export async function stepAcross({ epochs, step, width, height }) {
   engine.speed = 1;
   return {
     rows,
+    // The long-show variant (PHOSPHOR_LATE) drew the late epochs.
+    late: !!engine.programs.get(slot.scene.id)?.late?.visual?.uniforms,
     glError: gl.getError(),
     nonFinite:
       engine.counters.nonFinite + (window.__harness?.nonFiniteUploads ?? 0),
@@ -224,6 +226,7 @@ export async function checkTimeWrap({
         sceneId,
         glError: health.glError || measured.glError,
         nonFinite: measured.nonFinite,
+        late: measured.late,
         rows: measured.rows,
         verdicts,
         seams: verdicts.filter((verdict) => verdict.seam).map((v) => v.epoch),
@@ -385,7 +388,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
               (v) =>
                 `${v.epoch}: ${v.cross.toFixed(2)} vs ${v.beside.toFixed(2)}${v.seam ? " SEAM" : ""}`,
             )
-            .join("  ")}  (10 s: ${result.verdicts[0].base.toFixed(2)})`,
+            .join(
+              "  ",
+            )}  (10 s: ${result.verdicts[0].base.toFixed(2)})${result.late ? "  late variant" : ""}`,
         ),
     });
     await writeFile(

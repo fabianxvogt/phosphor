@@ -1,5 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { hourClockGlsl } from "./scene-time.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Wallpaper Groups (#76): all 17 plane symmetry groups, made with Frank
 // Farris' wave-function method. A lattice-periodic complex function
@@ -256,7 +256,7 @@ const MAX_TERMS = 8;
 // One unit cell of F and the gradient of |F|²/2, per frame.
 const CELL = 512;
 
-const shared = `${hourClockGlsl}
+const shared = `${lateClockGlsl}
 const mat2 OPS_A[${OPS.length}] = mat2[](${glslOpsA});
 const vec2 OPS_T[${OPS.length}] = vec2[](${glslOpsT});
 const int GROUP_START[${GROUPS.length}] = int[](${starts.join(", ")});
@@ -275,15 +275,16 @@ void wTerm(int j, uint g, bool centred, out vec2 nm, out vec2 w) {
   float a = TAU * wRand(g, uint(j) * 4u + 2u);
   w = r * vec2(cos(a), sin(a));
 }
-struct Wall { int group; int terms; uint g0; uint g1; float mixG; float t; float ft; float beats; float tilt; };
+struct Wall { int group; int terms; uint g0; uint g1; float mixG; float t; float beats; float tilt; };
 Wall wallSetup() {
   Wall s;
   s.group = clamp(int(floor(u_params[0] + .5)), 0, ${GROUPS.length - 1});
   s.terms = clamp(int(floor(u_params[3] + .5)), 2, ${MAX_TERMS});
+#ifdef PHOSPHOR_LATE
   s.t = u_time;
-  // Term phases turn with t · flow: clock 0, modulo 40π (every term speed
-  // .4 + .25j is a multiple of .05).
-  s.ft = hourClock(s.t * u_params[2], 0);
+#else
+  s.t = mod(u_time, 3600.);
+#endif
   s.beats = u_beat > 0. ? u_beat : s.t * 2.;
   // Two generations of coefficients crossfade every 16 beats (morph).
   float era = u_rhythmEnabled ? u_rhythmCount.z : s.beats / 16. * (.25 + .75 * u_params[4]);
@@ -301,7 +302,12 @@ void wTerms(int j, Wall s, out vec2 nm0, out vec2 w0, out vec2 nm1, out vec2 w1)
   wTerm(j, s.g0, centred, nm0, w0);
   wTerm(j, s.g1, centred, nm1, w1);
   // Each term's phase turns with its own speed.
-  float spinJ = s.ft * (.4 + .25 * float(j)) * (mod(float(j), 2.) < .5 ? 1. : -1.);
+#ifdef PHOSPHOR_LATE
+  // t · flow: clock 0, modulo 40π (every term speed .4 + .25j is a multiple of .05).
+  float spinJ = u_clock[0] * (.4 + .25 * float(j)) * (mod(float(j), 2.) < .5 ? 1. : -1.);
+#else
+  float spinJ = s.t * u_params[2] * (.4 + .25 * float(j)) * (mod(float(j), 2.) < .5 ? 1. : -1.);
+#endif
   w0 = rot2(spinJ) * w0 * (1. - s.mixG);
   w1 = rot2(spinJ) * w1 * s.mixG;
 }
@@ -431,8 +437,11 @@ void main() {
   // wrap is invisible), a turn, and a tilt that breathes over 2 minutes and
   // leans further with energy.
   vec2 focus = B * fract(vec2(t * .02, t * .0125));
-  // Camera turn t · spin: clock 1, modulo 2π / .03.
-  float yaw = hourClock(t * spin, 1) * .03 + .3 * sin(TAU * fract(t / 180.));
+#ifdef PHOSPHOR_LATE
+  float yaw = u_clock[1] * .03 + .3 * sin(TAU * fract(t / 180.));
+#else
+  float yaw = t * spin * .03 + .3 * sin(TAU * fract(t / 180.));
+#endif
   float pitch = .44 + .16 * lvl + .09 * sin(TAU * fract(t / 120.));
   vec2 heading = vec2(sin(yaw), cos(yaw));
   vec3 forward = vec3(heading * sin(pitch), -cos(pitch));

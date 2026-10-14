@@ -1,5 +1,4 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { hourWrapGlsl } from "./scene-time.mjs";
 
 const schema = [
   {
@@ -155,7 +154,7 @@ const presets = [
   },
 ];
 
-const fragment = `${hourWrapGlsl}
+const fragment = `
 #define FC_PI PI
 #define FC_TAU TAU
 
@@ -195,15 +194,17 @@ void main() {
   // Energy drives the injector even when an authored transport is stationary.
   // Persistence controls trails, not whether the high-energy look can move.
   float clock = u_time * mix(0.06, 1.8, level * level);
-  // Per-pixel phases take the clock modulo an exact period of their use after
-  // the first hour (scene-time.mjs); uniform phases keep the raw clock.
-  float clockTau = hourWrap(clock, FC_TAU);
   float spin = clamp(rotation * (1.0 + 0.3 * mid), -0.8, 0.8);
   float dilation = clamp(zoom + bass * 0.035 * sign(zoom), -0.22, 0.22);
   vec2 source = fcRotate(p, -spin * dt);
   source *= exp(-dilation * dt);
   if (geometry == 0.0) source = fold(source, sectors);
-  else if (geometry == 2.0) source.x += 0.012 * sin(p.y * 8.0 + clockTau) * dt;
+#ifdef PHOSPHOR_LATE
+  // Late: per-pixel phases take the clock modulo an exact period of their use.
+  else if (geometry == 2.0) source.x += 0.012 * sin(p.y * 8.0 + mod(clock, FC_TAU)) * dt;
+#else
+  else if (geometry == 2.0) source.x += 0.012 * sin(p.y * 8.0 + clock) * dt;
+#endif
   else if (geometry == 3.0) source.y -= 0.08 * dt;
   vec2 sourceUV = source / vec2(aspect, 1.0) + 0.5;
   vec3 history = vec3(0.0);
@@ -224,15 +225,23 @@ void main() {
     float rings = 1.0 + floor(level * 5.0);
     float band = (r - radius) * (8.0 + rings * 2.0);
     float envelope = 1.0 - smoothstep(0.09 + level * 0.18, 0.12 + level * 0.18, abs(r - radius));
-    ink = fcStroke(fract(band - hourWrap(clock, 12.5) * 0.08) - 0.5, 0.16, aa * (8.0 + rings * 2.0)) * envelope;
+#ifdef PHOSPHOR_LATE
+    ink = fcStroke(fract(band - mod(clock, 12.5) * 0.08) - 0.5, 0.16, aa * (8.0 + rings * 2.0)) * envelope;
+#else
+    ink = fcStroke(fract(band - clock * 0.08) - 0.5, 0.16, aa * (8.0 + rings * 2.0)) * envelope;
+#endif
     colorPhase = atan(q.y, q.x) / FC_TAU + r;
   } else if (geometry == 1.0) {
     // Off-axis nested triangular portals, travelling into a dark vanishing point.
     vec2 q = fcRotate(p - vec2(-0.22, 0.06), 0.13 * sin(clock * 0.5 + phase));
     float d = fcPolygon(q, 3.0, 0.0);
     float count = 3.0 + floor(level * 9.0);
+#ifdef PHOSPHOR_LATE
     // 250 clock units move the bands by 100: whole colour cycles (· .17, · 12).
-    float bands = log(max(d, 0.025) / (0.08 + aperture * 0.15)) * count - hourWrap(clock, 250.0) * 0.4;
+    float bands = log(max(d, 0.025) / (0.08 + aperture * 0.15)) * count - mod(clock, 250.0) * 0.4;
+#else
+    float bands = log(max(d, 0.025) / (0.08 + aperture * 0.15)) * count - clock * 0.4;
+#endif
     ink = fcStroke(fract(bands) - 0.5, 0.28, aa * count / max(d, 0.025));
     ink *= smoothstep(0.035, 0.07, d);
     colorPhase = floor(bands) * 0.17;
@@ -240,8 +249,13 @@ void main() {
     // Full-frame interlaced horizontal and vertical ribbons, not radial spokes.
     float count = 6.0 + floor(level * 22.0) + sectors * 0.3;
     vec2 q = p * count;
-    q.x += 0.35 * sin(p.y * 9.0 + clockTau + phase);
-    q.y += 0.35 * sin(p.x * 7.0 - hourWrap(clock, FC_TAU / 0.7) * 0.7);
+#ifdef PHOSPHOR_LATE
+    q.x += 0.35 * sin(p.y * 9.0 + mod(clock, FC_TAU) + phase);
+    q.y += 0.35 * sin(p.x * 7.0 - mod(clock, FC_TAU / 0.7) * 0.7);
+#else
+    q.x += 0.35 * sin(p.y * 9.0 + clock + phase);
+    q.y += 0.35 * sin(p.x * 7.0 - clock * 0.7);
+#endif
     vec2 cell = floor(q);
     vec2 ribbon = abs(fract(q) - 0.5);
     float warp = fcStroke(ribbon.x, 0.1, aa * count);
@@ -254,8 +268,12 @@ void main() {
     float count = 2.0 + floor(level * 5.0);
     vec2 q = p * vec2(count, count * 1.6);
     float column = floor(q.x);
+#ifdef PHOSPHOR_LATE
     // Each column scrolls at its own rate; 100 rows are whole colour cycles.
-    q.y += mod(column, 2.0) * 0.5 + hourWrap(clock * (0.18 + 0.06 * sin(column + phase)), 100.0);
+    q.y += mod(column, 2.0) * 0.5 + mod(clock * (0.18 + 0.06 * sin(column + phase)), 100.0);
+#else
+    q.y += mod(column, 2.0) * 0.5 + clock * (0.18 + 0.06 * sin(column + phase));
+#endif
     vec2 cell = abs(fract(q) - 0.5);
     float tile = max(cell.x / 0.42, cell.y / 0.43);
     float outside = 1.0 - smoothstep(0.92, 1.0 + aa * count, tile);

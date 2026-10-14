@@ -1,5 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { hourClockGlsl } from "./scene-time.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Indra's Pearls (#74): limit sets of groups of Möbius maps, drawn per pixel
 // by walking each point back into a fundamental domain. Every step applies
@@ -69,7 +69,7 @@ export function steinerRho(n) {
   return (1 - s) / (1 + s);
 }
 
-const fragment = `${hourClockGlsl}
+const fragment = `${lateClockGlsl}
 vec2 kMul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
 vec2 kDiv(vec2 a, vec2 b) { return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / dot(b, b); }
 vec2 kExp(vec2 z) { return exp(z.x) * vec2(cos(z.y), sin(z.y)); }
@@ -90,9 +90,12 @@ void main() {
   int maxDepth = int(floor(u_params[5] + 0.5));
   float rim = u_params[6];
   float fill = u_params[7];
-  float t = u_time;
+#ifdef PHOSPHOR_LATE
   // Flow t · flow glides with energy/audio: clock 0 after the first hour.
-  float flowTime = hourClock(t * flow, 0);
+  float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   float beatPulse = u_rhythmEnabled ? u_rhythm.z : u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
 
   vec2 zs = aspectUV() * 2.3 / zoom;
@@ -117,7 +120,11 @@ void main() {
       vec2 om = vec2(1.0, 0.0) - z;
       der *= 2.0 / max(dot(om, om), 1e-9);
       vec2 p = kMul(vec2(0.0, 1.0), kDiv(vec2(1.0, 0.0) + z, om));
-      p.x += fract(flowTime * 0.08);
+#ifdef PHOSPHOR_LATE
+      p.x += fract(u_clock[0] * 0.08);
+#else
+      p.x += fract(t * flow * 0.08);
+#endif
       if (p.y > 1.0) { dLocal = p.y - 1.0; inner = clamp(dLocal * 0.5, 0.0, 1.0); }
       else {
         limit = true;
@@ -143,7 +150,11 @@ void main() {
     }
   } else if (variant == 1) {
     // Schottky group: a pairs the circles at (±c, 0), b those at (0, ±c).
-    z = kMul(z, kExp(vec2(0.0, flowTime * 0.05)));
+#ifdef PHOSPHOR_LATE
+    z = kMul(z, kExp(vec2(0.0, u_clock[0] * 0.05)));
+#else
+    z = kMul(z, kExp(vec2(0.0, t * flow * 0.05)));
+#endif
     float c = 1.0;
     float kiss = clamp(shape + 0.04 * beatPulse * u_level, 0.0, 0.995);
     float r = c * 0.70710678 * mix(0.55, 1.0, kiss);
@@ -166,7 +177,11 @@ void main() {
     // parity tints the rings, so the loop is seamless.
     float L = log(2.2);
     vec2 lk = vec2(L, shape * PI);
-    float tau = 2.0 * fract(flowTime * 0.02);
+#ifdef PHOSPHOR_LATE
+    float tau = 2.0 * fract(u_clock[0] * 0.02);
+#else
+    float tau = 2.0 * fract(t * flow * 0.02);
+#endif
     z = kMul(z * 1.4, kExp(-lk * tau));
     der *= 1.4 * exp(-L * tau);
     float m = exp(0.5 * L);
@@ -209,7 +224,11 @@ void main() {
         der *= (1.0 - dot(a, a)) / dot(den, den);
         vec2 w = kDiv(z + a, den);
         float dir = mod(depth, 2.0) < 0.5 ? 1.0 : -1.0;
-        w = kMul(w, kExp(vec2(0.0, -dir * flowTime * 0.3)));
+#ifdef PHOSPHOR_LATE
+        w = kMul(w, kExp(vec2(0.0, -dir * u_clock[0] * 0.3)));
+#else
+        w = kMul(w, kExp(vec2(0.0, -dir * t * flow * 0.3)));
+#endif
         float rw = length(w);
         if (rw < rho) { z = w / rho; der /= rho; depth += 1.0; last = n; continue; }
         float sector = TAU / n;

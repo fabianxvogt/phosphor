@@ -143,7 +143,11 @@ void main() {
   float relax = clamp(u_params[2], 0.0, 1.0);
   float jolt = u_params[3];
   float burst = u_params[4];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   float p = vMetric(variant, u_params[5], t);
   float sp = vSpacing(N);
 
@@ -199,7 +203,11 @@ const precompute = `${header}
 void main() {
   int i = int(gl_FragCoord.x);
   int N = clamp(int(floor(u_params[1] + 0.5)), 8, MAX_N);
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   outColor = vec4(0., 0., vRadius(i, t, vSpacing(N)), 1.);
 }
 `;
@@ -211,7 +219,11 @@ void main() {
   float burst = u_params[4];
   float glow = u_params[6];
   float fill = u_params[7];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   float p = vMetric(variant, u_params[5], t);
   float sp = vSpacing(N);
 

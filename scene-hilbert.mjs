@@ -1,5 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { hourClockGlsl } from "./scene-time.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Space-filling Curves (#78): one unbroken line through every cell of a
 // grid. Hilbert's curve (2×2 refinement), Moore's closed version (four
@@ -154,11 +154,12 @@ const schedule = `
   float fill = u_params[5];
   float comet = u_params[6];
   float zoom = u_params[7];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
-  // Colour flow t · flow and the comet: clocks after the first hour.
-  float flowTime = hourClock(t * flow, 0);
-  float headTime = hourClock(t * (0.01 + 0.04 * flow), 1);
 
   // Refinement schedule: ping-pong between order 1 (2 for Moore) and max.
   int lo = kind == 1 ? 2 : 1;
@@ -177,7 +178,7 @@ const schedule = `
 
 `;
 
-const curveFunctions = `${hourClockGlsl}
+const curveFunctions = `${lateClockGlsl}
 #ifdef PRECOMPUTED
 uniform highp sampler2D u_precomputed;
 int sOrder;
@@ -318,10 +319,19 @@ ${schedule}
     int own = sXy2d(kind, o, cell);
     float u = along;
     float cycles = 1.0 + float(o);
-    vec3 pathColour = palette(fract(u * cycles - flowTime * 0.2 + copy * 0.5));
+#ifdef PHOSPHOR_LATE
+    // Colour flow t · flow (clock 0, modulo 5) and the comet (clock 1, modulo 1).
+    vec3 pathColour = palette(fract(u * cycles - u_clock[0] * 0.2 + copy * 0.5));
+#else
+    vec3 pathColour = palette(fract(u * cycles - t * flow * 0.2 + copy * 0.5));
+#endif
     // Locality fill: every cell in the colour of its place on the line.
     float cellU = (float(own) + 0.5) / float(total);
-    vec3 cellColour = palette(fract(cellU * cycles - flowTime * 0.2 + copy * 0.5));
+#ifdef PHOSPHOR_LATE
+    vec3 cellColour = palette(fract(cellU * cycles - u_clock[0] * 0.2 + copy * 0.5));
+#else
+    vec3 cellColour = palette(fract(cellU * cycles - t * flow * 0.2 + copy * 0.5));
+#endif
     colour += cellColour * fill * (variant == 3 ? 0.55 : 0.12);
     float wt = (0.06 + 0.3 * width) / float(n);
     float line = 1.0 - smoothstep(wt - px, wt + px, best);
@@ -329,7 +339,11 @@ ${schedule}
     colour = mix(colour, mix(pathColour, vec3(1.0), 0.25), line * (0.65 + 0.35 * u_level));
     colour += pathColour * halo * 0.25;
     // The comet: one point running the whole line.
-    float head = fract(headTime + copy * 0.5);
+#ifdef PHOSPHOR_LATE
+    float head = fract(u_clock[1] + copy * 0.5);
+#else
+    float head = fract(t * (0.01 + 0.04 * flow) + copy * 0.5);
+#endif
     float rhythmicHead = fract(u_rhythmCount.x * 0.173 + copy * 0.5);
     float rhythmicGap = abs(fract(u - rhythmicHead + 0.5) - 0.5);
     colour += mix(pathColour, u_accent, 0.5) * exp(-rhythmicGap * 70.0) * u_rhythm.x * (line + 0.3 * halo);

@@ -1,5 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { hourClockGlsl } from "./scene-time.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Harmonograph (#75): curves drawn by oscillators, like an XY oscilloscope
 // on a phosphor screen. 65 536 points sample the whole curve every frame
@@ -71,7 +71,7 @@ void main() {
 `;
 
 const particles = {
-  vertex: `${hourClockGlsl}
+  vertex: `${lateClockGlsl}
 const vec2 RATIOS[${RATIOS.length}] = vec2[](${ratioTable});
 const float KNOT_C[${RATIOS.length}] = float[](${knotTable});
 const float TAU_H = 6.283185307179586;
@@ -85,7 +85,11 @@ void main() {
   float glow = u_params[5];
   float persistence = clamp(u_params[6], 0.0, 0.97);
   float spin = u_params[7];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
   float beatPulse = u_rhythmEnabled ? u_rhythm.x : u_beat > 0.0 ? exp(-5.0 * fract(u_beat)) : 0.0;
   vec2 ab = RATIOS[ri];
@@ -98,8 +102,12 @@ void main() {
   if (variant == 0) {
     // Lissajous: x = sin(a·u + δ), y = sin(b·u); δ precesses.
     float u = s * TAU_H;
-    // Precession δ: clock 0 after the first hour, modulo 2π.
-    float delta = hourClock(t * (0.05 + 0.6 * detune) + 0.4, 0);
+#ifdef PHOSPHOR_LATE
+    // δ is added to every curve point: clock 0 keeps it below 2π + .4.
+    float delta = u_clock[0];
+#else
+    float delta = t * (0.05 + 0.6 * detune) + 0.4;
+#endif
     p = vec2(sin(ab.x * u + delta), sin(ab.y * u));
     len = (ab.x + ab.y) * 1.6;
   } else if (variant == 1) {
@@ -125,7 +133,11 @@ void main() {
     // Spirograph: hypotrochoid with R:r = b:a has b petals.
     float R = ab.y, r = ab.x;
     float u = s * TAU_H * r;
-    float dpen = r * (0.3 + 1.2 * shape) * (1.0 + 0.15 * sin(hourClock(t * (0.1 + 0.5 * detune), 1)));
+#ifdef PHOSPHOR_LATE
+    float dpen = r * (0.3 + 1.2 * shape) * (1.0 + 0.15 * sin(u_clock[1]));
+#else
+    float dpen = r * (0.3 + 1.2 * shape) * (1.0 + 0.15 * sin(t * (0.1 + 0.5 * detune)));
+#endif
     float k = (R - r) / r;
     p = vec2((R - r) * cos(u) + dpen * cos(k * u), (R - r) * sin(u) - dpen * sin(k * u)) / (R - r + dpen);
     len = (R + dpen) * 2.5;
@@ -133,7 +145,11 @@ void main() {
     // Lissajous knot (a, b, c) turned in 3D, in perspective.
     float u = s * TAU_H;
     vec3 q = vec3(cos(ab.x * u + 0.7), cos(ab.y * u + 1.3), cos(KNOT_C[ri] * u));
-    float yaw = hourClock(t * (0.1 + 0.5 * spin), 2), pitch = 0.5 * sin(t * 0.13) + 0.3;
+#ifdef PHOSPHOR_LATE
+    float yaw = u_clock[2], pitch = 0.5 * sin(t * 0.13) + 0.3;
+#else
+    float yaw = t * (0.1 + 0.5 * spin), pitch = 0.5 * sin(t * 0.13) + 0.3;
+#endif
     q.xz = mat2(cos(yaw), -sin(yaw), sin(yaw), cos(yaw)) * q.xz;
     q.yz = mat2(cos(pitch), -sin(pitch), sin(pitch), cos(pitch)) * q.yz;
     float depth = 3.2 + q.z;
@@ -144,7 +160,11 @@ void main() {
   }
   // Slow turn for the flat curves.
   if (variant != 3) {
-    float a = hourClock(t * spin, 3) * 0.05;
+#ifdef PHOSPHOR_LATE
+    float a = u_clock[3] * 0.05;
+#else
+    float a = t * spin * 0.05;
+#endif
     p = mat2(cos(a), -sin(a), sin(a), cos(a)) * p;
   }
   // Independent pen-comet and harmonic-lobe tracks illuminate the actual curve.
@@ -283,8 +303,8 @@ export default {
   fragment,
   simulation: { fragment: simulation, size: [SIDE, SIDE], steps: 1 },
   particles,
-  // Detune and spin glide with energy and audio, so their phases integrate
-  // after the first hour (scene-time.mjs); every use is 2π-periodic.
+  // Detune and spin glide with energy and audio: integrated phases after
+  // the first hour (scene-time.mjs); every use is periodic.
   clocks: [
     { rate: (p) => 0.05 + 0.6 * p[2], offset: 0.4, period: 2 * Math.PI },
     { rate: (p) => 0.1 + 0.5 * p[2], period: 2 * Math.PI },

@@ -2,40 +2,38 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
-import { HOUR, CLOCK_COUNT, advanceClocks } from "../scene-time.mjs";
+import {
+  HOUR,
+  CLOCK_COUNT,
+  advanceClocks,
+  shaderSources,
+  shaderVariant,
+  usesLateVariant,
+} from "../scene-time.mjs";
 import { MORPH_PERIOD, MORPH_WAVES } from "../scene-attractor.mjs";
 
-const sources = (scene) =>
-  [
-    scene.fragment,
-    scene.simulation?.fragment,
-    scene.particles?.vertex,
-    scene.particles?.fragment,
-    scene.precompute?.fragment,
-    scene.field?.fragment,
-    scene.deposit?.fragment,
-    scene.geometry?.vertex,
-  ]
-    .filter((source) => typeof source === "string")
+// What runs after the first hour: the PHOSPHOR_LATE variant where a scene
+// has one, else its only sources.
+const lateSources = (scene) =>
+  shaderSources(scene)
+    .map((source) => shaderVariant(source, usesLateVariant(scene)))
     .join("\n");
 
 // A wrap of scene time is only seamless if every use of it is periodic.
-// These are the audited exceptions; everything else uses raw u_time,
-// hourWrap (a use-specific period) or hourClock (integrated clocks).
+// These are the audited exceptions; the long-show forms use raw u_time,
+// use-specific periods or integrated clocks.
 const PERIODIC_WRAPS = {
   // Morph waves have whole periods (13 and 19) in MORPH_PERIOD.
-  attractor: [
-    /mod\(u_time, \$\{g\(MORPH_PERIOD\)\}\)|mod\(u_time, 2400\.?0?\)/,
-  ],
+  attractor: [/mod\(u_time, 2400\.0\)/],
   // A 24 s gather/launch/return arc of simulation gains (integrated state).
   phase: [/mod\(u_time, 24\.0\)/],
   // Dust phase enters only sin(… ± phase).
   descent: [/mod\(u_time \* 0\.21, TAU\)/],
 };
 
-test("no scene wraps u_time unless every use is periodic", () => {
+test("no long-show shader wraps u_time unless every use is periodic", () => {
   for (const scene of scenes) {
-    const wraps = sources(scene).match(/mod\(\s*u_time[^;]*/g) ?? [];
+    const wraps = lateSources(scene).match(/mod\(\s*u_time[^;]*/g) ?? [];
     for (const wrap of wraps) {
       const allowed = (PERIODIC_WRAPS[scene.id] ?? []).some((pattern) =>
         pattern.test(wrap),
@@ -45,6 +43,42 @@ test("no scene wraps u_time unless every use is periodic", () => {
   }
 });
 
+test("the first-hour variant is the authored source without clocks", () => {
+  for (const scene of scenes.filter(usesLateVariant))
+    for (const source of shaderSources(scene)) {
+      const early = shaderVariant(source, false);
+      assert.doesNotMatch(early, /PHOSPHOR_LATE|u_clock/, scene.id);
+      // Branches are balanced: both variants keep every other directive.
+      const late = shaderVariant(source, true);
+      for (const variant of [early, late])
+        assert.equal(
+          (variant.match(/^\s*#if/gm) ?? []).length,
+          (variant.match(/^\s*#endif/gm) ?? []).length,
+          scene.id,
+        );
+    }
+});
+
+test("shaderVariant keeps one branch and passes other directives", () => {
+  const source = [
+    "a;",
+    "#ifdef PHOSPHOR_LATE",
+    "late;",
+    "#ifdef PRECOMPUTED",
+    "cache;",
+    "#endif",
+    "#else",
+    "early;",
+    "#endif",
+    "b;",
+  ].join("\n");
+  assert.equal(
+    shaderVariant(source, true),
+    "a;\nlate;\n#ifdef PRECOMPUTED\ncache;\n#endif\nb;",
+  );
+  assert.equal(shaderVariant(source, false), "a;\nearly;\nb;");
+});
+
 test("attractor morph waves complete whole periods in MORPH_PERIOD", () => {
   for (const waves of MORPH_WAVES) assert.ok(Number.isInteger(waves));
   assert.ok(Number.isInteger(MORPH_PERIOD));
@@ -52,24 +86,22 @@ test("attractor morph waves complete whole periods in MORPH_PERIOD", () => {
 
 test("scene clocks are declared, bounded and used by index", () => {
   for (const scene of scenes) {
-    const text = sources(scene);
-    const used = [...text.matchAll(/hourClock\([^;]*?,\s*(\d+)\)/g)].map(
-      (match) => Number(match[1]),
-    );
+    const used = [
+      ...lateSources(scene).matchAll(/(?<!float )u_clock\[(\d+)\]/g),
+    ].map((match) => Number(match[1]));
     const clocks = scene.clocks ?? [];
     assert.ok(clocks.length <= CLOCK_COUNT, `${scene.id}: too many clocks`);
-    if (!clocks.length) {
-      assert.equal(used.length, 0, `${scene.id}: hourClock without clocks`);
-      continue;
-    }
+    if (clocks.length) assert.ok(usesLateVariant(scene), scene.id);
     for (const [i, clock] of clocks.entries()) {
       assert.equal(typeof clock.rate, "function", `${scene.id} clock ${i}`);
       assert.ok(used.includes(i), `${scene.id}: clock ${i} unused`);
       if (clock.period !== undefined)
         assert.ok(clock.period > 0 && Number.isFinite(clock.period));
       // Rates are finite across the parameter ranges and energy.
-      const params = scene.schema.map((def) => def.max);
-      for (const p of [params, scene.schema.map((def) => def.min)])
+      for (const p of [
+        scene.schema.map((def) => def.max),
+        scene.schema.map((def) => def.min),
+      ])
         for (const level of [0, 1])
           assert.ok(Number.isFinite(clock.rate(p, level)), `${scene.id} ${i}`);
     }

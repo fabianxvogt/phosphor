@@ -28,7 +28,7 @@ Nothing may stop, die out, freeze or run into a dead end. A night lasts up to 8 
 
 - Simulations detect a stale state (extinct, static, short-period or saturated) and recover: reseed, inject or rain new seeds. Do it visibly but smoothly, and prefer a local event over a full reset.
 - Zooms and journeys loop seamlessly, for example by using self-similarity or crossfading between equivalent depths.
-- Time must stay seamless and precise for the whole night ([TIME.md](TIME.md)). **Never write `mod(u_time, P)` unless every use of the result is P-periodic**: a frequency that does not complete whole cycles in P makes the picture jump once per wrap. Raw `u_time · k` is fine while every *uniform* phase stays small enough in float32 (ulp(43 200 · k) / 2 in radians or pixels). Before adding time to per-pixel values, reduce it with `hourWrap(x, P)` (P = an exact period of that use). Phases whose rate is a parameter (energy, audio, faders) use `hourClock(time * rate, i)` with a declared `clocks` entry, integrated by the engine in double precision. Both helpers keep the authored first-hour arithmetic exactly (`scene-time.mjs`). `node --test tests/time.test.mjs` audits wraps; `scripts/check-time-wrap.mjs` checks every family across 3600 s, 4096 s and 12 h on the GPU.
+- Time must stay seamless and precise for the whole night ([TIME.md](TIME.md)). **Never write `mod(u_time, P)` unless every use of the result is P-periodic**: a frequency that does not complete whole cycles in P makes the picture jump once per wrap. Raw `u_time · k` is fine while every *uniform* phase stays precise in float32 (½ ulp(43 200 · k) in radians or pixels). Reduce a time phase modulo an exact period of its use before adding it to per-pixel values. Phases whose rate is a parameter (energy, audio, faders) use an integrated engine clock (`clocks`, `u_clock[i]`). To change an existing family's time arithmetic, keep its authored lines in `#else` of an `#ifdef PHOSPHOR_LATE` block: the engine switches to the late variant at 3600 s, so the first hour stays bit-identical. `node --test tests/time.test.mjs` audits wraps and clocks; `scripts/check-time-wrap.mjs` checks every family across 3600 s, 4096 s and 12 h on the GPU (`--identity <rev>` compares first-hour frames).
 
 ## Club rules
 
@@ -66,7 +66,7 @@ A scene module default-exports `{ id, number, name, description, schema, presets
 - `particles: { vertex }`: points read `particle()` from the state.
 - The visual pass may read `u_previous` (last frame) for trails. Visual `u_dt` is the frame dt; the simulation runs at a fixed 1/60.
 - `number`: unique family number, shown in the UI.
-- `clocks`: ≤ 4 `{ rate(params, level), offset?, period? }` for `hourClock` (see [TIME.md](TIME.md)).
+- `clocks`: ≤ 4 `{ rate(params, level), offset?, period? }`, integrated phases read as `u_clock[i]` in the `PHOSPHOR_LATE` variant (see [TIME.md](TIME.md)).
 
 ## Checklist before handing over
 

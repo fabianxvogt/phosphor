@@ -1,5 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { hourClockGlsl } from "./scene-time.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Aperiodic Tilings (#70): de Bruijn's multigrid method. D families of
 // parallel grid lines (directions e_j, offsets γ_j) cut the plane; every
@@ -96,15 +96,25 @@ vec4 ${D === null ? "fallbackTiling" : `tiling${D}`}(float px) {
   float edgeWidth = u_params[5];
   float ribbons = u_params[6];
   float fill = u_params[7];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
   float seed = float(u_seedBits % 997u) * 0.37;
 
+#else
+  float t = mod(u_time, 3600.0);
+  float seed = float(u_seedBits % 997u) * 0.37;
+
+#endif
   // Directions and offsets (Σγ = 0 keeps D = 5 a true Penrose tiling).
   vec2 e[MAX_D];
   float g[MAX_D];
   float stepAngle = (D % 2 == 1 ? 2.0 : 1.0) * PI / float(D);
   float mean = 0.0;
-  float flip = hourClock(t * phason, 0) * 0.06 + seed + u_rhythm.z * 0.18;
+#ifdef PHOSPHOR_LATE
+  float flip = u_clock[0] * 0.06 + seed + u_rhythm.z * 0.18;
+#else
+  float flip = t * phason * 0.06 + seed + u_rhythm.z * 0.18;
+#endif
   for (int j = 0; j < MAX_D; j++) {
     if (j >= D) break;
     e[j] = vec2(cos(float(j) * stepAngle), sin(float(j) * stepAngle));
@@ -118,9 +128,13 @@ vec4 ${D === null ? "fallbackTiling" : `tiling${D}`}(float px) {
   }
 
   // Camera in tiling space: tiles across the short side, slow pan and turn.
-  float driftTime = hourClock(t * drift, 1);
-  vec2 pan = vec2(driftTime * 0.31, driftTime * 0.17) + vec2(seed * 3.1, seed * 1.7);
-  vec2 x = rot2(hourClock(t * spin, 2) * 0.02) * aspectUV() * scale + pan;
+#ifdef PHOSPHOR_LATE
+  vec2 pan = vec2(u_clock[1] * 0.31, u_clock[1] * 0.17) + vec2(seed * 3.1, seed * 1.7);
+  vec2 x = rot2(u_clock[2] * 0.02) * aspectUV() * scale + pan;
+#else
+  vec2 pan = vec2(t * drift * 0.31, t * drift * 0.17) + vec2(seed * 3.1, seed * 1.7);
+  vec2 x = rot2(t * spin * 0.02) * aspectUV() * scale + pan;
+#endif
   vec2 P = 2.0 * x / float(D);
 
   bool found = false;
@@ -240,18 +254,24 @@ vec4 ${D === null ? "fallbackTiling" : `tiling${D}`}(float px) {
 // Constant folding can move a tile boundary by a few floating-point bits.
 // Resolve misses and near-boundary hits with the reference search, retaining
 // its arithmetic (including either side's rounded boundary decisions).
-const fragment = hourClockGlsl + tilingFragment(null) + TILINGS.map(tilingFragment).join("\n") + `
+const fragment = lateClockGlsl + tilingFragment(null) + TILINGS.map(tilingFragment).join("\n") + `
 void main() {
   // Derivatives must be evaluated before per-pixel search/fallback branches.
-  float t = u_time;
+#ifdef PHOSPHOR_LATE
   float seed = float(u_seedBits % 997u) * 0.37;
-  float driftTime = hourClock(t * u_params[3], 1);
-  vec2 pan = vec2(driftTime * 0.31, driftTime * 0.17) + vec2(seed * 3.1, seed * 1.7);
-  vec2 view = rot2(hourClock(t * u_params[4], 2) * 0.02) * aspectUV() * u_params[1];
+  vec2 pan = vec2(u_clock[1] * 0.31, u_clock[1] * 0.17) + vec2(seed * 3.1, seed * 1.7);
+  vec2 view = rot2(u_clock[2] * 0.02) * aspectUV() * u_params[1];
   vec2 x = view + pan;
-  // After the first hour the pan exceeds 10⁴ tiles; take the footprint from
-  // the unpanned view so float rounding of x cannot roughen the edges.
-  float px = max(length(fwidth(u_time < 3600.0 ? x : view)) * 0.7, 1e-4);
+  // The pan exceeds 10⁴ tiles late in a night: take the footprint from the
+  // unpanned view so float rounding of x cannot roughen the edges.
+  float px = max(length(fwidth(view)) * 0.7, 1e-4);
+#else
+  float t = mod(u_time, 3600.0);
+  float seed = float(u_seedBits % 997u) * 0.37;
+  vec2 pan = vec2(t * u_params[3] * 0.31, t * u_params[3] * 0.17) + vec2(seed * 3.1, seed * 1.7);
+  vec2 x = rot2(t * u_params[4] * 0.02) * aspectUV() * u_params[1] + pan;
+  float px = max(length(fwidth(x)) * 0.7, 1e-4);
+#endif
   int tiling = int(floor(u_params[0] + 0.5));
   if (tiling == 0) outColor = tiling5(px);
   else if (tiling == 1) outColor = tiling4(px);
@@ -363,7 +383,7 @@ export default {
   presets,
   fragment,
   // Phason, drift and spin glide with energy/audio: clocks after the first
-  // hour (flip and the turn are periodic; the pan is aperiodic, unwrapped).
+  // hour (flip and turn periodic; the aperiodic pan stays unwrapped).
   clocks: [
     { rate: (p) => p[2], period: (2 * Math.PI) / 0.06 },
     { rate: (p) => p[3] },

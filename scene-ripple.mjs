@@ -86,7 +86,11 @@ void main() {
   float gap = u_params[3];
   float drops = u_params[4];
   float damping = u_params[5];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
 
   // Meta texel (0, 2·GH): rg source phase in cycles, b last beat, a init.
   vec4 meta = texelFetch(u_state, ivec2(0, 2 * GH), 0);
@@ -179,7 +183,11 @@ void main() {
   float gap = u_params[3];
   float glow = u_params[6];
   float fringes = u_params[7];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   vec2 cell = v_uv * vec2(GW, GH);
   float px = max(fwidth(cell.x), 1e-3);
 

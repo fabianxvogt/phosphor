@@ -1,32 +1,86 @@
 // Long-show time for scene shaders (see docs/families/TIME.md).
 //
-// u_time is accumulated scene time, uploaded as float32. Authored expressions
-// keep their exact first-hour arithmetic; after HOUR seconds a scene may
-// switch to forms that stay seamless and precise for 12 hours or more:
-// - hourWrap(x, P): x itself during the first hour, afterwards x mod P. Every
-//   use of x must be P-periodic (fract, sin/cos, integer cell shifts).
-// - hourClock(product, i): the authored `time · rate` product during the
-//   first hour, afterwards the engine's integrated clock i (∫ rate dt in
-//   double precision, continuous at the switch; see Engine.sceneClocks).
-//   A scene declares `clocks: [{ rate(params, level), offset?, period? }, …]`
-//   (at most CLOCK_COUNT); the first-hour expression is time · rate + offset.
-//   With a period the uploaded clock is reduced modulo that period in double
-//   precision, so every use must be period-periodic.
+// u_time is accumulated scene time, uploaded as float32. A scene that needs
+// different time arithmetic for a whole night keeps its authored sources for
+// the first hour and adds a long-show variant behind PHOSPHOR_LATE:
+//
+//   #ifdef PHOSPHOR_LATE
+//     float t = u_time;              // seamless, precise form
+//   #else
+//     float t = mod(u_time, 3600.0); // authored first-hour form, verbatim
+//   #endif
+//
+// The engine compiles the variant (#define PHOSPHOR_LATE after #version)
+// ten minutes before the first hour ends and draws with it from HOUR on, so
+// the first hour is the authored program, bit for bit, on every GPU. The
+// late form must agree with the authored one at HOUR (no seam at the switch)
+// and stay seamless and precise for 12 hours or more.
+//
+// Late forms may read u_clock[i] (declare it with lateClockGlsl): clock i is
+// the scene's `clocks[i]` = { rate(params, level), offset?, period? }, the
+// authored product time · rate + offset integrated in double precision after
+// HOUR (continuous at the switch, re-anchored after seeks), optionally
+// reduced modulo period. Parameter glides then change speed instead of
+// jumping a phase by t · Δrate.
 export const HOUR = 3600;
 export const CLOCK_COUNT = 4;
+export const LATE_DEFINE = "#define PHOSPHOR_LATE\n";
 
-export const hourWrapGlsl = `
-float hourWrap(float x, float period) { return u_time < ${HOUR}.0 ? x : mod(x, period); }
-`;
-
-export const hourClockGlsl = `
+export const lateClockGlsl = `
+#ifdef PHOSPHOR_LATE
 uniform float u_clock[${CLOCK_COUNT}];
-float hourClock(float product, int i) { return u_time < ${HOUR}.0 ? product : u_clock[i]; }
+#endif
 `;
+
+export const shaderSources = (scene) =>
+  [
+    scene.fragment,
+    scene.simulation?.fragment,
+    scene.particles?.vertex,
+    scene.particles?.fragment,
+    scene.precompute?.fragment,
+    scene.field?.fragment,
+    scene.field?.depositVertex,
+    scene.geometry?.vertex,
+    scene.geometry?.fragment,
+  ].filter((source) => typeof source === "string");
+
+const lateScenes = new WeakMap();
+export function usesLateVariant(scene) {
+  if (!lateScenes.has(scene))
+    lateScenes.set(
+      scene,
+      shaderSources(scene).some((source) => source.includes("PHOSPHOR_LATE")),
+    );
+  return lateScenes.get(scene);
+}
+
+// One variant of a shader body: keeps the PHOSPHOR_LATE or the #else branch;
+// other preprocessor lines pass through. For tests and audits.
+export function shaderVariant(source, late) {
+  const out = [];
+  const stack = [];
+  for (const line of source.split("\n")) {
+    const directive = line.trim();
+    if (/^#ifdef\s+PHOSPHOR_LATE\b/.test(directive)) {
+      stack.push({ ours: true, keep: late });
+      continue;
+    }
+    if (/^#if/.test(directive)) stack.push({ ours: false });
+    const top = stack.at(-1);
+    if (top?.ours && directive === "#else") {
+      top.keep = !late;
+      continue;
+    }
+    if (directive.startsWith("#endif") && stack.pop()?.ours) continue;
+    if (stack.every((entry) => !entry.ours || entry.keep)) out.push(line);
+  }
+  return out.join("\n");
+}
 
 // Integrated clocks (double precision). Before HOUR, and whenever scene time
 // jumps (a load, a seek, a test setting slot.time), a clock re-anchors to the
-// authored product time · rate, so it continues the first-hour expression.
+// authored product time · rate + offset, so it continues the first-hour form.
 export function advanceClocks(state, clocks, time, params, level) {
   const values = (state.values ??= new Float64Array(CLOCK_COUNT));
   const dt = time - state.time;

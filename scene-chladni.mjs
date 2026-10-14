@@ -126,7 +126,11 @@ void main() {
   float hold = chHold(u_params[1]);
   float vibration = u_params[2] * (1.0 + u_rhythm.y * 1.8);
   float settle = u_params[3];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
   vec2 p;
   if (u_reset) {
@@ -158,7 +162,11 @@ void main() {
   int variant = int(floor(u_params[0] + 0.5));
   float hold = chHold(u_params[1]);
   float field = u_params[7];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
   vec2 p = aspectUV() / 0.46;
   float px = length(fwidth(p));
@@ -188,7 +196,11 @@ void main() {
   float grains = u_params[4];
   float size = u_params[5];
   float glow = u_params[6];
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   float beats = u_beat > 0.0 ? u_beat : t * 2.0;
   if (float(gl_VertexID) >= grains * ${SIDE * SIDE}.0) return;
   vec2 p = unpack16(particle()) * 2.0 - 1.0;

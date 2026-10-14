@@ -1,5 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { hourClockGlsl } from "./scene-time.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // A finite-difference heightfield refracts parallel incident rays through a
 // single air/liquid interface onto a flat receiver. Additive photon splats
@@ -63,7 +63,7 @@ export function waveStep(
   return next;
 }
 
-const simulation = `${hourClockGlsl}
+const simulation = `${lateClockGlsl}
 float cHeight(ivec2 cell) {
   ivec2 size = textureSize(u_state, 0);
   return (unpack16(texelFetch(u_state, (cell + size) % size, 0).rg) - 0.5) * 2.0;
@@ -84,10 +84,14 @@ void main() {
     + cHeight(cell + ivec2(0, 1)) + cHeight(cell - ivec2(0, 1)) - 4.0 * h;
   float damping = u_params[3];
   float next = (2.0 - damping) * h - (1.0 - damping) * previous + 0.20 * laplacian;
+#ifdef PHOSPHOR_LATE
+  // Drive phase: clock 0, integrated in double precision (period 200π).
   float t = u_time;
-  // Drive phase: integrated in double precision after the first hour
-  // (clock 0), so the 9 Hz drive stays exact for a whole night.
-  float phase = hourClock(t * TAU * 54.0 / wavelength, 0);
+  float phase = u_clock[0];
+#else
+  float t = mod(u_time, 3600.0);
+  float phase = t * TAU * 54.0 / wavelength;
+#endif
   int surface = int(floor(u_params[0] + 0.5));
   float force = 0.0;
   if (surface == 1) {
@@ -130,7 +134,11 @@ float cWave(ivec2 cell) {
   return (unpack16(texelFetch(u_state, (cell + size) % size, 0).rg) - 0.5) * 2.0;
 }
 float cLens(vec2 p) {
+#ifdef PHOSPHOR_LATE
   float time = u_time;
+#else
+  float time = mod(u_time, 3600.0);
+#endif
   vec2 q = p + 0.13 * vec2(sin(time * 0.09), cos(time * 0.07));
   vec2 cell = mod(q + 0.36, 0.72) - 0.36;
   float width = 0.19 + 0.025 * sin(time * 0.11);
@@ -323,7 +331,7 @@ export default {
   beat: { punch: 0, pulse: 0 },
   stage: ["height", "depth", "tilt"],
   type: { key: "surface", values: [0, 1, 2] },
-  // sin(phase · 1.07) keeps the drive periodic in 200π (scene-time.mjs).
+  // The drive enters as sin(phase), sin(phase · 1.07 + .6), sin(phase + 1.7k).
   clocks: [{ rate: (p) => (2 * Math.PI * 54) / p[1], period: 200 * Math.PI }],
   simulation: {
     size: [SURFACE_SIDE, SURFACE_SIDE],

@@ -833,7 +833,11 @@ void main() {
     float base = .018 + .057 * dSS(.5, 1.2, dev);
     float blink = 0.;
     if (h7 < .05 + .07 * (1. - dSS(.3, 1.2, dev))) {
+#ifdef PHOSPHOR_LATE
       float t = u_time * (.25 + .3 * h8) + h7 * 97.;
+#else
+      float t = mod(u_time, 4096.) * (.25 + .3 * h8) + h7 * 97.;
+#endif
       float slot = floor(t);
       blink = step(.55 - .2 * (1. - dSS(.3, 1.2, dev)), fract(sin(slot * 12.9898 + h8 * 78.2) * 43758.5453)) * pow(sin(D_PI * fract(t)), 8.);
     }

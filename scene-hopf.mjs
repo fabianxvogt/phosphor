@@ -1,5 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { hourClockGlsl } from "./scene-time.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Hopf Fibration (#80): the 3-sphere S³ ⊂ C² is a bundle of great
 // circles, one over every point of the 2-sphere. The Hopf map
@@ -68,7 +68,7 @@ void main() {
 `;
 
 const particles = {
-  vertex: `${hourClockGlsl}
+  vertex: `${lateClockGlsl}
 const float TAU_H = 6.283185307179586;
 const float GOLDEN = 2.399963229728653;
 void main() {
@@ -83,7 +83,11 @@ void main() {
   float zoom = u_params[5];
   float glow = u_params[6];
   float persistence = clamp(u_params[7], 0.0, 0.95);
+#ifdef PHOSPHOR_LATE
   float t = u_time;
+#else
+  float t = mod(u_time, 3600.0);
+#endif
   float beatPulse = u_rhythmEnabled ? u_rhythm.x : u_beat > 0.0 ? exp(-4.0 * fract(u_beat)) : 0.0;
 
   int f = gl_VertexID / ${POINTS};
@@ -113,8 +117,12 @@ void main() {
     // Scattered base points (a drifting Fibonacci sphere): linked rings.
     float z = 1.0 - 2.0 * u;
     theta = acos(clamp(z, -1.0, 1.0)) + 0.3 * sin(t * 0.17 + float(f));
-    // Latitude follows audio, so this drift integrates after the first hour.
-    phi = float(f) * GOLDEN + hourClock(t * 0.05 * (1.0 + latitude), 0);
+#ifdef PHOSPHOR_LATE
+    // Latitude follows audio, so this drift integrates (clock 0, modulo 2π).
+    phi = float(f) * GOLDEN + u_clock[0];
+#else
+    phi = float(f) * GOLDEN + t * 0.05 * (1.0 + latitude);
+#endif
   }
   float s = TAU_H * float(k) / ${POINTS}.0;
   float eta = 0.5 * theta;

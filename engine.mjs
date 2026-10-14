@@ -8,7 +8,13 @@ import {
   AUDIO_MAPPING_CAP,
 } from "./scene-contract.mjs";
 import { Compositor, AsyncReadback } from "./compositor.mjs";
-import { advanceClocks, CLOCK_COUNT } from "./scene-time.mjs";
+import {
+  advanceClocks,
+  CLOCK_COUNT,
+  HOUR,
+  LATE_DEFINE,
+  usesLateVariant,
+} from "./scene-time.mjs";
 import { GLOBAL_EFFECTS, samplePattern } from "./rhythm.mjs";
 import {
   authoredRhythm,
@@ -256,54 +262,7 @@ export class Engine {
     };
     this.programs.set(scene.id, programs);
     try {
-      // Previous-frame families were authored against byte-quantized returns.
-      // Keep their bounded/decaying emission, even in float storage, rather
-      // than letting sub-byte residue change their feedback attractor.
-      const header = scene.fragment.includes("u_previous")
-        ? shaderHeader
-        : this.pictureHeader;
-      // Optional exact per-frame data cache; unsupported float targets keep
-      // the original visual path, including on context restoration.
-      const precompute = scene.precompute && this.floatPicture;
-      programs.visual = this.program(
-        header + (precompute ? "#define PRECOMPUTED\n" : "") + scene.fragment,
-        true,
-      );
-      if (precompute)
-        programs.precompute = this.program(
-          shaderHeader + scene.precompute.fragment,
-          true,
-        );
-      if (scene.simulation?.fragment && !scene.simulation.cpu)
-        programs.simulation = this.program(
-          shaderHeader + scene.simulation.fragment,
-          true,
-        );
-      // Contract v3 particles: one point per simulation texel, drawn
-      // additively over the family's visual pass.
-      if (scene.particles)
-        programs.particles = this.program(
-          scene.particles.fragment ?? particleFragment,
-          true,
-          particleHeader + scene.particles.vertex,
-        );
-      if (scene.geometry)
-        programs.geometry = this.program(
-          scene.geometry.fragment,
-          true,
-          scene.geometry.vertex,
-        );
-      if (scene.field) {
-        programs.field = this.program(
-          shaderHeader + scene.field.fragment,
-          true,
-        );
-        programs.deposit = this.program(
-          particleFragment,
-          true,
-          particleHeader + scene.field.depositVertex,
-        );
-      }
+      this.buildPrograms(scene, programs, false);
       this.checkScene(scene.id);
     } catch (error) {
       programs.error = error.message;
@@ -314,6 +273,99 @@ export class Engine {
         }),
         scene.id,
       );
+    }
+  }
+  // Shader programs of a scene. late compiles the long-show variant
+  // (#define PHOSPHOR_LATE, scene-time.mjs); otherwise the authored sources.
+  buildPrograms(scene, programs, late) {
+    const variant = late
+      ? (source) => source.replace(/^(#version[^\n]*\n)/, `$1${LATE_DEFINE}`)
+      : (source) => source;
+    // Previous-frame families were authored against byte-quantized returns.
+    // Keep their bounded/decaying emission, even in float storage, rather
+    // than letting sub-byte residue change their feedback attractor.
+    const header = scene.fragment.includes("u_previous")
+      ? shaderHeader
+      : this.pictureHeader;
+    // Optional exact per-frame data cache; unsupported float targets keep
+    // the original visual path, including on context restoration.
+    const precompute = scene.precompute && this.floatPicture;
+    programs.visual = this.program(
+      variant(
+        header + (precompute ? "#define PRECOMPUTED\n" : "") + scene.fragment,
+      ),
+      true,
+    );
+    if (precompute)
+      programs.precompute = this.program(
+        variant(shaderHeader + scene.precompute.fragment),
+        true,
+      );
+    if (scene.simulation?.fragment && !scene.simulation.cpu)
+      programs.simulation = this.program(
+        variant(shaderHeader + scene.simulation.fragment),
+        true,
+      );
+    // Contract v3 particles: one point per simulation texel, drawn
+    // additively over the family's visual pass.
+    if (scene.particles)
+      programs.particles = this.program(
+        variant(scene.particles.fragment ?? particleFragment),
+        true,
+        variant(particleHeader + scene.particles.vertex),
+      );
+    if (scene.geometry)
+      programs.geometry = this.program(
+        variant(scene.geometry.fragment),
+        true,
+        variant(scene.geometry.vertex),
+      );
+    if (scene.field) {
+      programs.field = this.program(
+        variant(shaderHeader + scene.field.fragment),
+        true,
+      );
+      programs.deposit = this.program(
+        variant(particleFragment),
+        true,
+        variant(particleHeader + scene.field.depositVertex),
+      );
+    }
+  }
+  // The program set a slot draws with. Scenes with a long-show variant
+  // compile it ten minutes before the first hour ends (in parallel where
+  // supported) and switch at HOUR; a seek past it finishes the compile.
+  programsFor(s) {
+    const programs = this.programs.get(s.scene.id);
+    if (!programs || programs.error || !usesLateVariant(s.scene))
+      return programs;
+    if (!(s.time >= HOUR - 600)) return programs;
+    if (!programs.late) {
+      programs.late = { error: null };
+      try {
+        this.buildPrograms(s.scene, programs.late, true);
+      } catch (error) {
+        programs.late.error = error.message;
+      }
+    }
+    const late = programs.late;
+    if (!(s.time >= HOUR) || late.error) return programs;
+    try {
+      for (const name of programKeys)
+        if (late[name] && !late[name].uniforms) this.finishProgram(late[name]);
+      return late;
+    } catch (error) {
+      late.error = error.message;
+      for (const name of programKeys)
+        if (late[name]?.p) this.gl.deleteProgram(late[name].p);
+      this.onError(
+        tr("{value1} disabled: {value2}", {
+          value1: tr(s.scene.name),
+          value2: error.message,
+        }),
+        s.scene.id,
+      );
+      return programs;
     }
   }
   checkScene(id) {
@@ -1052,7 +1104,7 @@ export class Engine {
     if (s.frozen || !this.checkScene(s.scene.id)) return;
     const step = dt * (this.options.reducedMotion ? 0.25 : 1);
     s.time += step;
-    const program = this.programs.get(s.scene.id).simulation;
+    const program = this.programsFor(s).simulation;
     if (s.scene.simulation?.cpu) {
       this.updateUniforms(s);
       s.scene.schema.forEach((definition, i) => {
@@ -1100,7 +1152,7 @@ export class Engine {
   }
   tickField(s, dt) {
     const gl = this.gl,
-      programs = this.programs.get(s.scene.id);
+      programs = this.programsFor(s);
     const target = s.field[1 - s.fi];
     this.bind(programs.field, target);
     this.uniforms(programs.field, s, target, dt, s.fieldReset);
@@ -1138,13 +1190,13 @@ export class Engine {
     }
     // Refresh on every visual draw, including paused parameter/rhythm edits.
     if (s.precompute) {
-      const precompute = this.programs.get(s.scene.id).precompute;
+      const precompute = this.programsFor(s).precompute;
       this.bind(precompute, s.precompute);
       this.uniforms(precompute, s, s.precompute, dt, false);
       this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
     }
     const target = s.visual[1 - s.vi],
-      program = this.programs.get(s.scene.id).visual;
+      program = this.programsFor(s).visual;
     this.bind(program, target);
     this.uniforms(
       program,
@@ -1154,7 +1206,7 @@ export class Engine {
       s.visualReset,
     );
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
-    const geometry = this.programs.get(s.scene.id).geometry;
+    const geometry = this.programsFor(s).geometry;
     if (geometry?.uniforms && s.mesh) {
       const gl = this.gl;
       this.bind(geometry, target);
@@ -1182,7 +1234,7 @@ export class Engine {
       gl.bindVertexArray(this.vao);
       gl.disable(gl.DEPTH_TEST);
     }
-    const particles = this.programs.get(s.scene.id).particles;
+    const particles = this.programsFor(s).particles;
     if (particles?.uniforms) {
       const gl = this.gl;
       this.bind(particles, target);
@@ -1360,10 +1412,10 @@ export class Engine {
     this.healthReadback.dispose();
     for (const s of this.slots) this.destroySlot(s);
     this.deleteTarget(this.healthTarget);
-    for (const p of this.programs.values()) {
-      for (const name of programKeys)
-        if (p[name]?.p) this.gl.deleteProgram(p[name].p);
-    }
+    for (const p of this.programs.values())
+      for (const set of [p, p.late])
+        for (const name of programKeys)
+          if (set?.[name]?.p) this.gl.deleteProgram(set[name].p);
     this.pipeline.dispose();
     this.gl.deleteBuffer(this.quad);
     this.gl.deleteVertexArray(this.vao);
