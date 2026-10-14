@@ -76,6 +76,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Density Waves](families/nebula.md) | nebula | Zel'dovich web, density-wave orbits and Sedov–Taylor shells on one star population | Dust / Spiral / Nova | 7 |
 | [Starling Flock](families/murmuration.md) | murmuration | Topological-neighbour flock with a fold field, startle waves and formations | Loose / Surge / Formation | 7 |
 | [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |
+| [Event Horizon](families/horizon.md) | horizon | Schwarzschild null geodesics (Binet equation, Encke RK4) with a thin Doppler-beamed disk | Star / Infall / Horizon | 8 |
 | [Living Mycelium](families/mycelium.md) | mycelium | Gray–Scott reaction–diffusion as a lit terrain | Understory / Tide / City | 8 |
 | [Attractor Ribbons](families/ribbons.md) (world Attractor Ribbons) | ribbons | Fixed-step RK4 trajectories in three flows, drawn as lit ribbons | Wings / Vortex / Labyrinth | 8 |
 | [Afterglow Garden](families/afterglow.md) | afterglow | Gray–Scott morphogens as a night garden | Roots / Petals / Bloom | 8 |

@@ -162,6 +162,17 @@ const AUTHORED = [
       { name: "Labyrinth", look: "ribbons:Thomas Labyrinth" },
     ],
   },
+  {
+    id: "horizon",
+    name: "Event Horizon",
+    description:
+      "A tidally torn star spirals into a black hole until a blazing disk arches over its shadow and jets fire from the poles.",
+    states: [
+      { name: "Star", look: "horizon:Tidal Star" },
+      { name: "Infall", look: "horizon:Infall Spiral" },
+      { name: "Horizon", look: "horizon:Blazing Horizon" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

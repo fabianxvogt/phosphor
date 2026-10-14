@@ -45,6 +45,7 @@ import ribbons from "./scene-ribbons.mjs";
 import nebula from "./scene-nebula.mjs";
 import murmuration from "./scene-murmuration.mjs";
 import descent from "./scene-descent.mjs";
+import horizon from "./scene-horizon.mjs";
 import mycelium from "./scene-mycelium.mjs";
 import afterglow from "./scene-afterglow.mjs";
 
@@ -98,6 +99,7 @@ export default [
   mycelium,
   ribbons,
   afterglow,
+  horizon,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
