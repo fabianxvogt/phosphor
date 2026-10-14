@@ -4,7 +4,14 @@ import { serve, launch } from "./browser-runtime.mjs";
 import en from "../i18n/en.mjs";
 import de from "../i18n/de.mjs";
 
-const server = await serve("dist", 48135);
+// --port N (or PHOSPHOR_PORT) lets parallel worktrees run this check at once.
+const portFlag = process.argv.indexOf("--port");
+const server = await serve(
+  "dist",
+  portFlag > 0
+    ? process.argv[portFlag + 1]
+    : (process.env.PHOSPHOR_PORT ?? 48135),
+);
 const out = new URL("../artifacts/i18n/", import.meta.url);
 await mkdir(out, { recursive: true });
 let runtime;
