@@ -102,7 +102,7 @@ export function camera(development, params, yawPhase, driftPhase) {
   ];
   const target = [
     0.15 * peak * Math.sin(1.3 * yaw + 0.5),
-    -0.14 * (1 - mid) + 0.1 * peak * Math.sin(drift),
+    -0.14 * (1 - mid) - 0.15 * peak + 0.08 * peak * Math.sin(drift),
     0.15 * peak * Math.cos(1.3 * yaw + 0.5),
   ];
   const focal = 2.1 + (1.75 - 2.1) * mid + (1.55 - 1.75) * peak;

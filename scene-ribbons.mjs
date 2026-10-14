@@ -158,6 +158,8 @@ void main() {
   if (presence <= 0.) return;
   int ka = min(int(dev), 1);
   float w = smoothstep(0., 1., dev - float(ka));
+  // At the top state only Thomas is visible: read one flow, not two.
+  if (w >= 1.) { ka = 2; w = 0.; }
 
   float s = float(quad + du) / float(SEGMENTS);
   float span = clamp(u_params[2], .2, 1.) * float(HISTORY - 4);
@@ -179,7 +181,7 @@ void main() {
   float dist = u_params[7] * mix(mix(3., 2.9, mid), 2.05, peak) * (1. + .16 * peak * sin(2. * yaw + drift));
   float pitch = clamp(.12 + .2 * mid + (u_params[6] - .35) + (.1 + .12 * peak) * sin(drift), -.4, 1.3);
   vec3 eye = dist * vec3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw));
-  vec3 target = vec3(.15 * peak * sin(1.3 * yaw + .5), -.14 * (1. - mid) + .1 * peak * sin(drift), .15 * peak * cos(1.3 * yaw + .5));
+  vec3 target = vec3(.15 * peak * sin(1.3 * yaw + .5), -.14 * (1. - mid) - .15 * peak + .08 * peak * sin(drift), .15 * peak * cos(1.3 * yaw + .5));
   float roll = .09 * peak * sin(1.7 * drift + 1.);
   vec3 fwd = normalize(target - eye);
   vec3 right = normalize(cross(fwd, vec3(sin(roll), cos(roll), 0.)));
@@ -249,8 +251,10 @@ void main() {
   float spec = pow(max(0., dot(N, normalize(L + V))), 36.);
   vec3 base = v_color;
   // Tails fade into the dark; heads carry the light.
-  float life = pow(1. - v_s, 1.4);
-  vec3 color = base * (.06 + 1.05 * diffuse + .22 * wrap) * (.3 + .7 * life);
+  float life = pow(1. - v_s, 1.1);
+  vec3 color = base * (.1 + 1.15 * diffuse + .3 * wrap) * (.42 + .58 * life);
+  // A little self-light: ribbons are light, not paint.
+  color += base * .22 * life;
   color += mix(mix(u_secondary, vec3(1.), .35), u_accent, .2) * fresnel * .45 * life;
   color += mix(base, vec3(1.), .6) * spec * .5 * life;
   // Flowing light: pulses run from tail to head along every ribbon.
@@ -314,8 +318,8 @@ export default {
     look("Long Exposure", 9702, 0, { flow: 0.6, length: 1, thickness: 0.75, pulses: 0.15, elevation: 0.55 }),
     look("Vortex from Below", 9703, 1, { elevation: 0.05, orbit: -0.35, thickness: 1.3, distance: 0.92 }),
     look("Labyrinth Rush", 9704, 2, { flow: 1.6, length: 0.55, orbit: 0.75, pulses: 0.85 }),
-    look("Unfolding Wings", 9705, 0.5, { length: 0.85, orbit: -0.3, elevation: 0.2 }),
-    look("Slow Labyrinth", 9706, 1.6, { flow: 0.45, length: 0.9, orbit: 0.2, thickness: 1.25, pulses: 0.1, elevation: 0.75 }),
+    look("Unfolding Wings", 9705, 0.3, { length: 0.85, orbit: -0.3, elevation: 0.2 }),
+    look("Slow Labyrinth", 9706, 1.85, { flow: 0.45, length: 0.9, orbit: 0.2, thickness: 1.25, pulses: 0.1, elevation: 0.75 }),
   ],
   stage: ["flow", "length", "orbit"],
   type: { key: "development", values: [0, 1, 2] },
