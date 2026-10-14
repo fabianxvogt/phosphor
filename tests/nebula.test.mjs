@@ -10,6 +10,8 @@ import {
   cycle,
   ellipsePolar,
   identity,
+  jetLight,
+  jetPhase,
   orbitOmega,
   cloudOmega,
   position,
@@ -102,6 +104,13 @@ test("position is continuous in time at every development, including clock wrap"
           dev,
           psi: 1,
         });
+        const ta = jetPhase(id, clock),
+          tb = jetPhase(id, (clock + step) >>> 0);
+        if (ta >= 0 && tb < ta) {
+          // A pulsar-jet star re-enters at the core only while unlit.
+          assert.ok(jetLight(ta) < 0.01 && jetLight(tb) < 0.01);
+          continue;
+        }
         // One frame of motion stays small (shock fronts included).
         assert.ok(dist(a, b) < 0.03, `dev ${dev} star ${id.id}`);
       }
@@ -267,6 +276,27 @@ test("Nova freezes the record and Sedov–Taylor fronts expand as t^(2/5)", () =
   };
   const radii = [0.1, 0.3, 0.6].map(peak);
   assert.ok(radii[0] < radii[1] && radii[1] < radii[2]);
+  // Jet light vanishes where the flow wraps; elsewhere jets move smoothly.
+  assert.equal(jetLight(0), 0);
+  assert.ok(jetLight(0.999) < 1e-4 && jetLight(0.3) > 0.2);
+  const jets = Array.from({ length: 4000 }, (_, i) => identity(world, i + 1))
+    .filter((s) => jetPhase(s, 0) >= 0)
+    .slice(0, 40);
+  assert.ok(jets.length === 40);
+  const step = clockStep(1 / 60, 1);
+  for (const id of jets)
+    for (let k = 0; k < 400; k++) {
+      const clock = (k * 9 * step) >>> 0,
+        next = (clock + step) >>> 0;
+      const ta = jetPhase(id, clock),
+        tb = jetPhase(id, next);
+      const jump = dist(
+        position(world, id, { clock, dev: 2 }),
+        position(world, id, { clock: next, dev: 2 }),
+      );
+      if (tb < ta) assert.ok(jetLight(ta) < 0.01 && jetLight(tb) < 0.01);
+      else assert.ok(jump < 0.03, `jet ${id.id}`);
+    }
 });
 
 test("shader constants follow the CPU model", () => {
@@ -276,7 +306,7 @@ test("shader constants follow the CPU model", () => {
     nebula.fragment,
   ].join("\n");
   assert.ok(sources.includes(`NB_P = ${CLOCK_PERIOD}.`));
-  for (const n of [N.cloud, N.pattern, N.shock, N.yaw, N.wobble])
+  for (const n of [N.cloud, N.pattern, N.shock, N.yaw, N.wobble, N.jet])
     assert.ok(sources.includes(`${n}u`));
   assert.ok(!/\$\{/.test(sources), "no unexpanded template");
 });

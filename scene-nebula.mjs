@@ -207,7 +207,7 @@ void main() {
       float w = u + .7853981634;
       crest = pow(.5 + .5 * cos(2. * w), 3.);
       float l = mod(w + .42 + 1.5707963, 3.1415926536) - 1.5707963;
-      lane = exp(-l * l / .03) * nbSmooth(.12, .4, s.a);
+      lane = exp(-l * l / .05) * nbSmooth(.12, .4, s.a);
     }
     float rhoQ = length(s.q.xz);
     float rho = mix(rhoQ, rhoG, p), y = mix(s.q.y, yG, p);
@@ -231,7 +231,7 @@ void main() {
     // Spiral: crest stars young and light, inter-arm stars old, lanes dark.
     vec3 young = mix(u_primary, vec3(1.), .38), old = mix(u_secondary, u_primary, .45);
     vec3 starHue = s.kind == 1 ? mix(mix(u_primary, u_accent, .3), vec3(1.), .3) : mix(old, young, crest);
-    float starB = s.kind == 1 ? .3 : (.3 + 1.1 * crest) * (1. - .9 * lane) * (.25 + .75 * nbSmooth(.04, .4, s.a)) * (.45 + 2.2 * pow(s.tone, 10.));
+    float starB = s.kind == 1 ? .3 : (.3 + 1.1 * crest) * (1. - lane) * (.25 + .75 * nbSmooth(.04, .4, s.a)) * (.45 + 2.2 * pow(s.tone, 10.));
     if (s.kind == 0 && s.tone > .975 && crest > .55) { starHue = u_accent; starB = 1.1; }
     hue = mix(gas, starHue, p);
     bright = mix(dustB, starB, p);
@@ -241,7 +241,7 @@ void main() {
     if (cloudlet) {
       // Glowing gas: large soft sprites trace the web, then the arms.
       hue = mix(mix(u_secondary, u_primary, .3 + .2 * s.tone), mix(u_primary, u_accent, .12), p * crest);
-      bright = mix(.12 * pow(compress, 1.1), (.1 + .6 * crest) * (1. - .8 * lane) * nbSmooth(.05, .5, s.a), p);
+      bright = mix(.12 * pow(compress, 1.1), (.1 + .6 * crest) * (1. - lane) * nbSmooth(.05, .5, s.a), p);
       size = mix(11. + 8. * s.tone, 8. + 7. * s.tone, p);
       soft = 1.;
     }
@@ -251,9 +251,16 @@ void main() {
       vec3 dir = s.shellDir + .8 * (pos / len) * vec3(1., .3, 1.);
       vec3 n0 = normalize(dir);
       vec3 shell;
-      float front = 0., shellCompress = 1.;
+      float front = 0., shellCompress = 1., jet = -1.;
       if (s.kind == 1) {
-        shell = n0 * (.015 + .05 * s.layer * s.layer);
+        if (s.layer > .72) {
+          // Pulsar jets: bulge stars stream out along a precessing axis.
+          float ph = NB_TAU * nbCycle(clock, ${N.lift}u);
+          vec3 axis = normalize(vec3(.45 * sin(ph), 1., .45 * cos(ph)));
+          jet = fract((s.layer - .72) / .28 + nbCycle(clock, ${N.jet}u));
+          vec3 side = n0 - dot(n0, axis) * axis;
+          shell = axis * (s.tone < .5 ? -1. : 1.) * (.05 + 1.6 * jet * jet) + side * .035 * jet;
+        } else shell = n0 * (.015 + .05 * s.layer * s.layer);
       } else {
         mat3 shellHess;
         vec4 web = nbWeb(key, n0 * 2., clock, shellHess);
@@ -279,6 +286,10 @@ void main() {
       float novaB = s.kind == 1 ? .045 : (s.layer < .6 ? .3 + .22 * shellCompress : .22);
       novaHue = mix(novaHue, u_accent, .7 * clamp(front, 0., 1.));
       novaB += 1.3 * front;
+      if (jet >= 0.) {
+        novaHue = mix(mix(u_accent, vec3(1.), .6), u_secondary, jet);
+        novaB = .7 * pow(1. - jet, 1.5) * nbSmooth(0., .06, jet);
+      }
       hue = mix(hue, novaHue, s2);
       bright = mix(bright, novaB, s2) + ignite * (s.kind == 1 ? .5 : .12);
       size = mix(size, cloudlet ? 5. + 4. * s.tone : 1.6 + .7 * front, s2);
@@ -402,10 +413,10 @@ export default {
     look("Drifting Dust", 3141, 0),
     look("Grand Spiral", 3141, 1),
     look("Supernova Shell", 3141, 2),
-    look("Cosmic Web", 1618, 0, { web: 2.4, distance: 0.82, height: 0.3 }),
+    look("Cosmic Web", 1618, 0, { web: 2.4, distance: 0.92, height: 0.3 }),
     look("Edge-on Lanes", 2718, 1, { height: 0.08, distance: 0.84, arms: 1.25 }),
     look("Open Whirlpool", 577, 1, { height: 0.92, arms: 0.85, distance: 0.86 }),
-    look("Remnant Bloom", 4669, 2, { distance: 0.78, height: 0.35, shock: 1.3 }),
+    look("Remnant Bloom", 4669, 2, { distance: 0.88, height: 0.35, shock: 1.3 }),
   ],
   stage: ["speed", "web", "shock"],
   type: { key: "development", values: [0, 1, 2] },

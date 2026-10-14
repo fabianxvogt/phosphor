@@ -29,6 +29,7 @@ export const N = {
   lift: 9, // camera height swing 160 s
   dolly: 6, // camera distance 240 s
   wobble: 80, // dust turbulence 18 s
+  jet: 240, // pulsar jet flow 6 s
 };
 export const ORBIT_V = 0.22; // flat rotation curve speed
 export const ORBIT_CORE = 0.26; // solid-body core radius
@@ -290,8 +291,22 @@ export function shellPoint(world, ident, from, clock, growth = 1.8, shock = 1) {
   );
   const dl = Math.hypot(...dir);
   const n0 = dir.map((v) => v / dl);
-  if (ident.kind === 1)
-    return n0.map((v) => v * (0.015 + 0.05 * ident.layer * ident.layer));
+  if (ident.kind === 1) {
+    const t = jetPhase(ident, clock);
+    if (t < 0)
+      return n0.map((v) => v * (0.015 + 0.05 * ident.layer * ident.layer));
+    // Pulsar jets: bulge stars stream out along a precessing axis.
+    const ph = 2 * Math.PI * cycle(clock, N.lift);
+    const ax = [0.45 * Math.sin(ph), 1, 0.45 * Math.cos(ph)];
+    const al = Math.hypot(...ax);
+    const axis = ax.map((v) => v / al);
+    const along = n0[0] * axis[0] + n0[1] * axis[1] + n0[2] * axis[2];
+    const sign = ident.tone < 0.5 ? -1 : 1;
+    return axis.map(
+      (v, i) =>
+        v * sign * (0.05 + 1.6 * t * t) + (n0[i] - along * v) * 0.035 * t,
+    );
+  }
   const q = n0.map((v) => v * 2);
   const S = zeldovich(world, q, clock);
   const along = S[0] * n0[0] + S[1] * n0[1] + S[2] * n0[2];
@@ -308,6 +323,16 @@ export function shellPoint(world, ident, from, clock, growth = 1.8, shock = 1) {
   const front = shockFront(R, clock, shock);
   return nd.map((v) => v * (R + 0.08 * front));
 }
+// Position along a pulsar jet in [0, 1) for jet stars (bulge, layer > 0.72),
+// −1 otherwise. The flow wraps where jetLight is zero, so no star pops.
+export function jetPhase(ident, clock) {
+  if (ident.kind !== 1 || ident.layer <= 0.72) return -1;
+  const t = (ident.layer - 0.72) / 0.28 + cycle(clock, N.jet);
+  return t - Math.floor(t);
+}
+export const jetLight = (t) =>
+  0.7 * Math.pow(1 - t, 1.5) * smooth(0, 0.06, t);
+
 // Normalised Σ amp·cos(k·q + φ) in about [−1, 1].
 export function fingerField(world, q, clock) {
   let f = 0,
