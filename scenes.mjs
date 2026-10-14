@@ -1,5 +1,6 @@
 import metamorphosis from "./scene-metamorphosis.mjs";
 import crystal from "./scene-crystal.mjs";
+import fold from "./scene-fold.mjs";
 import acid from "./scene-acid.mjs";
 import magnetic from "./scene-magnetic.mjs";
 import cathedral from "./scene-cathedral.mjs";
@@ -88,6 +89,7 @@ export default [
   metamorphosis,
   fibration,
   crystal,
+  fold,
   nebula,
   murmuration,
   descent,

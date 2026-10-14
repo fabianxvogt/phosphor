@@ -5,14 +5,17 @@
 //
 // Vertex layout (18 floats): a_p vec3, a_n vec3, a_a vec4, a_b vec4, a_c vec4.
 //   wall:    p = position, n = inward normal, a = (glow0, glow1, glow2, rnd),
-//            b = (ao0, ao1, ao2, anchorZ), c = (theta, 0, 0, kind 0)
+//            b = (ao0, ao1, ao2, anchorZ), c = (theta, light.y, light.z, kind 0)
+//            with a.w = light.x: the nearest seed light of the quad
+//   mote:    p = (corner, 0), a = (base.xyz, rnd), b.w = anchor, c = (size, phase, 0, 5)
 //   crystal: p = (hexX, hexY, h) unit prism coordinate (h = 2 marks the apex),
 //            n = (u, v, face), a = (root.xyz, rnd), b = (dir.xyz, birth),
-//            c = (length at Hall, radius at Hall, id, kind 1..4)
+//            c = (length at Hall, radius at Hall, cluster hue, kind 1..4)
 export const PERIOD = 36; // cavern repeats along z; the camera loops through it
 export const STRIDE = 18;
 export const ATTRIBUTES = [3, 3, 4, 4, 4];
-export const KIND = { wall: 0, seed: 1, member: 2, hall: 3, grain: 4 };
+export const KIND = { wall: 0, seed: 1, member: 2, hall: 3, grain: 4, mote: 5 };
+export const MOTES = 520;
 export const CORRIDOR = 0.62; // clearance kept around the camera path
 export const LIFT = 0.22; // camera crane at Hall (development 2)
 export const LIMITS = { habit: 1.6, breath: 1.04, tip: 1.9 };
@@ -50,7 +53,7 @@ export function growth(kind, birth, development, detail = 0.5) {
   const dev = Math.min(2, Math.max(0, development));
   if (kind === KIND.seed) {
     const t = smooth(0, 2, dev);
-    return [0.22 + 0.78 * t, 0.7 + 0.3 * t];
+    return [0.3 + 0.7 * t, 0.8 + 0.2 * t];
   }
   if (kind === KIND.member) {
     const g1 = smooth(0.08 + 0.62 * birth, 0.38 + 0.62 * birth, dev),
@@ -186,12 +189,15 @@ function jitter(rand, dir, amount) {
 
 export function cavern(seed) {
   const rand = random(seed >>> 0 || 1);
+  // Hues come from a separate stream so the layout of every seed is unchanged.
+  const hueRand = random(((seed >>> 0) ^ 0x51ed27) || 1);
+  let hue = 0;
   const rock = rockOf(rand);
   const crystals = [],
     clusters = [];
   const push = (c) => {
     c.length = clampLength(c.root, c.dir, c.length, c.radius);
-    if (c.length > 0.02) crystals.push({ ...c, id: crystals.length });
+    if (c.length > 0.02) crystals.push({ hue, ...c, id: crystals.length });
   };
   const site = (theta, z) => ({
     theta,
@@ -218,7 +224,8 @@ export function cavern(seed) {
       );
     }
     const scale = 0.55 + 0.5 * rand();
-    clusters.push({ theta, z, root, axis, habits, scale });
+    hue = hueRand();
+    clusters.push({ theta, z, root, axis, habits, scale, hue });
     push({
       kind: KIND.seed,
       root,
@@ -264,6 +271,7 @@ export function cavern(seed) {
       axis = jitter(rand, base.normal, 0.3),
       birth = rand(),
       scale = 0.35 + 0.55 * rand();
+    hue = hueRand();
     for (let m = 0; m < 7; m++) {
       const [t2, z2] = tangentPoint(rock, theta, base.z, rand() * TAU, 0.32 * Math.sqrt(rand())),
         s = site(t2, z2),
@@ -281,6 +289,7 @@ export function cavern(seed) {
   }
   // Grains: tiny crystals revealed by the detail control (energy).
   for (let i = 0; i < 360; i++) {
+    hue = hueRand();
     const s = site(rand() * TAU, rand() * PERIOD),
       length = 0.05 + 0.12 * Math.pow(rand(), 2);
     push({
@@ -312,7 +321,7 @@ function bake(crystals, points) {
       const [lf, rf] = growth(c.kind, c.birth, s),
         length = c.length * lf,
         radius = c.radius * rf,
-        reach = (c.kind === KIND.seed ? 0.75 : 0.25) + length * 0.7,
+        reach = (c.kind === KIND.seed ? 0.55 : 0.25) + length * 0.6,
         spread = radius * 2.4 + 0.04,
         k = (i * 3 + s) * 7;
       stage[k] = c.root[0] + c.dir[0] * length * 0.55;
@@ -367,7 +376,7 @@ function build(seed) {
   const { rock, crystals } = cavern(seed);
   const wallVertices = WALL_THETA * WALL_Z * 6,
     crystalVertices = crystals.length * 54;
-  const data = new Float32Array((wallVertices + crystalVertices) * STRIDE);
+  const data = new Float32Array((wallVertices + crystalVertices + MOTES * 6) * STRIDE);
   let o = 0;
   // Crystals first, so the wall behind them is rejected by the depth test.
   const hex = Array.from({ length: 7 }, (_, k) => [
@@ -391,7 +400,7 @@ function build(seed) {
   }
   const instance = new Float32Array(12);
   for (const c of crystals) {
-    instance.set([...c.root, c.rnd, ...c.dir, c.birth, c.length, c.radius, c.id, c.kind]);
+    instance.set([...c.root, c.rnd, ...c.dir, c.birth, c.length, c.radius, c.hue, c.kind]);
     for (const v of local) {
       data.set(v, o);
       data.set(instance, o + 6);
@@ -448,6 +457,22 @@ function build(seed) {
     };
   });
   const rand = random((seed ^ 0x9e3779b9) >>> 0);
+  // Each wall quad knows its nearest seed light, so the shader can draw a
+  // crisp point-light pool around every seed.
+  const lights = crystals
+    .filter((c) => c.kind === KIND.seed)
+    .map((c) => add(c.root, c.dir, 0.15));
+  const nearest = (p) => {
+    let best = lights[0],
+      bestD = Infinity;
+    for (const l of lights) {
+      let dz = p[2] - l[2];
+      dz -= Math.round(dz / PERIOD) * PERIOD;
+      const d = (p[0] - l[0]) ** 2 + (p[1] - l[1]) ** 2 + dz * dz;
+      if (d < bestD) (bestD = d), (best = l);
+    }
+    return best;
+  };
   const record = new Float32Array(grid.length * STRIDE);
   grid.forEach((g, k) => {
     const b = baked[k];
@@ -456,15 +481,37 @@ function build(seed) {
   for (let j = 0; j < WALL_Z; j++) {
     const anchor = (j / WALL_Z) * PERIOD;
     for (let i = 0; i < WALL_THETA; i++) {
-      const rnd = rand();
+      const centre = mul4(grid, [at(i, j), at(i + 1, j), at(i, j + 1), at(i + 1, j + 1)]),
+        light = nearest(centre);
       for (const [di, dj] of QUAD) {
         const k = at(i + di, j + dj);
         data.set(record.subarray(k * STRIDE, k * STRIDE + STRIDE), o);
-        data[o + 9] = rnd;
+        data[o + 9] = light[0];
         data[o + 13] = anchor;
+        data[o + 15] = light[1];
+        data[o + 16] = light[2];
         o += STRIDE;
       }
     }
   }
+  // Motes: tiny drifting specks inside the hall, drawn as camera-facing quads.
+  for (let m = 0; m < MOTES; m++) {
+    const z = rand() * PERIOD,
+      w = wallPoint(rock, rand() * TAU, z),
+      f = 0.2 + 0.65 * rand(),
+      base = [w[0] * f, -0.2 + (w[1] + 0.2) * f, z],
+      rnd = rand(),
+      size = 0.008 + 0.014 * rand() * rand(),
+      phase = rand();
+    for (const [cx, cy] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) {
+      data.set([cx, cy, 0, 0, 0, 0, ...base, rnd, 0, 0, 0, z, size, phase, 0, KIND.mote], o);
+      o += STRIDE;
+    }
+  }
   return data;
 }
+const mul4 = (grid, ks) => {
+  const s = [0, 0, 0];
+  for (const k of ks) for (let c = 0; c < 3; c++) s[c] += grid[k].p[c] / ks.length;
+  return s;
+};

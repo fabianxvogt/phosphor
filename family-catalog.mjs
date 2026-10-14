@@ -12,6 +12,13 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  fold: {
+    algorithm: "Rigid folding of polyhedral nets along hinge chains",
+    description:
+      "A creased sheet of Platonic nets folds along exact hinge chains into closed solids, which rise, tumble and burst into a vortex of streaking shards.",
+    styles: ["geometric", "spatial"],
+    variants: ["Sheet", "Fold", "Shards"],
+  },
   fibration: {
     algorithm: "Stereographic Hopf fibres as lit tube meshes",
     description:

@@ -127,6 +127,17 @@ const AUTHORED = [
       { name: "Formation", look: "murmuration:Vortex Mill" },
     ],
   },
+  {
+    id: "origami",
+    name: "Origami Storm",
+    description:
+      "A creased sheet folds into floating solids, which burst into a storm of streaking shards around a core of light.",
+    states: [
+      { name: "Sheet", look: "fold:Creased Sheet" },
+      { name: "Fold", look: "fold:Rising Solids" },
+      { name: "Shards", look: "fold:Shard Storm" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
