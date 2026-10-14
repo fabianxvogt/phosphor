@@ -19,6 +19,13 @@ export const FAMILY_CATALOG = {
     styles: ["geometric", "spatial"],
     variants: ["Torus", "Nest", "Bundle"],
   },
+  crystal: {
+    algorithm: "Lattice-aligned growth of faceted hexagonal prisms",
+    description:
+      "Seeded crystals sprout faceted prisms, grow into lattice-aligned druses and line a luminous cavern hall the camera glides through.",
+    styles: ["geometric", "spatial"],
+    variants: ["Seeds", "Lattice", "Hall"],
+  },
   metamorphosis: {
     algorithm: "Continuous deformation of a connected parametric mesh",
     description:

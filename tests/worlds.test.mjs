@@ -319,10 +319,7 @@ test("removing a referenced own look keeps portable world definitions valid", as
   set.worlds = withoutWorldLook(set.worlds, "own-world");
   assert.equal(validateShowSet(set, scenes).worlds[0].states.length, 2);
   set.worlds = withoutWorldLook(set.worlds, set.worlds[0].states[0].look);
-  assert.equal(
-    validateShowSet(set, scenes).worlds.length,
-    AUTHORED_WORLDS - 1,
-  );
+  assert.equal(validateShowSet(set, scenes).worlds.length, AUTHORED_WORLDS - 1);
 });
 
 test("untouched early world definitions gain stable chemistry without replacing customized worlds", () => {

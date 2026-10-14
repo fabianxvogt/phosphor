@@ -167,6 +167,7 @@ test("a new world still loads normally, and unrelated worlds never expose a deve
 });
 test("library upgrade retains edited worlds and duration travels with exported sets", () => {
   const s = initialShowSet(scenes);
+  const authored = s.worlds.length;
   s.worlds = s.worlds.slice(0, 2);
   s.worldBars = 16;
   assert.equal(validateShowSet(s, scenes).worlds.length, AUTHORED_WORLDS);

@@ -71,6 +71,17 @@ const AUTHORED = [
       { name: "Bundle", look: "fibration:Full Bundle" },
     ],
   },
+  {
+    id: "cavern",
+    name: "Crystal Cavern",
+    description:
+      "Glowing seeds sprout faceted prisms, grow into lattice druses and line a luminous hall the camera glides through.",
+    states: [
+      { name: "Seeds", look: "crystal:Dormant Seeds" },
+      { name: "Lattice", look: "crystal:Quartz Lattice" },
+      { name: "Hall", look: "crystal:Geode Hall" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
