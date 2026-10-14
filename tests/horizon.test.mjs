@@ -34,11 +34,14 @@ function encke(y, h) {
   ];
   return [z[0] * c2 + z[1] * s2, -z[0] * s2 + z[1] * c2];
 }
-const step = (u) => 0.6 / (1 + 18 * u);
+const stepOf = (y) => {
+  const u = Math.max(y[0], 0);
+  return Math.min(0.6 / (1 + 18 * u), (0.5 * Math.max(u, 0.02)) / Math.max(Math.abs(y[1]), 1e-6));
+};
 function trace(y, cap = 4000) {
   let phi = 0;
   for (let i = 0; i < cap; i++) {
-    const h = step(y[0]);
+    const h = stepOf(y);
     const next = encke(y, h);
     if (next[0] <= 0) {
       const c = Math.cos(h),
@@ -65,10 +68,11 @@ test("shader keeps the mirrored geodesic integrator", () => {
     "vec2 k4 = hzF(z.x * c2 + z.y * s2) * vec2(-s2, c2);",
     "z = y + h / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4);",
     "return vec2(z.x * c2 + z.y * s2, -z.x * s2 + z.y * c2);",
-    "float h = 0.6 / (1.0 + 18.0 * y.x);",
+    "return min(0.6 / (1.0 + 18.0 * u), 0.5 * max(u, 0.02) / max(abs(y.y), 1e-6));",
+    "float h = hzH(y);",
     "vec2 zm = 0.5 * (y + vec2(yn.x * c - yn.y * sn, yn.x * sn + yn.y * c));",
     "phiInf = phi + atan(zm.x, -zm.y);",
-    "if (uEnd >= 0.5) { captured = true; break; }",
+    "if (uEnd >= 0.5) break;",
     "float b = sp / (u0 * gLapseCam);",
     "vec2 y = vec2(u0, -u0 * gLapseCam * cp / sp);",
     "const float BC = 5.196152422706632;",
@@ -135,7 +139,7 @@ test("Hermite crossings agree with a fine reference integration", () => {
       phi = 0,
       coarse = null;
     while (phi < target) {
-      const h = step(y[0]),
+      const h = stepOf(y),
         next = encke(y, h);
       if (phi + h >= target) coarse = hermite(y, next, h, (target - phi) / h);
       y = next;
@@ -146,6 +150,80 @@ test("Hermite crossings agree with a fine reference integration", () => {
     for (let i = 0; i < n; i++) fine = encke(fine, target / n);
     assert.ok(Math.abs(1 / coarse - 1 / fine[0]) * fine[0] < 1e-3, `b=${b}`);
   }
+});
+
+// The precompute path tabulates (u, u') per impact-parameter row and orbit
+// angle column; the image interpolates rows linearly and columns with cubic
+// Hermite. Emulate it on the CPU against direct integration.
+const EPS = 0.002,
+  X0 = Math.asinh(-Math.sqrt(27) / EPS),
+  DPHI = (3.2 * Math.PI) / 127;
+const rowB = (row, x1) =>
+  Math.sqrt(27) + EPS * Math.sinh(row < 255.75 ? (X0 * (255.5 - row)) / 255.5 : (x1 * (row - 255.5)) / 255.5);
+const rowF = (b, x1) => {
+  const x = Math.asinh((b - Math.sqrt(27)) / EPS);
+  return x < 0 ? 255.5 * (1 - x / X0) : 255.5 + (255.5 * x) / x1;
+};
+function initial(b, r) {
+  const u0 = 1 / r,
+    lapse = Math.sqrt(1 - 2 * u0);
+  const sp = Math.min(Math.max(b * u0 * lapse, 1e-5), 1),
+    cp = -Math.sqrt(Math.max(1 - sp * sp, 0));
+  return [u0, (-u0 * lapse * cp) / sp];
+}
+function advance(y, phi, target) {
+  for (let k = 0; k < 220 && phi < target - 1e-6 && y[0] < 0.5; k++) {
+    const h = Math.min(stepOf(y), target - phi);
+    y = encke(y, h);
+    phi += h;
+  }
+  return y[0] >= 0.5 ? [0.6, 0] : y;
+}
+test("table rows invert, never straddle the shadow edge, and match direct integration", () => {
+  for (const line of [
+    "const float HZ_X0 = -8.555673749021336;",
+    "const float HZ_DPHI = 0.07915824009045148;",
+    "return x < 0.0 ? 255.5 * (1.0 - x / HZ_X0) : 255.5 + 255.5 * x / x1;",
+  ])
+    assert.ok(horizon.fragment.includes(line), line);
+  const r = 27,
+    x1 = Math.asinh((r / Math.sqrt(1 - 2 / r) - Math.sqrt(27)) / EPS);
+  for (const row of [0, 17, 255, 256, 400, 511]) assert.ok(Math.abs(rowF(rowB(row, x1), x1) - row) < 1e-6);
+  assert.ok(rowB(255, x1) < Math.sqrt(27) && rowB(256, x1) > Math.sqrt(27));
+  let worst = 0,
+    checked = 0;
+  for (const b of [1.5, 3, 4.6, 5.6, 7, 9.5, 14, 20]) {
+    const inside = b < Math.sqrt(27);
+    const rf = Math.min(Math.max(rowF(b, x1), inside ? 0 : 256), inside ? 255 : 511);
+    const r0 = Math.floor(rf),
+      r1 = Math.min(r0 + 1, inside ? 255 : 511),
+      w = rf - r0;
+    for (const phi of [0.3, 1.1, 2.0, 2.9]) {
+      const j = Math.floor(phi / DPHI),
+        sf = phi / DPHI - j;
+      const sample = (row) => {
+        const y0 = initial(rowB(row, x1), r);
+        const a = advance(y0, 0, j * DPHI),
+          c = advance(a, j * DPHI, (j + 1) * DPHI);
+        if (a[0] >= 0.5 || c[0] >= 0.5) return null;
+        const s2 = sf * sf,
+          s3 = s2 * sf;
+        return (2 * s3 - 3 * s2 + 1) * a[0] + (s3 - 2 * s2 + sf) * DPHI * a[1] +
+          (-2 * s3 + 3 * s2) * c[0] + (s3 - s2) * DPHI * c[1];
+      };
+      const u0 = sample(r0),
+        u1 = sample(r1);
+      if (u0 === null || u1 === null) continue;
+      const table = u0 + (u1 - u0) * w;
+      const direct = advance(initial(b, r), 0, phi)[0];
+      if (direct <= 0.02 || direct >= 0.5) continue;
+      worst = Math.max(worst, Math.abs(1 / table - 1 / direct) * direct);
+      checked++;
+    }
+  }
+  // Crossing radii from the table agree with direct integration to 2%.
+  assert.ok(checked > 10, `checked ${checked}`);
+  assert.ok(worst < 0.02, `relative radius error ${worst}`);
 });
 
 // CPU mirror of the camera radius: never inside the horizon (r = 2M), nor
@@ -163,8 +241,8 @@ function cameraRadius(dev, az) {
 }
 test("the camera never enters the horizon or the photon sphere", () => {
   for (const line of [
-    "float pass = gBlaze * pow(0.5 + 0.5 * cos(az - 1.9), 6.0);",
-    "float radius = mix(mix(46.0, 34.0, gForm), 27.0, gBlaze) * (1.0 - 0.42 * pass) *\n    (1.0 + 0.025 * sin(3.0 * az));",
+    "pass = blaze * pow(0.5 + 0.5 * cos(az - 1.9), 6.0);",
+    "return mix(mix(46.0, 34.0, form), 27.0, blaze) * (1.0 - 0.42 * pass) *\n    (1.0 + 0.025 * sin(3.0 * az));",
     "incl = clamp(incl, 0.05, 1.25);",
   ])
     assert.ok(horizon.fragment.includes(line), line);

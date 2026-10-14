@@ -140,9 +140,8 @@ void main() {
 }
 `;
 
-const fragment = `
+const common = `
 const int STEP_CAP = 120;
-const int HZ_ABL = 0;
 const float BC = 5.196152422706632; // critical impact parameter √27 M
 const float R_IN = 6.0;             // innermost stable circular orbit
 const float R_STAR = 20.0;          // orbit of the disrupted star
@@ -194,6 +193,12 @@ vec2 hzStep(vec2 y, float h) {
   z = y + h / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
   return vec2(z.x * c2 + z.y * s2, -z.x * s2 + z.y * c2);
 }
+// Step size: larger in the weak field, finer near the photon sphere, and
+// at most half the e-folding angle of u, so nearly radial rays resolve too.
+float hzH(vec2 y) {
+  float u = max(y.x, 0.0);
+  return min(0.6 / (1.0 + 18.0 * u), 0.5 * max(u, 0.02) / max(abs(y.y), 1e-6));
+}
 // Cubic Hermite value and slope between two RK4 states at fraction s.
 vec2 hzHermite(vec2 a, vec2 b, float h, float s) {
   float s2 = s * s, s3 = s2 * s;
@@ -204,6 +209,67 @@ vec2 hzHermite(vec2 a, vec2 b, float h, float s) {
   return vec2(v, d);
 }
 
+// Camera orbit radius, shared by the geodesic table and the image so both
+// see the same camera in the same frame.
+float gSa, gSb;
+void hzSeedAngles() {
+  gSa = float(u_seedBits % 997u) * 0.0063;
+  gSb = float((u_seedBits / 997u) % 991u) * 0.0063;
+}
+float hzCameraRadius(float dev, out float az, out float pass) {
+  float form = smoothstep(0.0, 1.0, dev), blaze = smoothstep(1.0, 2.0, dev);
+  az = TAU * hzPhase(0) + gSa;
+  pass = blaze * pow(0.5 + 0.5 * cos(az - 1.9), 6.0);
+  return mix(mix(46.0, 34.0, form), 27.0, blaze) * (1.0 - 0.42 * pass) *
+    (1.0 + 0.025 * sin(3.0 * az));
+}
+
+// Geodesic table (precompute path). Rows: impact parameter b on an asinh
+// scale around √27 M, captured side rows 0..255, escaping side 256..511, so
+// no row pair straddles the shadow edge. Columns 0..127: (u, u') at
+// φ_j = j·Δφ and φ_(j+1); column 128: (φ_end, flag, φ_end - ψ, ψ) with flag
+// 0 escaped, 1 captured, 2 still orbiting at 3.2π.
+const float HZ_EPS = 0.002;
+const float HZ_X0 = -8.555673749021336;   // asinh(-√27 / HZ_EPS)
+const float HZ_DPHI = 0.07915824009045148; // 3.2π / 127
+const float HZ_PHIMAX = 10.053096491487338;
+// Symmetric asinh: the library form cancels catastrophically for x << 0.
+float hzAsinh(float x) { return sign(x) * log(abs(x) + sqrt(x * x + 1.0)); }
+float hzX1(float radius) {
+  return hzAsinh((radius / sqrt(1.0 - 2.0 / radius) - BC) / HZ_EPS);
+}
+float hzRowB(float row, float x1) {
+  float x = row < 255.75 ? HZ_X0 * (255.5 - row) / 255.5 : x1 * (row - 255.5) / 255.5;
+  return BC + HZ_EPS * sinh(x);
+}
+float hzRowF(float b, float x1) {
+  float x = hzAsinh((b - BC) / HZ_EPS);
+  return x < 0.0 ? 255.5 * (1.0 - x / HZ_X0) : 255.5 + 255.5 * x / x1;
+}
+// Advances y from phi to target (adaptive steps, the last one exact).
+// Captured rays freeze at the horizon sentinel u = 0.6.
+vec2 hzAdvance(vec2 y, float phi, float target) {
+  for (int k = 0; k < 220; ++k) {
+    if (phi >= target - 1e-6 || y.x >= 0.5) break;
+    float h = min(hzH(y), target - phi);
+    y = hzStep(y, h);
+    phi += h;
+  }
+  return y.x >= 0.5 ? vec2(0.6, 0.0) : y;
+}
+// Inward static-observer ray from radius with impact parameter b.
+vec2 hzInitial(float b, float radius, out float psi) {
+  float u0 = 1.0 / radius, lapse = sqrt(1.0 - 2.0 * u0);
+  float sp = clamp(b * u0 * lapse, 1e-5, 1.0), cp = -sqrt(max(1.0 - sp * sp, 0.0));
+  psi = atan(sp, cp);
+  return vec2(u0, -u0 * lapse * cp / sp);
+}
+`;
+
+const fragment = `${common}
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+#endif
 // ------------------------------------------------------------------- jets
 float hzErf(float x) { return tanh(1.202760580 * x); }
 // Line integral of the jet's Gaussian tube along the chord A→B (the
@@ -409,14 +475,13 @@ float hzNoise3(vec3 p, float salt) {
 
 vec3 hzSky(vec3 dir, float fp) {
   vec3 d = gSkyRot * dir;
-  if ((HZ_ABL & 64) != 0) return vec3(fp * 0.001 + d.x * 0.001);
   // A galactic band along a seeded great circle with dust and filaments.
   float lat = d.y;
   float band = exp(-sq(lat / 0.28));
   // Two octaves of value noise only inside the band; the second one fades
   // with the lensed footprint. Dust lanes reuse the fine octave.
   float neb = 0.0, dust = 0.0;
-  if (band > 0.02 && (HZ_ABL & 128) == 0) {
+  if (band > 0.02) {
     neb = hzNoise3(d * 2.4, 17.0) - 0.5;
     float fine = hzNoise3(d * 6.5, 70.0);
     float keep = 1.0 - smoothstep(0.25, 0.8, fp * 13.0);
@@ -427,10 +492,37 @@ vec3 hzSky(vec3 dir, float fp) {
   vec3 col = mix(u_secondary, mix(u_primary, u_secondary, 0.4), smoothstep(-0.1, 0.25, neb)) * glow * 0.055 * (0.4 + gStars);
   col += u_secondary * 0.006;
   float denser = 1.0 + 1.6 * band;
-  if ((HZ_ABL & 256) != 0) return col;
   col += hzStars(d, 60.0, fp, 11.0, 0.4 * gStars, 0.7);
   col += hzStars(d, 230.0, fp, 23.0, (0.1 + 0.3 * gStars) * min(1.0, 0.45 * denser), 0.3);
   return col;
+}
+
+// Equatorial crossing at orbit angle pc with state c = (u, u'): position
+// (xz) and the redshift factor g of Keplerian gas seen by the static camera.
+vec4 hzCrossing(float pc, vec2 c, vec3 e1, vec3 e2) {
+  float r = 1.0 / c.x;
+  vec3 rh = cos(pc) * e1 + sin(pc) * e2;
+  vec3 th = -sin(pc) * e1 + cos(pc) * e2;
+  vec3 pos = rh * r;
+  // Static-frame direction of the backward ray; photons travel opposite.
+  float lapse = sqrt(max(1.0 - 2.0 * c.x, 1e-4));
+  vec3 back = normalize(rh * (-c.y / lapse) + th * c.x);
+  vec3 gas = vec3(pos.z, 0.0, -pos.x) / r;
+  float beta = min(sqrt(1.0 / max(r - 2.0, 0.5)), 0.95);
+  float g = sqrt(max(1.0 - 3.0 / max(r, 3.05), 0.0)) / (1.0 - beta * dot(gas, -back)) / gLapseCam;
+  g = r > R_IN ? g : g * smoothstep(2.0, R_IN, r);
+  return vec4(pos.x, pos.z, g, 1.0);
+}
+
+// Pixel footprint of a crossing on the disk. A neighbour without the same
+// crossing (shadow edge, image order change) gives no derivative: that axis
+// is skipped, and a pixel with no valid axis assumes a modest footprint.
+float hzFootprint(vec4 X) {
+  vec2 dx = dFdx(X.xy), dy = dFdy(X.xy);
+  float vx = abs(dFdx(X.w)), vy = abs(dFdy(X.w));
+  float fx = vx < 0.5 ? length(dx) : 0.0, fy = vy < 0.5 ? length(dy) : 0.0;
+  float fp = max(fx, fy);
+  return vx > 0.5 && vy > 0.5 ? 0.02 * length(X.xy) : fp;
 }
 
 // ------------------------------------------------------------------- main
@@ -452,7 +544,8 @@ void main() {
   gTwinkle = hzPhase(4);
   gSeedShift = float(u_seedBits % 61u);
   // Seed-derived identity: sky orientation and the star's starting angle.
-  float sa = float(u_seedBits % 997u) * 0.0063, sb = float((u_seedBits / 997u) % 991u) * 0.0063;
+  hzSeedAngles();
+  float sa = gSa, sb = gSb;
   gHeadAngle = -TAU * hzPhase(5) + sa * 3.0;
   gSpotAngle = -TAU * hzPhase(6) + sb * 5.0;
   mat3 ry = mat3(cos(sa), 0.0, -sin(sa), 0.0, 1.0, 0.0, sin(sa), 0.0, cos(sa));
@@ -466,7 +559,8 @@ void main() {
   // Camera: a slow orbit around the spin axis. Inclination moves to a new
   // seeded value on each 8-bar phrase; distance closes in with development
   // and dives into one close pass per orbit in the Horizon state.
-  float az = TAU * hzPhase(0) + sa;
+  float az, pass;
+  float radius = hzCameraRadius(dev, az, pass);
   float phrase = u_beat / 32.0;
   float pk = floor(phrase);
   float wob = mix(hz01(seedHash(uint(int(pk)) ^ 0x2545f491u)),
@@ -474,9 +568,6 @@ void main() {
                   smoothstep(0.6, 1.0, fract(phrase))) * 2.0 - 1.0;
   float incl = mix(0.42, 0.16, smoothstep(0.0, 2.0, dev)) + 0.9 * (u_params[6] - 0.35) + 0.045 * wob;
   incl = clamp(incl, 0.05, 1.25);
-  float pass = gBlaze * pow(0.5 + 0.5 * cos(az - 1.9), 6.0);
-  float radius = mix(mix(46.0, 34.0, gForm), 27.0, gBlaze) * (1.0 - 0.42 * pass) *
-    (1.0 + 0.025 * sin(3.0 * az));
   incl = mix(incl, max(0.06, incl * 0.6), pass);
   vec3 eye = radius * vec3(cos(incl) * cos(az), sin(incl), cos(incl) * sin(az));
   vec3 fw = -eye / radius;
@@ -508,53 +599,91 @@ void main() {
   float nextCross = mod(phiN, PI);
   if (nextCross < 1e-4) nextCross += PI;
 
-  int limit = int(min(float(STEP_CAP), 1.25 * u_raySteps));
-  if ((HZ_ABL & 8) != 0) limit = 0;
-  if ((HZ_ABL & 1024) != 0) limit = min(limit, 6);
-  float phi = 0.0;
   int crossings = 0;
-  vec4 X0 = vec4(1e4, 1e4, 1.0, 0.0), X1 = X0, X2 = X0;  // xz, g, valid
-  vec3 J0 = vec3(0.0), J1 = J0, J2 = J0, J3 = J0;         // core, sheath per segment
-  bool escaped = false, captured = false;
+  vec4 X0 = vec4(0.0, 0.0, 1.0, 0.0), X1 = X0, X2 = X0;  // xz, g, valid
+  vec2 J0 = vec2(0.0), J1 = J0, J2 = J0, J3 = J0;         // core, sheath per segment
+  bool escaped = false;
   float phiInf = 0.0;
   vec3 prevP = eye;
   // The orbit plane keeps |p.y| ≤ r·cY and ρ ≥ r·|n.y|; the jet needs
   // ρ ≤ 3(0.5 + 0.11|y|) and |y| ≥ 2.4, impossible when 1.5 < 2.4 (|n.y| - 0.33 cY).
   float ny = abs(cross(e1, e2).y), cY = sqrt(max(1.0 - ny * ny, 0.0));
-  bool jets = gJetAmt > 0.002 && 2.4 * (ny - 0.33 * cY) < 1.5 && (HZ_ABL & 4) == 0;
+  bool jets = gJetAmt > 0.002 && 2.4 * (ny - 0.33 * cY) < 1.5;
+#ifdef PRECOMPUTED
+  // Table path: every ray is one row (its b) of the per-frame geodesic table.
+  float x1 = hzX1(radius);
+  bool inside = b < BC;
+  float rf = clamp(hzRowF(b, x1), inside ? 0.0 : 256.0, inside ? 255.0 : 511.0);
+  int r0 = int(rf), r1 = min(r0 + 1, inside ? 255 : 511);
+  float w = rf - float(r0);
+  vec4 m0 = texelFetch(u_precomputed, ivec2(128, r0), 0);
+  vec4 m1 = texelFetch(u_precomputed, ivec2(128, r1), 0);
+  float phiEnd = mix(m0.x, m1.x, w);
+  escaped = !inside && max(m0.y, m1.y) < 0.5;
+  phiInf = atan(sp, cp) + mix(m0.z, m1.z, w);
+  float cphi0 = 1e9, cphi1 = 1e9, cphi2 = 1e9;
+  for (int k = 0; k < 3; ++k) {
+    float pc = nextCross + PI * float(k);
+    if (pc >= min(phiEnd, HZ_PHIMAX - HZ_DPHI)) break;
+    float cc = pc / HZ_DPHI;
+    int j = int(cc);
+    float sf = cc - float(j);
+    vec4 t0 = texelFetch(u_precomputed, ivec2(j, r0), 0);
+    vec4 t1 = texelFetch(u_precomputed, ivec2(j, r1), 0);
+    vec2 c = mix(hzHermite(t0.xy, t0.zw, HZ_DPHI, sf), hzHermite(t1.xy, t1.zw, HZ_DPHI, sf), w);
+    // Samples frozen at the horizon sentinel cannot be interpolated: these
+    // rays (nearly radial, captured within one column) integrate directly.
+    if (max(max(t0.x, t0.z), max(t1.x, t1.z)) >= 0.5) c = hzAdvance(y, 0.0, pc);
+    if (c.x > 0.0 && c.x < 0.5) {
+      vec4 X = hzCrossing(pc, c, e1, e2);
+      if (crossings == 0) { X0 = X; cphi0 = pc; }
+      else if (crossings == 1) { X1 = X; cphi1 = pc; }
+      else { X2 = X; cphi2 = pc; }
+      crossings++;
+    }
+  }
+  if (jets) {
+    // Chords between every third table sample of the nearest row.
+    int rn = w < 0.5 ? r0 : r1;
+    float pPrev = 0.0;
+    for (int k = 1; k < 43; ++k) {
+      float pk = 3.0 * float(k) * HZ_DPHI;
+      if (pk > phiEnd) break;
+      float uk = texelFetch(u_precomputed, ivec2(3 * k, rn), 0).x;
+      if (uk <= 0.0 || uk >= 0.5) break;
+      vec3 P = (cos(pk) * e1 + sin(pk) * e2) / uk;
+      vec2 jv = hzJet(prevP, P);
+      float mid = 0.5 * (pPrev + pk);
+      int bucket = int(mid > cphi0) + int(mid > cphi1) + int(mid > cphi2);
+      if (bucket == 0) J0 += jv; else if (bucket == 1) J1 += jv; else if (bucket == 2) J2 += jv; else J3 += jv;
+      prevP = P;
+      pPrev = pk;
+    }
+  }
+#else
+  // Fallback: integrate each pixel's geodesic directly (same integrator).
+  int limit = int(min(float(STEP_CAP), 1.25 * u_raySteps));
+  float phi = 0.0;
   for (int i = 0; i < STEP_CAP; ++i) {
     if (i >= limit) break;
     // Larger steps in the weak field, finer near the photon sphere.
-    float h = 0.6 / (1.0 + 18.0 * y.x);
+    float h = hzH(y);
     vec2 yn = hzStep(y, h);
     float pn = phi + h;
     float uEnd = yn.x;
     if (nextCross <= pn && crossings < 3) {
-      float s = (nextCross - phi) / h;
-      vec2 c = hzHermite(y, yn, h, s);
+      vec2 c = hzHermite(y, yn, h, (nextCross - phi) / h);
       if (c.x > 0.0 && c.x < 0.5) {
-        float r = 1.0 / c.x;
-        vec3 rh = cos(nextCross) * e1 + sin(nextCross) * e2;
-        vec3 th = -sin(nextCross) * e1 + cos(nextCross) * e2;
-        vec3 pos = rh * r;
-        // Static-frame direction of the backward ray; photons travel opposite.
-        float lapse = sqrt(max(1.0 - 2.0 * c.x, 1e-4));
-        vec3 back = normalize(rh * (-c.y / lapse) + th * c.x);
-        vec3 gas = vec3(pos.z, 0.0, -pos.x) / r;
-        float beta = min(sqrt(1.0 / max(r - 2.0, 0.5)), 0.95);
-        float g = sqrt(max(1.0 - 3.0 / max(r, 3.05), 0.0)) / (1.0 - beta * dot(gas, -back)) / gLapseCam;
-        g = r > R_IN ? g : g * smoothstep(2.0, R_IN, r);
-        vec4 X = vec4(pos.x, pos.z, g, 1.0);
+        vec4 X = hzCrossing(nextCross, c, e1, e2);
         if (crossings == 0) X0 = X; else if (crossings == 1) X1 = X; else X2 = X;
         crossings++;
-        nextCross += PI;
-      } else if (c.x >= 0.5) nextCross += PI;
+      }
+      nextCross += PI;
     }
     if (jets && uEnd > 0.0) {
       vec3 P = (cos(pn) * e1 + sin(pn) * e2) / uEnd;
       vec2 jv = hzJet(prevP, P);
-      vec3 jc = vec3(jv, 0.0);
-      if (crossings == 0) J0 += jc; else if (crossings == 1) J1 += jc; else if (crossings == 2) J2 += jc; else J3 += jc;
+      if (crossings == 0) J0 += jv; else if (crossings == 1) J1 += jv; else if (crossings == 2) J2 += jv; else J3 += jv;
       prevP = P;
     }
     if (uEnd <= 0.0) {
@@ -566,29 +695,26 @@ void main() {
       phiInf = phi + atan(zm.x, -zm.y);
       break;
     }
-    if (uEnd >= 0.5) { captured = true; break; }
+    if (uEnd >= 0.5) break;
     y = yn;
     phi = pn;
   }
+#endif
 
   // Footprints (top level, uniform control flow): crossing positions and the
   // asymptotic sky direction differentiate across the pixel quad.
   vec3 dirInf = escaped ? cos(phiInf) * e1 + sin(phiInf) * e2 : rd;
   float fpSky = max(length(dFdx(dirInf)), length(dFdy(dirInf)));
-  if ((HZ_ABL & 512) != 0) fpSky = 0.0;
-  float fp0 = max(length(dFdx(X0.xy)), length(dFdy(X0.xy)));
-  float fp1 = max(length(dFdx(X1.xy)), length(dFdy(X1.xy)));
-  float fp2 = max(length(dFdx(X2.xy)), length(dFdy(X2.xy)));
+  float fp0 = hzFootprint(X0), fp1 = hzFootprint(X1), fp2 = hzFootprint(X2);
   float fwB = fwidth(b);
 
   vec3 sheathCol = mix(u_secondary, u_primary, 0.55);
   vec3 coreCol = mix(u_accent, vec3(1.0), 0.25);
   float jetGain = gJetAmt * 1.1;
-  #define HZ_JET(J) ((coreCol * J.x * 0.7 + sheathCol * J.y * 0.6) * jetGain)
+  #define HZ_JET(J) ((coreCol * (J).x * 0.7 + sheathCol * (J).y * 0.6) * jetGain)
 
   vec3 col = HZ_JET(J0);
   float T = 1.0;
-  if ((HZ_ABL & 2) != 0) crossings = 0;
   if (crossings > 0) {
     vec4 d = hzDisk(X0.xy, X0.z, min(fp0, 8.0), 0.0);
     col += T * d.rgb; T *= 1.0 - d.a;
@@ -604,7 +730,7 @@ void main() {
     col += T * d.rgb; T *= 1.0 - d.a;
     col += T * HZ_JET(J3);
   }
-  if (escaped && T > 0.004 && (HZ_ABL & 1) == 0) col += T * hzSky(dirInf, min(fpSky, 1.0));
+  if (escaped && T > 0.004) col += T * hzSky(dirInf, min(fpSky, 1.0));
 
   // Photon ring: rays with b near √27 M orbit the photon sphere. Width is
   // the larger of its physical sharpness and 1.2 pixels of b.
@@ -615,6 +741,49 @@ void main() {
   col += T * (mix(u_accent, vec3(1.0), 0.2) * ring * 0.7 + mix(u_primary, u_accent, 0.3) * halo * gMass) * ringAmt;
 
   outColor = vec4(max(col, vec3(0.0)), 1.0);
+}
+`;
+
+// Per-frame geodesic table (see hzRowB). Each texel integrates its row's
+// ray from the camera to its column angle with the image's integrator; the
+// last step lands exactly on the sample. Captured rays freeze at u = 0.6.
+const precompute = `${common}
+void main() {
+  hzSeedAngles();
+  float az, pass;
+  float radius = hzCameraRadius(clamp(u_params[0], 0.0, 2.0), az, pass);
+  int col = int(gl_FragCoord.x);
+  float row = floor(gl_FragCoord.y);
+  float psi;
+  vec2 y = hzInitial(hzRowB(row, hzX1(radius)), radius, psi);
+  if (col < 128) {
+    float p0 = float(col) * HZ_DPHI;
+    vec2 a = hzAdvance(y, 0.0, p0);
+    vec2 b = hzAdvance(a, p0, p0 + HZ_DPHI);
+    outColor = vec4(a, b);
+    return;
+  }
+  float phi = 0.0, flag = 2.0, phiEnd = HZ_PHIMAX;
+  for (int k = 0; k < 400; ++k) {
+    float h = hzH(y);
+    vec2 yn = hzStep(y, h);
+    if (yn.x <= 0.0) {
+      float c = cos(h), sn = sin(h);
+      vec2 zm = 0.5 * (y + vec2(yn.x * c - yn.y * sn, yn.x * sn + yn.y * c));
+      phiEnd = phi + atan(zm.x, -zm.y);
+      flag = 0.0;
+      break;
+    }
+    if (yn.x >= 0.5) {
+      phiEnd = phi + h * (0.5 - y.x) / max(yn.x - y.x, 1e-6);
+      flag = 1.0;
+      break;
+    }
+    y = yn;
+    phi += h;
+    if (phi > HZ_PHIMAX) break;
+  }
+  outColor = vec4(phiEnd, flag, phiEnd - psi, psi);
 }
 `;
 
@@ -664,4 +833,5 @@ export default {
   ],
   fragment,
   simulation: { fragment: simulation, size: [7, 1], steps: 1 },
+  precompute: { fragment: precompute, size: [129, 512] },
 };
