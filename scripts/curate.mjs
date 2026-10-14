@@ -13,6 +13,7 @@ const families = {
   descent: [9.4, ["Endless City", "Pillared Cavern", "Sponge Corridor", "Skyfall Streets", "Lantern Arcology", "Ember Gallery", "Quiet Vault", "Narrow Lattice"]],
   metamorphosis: [8.2,["Open Blossom","Pearl Membranes","First Filaments","Evening Blossom","Silver Canopy","Wandering Threads"]],
   nebula: [8.4, ["Grand Spiral", "Supernova Shell", "Drifting Dust", "Remnant Bloom", "Open Whirlpool", "Edge-on Lanes", "Cosmic Web"]],
+  mycelium: [8.0, ["Lantern City", "Tidal Lamellae", "Hyphal Understory", "Night Membrane", "Street Plan", "Tide Turning", "Bloom Quarter", "Spore Floor"]],
   physarum: [8.6, ["Honeycomb Transport", "Migrating Stations", "Foraging Veins", "Six Food Stations", "Living Circuit", "Annular Foragers", "Fine Nutrient Roads", "Braided Couriers"]],
   caustics: [8.5, ["Pool of Light", "Breathing Lens Sheet", "Crossing Wave Banks", "Prismatic Focal Pearls", "Long Glass Ribbons", "Slow Cusp Garden", "Fine Water Folds", "Liquid Lattice"]],
   colonization: [7.5, ["Branching Crown", "Root Veins", "Coral Arbor", "Broad Canopy", "Deep Root Fan", "Winter Crown", "Fine Root Lace", "Coral Thicket"]],

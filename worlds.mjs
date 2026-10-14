@@ -2,28 +2,40 @@ import { tr } from "./i18n/index.mjs";
 // Curated performances above the look catalog. Definitions travel with a set;
 // runtime selection/transport belongs to Show, never to the catalog UI.
 export const WORLD_DURATIONS = [4, 8, 16]; // bars, always measured on the show clock
+// Living Mycelium until 2026-10-14: three acid looks with curated chemistry.
+// Since then it is one continuous world (scene-mycelium.mjs).
+const MYCELIUM_ACID = {
+  id: "mycelium",
+  name: "Living Mycelium",
+  description: "Quiet filaments become tidal membranes and luminous networks.",
+  states: [
+    {
+      name: "Understory",
+      look: "acid:Signal Understory",
+      params: { feed: 0.029, kill: 0.057, diffusion: 0.9, speed: 0.5 },
+    },
+    {
+      name: "Tide",
+      look: "acid:Tidal Membrane",
+      params: { feed: 0.029, kill: 0.057, diffusion: 0.9, speed: 0.7 },
+    },
+    {
+      name: "City",
+      look: "acid:Mycelial City",
+      params: { feed: 0.029, kill: 0.057, diffusion: 0.9, speed: 1 },
+    },
+  ],
+};
 const AUTHORED = [
   {
     id: "mycelium",
     name: "Living Mycelium",
     description:
-      "Quiet filaments become tidal membranes and luminous networks.",
+      "One living field grows from understory threads into tidal membranes and a luminous city. Play every stage in between.",
     states: [
-      {
-        name: "Understory",
-        look: "acid:Signal Understory",
-        params: { feed: 0.029, kill: 0.057, diffusion: 0.9, speed: 0.5 },
-      },
-      {
-        name: "Tide",
-        look: "acid:Tidal Membrane",
-        params: { feed: 0.029, kill: 0.057, diffusion: 0.9, speed: 0.7 },
-      },
-      {
-        name: "City",
-        look: "acid:Mycelial City",
-        params: { feed: 0.029, kill: 0.057, diffusion: 0.9, speed: 1 },
-      },
+      { name: "Understory", look: "mycelium:Hyphal Understory" },
+      { name: "Tide", look: "mycelium:Tidal Lamellae" },
+      { name: "City", look: "mycelium:Lantern City" },
     ],
   },
   {
@@ -109,10 +121,15 @@ const AUTHORED = [
 // one of them (or to its current definition) is untouched authored data and
 // follows the current definition. When an authored world changes, append its
 // previous definition here so existing sets upgrade instead of diverging.
-const HISTORY = AUTHORED.slice(0, 2).map((w) => ({
+const withoutParams = (w) => ({
   ...w,
   states: w.states.map(({ params, ...state }) => state),
-}));
+});
+const HISTORY = [
+  MYCELIUM_ACID,
+  withoutParams(MYCELIUM_ACID),
+  withoutParams(AUTHORED[1]),
+];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const untouched = (w) =>
   [...AUTHORED, ...HISTORY].some((a) => a.id === w?.id && same(a, w));

@@ -296,7 +296,7 @@ test("development chemistry is curated, validated and restored as part of the wo
   other.restore(show.snapshot(3), 100);
   assert.equal(other.live.clip.snapshot.params.feed, 0.029);
   const invalid = structuredClone(show.set);
-  invalid.worlds[0].states[0].params.feed = 999;
+  invalid.worlds[1].states[0].params.feed = 999;
   assert.throws(() => validateShowSet(invalid, scenes));
 });
 test("removing a referenced own look keeps portable world definitions valid", async () => {
@@ -326,11 +326,12 @@ test("untouched early world definitions gain stable chemistry without replacing 
   const set = initialShowSet(scenes);
   for (const world of set.worlds)
     for (const state of world.states) delete state.params;
-  set.worlds[1].name = "My garden";
+  set.worlds[2].name = "My unfolding";
   const migrated = validateShowSet(set, scenes);
-  assert.equal(migrated.worlds[0].states[0].params.feed, 0.029);
-  assert.equal(migrated.worlds[1].name, "My garden");
-  assert.equal(migrated.worlds[1].states[0].params, undefined);
+  // Afterglow Garden's untouched params-free form gains its chemistry.
+  assert.equal(migrated.worlds[1].states[0].params.feed, 0.029);
+  assert.equal(migrated.worlds[0].states[0].look, "mycelium:Hyphal Understory");
+  assert.equal(migrated.worlds[2].name, "My unfolding");
 });
 
 test("restoring free play into a frozen world clears its identity and held beat", () => {

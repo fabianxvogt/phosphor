@@ -48,6 +48,13 @@ export const FAMILY_CATALOG = {
     styles: ["particles", "spatial"],
     variants: ["Dust", "Spiral", "Nova"],
   },
+  mycelium: {
+    algorithm: "Gray–Scott reaction–diffusion as a lit terrain",
+    description:
+      "One reaction–diffusion field becomes understory threads, tidal membranes and a luminous city while its chemistry keeps running.",
+    styles: ["organic", "spatial"],
+    variants: ["Understory", "Tide", "City"],
+  },
   physarum: {
     algorithm: "Agent chemotaxis with a diffusing trail field",
     description:
