@@ -60,6 +60,17 @@ const AUTHORED = [
       { name: "Blossom", look: "metamorphosis:Open Blossom" },
     ],
   },
+  {
+    id: "hopf-bloom",
+    name: "Hopf Bloom",
+    description:
+      "One torus of linked circles blooms into nested tori and the whole Hopf bundle. Every pair of fibres stays linked.",
+    states: [
+      { name: "Torus", look: "fibration:Linked Torus" },
+      { name: "Nest", look: "fibration:Nested Shells" },
+      { name: "Bundle", look: "fibration:Full Bundle" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

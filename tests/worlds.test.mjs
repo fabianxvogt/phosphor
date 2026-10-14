@@ -6,6 +6,10 @@ import { Show } from "../show.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { canCarryTraces, defaultWorlds } from "../worlds.mjs";
 import { carryTraces } from "../engine-memory.mjs";
+// Authored worlds grow over time; count them instead of fixing a number.
+const AUTHORED_WORLDS = defaultWorlds(
+  scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`)),
+).length;
 
 function make() {
   const set = initialShowSet(scenes);
@@ -26,13 +30,14 @@ const start = (show, t = 0.2) => show.command({ type: "world-start" }, t);
 
 test("world definitions roundtrip and old sets gain the curated worlds", () => {
   const set = initialShowSet(scenes);
-  assert.equal(set.worlds.length, 3);
+  assert.ok(AUTHORED_WORLDS >= 3);
+  assert.equal(set.worlds.length, AUTHORED_WORLDS);
   assert.deepEqual(
     validateShowSet(JSON.parse(JSON.stringify(set)), scenes).worlds,
     set.worlds,
   );
   delete set.worlds;
-  assert.equal(validateShowSet(set, scenes).worlds.length, 3);
+  assert.equal(validateShowSet(set, scenes).worlds.length, AUTHORED_WORLDS);
   assert.deepEqual(defaultWorlds([]), []);
 });
 test("reject malformed, duplicate and unknown world definitions", () => {
@@ -314,7 +319,10 @@ test("removing a referenced own look keeps portable world definitions valid", as
   set.worlds = withoutWorldLook(set.worlds, "own-world");
   assert.equal(validateShowSet(set, scenes).worlds[0].states.length, 2);
   set.worlds = withoutWorldLook(set.worlds, set.worlds[0].states[0].look);
-  assert.equal(validateShowSet(set, scenes).worlds.length, 2);
+  assert.equal(
+    validateShowSet(set, scenes).worlds.length,
+    AUTHORED_WORLDS - 1,
+  );
 });
 
 test("untouched early world definitions gain stable chemistry without replacing customized worlds", () => {

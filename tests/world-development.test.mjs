@@ -6,6 +6,11 @@ import { Show } from "../show.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { performanceState, restorePerformance } from "../control-preview.mjs";
 import { organism, createGeometry } from "../metamorphosis-geometry.mjs";
+import { defaultWorlds } from "../worlds.mjs";
+// Authored worlds grow over time; count them instead of fixing a number.
+const AUTHORED_WORLDS = defaultWorlds(
+  scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`)),
+).length;
 const eps = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 function setup() {
   const set = initialShowSet(scenes);
@@ -164,7 +169,7 @@ test("library upgrade retains edited worlds and duration travels with exported s
   const s = initialShowSet(scenes);
   s.worlds = s.worlds.slice(0, 2);
   s.worldBars = 16;
-  assert.equal(validateShowSet(s, scenes).worlds.length, 3);
+  assert.equal(validateShowSet(s, scenes).worlds.length, AUTHORED_WORLDS);
   assert.equal(validateShowSet(s, scenes).worldBars, 16);
   s.worlds[0].name = "My personal world";
   assert.equal(validateShowSet(s, scenes).worlds.length, 2);

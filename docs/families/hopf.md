@@ -27,6 +27,7 @@ Clifford Torus, Thin Torus, Nested Tori, Loxodrome Fibres, Linked Rings, Ring St
 - Energy: 4D tumble ×0.6 → ×1.6, light −0.1 → +0.2, camera turn ×0.6 → ×1.8.
 - Audio: tumble ← low (0.05), light ← onset (0.12), latitude ← high (0.04). The beat makes the latitudes breathe. The shared punch/pulse is 0.6/1.
 - Endless: the 4D tumble, the camera and the drifting base points never repeat exactly.
+- 2026-10-14: the camera yaw is integrated in simulation texel (0, 0) as a 24-bit fraction of a turn. Energy and the Camera turn fader now change turning speed; previously `yaw = t · spin` jumped the whole view whenever spin changed late in a set. At constant parameters the picture is unchanged. (Fourth Dimension received the same fix for its 4D rotation and tumble angles, wrapped at 200π.) The 3D tube version of this mathematics is [Linked Fibres / Hopf Bloom](fibration.md).
 
 ## Cost
 

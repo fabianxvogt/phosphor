@@ -102,3 +102,8 @@ test("every look validates and all four configurations are covered", () => {
     );
   }
 });
+
+test("the camera yaw is integrated, so energy changes turning speed but never jumps the view", () => {
+  assert.match(hopfScene.simulation.fragment, /u_dt \* u_params\[4\]/);
+  assert.doesNotMatch(hopfScene.particles.vertex, /t \* spin/);
+});

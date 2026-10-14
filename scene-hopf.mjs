@@ -42,8 +42,21 @@ export const stereo = ([x1, y1, x2, y2]) => [
   x2 / (1 - y2),
 ];
 
+// Texel (0, 0) integrates the camera yaw as a 24-bit fraction of a turn, so
+// energy and the spin fader change turning speed without jumping the view.
 const simulation = `
-void main() { outColor = vec4(0.0); }
+float unpack24(vec4 c) { vec3 b = floor(c.rgb * 255. + .5); return dot(b, vec3(65536., 256., 1.)) / 16777216.; }
+vec4 pack24(float x) {
+  float n = floor(fract(x) * 16777216.);
+  float b0 = floor(n / 65536.); n -= b0 * 65536.;
+  float b1 = floor(n / 256.); n -= b1 * 256.;
+  return vec4(b0, b1, n, 255.) / 255.;
+}
+void main() {
+  if (ivec2(gl_FragCoord.xy) != ivec2(0)) { outColor = vec4(0.0); return; }
+  float yaw = unpack24(texelFetch(u_state, ivec2(0), 0));
+  outColor = pack24(u_reset ? 0.0 : yaw + u_dt * u_params[4] * 0.2 / 6.283185307179586);
+}
 `;
 
 const fragment = `
@@ -115,7 +128,8 @@ void main() {
   if (length(p) > 8.0) return;
 
   // Camera.
-  float yaw = t * spin * 0.2, pitch = 0.45 + 0.25 * sin(t * 0.09);
+  vec3 yawBytes = floor(texelFetch(u_state, ivec2(0), 0).rgb * 255.0 + 0.5);
+  float yaw = TAU_H * dot(yawBytes, vec3(65536.0, 256.0, 1.0)) / 16777216.0, pitch = 0.45 + 0.25 * sin(t * 0.09);
   p.xz = mat2(cos(yaw), -sin(yaw), sin(yaw), cos(yaw)) * p.xz;
   p.yz = mat2(cos(pitch), -sin(pitch), sin(pitch), cos(pitch)) * p.yz;
   float depth = 5.5 / zoom + p.z;

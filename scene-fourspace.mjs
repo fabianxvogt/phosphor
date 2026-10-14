@@ -55,10 +55,11 @@ const projection = `  int shape = int(floor(u_params[0] + 0.5));
   float spin = u_params[1], tumble = u_params[2], fold = u_params[3];
   float size = u_params[4], weight = u_params[5], glow = u_params[6], tint = u_params[7];
   int count = shape == 0 ? 16 : shape == 1 ? 8 : shape == 2 ? 24 : 36;
-  float t = u_time;
+  // Integrated rotation angles (see simulation): energy changes speed only.
+  vec2 turn = fdTurn();
   float phase = fract(u_seed * 0.0093) * 6.2831853;
-  mat2 xw = rot2(t * spin * 0.5 + phase + u_rhythm.y * 0.24), yz = rot2(t * spin * 0.31), zw = rot2(t * spin * 0.23 + 1.0);
-  mat2 xz = rot2(t * tumble * 0.4 + 0.6), xy = rot2(t * tumble * 0.27);
+  mat2 xw = rot2(turn.x * 0.5 + phase + u_rhythm.y * 0.24), yz = rot2(turn.x * 0.31), zw = rot2(turn.x * 0.23 + 1.0);
+  mat2 xz = rot2(turn.y * 0.4 + 0.6), xy = rot2(turn.y * 0.27);
 
   vec3 P[VERTEX_CAP];
   for (int i = 0; i < VERTEX_CAP; ++i) {
@@ -72,8 +73,33 @@ const projection = `  int shape = int(floor(u_params[0] + 0.5));
     P[i] = vec3(q.xy / z * 2.2 * size, v.w);
   }
 `;
+// Rotation angles ∫spin dt and ∫tumble dt, stored as 24-bit fractions of
+// 200π: every multiplier below (0.5, 0.31, 0.23, 0.4, 0.27) times 100 is an
+// integer, so wrapping the stored angle never jumps any rotation.
+const TURN_PERIOD = "628.3185307179586";
+const simulation = `
+float unpack24(vec4 c) { vec3 b = floor(c.rgb * 255. + .5); return dot(b, vec3(65536., 256., 1.)) / 16777216.; }
+vec4 pack24(float x) {
+  float n = floor(fract(x) * 16777216.);
+  float b0 = floor(n / 65536.); n -= b0 * 65536.;
+  float b1 = floor(n / 256.); n -= b1 * 256.;
+  return vec4(b0, b1, n, 255.) / 255.;
+}
+void main() {
+  int i = int(gl_FragCoord.x);
+  float turn = unpack24(texelFetch(u_state, ivec2(i, 0), 0));
+  float rate = i == 0 ? u_params[1] : u_params[2];
+  outColor = pack24(u_reset ? 0. : turn + u_dt * rate / ${TURN_PERIOD});
+}
+`;
 const geometry = `
 const int VERTEX_CAP = 36;
+vec2 fdTurn() {
+  vec3 a = floor(texelFetch(u_state, ivec2(0, 0), 0).rgb * 255. + .5);
+  vec3 b = floor(texelFetch(u_state, ivec2(1, 0), 0).rgb * 255. + .5);
+  vec3 w = vec3(65536., 256., 1.) / 16777216. * ${TURN_PERIOD};
+  return vec2(dot(a, w), dot(b, w));
+}
 
 vec4 fdVertex(int shape, int i) {
   if (shape == 0) {
@@ -210,4 +236,5 @@ export default {
   presets,
   fragment,
   precompute: { fragment: precompute, size: [96, 3] },
+  simulation: { fragment: simulation, size: [2, 1], steps: 1 },
 };
