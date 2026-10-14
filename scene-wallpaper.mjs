@@ -7,7 +7,7 @@ import { familyEffect } from "./family-rhythm.mjs";
 // International Tables), F = Σ_k f(A_k X + t_k). The result has exactly
 // that symmetry: mirrors, glides, 2-, 3-, 4- and 6-fold centres.
 //
-// Rework 2026-10-14 (look audit #2): |F|² is an embossed relief seen by a
+// Rework 2026-10-14 (look audit #2): Re(F·e^{-iθ}) is an embossed relief seen by a
 // slowly tilting, gliding camera. Only the crests catch the key and rim
 // light; the ground stays near black. Mirror axes (solid), glide axes
 // (dashed, dash = glide length) and rotation centres (the Tables' 2-, 3-,
@@ -489,6 +489,9 @@ void main() {
   colour += mix(u_primary, vec3(1.), .45) * spec * crest * .9;
   colour += mix(mix(u_secondary, u_primary, .5), u_accent, .3) * rim * crest * (.42 + .25 * beatPulse);
   colour += u_secondary * .012 * ao;
+  // A steeper, denser relief catches more rim and sheen; hold the exposure
+  // so energy reads as structure, not brightness (measured on the ladder).
+  colour /= .9 + .16 * lvl;
 
   // Terraces: level lines of the relief that climb the crests on the beat.
   float level = h * (4. + 3. * lvl) - beats * .125;
@@ -668,7 +671,7 @@ export default {
   number: 76,
   name: "Wallpaper Groups",
   description:
-    "All 17 plane symmetry groups, made with Farris' wave-function method: a lattice-periodic complex function averaged over the group's mirrors, glides and rotations, so the pattern has exactly that symmetry. Its modulus is an embossed relief under a slowly tilting camera: only the crests catch the light, the ground stays dark. Thin accent marks show the mirror axes (solid), glide axes (dashed) and rotation centres (lens, triangle, square, hexagon), each a peak, pit or saddle of the relief. The waves turn continuously; scheduled coefficient changes preserve the exact symmetry, with separate phase-orbit and modulus-band light tracks.",
+    "All 17 plane symmetry groups, made with Farris' wave-function method: a lattice-periodic complex function averaged over the group's mirrors, glides and rotations, so the pattern has exactly that symmetry. Its real part, slowly turning in phase, is an embossed relief under a slowly tilting camera: only the crests catch the light, the ground stays dark. Thin accent marks show the mirror axes (solid), glide axes (dashed) and rotation centres (lens, triangle, square, hexagon), each a peak, pit or saddle of F. The waves turn continuously; scheduled coefficient changes preserve the exact symmetry, with separate phase-orbit and modulus-band light tracks.",
   energy: {
     flow: { mul: [0.5, 2] },
     morph: [-0.2, 0.3],
