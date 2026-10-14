@@ -199,8 +199,6 @@ float crystalTurn;
 #ifdef PRECOMPUTED
 uniform highp sampler2D u_precomputed;
 mat2 crystalRotation;
-vec4 crystalBranches[4];
-mat2 crystalBranchRotations[4];
 #endif
 
 float boxSDF(vec3 p, vec3 b) {
@@ -225,6 +223,15 @@ vec2 familySDF(vec3 p, float family) {
     // Only the nave shares an enclosure; other types have their own silhouettes.
     float enclosure = min(abs(abs(p.x) - 3.28), abs(p.y + 1.8));
     result = vec2(min(enclosure, abs(p.y - 4.42)) - .07, 0.);
+    // Box/intersection bounds for the ribs (|z| <= .13, y >= .12), pillars
+    // (|z| <= .15, y <= .12, ||x| - 2.34| <= .12) and tracery (y >= .28,
+    // |z| within .035 of [.16, .325] bays). When all are farther than the
+    // enclosure, it remains the nearer surface.
+    float a = abs(q.z);
+    float ribBound = max(a - .13, .12 - q.y);
+    float pillarBound = max(max(a - .15, q.y - .12), abs(abs(q.x) - 2.34) - .12);
+    float traceryBound = max(max(bay * .16 - a, a - bay * .325) - .035, .28 - q.y);
+    if (min(min(ribBound, pillarBound), traceryBound) - .03 > result.x) return result;
     // Two intersecting circles make a pointed Gothic arch, joined to columns.
     float arch = max(length(vec2(q.x - 1.65, q.y - .12)),
                      length(vec2(q.x + 1.65, q.y - .12))) - 4.;
@@ -241,6 +248,21 @@ vec2 familySDF(vec3 p, float family) {
       result = nearer(result, vec2(thinArch, 1.));
     }
   } else if (family < 1.5) {
+    // Wide walls reveal a faceted chamber instead of empty lateral margins.
+    bool wide = u_resolution.x / u_resolution.y > 2.2;
+    float chamber = 0.;
+    if (wide) {
+      vec2 wall = abs(p.xz);
+      chamber = abs(max(max(wall.x, wall.y), (wall.x + wall.y) * .70710678118) - 9.) - .08;
+    }
+    float ground = abs(p.y + 2.1) - .06;
+    // The relic and all branches lie within radius 3.05 of its centre
+    // (|centre| <= 2.30, radius <= .75; octahedra are inside their spheres),
+    // so their distance is at least (|c| - 3.05) / sqrt(3). When that bound
+    // exceeds the walls/ground, the relic cannot be the nearer surface.
+    float enclosure = wide ? min(chamber, ground) : ground;
+    if ((length(p - vec3(0., .5, 0.)) - 3.2) * .57735 > enclosure)
+      return wide ? nearer(vec2(chamber, 2.), vec2(ground, 0.)) : vec2(ground, 0.);
     // A free-standing reliquary and orbiting facet clusters, not another aisle.
     vec3 c = p - vec3(0., .5, 0.);
     float turn = crystalTurn;
@@ -259,27 +281,24 @@ vec2 familySDF(vec3 p, float family) {
       if (float(i) >= generations) break;
       float k = float(i), angle = k * 2.4 + turn * .7;
 #ifdef PRECOMPUTED
-      vec3 center = crystalBranches[i].xyz;
+      // Fetch cached branch data directly: no dynamically indexed local array.
+      vec4 cached = texelFetch(u_precomputed, ivec2(i + 1, 0), 0);
+      vec3 center = cached.xyz;
 #else
       vec3 center = vec3(2.15 * cos(angle), .8 * sin(angle * 1.7), 1.4 * sin(angle));
 #endif
       vec3 branch = c - center;
 #ifdef PRECOMPUTED
-      branch.yz = crystalBranchRotations[i] * branch.yz;
-      float radius = crystalBranches[i].w;
+      branch.yz = mat2(texelFetch(u_precomputed, ivec2(i + 5, 0), 0)) * branch.yz;
+      float radius = cached.w;
 #else
       branch.yz = rot2(angle) * branch.yz;
       float radius = (.75 - .09 * k) * clamp(generations - k, 0., 1.);
 #endif
       result = nearer(result, vec2(crystalSDF(branch, radius), 2.));
     }
-    // Wide walls reveal a faceted chamber instead of empty lateral margins.
-    if (u_resolution.x / u_resolution.y > 2.2) {
-      vec2 wall = abs(p.xz);
-      float chamber = max(max(wall.x, wall.y), (wall.x + wall.y) * .70710678118) - 9.;
-      result = nearer(result, vec2(abs(chamber) - .08, 2.));
-    }
-    result = nearer(result, vec2(abs(p.y + 2.1) - .06, 0.));
+    if (wide) result = nearer(result, vec2(chamber, 2.));
+    result = nearer(result, vec2(ground, 0.));
   } else if (family < 2.5) {
     // A frontal rose disk, nested raised rings and a radial mullion pattern.
     vec3 rose = p - vec3(0., .6, 1.);
@@ -310,6 +329,12 @@ vec2 familySDF(vec3 p, float family) {
     // A zigzag gallery of broad folded planes, viewed obliquely from below.
     float shell = (abs(p.x) + abs(p.y - .9) - 5.) * .70710678118;
     result = vec2(abs(shell) - .07, 0.);
+    // Every box of a row lies within |z| <= .22 of its row plane (rows rotate
+    // only in xy), so a row is at least |z| - .22 away. When both rows are
+    // farther than the shell and floor, they cannot be the nearer surface.
+    float ground = abs(p.y + 2.) - .06;
+    float rowGap = min(abs(mod(p.z + bay, 2. * bay) - bay), abs(mod(p.z, 2. * bay) - bay)) - .25;
+    if (rowGap > min(result.x, ground)) return nearer(result, vec2(ground, 0.));
     // Evaluate both staggered rows: no discontinuous nearest-bay side switch.
     for (int row = 0; row < 2; ++row) {
       float side = float(row) * 2. - 1.;
@@ -384,10 +409,6 @@ vec3 glassPalette(float t, float material) {
 void main() {
 #ifdef PRECOMPUTED
   crystalRotation = mat2(texelFetch(u_precomputed, ivec2(0, 0), 0));
-  for (int i = 0; i < 4; i++) {
-    crystalBranches[i] = texelFetch(u_precomputed, ivec2(i + 1, 0), 0);
-    crystalBranchRotations[i] = mat2(texelFetch(u_precomputed, ivec2(i + 5, 0), 0));
-  }
 #endif
   float bay = bayLength();
   float level = clamp(u_level, 0., 1.);
