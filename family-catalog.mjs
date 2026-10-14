@@ -33,6 +33,13 @@ export const FAMILY_CATALOG = {
     styles: ["spatial", "fractal", "geometric"],
     variants: ["Corridor", "Cavern", "City"],
   },
+  horizon: {
+    algorithm: "Per-pixel Schwarzschild null geodesics (Binet equation, RK4) with a thin Doppler-beamed disk",
+    description:
+      "A black hole traced ray by ray: the sky lenses around the shadow, a tidally stretched star feeds a spiral that heats into a blazing disk whose far side arches over and under the photon ring, with relativistic jets at the peak.",
+    styles: ["spatial"],
+    variants: ["Star", "Infall", "Horizon"],
+  },
   metamorphosis: {
     algorithm: "Continuous deformation of a connected parametric mesh",
     description:

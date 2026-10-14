@@ -42,6 +42,7 @@ import colonization from "./scene-colonization.mjs";
 import fibration from "./scene-fibration.mjs";
 import nebula from "./scene-nebula.mjs";
 import descent from "./scene-descent.mjs";
+import horizon from "./scene-horizon.mjs";
 import mycelium from "./scene-mycelium.mjs";
 
 export default [
@@ -90,6 +91,7 @@ export default [
   nebula,
   descent,
   mycelium,
+  horizon,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
