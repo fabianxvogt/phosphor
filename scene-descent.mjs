@@ -396,7 +396,7 @@ void main() {
     // Light reuses the governed march: sunlight through ceiling holes in the
     // corridor, shafts in the cavern and gaps between towers in the city.
     // Sampled on alternate steps and held: half the probes, same shafts.
-    if ((i & 1) == 0 && segment > 0.03 && t < 18.0) {
+    if (beamDensity > 0.0 && (i & 1) == 0 && segment > 0.03 && t < 18.0) {
       // Drifting dust breaks the shafts into soft volumetric streaks.
       float phase = mod(u_time * 0.21, TAU);
       float dust = sin(dot(p, vec3(1.7, 0.3, 2.3)) + phase) * sin(dot(p, vec3(-0.9, 1.3, 0.7)) * 1.7 - phase);
