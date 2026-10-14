@@ -18,6 +18,10 @@
 export const CLOCK_PERIOD = 1440; // seconds; every global cycle divides it
 export const TWO32 = 4294967296;
 export const RMAX = 1.6; // galaxy radius (world units)
+// One point per state texel (texel 0 is the clock). The last 24 rows are
+// dust absorbers: drawn after every star, their alpha darkens what is beneath.
+export const SIZE = [512, 256];
+export const ABSORBERS = SIZE[0] * (SIZE[1] - 24);
 export const CLOUD = 1.9; // dust cloud radius
 export const MODES = 8; // Zel'dovich potential modes
 export const N = {
@@ -115,7 +119,9 @@ export function worldOf(seed) {
 export function identity(world, id) {
   const { key } = world;
   const kindRoll = rnd(key, id, 0);
-  const kind = kindRoll < 0.045 ? 2 : kindRoll < 0.165 ? 1 : 0; // 0 disk, 1 bulge, 2 sky
+  // 0 disk, 1 bulge, 2 sky, 3 absorbing dust (moves like the disk).
+  const kind =
+    id >= ABSORBERS ? 3 : kindRoll < 0.045 ? 2 : kindRoll < 0.165 ? 1 : 0;
   const rank = rnd(key, id, 1);
   const ang0 = 2 * Math.PI * rnd(key, id, 2);
   const v = gaussian(rnd(key, id, 3), rnd(key, id, 4));
@@ -127,7 +133,7 @@ export function identity(world, id) {
   } else {
     // Truncated exponential disk, rank-preserving from the cloud radius.
     const L = world.scale;
-    a = Math.max(0.05, -L * Math.log(1 - rank * (1 - Math.exp(-RMAX / L))));
+    a = 0.06 - L * Math.log(1 - rank * (1 - Math.exp(-RMAX / L)));
     height = v * (0.012 + 0.05 * Math.exp(-a / 0.5));
   }
   // Dust lattice coordinate q: cloud radius grows with the same rank.

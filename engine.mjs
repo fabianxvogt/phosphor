@@ -1158,7 +1158,11 @@ export class Engine {
       this.uniforms(particles, s, target, dt, false);
       const [w, h] = s.scene.simulation.size;
       gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE);
+      // Optional "absorb": premultiplied over. Colour still adds; alpha
+      // darkens what lies beneath (silhouettes, dust). Alpha 0 = additive.
+      if (s.scene.particles.blend === "absorb")
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      else gl.blendFunc(gl.ONE, gl.ONE);
       // Points need no vertex attributes; the quad's array would be overrun.
       gl.disableVertexAttribArray(0);
       gl.drawArrays(gl.POINTS, 0, w * h);

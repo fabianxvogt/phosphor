@@ -9,7 +9,10 @@ import {
   RELAX,
   RMAX,
   SHELL,
+  SIZE,
+  ABSORBERS,
 } from "./nebula-model.mjs";
+export { SIZE };
 
 // Density Waves (#87): one population of 65 535 stars is a Zel'dovich
 // cosmic-web cloud (Dust), a density-wave spiral galaxy (Spiral) and a
@@ -22,8 +25,6 @@ import {
 // counts per period, so uint wrap keeps them exact for a whole night.
 
 const f = (x) => (Number.isInteger(x) ? `${x}.` : `${x}`);
-// One point per state texel; texel 0 is the clock, so w·h − 1 stars.
-export const SIZE = [512, 256];
 const common = `
 const float NB_TAU = 6.283185307179586;
 const float NB_P = ${f(CLOCK_PERIOD)};
@@ -54,7 +55,7 @@ struct NbStar { int kind; float rank, ang0, a, height, cz, layer, density, tone;
 NbStar nbStar(uint key, uint id) {
   NbStar s;
   float kr = nbRnd(key, id, 0u);
-  s.kind = kr < .045 ? 2 : kr < .165 ? 1 : 0;
+  s.kind = id >= ${ABSORBERS}u ? 3 : kr < .045 ? 2 : kr < .165 ? 1 : 0;
   s.rank = nbRnd(key, id, 1u);
   s.ang0 = NB_TAU * nbRnd(key, id, 2u);
   float v = nbGauss(nbRnd(key, id, 3u), nbRnd(key, id, 4u));
@@ -62,7 +63,7 @@ NbStar nbStar(uint key, uint id) {
   float L = .72 + .12 * nbRnd(key, 0u, 906u);
   if (s.kind == 1) { s.a = .03 + .34 * pow(s.rank, 1.7); s.height = 0.; }
   else {
-    s.a = max(.05, -L * log(1. - s.rank * (1. - exp(-NB_RMAX / L))));
+    s.a = .06 - L * log(1. - s.rank * (1. - exp(-NB_RMAX / L)));
     s.height = v * (.012 + .05 * exp(-s.a / .5));
   }
   float rq = NB_CLOUD * sqrt(s.kind == 1 ? .45 * s.rank : s.rank);
@@ -90,7 +91,7 @@ NbCam nbCamera(uint clock, float dev) {
   uint key = nbKey();
   float yaw = NB_TAU * (nbCycle(clock, ${N.yaw}u) + nbRnd(key, 0u, 907u));
   float el = mix(.16, 1.1, clamp(u_params[6], 0., 1.)) + .1 * sin(NB_TAU * nbCycle(clock, ${N.lift}u));
-  c.dist = u_params[5] * (mix(4.6, 2.85, nbSmooth(0., 1., dev)) + 1.05 * nbSmooth(1., 2., dev))
+  c.dist = u_params[5] * (mix(4.15, 2.45, nbSmooth(0., 1., dev)) + 1.1 * nbSmooth(1., 2., dev))
     * (1. + .04 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u)));
   c.eye = c.dist * vec3(cos(el) * sin(yaw), sin(el), cos(el) * cos(yaw));
   c.fwd = normalize(vec3(0., -.06, 0.) - c.eye);
@@ -155,7 +156,7 @@ const vertex = `
 ${common}
 ${camera}
 ${modes}
-out float v_soft;
+out float v_soft, v_alpha;
 vec3 nbRotY(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(c * p.x - s * p.z, p.y, s * p.x + c * p.z); }
 void main() {
   gl_Position = vec4(2., 2., 2., 1.);
@@ -170,7 +171,7 @@ void main() {
   float growth = u_params[2], arms = u_params[3], light = u_params[4], shock = u_params[7];
   float level = clamp(u_level, 0., 1.);
   // Energy density: fewer stars at low energy, never a pop.
-  float keep = mix(.52, 1., level);
+  float keep = mix(.74, 1., level);
   float shown = 1. - nbSmooth(keep - .06, keep, s.density);
   if (shown <= 0.) return;
   float psi = float(int(nbWord(particle()))) * (NB_TAU / 4294967296.);
@@ -179,7 +180,7 @@ void main() {
   float cloud = NB_TAU * nbCycle(clock, ${N.cloud}u);
   float lambda = s.ang0 + cloud + psi;
   vec3 pos;
-  float crest = 0., lane = 0., compress = 1.;
+  float crest = 0., lane = 0., compress = 1., absorb = 0.;
   vec3 hue = u_primary;
   float bright = 0., size = 1.6, soft = 0.;
   if (s.kind == 2) {
@@ -231,7 +232,8 @@ void main() {
     // Spiral: crest stars young and light, inter-arm stars old, lanes dark.
     vec3 young = mix(u_primary, vec3(1.), .38), old = mix(u_secondary, u_primary, .45);
     vec3 starHue = s.kind == 1 ? mix(mix(u_primary, u_accent, .3), vec3(1.), .3) : mix(old, young, crest);
-    float starB = s.kind == 1 ? .3 : (.3 + 1.1 * crest) * (1. - lane) * (.25 + .75 * nbSmooth(.04, .4, s.a)) * (.45 + 2.2 * pow(s.tone, 10.));
+    // The bulge's centre is dense already: dim its stars there (no white blob).
+    float starB = s.kind == 1 ? .24 * (.3 + .7 * nbSmooth(.03, .26, s.a)) : (.3 + 1.1 * crest) * (1. - lane) * (.25 + .75 * nbSmooth(.04, .4, s.a)) * (.45 + 2.2 * pow(s.tone, 10.));
     if (s.kind == 0 && s.tone > .975 && crest > .55) { starHue = u_accent; starB = 1.1; }
     hue = mix(gas, starHue, p);
     bright = mix(dustB, starB, p);
@@ -296,12 +298,21 @@ void main() {
       if (cloudlet) bright = mix(bright, (.1 + .1 * shellCompress) + .4 * front, s2);
       else soft *= 1. - s2;
     }
+    if (s.kind == 3) {
+      // Cold dust: dark lanes on the arms' concave side, dark cores inside
+      // the web's densest filaments; it thins out as the nova blows.
+      absorb = (.6 * lane * p + .35 * (1. - p) * nbSmooth(1.6, 4.5, compress)) * (1. - n);
+      bright = 0.;
+      size = 6. + 6. * s.tone;
+      soft = 1.;
+    }
     // Rhythm: arm/filament accent, core flare, outward ripple.
     float r3 = length(pos);
     bright += u_rhythm.x * .45 * (p * crest + (1. - p) * pow(s.tone, 6.) + n * float(s.layer < .6) * .5);
     if (s.kind == 1) { bright += u_rhythm.y * .35; hue = mix(hue, u_accent, .5 * u_rhythm.y); }
     float ripple = 2.6 * (1. - u_rhythm.z);
     bright += u_rhythm.z * .6 * exp(-nbSq((r3 - ripple) / .14));
+    if (s.kind == 3) bright = 0.;
   }
   NbCam cam = nbCamera(clock, dev);
   vec3 v = pos - cam.eye;
@@ -319,22 +330,24 @@ void main() {
   float spread = max(1., gl_PointSize / (1.6 * res));
   spread = mix(spread * spread, spread, soft);
   v_soft = soft;
+  // Dust absorbers (the last rows, drawn last) darken what lies beneath.
+  v_alpha = absorb * shown * clamp(fog, .4, 1.);
   hue = mix(hue * .8 + u_secondary * .2, hue, clamp(fog, 0., 1.));
-  v_color = hue * bright * fog * light * shown * (1.12 - .2 * level) / spread * ${f(4.2 * 65536 / (SIZE[0] * SIZE[1]))};
+  v_color = hue * bright * fog * light * shown * (1.3 - .35 * level) / spread * ${f(4.2 * 65536 / (SIZE[0] * SIZE[1]))};
 }
 `;
 
 const particleFragment = `#version 300 es
 precision highp float;
 in vec3 v_color;
-in float v_soft;
+in float v_soft, v_alpha;
 out vec4 outColor;
 void main() {
   vec2 d = gl_PointCoord * 2. - 1.;
   float r2 = dot(d, d);
   if (r2 > 1.) discard;
   float m = mix(exp(-r2 * 4.), exp(-r2 * 2.2) * (1. - r2), v_soft);
-  outColor = vec4(v_color * m, 1.);
+  outColor = vec4(v_color * m, v_alpha * m);
 }
 `;
 
@@ -357,7 +370,7 @@ void main() {
   float dust = 1. - nbSmooth(0., 1., dev), spiral = nbSmooth(0., 1., dev) * (1. - nbSmooth(1., 2., dev)), nova = nbSmooth(1., 2., dev);
   vec3 col = u_secondary * .012 * (1. - .35 * length(p));
   col += mix(u_secondary, u_primary, .3) * .025 * exp(-d2 / 1.8) * dust;
-  col += mix(u_primary, u_accent, .25) * (.16 * exp(-d2 / .035) + .035 * exp(-d2 / .6)) * spiral;
+  col += mix(u_primary, u_accent, .25) * (.07 * exp(-d2 / .05) + .04 * exp(-d2 / .6)) * spiral;
   float ignite = exp(-nbSq((dev - 1.3) / .12));
   col += mix(u_accent, vec3(1.), .4) * (.22 * exp(-d2 / .004) + .3 * ignite * exp(-d2 / .08)) * nova;
   col += mix(u_secondary, u_primary, .4) * .03 * exp(-d2 / 1.6) * nova;
@@ -381,7 +394,7 @@ const schema = [
   { key: "arms", label: "Arm winding", min: 0.5, max: 1.6, step: 0.01, default: 1 },
   { key: "light", label: "Starlight", min: 0.3, max: 1.6, step: 0.01, default: 1 },
   { key: "distance", label: "Camera distance", min: 0.7, max: 1.4, step: 0.01, default: 1 },
-  { key: "height", label: "Camera height", min: 0, max: 1, step: 0.01, default: 0.55 },
+  { key: "height", label: "Camera height", min: 0, max: 1, step: 0.01, default: 0.66 },
   { key: "shock", label: "Shock fronts", min: 0, max: 1.6, step: 0.01, default: 1 },
 ];
 
@@ -395,7 +408,7 @@ const look = (name, seed, development, overrides = {}) => ({
     arms: 1,
     light: 1,
     distance: 1,
-    height: 0.55,
+    height: 0.66,
     shock: 1,
     ...overrides,
   },
@@ -452,5 +465,5 @@ export default {
   ],
   fragment,
   simulation: { fragment: simulation, size: SIZE, steps: 1 },
-  particles: { vertex, fragment: particleFragment },
+  particles: { vertex, fragment: particleFragment, blend: "absorb" },
 };
