@@ -1,25 +1,42 @@
 // Bake every authored catalogue look once; own looks/variations remain local.
 // Re-run after changing a renderer or its authored presets. No UI interaction.
+//   node scripts/build-catalog-previews.mjs [--families a,b] [--port N]
+// --families re-bakes only those renderers and keeps every other preview.
 import { writeFile } from "node:fs/promises";
-import { serve, launch, openLab } from "./browser-runtime.mjs";
+import { options, serve, launch, openLab } from "./browser-runtime.mjs";
+import { PREVIEWS } from "../catalog-previews.mjs";
 import { lookId } from "../catalog.mjs";
 import { renderLook } from "../tests/browser/client.mjs";
 import { THUMBNAIL_PALETTE, thumbnailKey } from "../thumbnail-palette.mjs";
-const server = await serve(".", 48219);
+const args = options({
+  families: { type: "string" },
+  port: { type: "string", default: "48219" },
+});
+const only = args.families?.split(",");
+const server = await serve(".", args.port);
 const runtime = await launch({ rig: true, headless: true });
 try {
   const lab = await openLab(runtime.browser, server.url);
-  const looks = await lab.page.evaluate(() => {
+  const looks = await lab.page.evaluate((only) => {
     const { scenes, presetSnapshot } = window.__phosphorLab;
-    return scenes.flatMap((scene) =>
-      scene.presets.map((preset, index) => ({
-        sceneId: scene.id,
-        index,
-        snapshot: presetSnapshot(scene, index),
-      })),
-    );
-  });
-  const previews = {};
+    return scenes
+      .filter((scene) => !only || only.includes(scene.id))
+      .flatMap((scene) =>
+        scene.presets.map((preset, index) => ({
+          sceneId: scene.id,
+          index,
+          snapshot: presetSnapshot(scene, index),
+        })),
+      );
+  }, only);
+  // A partial bake keeps the other families' previews (and their order).
+  const previews = only
+    ? Object.fromEntries(
+        Object.entries(PREVIEWS).filter(
+          ([id]) => !only.includes(id.split(":")[0]),
+        ),
+      )
+    : {};
   for (const look of looks) {
     const result = await lab.page.evaluate(renderLook, {
       ...look,

@@ -1,13 +1,29 @@
 import { familyEffect } from "./family-rhythm.mjs";
 
-// Gray–Scott art model, not a biological realism claim. Only this scene owns
-// these two chemicals: U is nutrient and V is the autocatalytic activator.
-const stateCodec = `
+// Gray–Scott art model, not a biological realism claim. This scene and the
+// Living Mycelium world (scene-mycelium.mjs) share these two chemicals: U is
+// nutrient and V is the autocatalytic activator.
+export const stateCodec = `
 vec2 chemicals(vec2 uv) { return unpack16(texture(u_state, uv)); }
 vec4 encodeChemicals(vec2 concentration) { return pack16(concentration); }
 `;
 
-const simulationFragment = `${stateCodec}
+// The Gray–Scott step is shared with the continuous Living Mycelium world
+// (scene-mycelium.mjs). Each control is a GLSL expression; the defaults are
+// acid's own parameter slots, so acid's shader text is unchanged. `prelude`
+// adds helpers after the state codec; `epilogue` runs after the brush.
+const ACID_CONTROLS = {
+  family: "u_params[5]",
+  audio: "u_params[7]",
+  feed: "u_params[0]",
+  kill: "u_params[1]",
+  diffusion: "u_params[3]",
+  speed: "u_params[2]",
+  injection: "u_params[4]",
+};
+export function grayScottSimulation(controls = {}, prelude = "", epilogue = "") {
+  const c = { ...ACID_CONTROLS, ...controls };
+  return `${stateCodec}${prelude}
 // Smooth, seeded geometry rather than independent per-pixel random inoculation.
 float inoculum(vec2 uv, float family) {
   vec2 p = (uv - .5) * vec2(u_resolution.x / u_resolution.y, 1.);
@@ -66,7 +82,7 @@ float inoculum(vec2 uv, float family) {
 }
 
 void main() {
-  float family = clamp(u_params[5], 0., 5.);
+  float family = clamp(${c.family}, 0., 5.);
   if (u_reset) {
     float seedMask = inoculum(v_uv, family);
     // High-V inocula occupy coherent discs/ribbons several texels wide.
@@ -76,12 +92,12 @@ void main() {
   vec2 c = chemicals(v_uv);
   // Nine-point isotropic Laplacian: center -1, axial .2, diagonal .05.
   vec2 lap = laplacian9(u_state, v_uv);
-  float audio = clamp(u_params[7], 0., 1.);
-  float feed = clamp(u_params[0] + .0012 * audio * clamp(u_bass, 0., 1.), .024, .055);
-  float kill = clamp(u_params[1] + .0007 * audio * clamp(u_high, 0., 1.), .050, .067);
-  float du = clamp(u_params[3], .65, 1.);
+  float audio = clamp(${c.audio}, 0., 1.);
+  float feed = clamp(${c.feed} + .0012 * audio * clamp(u_bass, 0., 1.), .024, .055);
+  float kill = clamp(${c.kill} + .0007 * audio * clamp(u_high, 0., 1.), .050, .067);
+  float du = clamp(${c.diffusion}, .65, 1.);
   float dv = .5 * du;
-  float h = min(.45, max(0., u_dt) * 27.) * clamp(u_params[2], .25, 1.);
+  float h = min(.45, max(0., u_dt) * 27.) * clamp(${c.speed}, .25, 1.);
   float reaction = c.x * c.y * c.y;
   vec2 derivative = vec2(du * lap.x - reaction + feed * (1. - c.x),
                          dv * lap.y + reaction - (feed + kill) * c.y);
@@ -97,7 +113,7 @@ void main() {
     vec2 center = vec2(cos(angle), sin(angle)) * radius;
     source = max(source, 1. - smoothstep(.009, .024, length(p - center)));
   }
-  float injection = clamp(u_params[4], 0., 1.);
+  float injection = clamp(${c.injection}, 0., 1.);
   c = mix(c, vec2(.48, .29), source * injection * h * .025);
 
   // A brush is a convex local chemical injection, never a full-screen reset.
@@ -107,9 +123,11 @@ void main() {
   float brush = 1. - smoothstep(brushRadius * .45, brushRadius, length(brushDelta));
   float brushAmount = brush * clamp(u_gesture.z, 0., 1.) * (.08 + .32 * injection) * h;
   c = mix(c, vec2(.42, .34), brushAmount);
-  outColor = encodeChemicals(c);
+${epilogue}  outColor = encodeChemicals(c);
 }
 `;
+}
+const simulationFragment = grayScottSimulation();
 
 const fragment = `${stateCodec}
 vec2 smoothChemicals(vec2 uv) { return stateBilinear16(uv); }
