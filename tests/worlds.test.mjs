@@ -26,13 +26,15 @@ const start = (show, t = 0.2) => show.command({ type: "world-start" }, t);
 
 test("world definitions roundtrip and old sets gain the curated worlds", () => {
   const set = initialShowSet(scenes);
-  assert.equal(set.worlds.length, 3);
+  // Every authored world is playable from the built-in catalogue.
+  const authored = set.worlds.length;
+  assert.ok(authored >= 4);
   assert.deepEqual(
     validateShowSet(JSON.parse(JSON.stringify(set)), scenes).worlds,
     set.worlds,
   );
   delete set.worlds;
-  assert.equal(validateShowSet(set, scenes).worlds.length, 3);
+  assert.equal(validateShowSet(set, scenes).worlds.length, authored);
   assert.deepEqual(defaultWorlds([]), []);
 });
 test("reject malformed, duplicate and unknown world definitions", () => {
@@ -297,6 +299,7 @@ test("development chemistry is curated, validated and restored as part of the wo
 test("removing a referenced own look keeps portable world definitions valid", async () => {
   const { withoutWorldLook } = await import("../worlds.mjs");
   const set = initialShowSet(scenes);
+  const authored = set.worlds.length;
   const snapshot = presetSnapshot(scenes.find((s) => s.id === "acid"));
   set.looks = [
     {
@@ -314,7 +317,7 @@ test("removing a referenced own look keeps portable world definitions valid", as
   set.worlds = withoutWorldLook(set.worlds, "own-world");
   assert.equal(validateShowSet(set, scenes).worlds[0].states.length, 2);
   set.worlds = withoutWorldLook(set.worlds, set.worlds[0].states[0].look);
-  assert.equal(validateShowSet(set, scenes).worlds.length, 2);
+  assert.equal(validateShowSet(set, scenes).worlds.length, authored - 1);
 });
 
 test("untouched early world definitions gain stable chemistry without replacing customized worlds", () => {

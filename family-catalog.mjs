@@ -12,6 +12,13 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  descent: {
+    algorithm: "Raymarched multi-scale sponge with a morphing coarse carving",
+    description:
+      "One continuous flight: a Menger sponge corridor widens into a pillared cavern lit through ceiling shafts, then opens into an endless city of recursive towers.",
+    styles: ["spatial", "fractal", "geometric"],
+    variants: ["Corridor", "Cavern", "City"],
+  },
   metamorphosis: {
     algorithm: "Continuous deformation of a connected parametric mesh",
     description:

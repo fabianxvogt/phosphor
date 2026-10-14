@@ -38,6 +38,7 @@ import domain from "./scene-domain.mjs";
 import physarum from "./scene-physarum.mjs";
 import caustics from "./scene-caustics.mjs";
 import colonization from "./scene-colonization.mjs";
+import descent from "./scene-descent.mjs";
 
 export default [
   acid,
@@ -80,6 +81,7 @@ export default [
   caustics,
   colonization,
   metamorphosis,
+  descent,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
