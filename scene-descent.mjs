@@ -290,7 +290,18 @@ float dsSky(vec3 p, bool fine) {
   // levels, so light also falls through holes in corridor ceilings. Beams
   // use only the coarser openings so the volume stays legible, not hazy.
   vec2 a0 = abs(mod(s.xz + 1.0, 2.0) - 1.0), a1 = abs(mod(s.xz * 3.0 + 1.0, 2.0) - 1.0);
-  float gap = dsHall(s, false);
+  float gap;
+  if (fine || gCave < 0.5) gap = dsHall(s, false);
+  else {
+    // Open-state beams fall only through the hall's vertical shafts, never
+    // along whole streets while floors recede, so the volume stays legible.
+    vec3 cell = floor(s / 6.0 + 0.5);
+    vec3 a = abs(s - cell * 6.0);
+    vec2 xs, zs, ys;
+    float deck;
+    dsHallSizes(cell, 1, xs, zs, ys, deck);
+    gap = max(a.x - ys.x, a.z - ys.y);
+  }
   // Corridor beams fall through the sponge's own ceiling holes; in the open
   // states only the hall shafts and streets cast beams, which stay legible.
   if (fine || gCave < 0.5) gap = min(gap, max(a0.x, a0.y) - gW0);
@@ -473,7 +484,7 @@ void main() {
       float r1 = float(wh >> 8) / 16777216.0;
       float r2 = float(wh & 255u) / 255.0;
       // Lights live in the city; the corridor keeps a few deep embers.
-      float allowed = trap < 0.5 ? 0.4 * gCity : gCity + 0.3 * (1.0 - gCave);
+      float allowed = trap < 0.5 ? 0.4 * gCity : gCity + 0.12 * (1.0 - gCave);
       float chance = 0.3 + 0.2 * level;
       vec3 block = floor(hp / 6.0 + 0.5);
       uint fh = cellHash(uvec3(ivec3(block.x + gCounter, cid.y, block.z)) ^ uvec3(0x51u, uint(trap), 0u));
