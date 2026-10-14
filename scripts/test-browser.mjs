@@ -13,12 +13,14 @@ import {
   openShow,
   lookList,
   deadline,
+  ACTION_TIMEOUT,
 } from "./browser-runtime.mjs";
 import { renderLook, readStage } from "../tests/browser/client.mjs";
 
 const args = options({
   frames: { type: "string", default: "20" },
-  only: { type: "string" }, // "lab" or "show" while iterating
+  only: { type: "string" }, // "lab" or "show" (CI runs them as parallel jobs)
+  shard: { type: "string", default: "1/1" }, // lab sweep slice "k/n", 1-based
   "native-gpu": { type: "boolean", default: false }, // installed Chrome's GPU; still headless correctness-only
 });
 if (args.rig)
@@ -26,9 +28,35 @@ if (args.rig)
 const output = await outputDirectory("browser", args.out);
 const server = await serve(".", args.port);
 const frames = Number(args.frames);
+const [shardIndex, shardCount] = args.shard.split("/").map(Number);
+if (!(shardCount >= 1 && shardIndex >= 1 && shardIndex <= shardCount))
+  throw new Error(`--shard must be k/n with 1 ≤ k ≤ n, got ${args.shard}`);
+// Every look and family lands in exactly one shard, so n shards together
+// check the same set as one unsharded run.
+const inShard = (_, i) => i % shardCount === shardIndex - 1;
 let runtime;
+let show;
+// Long main-thread tasks since each page's last load: context for a slow
+// software-GL run, not a gate.
+async function reportStalls() {
+  for (const [name, page] of [
+    ["control", show?.control],
+    ["stage", show?.stage],
+  ]) {
+    if (!page || page.isClosed()) continue;
+    const t = await deadline(
+      page.evaluate(() => window.__harness?.longTasks),
+      10000,
+      `${name} stall report`,
+    ).catch(() => null);
+    if (t)
+      console.log(
+        `INFO ${name} main thread: ${t.count} long tasks, longest ${Math.round(t.maxMs)} ms, total ${Math.round(t.totalMs / 1000)} s since load`,
+      );
+  }
+}
 const pass = (name) => console.log(`PASS ${name}`);
-const waitFor = async (page, fn, arg, label, timeout = 60000) => {
+const waitFor = async (page, fn, arg, label, timeout = ACTION_TIMEOUT) => {
   try {
     await page.waitForFunction(fn, arg, { timeout, polling: 100 });
   } catch (error) {
@@ -44,7 +72,8 @@ try {
   if (args.only !== "show") {
     // --- render lab ---------------------------------------------------------
     const lab = await openLab(runtime.browser, server.url);
-    const looks = await lookList(lab.page);
+    const allLooks = await lookList(lab.page);
+    const looks = allLooks.filter(inShard);
     for (const look of looks) {
       const r = await deadline(
         lab.page.evaluate(renderLook, { ...look, frames, capture: false }),
@@ -63,11 +92,14 @@ try {
         `${look.name}: unaccounted textures`,
       );
     }
+    const shardLabel = shardCount > 1 ? ` (shard ${args.shard})` : "";
     pass(
-      `all ${looks.length} looks render · WebGL 0 · non-finite 0 · textures accounted`,
+      `all ${looks.length} looks render · WebGL 0 · non-finite 0 · textures accounted${shardLabel}`,
     );
 
-    const families = [...new Set(looks.map((l) => l.sceneId))];
+    const families = [...new Set(allLooks.map((l) => l.sceneId))].filter(
+      inShard,
+    );
     for (const sceneId of families)
       for (const level of [0.05, 0.95]) {
         const r = await lab.page.evaluate(renderLook, {
@@ -142,13 +174,15 @@ try {
     // An incoming simulation family warms up behind the outgoing picture:
     // the transition clock (and so its mix) holds at 0 until the warm-up is
     // done, then the smooth fade runs to completion (D66).
-    const warmups = await lab.page.evaluate(async () => {
+    const warmups = await lab.page.evaluate(async (ids) => {
       const { engine, scenes, presetSnapshot } = window.__phosphorLab;
       engine.resize(160, 90);
       const plain = scenes.find((s) => !s.simulation);
       await engine.ready(plain.id);
       const rows = [];
-      for (const scene of scenes.filter((s) => s.simulation)) {
+      for (const scene of scenes.filter(
+        (s) => s.simulation && ids.includes(s.id),
+      )) {
         await engine.ready(scene.id);
         engine.load(presetSnapshot(plain), 0);
         for (let i = 0; i < 3; i++) engine.advance(1 / 60);
@@ -170,8 +204,8 @@ try {
         });
       }
       return rows;
-    });
-    assert.ok(warmups.length > 0);
+    }, families);
+    if (shardCount === 1) assert.ok(warmups.length > 0);
     for (const row of warmups) {
       if (row.warmTicks > 6)
         assert.ok(row.steps > 0, `${row.id} had no warm-up`);
@@ -193,7 +227,14 @@ try {
   if (args.only === "lab") process.exit(0);
 
   // --- show: control + stage ------------------------------------------------
-  const show = await openShow(runtime.browser, server.url);
+  // On software GL the control's local preview (native = screen size) would
+  // render 1440×900 frames; no check here depends on that resolution
+  // (test:output-controls and test:stage-output cover native sizing).
+  show = await openShow(
+    runtime.browser,
+    server.url,
+    args["native-gpu"] ? {} : { screen: { width: 480, height: 300 } },
+  );
   const { control, stage } = show;
   await waitFor(
     control,
@@ -202,6 +243,24 @@ try {
     "control sees the stage",
   );
   pass("control opens the stage, the stage starts and reports back");
+  // A fresh session starts with Autopilot (checked by test:autopilot-ui).
+  // Here it would swap looks at random bars: each swap compiles a family in
+  // both windows (seconds on software GL) and can replace a clip a later
+  // check expects. Every look below is chosen explicitly.
+  await control.evaluate(() => {
+    const channel = new BroadcastChannel("phosphor-show");
+    channel.postMessage({
+      type: "action",
+      action: { type: "autopilot", on: false },
+    });
+    channel.close();
+  });
+  await waitFor(
+    stage,
+    () => !window.__phosphorStage.show.autopilot.enabled,
+    null,
+    "autopilot off for deterministic show checks",
+  );
   await waitFor(
     control,
     () => {
@@ -568,17 +627,21 @@ try {
   );
   pass("Safe look button loads the safe look");
 
-  const autopilot = await stage.evaluate(
+  await control.locator("body").press("KeyP");
+  await waitFor(
+    stage,
     () => window.__phosphorStage.show.autopilot.enabled,
+    null,
+    "P turns autopilot on",
   );
   await control.locator("body").press("KeyP");
   await waitFor(
     stage,
-    (was) => window.__phosphorStage.show.autopilot.enabled !== was,
-    autopilot,
-    "P toggles autopilot",
+    () => !window.__phosphorStage.show.autopilot.enabled,
+    null,
+    "P turns autopilot off",
   );
-  pass("P toggles autopilot");
+  pass("P toggles autopilot on and off");
 
   // Set edits remain available while the stage is connected.
   const name = `Harness ${Date.now()}`;
@@ -790,8 +853,15 @@ try {
   }
 
   // Stage reload: runtime state restores the clip, energy and shared controls.
-  await control.evaluate(() => {
+  // The P checks above briefly enabled autopilot, which may already have
+  // scheduled its next look; pin key 10 again so the saved clip is known.
+  await control.evaluate((id) => {
     const channel = new BroadcastChannel("phosphor-show");
+    channel.postMessage({
+      type: "action",
+      action: { type: "autopilot", on: false },
+    });
+    channel.postMessage({ type: "action", action: { type: "look", id } });
     channel.postMessage({
       type: "action",
       action: { type: "energy", value: 0.8 },
@@ -800,14 +870,21 @@ try {
       type: "action",
       action: { type: "shared", zoom: 1.4 },
     });
-  });
+    channel.close();
+  }, key10);
   await waitFor(
     stage,
-    () =>
-      window.__phosphorStage.show.energy === 0.8 &&
-      window.__phosphorStage.show.shared.zoom === 1.4,
-    null,
-    "energy/zoom",
+    (id) => {
+      const { show } = window.__phosphorStage;
+      return (
+        !show.autopilot.enabled &&
+        show.live?.clip.id === id &&
+        show.energy === 0.8 &&
+        show.shared.zoom === 1.4
+      );
+    },
+    key10,
+    "key 10, energy and zoom before the stage reload",
   );
   await stage.waitForTimeout(1500); // runtime state is saved every second
   await stage.reload();
@@ -938,6 +1015,7 @@ try {
   assert.equal(counters.gpuErrors, 0);
   assert.equal(counters.nonFinite, 0);
   pass("no GPU errors, non-finite inputs or page errors");
+  await reportStalls(); // the stage closes next
 
   // Presence-based ownership must still release the preview on real closure,
   // including the window proxy recovered after control and stage reloads.
@@ -1067,6 +1145,10 @@ try {
   pass(
     "variations preserve playback, clear on family change and save a valid own look",
   );
+  await reportStalls();
+} catch (error) {
+  await reportStalls();
+  throw error;
 } finally {
   await runtime?.stop();
   await server.close();

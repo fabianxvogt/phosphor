@@ -11,8 +11,19 @@ export function installProbes() {
     governorDowngrades: 0,
     previousQuality: null,
     restoreUniforms: [],
+    // Main-thread blocking, reported (never gated) by the harness.
+    longTasks: { count: 0, totalMs: 0, maxMs: 0 },
   };
   window.__harness = state;
+  try {
+    new PerformanceObserver((list) => {
+      for (const { duration } of list.getEntries()) {
+        state.longTasks.count++;
+        state.longTasks.totalMs += duration;
+        state.longTasks.maxMs = Math.max(state.longTasks.maxMs, duration);
+      }
+    }).observe({ type: "longtask", buffered: true });
+  } catch {}
   for (const proto of new Set([
     window.WebGLRenderingContext?.prototype,
     window.WebGL2RenderingContext?.prototype,

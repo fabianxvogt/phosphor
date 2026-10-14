@@ -1,6 +1,6 @@
 // Actual popup lifecycle, Retina output, visual buffers and rendered preview.
 import assert from "node:assert/strict";
-import { serve, launch, options } from "./browser-runtime.mjs";
+import { serve, launch, options, ACTION_TIMEOUT } from "./browser-runtime.mjs";
 import scenes from "../scenes.mjs";
 import { initialShowSet } from "../show-set.mjs";
 const fixture = initialShowSet(scenes);
@@ -16,6 +16,7 @@ try {
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 2,
   });
+  context.setDefaultTimeout(ACTION_TIMEOUT);
   await context.addInitScript((set) => {
     localStorage.setItem("phosphor-preview-resolution", "480x270");
     localStorage.setItem("phosphor-set-v5", JSON.stringify(set));
@@ -41,7 +42,9 @@ try {
   const control = await context.newPage();
   const errors = [];
   control.on("pageerror", (e) => errors.push(e.message));
-  await control.goto(server.url + "dist/");
+  // The "load" event also waits for every baked catalog image; the app is
+  // ready once its module has run, which the next wait checks.
+  await control.goto(server.url + "dist/", { waitUntil: "domcontentloaded" });
   await control.waitForFunction(
     () => document.getElementById("localPreview").width === 2560,
   );

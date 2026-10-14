@@ -136,6 +136,11 @@ export function deadline(promise, milliseconds, label) {
     }),
   ]).finally(() => clearTimeout(timer));
 }
+// Correctness harnesses have no timing gates. On software GL (SwiftShader, as
+// in CI) a family compile or a large frame can hold a page's main thread for
+// tens of seconds, so Playwright's 30 s action default fails healthy runs.
+export const ACTION_TIMEOUT = 120000;
+
 // The repository root is served: the built app at /dist/ and the render
 // lab at /tests/browser/lab.html.
 export const APP = "dist/";
@@ -143,6 +148,11 @@ export const LAB = "tests/browser/lab.html";
 
 function watch(page, name, errors) {
   page.on("pageerror", (error) => errors.push(`${name}: ${error.message}`));
+  // A crashed renderer leaves every later locator waiting; say so at once.
+  page.on("crash", () => {
+    errors.push(`${name}: renderer crashed`);
+    console.error(`${name}: renderer crashed`);
+  });
   page.on("console", (message) => {
     // Browsers request /favicon.ico on their own; that 404 is not ours.
     if (
@@ -161,6 +171,7 @@ export async function openLab(browser, url) {
     viewport: { width: 640, height: 400 },
     deviceScaleFactor: 1,
   });
+  context.setDefaultTimeout(ACTION_TIMEOUT);
   await context.addInitScript(installProbes);
   const page = await context.newPage();
   const errors = [];
@@ -173,19 +184,25 @@ export async function openLab(browser, url) {
 }
 
 // The show: control window plus the stage popup, started with one click.
+// `screen` sizes the emulated display; the control's local preview renders
+// at that native size, so a small screen keeps software GL responsive where
+// a check does not depend on the preview resolution.
 export async function openShow(
   browser,
   url,
   {
     viewport = { width: 1440, height: 900 },
     stageViewport = { width: 320, height: 180 },
+    screen,
   } = {},
 ) {
   const context = await browser.newContext({
     viewport,
+    ...(screen ? { screen } : {}),
     deviceScaleFactor: 1,
     acceptDownloads: true,
   });
+  context.setDefaultTimeout(ACTION_TIMEOUT);
   await context.addInitScript(installProbes);
   const control = await context.newPage();
   const errors = [];
