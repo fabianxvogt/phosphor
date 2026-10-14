@@ -154,7 +154,19 @@ test("runtime and Stage handoff retain an in-between value, paused transport and
 });
 test("a new world still loads normally, and unrelated worlds never expose a development slider", () => {
   const s = setup();
-  s.command({ type: "world-prepare", id: "garden" }, 10);
+  // A custom world over another renderer (not continuous).
+  const set = structuredClone(s.set);
+  set.worlds.push({
+    id: "classic-garden",
+    name: "Classic Garden",
+    description: "Three evolution looks.",
+    states: [
+      { name: "Roots", look: "evolution:Quiet Herbarium" },
+      { name: "Bloom", look: "evolution:Coral Orchard" },
+    ],
+  });
+  s.updateSet(set, 10);
+  s.command({ type: "world-prepare", id: "classic-garden" }, 10);
   s.command({ type: "world-start" }, 10);
   assert.equal(
     s.tick(12).find((a) => a.type === "load").snapshot.scene,
