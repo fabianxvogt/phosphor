@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import wallpaper, {
   GROUPS,
   LATTICES,
+  SYMMETRY,
   wallpaper as F,
 } from "../scene-wallpaper.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
@@ -110,4 +111,107 @@ test("every group has a look, and every look validates", () => {
       snapshot,
     );
   }
+});
+
+// Symmetry elements per conventional cell (International Tables, Vol. A):
+// mirror line families, glide line families, rotation-centre orders.
+const ELEMENTS = {
+  p1: [0, 0, ""],
+  p2: [0, 0, "2222"],
+  pm: [2, 0, ""],
+  pg: [0, 2, ""],
+  cm: [2, 2, ""],
+  pmm: [4, 0, "2222"],
+  pmg: [2, 2, "2222"],
+  pgg: [0, 4, "2222"],
+  cmm: [4, 4, "22222222"],
+  p4: [0, 0, "2244"],
+  p4m: [6, 2, "2244"],
+  p4g: [2, 6, "2244"],
+  p3: [0, 0, "333"],
+  p3m1: [3, 3, "333"],
+  p31m: [3, 3, "333"],
+  p6: [0, 0, "222336"],
+  p6m: [6, 6, "222336"],
+};
+const reflect = (p, n, c) => {
+  const s = 2 * (p[0] * n[0] + p[1] * n[1] - c);
+  return [p[0] - s * n[0], p[1] - s * n[1]];
+};
+const rotateAbout = (p, o, a) => [
+  o[0] + (p[0] - o[0]) * Math.cos(a) - (p[1] - o[1]) * Math.sin(a),
+  o[1] + (p[0] - o[0]) * Math.sin(a) + (p[1] - o[1]) * Math.cos(a),
+];
+const near = (a, b, eps = 1e-9) => Math.hypot(a[0] - b[0], a[1] - b[1]) < eps;
+const samples = [
+  [0.31, 0.17],
+  [-1.4, 0.62],
+  [2.2, -0.9],
+];
+
+test("each group lists the Tables' mirrors, glides and rotation centres", () => {
+  for (const [i, g] of GROUPS.entries()) {
+    const { lines, centres } = SYMMETRY[i];
+    const [mirrors, glides, orders] = ELEMENTS[g.name];
+    assert.equal(lines.filter((l) => !l.glide).length, mirrors, g.name);
+    assert.equal(lines.filter((l) => l.glide).length, glides, g.name);
+    assert.equal(centres.map((c) => c.order).sort().join(""), orders, g.name);
+  }
+});
+
+test("every listed mirror and glide axis is an exact symmetry of F", () => {
+  for (const [i, g] of GROUPS.entries())
+    for (const { n, u, c, d, glide } of SYMMETRY[i].lines)
+      for (const k of [0, 1, -3])
+        for (const p of samples) {
+          const v = F(p, g, terms);
+          const r = reflect(p, n, c + k * d);
+          const glided = [r[0] + glide * u[0], r[1] + glide * u[1]];
+          assert.ok(near(v, F(glided, g, terms)), `${g.name} axis ${n} ${c}`);
+          // A glide axis is not a mirror: the reflection alone breaks F.
+          if (glide) assert.ok(!near(v, F(r, g, terms), 1e-6), g.name);
+        }
+});
+
+test("every rotation centre has exactly its order and is a critical point of F", () => {
+  const h = 1e-6;
+  for (const [i, g] of GROUPS.entries()) {
+    const [b1, b2] = LATTICES[g.lattice];
+    for (const { X, order } of SYMMETRY[i].centres) {
+      const o = [X[0] * b1[0] + X[1] * b2[0], X[0] * b1[1] + X[1] * b2[1]];
+      for (const p of samples) {
+        const v = F(p, g, terms);
+        const turned = rotateAbout(p, o, (2 * Math.PI) / order);
+        assert.ok(near(v, F(turned, g, terms)), `${g.name} centre ${X}`);
+        const half = rotateAbout(p, o, Math.PI / order);
+        assert.ok(!near(v, F(half, g, terms), 1e-6), `${g.name} maximal`);
+      }
+      // ∇F(o) = R·∇F(o) for a rotation R ≠ 1 forces ∇F(o) = 0.
+      const diff = (a, b) => a.map((x, j) => (x - b[j]) / (2 * h));
+      const dx = diff(F([o[0] + h, o[1]], g, terms), F([o[0] - h, o[1]], g, terms));
+      const dy = diff(F([o[0], o[1] + h], g, terms), F([o[0], o[1] - h], g, terms));
+      assert.ok(Math.hypot(...dx, ...dy) < 1e-6, `${g.name} centre ${X}`);
+    }
+  }
+});
+
+test("on centred lattices, terms with n + m odd cancel (the shader avoids them)", () => {
+  for (const g of GROUPS.filter((g) => g.lattice === 2))
+    for (const p of samples) {
+      const odd = F(p, g, [{ n: 1, m: 0, re: 1, im: 0 }]);
+      assert.ok(Math.hypot(...odd) < 1e-9, g.name);
+      const odd2 = F(p, g, [{ n: -2, m: 1, re: 0.3, im: 0.4 }]);
+      assert.ok(Math.hypot(...odd2) < 1e-9, g.name);
+    }
+});
+
+test("energy moves structure and motion; the data pass holds a cell plus a statistics row", () => {
+  assert.deepEqual(Object.keys(wallpaper.energy).sort(), [
+    "flow",
+    "morph",
+    "rings",
+    "scale",
+  ]);
+  const [w, h] = wallpaper.precompute.size;
+  assert.equal(h, w + 1);
 });
