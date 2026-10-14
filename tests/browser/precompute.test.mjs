@@ -42,6 +42,7 @@ test(
           "cathedral",
           "fourspace",
           "wallpaper",
+          "domain",
         ]) {
           const health = await page.evaluate(renderLook, {
             sceneId,
