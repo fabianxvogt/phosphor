@@ -12,6 +12,13 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  crystal: {
+    algorithm: "Lattice-aligned growth of faceted hexagonal prisms",
+    description:
+      "Seeded crystals sprout faceted prisms, grow into lattice-aligned druses and line a luminous cavern hall the camera glides through.",
+    styles: ["geometric", "spatial"],
+    variants: ["Seeds", "Lattice", "Hall"],
+  },
   metamorphosis: {
     algorithm: "Continuous deformation of a connected parametric mesh",
     description:

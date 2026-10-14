@@ -24,15 +24,18 @@ const prepare = (show, id = "garden", extra = {}, t = 0.2) =>
   show.command({ type: "world-prepare", id, ...extra }, t);
 const start = (show, t = 0.2) => show.command({ type: "world-start" }, t);
 
+// Every authored world is playable from the built-in catalog.
+const authoredCount = initialShowSet(scenes).worlds.length;
 test("world definitions roundtrip and old sets gain the curated worlds", () => {
   const set = initialShowSet(scenes);
-  assert.equal(set.worlds.length, 3);
+  assert.ok(authoredCount >= 4);
+  assert.equal(set.worlds.length, authoredCount);
   assert.deepEqual(
     validateShowSet(JSON.parse(JSON.stringify(set)), scenes).worlds,
     set.worlds,
   );
   delete set.worlds;
-  assert.equal(validateShowSet(set, scenes).worlds.length, 3);
+  assert.equal(validateShowSet(set, scenes).worlds.length, authoredCount);
   assert.deepEqual(defaultWorlds([]), []);
 });
 test("reject malformed, duplicate and unknown world definitions", () => {
@@ -314,7 +317,7 @@ test("removing a referenced own look keeps portable world definitions valid", as
   set.worlds = withoutWorldLook(set.worlds, "own-world");
   assert.equal(validateShowSet(set, scenes).worlds[0].states.length, 2);
   set.worlds = withoutWorldLook(set.worlds, set.worlds[0].states[0].look);
-  assert.equal(validateShowSet(set, scenes).worlds.length, 2);
+  assert.equal(validateShowSet(set, scenes).worlds.length, authoredCount - 1);
 });
 
 test("untouched early world definitions gain stable chemistry without replacing customized worlds", () => {

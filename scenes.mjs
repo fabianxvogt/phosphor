@@ -1,4 +1,5 @@
 import metamorphosis from "./scene-metamorphosis.mjs";
+import crystal from "./scene-crystal.mjs";
 import acid from "./scene-acid.mjs";
 import magnetic from "./scene-magnetic.mjs";
 import cathedral from "./scene-cathedral.mjs";
@@ -80,6 +81,7 @@ export default [
   caustics,
   colonization,
   metamorphosis,
+  crystal,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
