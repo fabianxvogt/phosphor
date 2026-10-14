@@ -12,6 +12,13 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  fibration: {
+    algorithm: "Stereographic Hopf fibres as lit tube meshes",
+    description:
+      "Exact great circles of the 3-sphere, projected to linked round circles in space: one torus of Villarceau circles blooms into nested tori and the full bundle.",
+    styles: ["geometric", "spatial"],
+    variants: ["Torus", "Nest", "Bundle"],
+  },
   metamorphosis: {
     algorithm: "Continuous deformation of a connected parametric mesh",
     description:
