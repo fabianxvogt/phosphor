@@ -34,7 +34,7 @@ export const FAMILY_CATALOG = {
     variants: ["Corridor", "Cavern", "City"],
   },
   horizon: {
-    algorithm: "Per-pixel Schwarzschild null geodesics (Binet equation, RK4) with a thin Doppler-beamed disk",
+    algorithm: "Schwarzschild null geodesics (Binet equation, Encke RK4) with a thin Doppler-beamed disk",
     description:
       "A black hole traced ray by ray: the sky lenses around the shadow, a tidally stretched star feeds a spiral that heats into a blazing disk whose far side arches over and under the photon ring, with relativistic jets at the peak.",
     styles: ["spatial"],

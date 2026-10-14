@@ -291,7 +291,9 @@ vec2 hzJet(vec3 A, vec3 B) {
   float lxz = sqrt(dd);
   float along = smoothstep(2.4, 4.5, y) * exp(-y / gJetLen) * (1.0 + 2.0 * exp(-(y - 2.4) / 3.5));
   // Knots travel outward on integer harmonics of the knot phase.
-  float knots = 0.55 + 0.45 * sin(0.42 * y - TAU * gKnot * 2.0);
+  // Sharp knots; energy raises their contrast (activity), not the mean.
+  float knotWave = pow(0.5 + 0.5 * sin(0.42 * y - TAU * gKnot * 2.0), 3.0);
+  float knots = mix(1.0, 0.45 + 1.6 * knotWave, 0.35 + 0.6 * gLevel);
   knots *= 0.8 + 0.2 * sin(0.17 * y - TAU * gKnot + 1.3);
   // Gesture: one bright knot ejected along both jets.
   float burstY = 4.5 + 30.0 * (1.0 - u_rhythm.z);
@@ -421,6 +423,9 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   // The hottest, beamed gas whitens a little (palette mixed with white).
   vec3 hue = mix(palette(tone), vec3(1.0), 0.3 * smoothstep(1.0, 1.8, T));
   vec3 col = hue * density * pow(T, 2.6) * pow(gb, 1.6) * 0.75;
+  // Tidal debris glows by itself (shocked gas), so the stream reads before
+  // the disk has heated: cool toward secondary, its inner wraps warmer.
+  col += mix(u_secondary, u_primary, 0.35 + 0.3 * smoothstep(R_STAR, R_IN, r)) * stream * 0.55 * pow(gb, 1.5) * (1.0 - 0.6 * gBlaze);
   // The star glows with its own light, cooler than the hot inner disk.
   col += mix(u_primary, vec3(1.0), 0.35) * head * 2.2 * (1.0 + 2.5 * u_rhythm.x * (1.0 - gMass)) * pow(gb, 1.5);
 
@@ -492,8 +497,8 @@ vec3 hzSky(vec3 dir, float fp) {
   vec3 col = mix(u_secondary, mix(u_primary, u_secondary, 0.4), smoothstep(-0.1, 0.25, neb)) * glow * 0.055 * (0.4 + gStars);
   col += u_secondary * 0.006;
   float denser = 1.0 + 1.6 * band;
-  col += hzStars(d, 60.0, fp, 11.0, 0.4 * gStars, 0.7);
-  col += hzStars(d, 230.0, fp, 23.0, (0.1 + 0.3 * gStars) * min(1.0, 0.45 * denser), 0.3);
+  col += hzStars(d, 60.0, fp, 11.0, 0.32 * gStars, 0.7);
+  col += hzStars(d, 230.0, fp, 23.0, (0.05 + 0.2 * gStars) * min(1.0, 0.45 * denser), 0.25);
   return col;
 }
 
@@ -553,7 +558,8 @@ void main() {
   mat3 rx = mat3(1.0, 0.0, 0.0, 0.0, cos(tiltSky), sin(tiltSky), 0.0, -sin(tiltSky), cos(tiltSky));
   gSkyRot = rx * ry;
   float jetsParam = max(u_params[3], 0.0);
-  gJetAmt = jetsParam * smoothstep(1.25, 1.95, dev);
+  // Jets belong to the peak: they build with development and energy.
+  gJetAmt = jetsParam * smoothstep(1.25, 1.95, dev) * (0.3 + 0.7 * smoothstep(0.25, 0.85, level));
   gJetLen = mix(9.0, 24.0, level);
 
   // Camera: a slow orbit around the spin axis. Inclination moves to a new
@@ -708,9 +714,9 @@ void main() {
   float fp0 = hzFootprint(X0), fp1 = hzFootprint(X1), fp2 = hzFootprint(X2);
   float fwB = fwidth(b);
 
-  vec3 sheathCol = mix(u_secondary, u_primary, 0.55);
-  vec3 coreCol = mix(u_accent, vec3(1.0), 0.25);
-  float jetGain = gJetAmt * 1.1;
+  vec3 sheathCol = mix(u_primary, u_secondary, 0.4);
+  vec3 coreCol = mix(u_accent, vec3(1.0), 0.35);
+  float jetGain = gJetAmt * 1.4;
   #define HZ_JET(J) ((coreCol * (J).x * 0.7 + sheathCol * (J).y * 0.6) * jetGain)
 
   vec3 col = HZ_JET(J0);
