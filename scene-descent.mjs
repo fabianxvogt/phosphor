@@ -219,14 +219,15 @@ float dsMap(vec3 p, out float trap, bool clampCells) {
 
 // Sunlight through the coarse structure: project along the light to just
 // above the hall ceiling (cavern) or a block above (city) and test openness.
-float dsSky(vec3 p) {
+float dsSky(vec3 p, bool fine) {
   float top = min(gXs.x + 0.3, p.y + 4.0);
   vec3 s = p + gL * (max(top - p.y, 0.0) / gL.y);
   // Openings: the hall and the vertical shafts of the two coarsest sponge
-  // levels, so light also falls through holes in corridor ceilings.
+  // levels, so light also falls through holes in corridor ceilings. Beams
+  // use only the coarser openings so the volume stays legible, not hazy.
   vec2 a0 = abs(mod(s.xz + 1.0, 2.0) - 1.0), a1 = abs(mod(s.xz * 3.0 + 1.0, 2.0) - 1.0);
   float gap = min(dsHall(s, false), max(a0.x, a0.y) - gW0);
-  gap = min(gap, (max(a1.x, a1.y) - gW) / 3.0);
+  if (fine) gap = min(gap, (max(a1.x, a1.y) - gW) / 3.0);
   return smoothstep(0.03, -0.03, gap);
 }
 
@@ -310,7 +311,7 @@ void main() {
     // Light reuses the governed march: sunlight through ceiling holes in the
     // corridor, shafts in the cavern and gaps between towers in the city.
     // Sampled on alternate steps and held: half the probes, same shafts.
-    if ((i & 1) == 0 && segment > 0.03 && t < 18.0) beamHeld = 2.2 * dsSky(p) * (0.7 + 0.3 * sin(dot(p, vec3(1.7, 0.3, 2.3)) + mod(u_time * 0.21, TAU)));
+    if ((i & 1) == 0 && segment > 0.03 && t < 18.0) beamHeld = 2.2 * dsSky(p, false) * (0.7 + 0.3 * sin(dot(p, vec3(1.7, 0.3, 2.3)) + mod(u_time * 0.21, TAU)));
     float beam = segment > 0.03 && t < 18.0 ? beamHeld : 0.0;
     float absorbed = 1.0 - exp(-segment * extinction);
     scattering += exp(-t * extinction) * absorbed * (0.015 + beam * light * (0.35 + 0.3 * level)) * (1.0 - 0.7 * gCity);
@@ -337,13 +338,15 @@ void main() {
     // Materials: sponge levels follow the palette; hall surfaces become a
     // darker structural stone with per-block tint as the cavern opens.
     vec4 r = dsCellRandom(floor(hp / 6.0 + 0.5));
-    vec3 sponge = palette(fract(max(trap, 0.0) * 0.27 + 0.15));
+    // Deeper levels move from secondary to primary; accent stays reserved for
+    // lights, so sub-pixel slits of a fading level never read as accent lines.
+    vec3 sponge = palette(0.15 + 0.17 * clamp(trap, 0.0, 3.0));
     vec3 stone = mix(u_secondary, palette(0.2 + 0.4 * r.x), 0.45) * (0.75 - 0.3 * gCity);
     vec3 material = trap < 0.0 ? mix(sponge, stone, gCave) : mix(sponge, sponge * 0.8 + stone * 0.2, gCave);
     float head = max(dot(n, -rd), 0.0);
     float sun = max(dot(n, gL), 0.0);
     if (sun > 0.0) {
-      float sh = dsSky(hp + n * 0.02);
+      float sh = dsSky(hp + n * 0.02, true);
       float s1 = dsMap(hp + gL * 0.25, tmp, false);
       sun *= sh * clamp(s1 / 0.25 * 1.5, 0.0, 1.0);
     }
@@ -353,6 +356,9 @@ void main() {
     float shade = 0.03 + light * (mix(0.42, 0.4, gCave) * head * head * att +
       1.6 * sun + mix(0.04, 0.2, gCave) * sky);
     col = material * shade * occlusion;
+    // A level still fading in (by energy or distance) shows as dark grooves
+    // rather than bright sub-pixel slits; it brightens as it opens.
+    if (trap >= 0.0) col *= mix(0.25, 1.0, clamp(gLevels - trap, 0.0, 1.0));
     float rim = pow(max(1.0 - head, 0.0), 3.0);
     col += mix(u_secondary, u_primary, 0.65) * rim * glowAmount *
       (0.06 + level * 0.16 + bass * (0.14 + level * 0.5)) * occlusion;
@@ -379,7 +385,7 @@ void main() {
       float tunnel = r2 < 0.55 ? step(tz, min(tx, max(wq.x, wq.z))) : step(tx, min(tz, max(wq.x, wq.z)));
       float lit = step(r1, chance) * floorOn * allowed * tunnel;
       float band = mod(u_rhythmCount.x, 4.0);
-      float cohort = step(abs(floor(r2 * 4.0) - band), 0.5) * u_rhythm.x * allowed;
+      float cohort = step(abs(floor(r2 * 4.0) - band), 0.5) * u_rhythm.x * allowed * tunnel;
       vec3 lamp = r2 < 0.12 ? u_accent : mix(u_primary, vec3(1.0), 0.3);
       float depth = clamp(1.0 - head * 0.5, 0.5, 1.0);
       col += lamp * glowAmount * depth * (lit * (1.2 + r1 / chance) + cohort * 0.9);
@@ -390,7 +396,7 @@ void main() {
   vec3 beamColour = mix(u_primary, vec3(1.0), 0.25);
   vec3 seamColour = mix(u_accent, u_primary, 0.5 + 0.5 * sin(s * TAU / 6.0 + trap));
   col += seamColour * glowAmount * edge * (1.0 - 0.85 * gCity) *
-    (1.0 + bass * level + u_rhythm.z * 1.5);
+    (1.0 + bass * level + u_rhythm.z);
   col += mix(seamColour, beamColour, 0.6 + 0.4 * gCave) * min(scattering, 0.6) *
     (0.5 + level * 0.1 + bass * level * 0.3);
   outColor = vec4(max(col, vec3(0.0)), 1.0);

@@ -54,14 +54,14 @@ A one-texel RGBA8 state holds the travel phase (period six units) and a 16-bit w
 
 The detail cap stops recursion with fractional fading; this also removes far shimmer. The step bound against neighbouring blocks uses the narrowest block variant, which is a provable subset of free space, so only steps close to a block face are clamped.
 
-The table shows **INDICATIVE** native M3 Pro numbers (`profile-families --types`, whole frame including post), taken while other lanes shared the GPU (load average about 100). They are given as ratios against Flight in the same run:
+The table shows **INDICATIVE** native M3 Pro numbers (`profile-families --types`, whole frame including post), taken while other lanes shared the GPU (load average about 100). Each value is the minimum p50 over repeated runs, with Flight measured in the same run for comparison:
 
 | Resolution | Corridor | Cavern | City | Flight paths (same run) |
 | --- | --- | --- | --- | --- |
-| 1080p | 9.1 ms | 11.7 ms | 11.5 ms | 9.0 / 11.8 / 8.5 / 8.5 ms |
-| 4K | 28.9 ms | 37.7 ms | 41.6 ms | 24.0 / 38.0 / 28.1 / 22.9 ms |
+| 1080p | 7.1 ms | 8.2 ms | 9.5 ms | 6.0 / 9.1 / 6.5 / 6.2 ms |
+| 4K | 24.4 ms | 33.5 ms | 34.4 ms | 20.7 / 32.6 / 21.6 / 20.4 ms |
 
-In an earlier quieter window, 1080p measured 5.2 / 7.3 / 7.4 ms against Flight's 4.6 / 6.9 / 4.6 / 4.6 ms. Cavern and City therefore cost about as much as Flight's Corkscrew and roughly 1.3–1.5× its corridor. They sit at the 8 ms 1080p budget in quiet conditions, and above 33 ms at 4K like the other raymarched headliners.
+In an earlier, quieter window (a near-final shader), 1080p measured 5.2 / 7.3 / 7.4 ms against Flight's 4.6 / 6.9 / 4.6 / 4.6 ms. Cavern and City therefore cost about as much as Flight's Corkscrew and roughly 1.3–1.5× its corridor. They sit at the 8 ms 1080p budget in quiet conditions, and above 33 ms at 4K like the other raymarched headliners.
 
 ## Verification
 
@@ -73,7 +73,7 @@ In an earlier quieter window, 1080p measured 5.2 / 7.3 / 7.4 ms against Flight's
   - world continuity;
   - gesture periods.
 - Review film: `PHOSPHOR_HEADLESS_RIG=1 node scripts/world-film.mjs --world descent --rig`.
-- Energy ladder: `node scripts/contact.mjs --dist . --sheet ladder --family descent --rig`. It shows zero GL errors and non-finite values, and no black frames; mean luminance at 0.1 is 0.011–0.030.
+- Energy ladder: `node scripts/contact.mjs --dist . --sheet ladder --family descent --rig`. It shows zero GL errors and non-finite values, and no black frames; mean luminance at 0.1 is 0.011–0.033.
 
 ## Limits
 
