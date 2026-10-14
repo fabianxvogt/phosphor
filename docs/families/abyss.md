@@ -44,7 +44,16 @@ Both restore GL state; `tests/browser/abyss-layers.test.mjs` checks state restor
 
 ## Cost
 
-About 586k vertices (316k opaque reef/seabed, 270k additive), 65 536 points, one 256² simulation pass per tick (plankton test 40 bells and four waves). Geometry creation takes about 0.25 s of CPU per seed (cached per seed). Throughput: see Verification.
+About 586k vertices (316k opaque reef/seabed, 270k additive), 65 536 points, one 256² simulation pass per tick (plankton test 40 bells and four waves). Geometry creation takes about 0.25 s of CPU per seed (cached per seed).
+
+Indicative whole-frame throughput (`profile-families.mjs --types --frames 30`, native M3 Pro shared with other lanes; control Living Forms in the same run):
+
+| Output | Sparks | Swarms | Reef | Control |
+| --- | --- | --- | --- | --- |
+| 1920×1080 p50 / p95 | 2.9 / 3.1 ms | 3.5 / 3.7 ms | 4.2 / 4.5 ms | 2.1–2.5 / ≤ 3.4 ms |
+| 3840×2160 p50 / p95 | 6.8 / 7.2 ms | 7.6 / 8.3 ms | 8.3 / 8.6 ms | 4.9–5.1 / ≤ 5.6 ms |
+
+About 1.4–1.8× the control at 1080p (inside the 8 ms budget); Reef at 4K is slightly above 8 ms (additive overdraw of fans, bells and shafts is the fill cost).
 
 ## Safety and endlessness
 
@@ -53,7 +62,8 @@ About 586k vertices (316k opaque reef/seabed, 270k additive), 65 536 points, one
 ## Verification
 
 - `node --test tests/abyss.test.mjs`: registration and continuous-world detection, preset bounds, deterministic finite seeded buffer with a seed-independent opaque split, lowbias32 against a BigInt reference, development-independent identity, continuous/monotone growth and reveal with the state counts, periodicity, camera clearance, constant loop caps.
-- GPU probe (native headless rig): zero GL errors and non-finite values, paused reversal pixel identity, normal frames after 8 h of scene time, energy-0.1 statistics per state (see the lane report).
+- GPU probe (native headless rig, 480×270): zero GL errors and non-finite values; a paused 0.5 → 1.7 → 0.5 redraw is pixel-identical (0 differing values; 1.7 differs); frames after 8 h of scene time render normally. Energy 0.1 (mean / peak / pixels above 25): First Sparks 1.7 / 231 / 0.4 % (deliberately near-black breakdown with one bright medusa), Medusa Bloom 5.7 / 245 / 3.6 %, Lantern Reef 23.4 / 243 / 23 %, Ghost Bells 4.7 / 239 / 2.8 %.
+- Engine options: `PHOSPHOR_HEADLESS_RIG=1 PHOSPHOR_ABYSS_GPU=1 node --test tests/browser/abyss-layers.test.mjs`.
 - Energy ladder: `node scripts/contact.mjs --dist . --sheet ladder --family abyss --rig`. Films: `node scripts/world-film.mjs --world deep-sea --rig` and `--look "abyss:Abyssal Storm" --from 2 --to 2`.
 
 ## Limits
