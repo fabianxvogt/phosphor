@@ -71,6 +71,13 @@ export const FAMILY_CATALOG = {
     styles: ["particles", "spatial"],
     variants: ["Dust", "Spiral", "Nova"],
   },
+  afterglow: {
+    algorithm: "Gray–Scott morphogens as a night garden",
+    description:
+      "One morphogen field grows glowing roots, translucent petals and emissive crowns while the camera rises from a low flight to an overhead view.",
+    styles: ["organic", "spatial"],
+    variants: ["Roots", "Petals", "Bloom"],
+  },
   mycelium: {
     algorithm: "Gray–Scott reaction–diffusion as a lit terrain",
     description:

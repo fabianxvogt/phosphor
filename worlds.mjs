@@ -26,6 +26,31 @@ const MYCELIUM_ACID = {
     },
   ],
 };
+// Afterglow Garden until 2026-10-14: three evolution looks with curated
+// chemistry. Since then it is one continuous world (scene-afterglow.mjs).
+const GARDEN_EVOLUTION = {
+  id: "garden",
+  name: "Afterglow Garden",
+  description:
+    "An inherited network opens into relief, petals and glowing crowns.",
+  states: [
+    {
+      name: "Roots",
+      look: "evolution:Quiet Herbarium",
+      params: { feed: 0.029, prune: 0.057, spread: 0.5 },
+    },
+    {
+      name: "Petals",
+      look: "evolution:Pearl Nursery",
+      params: { feed: 0.029, prune: 0.057, spread: 0.5 },
+    },
+    {
+      name: "Bloom",
+      look: "evolution:Coral Orchard",
+      params: { feed: 0.029, prune: 0.057, spread: 0.5 },
+    },
+  ],
+};
 const AUTHORED = [
   {
     id: "mycelium",
@@ -42,23 +67,11 @@ const AUTHORED = [
     id: "garden",
     name: "Afterglow Garden",
     description:
-      "An inherited network opens into relief, petals and glowing crowns.",
+      "A low flight over glowing roots rises above petals into crowns of light. Play every stage in between.",
     states: [
-      {
-        name: "Roots",
-        look: "evolution:Quiet Herbarium",
-        params: { feed: 0.029, prune: 0.057, spread: 0.5 },
-      },
-      {
-        name: "Petals",
-        look: "evolution:Pearl Nursery",
-        params: { feed: 0.029, prune: 0.057, spread: 0.5 },
-      },
-      {
-        name: "Bloom",
-        look: "evolution:Coral Orchard",
-        params: { feed: 0.029, prune: 0.057, spread: 0.5 },
-      },
+      { name: "Roots", look: "afterglow:Glowing Roots" },
+      { name: "Petals", look: "afterglow:Opening Petals" },
+      { name: "Bloom", look: "afterglow:Crowns at Dusk" },
     ],
   },
   {
@@ -161,7 +174,8 @@ const withoutParams = (w) => ({
 const HISTORY = [
   MYCELIUM_ACID,
   withoutParams(MYCELIUM_ACID),
-  withoutParams(AUTHORED[1]),
+  GARDEN_EVOLUTION,
+  withoutParams(GARDEN_EVOLUTION),
 ];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const untouched = (w) =>

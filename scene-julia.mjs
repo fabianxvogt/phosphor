@@ -25,10 +25,17 @@ const presets = [
   { name: "Storm Lens", seed: 9106, params: { map: 1, drift: 0.9, zoom: 0.9, detail: 48, edge: 0.7, spin: 0.4, contrast: 0.9, bands: 0.8 } },
 ];
 
+// Rework 2026-10-14 (look audit #1): the set is lit as relief on a dark
+// ground. A distance estimate draws the boundary as a constant-width glowing
+// filament; the exterior carries normal-mapped relief (z/dz) that fades to
+// black with distance from the set; the interior stays near black apart from
+// sparse orbit-trap glints. Energy changes iterations and filament reach, not
+// brightness.
 const fragment = `
 const int ITER_CAP = 128;
 
-vec2 jCube(vec2 z) { return vec2(z.x * z.x * z.x - 3.0 * z.x * z.y * z.y, 3.0 * z.x * z.x * z.y - z.y * z.y * z.y); }
+vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+vec2 cdiv(vec2 a, vec2 b) { return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / max(dot(b, b), 1e-30); }
 
 void main() {
   float map = floor(u_params[0] + 0.5);
@@ -46,41 +53,97 @@ void main() {
   vec2 cardioid = 0.5 * vec2(cos(a), sin(a)) - 0.25 * vec2(cos(2.0 * a), sin(2.0 * a));
   vec2 c = cardioid * mix(0.7, 1.0, edge);
   if (map > 0.5 && map < 1.5) c = 0.62 * vec2(cos(a * 1.3), sin(a)) * mix(0.75, 1.02, edge);
-  if (map > 1.5 && map < 2.5) c = vec2(-0.55 + 0.25 * cos(a), -0.6 + 0.15 * sin(a * 1.4)) * mix(0.85, 1.0, edge);
+  if (map > 1.5 && map < 2.5) c = vec2(-1.1 + 0.12 * cos(a), -0.1 + 0.06 * sin(a * 1.4)) * mix(0.85, 1.0, edge);
 
-  vec2 z = rot2(spin * u_time * 0.2) * aspectUV() * (2.6 / zoom);
+  float scale = 2.6 / zoom;
+  float pixel = scale / u_resolution.y;
+  vec2 z = rot2(mod(spin * u_time * 0.2, 6.2831853)) * aspectUV() * scale;
+  vec2 dz = vec2(1.0, 0.0);
   if (map > 2.5) {
-    // Mirror: fold the plane four ways before iterating.
-    z = abs(z);
-    z = rot2(0.7853982) * z;
+    // Mirror: fold the plane four ways before iterating (an isometry, so the
+    // distance estimate keeps its scale).
+    z = rot2(0.7853982) * abs(z);
   }
   float n = 0.0, trap = 1e9;
   float limit = min(detail, float(ITER_CAP));
+  float m = 0.0;
+  bool escaped = false;
   for (int i = 0; i < ITER_CAP; ++i) {
     if (float(i) >= limit) break;
-    if (map > 1.5 && map < 2.5) z = abs(z);
-    z = (map > 0.5 && map < 1.5) ? jCube(z) + c : vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
+    if (map > 1.5 && map < 2.5) {
+      // The absolute fold acts on the derivative as a reflection.
+      dz *= vec2(z.x < 0.0 ? -1.0 : 1.0, z.y < 0.0 ? -1.0 : 1.0);
+      z = abs(z);
+    }
+    if (map > 0.5 && map < 1.5) {
+      vec2 z2 = cmul(z, z);
+      dz = 3.0 * cmul(z2, dz);
+      z = cmul(z2, z) + c;
+    } else {
+      dz = 2.0 * cmul(z, dz);
+      z = cmul(z, z) + c;
+    }
     trap = min(trap, abs(z.x * z.y));
-    float m = dot(z, z);
-    if (m > 256.0) {
+    m = dot(z, z);
+    if (m > 1024.0) {
       n = float(i) - log2(log2(m)) + 4.0; // smooth escape count
+      escaped = true;
       break;
     }
-    n = limit;
   }
-  float escaped = step(n, limit - 0.5);
-  float t = n / limit;
-  // Filaments: brightness peaks just outside the set; the inside stays dark
-  // apart from an orbit-trap glow.
-  float filament = clamp(pow(t, 0.35) * (1.0 - t) * 4.0 * contrast, 0.0, 1.0) * escaped;
-  float inside = (1.0 - escaped) * exp(-trap * 8.0) * 0.35;
-  float hue = fract(n * 0.04 * bands + a * 0.05);
-  vec3 col = palette(hue) * filament + u_accent * inside;
-  float contour = exp(-pow((mod(n, 12.0) - mod(u_rhythmCount.x, 6.0) * 2.0) / 0.8, 2.0)) * escaped;
-  col += palette(hue) * contour * u_rhythm.x * 0.75;
-  col += u_accent * (1.0 - escaped) * exp(-trap * 20.0) * u_rhythm.y * 0.65;
-  col *= 0.85 + 0.4 * u_level;
-  outColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+  float t = escaped ? clamp(n / limit, 0.0, 1.0) : 1.0;
+
+  vec3 color = vec3(0.0);
+  float boundaryPx = 0.0;
+  if (escaped) {
+    // Distance to the set in pixels (Hubbard–Douady estimate).
+    float r = sqrt(m);
+    float distance = 0.5 * r * log(r) / max(length(dz), 1e-30);
+    boundaryPx = distance / pixel;
+    float lineWidth = max(1.2, u_resolution.y / 900.0);
+    float core = exp(-boundaryPx / lineWidth);
+    float halo = exp(-boundaryPx / (lineWidth * 9.0));
+    // Normal-mapped relief: z/dz points away from the set.
+    vec2 u = normalize(cdiv(z, dz));
+    vec3 normal = normalize(vec3(u, 0.7 / contrast));
+    vec3 key = normalize(vec3(-0.55, 0.6, 0.6));
+    float diffuse = max(0.0, dot(normal, key));
+    float rim = pow(1.0 - normal.z, 2.0);
+    float reach = exp(-boundaryPx / (26.0 * contrast * lineWidth));
+    // Where the boundary is finer than a pixel (dust), escape counts alias:
+    // show a dim haze instead of a speckled filament.
+    float dust = smoothstep(1.0, 6.0, fwidth(n));
+    core *= 1.0 - 0.85 * dust;
+    halo *= 1.0 - 0.6 * dust;
+    float potential = log2(max(n, 1.0));
+    float band = 0.5 + 0.5 * cos(potential * 6.2831853 * (0.6 + bands * 2.0) - a * 0.3);
+    vec3 ink = palette(clamp(0.18 + 0.42 * t + 0.25 * band * bands, 0.0, 1.0));
+    float terrace = mix(1.0, 0.55 + 0.45 * band, bands);
+    color += ink * (0.05 + 0.75 * diffuse) * terrace * reach * (1.0 - 0.7 * dust);
+    color += mix(u_secondary, u_primary, 0.5) * rim * reach * 0.12;
+    color += ink * dust * 0.10;
+    // Equipotential lines spread from the set like a contour map; they fade
+    // with distance, so the far ground stays black.
+    float level = potential * (1.5 + 4.0 * bands);
+    float isoline = 1.0 - smoothstep(0.6, 1.4, abs(fract(level) - 0.5) / max(fwidth(level), 1e-4));
+    float far = exp(-boundaryPx / (110.0 * lineWidth));
+    color += palette(clamp(0.25 + 0.5 * fract(level / 7.0), 0.0, 1.0)) * isoline * far * (1.0 - dust) * 0.30;
+    color += mix(u_primary, vec3(1.0), 0.35) * core * 1.15;
+    color += mix(ink, u_accent, 0.35) * halo * 0.18;
+    // Rhythm: chase selected smooth escape contours near the boundary.
+    float contour = exp(-pow((mod(n, 12.0) - mod(u_rhythmCount.x, 6.0) * 2.0) / 0.8, 2.0));
+    color += ink * contour * reach * u_rhythm.x * 0.8;
+  } else {
+    // Interior: near black, with rare orbit-trap glints in accent.
+    // Glints fade where the trap aliases (chaotic interiors stay quiet).
+    float calm = 1.0 - smoothstep(0.2, 1.5, fwidth(log(trap + 1e-6)));
+    float glint = exp(-trap * 900.0) * calm;
+    float filigree = exp(-trap * 120.0) * calm;
+    color += u_secondary * 0.012 + mix(u_secondary, u_primary, 0.45) * filigree * 0.13
+           + u_accent * glint * 0.22;
+    color += u_accent * exp(-trap * 120.0) * calm * u_rhythm.y * 0.6;
+  }
+  outColor = vec4(max(color, 0.0), 1.0);
 }
 `;
 
@@ -92,7 +155,7 @@ export default {
   ],
   id: "julia",
   // Contract v3 performance metadata; see scene-acid.mjs.
-  energy: { drift: [0.05, 1.1], spin: { mul: [0.4, 2.5] }, contrast: [0.9, 1.5], bands: [0.2, 0.7] },
+  energy: { drift: [0.05, 1.1], spin: { mul: [0.4, 2.5] }, detail: { mul: [0.6, 1.15] }, edge: [-0.06, 0.04] },
   beat: { punch: 1, pulse: 1 },
   stage: ["drift", "zoom", "edge"],
   type: { key: "map", values: [0, 1, 2, 3] },

@@ -2,10 +2,57 @@ import { familyEffect } from "./family-rhythm.mjs";
 
 // Gray–Scott morphogens, rendered as an illustrative flowering garden.
 // Two 16-bit concentrations occupy RG and BA in the RGBA8 simulation texture.
-const chemistry = `
+export const chemistry = `
 vec2 unpackMorphogens(vec4 state) { return unpack16(state); }
 vec4 packMorphogens(vec2 value) { return pack16(value); }
 `;
+
+// The morphogen step is shared with the continuous Afterglow Garden world
+// (scene-afterglow.mjs). Controls are GLSL expressions; the defaults are this
+// scene's parameter slots, so its shader text is unchanged. `prelude` adds
+// helpers after the codec; `epilogue` runs before the state is written.
+const GARDEN_CONTROLS = {
+  planting: "u_params[3]",
+  feed: "u_params[0]",
+  loss: "u_params[1]",
+  spread: "u_params[2]",
+  growth: "u_params[7]",
+};
+export function morphogenSimulation(controls = {}, prelude = "", epilogue = "") {
+  const c = { ...GARDEN_CONTROLS, ...controls };
+  return chemistry + prelude + `
+vec2 morphogen(vec2 uv) { return unpackMorphogens(texture(u_state, uv)); }
+void main() {
+  if (u_reset) {
+    float density = ${c.planting};
+    vec2 cell = floor(v_uv * density);
+    vec2 local = fract(v_uv * density);
+    vec2 center = vec2(.5) + .24 * vec2(hash(cell + 5.7), hash(cell + 19.3)) - .12;
+    float planted = step(.3, hash(cell + 71.));
+    // Keep a central planted cell even for sparse seeds.
+    planted = max(planted, 1. - step(.1, length(cell - floor(vec2(.5) * density))));
+    float bud = planted * (1. - smoothstep(.12, .18, length(local - center)));
+    outColor = packMorphogens(vec2(1. - .5 * bud, .26 * bud));
+    return;
+  }
+  vec2 current = morphogen(v_uv);
+  vec2 lap = laplacian9(u_state, v_uv);
+  float reaction = current.x * current.y * current.y;
+  float feed = ${c.feed};
+  float loss = ${c.loss};
+  vec2 derivative = vec2(lap.x - reaction + feed * (1. - current.x),
+                        ${c.spread} * lap.y + reaction - (feed + loss) * current.y);
+  // Keep explicit diffusion stable even at the maximum growth setting.
+  float tick = clamp(u_dt * 60., 0., 1.);
+  current += derivative * tick * .65 * ${c.growth};
+  vec2 distanceToHand = abs(v_uv - u_gesture.xy);
+  distanceToHand = min(distanceToHand, 1. - distanceToHand);
+  float hand = exp(-dot(distanceToHand, distanceToHand) / .0012) * clamp(u_gesture.z, 0., 1.);
+  current += hand * vec2(-.025, .018) * tick;
+${epilogue}  outColor = packMorphogens(current);
+}
+`;
+}
 
 const schema = [
   { key: 'feed', label: 'Morphogen feed', min: .025, max: .048, step: .0001, default: .0367 },
@@ -49,38 +96,7 @@ export default {
   simulation: { continuity: "gray-scott-uv16-v1",
     size: [384, 384],
     steps: 2,
-    fragment: chemistry + `
-vec2 morphogen(vec2 uv) { return unpackMorphogens(texture(u_state, uv)); }
-void main() {
-  if (u_reset) {
-    float density = u_params[3];
-    vec2 cell = floor(v_uv * density);
-    vec2 local = fract(v_uv * density);
-    vec2 center = vec2(.5) + .24 * vec2(hash(cell + 5.7), hash(cell + 19.3)) - .12;
-    float planted = step(.3, hash(cell + 71.));
-    // Keep a central planted cell even for sparse seeds.
-    planted = max(planted, 1. - step(.1, length(cell - floor(vec2(.5) * density))));
-    float bud = planted * (1. - smoothstep(.12, .18, length(local - center)));
-    outColor = packMorphogens(vec2(1. - .5 * bud, .26 * bud));
-    return;
-  }
-  vec2 current = morphogen(v_uv);
-  vec2 lap = laplacian9(u_state, v_uv);
-  float reaction = current.x * current.y * current.y;
-  float feed = u_params[0];
-  float loss = u_params[1];
-  vec2 derivative = vec2(lap.x - reaction + feed * (1. - current.x),
-                        u_params[2] * lap.y + reaction - (feed + loss) * current.y);
-  // Keep explicit diffusion stable even at the maximum growth setting.
-  float tick = clamp(u_dt * 60., 0., 1.);
-  current += derivative * tick * .65 * u_params[7];
-  vec2 distanceToHand = abs(v_uv - u_gesture.xy);
-  distanceToHand = min(distanceToHand, 1. - distanceToHand);
-  float hand = exp(-dot(distanceToHand, distanceToHand) / .0012) * clamp(u_gesture.z, 0., 1.);
-  current += hand * vec2(-.025, .018) * tick;
-  outColor = packMorphogens(current);
-}
-`
+    fragment: morphogenSimulation(),
   },
   fragment: chemistry + `
 float bloomAt(vec2 uv) { return stateBilinear16(uv).y; }

@@ -11,8 +11,25 @@ const AUTHORED_WORLDS = defaultWorlds(
   scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`)),
 ).length;
 
+// Afterglow Garden became a continuous world (2026-10-14). These tests cover
+// ordinary world transitions, so they keep a custom (user-edited) copy of its
+// earlier three-renderer definition: other scenes, curated chemistry params.
+const chemistry = { feed: 0.029, prune: 0.057, spread: 0.5 };
+const CLASSIC_GARDEN = {
+  id: "garden",
+  name: "Classic Garden",
+  description:
+    "An inherited network opens into relief, petals and glowing crowns.",
+  states: [
+    { name: "Roots", look: "evolution:Quiet Herbarium", params: chemistry },
+    { name: "Petals", look: "evolution:Pearl Nursery", params: chemistry },
+    { name: "Bloom", look: "evolution:Coral Orchard", params: chemistry },
+  ],
+};
+
 function make() {
   const set = initialShowSet(scenes);
+  set.worlds[1] = structuredClone(CLASSIC_GARDEN);
   set.clock.mode = "manual";
   set.autopilot.enabled = false;
   const show = new Show({
@@ -328,8 +345,8 @@ test("untouched early world definitions gain stable chemistry without replacing 
     for (const state of world.states) delete state.params;
   set.worlds[2].name = "My unfolding";
   const migrated = validateShowSet(set, scenes);
-  // Afterglow Garden's untouched params-free form gains its chemistry.
-  assert.equal(migrated.worlds[1].states[0].params.feed, 0.029);
+  // Untouched authored worlds follow their current (continuous) definitions.
+  assert.equal(migrated.worlds[1].states[0].look, "afterglow:Glowing Roots");
   assert.equal(migrated.worlds[0].states[0].look, "mycelium:Hyphal Understory");
   assert.equal(migrated.worlds[2].name, "My unfolding");
 });

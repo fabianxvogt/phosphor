@@ -42,7 +42,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | Pulse Geometry           | pulse           | Layered rhythmic geometry                    | Bars / Tunnel / Grid / Shards                                                                 | 6     |
 | Fractal Flight           | flight          | Raymarched Menger sponge                     | Corridor / Spiral / Shaft / Narrows                                                           | 6     |
 | Light Beams              | beams           | Procedural light beams in haze               | Fan / Pillars / Crossfire / Starburst                                                         | 6     |
-| Julia Observatory        | julia           | Escape-time Julia maps                       | Quadratic / Cubic / Burning / Mirror                                                          | 6     |
+| [Julia Observatory](families/julia.md) | julia | Escape-time Julia maps                       | Quadratic / Cubic / Burning / Mirror                                                          | 6     |
 | Fourth Dimension         | fourspace       | 4D polytope rotation and projection          | Tesseract / 16-cell / 24-cell / Duoprism                                                      | 6     |
 | Hyperbolic Loom          | hyperbolic      | Hyperbolic tilings in the Poincaré disk      | Heptagons {7,3} / Pentagons {5,4} / Squares {4,5} / Triangles {3,8}                           | 6     |
 | Particle Swarm           | swarm           | Particle advection in prescribed fields      | Curl Flow / de Jong Field / Differential Galaxy / Radial Bursts                               | 6     |
@@ -78,6 +78,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |
 | [Living Mycelium](families/mycelium.md) | mycelium | Gray–Scott reaction–diffusion as a lit terrain | Understory / Tide / City | 8 |
 | [Attractor Ribbons](families/ribbons.md) (world Attractor Ribbons) | ribbons | Fixed-step RK4 trajectories in three flows, drawn as lit ribbons | Wings / Vortex / Labyrinth | 8 |
+| [Afterglow Garden](families/afterglow.md) | afterglow | Gray–Scott morphogens as a night garden | Roots / Petals / Bloom | 8 |
 
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 
