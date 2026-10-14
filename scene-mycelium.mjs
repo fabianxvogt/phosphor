@@ -136,7 +136,9 @@ void main() {
   vec2 gradient = vec2(vx1 - vx0, vy1 - vy0) * .5;
 
   // Light: a soft key, a cool fill and a rim in accent/secondary.
-  vec3 key = normalize(vec3(-.55, .45, .70));
+  // In City the key is a raking light at low energy (long shadows, a mostly
+  // dark frame) that climbs with energy; other states keep a fixed key.
+  vec3 key = normalize(vec3(-.55, .45, mix(.70, mix(.16, .62, clamp(u_level, 0., 1.)), city)));
   vec3 view = -rd;
   float diffuse = max(0., dot(normal, key));
   float wrap = .5 + .5 * dot(normal, key);
@@ -162,7 +164,14 @@ void main() {
   float near = 1. - smoothstep(0., 1.2, travel);
 
   vec3 ground = u_secondary * .018 + vec3(.004, .006, .009);
-  vec3 ink = palette(clamp(.04 + .58 * smoothstep(.15, 1., height) + .10 * crest, 0., 1.));
+  // Two-tone bodies so every palette shows its range: tops lean toward
+  // primary, flanks and low bodies toward secondary, and a slow regional
+  // drift across the field shifts the mix (accent stays for edges/events).
+  float region = .5 + .5 * sin(dot(hit.xy, vec2(1.7, 2.3)) + 1.3 * sin(hit.x * .9 - hit.y * 1.4));
+  float top = smoothstep(.55, .95, normal.z) * smoothstep(.2, .8, height);
+  vec3 inkTop = palette(clamp(.22 + .42 * region + .14 * crest, 0., .8));
+  vec3 inkSide = mix(u_secondary, palette(.22 + .2 * region), .35);
+  vec3 ink = mix(inkSide, inkTop, top);
   float lightAmount = (.05 + .72 * pow(diffuse, 1.3) * shadow + .08 * wrap) * cavity;
   // A cool fill from the opposite side keeps shadowed flanks coloured.
   float fill = max(0., dot(normal, normalize(vec3(.6, -.5, .45))));
@@ -172,7 +181,7 @@ void main() {
   // Understory: a dark floor, luminous threads with a soft halo and low,
   // dimly lit colony bodies.
   vec3 under = ground + ink * body * .16 * lightAmount
-             + mix(u_primary, ink, .35) * (thread * .9 + halo * .10)
+             + mix(palette(.35 + .4 * region), vec3(1.), .15) * (thread * .9 + halo * .10)
              + u_accent * crest * pow(diffuse, 6.) * .08;
   // Tide: wet membranes with specular sheen, fresnel rims and a translucent
   // margin where the activator thins out.

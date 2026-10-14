@@ -28,7 +28,12 @@ Energy raises growth speed, injection, structure contrast and audio influence (s
 
 ## Cost and limits
 
-Native M3 Pro probe (`profile-families.mjs --types`, shared GPU with other lanes, indicative): whole frame p50 5.1–5.6 ms at 1920×1080 (acid 2.4–2.7 ms), 13.5–14.4 ms at 3840×2160 (acid 7.2–9.1 ms). The brush and feed land in simulation space, not under the pointer, because the view is a moving perspective. Far field is fogged to hide minification aliasing; windows are hashed per block and shown only within reach. Colour is the palette's: with the default palette the bodies read olive-lime with pink windows.
+Native M3 Pro probe (`profile-families.mjs --types`, shared GPU with other lanes, indicative): whole frame p50 5.1–5.6 ms at 1920×1080 (acid 2.4–2.7 ms), 13.5–14.4 ms at 3840×2160 (acid 7.2–9.1 ms). The brush and feed land in simulation space, not under the pointer, because the view is a moving perspective. Far field is fogged to hide minification aliasing; windows are hashed per block and shown only within reach. Colour is the palette's.
+
+## Wave 2 polish (2026-10-14)
+
+- **Colour range:** bodies are two-tone. Tops take palette 0.22–0.8 and flanks lean to secondary; a slow regional field across the terrain shifts the mix, and threads follow the same regional palette. Under the default palette the terrain now reads lime and blue rather than olive only. Ember (copper/bronze) and Glacier (steel/ice) films are in `artifacts/films/mycelium-ember.mp4` and `mycelium-glacier.mp4`. `world-film.mjs` gained `--palette <library id>`.
+- **Darker City at low energy:** in City the key light rakes at low energy (elevation 0.16) and climbs to 0.62 at full energy. Long shadows leave Lantern City at mean luminance 0.013 at energy 0.1 (previously about 0.04), with 0.027 at 0.5 and 0.043 at 0.9. This is a lighting-structure change, but it does raise brightness with energy in City; other states keep a fixed key.
 
 ## Verification
 

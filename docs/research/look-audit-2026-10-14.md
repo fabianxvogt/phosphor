@@ -66,4 +66,6 @@ Not graded: **cathedral, flight, hopf, fourspace** (being reworked by other lane
 2. **Wallpaper Groups → embossed symmetry relief.** Treat the symmetrised wave function as a height field and light only its crests (rim in accent) on a dark ground. Show mirror and glide axes as thin accent lines so p1–p6m become legible, and add a slow oblique camera tilt. All 17 groups and look ids stay.
 3. **Domain Colouring → analytic landscape.** Render log|f| as an oblique terrain with zeros as dark pits and poles as luminous spires, phase isolines as thin palette contours and a dark ground. This removes the full-frame pastel without losing the domain-colouring signature.
 
+**Wave 2 status (2026-10-14):** the owner did not veto these proposals. Julia is reworked (see [julia.md](../families/julia.md)): mean luminance is now 0.03–0.05 at every energy, down from 0.09–0.21. Afterglow Garden replaces the evolution-based world ([afterglow.md](../families/afterglow.md)). Wallpaper and Domain are scheduled for wave 3.
+
 Runners-up: hilbert (garish full frame), phase (illegible domains), swarm (noise). Gated **feedback** and **interference** grade C, but need owner sign-off before any change.

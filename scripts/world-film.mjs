@@ -5,7 +5,8 @@
 //   node scripts/world-film.mjs --world unfolding --rig
 //   node scripts/world-film.mjs --look "metamorphosis:First Filaments" --to 2
 // Options: --world <id> | --look <scene:Preset> [--from N --to N],
-// --seconds 30, --fps 30, --bpm 126, --width 960 --height 540, --rig.
+// --seconds 30, --fps 30, --bpm 126, --width 960 --height 540, --rig,
+// --palette <library id> (default: the look's own palette).
 // Output: artifacts/films/<name>.mp4 (and a contact strip <name>.png).
 import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -20,6 +21,7 @@ import {
   lookList,
 } from "./browser-runtime.mjs";
 import { defaultWorlds } from "../worlds.mjs";
+import { PALETTES } from "../palettes.mjs";
 
 const args = options({
   world: { type: "string" },
@@ -31,7 +33,14 @@ const args = options({
   bpm: { type: "string", default: "126" },
   width: { type: "string", default: "960" },
   height: { type: "string", default: "540" },
+  palette: { type: "string" },
 });
+const paletteColors =
+  args.palette === undefined
+    ? null
+    : PALETTES.find((p) => p.id === args.palette)?.colors;
+if (args.palette !== undefined && !paletteColors)
+  throw new Error(`Unknown palette ${args.palette}`);
 if (!args.world === !args.look)
   throw new Error("Pass exactly one of --world <id> or --look <scene:Preset>");
 const seconds = Number(args.seconds),
@@ -71,13 +80,15 @@ try {
     if (!first) throw new Error(`Unknown look ${args.look}`);
     name = args.look.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   }
+  if (args.palette) name += `-${args.palette}`;
   const plan = await lab.page.evaluate(
-    ({ first, positions, from, to }) => {
+    ({ first, positions, from, to, paletteColors }) => {
       const { scenes, presetSnapshot } = window.__phosphorLab;
       const scene = scenes.find((s) => s.id === first.sceneId);
       const key = scene.development;
       if (!key) throw new Error(`${scene.id} declares no development key`);
       const snapshot = presetSnapshot(scene, first.index);
+      if (paletteColors) snapshot.palette = { ...paletteColors };
       const values = positions
         ? positions.map((lookId) => {
             const preset = scene.presets.findIndex(
@@ -100,6 +111,7 @@ try {
       positions,
       from: args.from === undefined ? null : Number(args.from),
       to: args.to === undefined ? null : Number(args.to),
+      paletteColors,
     },
   );
   const total = Math.round(seconds * fps);
