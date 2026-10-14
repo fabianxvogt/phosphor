@@ -94,7 +94,7 @@ In the city, about 20% goes to block-face stepping. A looser face margin would l
   - world continuity;
   - gesture periods.
 - Review film: `PHOSPHOR_HEADLESS_RIG=1 node scripts/world-film.mjs --world descent --rig`.
-- Energy ladder: `node scripts/contact.mjs --dist . --sheet ladder --family descent --rig`. It shows zero GL errors and non-finite values, and no black frames. Wave 2 is deliberately darker: mean luminance at 0.1 is 0.005–0.017.
+- Energy ladder: `node scripts/contact.mjs --dist . --sheet ladder --family descent --rig`. It shows zero GL errors and non-finite values, and no black frames. Wave 2 is deliberately darker: mean luminance at 0.1 is 0.006–0.014.
 - Analytic normals agree with four-sample finite differences on the large majority of hit pixels. In the 1080p check across corridor, cavern and city, 1.5–17% of hit pixels differ by more than 37°, at edges, block faces and step-limited rays; under 1% are opposite. Side-by-side stills are visually identical apart from slightly crisper edges.
 
 ## Limits
