@@ -33,6 +33,14 @@ export const FAMILY_CATALOG = {
     styles: ["organic", "spatial"],
     variants: ["Filaments", "Membrane", "Blossom"],
   },
+  nebula: {
+    algorithm:
+      "Zel'dovich web, density-wave orbits and Sedov–Taylor shells on one star population",
+    description:
+      "The same stars condense from a cosmic-web cloud into a spiral galaxy whose arms are crowded orbits, then collapse and ignite into a filamentary supernova shell.",
+    styles: ["particles", "spatial"],
+    variants: ["Dust", "Spiral", "Nova"],
+  },
   physarum: {
     algorithm: "Agent chemotaxis with a diffusing trail field",
     description:

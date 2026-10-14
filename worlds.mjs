@@ -82,6 +82,17 @@ const AUTHORED = [
       { name: "Hall", look: "crystal:Geode Hall" },
     ],
   },
+  {
+    id: "nebula",
+    name: "Spiral Nebula",
+    description:
+      "Drifting dust condenses into a turning spiral galaxy that collapses and ignites into a supernova shell. The same stars throughout.",
+    states: [
+      { name: "Dust", look: "nebula:Drifting Dust" },
+      { name: "Spiral", look: "nebula:Grand Spiral" },
+      { name: "Nova", look: "nebula:Supernova Shell" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

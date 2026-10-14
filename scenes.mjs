@@ -40,6 +40,7 @@ import physarum from "./scene-physarum.mjs";
 import caustics from "./scene-caustics.mjs";
 import colonization from "./scene-colonization.mjs";
 import fibration from "./scene-fibration.mjs";
+import nebula from "./scene-nebula.mjs";
 
 export default [
   acid,
@@ -84,6 +85,7 @@ export default [
   metamorphosis,
   fibration,
   crystal,
+  nebula,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
