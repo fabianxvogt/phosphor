@@ -41,6 +41,8 @@ test(
           "voronoi",
           "cathedral",
           "fourspace",
+          "wallpaper",
+          "domain",
         ]) {
           const health = await page.evaluate(renderLook, {
             sceneId,

@@ -452,7 +452,7 @@ export const FAMILY_CATALOG = {
   domain: {
     algorithm: "Complex-function domain colouring",
     description:
-      "Phase becomes colour and modulus becomes light. Rational, zeta, Möbius and iterated polynomial functions reveal zeros, poles and conformal grids.",
+      "Modulus becomes terrain height and phase becomes coloured contour lines. Rational, zeta, Möbius and iterated polynomial functions sink their zeros as pits and raise their poles as luminous spires.",
     styles: ["geometric", "waves"],
     variants: ["Rational", "Riemann Zeta", "Möbius Net", "Iterated z² + c"],
   },
