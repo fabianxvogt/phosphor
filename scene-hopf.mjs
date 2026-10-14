@@ -118,20 +118,32 @@ void main() {
   float eta = 0.5 * theta;
   vec4 q = vec4(cos(eta) * cos(s + phi), cos(eta) * sin(s + phi), sin(eta) * cos(s), sin(eta) * sin(s));
 
+  // Exact tangent of the fibre: q'(s) = (−q.y, q.x, −q.w, q.z).
+  vec4 dq = vec4(-q.y, q.x, -q.w, q.z);
   // A slow 4D tumble carries circles through infinity and back.
   float a = tumble * 0.7 * sin(t * 0.07), b = tumble * 0.5 * sin(t * 0.05 + 1.0);
-  q.xw = mat2(cos(a), -sin(a), sin(a), cos(a)) * q.xw;
-  q.yz = mat2(cos(b), -sin(b), sin(b), cos(b)) * q.yz;
+  mat2 ra = mat2(cos(a), -sin(a), sin(a), cos(a)), rb = mat2(cos(b), -sin(b), sin(b), cos(b));
+  q.xw = ra * q.xw; q.yz = rb * q.yz;
+  dq.xw = ra * dq.xw; dq.yz = rb * dq.yz;
   float den = 1.0 - q.w;
   if (den < 0.04) return;
   vec3 p = q.xyz / den;
+  vec3 dp = dq.xyz / den + q.xyz * dq.w / (den * den);
   if (length(p) > 8.0) return;
 
   // Camera.
   vec3 yawBytes = floor(texelFetch(u_state, ivec2(0), 0).rgb * 255.0 + 0.5);
   float yaw = TAU_H * dot(yawBytes, vec3(65536.0, 256.0, 1.0)) / 16777216.0, pitch = 0.45 + 0.25 * sin(t * 0.09);
-  p.xz = mat2(cos(yaw), -sin(yaw), sin(yaw), cos(yaw)) * p.xz;
-  p.yz = mat2(cos(pitch), -sin(pitch), sin(pitch), cos(pitch)) * p.yz;
+  mat2 ryaw = mat2(cos(yaw), -sin(yaw), sin(yaw), cos(yaw)), rpitch = mat2(cos(pitch), -sin(pitch), sin(pitch), cos(pitch));
+  p.xz = ryaw * p.xz; p.yz = rpitch * p.yz;
+  dp.xz = ryaw * dp.xz; dp.yz = rpitch * dp.yz;
+  // Illuminated lines: a fibre is lit by its tangent against a key light, so
+  // every circle reads as a lit 3D wire (diffuse and a specular glint).
+  vec3 T = normalize(dp + 1e-6);
+  vec3 L = normalize(vec3(-0.5, 0.7, -0.5)), H = normalize(L + vec3(0.0, 0.0, -1.0));
+  float lt = dot(L, T), ht = dot(H, T);
+  float diffuse = sqrt(max(0.0, 1.0 - lt * lt));
+  float glint = pow(sqrt(max(0.0, 1.0 - ht * ht)), 48.0);
   float depth = 5.5 / zoom + p.z;
   if (depth < 0.3) return;
   vec2 screen = p.xy * 2.2 / depth;
@@ -139,16 +151,18 @@ void main() {
   gl_Position = vec4(screen * minSide / u_resolution, 0.0, 1.0);
   float size = 2.0 * minSide / 1080.0 * clamp(5.0 / depth, 0.6, 2.0);
   gl_PointSize = max(size, 1.5);
-  // Colour by the base point on S²: hue by longitude, light by latitude.
-  float hue = fract(phi / TAU_H + 0.05);
-  float fog = clamp(1.4 - 0.12 * depth, 0.35, 1.3);
-  float light = glow * 0.6 * (1.0 - 0.85 * persistence) * fog * (0.55 + 0.45 * u_level);
+  // Colour by the base point on S²: palette by longitude (seamless, accent
+  // kept for glints), light by latitude. Distance fades into the dark.
+  float hue = 0.06 + 0.56 * (0.5 - 0.5 * cos(phi));
+  float fog = clamp(1.65 - 0.2 * depth, 0.2, 1.35);
+  float light = glow * 0.6 * (1.0 - 0.85 * persistence) * fog * 0.8;
   if (variant == 3) light *= 2.2;
   float cohort = mod(float(f) - u_rhythmCount.x, 8.0) < 1.0 ? 1.0 : 0.0;
   // An entire linked fibre grows legible, preserving its exact curve.
   gl_PointSize *= 1.0 + cohort * beatPulse * 0.7;
   float latitudeWave = exp(-pow((theta / PI_H - fract(u_rhythmCount.y * 0.173)) / 0.16, 2.0));
-  v_color = palette(hue) * light * (0.6 + 0.4 * sin(theta)) * (1.0 + cohort * beatPulse * 2.4);
+  v_color = palette(hue) * light * (0.6 + 0.4 * sin(theta)) * (0.3 + 0.95 * diffuse) * (1.0 + cohort * beatPulse * 2.4);
+  v_color += mix(vec3(1.0), u_accent, 0.35) * light * glint * 0.9;
   v_color += mix(palette(hue), u_accent, 0.5) * light * latitudeWave * u_rhythm.y * 0.8;
 }
 `.replace(/PI_H/g, "3.141592653589793"),

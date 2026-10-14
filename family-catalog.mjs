@@ -12,6 +12,13 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  ribbons: {
+    algorithm: "Fixed-step RK4 trajectories in three flows, drawn as lit ribbons",
+    description:
+      "Hundreds of trajectories integrated at once in the Lorenz, Aizawa and Thomas flows. Development carries the same ribbons from wings through a vortex into a labyrinth.",
+    styles: ["spatial", "particles"],
+    variants: ["Wings", "Vortex", "Labyrinth"],
+  },
   fibration: {
     algorithm: "Stereographic Hopf fibres as lit tube meshes",
     description:
