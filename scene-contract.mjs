@@ -119,6 +119,9 @@ vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t
 // Contract v3 particles: a scene may declare particles: { vertex } to draw
 // one point per simulation texel. The vertex body reads its particle with
 // particle() and sets gl_Position, gl_PointSize and v_color.
+// Optional particles.blend = "absorb" draws with (ONE, ONE_MINUS_SRC_ALPHA):
+// a custom particles.fragment's colour still adds and its alpha darkens what
+// was drawn before (later texels draw later). Alpha 0 stays additive.
 export const particleHeader = `#version 300 es
 precision highp float;
 precision highp int;

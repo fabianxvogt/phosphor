@@ -244,20 +244,24 @@ export function birdStep(bird, nb, env, [w, h] = LATTICE) {
     vv = y / h,
     hh = rnd(key, id, 6);
   if (W.loose > 0) {
-    const ph = TAU * cycle(clock, 7 + (id % 5)) + TAU * rnd(key, id, 3);
+    // Loose birds travel in small groups (8×8 lattice blocks).
+    const g = Math.floor(y / 8) * Math.floor(w / 8) + Math.floor(x / 8) + 77777;
+    const ph = TAU * cycle(clock, 7 + (g % 5)) + TAU * rnd(key, g, 3) + 0.35 * rnd(key, id, 3);
     const wander = [
-      1.4 * Math.cos(ph + rnd(key, id, 4) * TAU),
-      0.8 * Math.sin(1.7 * ph + TAU * rnd(key, id, 7)),
-      1.4 * Math.sin(ph + rnd(key, id, 5) * TAU),
+      1.4 * Math.cos(ph + rnd(key, g, 4) * TAU),
+      0.8 * Math.sin(1.7 * ph + TAU * rnd(key, g, 7)),
+      1.4 * Math.sin(ph + rnd(key, g, 5) * TAU),
     ];
     a = add(a, mul(sub(wander, v), 0.9 * W.loose));
   }
   const strike = Math.min(2, Math.max(0, env.falcon ?? 1));
+  // A fixed per-bird offset hides the lattice's rows up close.
+  const jit = [8, 9, 10].map((k) => (rnd(key, id, k) - 0.5) * 0.16);
   const c1 = (clock + LOOK) >>> 0;
   if (W.surge > 0) {
     const at = [
-      add(A, cloud(key, u, vv, hh, clock, env.fold ?? 1)),
-      add(anchor(c1), cloud(key, u, vv, hh, c1, env.fold ?? 1)),
+      add(add(A, jit), cloud(key, u, vv, hh, clock, env.fold ?? 1)),
+      add(add(anchor(c1), jit), cloud(key, u, vv, hh, c1, env.fold ?? 1)),
     ];
     a = add(a, follow(p, v, at, 2.4 * W.surge, 1.8 * W.surge));
     const f = sub(p, falcon(clock)),
@@ -268,8 +272,8 @@ export function birdStep(bird, nb, env, [w, h] = LATTICE) {
   if (W.form > 0) {
     const form = formationAt(clock, env.formation ?? 0, env.cycle ?? 0.5);
     const at = [
-      add(A, slot(key, u, vv, hh, clock, form)),
-      add(anchor(c1), slot(key, u, vv, hh, c1, form)),
+      add(add(A, jit), slot(key, u, vv, hh, clock, form)),
+      add(add(anchor(c1), jit), slot(key, u, vv, hh, c1, form)),
     ];
     a = add(a, follow(p, v, at, 3.4 * W.form, 2.2 * W.form));
   }

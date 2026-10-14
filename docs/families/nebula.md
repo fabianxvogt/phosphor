@@ -18,9 +18,16 @@ Spiral Nebula uses seed 3141 with identical parameters at development 0 / 1 / 2:
 
 Extra looks: **Cosmic Web** (seed 1618, strong growth, low camera), **Edge-on Lanes** (seed 2718, near edge-on, tighter arms), **Open Whirlpool** (seed 577, face-on, open arms), **Remnant Bloom** (seed 4669, close remnant with stronger fronts).
 
+## Wave 2 polish (2026-10-14)
+
+- **Framing:** the camera sits about 14 % closer and higher by default, so the galaxy and the shell fill roughly 70–85 % of the short side.
+- **Core:** bulge stars dim toward the dense centre, and the background core glow is halved, so the core stays warm instead of a white blob at high energy.
+- **Absorbing dust:** the last 24 texel rows (12 288 particles) are absorbers drawn after every star with the new optional `particles.blend = "absorb"`. They darken the arms' concave lanes in Spiral, give the densest web filaments dark cores in Dust, and thin out as the nova blows.
+- **Low energy:** Dust and every state keep 74 % of stars at energy 0.1, up from 52 %.
+
 ## Energy, camera, rhythm
 
-- Energy: visible density 52 % → 100 % (threshold per star, faded, never popping), dust turbulence, motion speed (×0.6–1.5 via the integrated clock, so changes never jump), web growth (×0.85–1.15) and shock strength. Not brightness: a mild compensation keeps overall light similar while density changes.
+- Energy: visible density 74 % → 100 % (threshold per star, faded, never popping), dust turbulence, motion speed (×0.6–1.5 via the integrated clock, so changes never jump), web growth (×0.85–1.15) and shock strength. Not brightness: a mild compensation keeps overall light similar while density changes.
 - Camera: perspective orbit (96 s), slow height swing (160 s) and dolly (240 s), framing per state; depth fades far stars toward the secondary colour, near stars grow. Kick widens the focal length by ≤ 2 %. Distant background stars give parallax and scale.
 - Gestures: **Arm light** (4 beats; arm crests, web knots, shell filaments), **Core flare** (8; bulge or remnant in the accent), **Shock ripple** (16; a light shell running outward through the same stars).
 - Faders: Motion speed, Cosmic web, Shock fronts. Audio: low → web growth, onset → shock, high → starlight (small).

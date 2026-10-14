@@ -130,7 +130,8 @@ test("Surge holds a folded cloud and Formation converges to its slots", () => {
   form.birds.slice(1).forEach((b, i) => {
     const id = i + 1;
     const s = slot(key, (id % 32) / 32, Math.floor(id / 32) / 16, rnd(key, id, 6), form.clock, 0);
-    miss += dist(b.p, [home[0] + s[0], home[1] + s[1], home[2] + s[2]]);
+    const j = [8, 9, 10].map((k) => (rnd(key, id, k) - 0.5) * 0.16);
+    miss += dist(b.p, [home[0] + j[0] + s[0], home[1] + j[1] + s[1], home[2] + j[2] + s[2]]);
   });
   miss /= form.birds.length - 1;
   assert.ok(miss < 0.5, `mean slot error ${miss}`);

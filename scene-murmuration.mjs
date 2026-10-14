@@ -153,7 +153,9 @@ vec3 muSky(vec3 dir) {
   vec3 L = muSun();
   float e = dir.y;
   float band = e > 0. ? exp(-e / .085) : .5 * exp(e / .05);
-  vec3 col = mix(u_secondary, u_primary, .25 + .45 * exp(-max(e, 0.) / .025)) * .16 * band;
+  // The afterglow deepens toward the top state.
+  float peak = 1. + .5 * muWeights(clamp(u_params[0], 0., 2.)).z;
+  vec3 col = mix(u_secondary, u_primary, .25 + .45 * exp(-max(e, 0.) / .025)) * .16 * band * peak;
   // Afterglow: the band brightens toward the set sun's azimuth.
   vec2 h = normalize(dir.xz + vec2(1e-5)), s = normalize(L.xz);
   float az = .5 + .5 * dot(h, s);
@@ -220,9 +222,14 @@ void main() {
     pm /= count; vm /= count;
     a += (vm - b.v) * 2.6 * w.x;
     vec3 rel = b.p - A;
+    // A fixed per-bird offset hides the lattice's rows up close.
+    vec3 jit = (vec3(muRnd(key, uid, 8u), muRnd(key, uid, 9u), muRnd(key, uid, 10u)) - .5) * .16;
     if (w.w > 0.) {
-      float ph = MU_TAU * muCycle(clock, uint(7 + id % 5)) + MU_TAU * muRnd(key, uid, 3u);
-      vec3 wander = vec3(1.4 * cos(ph + muRnd(key, uid, 4u) * MU_TAU), .8 * sin(1.7 * ph + MU_TAU * muRnd(key, uid, 7u)), 1.4 * sin(ph + muRnd(key, uid, 5u) * MU_TAU));
+      // Loose birds travel in small groups (8×8 lattice blocks) that share
+      // a heading, with a little individual scatter.
+      uint g = uint((y / 8) * (MU_W / 8) + x / 8) + 77777u;
+      float ph = MU_TAU * muCycle(clock, 7u + g % 5u) + MU_TAU * muRnd(key, g, 3u) + .35 * muRnd(key, uid, 3u);
+      vec3 wander = vec3(1.4 * cos(ph + muRnd(key, g, 4u) * MU_TAU), .8 * sin(1.7 * ph + MU_TAU * muRnd(key, g, 7u)), 1.4 * sin(ph + muRnd(key, g, 5u) * MU_TAU));
       a += (wander - b.v) * .9 * w.w;
     }
     float strike = clamp(u_params[4], 0., 2.) * (1. + 1.5 * u_rhythm.z);
@@ -231,7 +238,7 @@ void main() {
       // field folds the cloud, and its folds are the dense, dark bands.
       float u = float(x) / float(MU_W), v = float(y) / float(MU_H), h = muRnd(key, uid, 6u);
       uint c1 = clock + ${Math.round((0.05 * 2 ** 32) / CLOCK_PERIOD)}u;
-      vec3 s0 = A + muCloud(u, v, h, clock), s1 = muAnchor(c1) + muCloud(u, v, h, c1);
+      vec3 s0 = A + jit + muCloud(u, v, h, clock), s1 = muAnchor(c1) + jit + muCloud(u, v, h, c1);
       a += (s0 - b.p) * 2.4 * w.y;
       a += ((s1 - s0) / .05 - b.v) * 1.8 * w.y;
       vec3 fd = b.p - muFalcon(clock);
@@ -243,8 +250,8 @@ void main() {
       float u = float(x) / float(MU_W), v = float(y) / float(MU_H), h = muRnd(key, uid, 6u);
       float form = muFormation(clock);
       uint c1 = clock + ${Math.round((0.05 * 2 ** 32) / CLOCK_PERIOD)}u;
-      vec3 s0 = A + muSlot(u, v, h, clock, form);
-      vec3 s1 = muAnchor(c1) + muSlot(u, v, h, c1, form);
+      vec3 s0 = A + jit + muSlot(u, v, h, clock, form);
+      vec3 s1 = muAnchor(c1) + jit + muSlot(u, v, h, c1, form);
       a += (s0 - b.p) * 3.4 * w.z;
       a += ((s1 - s0) / .05 - b.v) * 2.2 * w.z;
     }
@@ -401,6 +408,8 @@ void main() {
   vec3 warm = mix(u_primary, vec3(1.), .3);
   vec3 col = u_secondary * .015;
   col += warm * key * .9 * light;
+  // Sky fill from above keeps the flock legible facing away from the sun.
+  col += mix(u_secondary, irid, .5) * (.1 + .12 * max(0., N.y)) * light;
   col += irid * (.08 + 2. * spec + .3 * fres) * light;
   col += warm * trans * .9 * light;
   col += mix(u_primary, irid, .5) * .09 * v_density * light;
@@ -473,7 +482,7 @@ export default {
     look("Evening Roost", 1207, 0),
     look("Surging Cloud", 1207, 1),
     look("Vortex Mill", 1207, 2),
-    look("Falcon Hour", 3301, 1, { falcon: 1.5, height: 0.25, distance: 0.85 }),
+    look("Falcon Hour", 3301, 1, { falcon: 1.5, height: 0.25, distance: 1.12 }),
     look("Knotted Ribbon", 2207, 2, { formation: 1, cycle: 0.15, height: 0.6 }),
     look("Twister", 4409, 2, { formation: 2, cycle: 0.1, height: 0.2 }),
     look("High Cloud", 5113, 1, { height: 0.85, distance: 1.1, speed: 0.8 }),
