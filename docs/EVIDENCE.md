@@ -2,6 +2,12 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Seamless long-show time 2026-10-14
+
+**INCREMENTAL / EMPIRICAL.** Owner report: families jumped once per hour because they wrapped `mod(u_time, 3600)`. Twenty families now carry a `PHOSPHOR_LATE` shader variant whose first-hour branch is the authored source verbatim; the engine compiles it ten minutes before a slot's scene time reaches 3600 s (parallel compile where available) and switches at 3600 s, falling back to the authored program if it fails. Optional scene `clocks` integrate rate-varying phases in double precision after the first hour (`scene-time.mjs`). Per-scene choices and error bounds: [TIME.md](families/TIME.md). Remaining non-wrap limits (Beams' irrational sway, pre-existing Newton/Sandpile hue wraps, raw `u_time · rate` jumps on rate changes in some gated families) are listed there.
+
+**Verification:** first-hour identity against `190788e` on the native GPU: 1629 frames (every look of the changed families at three energies and t = 0.5/1234.5/3599 s), 0 differing pixels, including gated Pulse and Feedback. Seam check at speed 2× across 3600 s, 4096 s and 43201 s: 51/51 families keep the frame step within 2× of ordinary steps (worst Wallpaper 1.26×); on `190788e` nine families jumped at 3600 s (Quasicrystal 68× an ordinary step). 658 unit tests; the time-wrap, abyss-layer, particle-absorb and precompute GPU tests and the native-GPU Stage output check pass.
+
 ## Wallpaper and Domain reworks 2026-10-14
 
 **INCREMENTAL / EMPIRICAL.** Intentional visual reworks following the [look audit](research/look-audit-2026-10-14.md); all look ids, schema keys and presets kept, 26 previews rebaked. Wallpaper: a ray-marched embossed relief of the wave function with crest-only light, mirror/glide axes and rotation-centre symbols derived from the group operations; a per-frame data pass equalises contrast. Domain: log|f| as an oblique terrain with exact f′/f normals; the zeta look trucks along the critical line. Mean luminance at energy 0.1: wallpaper 0.069 → 0.031, domain 0.187 → 0.020.
