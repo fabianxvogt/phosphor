@@ -2,6 +2,12 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Wallpaper and Domain reworks 2026-10-14
+
+**INCREMENTAL / EMPIRICAL.** Intentional visual reworks following the [look audit](research/look-audit-2026-10-14.md); all look ids, schema keys and presets kept, 26 previews rebaked. Wallpaper: a ray-marched embossed relief of the wave function with crest-only light, mirror/glide axes and rotation-centre symbols derived from the group operations; a per-frame data pass equalises contrast. Domain: log|f| as an oblique terrain with exact f′/f normals; the zeta look trucks along the critical line. Mean luminance at energy 0.1: wallpaper 0.069 → 0.031, domain 0.187 → 0.020.
+
+**Verification:** 650 tests pass, including symmetry-operation counts per cell against the International Tables (which found horizontal mirrors being skipped), exact pit positions at known zeros, and the precompute fallback for both families. Native-GPU throughput (control metamorphosis 2.0–2.3 / 4.8–5.3 ms): wallpaper 3.1–3.8 ms at 1080p and 9.5–12.0 ms at 4K; domain 3.2–4.6 and 10.3–15.6 ms (about twice the old flat shader at 4K). The owner reviewed the before/after sheets and approved the push.
+
 ## Worlds waves 2–3 2026-10-14
 
 **INCREMENTAL / EMPIRICAL.** Six new continuous world families: `horizon` (#89, Event Horizon; null geodesics u'' + u = 3u² via the optional precompute table with a per-pixel fallback), `abyss` (#92, Abyssal Bloom), `murmuration` (#88), `fold` (#91, Origami Storm), `ribbons` (#97, Attractor Ribbons) and `afterglow` (#100, continuous Afterglow Garden sharing evolution's step; evolution shaders byte-identical). Polish passes on descent, crystal, nebula, fibration and mycelium; intentional visual reworks of julia, hopf and fourspace (look ids unchanged, previews rebaked). Cathedral (gated) received exact-only speed-ups: 189 image comparisons at max 1/255 against `c8d7295`, and `scripts/check-cathedral-bounds.mjs` found no differences over 125.8M points. Three optional engine extensions, inert when absent: `particles.blend: "absorb"`, `geometry.additiveFrom` and `particles.depth`, with native-GPU tests `tests/browser/particle-absorb.test.mjs` and `tests/browser/abyss-layers.test.mjs` (both pass together on the merged engine). `world-film.mjs` gained `--palette`; `build-catalog-previews.mjs` gained `--families`/`--port`; `test-i18n.mjs` takes `--port`.
