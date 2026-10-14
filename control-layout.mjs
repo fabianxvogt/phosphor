@@ -225,6 +225,9 @@ export function setupPanelLayout() {
                 .slice(0, Number(key) + 1)
                 .reduce((sum, gap) => sum + gap, 0),
             );
+          } else if (key === "upper" || key === "lower") {
+            // Both right seams return to the content-proportional split.
+            state.desktop.seams[0] = state.desktop.seams[2] = null;
           } else {
             const defaults = defaultPanelLayout().desktop;
             resizeDesktop(
@@ -295,8 +298,16 @@ export function setupPanelLayout() {
       delete body.dataset.panelLayout;
       body.style.removeProperty("--chassis-height");
       body.style.removeProperty("--chassis-header-height");
+      body.style.removeProperty("--frame-scale");
       panels.forEach((panel) => {
-        for (const key of ["left", "top", "width", "height"])
+        for (const key of [
+          "left",
+          "top",
+          "width",
+          "height",
+          "--panel-compact",
+          "--panel-tight",
+        ])
           panel.style.removeProperty(key);
       });
       if (filterBar.parentNode !== filterHome.parentNode)
@@ -310,12 +321,18 @@ export function setupPanelLayout() {
       "--chassis-header-height",
       `${geometry.headerHeight}px`,
     );
+    // Corner and bar scale of the frame art; insets grow with its corners.
+    body.style.setProperty("--frame-scale", String(geometry.xs ?? geometry.ys));
     panels.forEach((panel, i) => {
       rect(panel, geometry.panels[i]);
       panel.style.setProperty(
         "--panel-height",
         `${geometry.panels[i].height}px`,
       );
+      // Only a panel below its content height compacts its type and spacing.
+      const fill = geometry.panels[i].height / geometry.comfort[i];
+      panel.style.setProperty("--panel-compact", fill < 0.995 ? "1" : "0");
+      panel.style.setProperty("--panel-tight", fill < 0.85 ? "1" : "0");
       panel.classList.toggle("panel-narrow", geometry.panels[i].width < 370);
       panel.classList.toggle("panel-short", geometry.panels[i].height < 190);
     });

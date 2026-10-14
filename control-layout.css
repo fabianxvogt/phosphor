@@ -127,27 +127,6 @@ body[data-panel-layout] .panel-narrow .palette-control,
 body[data-panel-layout] .panel-narrow .editor-actions {
   grid-column: 1 / -1;
 }
-body[data-panel-layout] .panel-narrow .fader,
-body[data-panel-layout] .panel-narrow #editor > .fader {
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  min-height: 58px;
-  padding-block: 4px;
-  gap: 5px 8px;
-}
-body[data-panel-layout] .panel-narrow .fader label {
-  grid-column: 1;
-  white-space: normal;
-}
-body[data-panel-layout] .panel-narrow .fader output {
-  grid-column: 2;
-  grid-row: 1;
-}
-body[data-panel-layout] .panel-narrow .fader input {
-  grid-row: 2;
-  grid-column: 1 / -1;
-  width: 100%;
-}
 body[data-panel-layout] .panel-narrow .performance-transport {
   flex-wrap: wrap;
 }
@@ -317,6 +296,24 @@ body .panel-floating-menu[popover]:not(:popover-open) {
   }
 }
 
+/* One-column frame corners scale with the width; keep contents clear of them,
+   including the long organic sweep in each bottom-right corner. */
+body[data-panel-layout="portrait"] main .panel:not(.monitor-panel) {
+  padding: max(17px, calc(var(--frame-scale) * 34px))
+    max(19px, calc(var(--frame-scale) * 56px))
+    max(17px, calc(var(--frame-scale) * 60px))
+    max(19px, calc(var(--frame-scale) * 42px));
+}
+body[data-panel-layout="portrait"] .performance-options {
+  top: max(17px, calc(var(--frame-scale) * 34px));
+  right: max(19px, calc(var(--frame-scale) * 56px));
+}
+body[data-panel-layout="portrait"] .monitor-panel .preview-overlay {
+  padding-inline: max(12px, calc(var(--frame-scale) * 44px))
+    max(12px, calc(var(--frame-scale) * 60px));
+  padding-bottom: max(12px, calc(var(--frame-scale) * 30px));
+}
+
 /* Translated transport labels need their own row in a narrow monitor. */
 body[data-panel-layout] .monitor-panel.panel-narrow .preview-overlay {
   flex-wrap: wrap;
@@ -355,28 +352,29 @@ body[data-panel-layout] .monitor-panel.panel-narrow .preview-size {
   flex: 1 1 80px;
 }
 
-/* Panel height, not just viewport width, controls the working density.
-   Bounds come from the chassis, so size containment never changes the frame. */
+/* Panels below their content height (dragged smaller, or squeezed by a short
+   window) get --panel-compact / --panel-tight from the layout; at their
+   default share every panel keeps the same type and spacing. Bounds come from
+   the chassis, so size containment never changes the frame. */
 body[data-panel-layout] .look-panel {
   align-content: space-between;
   row-gap: clamp(6px, calc(var(--panel-height) * 0.018), 22px);
-}
-body[data-panel-layout] .look-panel #editor > .fader {
-  min-height: clamp(28px, 10cqh, 92px);
 }
 body[data-panel-layout] .look-panel .editor-preview {
   width: clamp(54px, 18cqh, 140px);
   height: clamp(40px, 13cqh, 104px);
 }
+/* Performance faders join the panel's own spacing, like Look's, so the gaps
+   between sliders grow with the panel instead of moving as one block. */
 body[data-panel-layout] .performance-panel {
   justify-content: space-between;
-  gap: clamp(3px, calc(var(--panel-height) * 0.015), 8px);
+  gap: clamp(6px, calc(var(--panel-height) * 0.018), 22px);
 }
-body[data-panel-layout] .performance-panel .faders {
-  gap: clamp(5px, 3cqh, 24px);
+body[data-panel-layout] .performance-panel #shared {
+  display: contents;
 }
-body[data-panel-layout] .performance-panel .fader {
-  min-height: clamp(28px, 16cqh, 90px);
+body[data-panel-layout] .performance-panel #shared > .fader {
+  flex-shrink: 0;
 }
 body[data-panel-layout] .rhythm-panel {
   display: flex;
@@ -392,7 +390,7 @@ body[data-panel-layout] #rhythmControls .rhythm-mini .rhythm-step {
   height: clamp(22px, 8cqh, 42px);
   max-height: none;
 }
-@container (max-height: 310px) {
+@container style(--panel-compact: 1) {
   body[data-panel-layout] .panel-heading {
     padding-bottom: 6px;
   }
@@ -410,20 +408,6 @@ body[data-panel-layout] #rhythmControls .rhythm-mini .rhythm-step {
   body[data-panel-layout] .look-panel .world-developments button {
     min-height: 26px;
     padding: 3px 8px;
-  }
-  body[data-panel-layout] :is(#editor, #shared) > .fader {
-    grid-template-columns: minmax(58px, 25%) minmax(0, 1fr) 34px;
-    grid-template-rows: auto;
-    min-height: 28px;
-    padding-block: 0;
-    gap: 6px;
-  }
-  body[data-panel-layout]
-    :is(#editor, #shared)
-    > .fader
-    :is(label, input, output) {
-    grid-row: 1;
-    grid-column: auto;
   }
   body[data-panel-layout] .performance-transport {
     gap: 5px;
@@ -455,7 +439,7 @@ body[data-panel-layout] #rhythmControls .rhythm-mini .rhythm-step {
     padding-bottom: 7px;
   }
 }
-@container (max-height: 210px) {
+@container style(--panel-tight: 1) {
   body[data-panel-layout] .performance-transport button {
     min-height: 28px;
     padding-block: 3px;
@@ -475,7 +459,27 @@ body[data-panel-layout] #rhythmControls .rhythm-mini .rhythm-step {
 body[data-panel-layout] #editor.fields {
   display: contents;
 }
-@container (min-height: 311px) and (max-width: 500px) {
+/* Column width alone decides the fader form, so Look and Performance switch
+   together; panel height only changes spacing. */
+body[data-panel-layout] :is(#editor, #shared) > .fader {
+  min-height: 28px;
+  padding-block: 0;
+}
+@container (min-width: 500px) {
+  body[data-panel-layout] :is(#editor, #shared) > .fader {
+    grid-template-columns: minmax(58px, 25%) minmax(0, 1fr) 34px;
+    grid-template-rows: auto;
+    gap: 6px;
+  }
+  body[data-panel-layout]
+    :is(#editor, #shared)
+    > .fader
+    :is(label, input, output) {
+    grid-row: 1;
+    grid-column: auto;
+  }
+}
+@container (max-width: 499.98px) {
   body[data-panel-layout] :is(#editor, #shared) > .fader {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
@@ -483,26 +487,22 @@ body[data-panel-layout] #editor.fields {
   }
   body[data-panel-layout] :is(#editor, #shared) > .fader label {
     grid-area: 1 / 1;
+    white-space: normal;
   }
   body[data-panel-layout] :is(#editor, #shared) > .fader output {
     grid-area: 1 / 2;
   }
   body[data-panel-layout] :is(#editor, #shared) > .fader input {
     grid-area: 2 / 1 / 3 / -1;
+    width: 100%;
   }
 }
-@container (max-height: 210px) {
+@container style(--panel-tight: 1) {
   body[data-panel-layout] .performance-panel > h2 {
     padding-bottom: 4px;
   }
   body[data-panel-layout] .performance-primary button {
     min-height: 28px;
     padding-block: 3px;
-  }
-}
-@container (min-width: 500px) and (max-height: 210px) {
-  body[data-panel-layout] #shared {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 20px;
   }
 }

@@ -10,25 +10,34 @@ export const PANEL_NAMES = [
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finite = (value, fallback) =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
+// Null right-column seams share that column in proportion to each panel's
+// content, so Look, Performance and Rhythm stretch by the same factor.
+// AUTO_SEAMS only stands in when such a seam is edited without geometry.
+const AUTO_SEAMS = [755, 1300];
 export function defaultPanelLayout() {
   return {
-    version: 1,
-    desktop: { split: 66, seams: [755, 875, 1300] },
+    version: 2,
+    desktop: { split: 66, seams: [null, 875, null] },
     portrait: { weights: [1, 1, 1, 1, 1] },
   };
 }
 export function validatePanelLayout(value) {
   const result = defaultPanelLayout();
-  if (value?.version !== 1) return result;
+  if (value?.version !== 1 && value?.version !== 2) return result;
   result.desktop.split = clamp(finite(value.desktop?.split, 66), 30, 78);
   const seams = value.desktop?.seams;
   if (Array.isArray(seams) && seams.length === 3) {
-    const lower = clamp(finite(seams[2], 1300), 750, 1510);
-    result.desktop.seams = [
-      clamp(finite(seams[0], 755), 440, lower - 310),
-      clamp(finite(seams[1], 875), 420, 1510),
-      lower,
-    ];
+    result.desktop.seams[1] = clamp(finite(seams[1], 875), 420, 1510);
+    // Version 1 right seams were sized for the old, oversized minimums.
+    if (
+      value.version === 2 &&
+      Number.isFinite(seams[0]) &&
+      Number.isFinite(seams[2])
+    ) {
+      const lower = clamp(seams[2], 750, 1510);
+      result.desktop.seams[0] = clamp(seams[0], 440, lower - 310);
+      result.desktop.seams[2] = lower;
+    }
   }
   const weights = value.portrait?.weights;
   if (Array.isArray(weights) && weights.length === 5)
@@ -68,11 +77,11 @@ export function resizeDesktop(layout, key, value, geometry) {
   const v = clamp(value, ...(geometry?.limits[key] ?? desktopLimits(key)));
   if (key === "split") layout.desktop.split = v;
   else {
-    if (geometry && key !== "left") {
-      layout.desktop.seams[0] = geometry.seams[0];
-      layout.desktop.seams[2] = geometry.seams[2];
-    }
     const seams = layout.desktop.seams;
+    if (key !== "left") {
+      seams[0] = geometry?.seams[0] ?? seams[0] ?? AUTO_SEAMS[0];
+      seams[2] = geometry?.seams[2] ?? seams[2] ?? AUTO_SEAMS[1];
+    }
     seams[{ upper: 0, left: 1, lower: 2 }[key]] = v;
     // Once the adjacent panel reaches its minimum, move the next divider too.
     const gap = geometry?.desktopGap ?? 310;
@@ -151,17 +160,31 @@ function mappedRect(rect, xMap, yMap) {
     height: yMap(y + height) - top,
   };
 }
-// Readable working space, including headings, faders and the setup strip.
-// Narrow controls wrap onto extra rows; the catalog itself remains scrollable.
-function panelMinimums(widths) {
+// Mirrors --ui-scale in control-chassis.css: desktop panel contents zoom with it.
+export function uiScale(width, viewportHeight) {
+  return clamp(
+    Math.min(width / 1585, Math.max(850, viewportHeight) / 992),
+    0.78,
+    1.6,
+  );
+}
+// Comfortable working space, including headings, faders and the setup strip,
+// measured from the uncompacted contents at --ui-scale 1. Narrow controls wrap
+// onto extra rows; the catalog itself remains scrollable.
+function panelMinimums(widths, scale = 1) {
   return [
     240,
     widths[1] < 500 ? 460 : 360,
-    widths[2] < 400 ? 640 : widths[2] < 500 ? 560 : 460,
-    widths[3] < 500 ? 320 : 240,
-    widths[4] < 500 ? 400 : 300,
+    // Below ~580px the faders stack their labels (a 500px content box).
+    (widths[2] < 380 ? 420 : widths[2] < 580 ? 370 : 305) * scale,
+    (widths[3] < 580 ? 330 : 275) * scale,
+    275 * scale,
   ];
 }
+// The window fits the comfortable contents; dividers may still squeeze a
+// right-hand panel to 70%, which then scrolls, so space can always move.
+const squeezed = (comfort) =>
+  comfort.map((min, i) => (i < 2 ? min : min * 0.7));
 function fittingHeight(viewport, fits) {
   if (fits(viewport)) return viewport;
   let low = viewport,
@@ -194,14 +217,18 @@ function desktopBounds(height, minimums) {
     },
   };
 }
-function portraitBands(height, minimums) {
-  const ys = height / 3072,
-    headerHeight = 72,
-    footerHeight = 48,
-    firstBand = (200 * headerHeight) / 116.736,
+// One-column art keeps one modest scale in both directions. Only the straight
+// stretches vary: the side bars between panels, the middle of every
+// horizontal bar, and the flat top of the header plate.
+const portraitScale = (width) => Math.min(width / 1024, 0.55);
+const portraitSx = [0, 180, 690, 1024];
+function portraitBands(height, ys, minimums) {
+  const headerHeight = clamp(116.736 * ys, 72, 96),
+    footerHeight = Math.max(48, 132 * ys),
+    firstBand = headerHeight + 83.264 * ys,
     available = height - firstBand - 1140 * ys - footerHeight;
   const rigid = [
-    firstBand - headerHeight + 117.408 * ys,
+    200.672 * ys,
     230.056 * ys,
     234.464 * ys,
     231.288 * ys,
@@ -217,33 +244,50 @@ export function panelGeometry(
   mode = width >= 1100 ? "desktop" : "portrait",
 ) {
   if (mode === "desktop") {
-    const xs = width / 3072,
-      c = (width * state.desktop.split) / 100;
+    const c = (width * state.desktop.split) / 100;
+    // Corners, outer bars and junctions keep the vertical scale, so the frame
+    // never distorts; only the straight column stretches absorb the width.
+    // The 1.5 cap keeps every stretch open at the split extremes.
+    const fixedScale = (h) =>
+      Math.min((h - desktopFooter(h)) / 1818, (1.5 * width) / 3072);
     const sx = [0, 135, 1770, 2030, 2265, 2940, 3072];
-    const dx = [
-      0,
-      135 * xs,
-      c - 260 * xs,
-      c,
-      c + 235 * xs,
-      width - 132 * xs,
-      width,
-    ];
-    const xMap = (v) => mapCoordinate(v, sx, dx);
-    const minimums = panelMinimums(
-      desktopRects.map(([x, , w]) => xMap(x + w) - xMap(x)),
-    );
+    const xMapFor = (xs) => (v) =>
+      mapCoordinate(v, sx, [
+        0,
+        135 * xs,
+        c - 260 * xs,
+        c,
+        c + 235 * xs,
+        width - 132 * xs,
+        width,
+      ]);
+    const viewportMap = xMapFor(fixedScale(viewportHeight));
+    const comfort = panelMinimums(
+        desktopRects.map(([x, , w]) => viewportMap(x + w) - viewportMap(x)),
+        uiScale(width, viewportHeight),
+      ),
+      minimums = squeezed(comfort);
     const height = fittingHeight(viewportHeight, (h) =>
-      Object.values(desktopBounds(h, minimums).limits).every(
+      Object.values(desktopBounds(h, comfort).limits).every(
         ([min, max]) => min <= max,
       ),
     );
     const footerHeight = desktopFooter(height),
-      ys = (height - footerHeight) / 1818;
+      ys = (height - footerHeight) / 1818,
+      xs = fixedScale(height),
+      xMap = xMapFor(xs);
     const { limits, gap } = desktopBounds(height, minimums);
-    const lower = clamp(state.desktop.seams[2], ...limits.lower),
+    let [upperSeam, , lowerSeam] = state.desktop.seams;
+    if (upperSeam == null || lowerSeam == null) {
+      // Content openings: Look (upper - 112.384), Performance
+      // (lower - upper - 27.444) and Rhythm (1802.164 - lower), in frame units.
+      const share = (1662.336 * ys) / (comfort[2] + comfort[3] + comfort[4]);
+      upperSeam = 112.384 + (comfort[2] * share) / ys;
+      lowerSeam = 1802.164 - (comfort[4] * share) / ys;
+    }
+    const lower = clamp(lowerSeam, ...limits.lower),
       upper = clamp(
-        state.desktop.seams[0],
+        upperSeam,
         limits.upper[0],
         Math.min(limits.upper[1], lower - gap),
       ),
@@ -270,6 +314,7 @@ export function panelGeometry(
       xs,
       ys,
       minimums,
+      comfort,
       limits,
       seams: [upper, left, lower],
       desktopGap: gap,
@@ -316,20 +361,44 @@ export function panelGeometry(
       ],
     };
   }
-  const minimums = panelMinimums(
-    portraitRects.map(([, , w]) => (w * width) / 1024),
-  );
+  const scale = portraitScale(width),
+    xMap = (v) =>
+      mapCoordinate(v, portraitSx, [
+        0,
+        180 * scale,
+        width - 334 * scale,
+        width,
+      ]);
+  // Insets grow with the frame corners (control-layout.css, 34px + 60px).
+  const inset = Math.max(0, 94 * scale - 34);
+  const comfort = panelMinimums(
+      portraitRects.map(([x, , w]) => xMap(x + w) - xMap(x)),
+    ).map((min, i) => (i ? min + inset : min)),
+    minimums = squeezed(comfort);
   const height = fittingHeight(viewportHeight, (h) => {
-    const { available, minGaps } = portraitBands(h, minimums);
+    const { available, minGaps } = portraitBands(h, scale, comfort);
     return available >= minGaps.reduce((sum, gap) => sum + gap, 0);
   });
-  const { ys, headerHeight, footerHeight, firstBand, available, minGaps } =
-    portraitBands(height, minimums);
+  const { ys, headerHeight, footerHeight, available, minGaps } = portraitBands(
+    height,
+    scale,
+    minimums,
+  );
+  const comfortGaps = portraitBands(height, scale, comfort).minGaps;
   // Keep complete rounded corners and side junctions; only straight stretches vary.
   const sy = [
-    0, 200, 540, 790, 1245, 1500, 1840, 2090, 2255, 2510, 2810, 2940, 3072,
+    0, 60, 200, 540, 790, 1245, 1500, 1840, 2090, 2255, 2510, 2810, 2940, 3072,
   ];
-  const bases = [340, 455, 340, 165, 300].map((n) => (n * available) / 1600);
+  // Every panel starts at its comfortable height; extra room keeps the
+  // original shares, with Look, Performance and Rhythm split by content.
+  const sum = (values) => values.reduce((total, value) => total + value, 0);
+  const extra = Math.max(0, available - sum(comfortGaps)),
+    right = sum(comfort.slice(2));
+  const bases = [
+    340,
+    455,
+    ...comfort.slice(2).map((min) => (805 * min) / right),
+  ].map((share, i) => comfortGaps[i] + (extra * share) / 1600);
   const weighted = bases.map((n, i) => n * state.portrait.weights[i]);
   const gaps = Array(5).fill(0);
   let remaining = available,
@@ -353,17 +422,16 @@ export function panelGeometry(
   for (let i = 0; i < sy.length - 1; i++) {
     const length =
       i === 0
-        ? firstBand
-        : i === 11
+        ? headerHeight - 56.736 * ys
+        : i === 12
           ? footerHeight
-          : i % 2 === 1
-            ? gaps[(i - 1) / 2]
+          : i % 2 === 0
+            ? gaps[(i - 2) / 2]
             : (sy[i + 1] - sy[i]) * ys;
     dy.push(dy.at(-1) + length);
   }
   dy[dy.length - 1] = height;
-  const yMap = (v) => mapCoordinate(v, sy, dy),
-    xMap = (v) => (v * width) / 1024;
+  const yMap = (v) => mapCoordinate(v, sy, dy);
   return {
     mode,
     width,
@@ -374,7 +442,15 @@ export function panelGeometry(
     bases,
     minGaps,
     minimums,
-    maps: [{ sx: [0, 1024], dx: [0, width], sy, dy }],
+    comfort,
+    maps: [
+      {
+        sx: portraitSx,
+        dx: portraitSx.map((v) => xMap(v)),
+        sy,
+        dy,
+      },
+    ],
     panels: portraitRects.map((rect) => mappedRect(rect, xMap, yMap)),
     handles: Object.fromEntries(
       [665, 1372, 1966, 2381].map((y, i) => [String(i), [width / 2, yMap(y)]]),

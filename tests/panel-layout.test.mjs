@@ -39,8 +39,21 @@ test("invalid persisted coordinates cannot invert or collapse frame segments", (
     portrait: { weights: [null, NaN, "3", -100, 99999] },
   });
   assert.equal(state.desktop.split, 66);
-  assert.deepEqual(state.desktop.seams, [440, 420, 750]);
+  // Version 1 right seams fitted the old minimums; they return to the content split.
+  assert.deepEqual(state.desktop.seams, [null, 420, null]);
   assert.deepEqual(state.portrait.weights, [1, 1, 1, 0.01, 100]);
+  assert.deepEqual(
+    validatePanelLayout({
+      version: 2,
+      desktop: { split: 50, seams: [999999, -10, -40] },
+    }).desktop.seams,
+    [440, 420, 750],
+  );
+  assert.deepEqual(
+    validatePanelLayout({ version: 2, desktop: { seams: [800, 875, NaN] } })
+      .desktop.seams,
+    [null, 875, null],
+  );
   assert.deepEqual(validatePanelLayout({ version: 900 }), defaultPanelLayout());
 });
 
@@ -60,11 +73,13 @@ test("portrait dividers share available space without shrinking panels below the
   const state = defaultPanelLayout(),
     before = panelGeometry(390, 3200, state);
   const current = before.gaps.slice(0, 4).reduce((a, b) => a + b, 0);
-  resizePortrait(state, before, 3, current - 140);
+  // Performance gives everything down to its minimum, then Look gives 40px.
+  const delta = before.gaps[3] - before.minGaps[3] + 40;
+  resizePortrait(state, before, 3, current - delta);
   const after = panelGeometry(390, 3200, state);
   assert.equal(after.height, 3200);
   assert.ok(
-    Math.abs(after.panels[4].height - before.panels[4].height - 140) < 1e-8,
+    Math.abs(after.panels[4].height - before.panels[4].height - delta) < 1e-8,
   );
   assert.ok(after.panels[3].height < before.panels[3].height);
   assert.ok(after.panels[2].height < before.panels[2].height);
@@ -116,7 +131,7 @@ test("every extreme layout has ordered patches, bounded openings, and rigid junc
                   assert.ok(map[axis][i] > map[axis][i - 1], axis);
               // Fixed bands include the whole rounding; these must never stretch with a divider.
               for (
-                let i = g.mode === "portrait" ? 2 : 0;
+                let i = g.mode === "portrait" ? 1 : 0;
                 i < map.sy.length - 2;
                 i += 2
               )
@@ -179,4 +194,77 @@ test("resizing one desktop column preserves the other column's saved preferences
       (panel, i) => panel.height >= geometry.minimums[i] - 1e-7,
     ),
   );
+});
+
+test("right-column dividers always have room and the default split stretches evenly", () => {
+  for (const [width, height] of [
+    [1100, 650],
+    [1250, 900],
+    [1366, 768],
+    [1440, 790],
+    [1920, 1080],
+    [2560, 1440],
+  ]) {
+    const g = panelGeometry(width, height, defaultPanelLayout());
+    for (const key of ["upper", "lower"]) {
+      const [min, max] = g.limits[key];
+      assert.ok(
+        (max - min) * g.ys > 80,
+        `${width}x${height} ${key}: ${(max - min) * g.ys}px`,
+      );
+    }
+    // Look, Performance and Rhythm share the column by content, not by fixed seams.
+    const stretch = [2, 3, 4].map((i) => g.panels[i].height / g.minimums[i]);
+    assert.ok(
+      Math.max(...stretch) - Math.min(...stretch) < 1e-6,
+      `${width}x${height}: ${stretch}`,
+    );
+  }
+});
+
+test("dragging a right divider grows one panel and is undone by the auto split", () => {
+  const state = defaultPanelLayout(),
+    before = panelGeometry(1250, 900, state);
+  resizeDesktop(state, "lower", before.seams[2] - 150, before);
+  const after = panelGeometry(1250, 900, state);
+  assert.equal(after.height, before.height);
+  assert.ok(after.panels[4].height > before.panels[4].height + 50);
+  assert.ok(
+    after.panels.every((panel, i) => panel.height >= after.minimums[i] - 1e-7),
+  );
+  state.desktop.seams[0] = state.desktop.seams[2] = null;
+  assert.deepEqual(panelGeometry(1250, 900, state).seams, before.seams);
+});
+
+test("the frame keeps one scale for corners and bars in both directions", () => {
+  for (const [width, height] of [
+    [1250, 900],
+    [1440, 790],
+    [1920, 1080],
+    [2560, 1080],
+    [3440, 1440],
+    [390, 844],
+    [938, 1300],
+  ]) {
+    const g = panelGeometry(width, height, defaultPanelLayout());
+    if (g.mode === "portrait") {
+      const [{ sx, dx }] = g.maps;
+      // Both side bands keep the frame scale; only the bar middles stretch.
+      for (const i of [0, sx.length - 2])
+        assert.ok(
+          Math.abs((dx[i + 1] - dx[i]) / (sx[i + 1] - sx[i]) - g.ys) < 1e-9,
+        );
+      // Wide one-column windows keep a modest frame instead of zooming it.
+      assert.ok(g.ys <= 0.55 + 1e-9);
+      continue;
+    }
+    assert.ok(Math.abs(g.xs - g.ys) < 1e-9, `${width}x${height}`);
+    // Outer bars and the column junction are fixed bands at that scale.
+    for (const { sx, dx } of g.maps)
+      for (let i = 0; i < sx.length - 1; i++)
+        if ([135, 260, 12, 235, 132].includes(Math.round(sx[i + 1] - sx[i])))
+          assert.ok(
+            Math.abs((dx[i + 1] - dx[i]) / (sx[i + 1] - sx[i]) - g.xs) < 1e-9,
+          );
+  }
 });

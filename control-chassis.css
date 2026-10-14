@@ -184,7 +184,7 @@ body::before {
     padding: 18px calc(40px * var(--ui-scale));
   }
 }
-@container (max-height: 230px) {
+@container style(--panel-tight: 1) {
   h2 {
     font-size: 19px;
   }
@@ -723,7 +723,7 @@ h2 {
     font-size: 21px;
   }
 }
-@container (max-height: 230px) {
+@container style(--panel-tight: 1) {
   h2,
   .rhythm-heading h2 {
     font-size: 23px;

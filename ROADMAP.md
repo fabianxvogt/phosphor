@@ -6,6 +6,8 @@ State: production candidate; canonical branch `main`; [Vercel](https://phosphor-
 
 First show: **2026-12-17** (planning placeholder until a real date exists). Feature freeze two weeks before. The date is fixed; scope flexes.
 
+**Delivered 2026-10-14 — Consistent panel density (INCREMENTAL):** Look, Performance and Rhythm share the right column by measured content, use one width-based slider form and only compact when actually squeezed. The right-hand seams move again on short windows (they were pinned at min = max). Performance sliders space out like Look’s; the frame art keeps one scale for corners and bars in both layouts, and one-column insets clear the larger corners. [Evidence](docs/EVIDENCE.md#consistent-panel-density-and-movable-right-seams-2026-10-14).
+
 **Delivered 2026-10-12 — Readable panel minimums (INCREMENTAL):** both layouts fill tall viewports and scroll the page on short screens, preserving minimum panel heights and the organic frame. Narrow controls receive more room. Panel and catalog scrolling hands off to the page at either edge; resizing a column preserves the other column’s saved split.
 
 **Delivered 2026-10-12 — Worlds beta / startup (INCREMENTAL):** the Worlds catalog button carries a Beta badge in both themes. Fresh sessions start the Looks catalog with Autopilot on; reconnecting to a running Stage preserves its playback state. Saved filters, looks and layout remain intact.
