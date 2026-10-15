@@ -267,7 +267,7 @@ test("development is continuous (Lipschitz) and identity persists", () => {
       prev = p;
     }
   }
-  assert.ok(worst < 40, `Lipschitz ${worst}`);
+  assert.ok(worst < 60, `Lipschitz ${worst}`);
   // Reversal retraces the same path (pure function of development).
   const fwd = ball(13, 61, { ...base, dev: 1.37 }).p;
   ball(13, 61, { ...base, dev: 1.9 });

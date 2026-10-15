@@ -9,7 +9,7 @@
 // Development is a pure function input: reversal retraces the forward path.
 
 export const N = 80; // 6400 spheres
-export const SPACING = 0.24; // ceiling lattice spacing (world units ≈ m)
+export const SPACING = 0.3; // ceiling lattice spacing (world units ≈ m)
 export const HANG = 2.8; // level hang height above the floor
 export const CEILING = 6.4; // motor ceiling
 export const CENTER = [0, 2.35, 0]; // sculpture centre
@@ -18,7 +18,7 @@ export const HALF = ((N - 1) / 2) * SPACING; // lattice half extent
 export const RMAX = HALF * Math.SQRT2; // farthest sphere from the axis
 export const STAGGER = 0.85; // centre-first gathering into the sculpture
 export const FOCAL = 1.4; // short-side focal length (half FOV ≈ 35.5°)
-export const RING = { reach: 10.5, width: 1.8, amp: 0.16, wave: 1.9, grow: 6 };
+export const RING = { reach: 13, width: 1.8, amp: 0.16, wave: 1.9, grow: 8 };
 export const FORM = {
   sphere: 1.55,
   torusR: 1.3,
@@ -256,11 +256,11 @@ export function ball(i, j, state) {
 // to frame the sculpture. alpha is clock 3 plus the seed's start angle.
 export function camera(dev, alpha) {
   const s2 = smoothstep(1, 2, clamp(dev, 0, 2));
-  const radius = 7.2 - 2.3 * s2 + 0.45 * Math.sin(2 * alpha);
+  const radius = 6.0 - 1.5 * s2 + 0.4 * Math.sin(2 * alpha);
   const height = 0.75 + 0.5 * s2 + 0.1 * Math.sin(3 * alpha);
   const eye = [radius * Math.cos(alpha), height, radius * Math.sin(alpha)];
   const side = 0.9 * (1 - s2);
-  const target = [-Math.sin(alpha) * side, 1.15 + 0.85 * s2, Math.cos(alpha) * side];
+  const target = [-Math.sin(alpha) * side, 1.9 + 0.15 * s2, Math.cos(alpha) * side];
   return { eye, target };
 }
 

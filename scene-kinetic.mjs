@@ -6,6 +6,7 @@ import {
   CENTER,
   FOCAL,
   FORM,
+  HALF,
   HANG,
   HOLD,
   N,
@@ -38,7 +39,7 @@ const float RREACH=${f(RING.reach)},RWIDTH=${f(RING.width)},RAMP=${f(RING.amp)},
 const float FSPH=${f(FORM.sphere)},FTR=${f(FORM.torusR)},FTr=${f(FORM.torusr)},FMR=${f(FORM.mobiusR)},FMW=${f(FORM.mobiusW)};
 const float FSR=${f(FORM.saddleR)},FSK=${f(FORM.saddleK)},FSW=${f(FORM.saddleWave)};
 const float TC=${Math.cos(TILT).toFixed(7)},TS=${Math.sin(TILT).toFixed(7)};
-const float NEARZ=.05,FARZ=60.,FOGK=.07,EXT=10.080;
+const float NEARZ=.05,FARZ=60.,FOGK=.05,EXT=${(HALF + 0.6).toFixed(3)};
 #define K_TAU 6.28318530718
 #define DEV clamp(u_params[0],0.,2.)
 float sst(float a,float b,float x){float t=clamp((x-a)/(b-a),0.,1.);return t*t*(3.-2.*t);}
@@ -50,10 +51,10 @@ vec4 chorus(float M){
 float seedAngle(float k){return K_TAU*fract(mod(u_seed,8192.)*k);}
 void cameraRig(float dev,out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float s2=sst(1.,2.,dev),a=u_clock[3]+seedAngle(.7548776662);
- float radius=7.2-2.3*s2+.45*sin(2.*a),height=.75+.5*s2+.1*sin(3.*a);
+ float radius=6.-1.5*s2+.4*sin(2.*a),height=.75+.5*s2+.1*sin(3.*a);
  eye=vec3(radius*cos(a),height,radius*sin(a));
  float side=.9*(1.-s2);
- vec3 target=vec3(-sin(a)*side,1.15+.85*s2,cos(a)*side);
+ vec3 target=vec3(-sin(a)*side,1.9+.15*s2,cos(a)*side);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
 float focal(){return FOCAL*(1.+.02*clamp(u_kick,0.,1.));}
@@ -165,7 +166,7 @@ void main(){
  float sweep=exp(-pow((q-(1.-clamp(u_rhythm.y,0.,1.)))*11.,2.))*min(1.,u_rhythm.y*4.);
  float slot=floor(u_time*1.3+a_rnd*9.);
  float tw=step(1.-(.006+.05*detail),fract(sin(slot*12.9898+a_rnd*78.233)*43758.5453))*sin(PI*fract(u_time*1.3+a_rnd*9.));
- vec3 emit=col*glow*(.14+1.2*pow(facing,1.4))*(.6+.4*max(s01,sig));
+ vec3 emit=col*glow*(mix(.5,.14,sig)+mix(.55,1.2,sig)*pow(facing,1.4))*(.6+.4*max(s01,sig));
  emit+=mix(col,vec3(1.),.55)*glow*(1.6*glint+.6*glint2);
  emit+=mix(u_secondary,vec3(1.),.35)*rim*.28*glow*(.4+.6*max(s01,sig));
  emit=mix(emit,u_accent*glow*1.4,crest*.75);
@@ -195,7 +196,7 @@ void main(){
   if(a_kind>.5){
    vec3 toM=normalize(Cw-eye);
    float cosI=clamp(-toM.y,0.,1.);
-   refl=.22+.55*pow(1.-cosI,2.);
+   refl=.45+.4*pow(1.-cosI,2.);
    blur=.012*max(P.y,0.);
   }
   float L2c=dot(cv,cv);
@@ -317,7 +318,7 @@ void main(){
  float A=u_resolution.x/u_resolution.y,Fk=focal();
  vec2 s=(v_uv-.5)*2.;
  vec3 rd=normalize(R*(s.x*max(A,1.)/Fk)+U*(s.y/(Fk*min(A,1.)))+F);
- vec3 hazeC=mix(u_secondary,u_primary,.45);
+ vec3 hazeC=mix(u_secondary,u_primary,.6);
  vec3 fogC=mix(u_secondary,u_primary,.3)*.02;
  float glow=u_params[4];
  float T=40.;vec3 col=fogC;
@@ -339,7 +340,7 @@ void main(){
   vec3 md=vec3(rd.x,-rd.y,rd.z);
   float fres=.08+.6*pow(1.-abs(rd.y),5.);
   vec2 ms=columnSpan(P.xz,md.xz,EXT,30.);
-  float mh=mix(hazeLayer(0.,md.y,ms.x,ms.y,layerH,.4,.8,9.),hazeBall(P,md,30.,CENTER,1.3),s2);
+  float mh=mix(hazeLayer(0.,md.y,ms.x,ms.y,layerH,.4,.9,12.),hazeBall(P,md,30.,CENTER,1.3),s2);
   floorC+=hazeC*mh*.05*glow*fres*sheen;
   col=mix(fogC,floorC,exp(-T*FOGK));
  }else if(rd.y>1e-4){
@@ -356,9 +357,9 @@ void main(){
  // Haze lit by the installation: a light layer at hang height while the
  // grid hangs, the sculpture's glow ball as it gathers.
  vec2 cs=columnSpan(eye.xz,rd.xz,EXT,T);
- float layer=hazeLayer(eye.y,rd.y,cs.x,cs.y,layerH,.4,.8,9.);
+ float layer=hazeLayer(eye.y,rd.y,cs.x,cs.y,layerH,.4,.9,12.);
  float ball=hazeBall(eye,rd,T,CENTER,1.3);
- col+=hazeC*glow*(mix(layer*.045,ball*.05,s2));
+ col+=hazeC*glow*(mix(layer*.014,ball*.05,s2));
  outColor=vec4(max(col,vec3(0.)),1.);
 }`;
 const schema = [
