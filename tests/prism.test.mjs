@@ -226,7 +226,9 @@ test("spectral sheets cover the entire palette and share continuous physical edg
   for (let l = 0; l < sheet.length - 1; l++) {
     const right = sheet[l] + 1 / (SPECTRAL_SAMPLES - 1),
       nextLeft = sheet[l + 1];
-    near(right, nextLeft, 3e-8);
+    // Geometry attributes are Float32: adjacent encoded bases can differ
+    // by one ulp near 1, even though they represent the same wavelength.
+    near(right, nextLeft, 6e-8);
     const a = tracePrism(0.38 + 0.4 * right),
       b = tracePrism(0.38 + 0.4 * nextLeft);
     for (let axis = 0; axis < 3; axis++)
