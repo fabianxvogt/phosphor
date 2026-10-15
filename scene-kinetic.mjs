@@ -234,8 +234,13 @@ void main(){
  vec3 Nv=dot(Ns,V)<0.?-Ns:Ns;
  float facing=max(dot(Nv,V),0.);
  vec3 L=normalize(vec3(-eye.x*.35,2.6,-eye.z*.35));
- vec3 Hh=normalize(L+V);
- float glint=pow(max(dot(Nv,Hh),0.),28.);
+ bool mirrored=a_kind>.5&&a_kind<1.5;
+ float glint=0.;
+ if(!mirrored||sig<1.){
+  vec3 Hh=normalize(L+V);
+  glint=pow(max(dot(Nv,Hh),0.),28.);
+ }
+ glint*=mirrored?1.-sig:1.;
  float glint2=0.;
  if(sig<1.){
   vec3 L2=normalize(vec3(eye.z,-1.4,-eye.x));
@@ -267,7 +272,11 @@ void main(){
  // brightness drift across the lattice and fade as the waves take over.
  float sheen=1.+.5*(1.-s01)*(1.-sig)*rippleH(g,W)/.075;
  float diffuse=max(dot(Nv,L),0.);
- vec3 emit=col*glow*(mix(.5,.12,sig)+mix(.55,.7,sig)*pow(facing,1.4)+.5*sig*diffuse)*(.85+.15*max(s01,sig))*ao*sheen;
+ // The softened floor reflection needs broad form light, not duplicate
+ // pin-specular work. Fade continuously to a cheap quadratic facing lobe.
+ float body=facing*facing;
+ if(!mirrored||sig<1.)body=mix(pow(facing,1.4),body,mirrored?sig:0.);
+ vec3 emit=col*glow*(mix(.5,.12,sig)+mix(.55,.7,sig)*body+.5*sig*diffuse)*(.85+.15*max(s01,sig))*ao*sheen;
  emit+=mix(col,vec3(1.),.55)*glow*(1.6*glint+.6*glint2)*mix(1.,1.8,sig)*ao;
  emit+=mix(u_secondary,vec3(1.),.35)*rim*mix(.28,.78,sig)*glow*(.6+.4*max(s01,sig));
  emit+=mix(u_primary,vec3(1.),.55)*glow*crest*2.4;
