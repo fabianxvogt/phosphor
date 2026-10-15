@@ -9,6 +9,7 @@ import {
   HALF,
   HANG,
   HOLD,
+  KICK_STRENGTH,
   N,
   RADIUS,
   RING,
@@ -35,7 +36,7 @@ const common = `
 const float N=${f(N)},SP=${f(SPACING)},HANG=${f(HANG)},CEIL=${f(CEILING)},R0=${f(RADIUS)};
 const float RMAX=${RMAX.toFixed(6)},STAGGER=${f(STAGGER)},FOCAL=${f(FOCAL)},HOLD=${f(HOLD)};
 const vec3 CENTER=vec3(${CENTER.map(f).join(",")});
-const float RREACH=${f(RING.reach)},RWIDTH=${f(RING.width)},RAMP=${f(RING.amp)},RWAVE=${f(RING.wave)},RGROW=${f(RING.grow)};
+const float RREACH=${f(RING.reach)},RWIDTH=${f(RING.width)},RAMP=${f(RING.amp)},RWAVE=${f(RING.wave)},RGROW=${f(RING.grow)},KSTR=${f(KICK_STRENGTH)};
 const float FSPH=${f(FORM.sphere)},FTR=${f(FORM.torusR)},FTr=${f(FORM.torusr)},FMR=${f(FORM.mobiusR)},FMW=${f(FORM.mobiusW)};
 const float FSR=${f(FORM.saddleR)},FSK=${f(FORM.saddleK)},FSW=${f(FORM.saddleWave)};
 const float TC=${Math.cos(TILT).toFixed(7)},TS=${Math.sin(TILT).toFixed(7)};
@@ -51,10 +52,10 @@ vec4 chorus(float M){
 float seedAngle(float k){return K_TAU*fract(mod(u_seed,8192.)*k);}
 void cameraRig(float dev,out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float s2=sst(1.,2.,dev),a=u_clock[3]+seedAngle(.7548776662);
- float radius=6.-1.5*s2+.4*sin(2.*a),height=.75+.5*s2+.1*sin(3.*a);
+ float radius=6.-1.4*s2+.4*sin(2.*a),height=.75+.5*s2+.1*sin(3.*a);
  eye=vec3(radius*cos(a),height,radius*sin(a));
  float side=.9*(1.-s2);
- vec3 target=vec3(-sin(a)*side,1.9+.15*s2,cos(a)*side);
+ vec3 target=vec3(-sin(a)*side,1.9+.3*s2,cos(a)*side);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
 float focal(){return FOCAL*(1.+.02*clamp(u_kick,0.,1.));}
@@ -91,9 +92,13 @@ float waveH(vec2 p,float W,vec4 w,float Phi,float detail,float base){
  float fine=.06*detail*sin(2.9*dot(d2,p)+1.7*rho-3.*W);
  return dot(w,vec4(h0,h1,h2,h3))+fine;
 }
-float ringH(float rho,float kick){
- float front=RREACH*(1.-kick),x=(rho-front)/RWIDTH;
- return RAMP*kick*sst(0.,RGROW,front)*exp(-x*x)*cos(RWAVE*x);
+// Kick ring (kinetic-model.mjs ringProfile): the envelope is normalised by
+// the authored strength and the engine's energy gain, so the front starts
+// on the axis.
+float ringP(float rho,float kick){
+ float kn=clamp(kick/(KSTR*(.12+.88*sst(0.,1.,u_level))),0.,1.);
+ float front=RREACH*(1.-kn),x=(rho-front)/RWIDTH;
+ return sst(0.,RGROW,front)*exp(-x*x)*cos(RWAVE*x);
 }
 vec3 sculpt(vec2 uv,vec4 w,float W,float Phi,float detail){
  float th=TAU*uv.x;vec3 p=vec3(0.);
@@ -116,7 +121,7 @@ void main(){
  float s01=sst(0.,1.,dev),s12=clamp(dev-1.,0.,1.);
  float sig=sst(0.,1.,s12*(1.+STAGGER)-STAGGER*rho/RMAX);
  vec4 w=chorus(M);
- float ring=ringH(rho,kick)*amp;
+ float rp=ringP(rho,kick),ring=RAMP*kick*rp*amp;
  float base=seedAngle(.6180339887);
  vec3 pg=vec3(0.),ng=vec3(0.,1.,0.);float hg=.5;
  if(sig<1.){
@@ -160,16 +165,19 @@ void main(){
  float glow=u_params[4];
  vec3 col=tone(hue);
  // Kick ring crests and lattice lines are the rare accent.
- float crest=clamp(ring/max(RAMP*amp,1e-3),0.,1.);
+ float crest=max(rp,0.)*min(1.,kick*2.5);
  float lattice=float(mod(a_cell.x,8.)<.5||mod(a_cell.y,8.)<.5)*clamp(u_rhythm.z,0.,1.);
  float q=(a_cell.x+a_cell.y)/(2.*N);
  float sweep=exp(-pow((q-(1.-clamp(u_rhythm.y,0.,1.)))*11.,2.))*min(1.,u_rhythm.y*4.);
  float slot=floor(u_time*1.3+a_rnd*9.);
  float tw=step(1.-(.006+.05*detail),fract(sin(slot*12.9898+a_rnd*78.233)*43758.5453))*sin(PI*fract(u_time*1.3+a_rnd*9.));
- vec3 emit=col*glow*(mix(.5,.14,sig)+mix(.55,1.2,sig)*pow(facing,1.4))*(.6+.4*max(s01,sig));
- emit+=mix(col,vec3(1.),.55)*glow*(1.6*glint+.6*glint2);
+ // Occlusion proxy for the sculpture: spheres near its axis (the torus
+ // hole, the saddle's centre, the band's inner rim) sit deeper in the form.
+ float ao=mix(1.,.3+.7*sst(.3,1.6,length(P-CENTER)),sig);
+ vec3 emit=col*glow*(mix(.5,.14,sig)+mix(.55,1.2,sig)*pow(facing,1.4))*(.6+.4*max(s01,sig))*ao;
+ emit+=mix(col,vec3(1.),.55)*glow*(1.6*glint+.6*glint2)*mix(1.,1.8,sig)*ao;
  emit+=mix(u_secondary,vec3(1.),.35)*rim*.28*glow*(.4+.6*max(s01,sig));
- emit=mix(emit,u_accent*glow*1.4,crest*.75);
+ emit=mix(emit,u_accent*glow*1.6,crest*.7);
  emit+=u_accent*lattice*glow*1.2;
  emit+=mix(col,vec3(1.),.5)*sweep*glow*.9;
  emit+=vec3(1.)*tw*glow*.8;
@@ -277,7 +285,7 @@ void main(){
   float fade=exp(-along*1.05)*sst(0.,.08,along);
   float dist=v_ray.z;
   float k=v_info.y/R0;
-  vec3 col=mix(v_col,vec3(1.),.2)*side*side*fade*.075*min(k*k,1.4)*exp(-dist*FOGK);
+  vec3 col=mix(v_col,vec3(1.),.2)*side*side*fade*mix(.075,.035,v_info.z)*min(k*k,1.4)*exp(-dist*FOGK);
   outColor=vec4(max(col,vec3(0.)),1.);
   gl_FragDepth=gl_FragCoord.z;
  }
@@ -431,7 +439,7 @@ export default {
       0,
       "Kick rings",
       "A ring wave runs outwards through the sphere lattice from its centre.",
-      { period: 4, strength: 0.8, duration: 3.5 },
+      { period: 4, strength: KICK_STRENGTH, duration: 3.5 },
     ),
     familyEffect(
       "index-sweep",

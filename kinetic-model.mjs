@@ -12,7 +12,7 @@ export const N = 80; // 6400 spheres
 export const SPACING = 0.3; // ceiling lattice spacing (world units ≈ m)
 export const HANG = 2.8; // level hang height above the floor
 export const CEILING = 6.4; // motor ceiling
-export const CENTER = [0, 2.35, 0]; // sculpture centre
+export const CENTER = [0, 2.5, 0]; // sculpture centre
 export const RADIUS = 0.038; // sphere radius on the ceiling lattice
 export const HALF = ((N - 1) / 2) * SPACING; // lattice half extent
 export const RMAX = HALF * Math.SQRT2; // farthest sphere from the axis
@@ -20,13 +20,13 @@ export const STAGGER = 0.85; // centre-first gathering into the sculpture
 export const FOCAL = 1.4; // short-side focal length (half FOV ≈ 35.5°)
 export const RING = { reach: 13, width: 1.8, amp: 0.16, wave: 1.9, grow: 8 };
 export const FORM = {
-  sphere: 1.55,
-  torusR: 1.3,
-  torusr: 0.56,
-  mobiusR: 1.36,
-  mobiusW: 0.7,
-  saddleR: 2.05,
-  saddleK: 0.21,
+  sphere: 1.8,
+  torusR: 1.5,
+  torusr: 0.66,
+  mobiusR: 1.6,
+  mobiusW: 0.85,
+  saddleR: 2.4,
+  saddleK: 0.18,
   saddleWave: 0.07,
 };
 // Motor envelope (world units per second) the tests hold every state to.
@@ -96,17 +96,22 @@ export function waveHeight(x, z, W, w, Phi, detail, base) {
 }
 
 // Kick ring: a wave packet launched from the centre as the kick envelope
-// decays (kick 1 → 0 moves the front from the axis to RING.reach). Its
-// amplitude grows in over the first RING.grow units of travel and vanishes
-// with the envelope, so a launch at any gesture strength barely moves a
-// motor and the ring never pops.
-export function ringHeight(rho, kick) {
-  const front = RING.reach * (1 - kick),
+// decays. The envelope's launch value is the gesture strength times the
+// engine's energy gain (engine-rhythm.mjs rhythmResponse), both known to the
+// shader, so the normalised envelope runs 1 → 0 and moves the front from the
+// axis to RING.reach. The amplitude grows in over RING.grow units of travel
+// and vanishes with the envelope: at the authored strength a launch moves no
+// motor at all, at other strengths only a bounded kick response.
+export const KICK_STRENGTH = 0.8;
+export const rhythmGain = (level) => 0.12 + 0.88 * smoothstep(0, 1, level);
+export function ringProfile(rho, kick, level) {
+  const kn = clamp(kick / (KICK_STRENGTH * rhythmGain(level)), 0, 1);
+  const front = RING.reach * (1 - kn),
     x = (rho - front) / RING.width;
-  return (
-    RING.amp * kick * smoothstep(0, RING.grow, front) * Math.exp(-x * x) * Math.cos(RING.wave * x)
-  );
+  return smoothstep(0, RING.grow, front) * Math.exp(-x * x) * Math.cos(RING.wave * x);
 }
+export const ringHeight = (rho, kick, level) =>
+  RING.amp * kick * ringProfile(rho, kick, level);
 
 // Parametric forms on (u, v) ∈ [0, 1]², local to CENTER.
 export function formSphere(u, v) {
@@ -178,10 +183,10 @@ const normalize = (a) => {
 };
 
 // The single position law of sphere (i, j). state: { dev, W, M, Phi, kick,
-// detail, amp, size, seed }. Returns position, surface normal, radius,
+// level, detail, amp, size, seed }. Returns position, surface normal, radius,
 // palette coordinate and the sphere's sculpture weight.
 export function ball(i, j, state) {
-  const { dev, W, M, Phi, kick = 0, detail = 0, amp = 1, size = 1, seed = 0 } = state;
+  const { dev, W, M, Phi, kick = 0, level = 0.5, detail = 0, amp = 1, size = 1, seed = 0 } = state;
   const base = seedAngles(seed).wave;
   const d = clamp(dev, 0, 2);
   const gx = (i - (N - 1) / 2) * SPACING,
@@ -191,7 +196,7 @@ export function ball(i, j, state) {
     s12 = clamp(d - 1, 0, 1);
   const sig = smoothstep(0, 1, s12 * (1 + STAGGER) - (STAGGER * rho) / RMAX);
   const w = chorus(M);
-  const ring = ringHeight(rho, kick) * amp;
+  const ring = ringHeight(rho, kick, level) * amp;
   let pg = [0, 0, 0],
     ng = [0, 1, 0],
     hg = 0.5;
@@ -256,11 +261,11 @@ export function ball(i, j, state) {
 // to frame the sculpture. alpha is clock 3 plus the seed's start angle.
 export function camera(dev, alpha) {
   const s2 = smoothstep(1, 2, clamp(dev, 0, 2));
-  const radius = 6.0 - 1.5 * s2 + 0.4 * Math.sin(2 * alpha);
+  const radius = 6.0 - 1.4 * s2 + 0.4 * Math.sin(2 * alpha);
   const height = 0.75 + 0.5 * s2 + 0.1 * Math.sin(3 * alpha);
   const eye = [radius * Math.cos(alpha), height, radius * Math.sin(alpha)];
   const side = 0.9 * (1 - s2);
-  const target = [-Math.sin(alpha) * side, 1.9 + 0.15 * s2, Math.cos(alpha) * side];
+  const target = [-Math.sin(alpha) * side, 1.9 + 0.3 * s2, Math.cos(alpha) * side];
   return { eye, target };
 }
 

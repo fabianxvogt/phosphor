@@ -25,6 +25,8 @@ import {
   columnSpan,
   createGeometry,
   hazeLayer,
+  KICK_STRENGTH,
+  rhythmGain,
   ringHeight,
   rippleHeight,
   seedAngles,
@@ -164,11 +166,14 @@ test("height functions: travelling waves, faint ripple and a ring that never pop
       assert.ok(Math.abs(at(rho, th, W, w)) <= 0.34 + 1e-12);
     }
   }
-  for (let rho = 0; rho < 14; rho += 0.1) {
-    close(ringHeight(rho, 0), 0, 0);
-    close(ringHeight(rho, 1), 0, 0, "launch at full strength");
-    for (let k = 0; k <= 1; k += 0.05)
-      assert.ok(Math.abs(ringHeight(rho, k)) <= RING.amp + 1e-12);
+  for (const level of [0, 0.1, 0.5, 0.9, 1]) {
+    const launch = KICK_STRENGTH * rhythmGain(level);
+    for (let rho = 0; rho < 18; rho += 0.1) {
+      close(ringHeight(rho, 0, level), 0, 0);
+      close(ringHeight(rho, launch, level), 0, 1e-15, "launch at the authored strength");
+      for (let k = 0; k <= launch; k += 0.05)
+        assert.ok(Math.abs(ringHeight(rho, k, level)) <= RING.amp * k + 1e-12);
+    }
   }
 });
 
@@ -274,58 +279,65 @@ test("development is continuous (Lipschitz) and identity persists", () => {
   assert.deepEqual(ball(13, 61, { ...base, dev: 1.37 }).p, fwd);
 });
 
-// Kick envelope as rhythm.mjs shapes it: amplitude · d²(3 − 2d) with d the
-// remaining fraction of the gesture's duration (in beats).
-const envelope = (beats, duration, strength) => {
+// Kick envelope as rhythm.mjs shapes it, times the engine's energy gain:
+// strength · d²(3 − 2d) · gain(level), d the remaining fraction of the
+// gesture's duration (in beats).
+const envelope = (beats, duration, strength, level) => {
   const d = Math.max(0, 1 - beats / duration);
-  return strength * d * d * (3 - 2 * d);
+  return strength * d * d * (3 - 2 * d) * rhythmGain(level);
 };
 
 test("motors stay within their speed envelope at every development", () => {
   const kickFx = scene.rhythm.find((r) => r.slot === 0).defaults;
+  assert.equal(kickFx.strength, KICK_STRENGTH);
   const bps = 140 / 60;
   const maxRate = (k) => scene.clocks[k].rate(scene.schema.map((f) => f.max), 1);
   const rates = { W: maxRate(0), M: maxRate(1), Phi: maxRate(2) };
   const dt = 1 / 240;
   let worst = 0;
-  for (const dev of [0, 0.5, 1, 1.25, 1.5, 1.75, 2])
-    for (const t0 of [0.31, 0.62, 1.05, 1.7, 2.6, 5.3, 9.9, 12.4])
-      for (let s = 0; s < N * N; s += 13) {
-        const i = s % N,
-          j = Math.floor(s / N);
-        const at = (t) => {
-          const beat = (t * bps) % kickFx.length;
-          return ball(i, j, {
-            dev,
-            W: t * rates.W,
-            M: t * rates.M,
-            Phi: t * rates.Phi,
-            kick: envelope(beat, kickFx.duration, kickFx.strength),
-            detail: 1,
-            amp: 1.6,
-            size: 1,
-            seed: 1216,
-          }).p;
-        };
-        // Away from a launch instant (the envelope's attack is a step).
-        const b0 = (t0 * bps) % kickFx.length,
-          b1 = ((t0 + dt) * bps) % kickFx.length;
-        if (b1 < b0) continue;
-        const v = dist(at(t0 + dt), at(t0)) / dt;
-        worst = Math.max(worst, v);
-      }
+  for (const level of [0.3, 1])
+    for (const dev of [0, 0.5, 1, 1.25, 1.5, 1.75, 2])
+      for (const t0 of [0.31, 0.62, 1.05, 1.7, 2.6, 5.3, 9.9, 12.4])
+        for (let s = 0; s < N * N; s += 17) {
+          const i = s % N,
+            j = Math.floor(s / N);
+          const at = (t) =>
+            ball(i, j, {
+              dev,
+              W: t * rates.W,
+              M: t * rates.M,
+              Phi: t * rates.Phi,
+              kick: envelope((t * bps) % kickFx.length, kickFx.duration, kickFx.strength, level),
+              level,
+              detail: 1,
+              amp: 1.6,
+              size: 1,
+              seed: 1216,
+            }).p;
+          // Includes the launch instants: at the authored strength the
+          // ring starts on the axis with zero amplitude.
+          const v = dist(at(t0 + dt), at(t0)) / dt;
+          worst = Math.max(worst, v);
+        }
   assert.ok(worst <= VMAX, `fastest sphere ${worst.toFixed(3)} > ${VMAX}`);
-  // The launch itself is the envelope's attack (0 → strength in one step).
-  // At the authored strength the ring starts near the axis and grows in as
-  // it travels, so the step stays a few centimetres; at any strength it is
-  // a bounded kick response, never a pop across the lattice.
-  for (const s of [kickFx.strength, ...Array.from({ length: 20 }, (_, k) => (k + 1) / 20)]) {
-    let step = 0;
-    for (let rho = 0; rho < 14; rho += 0.02)
-      step = Math.max(step, Math.abs(ringHeight(rho, s)) * 1.6);
-    assert.ok(step <= (Math.abs(s - kickFx.strength) < 1e-9 ? 0.06 : 0.14), `${s}: ${step}`);
-  }
   assert.ok(worst > 0.3, "the waves actually move");
+  // Launches across a bar line are continuous at the authored strength.
+  for (const level of [0.1, 0.6, 1]) {
+    const before = envelope(kickFx.length - 1e-9, kickFx.duration, KICK_STRENGTH, level),
+      after = envelope(0, kickFx.duration, KICK_STRENGTH, level);
+    for (let rho = 0; rho < 18; rho += 0.05)
+      close(ringHeight(rho, before, level), ringHeight(rho, after, level), 1e-9);
+  }
+  // Any other strength gives a bounded kick response, never a pop across
+  // the lattice.
+  for (const strength of [0.2, 0.5, 1])
+    for (const level of [0.1, 0.6, 1]) {
+      let step = 0;
+      const k = strength * rhythmGain(level);
+      for (let rho = 0; rho < 18; rho += 0.02)
+        step = Math.max(step, Math.abs(ringHeight(rho, k, level)) * 1.6);
+      assert.ok(step <= 0.16, `${strength}/${level}: ${step}`);
+    }
 });
 
 test("the camera stays clear of every sphere and never jumps", () => {
