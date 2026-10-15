@@ -278,70 +278,123 @@ test("identity persists and development reverses without a phase or position res
   }
 });
 
-function gradient(x, y) {
-  const h = hash(x, y),
-    g = [fract(h) * 2 - 1, fract(h * 37) * 2 - 1],
-    length = Math.sqrt(Math.max(g[0] ** 2 + g[1] ** 2, 0.01));
-  return g.map((v) => v / length);
-}
-function lace(x, y) {
-  const i = Math.floor(x),
-    j = Math.floor(y),
-    f = x - i,
-    g = y - j;
-  const fade = (t) => t ** 3 * (t * (6 * t - 15) + 10);
-  const at = (dx, dy) => {
-    const v = gradient(i + dx, j + dy);
-    return v[0] * (f - dx) + v[1] * (g - dy);
-  };
-  const mix = (a, b, t) => a + (b - a) * t;
-  return mix(
-    mix(at(0, 0), at(1, 0), fade(f)),
-    mix(at(0, 1), at(1, 1), fade(f)),
-    fade(g),
-  );
+function crestSlope(q, w) {
+  return w.slice(0, 4).reduce((sum, v) => {
+    const projected =
+      v.k *
+      (v.direction[0] * w[0].direction[0] + v.direction[1] * w[0].direction[1]);
+    return (
+      sum +
+      v.amplitude *
+        projected *
+        Math.cos(
+          v.k * (v.direction[0] * q[0] + v.direction[1] * q[1]) + v.phase,
+        )
+    );
+  }, 0);
 }
 
-test("foam is quintic gradient lace, continuous across lattice edges and pixel filtered", () => {
-  assert.match(tide.fragment, /s=f\*f\*f\*\(f\*\(6\.\*f-15\.\)\+10\.\)/);
-  assert.match(
-    tide.fragment,
-    /g=fract\(tdHash\(p\)\*vec2\(1\.,37\.\)\)\*2\.-1\./,
-  );
-  assert.match(
-    tide.fragment,
-    /laceAA=max\(\.025,max\(1\.5\*fwidth\(laceField\),\.32\*footprint\)\)/,
-  );
-  assert.match(tide.fragment, /length\(dFdx\(p.xz\)\)/);
-  assert.match(tide.fragment, /laceField=lace\+\.22\*fineLace-\.035/);
-  assert.match(tide.fragment, /ridge=abs\(laceField\)/);
+test("foam traces the low-pass material crest, not noise ridges or compression outlines", () => {
   assert.ok(
-    !tide.fragment.includes("tdNoise(p.xz"),
-    "no thresholded world-space value-noise foam",
+    !/tdLace|tdGradient|laceField|threads|streakPhase/.test(tide.fragment),
   );
+  assert.match(tide.fragment, /crestFront=tdFoamFront\(p.xz\)/);
+  assert.match(
+    tide.fragment,
+    /for\(int i=0;i<4;i\+\+\) \{\s*vec4 w=gW\[i\];\s*front\+=w.z\*dot\(w.xy,gD\[0\]\)\*cos/,
+  );
+  assert.match(tide.fragment, /crestSide=smoothstep\(\.0,\.13,surface.w\)/);
+  assert.match(
+    tide.fragment,
+    /frontAA=max\(\.0015,1\.25\*fwidth\(crestFront\)\)/,
+  );
+  assert.ok(
+    tide.fragment.indexOf("frontAA=max") <
+      tide.fragment.lastIndexOf("if(t>0.)"),
+  );
+  // The displayed front is a zero directional derivative of the first four
+  // physical waves; the two shortest modes remain in geometry, not foam.
   const eps = 1e-4;
-  for (let cell = -8; cell <= 8; cell++)
-    for (const v of [-2.71, -0.19, 0.37, 3.73])
-      for (const transpose of [false, true]) {
-        const n = (t) => (transpose ? lace(v, t) : lace(t, v));
-        const l = (n(cell) - n(cell - eps)) / eps;
-        const r = (n(cell + eps) - n(cell)) / eps;
-        assert.ok(Math.abs(l - r) < 1e-5, `C1 seam ${cell}, ${v}`);
-        const ll = (n(cell) - 2 * n(cell - eps) + n(cell - 2 * eps)) / eps ** 2;
-        const rr = (n(cell + 2 * eps) - 2 * n(cell + eps) + n(cell)) / eps ** 2;
-        assert.ok(Math.abs(ll - rr) < 0.04, `C2 seam ${cell}, ${v}`);
+  for (const seed of [10301, 10303, 10306])
+    for (const clock of [0, 1.7, 6.28]) {
+      const w = waves(seed, 1, 1.3, clock),
+        d = w[0].direction;
+      const height = (q) =>
+        w
+          .slice(0, 4)
+          .reduce(
+            (s, v) =>
+              s +
+              v.amplitude *
+                Math.sin(
+                  v.k * (v.direction[0] * q[0] + v.direction[1] * q[1]) +
+                    v.phase,
+                ),
+            0,
+          );
+      for (let i = 0; i < 300; i++) {
+        const q = material([60 * Math.sin(i), 60 * Math.cos(i * 0.71)], w);
+        const a = q.map((v, j) => v - eps * d[j]),
+          b = q.map((v, j) => v + eps * d[j]);
+        assert.ok(
+          Math.abs((height(b) - height(a)) / (2 * eps) - crestSlope(q, w)) <
+            1e-8,
+        );
       }
-  // Physical detail fades before becoming subpixel at all output sizes.
-  for (const height of [540, 1080, 2160]) {
-    const fp = (80 * 2) / height,
-      keep = 1 - smooth(0.3, 1.2, fp * 1.5);
-    assert.ok(keep >= 0 && keep <= 1);
-    const aa = Math.max(0.025, 1.5 * fp);
-    for (let ridge = 0; ridge <= 1; ridge += 0.01) {
-      const coverage = 1 - smooth(0.035 - aa, 0.11 + aa, ridge);
-      assert.ok(Number.isFinite(coverage) && coverage >= 0 && coverage <= 1);
     }
-  }
+});
+
+test("Gaussian crest and arm coverage conserves line flux at 540p, 1080p and 4K", () => {
+  assert.match(tide.fragment, /\(\.006\/frontWidth\)/);
+  assert.match(tide.fragment, /\(\.025\/coreWidth\)/);
+  assert.match(tide.fragment, /\(\.075\/trailWidth\)/);
+  for (const height of [540, 1080, 2160])
+    for (const intrinsic of [0.006, 0.025, 0.075]) {
+      const width = intrinsic + (1.25 * 80) / height;
+      let integral = 0;
+      const steps = 4000,
+        dx = (12 * width) / steps;
+      for (let i = 0; i < steps; i++) {
+        const x = -6 * width + (i + 0.5) * dx;
+        const coverage = (Math.exp(-((x / width) ** 2)) * intrinsic) / width;
+        assert.ok(coverage >= 0 && coverage <= 1);
+        integral += coverage * dx;
+      }
+      assert.ok(Math.abs(integral - Math.sqrt(Math.PI) * intrinsic) < 1e-12);
+    }
+});
+
+test("spiral bands have a crisp continuous front and broad one-sided rolling wakes", () => {
+  assert.match(tide.fragment, /armAcross=cos\(armPhase\)/);
+  assert.match(tide.fragment, /armAA=max\(\.006,1\.25\*fwidth\(armAcross\)\)/);
+  assert.match(
+    tide.fragment,
+    /outer=mix\(1\.,smoothstep\(26\.,40\.,r\),gVortex\)/,
+  );
+  assert.match(tide.fragment, /wake=breaking\*exp/);
+  assert.match(tide.fragment, /halo=breaking\*exp/);
+  for (let r = 3; r < 50; r += 0.2)
+    for (const flow of [0, 0.9, 3.2, 2 * Math.PI]) {
+      const roll =
+        0.075 * Math.sin(0.67 * r + 2 * flow) +
+        0.025 * Math.sin(1.4 * r - 3 * flow);
+      assert.ok(Math.abs(roll) <= 0.1);
+      assert.ok(
+        -0.29 - roll < -0.18 && -0.57 - 0.7 * roll < -0.49,
+        "wake centres stay behind the leading edge",
+      );
+      const arm = (a, f) =>
+        5 * a + 0.44 * r - 2 * f + 0.28 * Math.sin(3 * a - 0.12 * r + f);
+      assert.ok(
+        Math.abs(Math.cos(arm(-Math.PI, flow)) - Math.cos(arm(Math.PI, flow))) <
+          1e-12,
+      );
+      assert.ok(
+        Math.abs(
+          Math.cos(arm(0.4, flow)) - Math.cos(arm(0.4, flow + 2 * Math.PI)),
+        ) < 1e-12,
+      );
+    }
 });
 
 test("living light is HDR, locally kick-modulated; droplets conserve subpixel flux", () => {
@@ -358,8 +411,8 @@ test("living light is HDR, locally kick-modulated; droplets conserve subpixel fl
   const crest = 0.6,
     glow = 0.85,
     spark = 1;
-  const base = crest * 2.2 * glow * (0.46 + 0.72 * spark ** 2) * 1.75;
-  const kick = crest * 2.2 * glow * (0.46 + 0.72 + 0.45) * 1.75;
+  const base = crest * 4.8 * glow * (0.46 + 0.72 * spark ** 2) * 1.75;
+  const kick = crest * 4.8 * glow * (0.46 + 0.72 + 0.45) * 1.75;
   assert.ok(
     base > 2 && kick / base < 1.4,
     "living cores exceed 1 without a global flash",
@@ -406,7 +459,7 @@ function cachedData(p, exactAt) {
 }
 
 test("world-space bowl data cache preserves height and normal without caching colour", () => {
-  assert.deepEqual(tide.precompute.size, [512, 513]);
+  assert.deepEqual(tide.precompute.size, [1024, 513]);
   assert.match(tide.precompute.fragment, /tdExactWaves\(p\)\+vec4\(bowl,0\.\)/);
   assert.match(
     tide.fragment,
@@ -438,6 +491,30 @@ test("world-space bowl data cache preserves height and normal without caching co
     normalError < 0.025,
     `cached bowl unit-normal error ${normalError}`,
   );
+});
+
+test("signed crest-data bank preserves the analytic front without caching colour", (t) => {
+  assert.match(tide.precompute.fragment, /cell.x>=512/);
+  assert.match(
+    tide.precompute.fragment,
+    /vec4\(u_params\[0\]>0\.\?tdExactCrest\(p\):0\.,0\.,0\.,0\.\)/,
+  );
+  assert.match(tide.fragment, /ivec2\(512,1\)/);
+  let error = 0;
+  for (const seed of [10301, 10303, 10306])
+    for (const dev of [0, 0.5, 1, 1.5, 2]) {
+      const w = waves(seed, dev, 1.3, 1.7);
+      const exactAt = (p) => [crestSlope(material(p, w), w), 0, 0];
+      for (let i = 0; i < 1800; i++) {
+        const p = [127.6 * Math.sin(i * 1.71), 127.6 * Math.cos(i * 0.37)];
+        error = Math.max(
+          error,
+          Math.abs(exactAt(p)[0] - cachedData(p, exactAt)[0]),
+        );
+      }
+    }
+  t.diagnostic(`signed crest slope cache error ${error}`);
+  assert.ok(error < 0.003, `crest-data error ${error}`);
 });
 
 test("combined surface cache bounds wave height/normal error over the whole schema", (t) => {
@@ -475,10 +552,7 @@ test("combined surface cache bounds wave height/normal error over the whole sche
     !tide.fragment.includes("float aeration="),
     "no filled thresholded noise lobes",
   );
-  assert.match(
-    tide.fragment,
-    /foam=crestMask\*lacy\*smoothstep\(\.08,\.85,gSwell\)/,
-  );
+  assert.match(tide.fragment, /develop=smoothstep\(\.08,\.85,gSwell\)/);
   assert.match(tide.fragment, /crestMask\*gSwell\+spiral/);
 });
 
@@ -642,7 +716,7 @@ test("presets validate and register a continuous eight-look spatial world", () =
   assert.equal(new Set(tide.presets.map((p) => p.seed)).size, 6);
 });
 
-test("Calm has no foam or spray at every energy; filament filtering is bounded", () => {
+test("Calm has no foam or spray at every energy; filtered crest coverage is bounded", () => {
   for (const dev of [0, 0.1, 0.3, 0.5, 1, 2]) {
     const swell = smooth(0, 1, dev),
       develop = smooth(0.08, 0.85, swell);
@@ -650,14 +724,14 @@ test("Calm has no foam or spray at every energy; filament filtering is bounded",
     if (dev === 0) assert.equal(develop, 0);
   }
   for (const fp of [0.001, 0.01, 0.1, 0.5, 1, 10]) {
-    const aa = Math.max(0.025, 0.32 * fp);
-    const coverage = 1 - smooth(0.035 - aa, 0.11 + aa, 0.06);
+    const width = 0.006 + Math.max(0.0015, 1.25 * fp);
+    const coverage = (Math.exp(-((0.06 / width) ** 2)) * 0.006) / width;
     assert.ok(Number.isFinite(coverage) && coverage >= 0 && coverage <= 1);
   }
-  assert.ok(
-    tide.fragment.indexOf("streakAA=max") <
-      tide.fragment.lastIndexOf("if(t>0.)"),
+  assert.match(
+    tide.fragment,
+    /breaking=\(\.12\+\.88\*crestMask\)\*crestSide\*develop\*outer/,
   );
-  assert.match(tide.fragment, /exp\(-\.5\*streakAA\*streakAA\)/);
+  assert.match(tide.fragment, /crestMask\*gSwell\+spiral/);
   assert.match(tide.fragment, /vec2\(\.42,1\.50\)/);
 });
