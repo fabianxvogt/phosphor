@@ -12,6 +12,13 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  tide: {
+    algorithm: "Deep-water Gerstner waves and a continuous spiral heightfield",
+    description:
+      "A moonlit dispersive ocean gathers living crests and opens into a vast glowing maelstrom.",
+    styles: ["spatial", "waves"],
+    variants: ["Calm", "Swell", "Maelstrom"],
+  },
   fold: {
     algorithm: "Rigid folding of polyhedral nets along hinge chains",
     description:
