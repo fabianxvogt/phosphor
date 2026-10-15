@@ -255,6 +255,17 @@ const offsets = (key) => {
 const MAX_TERMS = 8;
 // One unit cell of F and the gradient of |F|²/2, per frame.
 const CELL = 512;
+// Exposure statistics: the relief light of 512 of the visual pass's rays.
+const CREST_TEXELS = 16,
+  CREST_RAYS = 32; // per texel: 512 rays in all
+// Mean linear relief light (relative to the palette's mid tone) that the
+// exposure aims for: the geometric mean over the 17 looks × 3 energies of the
+// ladder, so the family mean stays where the rework put it. The ladder's
+// output luminance follows this statistic as m^0.83 (r = 0.985); scaling
+// display values by g scales linear light by about g^2.2, so g = (T/m)^0.4
+// (slightly above 0.83/2.2: the highlight shoulder compresses bright frames)
+// nearly cancels it.
+const CREST_TARGET = 0.0746;
 
 const shared = `${lateClockGlsl}
 const mat2 OPS_A[${OPS.length}] = mat2[](${glslOpsA});
@@ -368,13 +379,92 @@ vec4 wallEnergy(Wall s) {
   }
   return vec4(e, sq2, 0.) / float(count * s.terms);
 }
+// Camera: a slow glide across the periodic plane (lattice-periodic, so the
+// wrap is invisible), a turn, and a tilt that breathes over 2 minutes and
+// leans further with energy.
+struct WallView { vec3 ro, right, up, forward; vec2 heading; float lens, dist; };
+WallView wallView(Wall s, mat2 B, float lvl) {
+  WallView v;
+  float t = s.t;
+  vec2 focus = B * fract(vec2(t * .02, t * .0125));
+#ifdef PHOSPHOR_LATE
+  float yaw = u_clock[1] * .03 + .3 * sin(TAU * fract(t / 180.));
+#else
+  float yaw = t * u_params[7] * .03 + .3 * sin(TAU * fract(t / 180.));
+#endif
+  float pitch = .44 + .16 * lvl + .09 * sin(TAU * fract(t / 120.));
+  v.heading = vec2(sin(yaw), cos(yaw));
+  v.forward = vec3(v.heading * sin(pitch), -cos(pitch));
+  v.right = vec3(v.heading.y, -v.heading.x, 0.);
+  v.up = cross(v.right, v.forward);
+  v.lens = 1.6 * (1. + .02 * clamp(u_kick, 0., 1.));
+  v.dist = u_params[1] * v.lens * .78;
+  v.ro = vec3(focus, 0.) - v.forward * v.dist;
+  return v;
+}
+vec3 wallRay(WallView v, vec2 uv) { return normalize(uv.x * v.right + uv.y * v.up + v.lens * v.forward); }
+// Relief: height Re(F·e^{-iθ}), up to a fraction of the cell. Energy raises
+// it (deeper pits, taller crests).
+float wallAmp(float lvl) { return mix(.13, .24, lvl); }
+// Lit relief at field sample f = (R, I, ∂R/∂X, ∂R/∂Y) seen along rd: key
+// light from the upper left, a specular sheen and a rim on the crests.
+vec3 wallLight(vec4 f, mat2 Bi, float amp, float K, WallView v, vec3 rd, float lvl, float beatPulse,
+               out float h, out float crest, out vec3 albedo) {
+  float th = tanh(f.x * K);
+  h = .5 + .5 * th;
+  vec2 gradP = transpose(Bi) * (f.zw * .5 * K * (1. - th * th));
+  vec3 normal = normalize(vec3(-amp * gradP, 1.));
+  vec3 view = -rd;
+  vec3 key = normalize(vec3(-.7 * v.right.xy - .25 * v.heading, .62));
+  float diffuse = max(0., dot(normal, key));
+  float spec = pow(max(0., dot(normal, normalize(key + view))), 28.);
+  float rim = pow(1. - max(0., dot(normal, view)), 3.);
+  crest = smoothstep(.42, .9, h);
+  float ao = .2 + .8 * smoothstep(.05, .7, h);
+  albedo = mix(u_secondary, u_primary, smoothstep(.68, .98, h));
+  vec3 colour = albedo * (.03 + .97 * diffuse * diffuse) * crest * ao;
+  colour += mix(u_primary, vec3(1.), .45) * spec * crest * .9;
+  colour += mix(mix(u_secondary, u_primary, .5), u_accent, .3) * rim * crest * (.42 + .25 * beatPulse);
+  colour += u_secondary * .012 * ao;
+  // A steeper, denser relief catches more rim and sheen; hold the exposure
+  // so energy reads as structure, not brightness (measured on the ladder).
+  return colour / (.9 + .16 * lvl);
+}
 `;
 
 const precompute = `${shared}
 void main() {
   Wall s = wallSetup();
-  // Rows 0…N−1 hold one unit cell; row N holds the cell's mean |F|².
-  outColor = gl_FragCoord.y > ${CELL}. ? wallEnergy(s) : wallField(floor(gl_FragCoord.xy) / ${CELL}., s);
+  // Rows 0…N−1 hold one unit cell; row N holds the cell's mean |F|² (x = 0)
+  // and, in .w of texels 1…${CREST_TEXELS}, the mean linear relief light of
+  // ${CREST_RAYS} of the visual pass's own rays each (an R2 low-discrepancy
+  // set over a 16:9 frame, hit at mid height as in the fallback path).
+  if (gl_FragCoord.y < ${CELL}.) { outColor = wallField(floor(gl_FragCoord.xy) / ${CELL}., s); return; }
+  vec4 e = wallEnergy(s);
+  int x = int(gl_FragCoord.x);
+  if (x >= 1 && x <= ${CREST_TEXELS}) {
+    float k = .6 / sqrt(max(.5 * (e.x + dot(e.yz, vec2(cos(2. * s.tilt), sin(2. * s.tilt)))), 1e-6));
+    float lvl = clamp(u_level, 0., 1.), amp = wallAmp(lvl);
+    mat2 B = LATTICE[GROUP_LATTICE[s.group]], Bi = inverse(B);
+    WallView cam = wallView(s, B, lvl);
+    // Light relative to the palette's mid tone, so palettes keep their own
+    // brightness and only the pattern's moment is evened out.
+    const vec3 Y = vec3(.2126, .7152, .0722);
+    // Scene values are display-encoded: average them in linear light.
+    float ym = max(dot(pow(.5 * (u_secondary + u_primary), vec3(2.2)), Y), 1e-4);
+    float sum = 0., h, crest;
+    vec3 albedo;
+    for (int i = 0; i < ${CREST_RAYS}; i++) {
+      float n = float((x - 1) * ${CREST_RAYS} + i);
+      vec2 uv = (fract(.5 + n * vec2(.7548776662, .5698402910)) - .5) * vec2(16. / 9., 1.);
+      vec3 rd = wallRay(cam, uv);
+      vec3 hit = cam.ro + rd * mix((amp - cam.ro.z) / rd.z, -cam.ro.z / rd.z, .5);
+      vec4 f = wallField(Bi * hit.xy, s);
+      sum += dot(pow(max(wallLight(f, Bi, amp, k, cam, rd, lvl, 0., h, crest, albedo), 0.), vec3(2.2)), Y);
+    }
+    e.w = sum / (${CREST_RAYS}. * ym);
+  }
+  outColor = e;
 }
 `;
 
@@ -395,6 +485,15 @@ vec4 cellField(vec2 X, Wall s) {
   vec2 f = fract(g);
   return mix(mix(texelFetch(u_precomputed, i0, 0), texelFetch(u_precomputed, ivec2(i1.x, i0.y), 0), f.x),
              mix(texelFetch(u_precomputed, ivec2(i0.x, i1.y), 0), texelFetch(u_precomputed, i1, 0), f.x), f.y);
+}
+// Exposure from the traced light of this frame's relief: some coefficient
+// sets and phases leave few lit crests (pgg's stripe phase, p4g's plateau),
+// others many; brightness should not follow them.
+float wallExposure() {
+  float m = 0.;
+  for (int i = 1; i <= ${CREST_TEXELS}; i++) m += texelFetch(u_precomputed, ivec2(i, ${CELL}), 0).w;
+  m /= ${CREST_TEXELS}.;
+  return clamp(pow(${CREST_TARGET} / max(m, 1e-4), .4), .6, 3.);
 }
 // Mean of R² = (Re F·e^{-iθ})² from the statistics row.
 float cellEnergy(Wall s) {
@@ -421,11 +520,9 @@ float reliefHeight(vec4 f) { return .5 + .5 * tanh(f.x * RELIEF_K); }
 
 void main() {
   Wall s = wallSetup();
-  float scale = u_params[1];
   float rings = u_params[5];
   float cell = u_params[6];
-  float spin = u_params[7];
-  float t = s.t, beats = s.beats;
+  float beats = s.beats;
   float lvl = clamp(u_level, 0., 1.);
   float beatPulse = u_rhythmEnabled ? 0. : u_beat > 0. ? exp(-5. * fract(u_beat)) : 0.;
   mat2 B = LATTICE[GROUP_LATTICE[s.group]];
@@ -433,28 +530,10 @@ void main() {
   vec2 uv = aspectUV();
   float px = u_resolution.y / 1080.;
 
-  // Camera: a slow glide across the periodic plane (lattice-periodic, so the
-  // wrap is invisible), a turn, and a tilt that breathes over 2 minutes and
-  // leans further with energy.
-  vec2 focus = B * fract(vec2(t * .02, t * .0125));
-#ifdef PHOSPHOR_LATE
-  float yaw = u_clock[1] * .03 + .3 * sin(TAU * fract(t / 180.));
-#else
-  float yaw = t * spin * .03 + .3 * sin(TAU * fract(t / 180.));
-#endif
-  float pitch = .44 + .16 * lvl + .09 * sin(TAU * fract(t / 120.));
-  vec2 heading = vec2(sin(yaw), cos(yaw));
-  vec3 forward = vec3(heading * sin(pitch), -cos(pitch));
-  vec3 right = vec3(heading.y, -heading.x, 0.);
-  vec3 up = cross(right, forward);
-  float lens = 1.6 * (1. + .02 * clamp(u_kick, 0., 1.));
-  float dist = scale * lens * .78;
-  vec3 ro = vec3(focus, 0.) - forward * dist;
-  vec3 rd = normalize(uv.x * right + uv.y * up + lens * forward);
-
-  // Relief: height Re(F·e^{-iθ}), up to a fraction of the cell. Energy
-  // raises it (deeper pits, taller crests).
-  float amp = mix(.13, .24, lvl);
+  WallView cam = wallView(s, B, lvl);
+  vec3 ro = cam.ro;
+  vec3 rd = wallRay(cam, uv);
+  float amp = wallAmp(lvl);
   // R in units of its RMS (one RMS reaches tanh(0.6) ≈ 0.54).
   RELIEF_K = .6 / sqrt(max(cellEnergy(s), 1e-6));
   float tTop = (amp - ro.z) / rd.z, tGround = -ro.z / rd.z;
@@ -485,27 +564,12 @@ void main() {
   vec2 X = Bi * P;
   vec4 f = cellField(X, s);
   float q = dot(f.xy, f.xy);
-  float th = tanh(f.x * RELIEF_K);
-  float h = .5 + .5 * th;
-  vec2 gradP = transpose(Bi) * (f.zw * .5 * RELIEF_K * (1. - th * th));
-  vec3 normal = normalize(vec3(-amp * gradP, 1.));
-  vec3 view = -rd;
-
-  // Light: key from the upper left, a specular sheen, a rim on the crests.
-  vec3 key = normalize(vec3(-.7 * right.xy - .25 * heading, .62));
-  float diffuse = max(0., dot(normal, key));
-  float spec = pow(max(0., dot(normal, normalize(key + view))), 28.);
-  float rim = pow(1. - max(0., dot(normal, view)), 3.);
-  float crest = smoothstep(.42, .9, h);
-  float ao = .2 + .8 * smoothstep(.05, .7, h);
-  vec3 albedo = mix(u_secondary, u_primary, smoothstep(.68, .98, h));
-  vec3 colour = albedo * (.03 + .97 * diffuse * diffuse) * crest * ao;
-  colour += mix(u_primary, vec3(1.), .45) * spec * crest * .9;
-  colour += mix(mix(u_secondary, u_primary, .5), u_accent, .3) * rim * crest * (.42 + .25 * beatPulse);
-  colour += u_secondary * .012 * ao;
-  // A steeper, denser relief catches more rim and sheen; hold the exposure
-  // so energy reads as structure, not brightness (measured on the ladder).
-  colour /= .9 + .16 * lvl;
+  float h, crest;
+  vec3 albedo;
+  vec3 colour = wallLight(f, Bi, amp, RELIEF_K, cam, rd, lvl, beatPulse, h, crest, albedo);
+#ifdef PRECOMPUTED
+  colour *= wallExposure();
+#endif
 
   // Terraces: level lines of the relief that climb the crests on the beat.
   float level = h * (4. + 3. * lvl) - beats * .125;
@@ -571,7 +635,7 @@ void main() {
 
   // Atmosphere: the far plane sinks into the palette's dark.
   float travel = length(hit - ro);
-  float fog = smoothstep(dist * 1.05, dist * 2.5, travel);
+  float fog = smoothstep(cam.dist * 1.05, cam.dist * 2.5, travel);
   colour = mix(colour, u_secondary * .006, fog * .94);
   outColor = vec4(max(colour, 0.), 1.);
 }

@@ -31,17 +31,21 @@ All 17 plane symmetry groups, made with Frank Farris' wave-function method (_Cre
 
 - Variants (`group`): p1, p2 (oblique); pm, pg, pmm, pmg, pgg (rectangular); cm, cmm (centred rectangular); p4, p4m, p4g (square); p3, p3m1, p31m, p6, p6m (hexagonal, 120° basis as in the Tables).
 - Looks: p6m Snowflake, p4m Tiles, p4g Pinwheels, p3 Triskelion, p31m Lace, p3m1 Kaleidoscope, p6 Spirals, p4 Turnstiles, cmm Diamonds, pgg Weave, pmg Ribbons, pmm Panels, cm Feathers, pg Footprints, pm Mirrors, p2 Pinwheel Field, p1 Drift.
-- Energy: flow ×0.5 → ×2, morph −0.2 → +0.3, rings −0.1 → +0.2, cells across ×0.85 → ×1.2 (denser structure); `u_level` raises the relief and tilts the camera further. An exposure term holds brightness: the family-mean luminance is 0.031 / 0.033 / 0.033 at energy 0.1 / 0.5 / 0.9 (L.9/L.1 = 1.08). Individual looks still range 0.36–5.4 on the ladder because energy also moves flow and morph, so each column shows a different moment of the pattern (p4g Pinwheels at 0.1 is a dark, plateau-with-holes moment).
+- Energy: flow ×0.5 → ×2, morph −0.2 → +0.3, rings −0.1 → +0.2, cells across ×0.85 → ×1.2 (denser structure); `u_level` raises the relief and tilts the camera further. An exposure term holds brightness against energy, and a traced exposure (below) holds it against the pattern's moment: the family-mean luminance is 0.029 / 0.030 / 0.031 at energy 0.1 / 0.5 / 0.9, and every look's L.9/L.1 lies in 0.82–1.43 (max/min ≤ 1.45; before 0.34–5.3, with p4g 5.3, pgg 0.34, p4m 1.91, cmm 0.62).
 - Audio: flow ← low (0.06), rings ← high (0.1), turn ← onset (0.05). The kick punches the lens by ≤ 2%. Shared punch/pulse 0.6/1.
 - Endless: new coefficient generations every 16 beats (seeded), the relief phase θ, and a lattice-periodic pan whose wrap is invisible.
 
+## Traced exposure (polish 2026-10-15)
+
+Energy also moves flow and morph, so ladder columns show different moments of the pattern, and some moments leave few lit crests: p4g's plateau with holes, pgg's stripe phase (180 s at energy 0.5, 3 s steps: pgg luminance p10–p90 0.015–0.054, minimum 0.0025). The data pass therefore traces 512 of the visual pass's own rays (texels 1–16 of the statistics row, 32 rays each, an R2 low-discrepancy set over a 16:9 frame, hit at mid height as in the fallback path) through the shared camera and relief light (`wallView`, `wallLight`, also used by the visual pass) and stores their mean linear light relative to the palette's mid tone. Across the 17 looks × 3 energies the output luminance follows this statistic as m^0.83 (r = 0.985; a crest-coverage proxy reached only r ≈ 0.67). The visual pass multiplies the relief light by g = clamp((0.0746/m)^0.4, 0.6, 3) (0.0746 = geometric mean of the ladder, so the family mean is kept; 0.4 ≈ 0.83/2.2 plus a little for the highlight shoulder). Palettes keep their own brightness. Over 180 s: p90/p10 3.6 → 1.39 (pgg), 6.5 → 1.51 (p4g), 4.2 → 1.40 (p4m), 5.5 → 1.44 (cmm); pgg's minimum 0.0025 → 0.0134. Without float render targets (no data pass) the exposure is 1, as before.
+
 ## Cost
 
-Native M3 Pro, whole frame including post (`profile-families.mjs --types`, quiet GPU, 2026-10-14): p50 3.1–3.8 ms at 1080p against 2.0–2.3 ms for the `metamorphosis` control (ratio ≤ 1.8); before the rework 2.9–6.0 ms (ratio ≤ 3.0). At 4K: 9.5–12.0 ms against 4.8–5.3 ms control; the old shader measured 9.4–17.3 ms in the same run. The data pass costs terms × operations × 2 sine/cosine pairs per texel at 512²; the visual pass marches 11 steps plus 4 bisections of periodic bilinear lookups.
+Native M3 Pro, whole frame including post (`profile-families.mjs --types`, quiet GPU, 2026-10-14): p50 3.1–3.8 ms at 1080p against 2.0–2.3 ms for the `metamorphosis` control (ratio ≤ 1.8); before the rework 2.9–6.0 ms (ratio ≤ 3.0). At 4K: 9.5–12.0 ms against 4.8–5.3 ms control; the old shader measured 9.4–17.3 ms in the same run. The traced exposure (2026-10-15, quieter GPU, `--reference HEAD` in the same session): 1080p 2.7–3.7 ms against control 1.5 ms (ratio ≤ 2.5; about +0.3 ms, the 32-ray statistics texels are latency-bound), 4K 8.0–10.0 ms against 7.0–9.2 ms before and 3.4–3.8 ms control (+0.8–1.1 ms, mostly the 16 statistics fetches per pixel; one fetch is free, 4 or 8 texels with more rays each cost as much through latency). The data pass costs terms × operations × 2 sine/cosine pairs per texel at 512²; the visual pass marches 11 steps plus 4 bisections of periodic bilinear lookups.
 
 ## Limits
 
-- Brightness still depends on the instantaneous pattern (see energy above).
+- Brightness follows the pattern only weakly now; rare degenerate moments (p4g at about 81 s of the probe: a nearly flat relief with almost no crest light) stay dim because the exposure is capped at 3×.
 - Phase spins, yaw and coefficient eras still use `mod(u_time, 3600)` and jump once an hour, as before.
 - Axes and symbols are thin at preview resolution by design (they scale with output resolution).
 
