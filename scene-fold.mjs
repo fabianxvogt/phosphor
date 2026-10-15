@@ -203,7 +203,10 @@ void main(){
   float key=max(dot(N,K),0.);
   float pool=I/(1.+.35*l2);
   col=paper*(.2+1.3*key)*(1.-.6*ss(1.,2.,dev))+coreC*pool*max(dot(N,L),0.)*.2;
-  col+=mix(u_primary,vec3(1.),.4)*lines*(.07+.08*key+.2*pool)*u_params[5]*(1.-ss(6.,16.,dist));
+  // The Sheet's high camera sees the creases from further away, and the
+  // calm state lights them more (no core yet).
+  float calm=1.-ss(.3,1.,dev);
+  col+=mix(u_primary,vec3(1.),.4)*lines*(.07+.04*calm+.08*key+.2*pool)*u_params[5]*(1.-ss(mix(6.,12.,calm),mix(16.,28.,calm),dist));
   // Glossy sheet: the core reflects as a long streak towards the camera.
   vec3 Rv=reflect(-V,N)-L,rt=normalize(cross(vec3(0.,1.,0.),V));
   float sx=dot(Rv,rt),sy=length(Rv-rt*sx);
@@ -230,7 +233,7 @@ void main(){
   float edge=mix(v_bary.x,edgeS,ss(0.,.3,e));
   float w=fwidth(edge);
   float rim=(1.-smoothstep(0.,w*1.6,edge))*smoothstep(.6,.15,w);
-  float rimG=u_params[5]*(.55+.7*ss(.3,1.,dev)+1.4*e*(.4+att))*(1.+1.5*u_rhythm.x);
+  float rimG=u_params[5]*(1.15+.1*ss(.3,1.,dev)+1.4*e*(.4+att))*(1.+1.5*u_rhythm.x);
   vec3 rimC=mix(pal(.2+.5*fract(rnd*5.3)),vec3(1.),.45);
   col+=mix(rimC,u_accent,.25*u_rhythm.x)*rim*rimG;
   // Shards glow as they stream; the trailing end fades into a streak.

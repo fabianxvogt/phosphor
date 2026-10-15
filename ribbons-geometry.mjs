@@ -46,9 +46,10 @@ export function blend(development) {
   const a = Math.min(1, Math.floor(d));
   return { a, w: smoothstep(0, 1, d - a) };
 }
-// Fraction of ribbons shown: sparse wings, a fuller vortex, the whole labyrinth.
+// Fraction of ribbons shown: sparse wings, a fuller vortex, the labyrinth
+// (about 90 %: the full set made the Thomas tangle unreadable).
 export const shown = (development) =>
-  0.42 + 0.26 * smoothstep(0.1, 1, development) + 0.4 * smoothstep(1.1, 2, development);
+  0.42 + 0.26 * smoothstep(0.1, 1, development) + 0.2 * smoothstep(1.1, 2, development);
 // A ribbon of rank ρ ∈ [0, 1) appears over a band of 0.06 as `shown` passes it.
 export const presence = (rank, development) =>
   smoothstep(rank, rank + 0.06, shown(development) + 0.06 * (1 - rank) - 0.0001);
@@ -86,8 +87,8 @@ export function camera(development, params, yawPhase, driftPhase) {
     drift = 2 * Math.PI * driftPhase;
   const dist =
     params.distance *
-    (3.0 + (2.9 - 3.0) * mid + (2.05 - 2.9) * peak) *
-    (1 + 0.16 * peak * Math.sin(2 * yaw + drift));
+    (3.0 + (2.9 - 3.0) * mid + (2.45 - 2.9) * peak) *
+    (1 + 0.1 * peak * Math.sin(2 * yaw + drift));
   const pitch = Math.min(
     1.3,
     Math.max(
@@ -105,7 +106,7 @@ export function camera(development, params, yawPhase, driftPhase) {
     -0.14 * (1 - mid) - 0.15 * peak + 0.08 * peak * Math.sin(drift),
     0.15 * peak * Math.cos(1.3 * yaw + 0.5),
   ];
-  const focal = 2.1 + (1.75 - 2.1) * mid + (1.55 - 1.75) * peak;
+  const focal = 2.1 + (1.75 - 2.1) * mid + (1.5 - 1.75) * peak;
   return { eye, target, focal, dist, pitch };
 }
 // Ribbons thin to nothing near the eye, so a fly-through never fills the lens.

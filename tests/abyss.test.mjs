@@ -24,6 +24,7 @@ import {
   reef,
   reefGrowth,
   rnd,
+  settleY,
   vertexCounts,
 } from "../abyss-geometry.mjs";
 
@@ -140,6 +141,25 @@ test("identity is independent of development; growth and reveal are continuous a
       last = next;
     }
   }
+});
+
+test("Reef settles medusae into a band above the reef, continuously", () => {
+  for (let i = 0; i < NJ + NS; i += 3) {
+    const y = jelly(61, i).anchor[1];
+    assert.equal(settleY(y, 0), y);
+    assert.equal(settleY(y, 1.2), y);
+    const reefY = settleY(y, 2);
+    // Settled bells hover above the reef tops and below the camera's eye
+    // line plus a margin, so near animals stay inside the tilted frame.
+    assert.ok(reefY > -1.6 && reefY < 0.45, `jelly ${i} at ${reefY}`);
+    let last = y;
+    for (let k = 1; k <= 400; k++) {
+      const next = settleY(y, k / 200);
+      assert.ok(Math.abs(next - last) < 0.03);
+      last = next;
+    }
+  }
+  assert.ok(scene.geometry.vertex.includes("dSettle(") && scene.simulation.fragment.includes("dSettle("));
 });
 
 test("seabed and camera path are periodic, so the glide is endless", () => {

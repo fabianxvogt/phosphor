@@ -101,6 +101,9 @@ float dMinPx() { return max(1., 1.4 * min(u_resolution.x, u_resolution.y) / 1080
 // Kick latch envelope (0..1) written by the simulation on rising kicks.
 float dBeatEnv() { return texelFetch(u_state, ivec2(6, 0), 0).r; }
 float dCurve(float ph) { return ph < .18 ? dSS(0., .18, ph) : 1. - dSS(.18, .9, ph); }
+// Reef: medusae settle into a lower, flatter band above the reef, so the
+// tilted camera keeps near animals inside the frame (CPU mirror settleY).
+float dSettle(float y, float dev) { return mix(y, -.25 + .35 * (y - .8), dSS(1.2, 2., dev)); }
 // ---- medusae ----
 struct DJelly { vec3 c, ax, ex, ez; float R, L, h, reveal, own, syn, lock, kick, beat; bool swarm; };
 DJelly dJelly(int i, float dev, float Z, float swarmParam, float rhythmX) {
@@ -117,7 +120,7 @@ DJelly dJelly(int i, float dev, float Z, float swarmParam, float rhythmX) {
     j.R = lone ? .9 + .15 * h5 : .3 + .45 * h5 * h5;
     float side = dRnd(id, 2u) < .5 ? -1. : 1.;
     float gap = 1.9 + j.R + (lone ? .3 + 1.2 * h3 : 4.5 * h3 * sqrt(h3));
-    anchor = vec3(dCamX(z) + side * gap, lone ? .8 + 1.4 * dRnd(id, 4u) : -1.3 + 4. * dRnd(id, 4u), z);
+    anchor = vec3(dCamX(z) + side * gap, dSettle(lone ? .8 + 1.4 * dRnd(id, 4u) : -1.3 + 4. * dRnd(id, 4u), dev), z);
     birth = lone ? -1. : .3 + .65 * dRnd(id, 6u);
     j.reveal = lone ? 1. : dSS(birth - .25, birth + .05, dev);
   } else {
@@ -126,7 +129,7 @@ DJelly dJelly(int i, float dev, float Z, float swarmParam, float rhythmX) {
     float gz = fract(float(g) * .618034 + .11) * D_PERIOD;
     float radius = 1.2 + .8 * dRnd(gid, 3u);
     float side = dRnd(gid, 1u) < .5 ? -1. : 1.;
-    vec3 centre = vec3(dCamX(gz) + side * (2.1 + radius + 4.5 * dRnd(gid, 2u)), -1.3 + 3. * dRnd(gid, 4u), gz);
+    vec3 centre = vec3(dCamX(gz) + side * (2.1 + radius + 4.5 * dRnd(gid, 2u)), dSettle(-1.3 + 3. * dRnd(gid, 4u), dev), gz);
     float u = 2. * dRnd(id, 1u) - 1., a = D_TAU * dRnd(id, 2u), s = sqrt(max(0., 1. - u * u));
     float r = radius * pow(dRnd(id, 3u), 1. / 3.);
     anchor = centre + vec3(s * cos(a) * r, u * r * .6, s * sin(a) * r * 1.3);
@@ -216,7 +219,9 @@ float dCaustic(vec2 p, uint S) {
   float a = sin(q.x * 2.1 + t1) + sin(q.y * 1.8 - t2) + sin((q.x + q.y) * 1.4 + t1 + t2);
   vec2 r = p * 1.7 + vec2(1.3, .7) + .3 * vec2(sin(p.y * 2.3 - t2), sin(p.x * 1.9 + t1));
   float b = sin(r.x * 2.3 - t2) + sin(r.y * 2.6 + t1) + sin((r.x - r.y) * 1.6 + t2);
-  return pow(1. - abs(a) / 3., 7.) + .6 * pow(1. - abs(b) / 3., 9.);
+  float x = 1. - abs(a) / 3., y = 1. - abs(b) / 3.;
+  float x2 = x * x, y2 = y * y, y4 = y2 * y2;
+  return x * x2 * x2 * x2 + .6 * y * y4 * y4; // x^7 + .6 y^9 without pow
 }
 // Water colour seen along a direction: near-black depth, surface light far
 // above (Reef) and the reef's glow haze below the horizon.
@@ -231,26 +236,30 @@ vec3 dWater(vec3 rd, float dev) {
 }
 float dFog(float dist) { return max(1. - exp(-dist * .06), dSS(34., 58., dist)); }
 // ---- light waves: four slots of expanding shells (texels 3,4,7,8) ----
+// Texels 5 and 9 hold each slot's origin z, texels 10–13 its seeded x and y
+// offset (written once at the trigger, so no pixel re-hashes the origin).
 float dUnpack16(vec2 b) { return dot(b, vec2(256., 1.)) * (255. / 65535.); }
 int dWaveTexel(int k) { return k < 2 ? 3 + k : 5 + k; }
-float dWaveLight(vec3 p, float Z, float dev, float react) {
+const float D_WAVE_X = 6., D_WAVE_Y = .7;
+// Shell half-width .55; a wider width gives a conservative envelope.
+float dWaveShell(vec3 p, float Z, float dev, float react, float width) {
   vec4 oa = texelFetch(u_state, ivec2(5, 0), 0), ob = texelFetch(u_state, ivec2(9, 0), 0);
-  float best = 0.;
+  float best = 0., y0 = mix(.3, -2.1, dSS(1., 2., dev)), speed = 3.4 * (.75 + .25 * min(react, 1.5));
   for (int k = 0; k < 4; k++) {
     vec4 w = texelFetch(u_state, ivec2(dWaveTexel(k), 0), 0);
     float age = dUnpack16(w.rg) * 8.;
     if (age > 7.9 || w.b <= 0.) continue;
-    uint wc = uint(w.a * 255. + .5);
+    vec4 xy = texelFetch(u_state, ivec2(10 + k, 0), 0);
     vec2 packed = k == 0 ? oa.rg : k == 1 ? oa.ba : k == 2 ? ob.rg : ob.ba;
     float oz = dRel(dUnpack16(packed) * D_PERIOD, Z);
-    vec3 o = vec3(dCamX(oz + Z) + (dRnd(4500u + wc, 2u) - .5) * 7.,
-      mix(.3, -2.1, dSS(1., 2., dev)) + (dRnd(4500u + wc, 3u) - .5) * 1.4, oz);
-    float radius = age * 3.4 * (.75 + .25 * min(react, 1.5));
-    float shell = exp(-pow((length(p - o) - radius) / .55, 2.));
-    best = max(best, shell * w.b * (1. - age / 7.9));
+    vec3 o = vec3((2. * dUnpack16(xy.rg) - 1.) * D_WAVE_X, y0 + (2. * dUnpack16(xy.ba) - 1.) * D_WAVE_Y, oz);
+    float radius = age * speed;
+    float x = (length(p - o) - radius) / width;
+    best = max(best, exp(-x * x) * w.b * (1. - age / 7.9));
   }
   return best;
 }
+float dWaveLight(vec3 p, float Z, float dev, float react) { return dWaveShell(p, Z, dev, react, .55); }
 // ---- plankton (simulation and particles share the placement) ----
 vec3 dPlankton(int idx, float dev, float Z, uint S) {
   uint id = uint(idx);
@@ -340,6 +349,9 @@ void main() {
       v_n = a_s.xyz;
       v_i.z = a_r.w * dGrow(a_s.w, dev);
       v_l = vec4(root.xy, root.z + shift, 0.);
+      // Envelope of the light-wave rings (grid spacing <= .67): the floor
+      // evaluates the exact rings only where this is lit.
+      v_fade = dWaveShell(v_l.xyz, c.Z, dev, clamp(u_params[4], 0., 2.5), 1.4);
     } else {
       float g = dGrow(a_k.w, dev);
       if (g < .002) { gl_Position = HIDDEN; return; }
@@ -350,8 +362,11 @@ void main() {
       // Reef cascade: a light front sweeps outwards from the camera.
       float front = (1. - u_rhythm.z) * 30.;
       vec3 rootRel = vec3(root.x, root.y, root.z + shift);
-      v_i.w = max(u_rhythm.z * exp(-pow((length(rootRel - c.p) - front) / 2.5, 2.)),
-        dWaveLight(rootRel, c.Z, dev, clamp(u_params[4], 0., 2.5)));
+      float fx = (length(rootRel - c.p) - front) / 2.5;
+      v_i.w = max(u_rhythm.z * exp(-fx * fx), dWaveLight(rootRel, c.Z, dev, clamp(u_params[4], 0., 2.5)));
+      // Caustic light at the root (tubes and sea-pen leaves; ribbons overwrite v_fade).
+      float shaftsV = dShaftReveal(dev);
+      v_fade = shaftsV > .001 ? dCaustic(root.xz * .55 + root.y * vec2(.12, .05), S) * shaftsV : 0.;
       if (kind < 1.5) {
         float s = a_l.y, ang = a_l.x * D_TAU / 5. + yaw;
         vec3 radial = vec3(cos(ang), 0., sin(ang));
@@ -421,10 +436,11 @@ void main() {
     float len = (9. - D_FLOOR + .3) / abs(ax.y);
     p = top + ax * a_l.x * len;
     vec3 side = normalize(cross(ax, p - c.p));
-    p += side * a_l.y * dShaftWidth(id);
+    // Trimmed to |side| <= .8, where the profile has fallen to zero.
+    p += side * a_l.y * .8 * dShaftWidth(id);
     v_q = p - c.p;
     v_i = vec4(kind, dRnd(id, 0u), rev, 0.);
-    v_l = vec4(a_l.xy, dot(p - c.p, c.f), 0.);
+    v_l = vec4(a_l.x, a_l.y * .8, dot(p - c.p, c.f), 0.);
     gl_Position = dProject(c, p);
     return;
   }
@@ -459,14 +475,18 @@ void main() {
   // ---- medusae: tentacles, oral arms, bells ----
   int ji = int(a_k.y);
   DJelly j = dJelly(ji, dev, c.Z, u_params[3], u_rhythm.x);
-  if (j.reveal < .002) { gl_Position = HIDDEN; return; }
   // Wrap the whole animal by its anchor z.
   float az = j.c.z;
   float shift = dRel(az, c.Z) - az;
   j.c.z += shift;
+  // Before they bloom, large medusae glow faintly in the distance and go
+  // dark as the camera nears (distant life in the Sparks breakdown).
+  float ghost = (j.swarm ? .7 : .9) * dSS(5., 11., length(j.c - c.p));
+  float shown = max(j.reveal, ghost);
+  if (shown < .002) { gl_Position = HIDDEN; return; }
   uint id = uint(ji);
   float accent = (!j.swarm && dRnd(id, 11u) < .25) ? 1. : 0.;
-  v_i = vec4(kind, j.h, j.reveal, accent * 4. + j.beat);
+  v_i = vec4(kind, j.h, shown, accent * 4. + j.beat);
   float flash = dWaveLight(j.c, c.Z, dev, clamp(u_params[4], 0., 2.5));
   if (kind < 9.5) {
     float s = a_l.y, side = a_l.z;
@@ -543,9 +563,13 @@ void main() {
   float shafts = dShaftReveal(dev);
   vec3 col = vec3(0.);
   if (kind < 3.9) {
+    // Fully fogged seabed is just water.
+    if (fog > .985) { outColor = vec4(dWater(-V, dev), 1.); return; }
     vec3 N = normalize(v_n);
     if (dot(N, V) < 0. && kind > .5) N = -N;
-    float caust = dCaustic(v_w.xz * .55 + v_w.y * vec2(.12, .05), S) * shafts;
+    // Caustics exist only under the shafts and fade with the fog.
+    float caust = kind > .5 ? v_fade
+      : shafts * (1. - fog) > .01 ? dCaustic(v_w.xz * .55 + v_w.y * vec2(.12, .05), S) * shafts : 0.;
     if (kind < .5) {
       // Seabed: dark sediment, glow pools around the reef, caustics.
       float grain = h1(floor(v_w.x * 9.) + floor(v_w.z * 9.) * 57.);
@@ -554,7 +578,7 @@ void main() {
       col += mix(u_secondary, vec3(1.), .45) * caust * .11 * max(N.y, 0.);
       // Edge of the seabed grid fades into the water.
       // Light waves sweep across the seabed as luminous rings.
-      float ring = dWaveLight(v_l.xyz, dCycle(dWord(0), 1u) * D_PERIOD, dev, clamp(u_params[4], 0., 2.5));
+      float ring = v_fade > .015 ? dWaveLight(v_l.xyz, dCycle(dWord(0), 1u) * D_PERIOD, dev, clamp(u_params[4], 0., 2.5)) : 0.;
       col += mix(dPal(.4 + .2 * rnd), vec3(1.), .15) * ring * .22 * glowP;
       col = mix(col, dWater(V * -1., dev), dSS(17., 23., abs(v_w.x)));
     } else if (kind < 1.5) {
@@ -621,7 +645,7 @@ void main() {
   if (kind < 5.5) {
     // ---- light shaft ----
     float s = v_l.x, side = v_l.y, depth = v_l.z;
-    float prof = exp(-side * side * 2.6) * (1. - side * side);
+    float prof = exp(-side * side * 2.6) * max(1. - side * side / .64, 0.);
     float flick = .65 + .35 * sin(D_TAU * (dCycle(S, 97u) + rnd) + s * 4.);
     float a = prof * dSS(0., .4, s) * (1. - dSS(.62, .97, s)) * flick * dSS(.5, 4., depth);
     col = mix(u_secondary, vec3(1.), .4) * .3 * a * v_i.z;
@@ -723,6 +747,7 @@ void main() {
   bool trigger = kickWave || gesture;
   int slot = int(latch.b * 3. + .5);
   float Z = dCycle(dWord(0), 1u) * D_PERIOD;
+  float waveZ = fract((Z + 8. + 5. * dRnd(4500u + beatNow, 1u)) / D_PERIOD);
   if (id < D_RESERVED) {
     if (id <= 2) {
       uint w = dWord(id);
@@ -743,10 +768,18 @@ void main() {
       } else outColor = vec4(pack16(age / 8.), strength, old.a);
     } else if (id == 5 || id == 9) {
       vec4 o = u_reset ? vec4(0.) : old;
-      float z = fract((Z + 8. + 5. * dRnd(4500u + beatNow, 1u)) / D_PERIOD);
       int base = id == 5 ? 0 : 2;
-      if (trigger && slot == base) o.rg = pack16(z);
-      if (trigger && slot == base + 1) o.ba = pack16(z);
+      if (trigger && slot == base) o.rg = pack16(waveZ);
+      if (trigger && slot == base + 1) o.ba = pack16(waveZ);
+      outColor = o;
+    } else if (id >= 10 && id < 14) {
+      // Seeded origin offsets of the wave in slot id − 10.
+      vec4 o = u_reset ? vec4(0.) : old;
+      if (trigger && slot == id - 10) {
+        float x = dCamX(dUnpack16(pack16(waveZ)) * D_PERIOD) + (dRnd(4500u + beatNow, 2u) - .5) * 7.;
+        float y = (dRnd(4500u + beatNow, 3u) - .5) * 1.4;
+        o = vec4(pack16(.5 + .5 * x / D_WAVE_X), pack16(.5 + .5 * y / D_WAVE_Y));
+      }
       outColor = o;
     } else if (id == 6) {
       float env = u_reset ? 0. : latch.r * exp(-u_dt * 5.);
@@ -820,19 +853,19 @@ void main() {
     float zr = mod(h4 * 32. - Z + 2., 32.) - 2.;
     p = vec3((h3 - .5) * 26. + .3 * dWave(S, 31u, h1), D_FLOOR - .2 + 9.6 * yf, zr);
     float edge = dSS(0., .06, yf) * dSS(1., .9, yf) * dSS(30., 18., zr) * dSS(13., 10., abs(p.x - c.p.x));
-    float light = .065 + .5 * dShaftReveal(dev) * min(dShaftLight(p, Z), 2.);
+    float light = .065 + .2 * (1. - dSS(.3, 1.2, dev)) + .5 * dShaftReveal(dev) * min(dShaftLight(p, Z), 2.);
     light += .06 * dSS(1.2, 2., dev) * dSS(-1., -2.7, p.y);
     col = mix(u_secondary, vec3(1.), .55) * light * edge;
-    size = .01 + .012 * h1;
+    size = (.01 + .012 * h1) * (1. + .4 * (1. - dSS(.3, 1.2, dev)));
   } else {
     // Bioluminescent plankton: disturbance glow from the simulation.
     p = dPlankton(id, dev, Z, S);
     float h7 = dRnd(uid, 60u), h8 = dRnd(uid, 54u);
     vec4 st = texelFetch(u_state, ivec2(id % ${SIZE[0]}, id / ${SIZE[0]}), 0);
     float g = unpack16(st.rg);
-    float base = .018 + .057 * dSS(.5, 1.2, dev);
+    float base = .018 + .03 * (1. - dSS(.3, 1., dev)) + .057 * dSS(.5, 1.2, dev);
     float blink = 0.;
-    if (h7 < .05 + .07 * (1. - dSS(.3, 1.2, dev))) {
+    if (h7 < .05 + .15 * (1. - dSS(.3, 1.2, dev))) {
 #ifdef PHOSPHOR_LATE
       float t = u_time * (.25 + .3 * h8) + h7 * 97.;
 #else
@@ -842,10 +875,11 @@ void main() {
       blink = step(.55 - .2 * (1. - dSS(.3, 1.2, dev)), fract(sin(slot * 12.9898 + h8 * 78.2) * 43758.5453)) * pow(sin(D_PI * fract(t)), 8.);
     }
     vec3 pc = dPal(.25 + .4 * h8);
-    float e = base + 3.6 * g + 1.6 * blink;
+    float spark = 1. - dSS(.3, 1.2, dev);
+    float e = base + 3.6 * g + (1.6 + 1.2 * spark) * blink;
     col = pc * e + vec3(.45) * g * g;
     col *= dSS(-D_BACK + .5, -D_BACK + 2., p.z) * dSS(46., 36., p.z);
-    size = .011 + .03 * max(g, blink);
+    size = .011 + .03 * max(g, blink * (1. + .6 * spark));
   }
   vec4 q = dProject(c, p);
   if (q.w < .08) return;

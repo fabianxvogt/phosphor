@@ -4,7 +4,7 @@
 
 ## Algorithm and signature detail
 
-32 767 birds simulated on the GPU. Each bird has four RGBA8 texels holding 16-bit position, velocity, startle timer T and bank angle, written with unbiased stochastic rounding; texel 0 is an exact 32-bit clock. The birds are drawn as banking, flapping bird meshes through the existing geometry path: twelve vertices per bird, read from the state texture, with a minimum projected size of about 2.6 px at 1080p. [murmuration-model.mjs](../../murmuration-model.mjs) is the CPU mirror of the per-bird step; [scene-murmuration.mjs](../../scene-murmuration.mjs) is the shader.
+32 767 birds simulated on the GPU. Each bird has four RGBA8 texels holding 16-bit position, velocity, startle timer T and bank angle, written with unbiased stochastic rounding; texel 0 is an exact 32-bit clock. The birds are drawn as banking, flapping bird meshes through the existing geometry path: twelve vertices per bird, read from the state texture, with a minimum projected size of about 3 px at 1080p and cheap antialiasing for small birds (below). [murmuration-model.mjs](../../murmuration-model.mjs) is the CPU mirror of the per-bird step; [scene-murmuration.mjs](../../scene-murmuration.mjs) is the shader.
 
 - **Topological neighbours.** Every bird keeps the same eight neighbours for ever: its neighbours on a 256×128 torus lattice. Starlings are reported to track about seven topological neighbours (Ballerini et al. 2008). Alignment, rest-length springs and short-range separation act only between lattice neighbours, so the flock is one crumpled sheet that fills space without collapsing.
 - **Startle waves (signature).** The lattice is an excitable medium. A resting bird fires when a neighbour fired on the previous step, then stays refractory for 1 s. A wave therefore crosses the flock one neighbour per step, about 60 lattice cells per second. Firing birds roll and catch the light, so a bright band races across the cloud or round the vortex. Waves are triggered by the falcon, by an automatic seeded startle every 4.5 s in Surge and Formation, and by the Startle-wave and Falcon-strike rhythm tracks.
@@ -21,6 +21,17 @@
 - **Camera:** it orbits the flock's moving home from a low eye (120 s), with the horizon in the lower third. At Formation it dives every 48 s through the vortex wall to the inside of the ring, with a wider lens. Birds near the lens shrink rather than fill the screen. The kick widens the lens by at most 2 %.
 - **Energy:** visible birds 55 % → 100 % (fading by size), motion speed through the integrated clock, falcon strength, fold depth.
 - **Faders:** Motion speed, Falcon, Formation.
+
+## Small birds (polish 2026-10-15)
+
+Distant birds were 3-px templates whose body (0.2 units wide) and wing chords (0.06–0.28) were sub-pixel slivers flickering in and out of pixels, with specular and iridescent glints twinkling on single pixels. Now:
+
+- **Thickness floor:** below about 9 px per template unit (1080p) body width and wing chord thicken by up to 3×, so every part stays about 2 px thick.
+- **Coverage:** a bird drawn larger or thicker than it is spreads its light (`v_cover` = 1/(grow · fat)) and fades toward the sky colour behind it (to 45–100 %).
+- **Edge antialiasing:** barycentrics from `gl_VertexID` fade outer edges over about a pixel; inner edges (body centre line, wing roots) are held at 1, so large birds show no seams. Dense clouds have birds rather than sky behind those edges, so edges fade only halfway.
+- **No glints on sub-pixel birds:** sheen, fresnel and iridescence fade to their means as coverage drops.
+
+Measured at 1920×1080 on the GPU, 8 frames 2 ms apart (temporal second difference |d²Y| in 8-bit): Surging Cloud 1.39 → 1.27, High Cloud 1.08 → 0.97, Evening Roost 0.96 → 0.83, Vortex Mill 3.06 → 2.86 (−6 to −14 %, the rest is real motion); isolated bright single-pixel glints are gone in close-ups. Mean brightness drops 1–8 %. Throughput unchanged within noise (1080p 1.8–2.3 ms, 4K 4.1–4.3 ms against 3.8–4.1 ms before; control 1.5 / 3.4–3.8 ms).
 
 ## Looks
 
@@ -47,4 +58,4 @@ The films are from `node scripts/world-film.mjs --world murmuration --rig` and `
 
 - No spatial neighbour search: birds that are not lattice neighbours can overlap.
 - The GLSL is a hand port of the CPU step; the tests exercise the model, while the films and ladder exercise the shader.
-- Shading is per triangle with no anti-aliasing, so distant birds alias slightly.
+- Edge antialiasing blends toward the sky colour, not toward birds behind; overlapping birds in dense bands therefore get slightly darker edges. Distant birds are thicker than real starlings by design.

@@ -171,6 +171,12 @@ export function reefGrowth(birth, development) {
   const b = Math.min(1, Math.max(0, birth));
   return smooth(0.8 + 0.85 * b, 1.15 + 0.85 * b, development);
 }
+// Shader mirror (dSettle): at Reef, medusae and swarm centres settle into a
+// lower, flatter band above the reef so the tilted camera keeps near animals
+// in frame. Identity below development 1.2; continuous and reversible.
+export function settleY(y, development) {
+  return y + (-0.25 + 0.35 * (y - 0.8) - y) * smooth(1.2, 2, development);
+}
 // Reveal of a medusa (light-up and scale) with the swarm-density boost.
 export function jellyReveal(j, development, swarm = 0.5) {
   if (!j.swarm) return j.birth < 0 ? 1 : smooth(j.birth - 0.25, j.birth + 0.05, development);

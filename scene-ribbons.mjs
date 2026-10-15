@@ -153,7 +153,7 @@ void main() {
   float side = corner == 2 || corner == 3 || corner == 5 ? 1. : -1.;
   float dev = clamp(u_params[0], 0., 2.);
   // Development shows more ribbons: sparse wings, fuller vortex, labyrinth.
-  float shown = .42 + .26 * smoothstep(.1, 1., dev) + .4 * smoothstep(1.1, 2., dev);
+  float shown = .42 + .26 * smoothstep(.1, 1., dev) + .2 * smoothstep(1.1, 2., dev);
   float presence = smoothstep(a_rank, a_rank + .06, shown + .06 * (1. - a_rank) - .0001);
   if (presence <= 0.) return;
   int ka = min(int(dev), 1);
@@ -178,7 +178,7 @@ void main() {
   // Camera (mirrors camera() in ribbons-geometry.mjs).
   float mid = smoothstep(0., 1., dev), peak = smoothstep(1., 2., dev);
   float yaw = .7 + (.6 + .9 * mid) * sin(TAU * global(1)), drift = TAU * global(2);
-  float dist = u_params[7] * mix(mix(3., 2.9, mid), 2.05, peak) * (1. + .16 * peak * sin(2. * yaw + drift));
+  float dist = u_params[7] * mix(mix(3., 2.9, mid), 2.45, peak) * (1. + .1 * peak * sin(2. * yaw + drift));
   float pitch = clamp(.12 + .2 * mid + (u_params[6] - .35) + (.1 + .12 * peak) * sin(drift), -.4, 1.3);
   vec3 eye = dist * vec3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw));
   vec3 target = vec3(.15 * peak * sin(1.3 * yaw + .5), -.14 * (1. - mid) - .15 * peak + .08 * peak * sin(drift), .15 * peak * cos(1.3 * yaw + .5));
@@ -186,7 +186,7 @@ void main() {
   vec3 fwd = normalize(target - eye);
   vec3 right = normalize(cross(fwd, vec3(sin(roll), cos(roll), 0.)));
   vec3 up = cross(right, fwd);
-  float focal = mix(mix(2.1, 1.75, mid), 1.55, peak) * (1. + .022 * u_kick);
+  float focal = mix(mix(2.1, 1.75, mid), 1.5, peak) * (1. + .022 * u_kick);
   float minSide = min(u_resolution.x, u_resolution.y);
 
   // A camera-facing band, shaded as a tube (see the surface pass).
@@ -195,7 +195,7 @@ void main() {
   vec3 W = cross(T, toCam);
   W = length(W) > 1e-6 ? normalize(W) : right;
   float head = 1. - smoothstep(0., .035, s);
-  float width = .015 * u_params[4] * (1. - .3 * peak) * mix(1., .3, s) * (1. - .75 * head * head) * presence * p0.w;
+  float width = .015 * u_params[4] * (1. - .12 * peak) * mix(1., .3, s) * (1. - .75 * head * head) * presence * p0.w;
   width *= smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, depth);
   float minWidth = 1.2 * depth / (focal * .5 * minSide);
   v_cover = clamp(width / minWidth, 0., 1.);
@@ -213,7 +213,7 @@ void main() {
   v_toCam = vec3(dot(c, right), dot(c, up), -dot(c, fwd));
   v_across = side;
   v_s = s;
-  v_fog = depth - dist;
+  v_fog = (depth - dist) * (1. + .6 * peak); // stronger depth layering in the labyrinth
   v_speed = clamp(speed, 0., 2.);
   v_head = head;
   v_rank = a_rank;

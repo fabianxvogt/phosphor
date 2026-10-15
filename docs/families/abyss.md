@@ -17,11 +17,11 @@ Medusae, swarms, chains, shafts and plankton are placed by a seeded integer hash
 
 | Development | State | Form |
 | --- | --- | --- |
-| 0 | Sparks | Near-total darkness, marine snow, single blinking plankton, five lone medusae drifting past. |
+| 0 | Sparks | Near-total darkness, marine snow, blinking plankton, five lone medusae drifting past; the other large medusae and the swarms glow faintly far away and go dark as the camera nears. |
 | 1 | Swarms | Every large medusa has lit up (jellyfish bloom), siphonophore chains, plankton clouds that light where disturbed, first swarm members. |
-| 2 | Reef | The camera sinks and tilts towards a glowing reef forest; full swarms pulse on the beat, light waves ripple through plankton, reef and seabed, shafts and caustics from above. |
+| 2 | Reef | The camera sinks and tilts towards a glowing reef forest; medusae settle into a lower band just above the reef; full swarms pulse on the beat, light waves ripple through plankton, reef and seabed, shafts and caustics from above. |
 
-In between, medusae light up in birth order, plankton visibly gathers, reef patches grow from their roots and the camera lowers continuously. `reefGrowth` and `jellyReveal` are the CPU mirrors (pure functions, so reversal retraces the same frames; a paused 0.5 → 1.7 → 0.5 redraw is pixel-identical on the GPU).
+In between, medusae light up in birth order, plankton visibly gathers, reef patches grow from their roots and the camera lowers continuously; from development 1.2 the medusae and swarm centres settle (y → −0.25 + 0.35·(y − 0.8)), so the tilted Reef camera keeps near bells inside the top of the frame. `reefGrowth`, `jellyReveal` and `settleY` are the CPU mirrors (pure functions, so reversal retraces the same frames; a paused 0.5 → 1.7 → 0.5 redraw is pixel-identical on the GPU).
 
 ## Looks
 
@@ -46,14 +46,16 @@ Both restore GL state; `tests/browser/abyss-layers.test.mjs` checks state restor
 
 About 586k vertices (316k opaque reef/seabed, 270k additive), 65 536 points, one 256² simulation pass per tick (plankton test 40 bells and four waves). Geometry creation takes about 0.25 s of CPU per seed (cached per seed).
 
-Indicative whole-frame throughput (`profile-families.mjs --types --frames 30`, native M3 Pro shared with other lanes; control Living Forms in the same run):
+The fill cost is mostly the opaque seabed shader, not the translucent overdraw (measured by removing parts, 4K, A/B in one browser): seabed ≈ 0.8–1.1 ms (caustics ≈ 0.5, light-wave rings ≈ 0.5), fans, shafts, bells or particles alone ≤ 0.3 ms each. Polish 2026-10-15: the light-wave origins are written once per trigger into state texels 10–13 instead of being re-hashed per pixel; the seabed evaluates the exact rings only where a per-vertex envelope (shell width 1.4 instead of 0.55, conservative for the 0.67 grid) is lit; caustics skip fogged seabed and are evaluated per vertex for tubes and sea-pen leaves (their input is the constant root); `pow` in the caustic became multiplications; fully fogged seabed returns the water colour; shafts are trimmed to the 80 % of their width where the profile is non-zero. Interleaved A/B at 4K: Reef 7.5–8.1 → 7.0–7.6 ms (−0.3 to −0.5 ms, about −5 %), Sparks −0.1 to −0.3 ms.
+
+Whole-frame throughput (`profile-families.mjs --types --frames 30`, M3 Pro, control Living Forms in the same run; the GPU was quieter than in the wave-2 run, so compare ratios):
 
 | Output | Sparks | Swarms | Reef | Control |
 | --- | --- | --- | --- | --- |
-| 1920×1080 p50 / p95 | 2.9 / 3.1 ms | 3.5 / 3.7 ms | 4.2 / 4.5 ms | 2.1–2.5 / ≤ 3.4 ms |
-| 3840×2160 p50 / p95 | 6.8 / 7.2 ms | 7.6 / 8.3 ms | 8.3 / 8.6 ms | 4.9–5.1 / ≤ 5.6 ms |
+| 1920×1080 p50 / p95 | 2.2 / 2.5 ms | 2.7 / 2.9 ms | 3.0 / 3.2 ms | 1.5 / ≤ 1.8 ms |
+| 3840×2160 p50 / p95 | 4.6 / 4.8 ms | 5.3 / 5.4 ms | 6.0 / 6.1 ms | 3.4–3.8 / ≤ 4.1 ms |
 
-About 1.4–1.8× the control at 1080p (inside the 8 ms budget); Reef at 4K is slightly above 8 ms (additive overdraw of fans, bells and shafts is the fill cost).
+4K ratio to the control: 1.3–1.7× (Reef 1.6–1.7×; before the polish, HEAD in the same run: Reef 6.1 ms). The 8.0–8.3 ms reported in wave 2 was measured on a GPU shared with four other lanes (control 4.6–5.6 ms then); Reef stays under 8 ms at 4K here.
 
 ## Safety and endlessness
 
@@ -61,11 +63,11 @@ About 1.4–1.8× the control at 1080p (inside the 8 ms budget); Reef at 4K is s
 
 ## Verification
 
-- `node --test tests/abyss.test.mjs`: registration and continuous-world detection, preset bounds, deterministic finite seeded buffer with a seed-independent opaque split, lowbias32 against a BigInt reference, development-independent identity, continuous/monotone growth and reveal with the state counts, periodicity, camera clearance, constant loop caps.
-- GPU probe (native headless rig, 480×270): zero GL errors and non-finite values; a paused 0.5 → 1.7 → 0.5 redraw is pixel-identical (0 differing values; 1.7 differs); frames after 8 h of scene time render normally. Energy 0.1 (mean / peak / pixels above 25): First Sparks 1.7 / 231 / 0.4 % (deliberately near-black breakdown with one bright medusa), Medusa Bloom 5.7 / 245 / 3.6 %, Lantern Reef 23.4 / 243 / 23 %, Ghost Bells 4.7 / 239 / 2.8 %.
+- `node --test tests/abyss.test.mjs`: registration and continuous-world detection, preset bounds, deterministic finite seeded buffer with a seed-independent opaque split, lowbias32 against a BigInt reference, development-independent identity, continuous/monotone growth and reveal with the state counts, continuous Reef settling (identity below development 1.2, settled bells between −1.6 and 0.45), periodicity, camera clearance, constant loop caps.
+- GPU probe (native headless rig, 480×270): zero GL errors and non-finite values; a paused 0.5 → 1.7 → 0.5 redraw is pixel-identical (0 differing values; 1.7 differs); frames after 8 h of scene time render normally. Energy 0.1 (mean / peak / pixels above 25, 8-bit): First Sparks 2.1 / 255 / 1.1 % (before the 2026-10-15 polish 1.5 / 254 / 0.5 %; still a dark breakdown, now with distant medusae, a far swarm, brighter marine snow and more plankton blinks), Medusa Bloom 7.9 / 255 / 6.4 %, Lantern Reef 22.7 / 255 / 26.8 %, Ghost Bells 4.6 / 255 / 3.1 %.
 - Engine options: `PHOSPHOR_HEADLESS_RIG=1 PHOSPHOR_ABYSS_GPU=1 node --test tests/browser/abyss-layers.test.mjs`.
 - Energy ladder: `node scripts/contact.mjs --dist . --sheet ladder --family abyss --rig`. Films: `node scripts/world-film.mjs --world deep-sea --rig` and `--look "abyss:Abyssal Storm" --from 2 --to 2`.
 
 ## Limits
 
-Medusae may pass through each other inside a swarm; tentacles do not collide with the reef; plankton is lit only by the large bells, not by swarm members. The GLSL/JS hash mirror is exercised by the CPU clearance tests, not by a GPU readback. Multi-hour Stage endurance and 4K display cadence are unmeasured.
+Medusae may pass through each other inside a swarm; tentacles do not collide with the reef (settled Reef medusae hang their tentacles into the reef forest); distant Sparks medusae fade out as the camera approaches them rather than lighting up; plankton is lit only by the large bells, not by swarm members. The GLSL/JS hash mirror is exercised by the CPU clearance tests, not by a GPU readback. Multi-hour Stage endurance and 4K display cadence are unmeasured.
