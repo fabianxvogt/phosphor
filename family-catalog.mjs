@@ -54,6 +54,12 @@ export const FAMILY_CATALOG = {
     styles: ["organic", "spatial"],
     variants: ["Drop", "Plumes", "Nebula"],
   },
+  soap: {
+    algorithm: "Airy thin-film interference and tetrahedral Plateau foam",
+    description: "One iridescent bubble gathers draining films and Plateau junctions, then grows into a vaulted cathedral of luminous foam.",
+    styles: ["spatial", "organic"],
+    variants: ["Bubble", "Cluster", "Foam"],
+  },
   ferro: {
     algorithm: "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
     description: "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",

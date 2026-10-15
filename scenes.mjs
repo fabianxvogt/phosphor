@@ -4,6 +4,7 @@ import fold from "./scene-fold.mjs";
 import abyss from "./scene-abyss.mjs";
 import kinetic from "./scene-kinetic.mjs";
 import prism from "./scene-prism.mjs";
+import soap from "./scene-soap.mjs";
 import acid from "./scene-acid.mjs";
 import magnetic from "./scene-magnetic.mjs";
 import cathedral from "./scene-cathedral.mjs";
@@ -126,6 +127,7 @@ export default [
   escher,
   silk,
   ink,
+  soap,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

@@ -314,6 +314,16 @@ const AUTHORED = [
       { name: "Nebula", look: "ink:Nebula" },
     ],
   },
+  {
+    id: "soap-cathedral",
+    name: "Soap Cathedral",
+    description: "One iridescent bubble gathers draining films and Plateau junctions, then grows into a vaulted cathedral of luminous foam.",
+    states: [
+      { name: "Bubble", look: "soap:Bubble" },
+      { name: "Cluster", look: "soap:Cluster" },
+      { name: "Foam", look: "soap:Foam" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
