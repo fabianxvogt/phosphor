@@ -6,6 +6,7 @@ import { FAMILY_CATALOG } from "../family-catalog.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { shaderVariant } from "../scene-time.mjs";
+import { PALETTES } from "../palettes.mjs";
 import {
   MODULE,
   GEAR_BEVEL,
@@ -24,6 +25,8 @@ import {
   gearPose,
   orbitPosition,
   planetPosition,
+  armillaryPosition,
+  brassColor,
   sunPosition,
   sunIrradiance,
   sphereVisibility,
@@ -48,9 +51,10 @@ test("orrery is the appended continuous world: three same-seed states and eight 
   const worlds = defaultWorlds(
     scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`)),
   );
-  assert.equal(worlds.at(-1).id, "brass-orrery");
+  const world = worlds.find((w) => w.id === "brass-orrery");
+  assert.ok(world);
   assert.deepEqual(
-    worlds.at(-1).states.map((s) => s.name),
+    world.states.map((s) => s.name),
     ["Gears", "Orrery", "Clockwork"],
   );
   const clips = scene.presets
@@ -164,8 +168,52 @@ test("point sun: exact tilted planet centres, inverse-square falloff and finite 
     assert.ok(sunIrradiance(r + 0.01) < sunIrradiance(r));
   }
   close(sunIrradiance(200) / sunIrradiance(100), 0.25, 0.00002);
-  assert.match(scene.geometry.fragment, /visibility\*5\.\/\(\.7\+sd\*sd\)/);
+  assert.match(scene.geometry.fragment, /visibility\*10\.\/\(\.7\+sd\*sd\)/);
   assert.match(scene.geometry.fragment, /planetPosition\(i\)-v_p/);
+});
+
+test("the palette's warm anchor owns the alloy, not a hard-coded brass RGB", () => {
+  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  for (const palette of PALETTES) {
+    const p = rgb(palette.colors.primary), s = rgb(palette.colors.secondary);
+    const alloy = brassColor(p, s);
+    for (let i = 0; i < 3; i++)
+      assert.ok(alloy[i] >= Math.min(p[i], s[i]) && alloy[i] <= Math.max(p[i], s[i]));
+    if (palette.id === "phosphor")
+      assert.ok(distance(alloy, p) < distance(alloy, s) * 0.1, "yellow, not the blue secondary");
+    if (palette.id === "symbiosis")
+      assert.ok(distance(alloy, s) < distance(alloy, p) * 0.1, "ochre, not the mint primary");
+  }
+  assert.match(scene.geometry.fragment, /ss\(-\.06,\.06,p-s\)\*\.84\+\.08/);
+});
+
+test("Orrery sun stays centred and the crossed armillary fills the short side for the entire camera loop", () => {
+  const sub = (a, b) => a.map((v, i) => v - b[i]);
+  const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0);
+  const norm = (a) => a.map((v) => v / Math.hypot(...a));
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  for (let phase = 0; phase < TAU; phase += 0.1) {
+    const c = camera(1, phase), F = norm(sub(c.target, c.eye));
+    const R = norm(cross(F, [0, 1, 0])), U = cross(R, F);
+    const sun = sub(sunPosition(1), c.eye);
+    close(dot(sun, R), 0);
+    close(dot(sun, U), 0);
+    const xs = [], ys = [];
+    for (let i = 0; i < 3; i++) for (let theta = 0; theta < TAU; theta += 0.02) {
+      const p = armillaryPosition(i, theta), q = sub(p, c.eye), z = dot(q, F);
+      assert.ok(z > 2, "no near-plane crossing");
+      xs.push(dot(q, R) * 1.42 / z);
+      ys.push(dot(q, U) * 1.42 / z);
+      close(distance(armillaryPosition(i, theta + TAU), p), 0);
+    }
+    const height = (Math.max(...ys) - Math.min(...ys)) / 2;
+    const width = (Math.max(...xs) - Math.min(...xs)) / 2;
+    assert.ok(height >= 0.6 && height <= 0.8, `height ${height}`);
+    assert.ok(width >= 0.6 && width <= 0.82, `width ${width}`);
+    // The same short-side projection is used in landscape and portrait;
+    // even the bounded 1.8% kick cannot crop a meridian at either aspect.
+    assert.ok(Math.max(...xs.map(Math.abs), ...ys.map(Math.abs)) * 1.018 < 0.95);
+  }
 });
 
 test("EVERY mesh in all 25 trains: exact pitch distance, no slip and tooth-to-gap phase", () => {
@@ -271,7 +319,7 @@ test("geometry identity is seed-only, finite, deterministic and includes 225 act
   };
   let a = createGeometry(10901);
   assert.equal(a.length % STRIDE, 0);
-  assert.ok(a.length / STRIDE < 1970000, "bounded vertex budget");
+  assert.ok(a.length / STRIDE < 1890000, "smaller than the prior 1,966,938-vertex buffer");
   const objects = new Map();
   for (let i = 0; i < a.length; i += STRIDE) {
     for (let j = 0; j < STRIDE; j++) assert.ok(Number.isFinite(a[i + j]));
@@ -279,6 +327,31 @@ test("geometry identity is seed-only, finite, deterministic and includes 225 act
       objects.set(a[i + 15], [a[i + 9], a[i + 10], a[i + 12]]);
   }
   assert.equal(objects.size, 225);
+  const outer = new Set();
+  let hoopVertices = 0, frontTriangles = 0;
+  for (let i = 0; i < a.length; i += STRIDE * 3) {
+    // First cathedral driver: its reduced annulus fan must preserve every
+    // exact involute/bevel point and never fold a triangle through the bore.
+    if (a[i + 9] === 1 && a[i + 11] === 0 && a[i + 12] === 2 &&
+        Math.abs(a[i + 2] - 0.26) < 1e-6 && a[i + 5] === 1) {
+      const p = [0, 1, 2].map((j) => [a[i + j * STRIDE], a[i + j * STRIDE + 1]]);
+      assert.ok((p[1][0] - p[0][0]) * (p[2][1] - p[0][1]) -
+        (p[1][1] - p[0][1]) * (p[2][0] - p[0][0]) > -1e-8);
+      for (const v of p) if (Math.hypot(...v) > 1.3) outer.add(v.map((x) => x.toFixed(5)).join(","));
+      frontTriangles++;
+    }
+    if (a[i + 9] === 0 && a[i + 11] === 0 && a[i + 12] === 2 &&
+        a[i + 14] === 4.5 && Math.hypot(a[i], a[i + 1]) > 4) {
+      // Rounded bearing hoop, not an extruded rectangle: its varying unit
+      // normals follow a six-sided circular cross-section with smooth light.
+      close(Math.hypot(a[i + 3], a[i + 4], a[i + 5]), 1, 1e-6);
+      hoopVertices += 3;
+    }
+  }
+  for (const p of bevelProfile(toothProfile(56, 1), GEAR_BEVEL))
+    assert.ok(outer.has(p.map((x) => x.toFixed(5)).join(",")), "outer involute preserved");
+  assert.equal(frontTriangles, toothProfile(56, 1).length + 56 + 12);
+  assert.equal(hoopVertices, 96 * 6 * 6);
   const hash = fingerprint(a);
   a = null;
   const again = createGeometry(10901);
@@ -296,7 +369,7 @@ test(
     const { renderLook } = await import("./browser/client.mjs");
     const { PALETTES } = await import("../palettes.mjs");
     const { mkdir, writeFile } = await import("node:fs/promises");
-    const out = new URL("../artifacts/orrery/round2-gpu/", import.meta.url);
+    const out = new URL("../artifacts/orrery/round3-gpu/", import.meta.url);
     await mkdir(out, { recursive: true });
     const server = await serve(".", 48504),
       runtime = await launch({ rig: true, headless: true });

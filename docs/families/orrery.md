@@ -1,6 +1,6 @@
 # Brass Orrery / Messing-Orrery
 
-**INCREMENTAL / EMPIRICAL**, round-two revision, 2026-10-15. Family **109**, renderer `orrery`, world `brass-orrery`. Gears / Zahnräder → Orrery → Clockwork / Uhrwerk. No engine changes. All look IDs, names, seeds, schema keys and world metadata remain unchanged.
+**INCREMENTAL / EMPIRICAL**, third revision, 2026-10-15. Family **109**, renderer `orrery`, world `brass-orrery`. Gears / Zahnräder → Orrery → Clockwork / Uhrwerk. No engine changes. World ID, eight look IDs/names/seeds, preset parameters, schema keys and rhythm IDs remain unchanged.
 
 ## Signature mathematics
 
@@ -15,66 +15,64 @@ Each train is a nine-gear tree: one 56-tooth driver, four 24-tooth intermediates
 
 Five planetary shafts have exact ratios **1:2:3:4:6**, radii `1.3 + 0.49i` and independently inclined planes. A shared drive period **30π** completes integer turns for every gear and planet. This is an authored astronomical clock, not a Solar System ephemeris or contact-dynamics solver.
 
-`orrery-model.mjs` contains CPU references for profiles, bevels, train/camera placement, world-space planetary centres, light falloff and sphere eclipses. The final bevel uses one **shared mitered offset vertex** at each outline corner, width 0.008, capped at twice that width. The former 0.028–0.038 segment-local bevel exceeded half a narrow tooth tip and produced folded, spiky faces; the new regression checks every nonadjacent inset edge for crossing.
+`orrery-model.mjs` contains CPU references for profiles, bevels, train/camera placement, inclined planet and meridian positions, palette-owned alloy selection, light falloff and sphere eclipses. Shared mitered tooth bevels remain 0.008 units wide, capped at twice that width; regression tests reject crossing inset edges. The far-bank annulus now uses one triangle fan per tooth: **every original outer involute/bevel point is preserved**, with fewer redundant inner-bore vertices. Tests check preserved points and positive triangle winding.
 
 ## Continuous composition
 
-All three states retain seed **10901** and identical non-development parameters. Development 0–2 is reversible geometry and a continuous camera path, never a state dissolve or rebuild.
+The three state presets retain seed **10901** and identical non-development parameters. Development 0–2 is reversible geometry and continuous camera motion, never a dissolve, reset or rebuild.
 
 | State | Composition |
 | --- | --- |
-| Gears / Zahnräder | The camera is inside layered trains: a close oblique main mechanism, large cropped peripheral teeth in front, and smaller trains behind. Geometry is 0.52 units thick, with raised bearing lips, real spoke apertures, machined faces and closed inner/rear faces on the near hero. |
-| Orrery | The camera withdraws to reveal a roughly 60–75%-short-side centrepiece: three crossed, substantial armillary meridians, five polished spheres on rigid arms, faint luminous orbit rings and a glowing sun. |
-| Clockwork / Uhrwerk | The camera advances into inward-facing gear walls and a gear-covered roof. Eight receding bays have double vault ribs, wall carriers, diagonal trusses, ceiling coffers and long shafts. Hanging chains flank a monumental swinging pendulum; the same orrery remains down the nave. |
+| Gears / Zahnräder | Close oblique main mechanism, overlapping peripheral teeth and smaller trains behind. Real 0.52-unit-thick bodies, raised bearings, spoke apertures, filtered machining and closed near-hero rear/inner faces. |
+| Orrery | Camera now aims **at the sun**, not behind it; a continuous development-local dolly centres the hero. Three meridians have distinct 0.28/0.71/1.14-radian inclinations, rather than all sharing one flattened plane. Over a complete camera loop, CPU projection measures **65.8–67.2% short-side height and 79.8–80.9% width** for the meridians alone. The background gear train slides 1.1 units farther behind them. |
+| Clockwork / Uhrwerk | Flight into inward gear walls, a gear-covered roof and eight receding vault bays. Double ribs, diagonal trusses, transmission shafts and chains flank the monumental pendulum. The original sun and orrery remain down the nave. |
 
-Two near peripheral trains slide back as the armillary develops, then the enclosing banks unfold and grow. Trains are already visible in state 0 rather than materializing only at the climax. The camera is roll-free and closed, with a safe central flight corridor; near and far machinery have strong parallax. Kick focal punch remains bounded at **1.8%**. Short-side projection works in portrait; foreground gear cropping is intentional, not a cropped central orrery.
+The camera is roll-free and closed, with a clear central flight corridor and bounded **1.8%** kick focal punch. Short-side projection is shared by landscape and portrait. Near peripheral cropping is intentional; the central Orrery is not cropped. Tests cover the entire camera loop, centred sun, meridian coverage, safe projection depth and portrait/landscape edge margin.
 
-## Metal, sun and atmosphere
+## Brass, sun, rounded carriers and atmosphere
 
-Palette secondary/primary mixtures define the alloy; directional environment cards, narrow specular strips and dark empty reflection directions define its polish. Symbiosis and Copper produce warm brass/bronze; default Phosphor and Glacier intentionally remain cool metal. There are no fixed metal RGB values. Filtered machining normals, recessed bearing-seat darkening, raised lips and depth-tested overlap replace uniformly lit cut-out faces.
+The alloy chooses the **warmer primary/secondary anchor inside the current palette** using `r + 0.35g − b`, then retains 8% of the other anchor. Thus Phosphor uses its yellow primary instead of blue; Symbiosis uses its ochre secondary instead of mint. Copper is bronze; Glacier and Silver remain appropriately cool. No fixed brass RGB and no palette-independent orange light are introduced.
 
-The sun is both emissive geometry and a **local point light**: irradiance `5 / (0.7 + distance²)`, normal incidence, specular response and five bounded analytic soft planet eclipses. The eclipse centres follow the actual growing, inclined planet geometry. The core exceeds 1.0 on the float path. Orbit arcs are faint secondary emission; accent remains reserved for bounded tooth gestures. Shadows are planet-to-metal analytic occlusion, not a full inter-gear shadow map.
+Directional reflection cards have darker empty directions, stronger narrow strips, less white dilution and a brighter palette rim. Filtered lathe markings and recessed bearing-seat darkening remain. The sun is emissive geometry and a local point light with **`10 / (0.7 + distance²)`** falloff (twice the previous strength), normal incidence, modest ambient bounce and warm specular response. Five analytic moving planet eclipses use the actual inclined planet centres within a 12-unit shadow reach. Core and small specular peaks exceed 1.0 on the float path; the scene does not flash white.
 
-Exponential palette fog separates receding banks. Closed-form raking shafts, dark tiled flooring and a dim depth-tested reflection of only the hero ground the cathedral. The environment reflection is analytic, not a reflection of every neighboring gear.
+The bright rectangular panel was traced to an **edge-on flat-sided bearing hoop**, not just a wall. Cathedral bearing hoops are now smooth-normal, round-section tori. Wide rectangular wall carriers were also replaced with paired round rods. These are geometric fixes, not just darker paint over the panel.
 
-## Eight stable looks
+Distance fog and a clipped, bounded Lorentzian approximation to a raking light-sheet integral veil both background and solid metal. Background shaft pools support the long nave. **480 seeded, depth-tested dust triangles** drift continuously with the integrated drive and have real parallax; no full-screen per-pixel dust hash or volume march. The dark tiled floor and dim depth-tested hero reflection remain.
 
-Gears, Orrery, Clockwork; Watchmaker / Uhrmacher; Copernican Night / Kopernikanische Nacht; Silver Escapement / Silberhemmung; Sidereal Vault / Sterngewölbe; Midnight Calibre / Mitternachtskaliber. Preset definitions and seeds are unchanged from the first committed version.
+## Stable looks, energy and endlessness
 
-## Energy, rhythm and endlessness
+Eight unchanged looks: Gears, Orrery, Clockwork; Watchmaker / Uhrmacher; Copernican Night / Kopernikanische Nacht; Silver Escapement / Silberhemmung; Sidereal Vault / Sterngewölbe; Midnight Calibre / Mitternachtskaliber.
 
-Energy changes integrated drive/camera rates, not global brightness. Drive and camera clocks wrap at 30π and 2π respectively. New phase expressions are exact multiples of those periods, including the pendulum's 12× drive. No simulation can stall, saturate or die.
+Energy changes integrated gear/camera rates, not master brightness. Drive and camera clocks wrap at **30π** and **2π**; pendulum, dust and all orbital phases respect those periods. No simulation can stall, saturate or die. Existing local `familyEffect` gestures remain:
 
-Three existing `familyEffect` tracks remain:
+1. **Escapement tick**, 4 beats: bounded anchor/pendulum rock and engaged tooth-rim light.
+2. **Ratio cohort**, 8 beats: persistent shaft-cohort glint, never a speed change.
+3. **Clockwork wave**, 16 beats: bounded radial tooth-light wave.
 
-1. **Escapement tick**, 4 beats: bounded anchor/giant-pendulum rock plus local tooth-rim light. Only `kind == 3` rocks; static ribs and meridians do not.
-2. **Ratio cohort**, 8 beats: a persistent shaft cohort catches a local glint.
-3. **Clockwork wave**, 16 beats: a bounded radial tooth-light wave.
+## Cost and performance
 
-## Measured cost
+Final mesh: **1,884,186 vertices / 628,062 triangles / 128,124,648 uploaded bytes**. Previous final: 1,966,938 vertices / 133,751,784 bytes. The seed-only bounded 128 MiB construction allocation is unchanged; upload size decreases **4.2%** despite round carriers and dust. Camera position is passed flat from the existing vertex calculation instead of rebuilding its trigonometry/basis at every metal pixel. No new engine passes or resources.
 
-Final mesh: **1,966,938 vertices / 655,646 triangles / 133,751,784 uploaded bytes**. Seed-only construction uses one bounded **128 MiB** typed allocation; the final vertex range fits it. No new engine resources or passes.
+Apple M3 Pro / headless Chrome / ANGLE Metal, energy 0.95, synchronous throughput including post. This assignment's governing ceiling is **previous final +5%**, as well as 8/16 ms absolute. Final run: 48 samples/state.
 
-Native headless Chrome / ANGLE Metal / Apple M3 Pro, energy 0.95, post included. Baseline: prior commit `7726206`, 12 samples; final: 24 samples. The round-two assignment retains the new-world **8 ms / 16 ms p50** limits, met in every state.
-
-| State | 1080p baseline → final p50 | Final p95 | 4K baseline → final p50 | Final p95 |
+| State | Previous final → final 1080p p50 | Final p95 | Previous final → final 4K p50 | Final p95 |
 | --- | --- | --- | --- | --- |
-| Gears | 3.1 → 4.1 ms | 5.0 ms | 5.6 → 6.7 ms | 7.0 ms |
-| Orrery | 3.2 → 3.4 ms | 3.6 ms | 5.4 → 7.1 ms | 7.7 ms |
-| Clockwork | 3.5 → 4.4 ms | 4.8 ms | 7.9 → 9.1 ms | 9.9 ms |
+| Gears | 4.1 → **3.4 ms** | 3.9 ms | 6.7 → **6.9 ms** | 7.6 ms |
+| Orrery | 3.4 → **3.3 ms** | 3.6 ms | 7.1 → **6.7 ms** | 7.2 ms |
+| Clockwork | 4.4 → **4.1 ms** | 4.6 ms | 9.1 → **8.4 ms** | 9.0 ms |
 
-Shared-machine timings fluctuate. One 1080p run measured **7.9 / 8.4 / 10.5 ms**, exceeding budget; the immediately following 4K run was only 6.7 / 7.1 / 9.1 ms, and a repeat 1080p run gave the table above. That anomalous run is retained as `round2-perf1080-contention/profile.json`, not discarded. An earlier final run measured 4.4 / 4.2 / 4.6 ms at 1080p. The table reports the last complete resolution runs, not the fastest samples. Budget compliance is established by those runs, not guaranteed during concurrent fleet GPU load. These are synchronous throughput measurements, not venue cadence qualification.
+All six final p50 values meet the governing ceilings; largest increase is **3.0%**. A fresh initial baseline was faster (1080p 3.4/3.2/3.8, 4K 6.0/5.9/7.7 ms); a pre-final candidate measured 3.2/3.0/3.8 and 5.9/5.9/7.6 ms. Another final-source run during shared-machine contention measured 3.9/4.0/4.8 and 8.0/7.5/8.9 ms and exceeded some relative ceilings. All profiles are retained, not hidden; these are noisy shared-machine throughput probes, not venue qualification. The report distinguishes the prior committed final baseline from the fresh initial probe.
 
 ## Verification and visual review
 
-- Focused CPU/time suite: **19 pass, 1 opt-in skip**; with native GPU enabled: **20/20 pass**.
-- Added regression coverage for noncrossing shared bevels, exact inclined planet centres, softened inverse-square falloff and front/behind/partial eclipses. Existing tests cover every gear mesh over development/drive, ratios, identity, reversal, camera continuity and preset validation.
-- Native GPU matrix: 3 states × 3 palettes × landscape/portrait/4K at energy 0.1 and time 43,200. No GL errors, non-finite uploads or black frames. Paused 0.73 → 1.97 → 0.73 remains pixel-identical with the same mesh object.
-- Native wrap/rate audit: no seams at 3600, 4096 or 43,200 seconds, nor phase-jump growth under two-hour rate changes.
-- Typecheck, build and native DE/EN i18n workflows pass.
-- Full suite: **741 pass, 10 skip, 3 expected catalog-preview/curation failures**. Protected preview/editorial files are unchanged.
-- Filmed Liquid Chrome beside the prior version, then **five filmed improvement rounds**: close metal/layering; crossed armillary planes and foreground trains; enclosing cathedral/forward flight; atmosphere, bearing contact and stilt removal; final shared-bevel repair. Reviewed full-size stills, three final palette films, the Glacier extra-look film, portrait/4K images and all eight energy ladders.
+- Focused CPU/time suite: **21 pass, 1 opt-in skip**. Native GPU enabled: **22/22 pass**.
+- Added warm-anchor, whole-camera-loop centred hero/framing, exact outer-point/fan-winding and rounded-hoop normal regressions. World tests now find `brass-orrery` **by ID**, never registry position.
+- Native matrix: 3 states × Symbiosis/Glacier/Silver × landscape/portrait/4K, energy 0.1, time 43,200. No GL errors, non-finite uploads or black frames. Paused 0.73 → 1.97 → 0.73 remains pixel-identical with the same mesh object.
+- Native time-wrap/rate audit passes at 3600, 4096 and 43,200 seconds and after late energy/fader changes.
+- Typecheck, build and native German/English UI checks pass.
+- Full suite: **743 pass, 10 skip, 3 expected catalog-preview/curation failures only**. Protected tests/editorial files are untouched.
+- **Five filmed improvement rounds**, each 30 seconds, compared with a newly filmed Liquid Chrome reference: centred warm hero; controlled sun plus haze; cheaper depth-tested dust and fill; rounded-hoop slab repair plus vertex-camera reuse; independently inclined meridians and final framing. All eight energy ladders, three final world-palette films, Glacier extra-look film, portrait and 4K stills were reviewed. Superseded videos were removed; strips and a hash manifest remain.
 
-The first version's 9/10 self-rating was not justified. Against the Liquid Chrome reference, the new result is an honest **8/10**: vastly stronger space, framing and metal, but less cinematic/refined than the reference. Remaining weaknesses are dense high-frequency distant teeth, schematic straight arms, analytic rather than scene-derived reflections/occlusion, and a substantial vertex buffer. No claim of 9/10 acceptance or venue qualification.
+**Honest rating: 8.3/10, not 9.** Framing, illumination and spatial atmosphere improve substantially, and the flat panel is gone. Liquid Chrome still has the cleaner highlight hierarchy and sculptural/material refinement. Remaining weaknesses: distant teeth are high-frequency; arm construction is schematic; reflections/occlusion are analytic rather than full scene transport; the bright central gear can still compete with the sun; the vertex buffer remains large.
 
-Evidence is under `artifacts/orrery/round2-*` (ignored symlink to this lane's absolute output evidence directory). The fleet report records the final commit, exact paths and per-round comparisons. Superseded intermediate videos are deleted; their contact strips remain, alongside baseline, reference and final films.
+Evidence lives under `artifacts/orrery/round3-*`, an ignored symlink into the lane's absolute output evidence directory. `output/report.md` records final commit, exact paths, filmed rounds, costs and limitations.
