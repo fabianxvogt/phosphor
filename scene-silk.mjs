@@ -1,6 +1,7 @@
 import { familyEffect } from "./family-rhythm.mjs";
 import {
   ATTRIBUTES,
+  ADDITIVE_FROM,
   GLSL,
   LENGTH,
   STROUHAL,
@@ -17,36 +18,46 @@ uniform float u_clock[4];
 uniform float u_kick;
 uniform vec2 u_resolution;
 ${GLSL}
-out vec3 v_p,v_n,v_t;
+out vec3 v_p,v_n,v_t,v_view;
 out float v_shadow;
 out vec2 v_uv;
 flat out float v_id;
 flat out vec3 v_rnd;
 void main(){
+ vec3 eye,R,U,F;ssCamera(eye,R,U,F);
+ if(a_id<0.){
+  vec3 centre=vec3((a_rnd.x-.5)*16.,(a_rnd.y-.5)*10.,1.+a_rnd.z*7.);
+  centre+=.3*vec3(sin(u_clock[2]+a_rnd.y*SS_TAU),cos(u_clock[3]+a_rnd.x*SS_TAU),sin(u_clock[3]+a_rnd.z*SS_TAU));
+  float radius=.009+.014*a_rnd.z;
+  vec3 p=centre+radius*(R*a_uv.x+U*a_uv.y),q=p-eye;
+  float z=dot(q,F),A=u_resolution.x/u_resolution.y,f=ssFocal();
+  v_p=centre;v_n=F;v_t=R;v_view=eye-centre;v_shadow=1.;v_uv=a_uv;v_id=a_id;v_rnd=a_rnd;
+  gl_Position=vec4(dot(q,R)*f/max(A,1.),dot(q,U)*f*min(A,1.),(z*(60.+.1)-2.*60.*.1)/(60.-.1),z);
+  return;
+ }
  vec3 p=ssPoint(a_uv,a_id,a_rnd);
  vec3 du=ssPoint(a_uv+vec2(.0005,0.),a_id,a_rnd)-p;
  vec3 dv=ssPoint(a_uv+vec2(0.,.0005),a_id,a_rnd)-p;
- v_p=p;v_t=normalize(du);v_n=normalize(cross(du,dv));
+ v_p=p;v_view=eye-p;v_t=normalize(du);v_n=normalize(cross(du,dv));
  v_uv=a_uv;v_id=a_id;v_rnd=a_rnd;
  // Bounded local fold-ray occlusion, evaluated on the moving mesh, not a
  // painted cosine. Each sample is the same persistent material surface.
  vec3 key=normalize(mix(vec3(-.82,-.5,.26),vec3(-.65,.55,.85),ssSmooth(u_params[0]-1.)));
  v_shadow=1.;
- for(int j=0;j<6;j++){
-  float stepU=(j<2?.045:(j<4?.12:.25))*(mod(float(j),2.)<.5?-1.:1.);
+ for(int j=0;j<2;j++){
+  float stepU=j==0?-.12:.12;
   vec2 uv=vec2(clamp(a_uv.x+stepU,0.,1.),a_uv.y);
   vec3 delta=ssPoint(uv,a_id,a_rnd)-p;
   float forward=dot(delta,key),perp=length(delta-key*forward);
   float hit=(1.-smoothstep(.07,.24,perp))*smoothstep(.12,.38,forward);
   v_shadow*=1.-.72*hit;
  }
- vec3 eye,R,U,F;ssCamera(eye,R,U,F);
  vec3 q=p-eye;float z=dot(q,F),A=u_resolution.x/u_resolution.y,f=ssFocal();
  gl_Position=vec4(dot(q,R)*f/max(A,1.),dot(q,U)*f*min(A,1.),(z*(60.+.1)-2.*60.*.1)/(60.-.1),z);
 }`;
 const material = `#version 300 es
 precision highp float;
-in vec3 v_p,v_n,v_t;
+in vec3 v_p,v_n,v_t,v_view;
 in float v_shadow;
 in vec2 v_uv;
 flat in float v_id;
@@ -60,18 +71,25 @@ uniform vec3 u_primary,u_secondary,u_accent;
 ${GLSL}
 out vec4 outColor;
 void main(){
- vec3 eye,R,U,F;ssCamera(eye,R,U,F);
- vec3 V=normalize(eye-v_p),N=normalize(v_n),T=normalize(v_t);
+ if(v_id<0.){
+  float r2=dot(v_uv,v_uv);
+  float core=(1.-smoothstep(.1,1.,r2))*exp(-r2*3.);
+  float beam=exp(-pow((v_p.x+.3*v_p.y-.5)*.38,2.));
+  float fade=1.-ssSmooth(u_params[0]-1.);
+  outColor=vec4(mix(u_primary,vec3(1.),.35)*core*beam*(.08+.16*v_rnd.z)*fade,0.);
+  return;
+ }
+ vec3 V=normalize(v_view),N=normalize(v_n),T=normalize(v_t);
  if(dot(N,V)<0.)N=-N;
  float t=ssSmooth(u_params[0]-1.),b=ssSmooth(u_params[0]/.82);
  float light=u_clock[3];
- // One raking key: the dye is uniform; changes in value come from form.
+ // The raking light exposes primary silk sheen, secondary in the undersides.
  vec3 L=normalize(mix(vec3(-.82,-.5,.26),vec3(-.65,.55,.85),t));
  vec3 B=normalize(vec3(.25,.45,-1.));
  vec3 H=normalize(L+V),C=normalize(cross(N,T));
  float nl=dot(N,L),nv=max(dot(N,V),.015),nh=max(dot(N,H),.015);
  float diffuse=max(nl,0.),rim=pow(1.-nv,4.);
- float ht=dot(H,T)/.42,hb=dot(H,C)/.17;
+ float ht=dot(H,T)/mix(.32,.42,t),hb=dot(H,C)/mix(.13,.17,t);
  float aniso=exp(-(ht*ht+hb*hb)/(nh*nh))/max(.2,sqrt(max(nl,0.)*nv));
  float g=(v_id+v_uv.y)/SS_N;
  float seam=min(v_uv.y,1.-v_uv.y);
@@ -81,15 +99,16 @@ void main(){
  float transmitted=(.035+.7*thin)*back;
  float shadow=mix(.18,1.,ssSmooth((nl+.12)/.52))*v_shadow;
  shadow*=mix(1.,.24+.76*ssSmooth((length(v_p.xz)-.8)/2.3),t);
- vec3 dye=u_secondary;
- float brightRibbon=1.-step(.5,mod(v_id+2.,11.));
- dye=mix(dye,u_accent,brightRibbon*t*.8);
+ vec3 dye=mix(u_secondary,u_primary,.08*diffuse*(1.-t));
+ float brightRibbon=1.-step(.5,abs(mod(v_id+2.,11.)));
+ dye=mix(dye,u_accent,brightRibbon*b*.72);
+ vec3 sheen=mix(mix(u_secondary,u_primary,(.22+.38*ssSmooth(aniso))*(1.-t)),u_accent,brightRibbon*b*.8);
  float weaveFrequency=550.;
  float weaveAA=1.-smoothstep(.2,.65,max(fwidth(v_uv.x*weaveFrequency),fwidth(g*weaveFrequency)));
  float weave=1.+.025*weaveAA*sin(v_uv.x*weaveFrequency*SS_TAU)*sin(g*weaveFrequency*SS_TAU);
  float rake=.72+.28*exp(-pow((v_p.x-2.*sin(light))*.22,2.));
- vec3 col=dye*(.022+.72*diffuse*shadow+transmitted)*weave;
- col+=mix(dye,vec3(1.),.42)*2.4*aniso*u_params[4]*shadow*rake;
+ vec3 col=dye*(.035+.72*diffuse*shadow+transmitted)*weave;
+ col+=mix(sheen,vec3(1.),.38)*mix(2.9,2.4,t)*aniso*u_params[4]*shadow*rake;
  col+=mix(dye,vec3(1.),.2)*rim*(.1+.3*thin);
  float hem=(1.-smoothstep(.02,.02+fwidth(seam)*1.5,seam))*b;
  col+=mix(dye,vec3(1.),.25)*hem*.18;
@@ -99,7 +118,7 @@ void main(){
  col+=u_accent*hem*cohort*u_rhythm.y*.8;
  float spiral=exp(-pow((v_uv.x-(1.-u_rhythm.z))*6.,2.))*u_rhythm.z;
  col+=mix(dye,vec3(1.),.3)*spiral*.3*diffuse;
- float depth=length(eye-v_p);
+ float depth=length(v_view);
  vec3 fog=mix(u_secondary,u_primary,.25)*(.008+.018*t);
  col=mix(fog,col,exp(-max(depth-2.,0.)*(.045+.025*t)));
  // Resolution-scaled coverage on free material edges; joined veil seams
@@ -108,7 +127,13 @@ void main(){
  float aaV=mix(fwidth(g),fwidth(v_uv.y),b)*1.5;
  float edgeU=min(v_uv.x,1.-v_uv.x),aaU=fwidth(v_uv.x)*1.5;
  float coverage=smoothstep(0.,max(aaU,1e-6),edgeU)*smoothstep(0.,max(aaV,1e-6),edgeV);
- col*=.8+.2*coverage;
+ col=mix(fog,col,coverage);
+ // The enormous veil's distant boundaries dissolve, never a lit rectangle.
+ float dissolve=smoothstep(0.,.12,min(v_uv.x,1.-v_uv.x))*smoothstep(0.,.12,min(g,1.-g));
+ float tail=smoothstep(0.,.075,min(v_uv.x,1.-v_uv.x));
+ col=mix(fog,col,mix(dissolve,tail,b));
+ float mist=exp(-pow((v_p.x+.3*v_p.y-.5)*.38,2.))*.012*(1.-t);
+ col+=mix(u_primary,u_secondary,.5)*mist*(1.-exp(-depth*.18));
  outColor=vec4(max(col,vec3(0.)),1.);
 }`;
 const background = `
@@ -125,8 +150,9 @@ void main(){
  col+=mix(u_primary,u_secondary,.6)*shaft*.018;
  if(rd.y<-.001){
   float d=(-5.3-eye.y)/rd.y;vec3 p=eye+rd*d;
-  float pool=exp(-dot(p.xz,p.xz)*.035);
-  col+=mix(u_secondary,u_primary,.3)*pool*.035*exp(-d*.025);
+  float pool=exp(-dot(p.xz,p.xz)*.025);
+  float folds=.5+.5*sin(p.x*.8+.25*sin(p.z*.5)-u_clock[0]);
+  col+=mix(u_secondary,u_primary,.3)*pool*(.065+.045*folds)*exp(-d*.025);
  }
  outColor=vec4(col,1.);
 }`;
@@ -288,6 +314,7 @@ export default {
   geometry: {
     create: createGeometry,
     attributes: ATTRIBUTES,
+    additiveFrom: ADDITIVE_FROM,
     vertex,
     fragment: material,
   },

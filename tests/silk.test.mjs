@@ -7,6 +7,8 @@ import {
   STRIPS,
   ALONG,
   ACROSS,
+  MOTES,
+  ADDITIVE_FROM,
   LENGTH,
   STROUHAL,
   STRIDE,
@@ -84,11 +86,10 @@ test("Strouhal frequency: measured positive zero crossings agree with St U/L", (
   }
 });
 
-test("unit-speed tangent integral and bounded artistic gathering deformation", () => {
+test("unit-speed carrier is exact; amplified artistic billows remain nonsingular", () => {
   let integralError = 0,
-    renderedError = 0,
-    transverseError = 0,
-    principalError = 0;
+    minStretch = Infinity,
+    maxStretch = 0;
   const ds = 1e-5;
   for (const a of [0.288, 0.72, 1.08])
     for (let phase = 0; phase < TAU; phase += 0.31)
@@ -110,45 +111,26 @@ test("unit-speed tangent integral and bounded artistic gathering deformation", (
           state = { amplitude, phase: i * 0.13 };
         const p = point(u, v, id, rnd, state);
         const du = point(u + ds, v, id, rnd, state).map(
-          (x, k) => (x - p[k]) / (ds * LENGTH),
+          (x, k) => (x - p[k]) / (ds * LENGTH * 1.35),
         );
         const dv = point(u, v + ds, id, rnd, state).map(
-          (x, k) => (x - p[k]) / ((ds * 8.4) / STRIPS),
+          (x, k) => (x - p[k]) / ((ds * 8.4 * 1.35) / STRIPS),
         );
         const dot = (a, b) => a.reduce((sum, x, k) => sum + x * b[k], 0);
         const E = dot(du, du),
           F = dot(du, dv),
           G = dot(dv, dv);
         const disc = Math.sqrt((E - G) ** 2 + 4 * F * F);
-        for (const lambda of [(E + G + disc) / 2, (E + G - disc) / 2])
-          principalError = Math.max(
-            principalError,
-            Math.abs(Math.sqrt(lambda) - 1),
-          );
-        renderedError = Math.max(
-          renderedError,
-          Math.abs(
-            distance(p, point(u + ds, v, id, rnd, state)) / (ds * LENGTH) - 1,
-          ),
-        );
-        transverseError = Math.max(
-          transverseError,
-          Math.abs(
-            distance(p, point(u, v + ds, id, rnd, state)) /
-              ((ds * 8.4) / STRIPS) -
-              1,
-          ),
-        );
+        for (const lambda of [(E + G + disc) / 2, (E + G - disc) / 2]) {
+          minStretch = Math.min(minStretch, Math.sqrt(lambda));
+          maxStretch = Math.max(maxStretch, Math.sqrt(lambda));
+        }
       }
-  assert.ok(
-    renderedError < 0.13,
-    `longitudinal strain with fine folds ${renderedError}`,
-  );
-  assert.ok(transverseError < 0.15, `transverse gathering ${transverseError}`);
-  assert.ok(
-    principalError < 0.15,
-    `principal stretch including shear ${principalError}`,
-  );
+  // The rendered billows deliberately amplify depth; unlike flutter() they
+  // are NOT an inextensibility certificate. Bound the complete Jacobian to
+  // catch collapsing/folding parameter charts, relative to 16.2 x 11.34.
+  assert.ok(minStretch > 0.85, `minimum principal scale ${minStretch}`);
+  assert.ok(maxStretch < 2.35, `maximum principal scale ${maxStretch}`);
 });
 
 test("conical helix is unit-speed and grows into a tower", () => {
@@ -171,7 +153,15 @@ test("material mesh: seed-only creation, persistent ids and joined veil seams", 
     ATTRIBUTES.reduce((x, y) => x + y),
     STRIDE,
   );
-  assert.equal(a.length, STRIPS * ALONG * ACROSS * 6 * STRIDE);
+  assert.equal(ADDITIVE_FROM, STRIPS * ALONG * ACROSS * 6);
+  assert.equal(a.length, (ADDITIVE_FROM + MOTES * 6) * STRIDE);
+  assert.equal(scene.geometry.additiveFrom, ADDITIVE_FROM);
+  for (let id = 0; id < MOTES; id++) {
+    const start = (ADDITIVE_FROM + id * 6) * STRIDE;
+    assert.equal(a[start + 2], -1 - id);
+    assert.deepEqual(Array.from(a.slice(start + 3, start + 6)),
+      identity(1811, STRIPS + id).map(Math.fround));
+  }
   assert.ok(a.every(Number.isFinite));
   for (let id = 0; id < STRIPS; id++) {
     const start = id * ALONG * ACROSS * 6 * STRIDE;
@@ -211,7 +201,9 @@ test("raking-light folds have real depth and banners span 3D directions", () => 
     const span = (points, k) =>
       Math.max(...points.map((p) => p[k])) -
       Math.min(...points.map((p) => p[k]));
-    assert.ok(span(veil, 2) > 1, "the sheet is not a textured plane");
+    assert.ok(span(veil, 0) > 13, "enormous veil spans beyond the frame");
+    assert.ok(span(veil, 1) > 10, "no small rectangular flag");
+    assert.ok(span(veil, 2) > 2, "billows have real camera-facing depth");
     assert.ok(
       span(banners, 2) > 7,
       "near/far ribbon layers have physical depth",
@@ -221,9 +213,31 @@ test("raking-light folds have real depth and banners span 3D directions", () => 
       "banners are not a bank of horizontal strips",
     );
   }
-  assert.match(scene.geometry.fragment, /vec3 dye=u_secondary;/);
+  assert.match(scene.geometry.fragment, /mix\(u_secondary,u_primary/);
+  assert.match(scene.geometry.fragment, /brightRibbon\*b/);
+  assert.match(scene.geometry.fragment, /dissolve/);
   assert.match(scene.geometry.vertex, /v_shadow/);
   assert.doesNotMatch(scene.geometry.fragment, /cos\(g\*SS_TAU/);
+});
+
+test("banners have curved centre lines, distinct widths and foreground depth", () => {
+  const widths = [];
+  let bent = 0;
+  for (let id = 0; id < STRIPS; id++) {
+    const rnd = identity(1811, id), state = {development: 1, phase: 1.1};
+    const a = point(0, .5, id, rnd, state), b = point(1, .5, id, rnd, state);
+    const chord = b.map((x, k) => x - a[k]), length = Math.hypot(...chord);
+    let bend = 0;
+    for (let i = 1; i < 20; i++) {
+      const p = point(i / 20, .5, id, rnd, state).map((x, k) => x - a[k]);
+      const along = p.reduce((sum, x, k) => sum + x * chord[k], 0) / length;
+      bend = Math.max(bend, Math.sqrt(Math.max(0, p.reduce((s,x)=>s+x*x,0) - along * along)));
+    }
+    if (bend > 1.5) bent++;
+    widths.push(distance(point(.5, 0, id, rnd, state), point(.5, 1, id, rnd, state)));
+  }
+  assert.ok(bent >= 24, `${bent} genuinely curved ribbons`);
+  assert.ok(Math.max(...widths) / Math.min(...widths) > 4, "not identical strips");
 });
 
 test("development remains continuous, reversible and clock-periodic", () => {
