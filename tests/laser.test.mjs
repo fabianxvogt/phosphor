@@ -109,9 +109,11 @@ test("source pins the exact Gaussian/Beer integral, with no volume march", () =>
     "float tc = -B / (2.0 * A);",
     "float root = sqrt(A), shift = tc - sigma / (2.0 * A);",
     "float exponent = -C - sigma * tc + sigma * sigma / (4.0 * A);",
-    "return exp(exponent) * 0.886226925 / root *",
-    "(lgErf(root * (hi - shift)) - lgErf(root * (lo - shift)));",
-    "float z = dot(p, d), ell = len * 0.38;",
+    "return exp(exponent) * 0.886226925 / root * coverage;",
+    "float coverage = sheath ? lgSheathErf(x1) - lgSheathErf(x0) : lgErf(x1) - lgErf(x0);",
+    "float ell = len * 0.38;",
+    "float c = dot(rd, d), axial = z + len * 0.5;",
+    "return vec4(p - z * d, z);", 
     "if (0.5 * (dot(nearQ, nearQ) * iw + nearZ * nearZ * il) > 18.0) return 0.0;",
   ])
     assert.ok(laser.fragment.includes(source), source);
@@ -216,11 +218,11 @@ function tower(i, identity, dev, height = 1.3) {
     theta = (fold * Math.PI) / 2;
   const side = i % 2 ? 1 : -1,
     bay = Math.floor(i / 2),
-    u = 2.8 + 4.5 * (bay % 2);
+    u = 2.4 + 5 * (bay % 2);
   const tx = [side * Math.cos(theta), Math.sin(theta), 0],
     ty = [-side * Math.sin(theta), Math.cos(theta), 0];
-  const h = (4.5 + 4.5 * identity) * height * rise * mix(1, 0.16, fold);
-  const base = [side * 9, 0, 9 + bay * 8];
+  const h = (4.5 + 8.5 * identity) * height * rise * mix(1, 0.16, fold);
+  const base = [side * 9, 0, 5 + bay * 5.3];
   return { id: [side, bay, identity], base: add(base, mul(tx, u)), tx, ty, h };
 }
 function materialPoint(side, u, dev) {
@@ -242,9 +244,9 @@ test("hinges are joined, isometric, reversible and retain material/tower identit
   );
   assert.match(
     laser.fragment,
-    /float h = \(4\.5 \+ 4\.5 \* lgHash\(fi \+ 7\.0\)\)/,
+    /float h = \(4\.5 \+ 8\.5 \* lgHash\(fi \+ 7\.0\)\)/,
   );
-  const identity = Array.from({ length: 12 }, (_, i) => (i * 0.173) % 1);
+  const identity = Array.from({ length: 32 }, (_, i) => (i * 0.173) % 1);
   for (let dev = 0; dev <= 2; dev += 0.005) {
     for (const side of [-1, 1]) {
       const before = materialPoint(side, 11 - 1e-6, dev),
@@ -274,16 +276,13 @@ test("hinges are joined, isometric, reversible and retain material/tower identit
 
 test("camera remains inside the vault but outside every tower, at all development values", () => {
   for (let dev = 0; dev <= 2; dev += 0.01)
-    for (let i = 0; i < 12; i++)
+    for (let i = 0; i < 32; i++)
       for (const identity of [0, 0.5, 1]) {
         const t = tower(i, identity, dev);
-        // Worst x envelope, including the local box half-width.
-        const minX =
-          Math.abs(t.base[0]) -
-          Math.abs(t.tx[0]) * 1.35 -
-          Math.abs(t.ty[0]) * t.h;
-        assert.ok(minX > 1.1 + 1, `dev=${dev}, tower=${i}: x=${minX}`);
-        assert.ok(t.base[2] - 1.5 > -9 + 1.8);
+        // Even at maximum footprint, every box is ahead of the entire
+        // closed camera path. Height and folding never change its z.
+        assert.ok(t.base[2] - 2 > -9 + 1.8 + 1);
+        assert.ok(Number.isFinite(t.h));
       }
   assert.match(laser.fragment, /1\.5 \* \(1\.0 \+ 0\.02 \* u_kick\)/);
   assert.doesNotMatch(laser.fragment, /rot2\(/, "no camera roll");
@@ -326,6 +325,60 @@ test("presets declare a continuous world, eight bounded looks and three gestures
     laser.fragment,
     /fine \* 0\.22 \* smoothstep\(0\.25, 0\.9, level\)/,
   );
+});
+
+test("sheath erf removes two exponentials with a bounded sub-0.05% error", () => {
+  function cheapErf(x) {
+    const a = Math.abs(x), a2 = a * a;
+    const r = 1 / (1 + 0.278393 * a + 0.230389 * a2 + 0.000972 * a2 * a + 0.078108 * a2 * a2);
+    return Math.sign(x) * (1 - r ** 4);
+  }
+  for (let x = -12; x <= 12; x += 0.001) {
+    assert.ok(Math.abs(cheapErf(x) - erf(x)) < 4.7e-4);
+    assert.ok(cheapErf(x) <= cheapErf(x + 0.001) + 1e-14);
+  }
+  assert.match(laser.fragment, /sheath \? lgSheathErf/);
+});
+
+test("prepared beam coordinates preserve axial clipping and closest-point quadratic", () => {
+  for (let i = 0; i < 100; i++) {
+    const ro = [Math.sin(i) * 3, 2, -9], a = [-7, 1, 49], b = [6, 8, 2];
+    const d = norm(sub(b, a)), len = Math.hypot(...sub(b, a));
+    const p = sub(ro, mul(add(a, b), 0.5)), z = dot(p, d), q = sub(p, mul(d, z));
+    assert.ok(Math.abs(dot(sub(ro, a), d) - (z + len / 2)) < 1e-13);
+    for (const t of [0, 3, 17, 60]) {
+      const rd = norm([Math.sin(i * 0.1), Math.cos(i * 0.3), 1]);
+      const v = sub(rd, mul(d, dot(rd, d)));
+      const original = add(p, mul(rd, t)), axial = dot(original, d);
+      const transverse = sub(original, mul(d, axial));
+      assert.ok(Math.hypot(...sub(transverse, add(q, mul(v, t)))) < 1e-13);
+    }
+  }
+});
+
+test("perspective tube bounds conservatively include every six-sigma candidate", () => {
+  // In camera coordinates a convex segment has extrema at its endpoints.
+  // Bound the projection's Lipschitz constant over its radius-2.4 capsule.
+  const project = (v) => [v[0] / v[2], v[1] / v[2]];
+  const distance = (p, a, b) => {
+    const v = sub(b, a), h = clamp(dot(sub(p, a), v) / dot(v, v), 0, 1);
+    return Math.hypot(...sub(sub(p, a), mul(v, h)));
+  };
+  for (let i = 0; i < 50; i++) {
+    const a = [-8 + Math.sin(i) * 3, 4, 55], b = [8 * Math.cos(i), -3, 9 + i % 7];
+    const pa = project(a), pb = project(b), z = Math.min(a[2], b[2]);
+    const radius = 2.4 * (1 + Math.max(Math.hypot(...pa), Math.hypot(...pb))) / (z - 2.4);
+    for (let j = 0; j < 100; j++) {
+      const p = add(add(mul(a, j / 99), mul(b, 1 - j / 99)), mul(norm([Math.sin(j), Math.cos(j * 2), Math.sin(j * 3)]), 2.4));
+      assert.ok(distance(project(p), pa, pb) <= radius + 1e-12);
+    }
+  }
+  assert.match(laser.fragment, /6\.0 \* 0\.4 \* \(1\.0 \+ projectedSlope\)/);
+  assert.deepEqual(laser.precompute.size, [32, 41]);
+  assert.match(laser.precompute.fragment, /vec4\(bits\)/);
+  assert.match(laser.fragment, /return lgDatum\(i, row\)/, "non-float fallback uses identical geometry");
+  // Two 16-bit halves are exactly representable in RGBA32F.
+  for (let i = 0; i <= 65535; i++) assert.equal(Math.fround(i), i);
 });
 
 test("rate-dependent phases stay continuous at 3600 s and 12 h without touching development", () => {

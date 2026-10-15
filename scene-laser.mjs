@@ -1,5 +1,6 @@
 import { familyEffect } from "./family-rhythm.mjs";
 import { lateClockGlsl } from "./scene-time.mjs";
+import { laserData } from "./scene-laser-data.mjs";
 
 // Laser Grid (#105). Five extruded strips form ONE hinged sheet. The
 // same material grid folds into walls and a pointed vault; seeded towers
@@ -123,9 +124,24 @@ const presets = [
 ];
 
 const fragment = `${lateClockGlsl}
-float lgHash(float x) { return hash(vec2(x, 105.0)); }
-float gPixel, gSpace, gFold, gRise, gPhase;
-vec3 gEye, gRay;
+${laserData}
+float gPixel, gSpace;
+vec3 gRay;
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+#endif
+vec4 lgData(int i, int row) {
+#ifdef PRECOMPUTED
+  return texelFetch(u_precomputed, ivec2(i, row), 0);
+#else
+  return lgDatum(i, row);
+#endif
+}
+float lgSegment2(vec2 p, vec2 a, vec2 b) {
+  vec2 v = b - a;
+  vec2 q = p - a - v * clamp(dot(p - a, v) / max(dot(v, v), 1e-8), 0.0, 1.0);
+  return dot(q, q);
+}
 
 // Abramowitz-Stegun 7.1.26, max absolute error < 1.5e-7 (CPU tested).
 float lgErf(float x) {
@@ -133,14 +149,19 @@ float lgErf(float x) {
   float y = 1.0 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * exp(-a * a);
   return sign(x) * y;
 }
+// Cheap sheath-only erf: Abramowitz-Stegun 7.1.25, error < 4.7e-4.
+// The crisp core retains the full-accuracy function above.
+float lgSheathErf(float x) {
+  float a = abs(x), a2 = a * a;
+  float r = 1.0 / (1.0 + 0.278393 * a + 0.230389 * a2 + 0.000972 * a2 * a + 0.078108 * a2 * a2);
+  return sign(x) * (1.0 - r * r * r * r);
+}
 // Integral along ro + t rd, t in [0, limit]. The beam is a Gaussian tube
 // with longitudinal Gaussian envelope, clipped by its end planes. Sigma
 // is homogeneous view extinction. Completing the square includes Beer
 // attenuation EXACTLY; the axial envelope removes the parallel singularity.
-float lgBeam(vec3 ro, vec3 rd, vec3 start, vec3 end, float width, float limit, float sigma) {
-  vec3 axis = end - start;
-  float len = length(axis); vec3 d = axis / len;
-  float c = dot(rd, d), axial = dot(ro - start, d);
+float lgBeam(vec3 rd, vec3 d, float len, vec3 q, float z, float width, float limit, float sigma, bool sheath) {
+  float c = dot(rd, d), axial = z + len * 0.5;
   float lo = 0.0, hi = limit;
   if (abs(c) < 1e-5) { if (axial < 0.0 || axial > len) return 0.0; }
   else {
@@ -148,9 +169,8 @@ float lgBeam(vec3 ro, vec3 rd, vec3 start, vec3 end, float width, float limit, f
     lo = max(lo, min(t0, t1)); hi = min(hi, max(t0, t1));
   }
   if (hi <= lo) return 0.0;
-  vec3 p = ro - (start + end) * 0.5;
-  float z = dot(p, d), ell = len * 0.38;
-  vec3 q = p - z * d, v = rd - c * d;
+  float ell = len * 0.38;
+  vec3 v = rd - c * d;
   float iw = 1.0 / (width * width), il = 1.0 / (ell * ell);
   float A = 0.5 * (dot(v, v) * iw + c * c * il);
   float B = dot(q, v) * iw + z * c * il;
@@ -164,8 +184,9 @@ float lgBeam(vec3 ro, vec3 rd, vec3 start, vec3 end, float width, float limit, f
   float C = 0.5 * (dot(qc, qc) * iw + zc * zc * il);
   float root = sqrt(A), shift = tc - sigma / (2.0 * A);
   float exponent = -C - sigma * tc + sigma * sigma / (4.0 * A);
-  return exp(exponent) * 0.886226925 / root *
-    (lgErf(root * (hi - shift)) - lgErf(root * (lo - shift)));
+  float x1 = root * (hi - shift), x0 = root * (lo - shift);
+  float coverage = sheath ? lgSheathErf(x1) - lgSheathErf(x0) : lgErf(x1) - lgErf(x0);
+  return exp(exponent) * 0.886226925 / root * coverage;
 }
 
 // Analytic box intersection; the same tower's basis follows the sheet hinge.
@@ -195,31 +216,24 @@ void lgStrip(vec3 basePoint, vec3 tangent, float span, float material,
   }
 }
 void main() {
-  float dev = clamp(u_params[0], 0.0, 2.0);
+  lgSetup();
   float level = clamp(u_level, 0.0, 1.0);
-  gRise = smoothstep(0.0, 1.0, dev); gFold = smoothstep(1.0, 2.0, dev);
   gSpace = u_params[2];
-#ifdef PHOSPHOR_LATE
-  float motion = u_clock[0], camera = u_clock[1];
-#else
-  float motion = u_time * u_params[1] * 0.32;
-  float camera = u_time * u_params[6] * 0.055;
-#endif
-  // All uses are integer harmonics; reduce uniform phases before spatial sums.
-  gPhase = mod(motion, TAU); camera = mod(camera, TAU);
-  float seedAngle = lgHash(41.0) * TAU;
-  gEye = vec3(1.1 * sin(camera + seedAngle), u_params[7] + 0.25 * sin(camera * 2.0), -9.0 + 1.8 * cos(camera));
-  vec3 target = vec3(0.8 * sin(camera), mix(1.9, 6.0, gFold), 34.0);
-  vec3 fw = normalize(target - gEye), right = normalize(cross(vec3(0,1,0), fw)), up = cross(fw, right);
   vec2 screen = (v_uv - 0.5) * u_resolution / min(u_resolution.x, u_resolution.y) * 2.0;
   float focal = 1.5 * (1.0 + 0.02 * u_kick);
-  gRay = normalize(fw * focal + right * screen.x + up * screen.y);
+  vec2 view = screen / focal;
+  uvec4 candidates = uvec4(65535u);
+#ifdef PRECOMPUTED
+  // One tile fetch replaces 49 per-pixel geometry/bounds lookups.
+  if (all(lessThan(abs(view), vec2(2.0))))
+    candidates = uvec4(texelFetch(u_precomputed, ivec2(floor((view + 2.0) * 8.0)) + ivec2(0, 9), 0));
+#endif
+  gRay = normalize(gFw + gRight * view.x + gUp * view.y);
   gPixel = 2.0 / (min(u_resolution.x, u_resolution.y) * focal);
 
   float depth = 130.0, key = 1.0; vec2 gridUV = vec2(0.0);
   lgStrip(vec3(-9,0,0), vec3(1,0,0), 18.0, -9.0, depth, gridUV, key);
-  float theta = gFold * PI * 0.5;
-  float ct = cos(theta), st = sin(theta);
+  float ct = gCt, st = gSt;
   for (int sideIndex = 0; sideIndex < 2; ++sideIndex) {
     float side = sideIndex == 0 ? -1.0 : 1.0;
     vec3 tangent = vec3(side * ct, st, 0);
@@ -240,7 +254,7 @@ void main() {
   float fog = exp(-depth * 0.026);
   float outerFade = mix(1.0 - smoothstep(26.5, 29.85, abs(gridUV.x)), 1.0, gFold);
   fog *= outerFade;
-  vec3 col = u_secondary * (0.0015 + 0.012 * exp(-sq((gRay.y + 0.015) / 0.055)));
+  vec3 col = mix(u_secondary, u_primary, 0.15) * (0.0015 + 0.035 * exp(-sq((gRay.y + 0.015) / 0.065)));
   if (depth < 129.0) {
     col += mix(u_secondary, u_primary, 0.13) * grid * fog * key * 0.32;
     col += mix(u_primary, u_secondary, 0.3) * major * fog * mix(0.18, 0.46, gFold);
@@ -250,24 +264,33 @@ void main() {
   // Towers retain (side, bay, height seed) throughout. They rotate with the
   // side strip and retract into ribbed relief as the cathedral closes.
   float towerDepth = depth; vec3 towerP = vec3(0), towerSize = vec3(1); float towerLight = 0.0;
-  for (int i = 0; i < 12; ++i) {
-    float fi = float(i), side = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
-    float bay = floor(fi / 2.0), u = 2.8 + 4.5 * mod(bay, 2.0);
-    float h = (4.5 + 4.5 * lgHash(fi + 7.0)) * u_params[5] * gRise * mix(1.0, 0.16, gFold);
+  if (gRise > 0.001) for (int i = 0; i < 32; ++i) {
+    uint mask = i < 16 ? candidates.x : candidates.y;
+    if ((mask & (1u << uint(i % 16))) == 0u) continue;
+    vec4 bounds = lgData(i, 2);
+    if (any(lessThan(view, bounds.xy - gPixel * 2.0)) || any(greaterThan(view, bounds.zw + gPixel * 2.0))) continue;
+    float side = (i % 2) == 0 ? -1.0 : 1.0;
     vec3 tx = vec3(side * ct, st, 0), ty = vec3(-side * st, ct, 0);
-    vec3 origin = vec3(side * 9.0, 0, 9.0 + bay * 8.0) + tx * u + ty * (h * 0.5);
+    vec3 origin = lgData(i, 0).xyz, size = lgData(i, 1).xyz;
     vec3 delta = gEye - origin;
     vec3 o = vec3(dot(delta, tx), dot(delta, ty), delta.z);
     vec3 d = vec3(dot(gRay, tx), dot(gRay, ty), gRay.z);
-    vec3 size = vec3(1.35, max(h * 0.5, 0.0001), 1.5);
+    // A thin antenna and its hot tip, analytically antialiased in screen.
+    vec3 antennaBase = origin + ty * size.y;
+    vec3 antennaTip = antennaBase + ty * (0.8 * gRise);
+    vec2 antennaA = lgProject(antennaBase), antennaB = lgProject(antennaTip);
+    float antenna = 1.0 - smoothstep(gPixel * gPixel * 0.2, gPixel * gPixel * 1.8, lgSegment2(view, antennaA, antennaB));
+    float tip = exp(-dot(view - antennaB, view - antennaB) / sq(gPixel * 1.3));
+    col += mix(u_primary, u_secondary, 0.35) * (antenna * 0.4 + tip * 1.7) * exp(-length(antennaTip - gEye) * 0.025);
     vec2 hit = lgBox(o, d, size);
-    if (h > 0.015 && hit.x > 0.0 && hit.x < hit.y && hit.x < towerDepth) {
+    if (hit.x > 0.0 && hit.x < hit.y && hit.x < towerDepth) {
       towerDepth = hit.x; towerP = o + d * hit.x; towerSize = size;
       towerLight = 0.4 + 0.6 * abs(d.x);
     }
   }
   vec3 edgeDistance = abs(abs(towerP) - towerSize);
-  vec3 edgeAA = max(fwidth(towerP), vec3(gPixel * towerDepth));
+  // Analytic world footprint avoids derivatives across different box hits.
+  vec3 edgeAA = vec3(max(0.008, gPixel * towerDepth * 0.8));
   vec3 edge = 1.0 - smoothstep(edgeAA * 0.55, edgeAA * 1.65, edgeDistance);
   float corners = max(max(min(edge.x, edge.y), min(edge.y, edge.z)), min(edge.z, edge.x));
   float levels = lgLine((towerP.y + towerSize.y) / (gSpace * 0.6), max(edgeAA.y / (gSpace * 0.6), 0.0001));
@@ -276,46 +299,73 @@ void main() {
   if (towerDepth < depth) {
     depth = towerDepth;
     col = u_secondary * 0.004 + mix(u_secondary, u_primary, 0.68) *
-      (corners * 1.15 + levels * 0.46 + uprights * 0.25) * exp(-depth * 0.025) * towerLight;
+      (corners * 1.15 + levels * 0.64 + uprights * 0.18) * exp(-depth * 0.025) * towerLight;
+    col += u_secondary * 0.012 * towerLight * exp(-depth * 0.018);
   }
 
-  float haze = u_params[3], aperture = u_params[4] * (1.0 + 0.12 * u_rhythm.y);
-  float limit = min(depth, 120.0);
+  float haze = u_params[3], limit = min(depth, 120.0);
+  vec3 surface = gEye + gRay * depth;
   for (int i = 0; i < 17; ++i) {
-    float fi = float(i), weight = 1.0;
-    vec3 a, b;
-    if (i == 0) {
-      a = vec3(0.0, 3.4, 65.0);
-      b = vec3(12.0 * sin(gPhase), 2.5 + 1.2 * sin(gPhase * 2.0), -15.0);
-    } else {
-      float bank = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
-      float index = floor((fi - 1.0) / 2.0), k = (index - 3.5) / 3.5;
-      // Interleaved upper/lower cohorts survive even at low energy.
-      float cohort = mix(index * 0.5, mod(index, 4.0), gFold);
-      weight = gRise * smoothstep(cohort - 0.65, cohort + 0.65, 0.7 + 2.7 * level + 0.4 * gFold);
-      float upper = step(3.5, index);
-      a = vec3(bank * mix(10.0, 7.8, gFold), 1.0 + 10.0 * upper * gFold, 49.0 - 10.0 * upper * gFold);
-      float open = mix(0.35, 1.0, gFold);
-      vec3 fanEnd = vec3((k * 15.0 * aperture + bank * 5.0 * sin(gPhase)) * open,
-        3.0 + open * (3.0 + 6.0 * sin(gPhase + k * 1.45 + bank * 1.5)), -17.0);
-      float local = (mod(index, 4.0) - 1.5) / 1.5;
-      vec3 crossEnd = vec3(-bank * (4.5 + local * 3.2 * aperture) + 2.2 * sin(gPhase),
-        mix(11.0, 1.2, upper) + local * 2.2 * aperture + 1.0 * sin(gPhase + bank), -11.0);
-      b = mix(fanEnd, crossEnd, gFold);
-    }
+    uint mask = i < 16 ? candidates.z : candidates.w;
+    if ((mask & (1u << uint(i % 16))) == 0u) continue;
+    vec4 endpoints = lgData(i, 5);
+    vec4 metrics = lgData(i, 6);
+    float bound = metrics.x + gPixel * 4.0;
+    float distance2 = lgSegment2(view, endpoints.xy, endpoints.zw);
+    if (distance2 > bound * bound) continue;
+    vec4 source = lgData(i, 3), target = lgData(i, 4);
+    float weight = source.w;
     if (weight < 0.001) continue;
-    float width = max(0.022, gPixel * length((a + b) * 0.5 - gEye) * 0.48);
-    float core = lgBeam(gEye, gRay, a, b, width, limit, 0.014) / width;
-    float volume = lgBeam(gEye, gRay, a, b, 0.18 + 0.22 * haze, limit, 0.021);
-    vec3 ink = mix(u_primary, u_secondary, i == 0 ? 0.05 : 0.35 + 0.4 * mod(fi, 2.0));
-    // Rare accent: one selected beam, never an entire fan or the ground.
-    if (i > 0 && abs(mod(u_rhythmCount.x, 16.0) + 1.0 - fi) < 0.5)
+    vec3 a = source.xyz;
+    vec4 axis = lgData(i, 7), eyeOffset = lgData(i, 8);
+    float width = max(0.025, gPixel * metrics.y * 0.6);
+    float core = 0.0;
+    // The same conservative bound, tightened for the AA core.
+    if (distance2 < sq(bound * width / 0.4 + gPixel * 2.0))
+      core = lgBeam(gRay, axis.xyz, axis.w, eyeOffset.xyz, eyeOffset.w, width, limit, 0.014, false) / width;
+    float volume = lgBeam(gRay, axis.xyz, axis.w, eyeOffset.xyz, eyeOffset.w, 0.18 + 0.22 * haze, limit, 0.021, true);
+    vec3 ink = mix(u_primary, u_secondary, target.w);
+    if (i > 0 && abs(mod(u_rhythmCount.x, 16.0) + 1.0 - float(i)) < 0.5)
       ink = mix(ink, u_accent, 0.75 * u_rhythm.x);
-    // A bounded phase function gives the forward-scattered sheath depth,
-    // while the narrow integral remains the crisp vector signature.
-    float cosine = dot(normalize(b - a), -gRay);
-    float phase = 0.91 / pow(1.09 - 0.6 * cosine, 1.5);
-    col += ink * weight * (core * 0.24 + volume * haze * phase * 0.075);
+    float cosine = dot(axis.xyz, -gRay);
+    float phaseBase = inversesqrt(1.09 - 0.6 * cosine);
+    float phase = 0.91 * phaseBase * phaseBase * phaseBase;
+    col += ink * weight * (core * 0.65 + volume * haze * phase * 0.16);
+    // Opaque-surface scattering: the beam leaves a hot, AA impact dot.
+    float along = clamp(dot(surface - a, axis.xyz), 0.0, axis.w);
+    vec3 off = surface - a - axis.xyz * along;
+    float spotWidth = max(0.1, gPixel * depth * 1.1);
+    float spot = exp(-dot(off, off) / sq(spotWidth));
+    col += mix(ink, vec3(1), 0.2) * weight * spot * 3.5 * step(depth, 129.0);
+  }
+  // Liquid sky: a finite, softly filled scanning plane from a far emitter.
+  // Analytic ray/plane crossing, with a grazing-angle cap, no volume march.
+  vec3 sheetOrigin = vec3(0, mix(2.0, 7.2, gFold), 62);
+  vec3 sheetNormal = normalize(vec3(0.16 * sin(gPhase), 1, 0.05 + 0.09 * sin(gPhase)));
+  float sheetDenom = dot(gRay, sheetNormal);
+  float sheetT = dot(sheetOrigin - gEye, sheetNormal) / (abs(sheetDenom) < 1e-5 ? 1e-5 : sheetDenom);
+  vec3 sheetP = gEye + gRay * sheetT - sheetOrigin;
+  float sheetSpan = smoothstep(1.0, 10.0, -sheetP.z) * (1.0 - smoothstep(40.0, 64.0, -sheetP.z));
+  float sheetWidth = 1.0 - smoothstep(0.25, 0.8, abs(sheetP.x) / max(-sheetP.z, 0.1));
+  if (sheetT > 0.0 && sheetT < depth)
+    col += mix(u_secondary, u_primary, 0.28) * sheetSpan * sheetWidth * haze * mix(0.035, 0.14, gFold) * exp(-sheetT * 0.012) / max(abs(sheetDenom), 0.16);
+  // A widening hollow cone reads as the classic laser tunnel in haze.
+  vec3 coneV = gEye - vec3(0, 5.7, 55);
+  float coneSlope = 0.19 + 0.025 * sin(gPhase * 2.0);
+  float coneA = dot(gRay.xy, gRay.xy) - sq(coneSlope * gRay.z);
+  float coneB = dot(coneV.xy, gRay.xy) - sq(coneSlope) * coneV.z * gRay.z;
+  float coneC = dot(coneV.xy, coneV.xy) - sq(coneSlope * coneV.z);
+  float discr = coneB * coneB - coneA * coneC;
+  if (discr > 0.0 && abs(coneA) > 1e-5 && gFold > 0.0) {
+    float root = sqrt(discr);
+    for (int side = 0; side < 2; ++side) {
+      float t = (-coneB + (side == 0 ? -root : root)) / coneA;
+      vec3 p = coneV + gRay * t;
+      float env = smoothstep(0.0, 9.0, -p.z) * (1.0 - smoothstep(32.0, 55.0, -p.z));
+      vec3 normal = normalize(vec3(p.xy, -sq(coneSlope) * p.z));
+      if (t > 0.0 && t < depth)
+        col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * 0.045 * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
+    }
   }
   // A sparse travelling grid rib, not a whole-frame beat flash.
   float rib = exp(-sq((gridUV.y - (52.0 - 58.0 * u_rhythm.z)) / 0.65));
@@ -334,6 +384,33 @@ export default {
   schema,
   presets,
   fragment,
+  precompute: {
+    size: [32, 41],
+    fragment: `${lateClockGlsl}\n${laserData}
+void main() {
+  lgSetup();
+  int x = int(gl_FragCoord.x), row = int(gl_FragCoord.y);
+  if (row < 9) { outColor = lgDatum(x, row); return; }
+  vec2 lo = vec2(float(x), float(row - 9)) / 8.0 - 2.0;
+  vec2 hi = lo + 0.125;
+  uvec4 bits = uvec4(0u);
+  if (gRise > 0.001) for (int i = 0; i < 32; ++i) {
+    vec4 b = lgDatum(i, 2);
+    if (all(greaterThanEqual(b.zw + 0.03, lo)) && all(lessThanEqual(b.xy - 0.03, hi))) {
+      if (i < 16) bits.x |= 1u << uint(i); else bits.y |= 1u << uint(i - 16);
+    }
+  }
+  for (int i = 0; i < 17; ++i) {
+    vec4 p = lgDatum(i, 5);
+    float radius = lgDatum(i, 6).x + 0.03;
+    vec2 b0 = min(p.xy, p.zw) - radius, b1 = max(p.xy, p.zw) + radius;
+    if (all(greaterThanEqual(b1, lo)) && all(lessThanEqual(b0, hi))) {
+      if (i < 16) bits.z |= 1u << uint(i); else bits.w |= 1u << uint(i - 16);
+    }
+  }
+  outColor = vec4(bits);
+}`, 
+  },
   stage: ["sweep", "haze", "spread"],
   type: { key: "development", values: [0, 1, 2] },
   energy: { sweep: { mul: [0.75, 1.35] }, drift: { mul: [0.75, 1.35] } },
