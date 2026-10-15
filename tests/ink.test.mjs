@@ -355,8 +355,9 @@ test("guttered half-float density atlas has bijective nodes and bounded trilinea
   // This cache is far material only: the focused ring, wake and cloud
   // edges are evaluated at native output resolution, not sampled from it.
   assert.match(ink.fragment, /inkRingSkin/);
-  assert.match(ink.fragment, /float ph=d\*95\.0/);
-  assert.match(ink.fragment, /fwidth\(phi\)/);
+  assert.match(ink.fragment, /float ph=d\*42\.0/);
+  // Cloud skin: one footprint-filtered noise ridge, no stacked isolines.
+  assert.match(ink.fragment, /boxFade/);
   assert.match(ink.fragment, /for \(int j=0;j<7;\+\+j\)/);
   assert.match(ink.fragment, /float root=mix\(loT,hiT/);
 });

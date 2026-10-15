@@ -299,8 +299,9 @@ vec3 inkRingSkin(vec3 ro, vec3 ray, float scale, float phase, vec3 bg) {
   float phi=roll*11.0+a*3.0+n*1.7-phase*2.0;
   float footprint=max(t*45.0/min(u_resolution.x,u_resolution.y),0.035);
   float fine=(1.0-smoothstep(0.14,0.14+footprint,abs(sin(phi))))*0.14/(0.14+footprint*0.5);
+  fine=mix(fine,0.0894,smoothstep(0.25,0.7,footprint));
   float folds=pow(0.5+0.5*sin(roll*3.0+a*2.0+n*0.7-phase*2.0),4.0);
-  float alpha=hit*(0.22+0.65*folds+fine*0.8)*(1.0-gCloud)*u_params[4];
+  float alpha=hit*(0.22+0.65*folds+fine*0.4)*(1.0-gCloud)*u_params[4];
   vec3 tint=mix(u_primary,u_secondary,0.5+0.5*sin(a+roll));
   vec3 transmitted=bg*(0.2+tint*0.2)+tint*0.025;
   return mix(bg,transmitted,clamp(alpha,0.0,0.95));
@@ -339,13 +340,14 @@ vec3 inkFocus(vec3 eye, vec3 rd, vec3 background) {
     vec3 point=vec3(q*17.0,sin(gPhase));
     float n=inkNoise(point);
     vec2 dn=inkNoiseGradient(point).xy*17.0;
-    float ph=d*95.0+1.6*sin(h*13.0+side+gPhase)+n*1.1;
-    vec2 gradient=vec2(side*95.0,-95.0*(0.21+0.64*cos(h*4.0+gPhase+side))+20.8*cos(h*13.0+side+gPhase))+dn*1.1;
+    float ph=d*42.0+1.6*sin(h*13.0+side+gPhase)+n*1.1;
+    vec2 gradient=vec2(side*42.0,-42.0*(0.21+0.64*cos(h*4.0+gPhase+side))+20.8*cos(h*13.0+side+gPhase))+dn*1.1;
     float aa=max(abs(dot(gradient,dx))+abs(dot(gradient,dy)),0.02), width=0.16;
     float line=(1.0-smoothstep(width,width+aa,abs(sin(ph))))*width/(width+aa*0.5);
+    line=mix(line,0.102,smoothstep(0.25,0.7,aa)); // mean coverage, no moire
     float taper=1.0-smoothstep(reach-0.5,reach,h);
     float mask=(1.0-smoothstep(0.07*taper,0.18*taper+0.001,abs(d)))*smoothstep(0.02,0.2,h)*taper;
-    float alpha=mask*(0.04+line*0.75)*(0.4+0.6*smoothstep(-0.4,0.4,n))*(1.0-gCloud);
+    float alpha=mask*(0.06+line*0.45)*(0.4+0.6*smoothstep(-0.4,0.4,n))*(1.0-gCloud);
     result*=mix(vec3(1),mix(vec3(0.025),u_primary*0.22,0.4),alpha);
   }
   return result;
@@ -408,7 +410,9 @@ void main() {
       maximumField=max(maximumField,medium.w);
       previous=medium.w; previousT=t;
       float farLayer=1.0-smoothstep(-0.65,0.45,p.z);
-      float density=medium.x*mix(0.25+0.75*farLayer,1.0,gCloud);
+      vec3 inside=bound-abs(p);
+      float density=medium.x*mix(0.25+0.75*farLayer,1.0,gCloud)*
+        smoothstep(0.0,0.35,min(min(inside.x,inside.y),inside.z));
       // Illumination is a normalized physical moment, not divided by the
       // focus attenuation (which would brighten the far haze artificially).
       float shade=medium.z/max(medium.x,0.0001);
@@ -438,13 +442,16 @@ void main() {
   // not inside the divergent crossing loop. Grazing hits fade by footprint.
   if (gCloud>0.0001) {
     float n=inkNoise(hitP*22.0+vec3(sin(gPhase),gSeed,cos(gPhase)));
-    float phi=inkNoise(hitP*7.0+n*0.6)*97.0+n*4.0;
-    float aa=max(fwidth(phi),0.025);
-    float filament=(1.0-smoothstep(0.14,0.14+aa,abs(sin(phi))))*0.14/(0.14+aa*0.5);
-    filament=mix(filament,0.0894,smoothstep(1.0,2.5,aa));
+    // Isolines of noise read as topographic moire once their spacing nears
+    // a few pixels; fade them to their mean coverage well before that.
+    // Smooth folded skin: isoline or ridge filaments here read as contour
+    // lines and craquelure on the broad bodies, so the skin has none.
     float folded=pow(0.5+0.5*inkNoise(hitP*3.0+n*0.35),4.0);
     float coverage=smoothstep(0.0,length(hitP-eye)*8.0/min(u_resolution.x,u_resolution.y),maximumField);
-    float surfaceDepth=(0.25+folded*2.4+filament*4.0)*gCloud*u_params[4]*coverage;
+    // Fade the skin before the cache box: clamped edge texels form flat cards.
+    vec3 inside=bound-abs(hitP);
+    float boxFade=smoothstep(0.0,0.35,min(min(inside.x,inside.y),inside.z));
+    float surfaceDepth=(0.35+folded*2.6)*gCloud*u_params[4]*coverage*boxFade;
     float alpha=(1.0-exp(-surfaceDepth))*(cloudHit?1.0:0.0);
     vec3 tint=mix(u_primary,u_secondary,0.5+0.45*sin(hitP.y*1.8+gPhase));
     col=col*exp(-surfaceDepth*absorption*(cloudHit?1.0:0.0))+tint*0.012*alpha;
