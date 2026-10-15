@@ -1,66 +1,72 @@
 # Impossible Stairs · Unmögliche Treppen (#110)
 
-One continuous world, renderer `escher`, development 0–2. White plaster, dark stage, scarce walking lanterns. No engine changes.
+One continuous world, id `impossible-stairs`, renderer `escher`, development 0–2. The existing eight preset names, seeds, schema, look ids, world states and rhythm tracks remain unchanged. No engine changes.
 
 ## Signature mathematics
 
-**Penrose cover.** There are 48 persistent treads, twelve per square flight. On the covering space, `h(i) = 0.045 floor(i)`, so every local increment is positive and one circuit gains 2.16 units. This is deliberately **not** a globally single-valued height on a closed Euclidean curve. Each tread's flat plan point `(x,z)` is lifted to `(x + 0.6 h, h, z + h)` (with a common height offset). Successive sheets differ by `2.16 (0.6,1,1)`: exactly the privileged viewing direction. They therefore close under projection while their local surfaces remain ordinary horizontal stair treads. The tiny bounded camera excursion reveals parallax without unmasking the join.
+**Penrose cover.** Forty-eight persistent treads, twelve per square flight. On the covering space, `h(i) = 0.045 floor(i)`, so every local increment is positive and a circuit gains 2.16 units. This is intentionally not a globally single-valued Euclidean loop. A plan point `(x,z)` lifts to `(x + 0.6 h, h, z + h)`, with a common height offset. Successive sheets differ by `2.16 (0.6,1,1)`, exactly the privileged viewing direction; they close under orthographic projection. The bounded camera excursion supplies slight parallax without a free orbit that would destroy the illusion.
 
-**Droste quotient.** With `L = ln(3)`, `a = π/6`, `w = ln(r)/L + phase`, the canonical chart is
+**Droste quotient.** For `L = ln(3)`, `a = π/6`, `w = ln(r)/L + phase`,
 
 ```
 r' = exp(fract(w) L)
 θ' = θ − a (w − phase)
 ```
 
-It obeys `F(3 R(a) p) = F(p)` and `F(p, phase+1) = F(p, phase)` exactly, to numerical precision. Whole-cell turns add the authored turn and the integrated camera phase; the corresponding similarity angle changes by the same amount. A camera-clock wrap rotates each integer cell by whole turns, so it cannot jump. The CPU tests check both the canonical quotient and this animated extension.
+The chart obeys `F(3 R(a) p) = F(p)` and `F(p, phase+1) = F(p, phase)`. Whole-cell turns add the authored turn and integrated camera phase. A camera-clock wrap rotates each integer cell by whole turns. The recursive aperture is now 0.3 screen units instead of 0.09: stairs, masonry and doorways repeat over the frame rather than only inside a miniature's centre. A bounded logarithmic twist curls the entire hall into it. This is ray-space deformation, not an image dissolve.
 
-The outer sculpture remains a composed silhouette. Only its central annulus repeats; a continuous logarithmic ray-space twist curls the whole structure toward it. This is geometric ray remapping, not an image dissolve. Subpixel recursion converges to dark palette atmosphere rather than a flickering singularity. The infinitely small mathematical levels are not individually resolved.
+Infinity also has a slow cyclic dolly, `exp(0.14 sin(cameraPhase))`, with an exact 2π period. It is an inward/outward zoom loop, not a claim of an unbounded one-direction camera flight. Recursions below the pixel footprint converge to dark palette atmosphere rather than an unstable singularity.
 
 ## States and looks
 
 | Development | State EN / DE | Form |
 | --- | --- | --- |
-| 0 | Stair / Treppe | One clean impossible square stair loop on a colonnade. |
-| 1 | Relativity / Relativität | Two more persistent loops grow, hinge and separate into perpendicular gravity frames. |
-| 2 | Infinity / Unendlichkeit | The architecture curls into a rotating self-similar recursive atrium. |
+| 0 | Stair / Treppe | A large plaster Penrose square inside an enclosing, two-depth arcaded courtyard. |
+| 1 | Relativity / Relativität | Two clean twelve-tread flights grow into perpendicular gravity frames, with continuous sloping undersides, instead of two intersecting ring copies. |
+| 2 | Infinity / Unendlichkeit | The courtyard, arches and stairs curl into a frame-filling recursive atrium. |
 
-All three states use seed **11001** and identical non-development parameters. Reversing development reverses only geometry/transforms; it never reseeds or rewinds the clocks.
+The three state presets use seed **11001** and identical non-development parameters. The two new gravity flights keep twelve fixed addresses each throughout the morph; the primary loop keeps its original 48. Reversal changes only transformations and scale. Nothing reseeds or rewinds.
 
-Five additional looks: **Chalk Procession** (broad, slow colonnade), **Three Gravities** (open, narrow stairs and larger lanterns), **Ivory Labyrinth** (broad intermediate structure, reverse turn), **Endless Atrium** (narrower spiral and faster procession), **Night Loggia** (deep piers and partially hinged stairs). Eight catalog looks total, all bilingual.
+Five extra looks remain **Chalk Procession**, **Three Gravities**, **Ivory Labyrinth**, **Endless Atrium**, **Night Loggia**. All eight looks have low/mid/high energy evidence.
 
 ## Rendering and light
 
-Bounded full-resolution sphere tracing: at most 88 steps inside a sphere bound, four conservative flight AABBs, then only adjacent tread/pier candidates in the local chart plus the neighbouring flight's cap at a corner. Chebyshev box distance preserves the exact box zero set and is a conservative distance lower bound; no square roots in that hot primitive. The flight bounds conservatively contain all tread and pier boxes at every width/depth fader extreme (CPU checked).
+The primary visibility path now uses **exact analytic ray/box slabs**, not 88 sphere-tracing steps. The privileged projection supplies three nearby tread and pier candidates per flight. Conservative projected extents reject empty flights. Tests compare this candidate set with exhaustive intersection of every tread and pier for **26,076 rays**, including camera sway and width/depth extrema, with no changed winning depth.
 
-Pixel-softened analytic face normals avoid differentiating candidate switches. Four distance samples give a bounded soft key shadow; two normal-offset samples provide ambient occlusion. A white-biased palette key, secondary rim/fill, distance attenuation, low stage spill and small scale-cue lanterns give depth. Lantern heads exceed 1.0 before bloom; their bodies follow the local gravity. All chroma comes from palette uniforms, mixed only with white/black.
+The two other gravity frames each use twelve exact tread intersections and a sheared-box sloping support. Geometry identities do not depend on time, energy or development. Local distance estimates remain only for two-sample ambient occlusion.
 
-The camera is **near-isometric/orthographic by design**, not a free perspective orbit: forced perspective is the mathematical subject. It makes a very slow, closed, bounded directional excursion. Portrait uses the short side and preserves the complete sculpture. The kick changes framing by at most 1.8%.
+Directional shadows also use exact box intersections, behind conservative flight bounds. This removes the detached shadow fragments produced by the earlier short shadow march. A white-biased directional key, secondary fill, restrained palette-coloured pools, corner/contact occlusion and distance fog distinguish white plaster from dark recesses. Walking lantern figures have HDR heads and visible slender bodies; they obey their own gravity and are depth-occluded by the hall as well as stairs. Secondary-flight walkers turn smoothly with a cosine traversal rather than teleporting at an endpoint.
 
-## Energy, rhythm, endlessness
+The courtyard is traced separately with exact planes and cylinders: two receding walls on each side, semicircular open doorways, **0.24-unit-deep cylindrical soffits and straight jambs**, cylindrical colonnades, carved arch stones/string courses and a grouted dark floor. Column shading suggests fluting; the cylinder silhouette itself is smooth. One nearest column per wall is sufficient because its projected radius is less than half a bay, checked at every camera extreme.
 
-Energy changes integrated procession speed and lantern size, not the plaster's master brightness. Even at 0.1 the stair loop is fully present.
+All chroma comes from the palette, mixed with white or black. No new textures, reduced-resolution colour cache, engine extension or visual resolution cap. The camera is deliberately near-isometric. The kick changes framing by at most 1.8%. Portrait framing expands to preserve the square's full width; the surrounding building may naturally continue beyond the frame.
+
+## Energy, rhythm and long shows
+
+Energy changes integrated procession speed and lantern size, not plaster master brightness. The complete primary loop and courtyard are present at energy 0.1.
 
 - **4 beats — Tread procession:** a local light packet climbs persistent tread addresses.
-- **8 beats — Gravity light:** a bounded soft light reveals stair-face orientation.
-- **16 beats — Recursive lantern:** the small walking lights breathe through the nested levels.
+- **8 beats — Gravity light:** bounded fill reveals stair-face orientation.
+- **16 beats — Recursive lantern:** the walking lights breathe through every recursive level.
 
-The procession clock has period 48; both its ×3 walking and ×5 address phases complete whole 48-tread laps. The camera clock has period 2π; other camera uses are sinusoidal or integer-cell rotations. Parameter-dependent motion uses integrated clocks in the late/rate-change shader. No simulation, texture history or unbounded position accumulates. Native checks pass 3600 s, 4096 s and 43,200 s; no time seam or GPU error was found.
+The procession clock has period 48; ×3 walkers and ×5 tread packets make integer laps at its wrap. The camera clock has period 2π; all uses are sinusoidal or whole-cell rotations. Parameter-dependent motion uses integrated clocks in the late/rate-change shader. Native time checks pass 3600, 4096 and 43,200 seconds, plus energy/fader rate steps at 7200 seconds. A separate 4K Infinity capture also checks the twelve-hour shader.
 
-## Cost and verification
+## Performance and verification
 
-Apple M3 Pro, native headless Chrome/ANGLE Metal, synchronous complete frame including post (12 measured frames after warm-up; not venue cadence):
+Apple M3 Pro, headless Chrome/ANGLE Metal; synchronous complete-frame throughput including post, twelve samples after warm-up. Not a venue cadence guarantee.
 
-| State | 1920×1080 p50 | 3840×2160 p50 |
+| State | Previous commit 1080p → final | Previous commit 4K → final |
 | --- | ---: | ---: |
-| Stair | 2.2 ms | 7.1 ms |
-| Relativity | 3.7 ms | 12.8 ms |
-| Infinity | 4.0 ms | 13.7 ms |
+| Stair | 2.4 → **2.5 ms** | 7.2 → **8.5 ms** |
+| Relativity | 3.8 → **3.3 ms** | 13.0 → **11.4 ms** |
+| Infinity | 4.1 → **3.4 ms** | 14.3 → **11.9 ms** |
 
-All below 8 / 16 ms. No resolution cap, framebuffer downscaling, shared-engine modification, or preview/curation edit.
+Every state meets the assignment's absolute **8 / 16 ms p50** limits. Stair costs more than the old bare miniature because of the enclosing building; the two higher states are cheaper. Do not describe this as an across-the-board performance improvement.
 
-`tests/escher.test.mjs` checks local positive height increments and monodromy, exact projective closure, Droste similarity and animation periods, box lower bounds, shader flight bounds, persistent identity and reversible development, 12-hour rate changes, all presets and continuous-world registration. Also run `tests/time.test.mjs`, typecheck and bilingual browser verification.
+`tests/escher.test.mjs` covers positive local height/monodromy, exact projective closure, Droste similarity and clock periods, conservative distance/flight bounds, exhaustive analytic candidate visibility, clean orthogonal gravity flights, nearest-column bounds, persistent identity/reversal, presets, continuous-world registration **by world id**, and twelve-hour rate continuity. `tests/time.test.mjs`, typecheck, build and bilingual native-browser tests pass. The full CPU suite has only the three expected stale preview/curation failures; those protected files are intentionally untouched.
 
-Review evidence lives in the fleet worker's `output/`: baseline plus final 30-second films/contact strips, an extra Night Loggia film, copper/glacier/ultraviolet palette films, portrait film, all-eight-look energy ladder, full-size stills, native timings and time-seam results. Eight improvement passes addressed framing, pale plaster light, gravity separation, recursion motion, excessive 4K cost, subpixel convergence, the final stronger spiral and fine corner-sector cracks visible in the 4K stills. Superseded films were deleted.
+## Review evidence and remaining limits
 
-**Remaining limits:** a privileged-camera illusion rather than physically impossible global geometry; the final recursion intentionally occupies the atrium instead of filling the entire screen; extremely small levels are filtered out. The aesthetic is crisp architectural miniature, not a photoreal building. Final self-rating: **9/10**.
+Six new 30-second improvement films were inspected after the baseline, beside an independently filmed **Liquid Chrome** reference. Iterations covered enclosing architecture and scale; clean gravity flights and supports; exact primary intersections; real arch reveals and carved detail; exact shadows/column pruning; taller lantern figures and portrait framing. Superseded MP4s were removed after preserving their contact strips. Baseline, final, reference, extra-look, three-palette and portrait films, 4K stills, energy ladder and raw timings are in the fleet worker's output directory.
+
+**Honest final rating: 8/10, not the earlier 9/10.** Infinity has the strongest composition; the primary loop is no longer a grey-green square in a void. Remaining limits: Relativity is still a staged architectural sculpture rather than a fully interconnected Escher building; the miniature-like perfectly regular treads and sparse figures remain stylised; the recursive chart has finite annular joins and the smallest levels are footprint-filtered. Material richness and inhabited scale do not yet equal Liquid Chrome's reference-level finish.
