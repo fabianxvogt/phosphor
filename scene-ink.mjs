@@ -6,48 +6,153 @@ import { lateClockGlsl } from "./scene-time.mjs";
 export function kelvinVelocity(gamma, radius, core) {
   if (!(radius > 0 && core > 0 && core < radius))
     throw new RangeError("A thin ring needs 0 < core < radius");
-  return gamma / (4 * Math.PI * radius) * (Math.log(8 * radius / core) - 0.25);
+  return (
+    (gamma / (4 * Math.PI * radius)) * (Math.log((8 * radius) / core) - 0.25)
+  );
 }
-export const INK_RING = Object.freeze({ gamma: 0.75, radius: 0.82, core: 0.12 });
-export const INK_SPEED = kelvinVelocity(INK_RING.gamma, INK_RING.radius, INK_RING.core);
+export const INK_RING = Object.freeze({
+  gamma: 0.75,
+  radius: 0.82,
+  core: 0.12,
+});
+export const INK_SPEED = kelvinVelocity(
+  INK_RING.gamma,
+  INK_RING.radius,
+  INK_RING.core,
+);
 // Identity has no development argument. The analytic volume deforms these
 // same three carriers; no simulation, generation or seed reset on reversal.
 export function inkIdentity(seed) {
   const materialPhase = ((seed >>> 0) % 991) * 0.013;
-  return [0, -1, 1].map((side, id) => ({ id, side, materialPhase,
-    centre: side ? [side * 0.72, 0.4 + side * 0.35, side * 0.32] : [0, -0.25, 0] }));
+  return [0, -1, 1].map((side, id) => ({
+    id,
+    side,
+    materialPhase,
+    centre: side
+      ? [side * 0.72, 0.4 + side * 0.35, side * 0.32]
+      : [0, -0.25, 0],
+  }));
 }
 // Axisymmetric streamfunction psi = k*r^2*exp(-((r-R)^2+y^2)/a^2).
 // vr=-dpsi/dy/r, vy=dpsi/dr/r: exactly divergence free, including the axis.
-export function inkVelocity([x, y, z], gamma = INK_RING.gamma, radius = INK_RING.radius, core = 0.32) {
-  const r = Math.hypot(x, z), h = r - radius, aa = core * core;
-  const k = gamma / (2 * Math.PI), e = Math.exp(-(h * h + y * y) / aa);
-  const vr = 2 * k * r * y / aa * e;
-  const vy = k * (2 - 2 * r * h / aa) * e - kelvinVelocity(gamma, radius, core);
-  return [r > 0 ? vr * x / r : 0, vy, r > 0 ? vr * z / r : 0];
+export function inkVelocity(
+  [x, y, z],
+  gamma = INK_RING.gamma,
+  radius = INK_RING.radius,
+  core = 0.32,
+) {
+  const r = Math.hypot(x, z),
+    h = r - radius,
+    aa = core * core;
+  const k = gamma / (2 * Math.PI),
+    e = Math.exp(-(h * h + y * y) / aa);
+  const vr = ((2 * k * r * y) / aa) * e;
+  const vy =
+    k * (2 - (2 * r * h) / aa) * e - kelvinVelocity(gamma, radius, core);
+  return [r > 0 ? (vr * x) / r : 0, vy, r > 0 ? (vr * z) / r : 0];
 }
 
 const schema = [
-  { key: "development", label: "Development · drop / plumes / nebula", min: 0, max: 2, step: 0.01, default: 0 },
+  {
+    key: "development",
+    label: "Development · drop / plumes / nebula",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 0,
+  },
   { key: "flow", label: "Ink flow", min: 0, max: 2, step: 0.01, default: 0.8 },
-  { key: "curl", label: "Vortex curl", min: 0.3, max: 1.5, step: 0.01, default: 1 },
-  { key: "fingers", label: "Branching fingers", min: 0.3, max: 1.5, step: 0.01, default: 0.9 },
-  { key: "opacity", label: "Pigment depth", min: 0.4, max: 1.5, step: 0.01, default: 1 },
-  { key: "spread", label: "Plume spread", min: 0.6, max: 1.3, step: 0.01, default: 1 },
-  { key: "orbit", label: "Tank orbit", min: 0, max: 1, step: 0.01, default: 0.45 },
-  { key: "distance", label: "Tank distance", min: 0.8, max: 1.4, step: 0.01, default: 1 },
+  {
+    key: "curl",
+    label: "Vortex curl",
+    min: 0.3,
+    max: 1.5,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "fingers",
+    label: "Branching fingers",
+    min: 0.3,
+    max: 1.5,
+    step: 0.01,
+    default: 0.9,
+  },
+  {
+    key: "opacity",
+    label: "Pigment depth",
+    min: 0.4,
+    max: 1.5,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "spread",
+    label: "Plume spread",
+    min: 0.6,
+    max: 1.3,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "orbit",
+    label: "Tank orbit",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.45,
+  },
+  {
+    key: "distance",
+    label: "Tank distance",
+    min: 0.8,
+    max: 1.4,
+    step: 0.01,
+    default: 1,
+  },
 ];
-const base = { flow: 0.8, curl: 1, fingers: 0.9, opacity: 1, spread: 1, orbit: 0.45, distance: 1 };
-const look = (name, seed, development, params = {}) => ({ name, seed, params: { development, ...base, ...params } });
+const base = {
+  flow: 0.8,
+  curl: 1,
+  fingers: 0.9,
+  opacity: 1,
+  spread: 1,
+  orbit: 0.45,
+  distance: 1,
+};
+const look = (name, seed, development, params = {}) => ({
+  name,
+  seed,
+  params: { development, ...base, ...params },
+});
 const presets = [
   look("Drop", 11201, 0),
   look("Plumes", 11201, 1),
   look("Nebula", 11201, 2),
-  look("Quiet Infusion", 11202, 0.25, { flow: 0.35, curl: 0.65, opacity: 0.7, distance: 0.85 }),
+  look("Quiet Infusion", 11202, 0.25, {
+    flow: 0.35,
+    curl: 0.65,
+    opacity: 0.7,
+    distance: 0.85,
+  }),
   look("Twin Currents", 11203, 0.85, { spread: 1.25, curl: 1.3, orbit: 0.75 }),
-  look("Silken Tributaries", 11204, 1.35, { fingers: 1.4, opacity: 0.65, flow: 0.5 }),
-  look("Velvet Chamber", 11205, 2, { opacity: 1.4, spread: 0.8, curl: 1.25, distance: 0.95 }),
-  look("Marbled Lantern", 11206, 1.85, { spread: 1.25, fingers: 1.2, opacity: 0.8, orbit: 0.8 }),
+  look("Silken Tributaries", 11204, 1.35, {
+    fingers: 1.4,
+    opacity: 0.65,
+    flow: 0.5,
+  }),
+  look("Velvet Chamber", 11205, 2, {
+    opacity: 1.4,
+    spread: 0.8,
+    curl: 1.25,
+    distance: 0.95,
+  }),
+  look("Marbled Lantern", 11206, 1.85, {
+    spread: 1.25,
+    fingers: 1.2,
+    opacity: 0.8,
+    orbit: 0.8,
+  }),
 ];
 
 const material = `${lateClockGlsl}
@@ -68,7 +173,7 @@ vec2 inkField(vec3 p) {
   float e0=exp(-(h0*h0+sq(q.y+0.25))/aa);
   float vr=0.75/PI*r0*(q.y+0.25)/aa*e0;
   float vy=0.75/(2.0*PI)*(2.0-2.0*r0*h0/aa)*e0;
-  q-=0.12*sin(gPhase)*vec3(q.x/max(r0,0.001)*vr,vy,q.z/max(r0,0.001)*vr);
+  q-=0.12*gCurl*sin(gPhase)*vec3(q.x/max(r0,0.001)*vr,vy,q.z/max(r0,0.001)*vr);
   float n = inkNoise(q * 3.3 + vec3(gSeed, gPhase, -gPhase));
   float fine = sin(q.x*12.0+n*2.0)*sin(q.y*11.0-gPhase)*sin(q.z*13.0);
   float angle = atan(q.z, q.x + 1e-7);
@@ -76,7 +181,7 @@ vec2 inkField(vec3 p) {
   float fingers = (0.5 + 0.5*sin(angle*9.0 + 1.5*sin(angle*3.0) + gPhase));
   float ringY = -0.25 - 0.22*sin(gPhase);
   float R = 0.82 + 0.35*gCloud;
-  float tube = mix(0.19,0.6,gCloud);
+  float tube = mix(0.19,0.6,gCloud)*(1.0+0.08*u_rhythm.x);
   float fy = 0.22*gFinger*fingers*(1.0-smoothstep(-0.7,-0.15,q.y-ringY));
   vec2 tor = vec2(radial-R, q.y-ringY+fy);
   // A wound material coordinate: the vortex visibly rolls over its rim.
@@ -226,9 +331,15 @@ void main() {
 `;
 
 export default {
-  id: "ink", number: 112, name: "Ink Bloom",
-  description: "A falling drop rolls into a descending vortex ring, branches into colliding plumes and fills a backlit tank with marbled ink clouds.",
-  development: "development", schema, presets, fragment,
+  id: "ink",
+  number: 112,
+  name: "Ink Bloom",
+  description:
+    "A falling drop rolls into a descending vortex ring, branches into colliding plumes and fills a backlit tank with marbled ink clouds.",
+  development: "development",
+  schema,
+  presets,
+  fragment,
   precompute: {
     size: [640, 768],
     fragment: `${material}\n${lattice}
@@ -252,8 +363,26 @@ void main() {
     { rate: (p) => p[6] * 0.035, period: 2 * Math.PI },
   ],
   rhythm: [
-    familyEffect("ring-roll", 0, "Ring roll", "The existing vortex rim curls a little tighter.", { period: 4, strength: 0.55, duration: 1.5, kind: "motion" }),
-    familyEffect("finger-reach", 1, "Finger reach", "The same ink fingers stretch into the water.", { period: 8, strength: 0.6, duration: 2.5, kind: "motion" }),
-    familyEffect("pigment-wave", 2, "Pigment wave", "A narrow backlit pigment band travels down the existing plumes.", { period: 16, strength: 0.6, duration: 3 }),
+    familyEffect(
+      "ring-roll",
+      0,
+      "Ring roll",
+      "The existing vortex rim curls a little tighter.",
+      { period: 4, strength: 0.55, duration: 1.5, kind: "motion" },
+    ),
+    familyEffect(
+      "finger-reach",
+      1,
+      "Finger reach",
+      "The same ink fingers stretch into the water.",
+      { period: 8, strength: 0.6, duration: 2.5, kind: "motion" },
+    ),
+    familyEffect(
+      "pigment-wave",
+      2,
+      "Pigment wave",
+      "A narrow backlit pigment band travels down the existing plumes.",
+      { period: 16, strength: 0.6, duration: 3 },
+    ),
   ],
 };
