@@ -110,6 +110,12 @@ const smooth = (a, b, x) => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
+// Palette-owned alloy selection, mirrored by brass() in the shader.
+export function brassColor(primary, secondary) {
+  const warmth = ([r, g, b]) => r + 0.35 * g - b;
+  const t = smooth(-0.06, 0.06, warmth(primary) - warmth(secondary)) * 0.84 + 0.08;
+  return secondary.map((v, i) => v * (1 - t) + primary[i] * t);
+}
 export function developmentPose(development) {
   return {
     opening: smooth(0, 1, development),
@@ -129,7 +135,16 @@ export function planetPosition(i, phase, dev = 1, tilt = 0.8) {
   return [p[0], p[1] * Math.cos(angle) - p[2] * Math.sin(angle),
     s[2] + p[1] * Math.sin(angle) + p[2] * Math.cos(angle)];
 }
-export const sunIrradiance = (distance) => 5 / (0.7 + distance * distance);
+export function armillaryPosition(i, theta, dev = 1) {
+  const { opening } = developmentPose(dev), growth = smooth(0.06, 0.85, dev);
+  const radius = (3.65 + i * 0.15) * growth;
+  const x = radius * Math.cos(theta), y = radius * Math.sin(theta);
+  const tilt = (0.28 + 0.43 * i) * opening, meridian = i * 0.85 * 1.23 * opening;
+  const z = y * Math.sin(tilt), sun = sunPosition(dev);
+  return [x * Math.cos(meridian) - z * Math.sin(meridian),
+    y * Math.cos(tilt), sun[2] + x * Math.sin(meridian) + z * Math.cos(meridian)];
+}
+export const sunIrradiance = (distance) => 10 / (0.7 + distance * distance);
 export function sphereVisibility(point, light, center, radius) {
   const ray = light.map((v, k) => v - point[k]), distance = Math.hypot(...ray);
   const dir = ray.map((v) => v / Math.max(distance, 0.001));
@@ -146,7 +161,7 @@ export function trainPose(g, group, dev) {
   if (group === 0) {
     const scale = 1 - 0.12 * opening;
     return {
-      center: [g.x * scale, g.y * scale, -6.5 * h],
+      center: [g.x * scale, g.y * scale, -6.5 * h - 1.1 * opening * (1 - h)],
       radius: pitchRadius(g.teeth) * scale,
       ratio: g.ratio,
       scale,
@@ -174,13 +189,14 @@ export function trainPose(g, group, dev) {
 }
 export function camera(dev, phase) {
   const { opening: o, cathedral: h } = developmentPose(dev);
+  const hero = o - h;
   return {
     eye: [
-      1.8 + 0.85 * Math.sin(phase) - 1.2 * h,
-      -1.5 + 0.35 * Math.cos(phase) + 1.9 * h,
-      4.6 + 4.6 * o - 8 * h + 1.5 * h * Math.sin(phase),
+      1.8 + 0.85 * Math.sin(phase) - 1.2 * h - hero * (1.35 + 0.3 * Math.sin(phase)),
+      -1.5 + 0.35 * Math.cos(phase) + 1.9 * h + 1.8 * hero,
+      4.6 + 4.3 * o - 7.7 * h + 1.5 * h * Math.sin(phase),
     ],
-    target: [0.1 * Math.cos(phase), 0.1 - 0.3 * h, -0.6 - 7 * h],
+    target: [0.1 * Math.cos(phase) * (1 - hero), 0.1 - 0.3 * h - 0.1 * hero, -0.6 - 7 * h + 1.95 * hero],
   };
 }
 // Position, normal, rotation centre, (ratio,phase,kind,group),
@@ -248,6 +264,19 @@ export function createGeometry(seed) {
       );
     }
   };
+  // Round cross-section on cathedral bearing hoops: a flat extruded ring
+  // seen edge-on became a broad rectangular reflection card on the right.
+  const torus = (major, minor, z) => {
+    const count = 96, sides = 6;
+    const normal = (a, b) => [Math.cos(a) * Math.cos(b), Math.sin(a) * Math.cos(b), Math.sin(b)];
+    const point = (a, b) => [(major + minor * Math.cos(b)) * Math.cos(a), (major + minor * Math.cos(b)) * Math.sin(a), z + minor * Math.sin(b)];
+    for (let i = 0; i < count; i++) for (let j = 0; j < sides; j++) {
+      const a = i * TAU / count, b = (i + 1) * TAU / count;
+      const u = j * TAU / sides, v = (j + 1) * TAU / sides;
+      tri(point(a, u), point(b, u), point(b, v), normal(a, u), normal(b, u), normal(b, v));
+      tri(point(a, u), point(b, v), point(a, v), normal(a, u), normal(b, v), normal(a, v));
+    }
+  };
   const box = (x0, x1, y0, y1, z0, z1) => {
     quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1]);
     quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0]);
@@ -303,7 +332,17 @@ export function createGeometry(seed) {
         (inner * b[1]) / Math.hypot(...b),
         z,
       ];
-      quad(ai, aa, bb, bi, [0, 0, 1]);
+      if (detail > 1) quad(ai, aa, bb, bi, [0, 0, 1]);
+      else {
+        // Exact outer involute, fewer redundant interior vertices in far
+        // banks: one fan per tooth, with a chord only on the inner bore.
+        const perTooth = pts.length / teeth;
+        const first = pts[Math.floor(k / perTooth) * perTooth];
+        const l = Math.hypot(...first);
+        const anchor = [inner * first[0] / l, inner * first[1] / l, z];
+        tri(anchor, aa, bb, [0, 0, 1]);
+        if (k % perTooth === perTooth - 1) tri(anchor, bb, bi, [0, 0, 1]);
+      }
       // Close the inner rim and the rear on the close hero. These surfaces
       // become visible through spoke apertures under the grazing camera.
       if (detail > 1) {
@@ -460,7 +499,7 @@ export function createGeometry(seed) {
     meta = [0, 0, 0, bay + 2];
     material = 0.5;
     radius = 4.5;
-    ring(4.18, 4.3, 0, 0.24, 96);
+    torus(4.24, 0.085, -0.08);
     // No isolated stilts: each gear bank is carried by the enclosing nave.
     box(-2.35, 2.35, -0.1, 0.1, -0.3, -0.15);
   }
@@ -532,7 +571,10 @@ export function createGeometry(seed) {
     radius = 7;
     for (const side of [-1, 1]) {
       const x = side * 6.05;
-      box(x - 0.22, x + 0.22, -5.5, 5.1, -0.22, 0.22);
+      // Paired round carriers replace a broad, white-reflecting flat slab.
+      // Open space between the rods keeps the near right edge mechanical.
+      for (const offset of [-0.14, 0.14])
+        tube([[x + offset, -5.5, 0], [x + offset, 5.1, 0]], 0.085);
       box(x - 0.12, x + 0.12, -3.7, -3.45, -4.7, 0);
       box(x - 0.12, x + 0.12, 3.9, 4.1, -4.7, 0);
       tube([[x, -4.7, 0], [x, 3.9, -4.7]], 0.075);
@@ -567,6 +609,21 @@ export function createGeometry(seed) {
       }
       tube(pts, 0.023);
     }
+  }
+  // Seed-persistent motes: negligible fill cost, actual depth/parallax,
+  // rather than hashing several dust planes at every metal pixel.
+  let state = seed >>> 0;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  for (let i = 0; i < 480; i++) {
+    serial++;
+    center = [(random() - 0.5) * 11, -4.8 + random() * 10, -random() * 36];
+    meta = [0, random() * TAU, 6, 50];
+    radius = 0.01;
+    material = 0;
+    tri([-0.012, -0.007, 0], [0.012, -0.007, 0], [0, 0.014, 0], [0, 0, 1]);
   }
   if (cursor > data.length)
     throw new Error("Orrery mesh exceeds its fixed vertex budget");

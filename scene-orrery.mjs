@@ -21,13 +21,37 @@ float cameraPhase(){
 }
 void rig(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float d=clamp(u_params[0],0.,2.),o=ss(0.,1.,d),h=ss(1.,2.,d),a=cameraPhase();
- eye=vec3(1.8+.85*sin(a)-1.2*h,-1.5+.35*cos(a)+1.9*h,4.6+4.6*o-8.*h+1.5*h*sin(a));
- vec3 target=vec3(.1*cos(a),.1-.3*h,-.6-7.*h);
+ float hero=o-h;
+ eye=vec3(1.8+.85*sin(a)-1.2*h-hero*(1.35+.3*sin(a)),-1.5+.35*cos(a)+1.9*h+1.8*hero,4.6+4.3*o-7.7*h+1.5*h*sin(a));
+ // Aim at the sun, not behind the mechanism: the armillary stays centred.
+ vec3 target=vec3(.1*cos(a)*(1.-hero),.1-.3*h-.1*hero,-.6-7.*h+1.95*hero);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
 float focal(){return 1.42*u_params[5]*(1.+.018*clamp(u_kick,0.,1.));}
-vec3 fogColor(){return mix(u_primary,u_secondary,.7)*(.009+.016*ss(1.,2.,u_params[0]));}
+// Select the warm anchor *within* the active palette. Phosphor's brass is
+// its yellow primary; Symbiosis' brass is its ochre secondary, never blue.
+vec3 brass(){
+ float p=dot(u_primary,vec3(1.,.35,-1.)),s=dot(u_secondary,vec3(1.,.35,-1.));
+ return mix(u_secondary,u_primary,ss(-.06,.06,p-s)*.84+.08);
+}
+vec3 fogColor(){return brass()*(.012+.026*ss(1.,2.,u_params[0]));}
 vec3 sunPosition(){return vec3(0.,0.,1.35*ss(.06,.85,u_params[0])-6.5*ss(1.,2.,u_params[0]));}
+#ifndef ORRERY_VERTEX
+// Integrate a narrow light sheet along the visible ray, clipped by the
+// first solid surface. Unlike a background stripe it also veils near metal.
+vec3 atmosphere(vec3 eye,vec3 rd,float distance){
+ float hall=ss(1.,2.,u_params[0]);
+ if(hall<.001)return vec3(0.);
+ float len=min(distance,32.);
+ float b=eye.x+.31*eye.y+3.4,k=rd.x+.31*rd.y;
+ float safeK=abs(k)<.001?.001:k;
+ float closest=clamp(-b/safeK,0.,len),miss=b+k*closest;
+ // Bounded Lorentzian approximation to the sheet's ray integral. Avoid
+ // two per-pixel atan calls and generate the dust as tiny depth-tested mesh.
+ float sheet=.68/(abs(k)+.68/max(len,.001))/(1.+miss*miss*8.65);
+ return brass()*hall*(.0035*len+.045*sheet);
+}
+#endif
 float inclination(float id){return (.4+.85*mod(id,3.)/2.)*u_params[4];}
 vec3 planetPosition(int i){
  float k=float(i),a=drive()*(i==4?6.:k+1.)+k*1.73;
@@ -50,10 +74,11 @@ uniform vec2 u_resolution;
 uniform vec3 u_primary,u_secondary,u_accent;
 uniform vec4 u_rhythm,u_rhythmCount;
 ${lateClockGlsl}
+#define ORRERY_VERTEX
 ${common}
 out vec3 v_p,v_n,v_local;
 out vec4 v_surface;
-flat out vec3 v_tag;
+flat out vec3 v_tag,v_eye;
 void main(){
  float dev=clamp(u_params[0],0.,2.),opening=ss(0.,1.,dev),hall=ss(1.,2.,dev);
  float kind=a_motion.z,group=a_motion.w;
@@ -70,7 +95,7 @@ void main(){
    C.z*=growth;
    // Independent, rigid inclinations turn the arms into an armillary sphere.
    float id=kind>4.5?a_motion.y/.85:kind>1.5?0.:(a_motion.y/1.73);
-   float tilt=(kind>4.5?1.12:inclination(id))*opening;
+   float tilt=(kind>4.5?.28+.43*id:inclination(id))*opening;
    p.yz=mat2(cos(tilt),sin(tilt),-sin(tilt),cos(tilt))*p.yz;
    n.yz=mat2(cos(tilt),sin(tilt),-sin(tilt),cos(tilt))*n.yz;
    if(kind>4.5){
@@ -99,15 +124,21 @@ void main(){
    C.xy=(side<.5?vec2(-width,0.):side<1.5?vec2(width,0.):vec2(0.,5.5))+rel.xy;
    C.z+=rel.z-3.*opening*(1.-hall)+(group<4.?4.*(1.-opening):0.);
  }
- if(group==0.){float scale=1.-.12*opening;p*=scale;C.xy*=scale;}
+ if(group==0.){float scale=1.-.12*opening;p*=scale;C.xy*=scale;C.z-=1.1*opening*(1.-hall);}
  if(group<2.)C.z-=6.5*hall;
  p+=C;
+ vec3 eye,R,U,F;rig(eye,R,U,F);
+ if(kind>5.5){
+   float size=1.+.08*length(C-eye);
+   p=C+vec3(.15*sin(drive()+a_motion.y),.2*cos(drive()+a_motion.y),0.)*hall
+    +(R*a_position.x+U*a_position.y)*growth*size;
+   n=-F;
+ }
  if(mirror){p.y=-11.-p.y;n.y=-n.y;}
  v_local=a_position;v_p=p;v_n=n;
- v_surface=a_surface;
+ v_surface=a_surface;v_eye=eye;
  float cohort=1.-step(.5,abs(mod(a_surface.z+floor(u_rhythmCount.y),9.)-4.));
  v_tag=vec3(kind,mirror?-1.:group,cohort);
- vec3 eye,R,U,F;rig(eye,R,U,F);
  vec3 q=p-eye;vec3 view=vec3(dot(q,R),dot(q,U),dot(q,F));
  float A=u_resolution.x/u_resolution.y,f=focal();
  gl_Position=vec4(view.x*f/max(A,1.),view.y*f*min(A,1.),(view.z*(100.+.05)-2.*100.*.05)/(100.-.05),view.z);
@@ -116,7 +147,7 @@ const surface = `#version 300 es
 precision highp float;
 in vec3 v_p,v_n,v_local;
 in vec4 v_surface;
-flat in vec3 v_tag;
+flat in vec3 v_tag,v_eye;
 uniform float u_time,u_kick;
 uniform float u_params[8];
 uniform vec2 u_resolution;
@@ -126,7 +157,11 @@ ${lateClockGlsl}
 ${common}
 out vec4 outColor;
 void main(){
- vec3 eye,R,U,F;rig(eye,R,U,F);
+ vec3 eye=v_eye;
+ if(v_tag.x>5.5){
+  float edge=1.-ss(.001,.01,length(v_local.xy));
+  outColor=vec4(brass()*edge*.8*exp(-length(eye-v_p)*.035),1.);return;
+ }
  vec3 N=normalize(v_n),V=normalize(eye-v_p);
  if(dot(N,V)<0.)N=-N;
  float rad=length(v_local.xy)/max(v_surface.y,.001);
@@ -146,16 +181,16 @@ void main(){
  float spec=pow(max(dot(N,H),0.),110.);
  float rim=pow(1.-nv,4.);
  float ao=(.40+.60*ss(.17,.42,rad))*(.7+.3*ss(-.22,.28,v_local.z));
- float grooves=1.-resolved*.06*(.5+.5*cos(rad*210.));
+ float grooves=1.-resolved*.12*(.5+.5*cos(rad*210.));
  // Recessed bearing seats darken near contact; the bright lip above is
  // separate geometry, so this is occlusion rather than a painted outline.
  ao*=1.-.28*exp(-pow((rad-.255)/.045,2.))*ss(.4,.15,v_local.z);
- vec3 metal=mix(u_secondary,u_primary,.18+v_surface.w*.36);
- vec3 bright=mix(metal,vec3(1.),.38);
- vec3 col=metal*(.035+.12*nl)*ao*grooves;
- col+=bright*(card*1.7+strip*2.4+ceiling*.2+broad*.24)*u_params[3]*ao;
- col+=mix(u_primary,vec3(1.),.75)*spec*2.*u_params[3];
- col+=u_primary*rim*.12;
+ vec3 metal=mix(brass(),mix(u_primary,u_secondary,.5),v_surface.w*.12);
+ vec3 bright=mix(metal,vec3(1.),.16);
+ vec3 col=metal*(.075+.22*nl)*ao*grooves;
+ col+=bright*(card*.9+strip*2.2+ceiling*.18+broad*.1)*u_params[3]*ao*grooves;
+ col+=mix(metal,vec3(1.),.28)*spec*2.4*u_params[3];
+ col+=mix(metal,u_primary,.18)*rim*.35;
  float core=step(1.5,v_tag.x)*step(v_tag.x,2.5);
  float planet=step(.8,v_surface.w)*step(.5,v_tag.x)*step(v_tag.x,1.5);
  col+=planet*bright*(card*.5+strip*.6);
@@ -167,7 +202,7 @@ void main(){
  float sd=length(S),sn=max(dot(N,S/max(sd,.001)),0.);
  float visibility=1.;
  float opening=ss(.06,.85,u_params[0]);
- if(opening>.01&&core<.5){
+ if(opening>.01&&core<.5&&sd<12.){
   vec3 lightDir=S/max(sd,.001);
   for(int i=0;i<5;i++){
    vec3 delta=planetPosition(i)-v_p;
@@ -177,12 +212,12 @@ void main(){
    visibility*=mix(1.,ss(r*.65,r*1.3,miss),step(.05,t)*step(t,sd-.1));
   }
  }
- float sun=opening*visibility*5./(.7+sd*sd);
- vec3 sunColor=mix(u_primary,u_secondary,.3);
- col+=metal*sunColor*sn*sun*1.1;
+ float sun=opening*visibility*10./(.7+sd*sd);
+ vec3 sunColor=mix(brass(),vec3(1.),.18);
+ col+=metal*sunColor*(.12+.58*sn)*sun;
  vec3 SH=normalize(V+S/max(sd,.001));
- col+=sunColor*pow(max(dot(N,SH),0.),90.)*sun*1.8*u_params[3];
- vec3 coreLight=mix(u_secondary,mix(u_primary,vec3(1.),.4),ss(.1,.95,nv));
+ col+=sunColor*pow(max(dot(N,SH),0.),70.)*sun*2.*u_params[3];
+ vec3 coreLight=mix(brass(),mix(brass(),vec3(1.),.55),ss(.1,.95,nv));
  col=mix(col,coreLight*(1.2+2.8*pow(nv,.7))*u_params[3],core);
  // Three local gestures: escapement, engaged tooth rims, ratio cohort.
  float tooth=ss(.86,.97,rad)*step(v_tag.x,.5);
@@ -192,6 +227,7 @@ void main(){
  col+=u_accent*exp(-front*front*2.)*min(1.,u_rhythm.z*5.)*tooth*.6;
  float distance=length(eye-v_p);
  col=mix(fogColor(),col,exp(-max(distance-4.,0.)*.058));
+ col+=atmosphere(eye,-V,distance);
  if(v_tag.y<0.)col*=.22+.14*pow(1.-abs(V.y),3.);
  outColor=vec4(max(col,vec3(0.)),1.);
 }`;
@@ -204,19 +240,19 @@ void main(){
  vec2 q=(v_uv-.5)*2.;
  vec3 rd=normalize(F+R*q.x*max(A,1.)/focal()+U*q.y/(min(A,1.)*focal()));
  vec3 col=fogColor();
- // Analytical dust-free scattering: a pool behind the core and long shafts
- // in the cathedral. Bounded closed form, no volume march or noise texture.
+ // Analytic scattering and sparse dust in the cathedral. Bounded closed
+ // form, no volume march or noise texture.
  float hall=ss(1.,2.,u_params[0]);
  vec3 core=sunPosition();
  float tc=max(0.,dot(core-eye,rd));
  vec3 at=eye+tc*rd-core;
- col+=mix(u_secondary,u_primary,.4)*(.025+.1*ss(0.,1.,u_params[0]))/(1.+dot(at,at)*.9);
+ col+=brass()*(.035+.19*ss(0.,1.,u_params[0]))/(1.+dot(at,at)*.9);
  // Soft raking light in the long nave, evaluated at two depth planes.
  for(int i=0;i<2;i++){
   float z=-9.-float(i)*14.;float t=(z-eye.z)/rd.z;
   vec3 p=eye+max(t,0.)*rd;
   float shaft=exp(-pow((p.x+.31*p.y+3.4)/.6,2.))*exp(-abs(p.y-2.)*.19);
-  col+=mix(u_primary,u_secondary,.55)*shaft*.14*hall*exp(-max(t,0.)*.016);
+  col+=brass()*shaft*.3*hall*exp(-max(t,0.)*.016);
  }
  float vault=pow(max(0.,1.-abs(rd.x)*1.4),12.)*pow(max(rd.y,0.),1.4);
  col+=mix(u_secondary,u_primary,.3)*vault*.04*hall;
@@ -228,6 +264,7 @@ void main(){
   float pool=1./(1.+p.x*p.x*.12+p.z*p.z*.01);
   col+=mix(u_primary,u_secondary,.7)*.18*pool*exp(-t*.035)*(1.-.55*seam)*hall;
  }
+ col+=atmosphere(eye,rd,40.);
  outColor=vec4(max(col,vec3(0.)),1.);
 }`;
 const base = { speed: 1, glide: 1, polish: 1, tilt: 0.8, scale: 1 };
