@@ -89,9 +89,11 @@ Native M3 Pro p50 ms, state order Sparks / Swarms / Reef:
 | 4K | 4.7 / 5.7 / 7.3 | 5.4 / 6.0 / 7.0 | 6.0 / 8.7 / 7.9 |
 
 The five-lane shared GPU varied substantially; adjacent replay is the fairer
-comparison (worst increase +4.2%, Sparks at 1080p), not a claim that the first
-baseline became intrinsically slower. Raw runs are retained in the lane
-output. Films: `output/abyss/{baseline,final}/deep-sea.{mp4,png}`;
+comparison, not a claim that the first baseline became intrinsically slower.
+A final **four-block alternating** baseline/final probe gives 1080p
+2.70→2.65 / 3.20→3.05 / 3.40→3.45 ms and 4K
+6.05→5.75 / 6.45→6.50 / 7.60→7.15 ms (worst +1.47%).
+Raw runs are retained in the lane output, including `comparison/comparison.json`. Films: `output/abyss/{baseline,final}/deep-sea.{mp4,png}`;
 final includes the all-look energy ladder, Glacier Abyssal Storm and an Ember
 portrait sweep. Reviewed strips and full-size ladder stills. Honest rating:
 **8.5/10** — much stronger living glass and first read, but the landscape

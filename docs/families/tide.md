@@ -90,8 +90,12 @@ M3 Pro whole-frame p50 ms including post (shared GPU):
 | 1920×1080 | 3.8 → 2.4 | 5.1 → 2.7 | 8.9 → 3.5 |
 | 3840×2160 | 12.0 → 9.1 | 19.3 → 9.7 | 29.5 → 12.6 |
 
-The final 4K peak is 57% cheaper in these probes (still not a two-world
-60 Hz venue qualification). Baseline/final films and strips:
+The final 4K peak is 57% cheaper in these separate probes. A supplementary
+four-block alternating comparison (more severe contention in two blocks)
+gives 1080p 3.55→2.85 / 4.65→3.15 / 6.90→3.70 ms and 4K
+13.50→9.30 / 14.75→12.05 / 25.60→19.30 ms. Every state is cheaper
+under both comparisons, but no claim of a guaranteed 4K/two-world 60 Hz venue
+cadence follows from the quiet 12.6 ms sample. Baseline/final films and strips:
 `output/tide/{baseline,final}/moon-tide.{mp4,png}` in the fleet lane output.
 Final also contains all-look energy ladder, 4K/1080p/portrait stills, Glacier
 Living Breakers, Ember portrait, early/late/fallback compilation and reverse
