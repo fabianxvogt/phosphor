@@ -226,6 +226,7 @@ test("carrier camera bounds, kick and persistent droplets stay bounded", () => {
 });
 
 test("rate clocks stay periodic and continuous at 3600 seconds and 12 hours", () => {
+  assert.match(ferro.fragment, /uniform float u_clock\[4\];/);
   const params = ferro.schema.map((f) => f.default);
   for (const t of [3600, 43200]) {
     const state = {};

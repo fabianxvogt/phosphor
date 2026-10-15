@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Liquid Chrome (#101). The fixed triangular lattice is sampled in a
 // stereographic material chart; development deforms its carrier ellipsoid,
@@ -128,7 +129,7 @@ const presets = [
   }),
 ];
 
-const fragment = `
+const fragment = `${lateClockGlsl}
 float gForm, gLift, gPhase, gCam, gBreath, gAmp, gPixel, gWidth;
 vec3 gRadii, gCentre;
 mat2 gRotation;
