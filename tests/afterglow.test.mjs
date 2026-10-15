@@ -109,6 +109,7 @@ test("calyx envelope has exact six-fold symmetry and continuous bounded developm
   }
   assert.match(afterglow.fragment, /if \(bloom <= 0\.\) break/);
   assert.match(afterglow.fragment, /gardenHeight\(bloomAt/);
+  assert.match(afterglow.fragment, /vec2 localXY = hit.xy - focus/);
 });
 
 test("saved sets with the earlier evolution-based Afterglow Garden upgrade; edited ones stay", () => {

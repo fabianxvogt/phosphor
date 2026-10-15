@@ -264,7 +264,8 @@ void main() {
   // offset blur it, and a slow ripple breaks it up.
   vec3 reflected = reflect(rd, vec3(0., 0., 1.));
   vec2 toward = reflected.xy / max(reflected.z, .15);
-  vec2 ripple = .0025 * vec2(sin(hit.y * 70. + u_time * 1.1), cos(hit.x * 60. - u_time * .9));
+  vec2 localXY = hit.xy - focus;
+  vec2 ripple = .0025 * vec2(sin(localXY.y * 70. + u_time * 1.1), cos(localXY.x * 60. - u_time * .9));
   float mirror = 0.;
   for (int i = 0; i < 3; i++) {
     if (bloom <= 0.) break;
