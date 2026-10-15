@@ -59,6 +59,7 @@ import aurora from "./scene-aurora.mjs";
 import orrery from "./scene-orrery.mjs";
 import storm from "./scene-storm.mjs";
 import escher from "./scene-escher.mjs";
+import silk from "./scene-silk.mjs";
 
 export default [
   acid,
@@ -122,6 +123,7 @@ export default [
   storm,
   prism,
   escher,
+  silk,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
