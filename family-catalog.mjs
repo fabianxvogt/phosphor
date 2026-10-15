@@ -48,6 +48,12 @@ export const FAMILY_CATALOG = {
     styles: ["spatial", "waves", "organic"],
     variants: ["Veil", "Banners", "Tornado"],
   },
+  ink: {
+    algorithm: "Kelvin vortex rings and analytic marbled pigment transport",
+    description: "A falling drop rolls into a descending vortex ring, branches into colliding plumes and fills a backlit tank with marbled ink clouds.",
+    styles: ["organic", "spatial"],
+    variants: ["Drop", "Plumes", "Nebula"],
+  },
   ferro: {
     algorithm: "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
     description: "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",

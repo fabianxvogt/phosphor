@@ -303,6 +303,17 @@ const AUTHORED = [
       { name: "Tornado", look: "silk:Tornado" },
     ],
   },
+  {
+    id: "ink-bloom",
+    name: "Ink Bloom",
+    description:
+      "A falling drop rolls into a descending vortex ring, branches into colliding plumes and fills a backlit tank with marbled ink clouds.",
+    states: [
+      { name: "Drop", look: "ink:Drop" },
+      { name: "Plumes", look: "ink:Plumes" },
+      { name: "Nebula", look: "ink:Nebula" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
