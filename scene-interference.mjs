@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 const schema = [
   {
@@ -198,7 +199,7 @@ const presets = [
   },
 ];
 
-const fragment = `
+const fragment = `${lateClockGlsl}
 // Integrate the carriers over the pixel footprint, then taper before Nyquist.
 // Pair differences are filtered independently: resolvable moire survives even
 // when the individual waves disappear into the distance.
@@ -219,8 +220,14 @@ void main() {
   float motion = u_params[6];
   // Both clocks advance one unit in four beats at 120 BPM. Multiplicative
   // energy motion keeps an authored zero stationary at every show level.
+#ifdef PHOSPHOR_LATE
+  // motion · mix(t · .5, beat · .25, lock), integrated over time and beats
+  // (clock 0): motion and lock glides change speed, never the phase.
+  float evolution = u_clock[0];
+#else
   float clock = mix(u_time * 0.5, u_beat * 0.25, u_params[7]);
   float evolution = motion * clock;
+#endif
   // Keep sources near the view instead of advecting them infinitely far away
   // (which eventually collapses spherical waves to stripes). Commensurate
   // orbit/phase periods also retain float precision through an eight-hour set.
@@ -386,4 +393,10 @@ export default {
   schema,
   presets,
   fragment,
+  clocks: [
+    {
+      rate: (p) => p[6] * 0.5 * (1 - p[7]),
+      perBeat: (p) => p[6] * 0.25 * p[7],
+    },
+  ],
 };

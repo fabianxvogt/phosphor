@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Pulse Geometry (D60): clock-cut strobe geometry, not a full-screen flash.
 // Analytic tiles, broken portals, a block floor and splintered radial blades
@@ -124,7 +125,7 @@ const presets = [
   },
 ];
 
-const fragment = `
+const fragment = `${lateClockGlsl}
 // Periodic hard bands, filtered before they become sub-pixel at the horizon.
 float pgLines(float v, float weight) {
   float footprint = fwidth(v);
@@ -155,7 +156,13 @@ void main() {
   float cutAmt = smoothstep(0.7, 0.9, u_level) * stepAmt;
   float configuration = mod(floor(u_rhythmEnabled ? u_rhythmCount.z : u_beat), 4.0);
   float cut = configuration * cutAmt;
+#ifdef PHOSPHOR_LATE
+  // Integrated t · speed (clock 0) and twist · travel (clock 1): energy and
+  // audio change the speed of travel and turn, never their phase.
+  float travel = u_clock[0] * 1.5;
+#else
   float travel = u_time * speed * 1.5;
+#endif
   float seedTurn = fract(u_seed * 0.0137);
   float divisions = 1.0 + floor(u_level * 4.0);
   float layers = smoothstep(0.4, 0.9, u_level);
@@ -196,7 +203,11 @@ void main() {
   } else if (form < 1.5) {
     // Broken square portals: log-depth frames split into edge tiles, with an
     // offset counter-moving portal behind them at high energy.
+#ifdef PHOSPHOR_LATE
+    vec2 q = rot2(u_clock[1] * 0.25 + cut * PI * 0.125) * p;
+#else
     vec2 q = rot2(twist * travel * 0.25 + cut * PI * 0.125) * p;
+#endif
     q -= vec2(sin(cut * PI * 0.5), cos(cut * PI * 0.5) - 1.0) * 0.06;
     float r = max(abs(q.x), abs(q.y));
 #ifdef PHOSPHOR_LATE
@@ -217,7 +228,11 @@ void main() {
     vec3 ink = palette(fract(floor(z) * 0.173 + seedTurn));
     col = ink * frame * portal;
     col += ink * glow * 0.1 * pgLines(z, weight * 1.8) * portal;
+#ifdef PHOSPHOR_LATE
+    vec2 rear = rot2(-u_clock[1] * 0.3 - 0.2) * (p - vec2(0.24, 0.09));
+#else
     vec2 rear = rot2(-twist * travel * 0.3 - 0.2) * (p - vec2(0.24, 0.09));
+#endif
     float rr = max(abs(rear.x), abs(rear.y));
 #ifdef PHOSPHOR_LATE
     float rz = log(max(rr, 0.006)) * count * 0.27 + mod(travel, 500.0) * 1.4;
@@ -336,4 +351,5 @@ export default {
   schema,
   presets,
   fragment,
+  clocks: [{ rate: (p) => p[3] }, { rate: (p) => 1.5 * p[3] * p[4] }],
 };

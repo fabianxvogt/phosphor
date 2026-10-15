@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 const schema = [
   {
@@ -154,7 +155,7 @@ const presets = [
   },
 ];
 
-const fragment = `
+const fragment = `${lateClockGlsl}
 #define FC_PI PI
 #define FC_TAU TAU
 
@@ -193,7 +194,13 @@ void main() {
   float phase = hash(vec2(52.0, 19.0)) * FC_TAU;
   // Energy drives the injector even when an authored transport is stationary.
   // Persistence controls trails, not whether the high-energy look can move.
+#ifdef PHOSPHOR_LATE
+  // Integrated t · mix(.06, 1.8, level²) (clock 0): energy changes the speed
+  // of the injectors, never their phase.
+  float clock = u_clock[0];
+#else
   float clock = u_time * mix(0.06, 1.8, level * level);
+#endif
   float spin = clamp(rotation * (1.0 + 0.3 * mid), -0.8, 0.8);
   float dilation = clamp(zoom + bass * 0.035 * sign(zoom), -0.22, 0.22);
   vec2 source = fcRotate(p, -spin * dt);
@@ -337,4 +344,12 @@ export default {
   schema,
   presets,
   fragment,
+  clocks: [
+    {
+      rate: (p, level) => {
+        const l = Math.min(1, Math.max(0, level));
+        return 0.06 + (1.8 - 0.06) * l * l;
+      },
+    },
+  ],
 };

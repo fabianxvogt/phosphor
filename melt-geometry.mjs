@@ -4,12 +4,12 @@ export const MELT_POINTS = 162;
 export const MELT_ROWS = 7;
 export const MELT_BLOCK = 8;
 
-export function updateMeltGeometry(params, time, data) {
+// turns: breathing cycles elapsed, round(cycles) · ∫ dt / duration — the
+// engine's integrated clock 0 (scene-time.mjs), so duration glides never jump.
+export function updateMeltGeometry(params, turns, data) {
   const tau = Math.PI * 2;
   const family = Math.round(params[0]);
-  const cycle = tau * (
-    (params[3] + Math.round(params[7]) * time / Math.max(params[2], 4)) % 1
-  );
+  const cycle = tau * ((params[3] + turns) % 1);
   const breath = Math.sin(cycle);
   const tide = Math.cos(cycle);
   const yaw = params[4] * Math.PI / 180;

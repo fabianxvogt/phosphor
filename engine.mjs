@@ -11,6 +11,7 @@ import { Compositor, AsyncReadback } from "./compositor.mjs";
 import {
   advanceClocks,
   CLOCK_COUNT,
+  clocksPure,
   HOUR,
   LATE_DEFINE,
   usesLateVariant,
@@ -333,13 +334,25 @@ export class Engine {
     }
   }
   // The program set a slot draws with. Scenes with a long-show variant
-  // compile it ten minutes before the first hour ends (in parallel where
-  // supported) and switch at HOUR; a seek past it finishes the compile.
+  // (PHOSPHOR_LATE, scene-time.mjs) switch to it at HOUR, and scenes with
+  // clocks also as soon as a clock's rate changes (an energy, audio or fader
+  // move), so authored looks at constant rates stay the authored program.
+  // The variant compiles in parallel ahead of need: at load for clocked
+  // scenes, ten minutes before HOUR otherwise. Until a clocked variant is
+  // ready its clocks keep re-anchoring to the authored product, so the switch
+  // never jumps; past HOUR a pending compile is finished on demand.
   programsFor(s) {
     const programs = this.programs.get(s.scene.id);
     if (!programs || programs.error || !usesLateVariant(s.scene))
       return programs;
-    if (!(s.time >= HOUR - 600)) return programs;
+    const clocked = !!s.scene.clocks?.length;
+    let wanted = s.time >= HOUR;
+    if (clocked) {
+      this.updateUniforms(s);
+      this.sceneClocks(s);
+      if (!clocksPure(s.clocks)) wanted = true;
+    }
+    if (!clocked && !(s.time >= HOUR - 600)) return programs;
     if (!programs.late) {
       programs.late = { error: null };
       try {
@@ -349,10 +362,25 @@ export class Engine {
       }
     }
     const late = programs.late;
-    if (!(s.time >= HOUR) || late.error) return programs;
+    if (!wanted || late.error) return programs;
     try {
-      for (const name of programKeys)
-        if (late[name] && !late[name].uniforms) this.finishProgram(late[name]);
+      for (const name of programKeys) {
+        const p = late[name];
+        if (!p || p.uniforms) continue;
+        if (
+          !(s.time >= HOUR) &&
+          this.parallelCompile &&
+          !this.gl.getProgramParameter(
+            p.p,
+            this.parallelCompile.COMPLETION_STATUS_KHR,
+          )
+        ) {
+          // Still compiling: stay authored and keep the clocks anchored.
+          s.clocks.time = NaN;
+          return programs;
+        }
+        this.finishProgram(p);
+      }
       return late;
     } catch (error) {
       late.error = error.message;
@@ -993,20 +1021,20 @@ export class Engine {
     }
     s.uniformFrame = this.uniformFrame;
   }
-  // Optional scene clocks (scene-time.mjs): integrated in double precision
-  // after the first hour, uploaded as float32.
+  // Optional scene clocks (scene-time.mjs): phases integrated in double
+  // precision, so rate changes never jump them; uploaded as float32.
   sceneClocks(s) {
-    s.clocks ??= { time: NaN, upload: new Float32Array(CLOCK_COUNT) };
+    s.clocks ??= { time: NaN, beat: NaN };
     const values = advanceClocks(
       s.clocks,
       s.scene.clocks ?? [],
       s.time,
       s.params,
-      this.level,
+      this.finite(this.level, 0.5),
+      this.finite(this.beat ?? 0),
     );
-    for (let i = 0; i < CLOCK_COUNT; i++)
-      s.clocks.upload[i] = this.finite(values[i]);
-    return s.clocks.upload;
+    for (let i = 0; i < CLOCK_COUNT; i++) values[i] = this.finite(values[i]);
+    return values;
   }
   uniforms(program, s, target, dt, reset, simulation = false) {
     const gl = this.gl,
@@ -1173,7 +1201,8 @@ export class Engine {
     if (s.frozen || !this.checkScene(s.scene.id)) return;
     if (s.geometry) {
       this.updateUniforms(s);
-      updateMeltGeometry(s.params, s.time, s.geometry);
+      this.sceneClocks(s);
+      updateMeltGeometry(s.params, s.clocks.values[0], s.geometry);
       const gl = this.gl;
       gl.bindTexture(gl.TEXTURE_2D, s.geometryTexture);
       gl.texSubImage2D(

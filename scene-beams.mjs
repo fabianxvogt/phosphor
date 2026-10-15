@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Light Beams (new, D32): laser fans and searchlight beams in haze — the
 // club's own light language, emissive on black. Analytic and cheap; beams
@@ -25,7 +26,7 @@ const presets = [
   { name: "Strobe Fan", seed: 8106, params: { form: 0, count: 18, width: 0.003, sweep: 1.1, spread: 0.95, haze: 0.3, chase: 0.95, tilt: 0 } },
 ];
 
-const fragment = `
+const fragment = `${lateClockGlsl}
 const int BEAM_CAP = 24;
 
 float lbHash(float n) { return fract(sin(n * 127.1 + u_seed * 0.013) * 43758.5453); }
@@ -55,7 +56,13 @@ void main() {
   float tilt = u_params[7];
   vec2 p = aspectUV();
   float aspect = u_resolution.x / u_resolution.y;
+#ifdef PHOSPHOR_LATE
+  // t · sweep is an integrated clock (period 200π): energy glides change the
+  // sweep speed, never the beams' phase, and late in a night t stays small.
+  float t = u_clock[0];
+#else
   float t = u_time * sweep;
+#endif
   float beatIndex = floor(u_rhythmEnabled ? u_rhythmCount.x : u_beat);
   float kick = u_rhythmEnabled ? u_rhythm.x : exp(-fract(u_beat) * 5.0);
   vec3 col = vec3(0.0);
@@ -78,7 +85,10 @@ void main() {
     } else if (form < 1.5) {
       // Pillars: searchlights along the bottom edge, each swaying alone.
       o = vec2(k * aspect * 0.95, -0.58);
-      angle = 1.5708 + tilt * 0.5 + sin(t * (0.7 + lbHash(fi) * 0.6) + fi * 1.7) * 0.45 * spread;
+      // Speeds .70 … 1.30 in steps of .01 share the period 200π with every
+      // other use of t, so each pillar's phase stays exact all night.
+      float pillarSpeed = (70.0 + floor(lbHash(fi) * 60.0 + 0.5)) / 100.0;
+      angle = 1.5708 + tilt * 0.5 + sin(t * pillarSpeed + fi * 1.7) * 0.45 * spread;
     } else if (form < 2.5) {
       // Crossfire: two banks from the lower corners crossing in the middle.
       float side = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
@@ -128,4 +138,6 @@ export default {
   schema,
   presets,
   fragment,
+  // Uses: t, .70–1.30 t, .4 t, .3 t — all 200π-periodic.
+  clocks: [{ rate: (p) => p[3], period: 200 * Math.PI }],
 };

@@ -9,6 +9,7 @@ import {
   shaderSources,
   shaderVariant,
   usesLateVariant,
+  clocksPure,
 } from "../scene-time.mjs";
 import { MORPH_PERIOD, MORPH_WAVES } from "../scene-attractor.mjs";
 
@@ -43,7 +44,7 @@ test("no long-show shader wraps u_time unless every use is periodic", () => {
   }
 });
 
-test("the first-hour variant is the authored source without clocks", () => {
+test("authored variants have no clocks; both variants are balanced", () => {
   for (const scene of scenes.filter(usesLateVariant))
     for (const source of shaderSources(scene)) {
       const early = shaderVariant(source, false);
@@ -91,7 +92,6 @@ test("scene clocks are declared, bounded and used by index", () => {
     ].map((match) => Number(match[1]));
     const clocks = scene.clocks ?? [];
     assert.ok(clocks.length <= CLOCK_COUNT, `${scene.id}: too many clocks`);
-    if (clocks.length) assert.ok(usesLateVariant(scene), scene.id);
     for (const [i, clock] of clocks.entries()) {
       assert.equal(typeof clock.rate, "function", `${scene.id} clock ${i}`);
       assert.ok(used.includes(i), `${scene.id}: clock ${i} unused`);
@@ -103,75 +103,112 @@ test("scene clocks are declared, bounded and used by index", () => {
         scene.schema.map((def) => def.min),
       ])
         for (const level of [0, 1])
-          assert.ok(Number.isFinite(clock.rate(p, level)), `${scene.id} ${i}`);
+          for (const fn of [clock.rate, clock.perBeat ?? (() => 0)])
+            assert.ok(Number.isFinite(fn(p, level)), `${scene.id} ${i}`);
     }
     for (const i of used) assert.ok(i < clocks.length, `${scene.id} ${i}`);
   }
 });
 
-test("clocks continue the first-hour product without a seam", () => {
+const f32 = Math.fround;
+const circular = (a, b, period) => {
+  const d = Math.abs(a - b) % period;
+  return Math.min(d, period - d);
+};
+
+test("constant-rate clocks are the authored product and stay pure", () => {
   const clocks = [
     { rate: (p) => p[0] },
-    { rate: (p) => 0.05 + 0.6 * p[0], offset: 0.4, period: 2 * Math.PI },
+    { rate: (p) => p[0], offset: 0.4, period: 2 * Math.PI },
     { rate: (p) => p[0] * 1.5, period: 1 },
   ];
   const state = {};
-  const params = [0.73];
-  const product = (i, time) => {
-    const { rate, offset = 0, period } = clocks[i];
-    const value = time * rate(params) + offset;
-    return period ? value - period * Math.floor(value / period) : value;
-  };
-  // Ticks of 1/60 across the hour: values equal the product (mod period).
-  let time = HOUR - 3;
-  for (let tick = 0; tick < 360; tick++, time += 1 / 60) {
+  const params = [f32(0.73)];
+  let time = 0;
+  for (let tick = 0; tick <= 12 * HOUR * 60; tick += 997, time = tick / 60) {
     const values = advanceClocks(state, clocks, time, params, 0.5);
-    for (let i = 0; i < clocks.length; i++) {
-      const expected = product(i, time);
-      const period = clocks[i].period;
-      let error = Math.abs(values[i] - expected);
-      if (period) error = Math.min(error, period - error);
-      assert.ok(error < 1e-9, `clock ${i} at ${time}: ${values[i]}`);
+    for (const [i, clock] of clocks.entries()) {
+      const exact = time * clock.rate(params) + (clock.offset ?? 0);
+      const error = clock.period
+        ? circular(values[i], exact, clock.period)
+        : Math.abs(values[i] - exact) / Math.max(1, exact);
+      assert.ok(
+        error < 1e-6,
+        `clock ${i} at ${time}: ${values[i]} vs ${exact}`,
+      );
     }
+  }
+  // Ticks of 997/60 s exceed the seek limit, so each re-anchored; step now.
+  for (let i = 0; i < 120; i++)
+    advanceClocks(state, clocks, (time += 1 / 60), params, 0.5);
+  assert.equal(clocksPure(state), true);
+  advanceClocks(state, clocks, (time += 1 / 60), [f32(0.74)], 0.5);
+  assert.equal(clocksPure(state), false);
+  advanceClocks(state, clocks, 100, [f32(0.74)], 0.5);
+  assert.equal(clocksPure(state), true, "a seek re-anchors");
+});
+
+test("a rate step changes the clock's speed, never its phase", () => {
+  for (const at of [100, 2 * HOUR, 12 * HOUR]) {
+    const clocks = [{ rate: (p) => p[0] }];
+    const state = {};
+    let time = at - 1;
+    advanceClocks(state, clocks, time, [0.2], 0.5);
+    for (let tick = 0; tick < 60; tick++)
+      advanceClocks(state, clocks, (time += 1 / 60), [0.2], 0.5);
+    const before = state.upload[0];
+    // Energy 0.1 → 0.9 in one tick: the rate jumps from .2 to 1.8. The
+    // phase is continuous at the change and then advances at the new rate.
+    advanceClocks(state, clocks, (time += 1 / 60), [1.8], 0.5);
+    const atChange = state.upload[0];
+    advanceClocks(state, clocks, (time += 1 / 60), [1.8], 0.5);
+    const steps = [atChange - before, state.upload[0] - atChange];
+    assert.ok(Math.abs(steps[0] - 0.2 / 60) < 2e-3, `at ${at} s: ${steps}`);
+    assert.ok(Math.abs(steps[1] - 1.8 / 60) < 2e-3, `at ${at} s: ${steps}`);
+    // The authored product would have jumped by t · Δrate.
+    assert.ok(time * 1.6 > 100);
   }
 });
 
-test("clocks integrate rate changes after the hour instead of jumping", () => {
-  const clocks = [{ rate: (p) => p[0] }];
+test("seeks re-anchor, beat jumps hold, beats integrate", () => {
+  const clocks = [{ rate: (p) => p[0] * 0.5, perBeat: (p) => p[1] * 0.25 }];
   const state = {};
-  let time = HOUR + 10;
-  advanceClocks(state, clocks, time, [1], 0.5);
-  const before = state.values[0];
-  // An energy glide doubles the rate: the phase moves by rate · dt only.
-  time += 1 / 60;
-  advanceClocks(state, clocks, time, [2], 0.5);
-  assert.ok(Math.abs(state.values[0] - before - 2 / 60) < 1e-9);
-  // A seek (time jump) re-anchors to the authored product.
-  advanceClocks(state, clocks, 12 * HOUR, [2], 0.5);
-  assert.equal(state.values[0], 12 * HOUR * 2);
+  advanceClocks(state, clocks, 10, [1, 1], 0.5, 20);
+  assert.equal(state.upload[0], f32(10 * 0.5 + 20 * 0.25));
+  advanceClocks(state, clocks, 10 + 1 / 60, [1, 1], 0.5, 20.05);
+  const held = state.upload[0];
+  assert.ok(Math.abs(held - (5 + 5 + 0.5 / 60 + 0.0125)) < 1e-4);
+  // A beat resync (the clock jumps back) keeps the phase continuous.
+  advanceClocks(state, clocks, 10 + 2 / 60, [1, 1], 0.5, 3);
+  assert.ok(Math.abs(state.upload[0] - held - 0.5 / 60) < 1e-4);
+  // A time seek re-anchors to the authored product.
+  advanceClocks(state, clocks, 12 * HOUR, [2, 0], 0.5, 3);
+  assert.equal(state.upload[0], f32(12 * HOUR * 1));
   // Non-finite rates never reach the GPU.
   advanceClocks(state, [{ rate: () => NaN }], 12 * HOUR + 1 / 60, [], 0.5);
-  assert.ok(Number.isFinite(state.values[0]));
+  assert.ok(Number.isFinite(state.upload[0]));
 });
 
 test("periodic clocks stay small and exact for twelve hours", () => {
   const period = 40 * Math.PI;
-  const clocks = [{ rate: () => 2.15, period }];
+  const clocks = [{ rate: (p) => p[0], period }];
   const state = {};
-  let time = HOUR - 1;
-  for (; time < 12 * HOUR; time += 1 / 30)
-    advanceClocks(state, clocks, time, [], 0);
-  const value = state.values[0];
+  let time = 0,
+    exact = 0,
+    previous = 0;
+  // Speed changes every minute, as an energy curve would.
+  for (let tick = 0; time < 12 * HOUR; tick++, time += 1 / 30) {
+    const rate = 1 + 0.5 * Math.sin(Math.floor(tick / 1800));
+    if (tick) exact += previous * (1 / 30);
+    previous = rate;
+    advanceClocks(state, clocks, time, [rate], 0);
+  }
+  const value = state.upload[0];
   assert.ok(value >= 0 && value < period);
-  // Exact reference in double precision (12 h of 1/30 s steps).
-  const expected = (state.time * 2.15) % period;
-  const error = Math.min(
-    Math.abs(value - expected),
-    period - Math.abs(value - expected),
+  assert.ok(
+    circular(value, exact, period) < 1e-3,
+    `${value} vs ${exact % period}`,
   );
-  assert.ok(error < 1e-6, `${value} vs ${expected}`);
-  // The float32 upload keeps sub-microradian resolution.
-  assert.ok(Math.abs(Math.fround(value) - value) < 1e-5);
 });
 
 // The GPU seam check (scripts/check-time-wrap.mjs) needs the native GPU:

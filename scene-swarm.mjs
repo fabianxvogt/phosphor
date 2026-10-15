@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Particle Swarm (new, D32): 65,536 GPU particles drawn as additive points
 // over fading trails (contract v3 particles). Positions live in a 16-bit
@@ -30,7 +31,7 @@ const presets = [
 
 // Simulation: one texel per particle, xy packed as two 16-bit values.
 // Particle space is a 16:9 frame (aspect 16/9 below); the engine crops it.
-const simulation = `
+const simulation = `${lateClockGlsl}
 vec2 swNoiseGrad(vec2 p) {
   // Gradient of a smooth value-noise-like field built from sines.
   float a = 1.7, b = 2.3;
@@ -60,7 +61,12 @@ void main() {
   } else if (form < 1.5) {
     // Attractor: each step moves toward the de Jong map image of the point,
     // so the cloud settles on a slowly morphing strange attractor.
+#ifdef PHOSPHOR_LATE
+    // Integrated (clock 0): speed glides with energy without jumping the map.
+    float t = u_clock[0];
+#else
     float t = u_time * 0.03 * speed;
+#endif
     vec4 k = vec4(1.4 + 0.3 * sin(t), -2.3 + 0.2 * cos(t * 1.3), 2.4 + 0.25 * sin(t * 0.7), -2.1 + 0.3 * cos(t * 0.9)) * (0.7 + 0.15 * scale);
     vec2 s = q * 2.4;
     vec2 f = vec2(sin(k.x * s.y) - cos(k.y * s.x), sin(k.z * s.x) - cos(k.w * s.y)) / 2.4 * 0.5;
@@ -131,6 +137,8 @@ export default {
   description:
     "65,536 GPU particles as additive points over fading trails: a curl-noise flock, a cloud settling on a morphing de Jong attractor, a galaxy sheared into spiral arms by differential rotation, and bursts thrown out on every kick. Positions are 16-bit packed in a simulation texture; motion is a stateless field per type, with a small respawn rate keeping the swarm fresh.",
   simulation: { size: [SIZE, SIZE], steps: 1, fragment: simulation },
+  // sin(t), cos(1.3t), sin(.7t), cos(.9t): 20π-periodic.
+  clocks: [{ rate: (p) => 0.03 * p[1], period: 20 * Math.PI }],
   particles,
   schema,
   presets,

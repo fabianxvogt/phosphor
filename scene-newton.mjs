@@ -208,7 +208,9 @@ void main() {
     // Each root its own colour; slow convergence (the borders) glows and
     // fast convergence (deep inside a basin) stays dark and calm.
     float k = method == 3 ? fract(atan(z.y, z.x) / TAU + 0.5) * 3.0 : float(hit);
-    float rootHue = fract(k / float(max(n, 3)) + turn * 0.05);
+    // Up and back down the palette (period 2): a fract wrap jumped a basin
+    // from palette(1) to palette(0) every 1600/3 s at drift .25.
+    float rootHue = 1.0 - abs(1.0 - mod(k / float(max(n, 3)) + turn * 0.05, 2.0));
     // Deep inside a basin Newton lands in ~4 steps; near the borders it
     // wanders for 20+. Light follows that wandering.
     // Higher degrees and Nova need more steps everywhere; scale to that.

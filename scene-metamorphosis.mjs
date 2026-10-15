@@ -10,6 +10,9 @@ layout(location=2) in float a_angle;
 layout(location=3) in float a_kind;
 layout(location=4) in float a_id;
 uniform float u_time;
+#ifdef PHOSPHOR_LATE
+uniform float u_clock[4];
+#endif
 uniform vec2 u_resolution;
 uniform float u_params[8];
 uniform vec4 u_rhythm;
@@ -42,11 +45,19 @@ vec3 surface(vec2 uv){
  vec2 sheet=vec2(cos(sector),sin(sector))*t*.70;
  vec2 petal=radial*(t*.88)+side*(v*.195*envelope);
  vec2 p=a_center.xy+a_center.z*mix(mix(filament,sheet,membrane),petal,flower);
+#ifdef PHOSPHOR_LATE
+ p+=side*.012*u_params[1]*sin(u_clock[0]*.40+a_id*1.3+a_angle)*t*t*(1.-membrane+flower);
+#else
  p+=side*.012*u_params[1]*sin(u_time*u_params[2]*.40+a_id*1.3+a_angle)*t*t*(1.-membrane+flower);
+#endif
  float sheetRise=a_center.z*(.10*sin(t*PI)+.014*sin(sector*petals)*t*t);
  float petalRise=a_center.z*(.34*t*t-.13*sin(t*PI)+.012*cos(v*PI*2.)*envelope+.065*v*v*envelope);
  float rise=mix(mix(.025*sin(t*PI),sheetRise,membrane),petalRise,flower);
+#ifdef PHOSPHOR_LATE
+ rise+=.008*u_params[1]*sin(u_clock[0]*.52+a_id+t*4.)*t;
+#else
  rise+=.008*u_params[1]*sin(u_time*u_params[2]*.52+a_id+t*4.)*t;
+#endif
  return vec3(p,rise);
 }
 void main(){
@@ -66,6 +77,9 @@ in vec3 v_normal,v_position;
 in vec2 v_uv;
 flat in float v_kind,v_id;
 uniform float u_time,u_level;
+#ifdef PHOSPHOR_LATE
+uniform float u_clock[4];
+#endif
 uniform float u_params[8];
 uniform vec3 u_primary,u_secondary,u_accent;
 uniform vec4 u_rhythm;
@@ -85,7 +99,11 @@ void main(){
  base=mix(base,gold,flower*.19*pow(1.-v_uv.x,3.));
  float rib=pow(abs(cos(v_uv.y*PI*3.)),20.);
  float crossVein=pow(.5+.5*cos(v_uv.x*96.+abs(v_uv.y)*17.),22.);
+#ifdef PHOSPHOR_LATE
+ float pulse=pow(.5+.5*sin(v_uv.x*13.-u_clock[0]*.8+v_id),12.);
+#else
  float pulse=pow(.5+.5*sin(v_uv.x*13.-u_time*u_params[2]*.8+v_id),12.);
+#endif
  vec3 color=base*(.16+light*.64+side*.13);
  color*=1.-membrane*.14*rib;
  color+=base*crossVein*.055*membrane;
@@ -183,6 +201,8 @@ export default {
     ),
   ],
   fragment: `void main(){vec2 p=v_uv-.5;float glow=exp(-dot(p,p)*3.5);outColor=vec4(mix(u_secondary*.045,u_secondary*.10,glow),1.);}`,
+  // t · speed integrated (clock 0, 50π: uses ×.4, ×.52, ×.8).
+  clocks: [{ rate: (p) => p[2], period: 50 * Math.PI }],
   geometry: {
     create: createGeometry,
     attributes: [2, 3, 1, 1, 1],

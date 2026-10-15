@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Hyperbolic Loom (v6 port, D32/D33): regular tilings of the hyperbolic
 // plane in the Poincaré disk, drifting under Möbius motion so the weave
@@ -26,7 +27,7 @@ const presets = [
   { name: "Endless Floor", seed: 9306, params: { tiling: 1, drift: 0.9, turn: 0, weight: 0.009, fill: 0.45, spokes: 0.5, cover: 1, glow: 0.4 } },
 ];
 
-const fragment = `
+const fragment = `${lateClockGlsl}
 const int FOLD_CAP = 40;
 
 vec2 hlMul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
@@ -49,9 +50,18 @@ void main() {
   // Möbius motion: translate along a slowly turning direction, then rotate.
   float t = u_time;
   float phase = fract(u_seed * 0.0057) * 6.2831853;
+#ifdef PHOSPHOR_LATE
+  // t · drift (clock 0, 200π) and t · turn (clock 1, 10π) are integrated.
+  vec2 a = 0.55 * vec2(cos(u_clock[0] * 0.13 + phase), sin(u_clock[0] * 0.09 + phase));
+#else
   vec2 a = 0.55 * vec2(cos(t * drift * 0.13 + phase), sin(t * drift * 0.09 + phase));
+#endif
   z = hlDiv(z + a, vec2(1.0, 0.0) + hlMul(vec2(a.x, -a.y), z));
+#ifdef PHOSPHOR_LATE
+  z = rot2(u_clock[1] * 0.2) * z;
+#else
   z = rot2(t * turn * 0.2) * z;
+#endif
 
   // Fundamental triangle: angle π/p at the origin, π/q at the polygon
   // vertex and π/2 on the x-axis. Its third side is a circle orthogonal to
@@ -113,4 +123,8 @@ export default {
   schema,
   presets,
   fragment,
+  clocks: [
+    { rate: (p) => p[1], period: 200 * Math.PI },
+    { rate: (p) => p[2], period: 10 * Math.PI },
+  ],
 };

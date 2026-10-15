@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 import {
   createColonization,
   stepColonization,
@@ -21,7 +22,7 @@ void main() {
 `;
 
 const particles = {
-  vertex: `
+  vertex: `${lateClockGlsl}
 vec4 colonyTexel(int index) {
   return texelFetch(u_state, ivec2(index % ${TEXTURE_WIDTH}, index / ${TEXTURE_WIDTH}), 0);
 }
@@ -45,7 +46,12 @@ void main() {
   float turn = u_params[6];
   float depth = 2.7;
   if (variant == 2) {
+#ifdef PHOSPHOR_LATE
+    // Integrated t · turn (clock 0): turn glides never jump the orbit.
+    float yaw = mod(u_clock[0] * 0.24, 6.28318530718);
+#else
     float yaw = mod(t * turn * 0.24, 6.28318530718);
+#endif
     float pitch = 0.28 + 0.13 * sin(t * 0.11);
     p.xz = mat2(cos(yaw), -sin(yaw), sin(yaw), cos(yaw)) * p.xz;
     p.yz = mat2(cos(pitch), -sin(pitch), sin(pitch), cos(pitch)) * p.yz;
@@ -236,4 +242,5 @@ export default {
     cpu: { create: createColonization, step: stepColonization },
   },
   particles,
+  clocks: [{ rate: (p) => p[6], period: (2 * Math.PI) / 0.24 }],
 };

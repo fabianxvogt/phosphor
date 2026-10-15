@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 const schema = [
   { key: 'flow', label: 'Torus · Vortices · Silk', min: 0, max: 2, step: 0.01, default: 0 },
@@ -27,7 +28,7 @@ const presets = [
 // Four-tap wrapped bilinear sampling is explicit because state textures use NEAREST.
 // RGBA8 rounds concentrations/attractor coordinates to 1/255; deterministic fixed
 // ticks reproduce a seed/control sequence on the same WebGL implementation.
-const simulationFragment = `
+const simulationFragment = `${lateClockGlsl}
 vec2 dyeAt(vec2 uv) { return stateBilinear(uv).rg; }
 vec2 turn(vec2 p) { return vec2(-p.y, p.x); }
 vec2 orbit(vec2 d, float radius, float direction) {
@@ -74,7 +75,12 @@ vec2 ringSource(vec2 d, float radius, float phase, float orientation) {
 }
 vec2 source(vec2 uv, vec2 center) {
   vec2 d = uv - center;
+#ifdef PHOSPHOR_LATE
+  // Integrated (clock 0, 40π: uses ×1, ×.15, ×.2): motion glides never jump it.
+  float phase = mod(u_seed, 113.0) + u_clock[0];
+#else
   float phase = mod(u_seed, 113.0) + u_time * (0.2 + 0.3 * u_params[1]);
+#endif
   float radius = u_params[4] * (1.0 + 0.035 * sin(u_time * 0.5 + u_seed) + 0.045 * u_bass);
   vec2 torus = ringSource(d, radius, phase, 1.0);
   vec2 twins = ringSource(d + vec2(u_params[6] * 0.5, 0.0), radius * 0.53, phase, 1.0)
@@ -159,4 +165,5 @@ export default {
   presets,
   fragment,
   simulation: { fragment: simulationFragment, size: [320, 320], steps: 1 },
+  clocks: [{ rate: (p) => 0.2 + 0.3 * p[1], period: 40 * Math.PI }],
 };

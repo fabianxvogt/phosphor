@@ -1,5 +1,6 @@
 import { MELT_BLOCK } from "./melt-geometry.mjs";
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Projected, depth-tested parametric tubes and ruled ribbons, not a noise field.
 // Geometry and illumination depend only on a periodic loop coordinate. Families
@@ -158,7 +159,7 @@ const presets = [
   },
 ];
 
-const fragment = `
+const fragment = `${lateClockGlsl}
 #define TAU_MELT TAU
 const int MELT_SEGMENTS = 80;
 uniform highp sampler2D u_geometry;
@@ -262,7 +263,13 @@ void meltTriangle(vec2 uv, vec3 a, vec3 b, vec3 c, vec2 pa, vec2 pb, vec2 pc, fl
 
 void main() {
   vec2 uv = aspectUV();
+#ifdef PHOSPHOR_LATE
+  // Breathing cycles round(cycles) · t / duration: clock 0, integrated so a
+  // duration glide (energy) never jumps the phase; the CPU geometry uses it too.
+  float cycle = TAU_MELT * fract(u_params[3] + u_clock[0]);
+#else
   float cycle = TAU_MELT * fract(u_params[3] + floor(u_params[7] + .5) * u_time / max(u_params[2], 4.0));
+#endif
   int family = int(floor(u_params[0] + .5));
   float thickness = u_params[1];
   // CPU computes the camera-space geometry once per visual frame.
@@ -332,6 +339,9 @@ export default {
   schema,
   presets,
   fragment,
+  clocks: [
+    { rate: (p) => Math.floor(p[7] + 0.5) / Math.max(p[2], 4), period: 1 },
+  ],
   families: [
     "Trefoil tube",
     "Figure-eight tube",

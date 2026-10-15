@@ -1,4 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
+import { lateClockGlsl } from "./scene-time.mjs";
 
 // Julia Observatory (v6 port, D32/D33): filaments of Julia sets whose
 // parameter c travels along the edge of the Mandelbrot set, where the most
@@ -31,7 +32,7 @@ const presets = [
 // black with distance from the set; the interior stays near black apart from
 // sparse orbit-trap glints. Energy changes iterations and filament reach, not
 // brightness.
-const fragment = `
+const fragment = `${lateClockGlsl}
 const int ITER_CAP = 128;
 
 vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
@@ -49,7 +50,12 @@ void main() {
 
   // c travels around the main cardioid's boundary (scaled by edge): the
   // closer to 1, the more filamentary the Julia set.
+#ifdef PHOSPHOR_LATE
+  // t · drift and t · spin: integrated clocks, so energy glides change speed only.
+  float a = u_clock[0] * 0.15 + u_rhythm.z * 0.12 + fract(u_seed * 0.0071) * 6.2831853;
+#else
   float a = u_time * drift * 0.15 + u_rhythm.z * 0.12 + fract(u_seed * 0.0071) * 6.2831853;
+#endif
   vec2 cardioid = 0.5 * vec2(cos(a), sin(a)) - 0.25 * vec2(cos(2.0 * a), sin(2.0 * a));
   vec2 c = cardioid * mix(0.7, 1.0, edge);
   if (map > 0.5 && map < 1.5) c = 0.62 * vec2(cos(a * 1.3), sin(a)) * mix(0.75, 1.02, edge);
@@ -57,7 +63,11 @@ void main() {
 
   float scale = 2.6 / zoom;
   float pixel = scale / u_resolution.y;
+#ifdef PHOSPHOR_LATE
+  vec2 z = rot2(mod(u_clock[1] * 0.2, 6.2831853)) * aspectUV() * scale;
+#else
   vec2 z = rot2(mod(spin * u_time * 0.2, 6.2831853)) * aspectUV() * scale;
+#endif
   vec2 dz = vec2(1.0, 0.0);
   if (map > 2.5) {
     // Mirror: fold the plane four ways before iterating (an isometry, so the
@@ -166,4 +176,5 @@ export default {
   schema,
   presets,
   fragment,
+  clocks: [{ rate: (p) => p[1] }, { rate: (p) => p[5], period: 10 * Math.PI }],
 };

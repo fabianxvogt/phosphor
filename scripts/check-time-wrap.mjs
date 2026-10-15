@@ -4,7 +4,8 @@
 // frame, simulations included) across each epoch: 10 s (an ordinary step),
 // the old hourly wrap at 3600 s, Abyss's old 4096 s wrap and 12 hours. The
 // mean frame-to-frame difference across an epoch must stay within the
-// ordinary steps around it. --reference <rev> serves the scenes of another
+// ordinary steps around it, and an instant energy step 0.1 → 0.9 at 2 h
+// must look like the same step at 10 s. --reference <rev> serves the scenes of another
 // revision (for example origin/main before the fix) to show its seams.
 //   PHOSPHOR_HEADLESS_RIG=1 node scripts/check-time-wrap.mjs --rig --port 48402
 // --identity <rev> --families a,b instead compares every look of those
@@ -22,10 +23,7 @@ import {
 } from "./browser-runtime.mjs";
 import { renderLook } from "../tests/browser/client.mjs";
 
-// 12 h is probed at 43 201 s: at exactly 43 200 s a pre-existing Newton root
-// hue sawtooth (fract(k/3 + t·drift/80), every 1600/3 s at drift .25) wraps
-// by coincidence; that palette seam is first-hour behaviour (TIME.md).
-export const EPOCHS = [10, 3600, 4096, 43201];
+export const EPOCHS = [10, 3600, 4096, 43200];
 export const STEP = 1 / 30; // speed 2× at 60 Hz
 // A seam is a crossing step larger than SEAM_FACTOR × the largest ordinary
 // step next to it (or at 10 s), plus a small absolute floor for still looks.
@@ -92,6 +90,129 @@ export async function stepAcross({ epochs, step, width, height }) {
   };
 }
 
+// Rate steps at RATE_TIMES, applied between two frames. A phase computed as
+// time · rate jumps by t · Δrate, so its step at 2 h dwarfs the same step at
+// 10 s; an integrated phase only changes speed.
+// - energy: 0.1 → 0.9 in one frame. It also changes structure (counts,
+//   subdivisions), equally at 10 s and at 2 h.
+// - nudge: energy 0.5 → 0.501 and every continuous parameter +0.1 % of its range
+//   (a fader touch). The image barely moves; a product phase would jump.
+export const RATE_TIMES = [10, 7200];
+export const RATE_STEPS = [
+  { name: "energy", from: 0.1, to: 0.9, nudge: 0 },
+  { name: "nudge", from: 0.5, to: 0.501, nudge: 0.001 },
+];
+
+// Runs in the lab page: five frame steps around each rate step.
+export async function rateStep({ times, scenarios, step, width, height }) {
+  const { engine } = window.__phosphorLab;
+  const gl = engine.gl;
+  const read = () => {
+    engine.present();
+    const pixels = new Uint8Array(engine.width * engine.height * 4);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+    gl.readPixels(
+      0,
+      0,
+      engine.width,
+      engine.height,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      pixels,
+    );
+    return pixels;
+  };
+  const difference = (a, b) => {
+    let sum = 0;
+    for (let i = 0; i < a.length; i += 4)
+      sum +=
+        Math.abs(a[i] - b[i]) +
+        Math.abs(a[i + 1] - b[i + 1]) +
+        Math.abs(a[i + 2] - b[i + 2]);
+    return sum / ((a.length / 4) * 3);
+  };
+  if (engine.width !== width || engine.height !== height)
+    engine.resize(width, height);
+  const slot = engine.slots.at(-1);
+  const authored = { ...slot.snapshot.params };
+  const beat = engine.beat;
+  engine.speed = 2;
+  const rows = [];
+  // One run of six frames from `time`; apply the step before frame 3 or not.
+  const run = (time, { from, to, nudge }, apply) => {
+    Object.assign(slot.snapshot.params, authored);
+    engine.setLevel(from, 0);
+    slot.time = time - 3.5 * step;
+    const frames = [];
+    for (let i = 0; i < 6; i++) {
+      if (i === 3 && apply) {
+        engine.setLevel(to, 0);
+        for (const def of slot.scene.schema) {
+          if (def.step === 1 || !nudge) continue;
+          const range = def.max - def.min;
+          const value = slot.snapshot.params[def.key];
+          slot.snapshot.params[def.key] =
+            value + nudge * range <= def.max
+              ? value + nudge * range
+              : value - nudge * range;
+        }
+      }
+      engine.beat = beat;
+      engine.uniformFrame++;
+      engine.advance(step / 2, false);
+      frames.push(read());
+    }
+    return frames;
+  };
+  for (const scenario of scenarios)
+    for (const time of times) {
+      const held = run(time, scenario, false);
+      const stepped = run(time, scenario, true);
+      const steps = [];
+      for (let i = 1; i < stepped.length; i++)
+        steps.push(difference(stepped[i - 1], stepped[i]));
+      // How far the first frame after the step departs from the same frame
+      // without it: structure only for integrated phases, plus t · Δrate for
+      // products.
+      rows.push({
+        name: scenario.name,
+        time,
+        steps,
+        departure: difference(held[3], stepped[3]),
+      });
+    }
+  Object.assign(slot.snapshot.params, authored);
+  engine.speed = 1;
+  engine.setLevel(0.5, 0);
+  return rows;
+}
+
+// A rate step's departure at 2 h against the same departure at 10 s and the
+// ordinary frame steps beside it.
+export function judgeRate(rows) {
+  return RATE_STEPS.map(({ name }) => {
+    const [early, late] = RATE_TIMES.map((time) =>
+      rows.find((row) => row.time === time && row.name === name),
+    );
+    const ordinary = Math.max(
+      late.steps[0],
+      late.steps[1],
+      late.steps[3],
+      late.steps[4],
+    );
+    const limit =
+      SEAM_FACTOR * Math.max(early.departure, ordinary) + SEAM_FLOOR;
+    return {
+      epoch: `${name}@${late.time}`,
+      cross: late.departure,
+      beside: ordinary,
+      base: early.departure,
+      ratio: late.departure / Math.max(early.departure, ordinary, 1e-6),
+      seam: late.departure > limit,
+    };
+  });
+}
+
 // Judges one family's rows: the step across each epoch (index 2) against the
 // ordinary steps beside it and the steps at 10 s.
 export function judge(rows) {
@@ -119,7 +240,7 @@ export function judge(rows) {
     });
 }
 
-// Scene sources (scene-*.mjs, *-geometry.mjs) of another revision.
+// Scene, geometry and engine sources of another revision.
 function revisionSources(reference) {
   const revision = execFileSync(
     "git",
@@ -132,7 +253,9 @@ function revisionSources(reference) {
     { encoding: "utf8" },
   )
     .split("\n")
-    .filter((name) => /^scene-.*\.mjs$|-geometry\.mjs$/.test(name));
+    .filter((name) =>
+      /^scene-.*\.mjs$|-geometry\.mjs$|^engine\.mjs$/.test(name),
+    );
   return new Map(
     files.map((name) => [
       `/${name}`,
@@ -221,13 +344,21 @@ export async function checkTimeWrap({
         width,
         height,
       });
-      const verdicts = judge(measured.rows);
+      const rate = await page.evaluate(rateStep, {
+        times: RATE_TIMES,
+        scenarios: RATE_STEPS,
+        step: STEP,
+        width,
+        height,
+      });
+      const verdicts = [...judge(measured.rows), ...judgeRate(rate)];
       const result = {
         sceneId,
         glError: health.glError || measured.glError,
         nonFinite: measured.nonFinite,
         late: measured.late,
         rows: measured.rows,
+        rate,
         verdicts,
         seams: verdicts.filter((verdict) => verdict.seam).map((v) => v.epoch),
       };

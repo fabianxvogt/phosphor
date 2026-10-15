@@ -378,6 +378,10 @@ void main() {
 `;
 
 const fragment = `${common}
+// Each height colour starts at its authored palette position fract(hue + c)
+// and drifts up and back down the palette (period 2): palette(0) and
+// palette(1) differ, so wrapping with fract jumped every 250 s.
+float spHue(float base, float drift) { return 1.0 - abs(1.0 - mod(fract(base) + drift, 2.0)); }
 void main() {
   int drop = int(floor(u_params[0] + 0.5));
   int board = int(floor(u_params[1] + 0.5));
@@ -401,12 +405,12 @@ void main() {
   int h = sHeight(c);
   float glow = float(sGlow(c)) / 255.0;
   // One colour per grain count: the classic four-colour sandpile.
-  float drift = hue + u_time * 0.004;
+  float drift = u_time * 0.004;
   int heightClass = h & 3;
   vec3 colour = heightClass == 0 ? ground
-    : heightClass == 1 ? palette(fract(drift + 0.18)) * 0.34
-    : heightClass == 2 ? palette(fract(drift + 0.5)) * 0.54
-    : palette(fract(drift + 0.86)) * 0.74;
+    : heightClass == 1 ? palette(spHue(hue + 0.18, drift)) * 0.34
+    : heightClass == 2 ? palette(spHue(hue + 0.5, drift)) * 0.54
+    : palette(spHue(hue + 0.86, drift)) * 0.74;
   // Avalanches: recently toppled cells and their neighbours glow.
   float near = glow;
   near = max(near, 0.6 * float(sGlow(c + ivec2(1, 0))) / 255.0);
@@ -430,7 +434,7 @@ void main() {
   // Display accents never add grains: show the true toppling front and a height cohort.
   colour += signal * front * u_rhythm.x * 0.065;
   if (h < 4 && (h > 0 || glow > 0.0) && heightClass == int(mod(u_rhythmCount.y, 4.0)))
-    colour = mix(colour, palette(fract(drift + float(heightClass) * 0.24)) * 0.78, u_rhythm.y * 0.3);
+    colour = mix(colour, palette(spHue(hue + float(heightClass) * 0.24, drift)) * 0.78, u_rhythm.y * 0.3);
   // Crisp cells: a gutter once a cell is big enough to show one.
   float cellPx = u_resolution.y / (float(b.y) * span);
   vec2 f = fract(g);

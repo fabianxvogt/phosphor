@@ -16,12 +16,17 @@
 // late form must agree with the authored one at HOUR (no seam at the switch)
 // and stay seamless and precise for 12 hours or more.
 //
-// Late forms may read u_clock[i] (declare it with lateClockGlsl): clock i is
-// the scene's `clocks[i]` = { rate(params, level), offset?, period? }, the
-// authored product time · rate + offset integrated in double precision after
-// HOUR (continuous at the switch, re-anchored after seeks), optionally
-// reduced modulo period. Parameter glides then change speed instead of
-// jumping a phase by t · Δrate.
+// Clocks: a scene may declare `clocks: [{ rate(params, level), perBeat?,
+// offset?, period? }, …]` (at most CLOCK_COUNT) and read clock i as
+// u_clock[i] in its PHOSPHOR_LATE variant (declare it with lateClockGlsl).
+// Clock i is the phase time · rate + beat · perBeat + offset, integrated in
+// double precision: a rate change (energy, audio, a fader) changes its speed
+// and never jumps the phase. The engine also draws with the late variant as
+// soon as any clock's rate has changed (not only after HOUR), while the
+// authored products keep running at constant rates — so an untouched look is
+// still the authored program, and a touched one never jumps. A periodic
+// clock is reduced modulo period (every use must be period-periodic). A seek
+// re-anchors to the authored product.
 export const HOUR = 3600;
 export const CLOCK_COUNT = 4;
 export const LATE_DEFINE = "#define PHOSPHOR_LATE\n";
@@ -78,21 +83,53 @@ export function shaderVariant(source, late) {
   return out.join("\n");
 }
 
-// Integrated clocks (double precision). Before HOUR, and whenever scene time
-// jumps (a load, a seek, a test setting slot.time), a clock re-anchors to the
-// authored product time · rate + offset, so it continues the first-hour form.
-export function advanceClocks(state, clocks, time, params, level) {
+const f32 = Math.fround;
+const finiteOr0 = (value) => (Number.isFinite(value) ? value : 0);
+
+// Integrated clocks (double precision); returns the float32 uniform values.
+// Each clock keeps phase = rate · time + perBeat · beat + c; a rate change
+// adjusts c so the phase is continuous at that instant. A time jump (load,
+// seek, a test setting slot.time) re-anchors to the authored product; a beat
+// jump (resync) holds the phase.
+export function advanceClocks(state, clocks, time, params, level, beat = 0) {
+  const upload = (state.upload ??= new Float32Array(CLOCK_COUNT));
+  // Double-precision phases for CPU consumers (e.g. Melt's geometry).
   const values = (state.values ??= new Float64Array(CLOCK_COUNT));
+  const entries = (state.entries ??= []);
   const dt = time - state.time;
-  const anchor = !(time >= HOUR) || !(dt >= 0 && dt <= 1);
+  const seek = !(dt >= 0 && dt <= 1);
+  const db = beat - state.beat;
+  const beatJump = !seek && !(db >= 0 && db <= 16);
   for (let i = 0; i < Math.min(CLOCK_COUNT, clocks.length); i++) {
-    const { rate, offset = 0, period } = clocks[i];
-    const r = Number(rate(params, level));
-    const v = Number.isFinite(r) ? r : 0;
-    let value = anchor ? time * v + offset : values[i] + v * dt;
+    const { rate, perBeat, offset = 0, period } = clocks[i];
+    const r = finiteOr0(Number(rate(params, level)));
+    const q = perBeat ? finiteOr0(Number(perBeat(params, level))) : 0;
+    let entry = entries[i];
+    if (seek || !entry) entry = entries[i] = { r, q, c: offset, pure: true };
+    else {
+      if (beatJump) entry.c += entry.q * (state.beat - beat);
+      if (r !== entry.r || q !== entry.q) {
+        entry.c += (entry.r - r) * time + (entry.q - q) * beat;
+        entry.r = r;
+        entry.q = q;
+        entry.pure = false;
+      }
+    }
+    let value = entry.r * time + entry.q * beat + entry.c;
+    if (!Number.isFinite(value)) {
+      entries[i] = { r: 0, q: 0, c: 0, pure: false };
+      value = 0;
+    }
     if (period > 0) value -= period * Math.floor(value / period);
-    values[i] = Number.isFinite(value) ? value : 0;
+    values[i] = value;
+    upload[i] = f32(value);
   }
   state.time = time;
-  return values;
+  state.beat = beat;
+  return upload;
 }
+
+// True while no clock's rate changed since its anchor: the authored products
+// still equal the integrated phases.
+export const clocksPure = (state) =>
+  !state?.entries || state.entries.every((entry) => entry.pure);
