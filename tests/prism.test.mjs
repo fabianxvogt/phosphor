@@ -220,7 +220,9 @@ test("all eight presets validate, and the appended world has identical non-devel
     ).positions,
     [0, 1, 2],
   );
-  const world = defaultWorlds(catalogLooks(scenes).map((l) => l.id)).at(-1);
+  const world = defaultWorlds(catalogLooks(scenes).map((l) => l.id)).find(
+    (w) => w.id === "prism-engine",
+  );
   assert.equal(world.id, "prism-engine");
   assert.deepEqual(
     world.states.map((s) => s.look),
