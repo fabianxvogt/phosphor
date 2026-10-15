@@ -24,22 +24,22 @@ const smooth = (a, b, x) => {
   return t * t * (3 - 2 * t);
 };
 const mix = (a, b, t) => a + (b - a) * t;
-// mrH2 (the GPU evaluates it in float32; the algorithm tests below only
-// need the same site function in the search and in the reference).
-function h2(x, y) {
+// The GPU evaluates the hash in float32; the algorithm tests below only
+// need the same site function in the search and in the reference.
+// mrH22: one hash, two outputs.
+function h22(x, y) {
   let a = fract(x * 0.1031),
-    b = fract(y * 0.1031),
-    c = fract(x * 0.1031);
+    b = fract(y * 0.103),
+    c = fract(x * 0.0973);
   const d = a * (b + 33.33) + b * (c + 33.33) + c * (a + 33.33);
   a += d;
   b += d;
   c += d;
-  return fract((a + b) * c);
+  return [fract((a + b) * c), fract((a + c) * b)];
 }
 const seedOff = [12.33, 45.21];
 function site(cx, cy) {
-  const hx = h2(cx + seedOff[0], cy + seedOff[1]);
-  const hy = h2(cx + seedOff[0] + 57.3, cy + seedOff[1] + 113.1);
+  const [hx, hy] = h22(cx + seedOff[0], cy + seedOff[1]);
   return [0.5 + PLATE_JITTER * (hx - 0.5), 0.5 + PLATE_JITTER * (hy - 0.5)];
 }
 // The shader's cached 3×3 search (R = 1); R = 3 is the brute-force reference.
@@ -93,10 +93,12 @@ function* points(n, span = 120, seed = 7) {
 test("shader keeps the mirrored Voronoi search and seam distance", () => {
   for (const line of [
     `const float JIT = ${PLATE_JITTER.toFixed(2)};`,
-    "vec2 h = vec2(mrH2(c + gSeedOff), mrH2(c + gSeedOff + vec2(57.3, 113.1)));",
-    "return vec3(0.5 + JIT * (h - 0.5), fract(h.x * 13.17 + h.y * 7.31));",
-    "float b = dot(0.5 * (mr + r[k]), dr) * inversesqrt(max(dot(dr, dr), 1e-8));",
-    "if (b < border) { border = b; gi = k; }",
+    "vec2 mrSiteHash(vec2 c) { return mrH22(c + gSeedOff); }",
+    "vec2 mrSite(vec2 h) { return 0.5 + JIT * (h - 0.5); }",
+    "return fract((p3.xx + p3.yz) * p3.zy);",
+    "if (d < best) { best = d; mr = r[k]; hA = h; oA = o; }",
+    "float b = dot(0.5 * (mr + r[k]), dr) * inversesqrt(dd);",
+    "if (b < border) { border = b; rB = r[k]; }",
     "P.gap = border - width;",
   ])
     assert.ok(src.includes(line), line);
@@ -207,9 +209,9 @@ test("shader keeps the mirrored ballistic ejecta", () => {
     "float kf = sqrt(max(gForce, 0.05));",
     "float vy = (big ? mix(5.0, 8.0, hb.x) : mix(3.5, 6.5, hb.x)) * kf;",
     "float vh = (big ? mix(0.6, 2.0, hb.y) : mix(0.0, 0.6, hb.y)) * kf;",
-    "float tf = (vy + sqrt(vy * vy + 2.0 * G_ACC * 0.35)) / G_ACC;",
-    "float tt = tau * CYCLE;",
-    "if (tt >= tf) continue;",
+    "tf = (vy + sqrt(vy * vy + 2.0 * G_ACC * 0.35)) / G_ACC;",
+    "tt = tau * CYCLE;",
+    "return on > 0.0 && tt < tf;",
     "float id = mod(floor(u), 64.0);",
   ])
     assert.ok(src.includes(line), line);
@@ -262,6 +264,37 @@ test("ejecta follow exact parabolas and land before their next launch", () => {
   assert.ok(vh * flight(vy) + 0.25 < 7.37);
 });
 
+test("the bound surface is above every slab and lava level", () => {
+  for (const line of [
+    "float top = 0.1 + 0.05 * (id - 0.5) + clamp(tl, -0.05, 0.05);",
+    "vec2 mrTilt(Plate P) { return (fract(P.hA * vec2(17.3, 11.9)) - 0.5) * 0.07; }",
+    "return mix(mix(-0.08, 0.055, flood), 0.075, mrLakeMask(r) * gLakeAmt);",
+  ])
+    assert.ok(src.includes(line), line);
+  // Highest slab top 0.1 + 0.025 + 0.05 and highest lava 0.075 stay below.
+  assert.ok(0.1 + 0.025 + 0.05 < 0.18 && 0.075 < 0.18);
+});
+
+test("a bomb's trail lies inside its precomputed bounding sphere", () => {
+  assert.match(src, /return vec4\(0\.5 \* \(h0 \+ tail\), 0\.5 \* length\(h0 - tail\) \+ 0\.125 \* G_ACC \* span \* span\);/);
+  const p0 = [0, 0.7, 0];
+  for (const [hx, hy, big] of [[0.3, 0.8, true], [1, 1, true], [0.5, 0.1, false]]) {
+    const { vy, vh } = launch(hx, hy, 1.5, big);
+    const v0 = [vh, vy, 0.3 * vh];
+    const span = 3 * (big ? 0.12 : 0.07);
+    for (let tt = 0; tt < flight(vy); tt += 0.05) {
+      const h0 = bomb(p0, v0, tt),
+        tail = bomb(p0, v0, Math.max(tt - span, 0));
+      const mid = h0.map((x, j) => 0.5 * (x + tail[j]));
+      const radius = 0.5 * Math.hypot(...h0.map((x, j) => x - tail[j])) + 0.125 * GRAVITY * span * span;
+      for (let k = 0; k <= 20; k++) {
+        const q = bomb(p0, v0, Math.max(tt - (span * k) / 20, 0));
+        assert.ok(Math.hypot(...q.map((x, j) => x - mid[j])) <= radius + 1e-9);
+      }
+    }
+  }
+});
+
 // ------------------------------------------------------------- camera
 function base(x, z) {
   const r2 = x * x + z * z;
@@ -273,7 +306,7 @@ test("the camera orbit never enters the ground", () => {
   for (const line of [
     "float R = mix(mix(7.6, 8.6, gSplit), 9.4, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
     "ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) * mix(0.8, 1.0, gSplit) + 0.9 * gErupt + 0.15 * wob;",
-    "const float TOP_BOUND = 0.2;",
+    "const float TOP_BOUND = 0.18;",
   ])
     assert.ok(src.includes(line), line);
   let least = Infinity;
@@ -290,7 +323,7 @@ test("the camera orbit never enters the ground", () => {
           const x = R * Math.cos(az),
             z = R * Math.sin(az);
           const y = base(x, z) + mix(2.2, 6.6, camH) * mix(0.8, 1, split) + 0.9 * erupt + 0.15 * wob;
-          least = Math.min(least, y - (base(x, z) + 0.2));
+          least = Math.min(least, y - (base(x, z) + 0.18));
         }
   assert.ok(least > 1.3, `clearance ${least}`);
 });
