@@ -50,6 +50,7 @@ import horizon from "./scene-horizon.mjs";
 import mycelium from "./scene-mycelium.mjs";
 import afterglow from "./scene-afterglow.mjs";
 import ferro from "./scene-ferro.mjs";
+import tide from "./scene-tide.mjs";
 
 export default [
   acid,
@@ -104,6 +105,7 @@ export default [
   horizon,
   abyss,
   ferro,
+  tide,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

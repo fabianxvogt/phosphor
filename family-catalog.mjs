@@ -18,6 +18,13 @@ export const FAMILY_CATALOG = {
     styles: ["spatial", "organic"],
     variants: ["Pool", "Crown", "Sculpture"],
   },
+  tide: {
+    algorithm: "Deep-water Gerstner waves and a continuous spiral heightfield",
+    description:
+      "A moonlit dispersive ocean gathers living crests and opens into a vast glowing maelstrom.",
+    styles: ["spatial", "waves"],
+    variants: ["Calm", "Swell", "Maelstrom"],
+  },
   fold: {
     algorithm: "Rigid folding of polyhedral nets along hinge chains",
     description:

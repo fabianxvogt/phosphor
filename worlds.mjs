@@ -196,6 +196,17 @@ const AUTHORED = [
       { name: "Sculpture", look: "ferro:Sculpture" },
     ],
   },
+  {
+    id: "moon-tide",
+    name: "Moon Tide",
+    description:
+      "A glassy moon path gathers storm swells and living foam, then opens into a vast luminous maelstrom. The same ocean throughout.",
+    states: [
+      { name: "Calm", look: "tide:Calm" },
+      { name: "Swell", look: "tide:Swell" },
+      { name: "Maelstrom", look: "tide:Maelstrom" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
