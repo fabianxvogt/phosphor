@@ -10,7 +10,7 @@ A world is one family (`scene-<id>.mjs`) that declares `development: "<key>"`, p
 - **States:** at least 3 presets with the **same seed and identical non-development parameters**, development at the integers. `continuousDevelopment()` only recognizes a continuous world when this holds.
 - **Extra looks:** at least 3 more catalog looks (other seeds, densities, camera or composition), so the family has 6 or more looks. Each look must be strong on its own in Looks autopilot.
 - **Continuity:** changing development never resets time, simulation state, particles, camera phase or seed-derived identity (centres, branches, bodies). The engine rebuilds `geometry` only on a seed change. Reversal must look as good as the forward direction.
-- **Any rate:** the show drives development continuously: manual drags, 4/8/16-bar cues, and an upcoming **Auto** mode where builds push forward, drops reach the top state and breakdowns pull back. Expect sweeps from 1 bar to 64 bars and reversals mid-way.
+- **Any rate:** the show drives development continuously: manual drags, 4/8/16-bar cues, Autopilot (builds push forward, drops reach the top state, breakdowns pull back) and the **world tour** (D71), which walks every state over 16 bars each and then crossfades 8 bars into the next world. Expect sweeps from 1 bar to 64 bars and reversals mid-way.
 - **Energy is orthogonal:** energy changes motion, density and detail from 0.1 to 0.9; development changes form. Every development value works at every energy.
 
 ## Rendering paths
