@@ -12,7 +12,7 @@ The signature detail is the visibly exact fold: nets with glowing crease and out
 
 | Development | State | Form |
 | --- | --- | --- |
-| 0 | Sheet | A dark, gently undulating paper floor with an origami crease grid; nets lie in it, creased by 3.5%, outlines glowing. High camera, narrow lens. |
+| 0 | Sheet | A dark, gently undulating paper floor with an origami crease grid; nets lie in it, creased by 3.5%, outlines glowing. High camera, narrow lens. Calm, but the net rims and creases carry readable edge light. |
 | 1 | Fold | Nets fold in birth order (deeper faces slightly later), close, rise and tumble above the sheet; a light core rises in the centre. |
 | 2 | Shards | Every fan triangle of every face leaves its solid for a vortex orbit: a funnel of streaking, rim-lit shards around a blazing core, reflected on the glossy floor. Low camera looking up. |
 
@@ -42,6 +42,10 @@ Placement keeps every net circle and every tumbling solid inside a 9.6-unit fiel
 
 - `node --test tests/fold.test.mjs`: registration and continuous-world detection; nets flat, unit-edged, non-overlapping; exact closure of all five solids (error < 1e-9) and coincidence of all vertex copies; rigidity at intermediate development; staging and continuity of fold/lift/shard progress; field/vortex/camera clearance; seamless integer-turn phase wrap; deterministic finite geometry.
 - Energy ladder: `node scripts/contact.mjs --dist . --sheet ladder --family fold --rig`. Films: `node scripts/world-film.mjs --world origami --rig`, `--look "fold:Slow Comet Ring"`.
+
+## Sheet edge light (polish 2026-10-15)
+
+The Sheet was too dim (64×36 peak 71/255 at 320×180, 103 at 480×270): the rim glow started at 0.55 of its Fold value and the crease lines faded out between 6 and 16 units, while the high Sheet camera sits about 14–16 units from the nets. Now face rims start at 1.15 (Fold total 1.25 unchanged), and in the calm states the crease lines fade between 12 and 28 units and gain +0.04. Energy 0.1 at 480×270 (mean / 64×36 peak / max / pixels above 25): Creased Sheet 9.2 / 103 / 122 / 4.2 % → 19.1 / 192 / 220 / 29.3 %; at 320×180 the peak is 206. Brightness stays flat across energy (L.9/L.1 0.93). Fold and Shards are unchanged apart from the rim term at development < 1.
 
 ## Limits
 
