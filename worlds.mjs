@@ -273,6 +273,16 @@ const AUTHORED = [
       { name: "Supercell", look: "storm:Supercell" },
     ],
   },
+  {
+    id: "prism-engine",
+    name: "Prism Engine",
+    description: "One glass prism splits a white beam into spectral light, multiplies into an optical array and builds a luminous glass cathedral. The same prisms throughout.",
+    states: [
+      { name: "Shard", look: "prism:Shard" },
+      { name: "Array", look: "prism:Array" },
+      { name: "Kaleidoscope", look: "prism:Kaleidoscope" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

@@ -90,6 +90,8 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Brass Orrery](families/orrery.md) (world Brass Orrery / Messing-Orrery) | orrery | Beveled involute gear trains with exact integer-tooth meshing and planetary orbital ratios | Gears / Orrery / Clockwork | 8 |
 | [Thunderhead](families/storm.md) (world Thunderhead / Gewitterzelle) | storm | Seeded connected stepped-leader trees, bounded analytic cumulonimbus and internal single scattering | Haze / Towers / Supercell | 8 |
 
+| [Prism Engine](families/prism.md) (Prismenmaschine) | prism | Two-interface Snell refraction, Cauchy dispersion and total internal reflection in persistent triangular glass | Shard / Array / Kaleidoscope | 8 |
+
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 
 ## Preserved historical looks
