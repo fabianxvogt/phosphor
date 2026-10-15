@@ -101,6 +101,9 @@ const eruptRate = (p, level) =>
   (0.8 + 0.45 * Math.min(1, Math.max(0, level))) / CYCLE_SECONDS; // cycles/s, period 64
 
 const common = `${lateClockGlsl}
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+#endif
 const int MARCH_CAP = 110;
 const int DETAIL_CAP = 6;
 const int BIG_CAP = ${BIG_CAP};
@@ -165,7 +168,15 @@ vec3 mrHeat(float T) {
 // ------------------------------------------------------------------ plates
 // Site of plate cell c, inside [0.5 - JIT/2, 0.5 + JIT/2]² of the cell,
 // and the plate's rift tendency (a seam's width grows with both rifts).
-vec2 mrSiteHash(vec2 c) { return mrH22(c + gSeedOff); }
+vec2 mrSiteHash(vec2 c) {
+#ifdef PRECOMPUTED
+  // Exact seed-only hashes for the finite terrain field. Lake-material
+  // cells outside this tile retain the arithmetic fallback below.
+  if (all(greaterThanEqual(c, vec2(-64.0))) && all(lessThan(c, vec2(64.0))))
+    return texelFetch(u_precomputed, ivec2(c) + ivec2(64, 65), 0).xy;
+#endif
+  return mrH22(c + gSeedOff);
+}
 vec2 mrSite(vec2 h) { return 0.5 + JIT * (h - 0.5); }
 
 struct Plate {
@@ -378,10 +389,12 @@ vec3 mrBomb(vec3 p0, vec3 v0, float tt) {
 }
 
 // Cheap billow for the ash plume (domain-warped sines, no lattice).
-float mrBillow(vec3 p) {
-  float n = sin(p.x * 1.7 + sin(p.z * 1.3 + p.y * 0.9)) * sin(p.z * 1.5 + sin(p.y * 1.4 + p.x * 0.7));
-  n += 0.6 * sin(p.y * 1.9 + sin(p.x * 2.3 - p.z * 1.1) * 1.4) * sin(p.x * 2.1 + p.z * 1.7);
-  n += 0.3 * sin(p.x * 4.1 + p.y * 3.3 + sin(p.z * 3.7));
+float mrBillow(vec3 p, float phase) {
+  // Integer phase harmonics advect each billow upward continuously. One
+  // periodic field replaces two separately hashed/reseeded noise layers.
+  float n = sin(p.x * 1.7 + sin(p.z * 1.3 + p.y * 0.9 - phase)) * sin(p.z * 1.5 + sin(p.y * 1.4 + p.x * 0.7 - phase));
+  n += 0.6 * sin(p.y * 1.9 - phase * 2.0 + sin(p.x * 2.3 - p.z * 1.1) * 1.4) * sin(p.x * 2.1 + p.z * 1.7);
+  n += 0.3 * sin(p.x * 4.1 + p.y * 3.3 - phase * 3.0 + sin(p.z * 3.7));
   return 0.5 + 0.28 * n;
 }
 
@@ -459,9 +472,6 @@ vec4 mrBombBound(vec3 p0, vec3 v0, float tt, bool big) {
 `;
 
 const fragment = `${common}
-#ifdef PRECOMPUTED
-uniform highp sampler2D u_precomputed;
-#endif
 void main() {
   mrSetup();
   float level = gLevel;
@@ -476,10 +486,11 @@ void main() {
                   float(seedHash(uint(int(pk) + 1) ^ 0x51ed27u) >> 8u) / 16777216.0,
                   smoothstep(0.55, 1.0, fract(phrase))) * 2.0 - 1.0;
   float camH = clamp(u_params[6], 0.0, 1.0);
-  float R = mix(mix(7.6, 8.6, gSplit), 12.8, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;
+  float peakR = 12.8 + 12.0 * max(gForce - 1.0, 0.0);
+  float R = mix(mix(7.6, 8.6, gSplit), peakR, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;
   vec3 ro = vec3(R * cos(az), 0.0, R * sin(az));
   ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) * mix(0.8, 1.0, gSplit) + 1.4 * gErupt + 0.15 * wob;
-  vec3 target = vec3(0.0, gVent.y - mix(0.9, 1.6, camH) - 1.1 * (1.0 - gSplit) + 3.6 * gErupt, 0.0);
+  vec3 target = vec3(0.0, gVent.y - mix(0.9, 1.6, camH) - 1.1 * (1.0 - gSplit) + (4.8 + 3.5 * max(gForce - 1.0, 0.0)) * gErupt, 0.0);
   // Keep the vent a little off-centre, alternating slowly.
   vec3 fw0 = normalize(target - ro);
   vec3 side = normalize(cross(fw0, vec3(0.0, 1.0, 0.0)));
@@ -760,15 +771,16 @@ void main() {
 
   // ------------------------------------------------------------ plume
   // Ash column above the vent, ray-cylinder bounded, lit from below by the
-  // fountain. Two drift layers in the eruption phase keep it endless.
+  // fountain. Integer phase harmonics keep its upward billow endless.
   float plumeAmt = gErupt;
-  // Cheap conservative curtain bound: all jet axes are within 3 units
-  // of the vent axis; four Gaussian widths beyond that are imperceptible.
+  // Conservative curtain bound. The authored Gaussian kernels taper to
+  // zero at four core widths; include the AA width on small outputs too.
   vec3 curtainBound = mrRaySeg(ro, rd, gVent, gVent + vec3(0.0, gFountH, 0.0));
-  bool seesCurtain = curtainBound.x < 7.0 && curtainBound.y < t + 5.0;
+  float curtainRadius = max(7.2, 3.3 + 6.0 * gPix * 80.0);
+  bool seesCurtain = curtainBound.x < curtainRadius && curtainBound.y < t + curtainRadius;
   if (plumeAmt > 0.01) {
-    float y0 = gVent.y + 0.6, y1 = gVent.y + 15.0;
-    float Rc = 6.5;
+    float y0 = gVent.y + 0.25 * gFountH, y1 = gVent.y + 15.0;
+    float Rc = 10.5;
     vec2 oc = ro.xz;
     float A = dot(rd.xz, rd.xz), B = dot(oc, rd.xz), C = dot(oc, oc) - Rc * Rc;
     float disc = B * B - A * C;
@@ -791,22 +803,12 @@ void main() {
           vec3 p = ro + rd * s;
           float hy = p.y - y0;
           vec2 axis = vec2(0.16, 0.07) * hy + 0.25 * vec2(sin(hy * 0.35 + 1.0), cos(hy * 0.3));
-          float rad = 1.1 + 0.36 * hy;
+          float rad = 1.0 + 0.5 * hy;
           float dr = length(p.xz - axis);
           float shape = smoothstep(rad, rad * 0.25, dr) * smoothstep(0.0, 1.2, hy) * (1.0 - smoothstep(10.0, 14.0, hy));
           if (shape <= 0.0) continue;
-          float dens = 0.0, wsum = 0.0;
-          for (int l = 0; l < 2; ++l) {
-            float ph = gErPh * 0.5 + 0.5 * float(l);
-            float tau = fract(ph);
-            float w = 1.0 - abs(2.0 * tau - 1.0);
-            float id = mod(floor(ph), 32.0);
-            vec3 o = vec3(mrH2(vec2(id, 4.0)), mrH2(vec2(7.0, id)), mrH2(vec2(id, id + 2.0))) * 30.0;
-            dens += w * mrBillow(p * 0.95 - vec3(0.0, tau * 2.4, 0.0) + o);
-            wsum += w;
-          }
-          float nRaw = dens / max(wsum, 1e-3);
-          dens = smoothstep(0.38, 0.75, nRaw) * shape * 2.6 * plumeAmt;
+          float nRaw = mrBillow(p * 0.95 + vec3(gSeedOff, 0.0), TAU * gErPh * 0.5);
+          float dens = smoothstep(0.38, 0.75, nRaw) * shape * 2.6 * plumeAmt;
           // Lit from below: the fountain's light decays with height and
           // reaches deeper into the core.
           float under = exp(-hy / (5.0 + 2.0 * gForce)) * (0.5 + 0.5 * smoothstep(rad, rad * 0.3, dr));
@@ -836,15 +838,19 @@ void main() {
       vec3 b = gVent + vec3(dir.x * 3.3, h, dir.y * 3.3);
       vec3 cs = mrRaySeg(ro, rd, a, b);
       float hy = cs.z;
-      if (cs.y >= t + 0.2) continue;
+      // Upper bound on the billow's core width: skip its turbulence and
+      // thermal ramp entirely outside the compact-support jet kernel.
+      float maxSig = max(0.947, gPix * cs.y * 1.5);
+      if (cs.y >= t + 0.2 || cs.x >= 4.0 * maxSig) continue;
       vec3 q = ro + rd * cs.y;
-      float billow = mrBillow(q * 2.1 + vec3(0.0, sin(TAU * gErPh), 0.0));
+      float billow = mrBillow(q * 2.1, TAU * gErPh);
       float wcol = (0.28 + 0.3 * clamp(hy, 0.0, 1.0)) * (0.6 + billow);
       float sig = max(wcol, gPix * cs.y * 1.5);
       float flick = 0.75 + 0.25 * sin(TAU * (gErPh * 8.0) - hy * 14.0 + fj) * sin(TAU * gErPh * 5.0 + hy * 7.0);
       float T = 0.83 - 0.12 * hy + 0.42 * pow(max(billow, 0.0), 5.0);
-      add += mrHeat(T) * exp(-sq(cs.x / sig)) * (wcol / sig) * gErupt * flick * 0.9;
-      add += mrHeat(T - 0.24) * exp(-sq(cs.x / (2.0 * sig))) * gErupt * flick * 0.12;
+      float edge = 1.0 - smoothstep(3.4 * sig, 4.0 * sig, cs.x);
+      add += mrHeat(T) * exp(-sq(cs.x / sig)) * (wcol / sig) * gErupt * flick * edge * 0.9;
+      add += mrHeat(T - 0.24) * exp(-sq(cs.x / (2.0 * sig))) * gErupt * flick * edge * 0.12;
     }
 
     // Ejecta (see mrLaunch). With the precompute pass each bomb's bounding
@@ -960,13 +966,19 @@ void main() {
 }
 `;
 
-// Per-frame ejecta bounds: texel i holds bomb i's bounding sphere (centre,
-// radius) or radius −1 while it is not flying. Same arithmetic as the
-// image's fallback path.
+// Per-frame data: row 0 holds ejecta spheres; rows 1..128 cache the
+// seed-only plate hashes for cells [-64, 63]². Same arithmetic as fallback.
+// No colour image, geometry approximation or temporal cache is involved.
 const precompute = `${common}
 void main() {
   mrSetup();
   int i = int(gl_FragCoord.x);
+  if (gl_FragCoord.y > 1.0) {
+    vec2 c = floor(gl_FragCoord.xy) - vec2(64.0, 65.0);
+    outColor = vec4(mrH22(c + gSeedOff), 0.0, 1.0);
+    return;
+  }
+  if (i >= BOMB_CAP + 2) { outColor = vec4(0.0, 0.0, 0.0, -1.0); return; }
   vec3 p0, v0;
   float tt, tf, on;
   bool big;
@@ -1036,7 +1048,7 @@ export default {
     ),
   ],
   fragment,
-  precompute: { fragment: precompute, size: [BIG_CAP + SPRAY_CAP + 2, 1] },
+  precompute: { fragment: precompute, size: [128, 129] },
   clocks: [
     { rate: orbitRate, period: 2 * Math.PI },
     { rate: flowRate, period: 16 },

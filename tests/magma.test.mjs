@@ -93,7 +93,7 @@ function* points(n, span = 120, seed = 7) {
 test("shader keeps the mirrored Voronoi search and seam distance", () => {
   for (const line of [
     `const float JIT = ${PLATE_JITTER.toFixed(2)};`,
-    "vec2 mrSiteHash(vec2 c) { return mrH22(c + gSeedOff); }",
+    "return mrH22(c + gSeedOff);", "return texelFetch(u_precomputed, ivec2(c) + ivec2(64, 65), 0).xy;",
     "vec2 mrSite(vec2 h) { return 0.5 + JIT * (h - 0.5); }",
     "return fract((p3.xx + p3.yz) * p3.zy);",
     "if (d < best) { best = d; mr = r[k]; hA = h; oA = o; }",
@@ -304,7 +304,8 @@ function base(x, z) {
 }
 test("the camera orbit never enters the ground", () => {
   for (const line of [
-    "float R = mix(mix(7.6, 8.6, gSplit), 12.8, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
+    "float peakR = 12.8 + 12.0 * max(gForce - 1.0, 0.0);", 
+    "float R = mix(mix(7.6, 8.6, gSplit), peakR, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
     "ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) * mix(0.8, 1.0, gSplit) + 1.4 * gErupt + 0.15 * wob;",
     "const float TOP_BOUND = 0.18;",
   ])
@@ -351,15 +352,74 @@ test("clocks are the authored products and every use is periodic", () => {
   for (const use of src.match(/[^\n]*gFlow[^\n]*/g).filter((l) => !/gFlow = |float gDev/.test(l)))
     assert.match(use, /sin\(TAU \* gFlow|TAU \* gFlow \/ 16\.0|gFlow \+ 0\.5 \* float\(k\)|sin\(r \* 4\.0 - TAU \* gFlow\)/, use);
   assert.match(src, /float id = mod\(floor\(ph\), 16\.0\);/);
-  // Eruption (period 64): integer frequencies, ×0.5 with mod 32, ×0.5/0.75.
+  // Eruption (period 64): integer fountain harmonics and ash ×0.5, embers ×0.5/0.75.
   for (const use of src.match(/[^\n]*gErPh[^\n]*/g).filter((l) => !/gErPh = |float gDev/.test(l)))
     assert.match(
       use,
-      /gErPh \* 0\.5 \+ 0\.5|TAU \* \(gErPh \* 8\.0\)|TAU \* gErPh \* 5\.0|sin\(TAU \* gErPh\)|gErPh \+ fract|gErPh \* \(0\.5 \+ floor\(h\.z \* 2\.0\) \* 0\.25\)/,
+      /TAU \* gErPh|TAU \* \(gErPh \* 8\.0\)|gErPh \+ fract|gErPh \* \(0\.5 \+ floor\(h\.z \* 2\.0\) \* 0\.25\)/,
       use,
     );
-  assert.match(src, /float id = mod\(floor\(ph\), 32\.0\);/);
+  assert.match(src, /mrBillow\(p \* 0\.95 \+ vec3\(gSeedOff, 0\.0\), TAU \* gErPh \* 0\.5\)/);
   for (const m of [8, 5, 1, 0.5, 0.75]) assert.ok(Number.isInteger(64 * m));
+});
+
+test("plate hash tile addresses are exact and contain every terrain site", () => {
+  assert.deepEqual(magma.precompute.size, [128, 129]);
+  assert.match(magma.precompute.fragment, /floor\(gl_FragCoord\.xy\) - vec2\(64\.0, 65\.0\)/);
+  assert.match(magma.precompute.fragment, /outColor = vec4\(mrH22\(c \+ gSeedOff\), 0\.0, 1\.0\);/);
+  for (let y = -64; y < 64; y++)
+    for (let x = -64; x < 64; x++) {
+      const texel = [x + 64, y + 65];
+      assert.ok(texel[0] >= 0 && texel[0] < 128 && texel[1] >= 1 && texel[1] < 129);
+      assert.deepEqual([texel[0] - 64, texel[1] - 65], [x, y]);
+    }
+  // At the smallest plate size, even the outermost detailed terrain and
+  // its neighbouring cells fit. Lake material uses the checked fallback.
+  assert.ok(Math.ceil(21 / (1.1 * 0.6)) + 1 < 64);
+  assert.match(src, /all\(greaterThanEqual\(c, vec2\(-64\.0\)\)\) && all\(lessThan\(c, vec2\(64\.0\)\)\)/);
+});
+
+test("curtain bound contains every compact-support jet, including its AA width", () => {
+  const maxBillow = 0.5 + 0.28 * (1 + 0.6 + 0.3);
+  const maxWidth = (0.28 + 0.3) * (0.6 + maxBillow);
+  assert.ok(maxWidth < 0.947);
+  assert.ok(3.3 + 4 * maxWidth < 7.2);
+  assert.match(src, /max\(7\.2, 3\.3 \+ 6\.0 \* gPix \* 80\.0\)/);
+  assert.match(src, /cs\.x >= 4\.0 \* maxSig/);
+  assert.match(src, /1\.0 - smoothstep\(3\.4 \* sig, 4\.0 \* sig, cs\.x\)/);
+  assert.match(src, /dir\.x \* 3\.3, h, dir\.y \* 3\.3/);
+});
+
+test("rising ash is smooth and periodic at the 64-cycle clock boundary", () => {
+  const billow = ([x, y, z], phase) => {
+    let n = Math.sin(x * 1.7 + Math.sin(z * 1.3 + y * 0.9 - phase)) * Math.sin(z * 1.5 + Math.sin(y * 1.4 + x * 0.7 - phase));
+    n += 0.6 * Math.sin(y * 1.9 - phase * 2 + Math.sin(x * 2.3 - z * 1.1) * 1.4) * Math.sin(x * 2.1 + z * 1.7);
+    n += 0.3 * Math.sin(x * 4.1 + y * 3.3 - phase * 3 + Math.sin(z * 3.7));
+    return 0.5 + 0.28 * n;
+  };
+  for (const [x, y] of points(1000, 30)) {
+    const p = [x, y, x * 0.3 - y * 0.8];
+    for (const harmonic of [0.5, 1]) {
+      const phase = x * harmonic;
+      assert.ok(Math.abs(billow(p, phase) - billow(p, phase + 2 * Math.PI * 64 * harmonic)) < 1e-12);
+      assert.ok(Math.abs(billow(p, phase + 1e-5) - billow(p, phase)) < 5e-5);
+    }
+  }
+  assert.match(src, /p\.y \* 1\.9 - phase \* 2\.0/);
+  assert.match(src, /p\.y \* 3\.3 - phase \* 3\.0/);
+});
+
+test("high-force extra looks crane back instead of cropping the taller curtain", () => {
+  for (let force = 1; force <= 1.5001; force += 0.05) {
+    const R = 12.8 + 12 * (force - 1);
+    const height = 1 + 8 * force;
+    // Apparent height does not grow with the fountain-force fader.
+    assert.ok(height / R <= 9 / 12.8 + 1e-12);
+    assert.ok(R * 1.05 + 1.2 < 21);
+    const { vy, vh } = launch(1, 1, force);
+    assert.ok(vh * flight(vy) + 0.25 < R * 0.95 - 0.8);
+  }
+  assert.match(src, /4\.8 \+ 3\.5 \* max\(gForce - 1\.0, 0\.0\)/);
 });
 
 // ------------------------------------------------------------- looks
