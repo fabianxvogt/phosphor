@@ -9,6 +9,7 @@ import {
   ROWS,
   createGeometry,
   sheetPoint,
+  hemOffset,
   camera,
   dot,
   project,
@@ -48,9 +49,15 @@ test("Aurora Veil appends a registered continuous world with eight valid looks",
         `${preset.name}.${f.key}`,
       );
   }
+<<<<<<< HEAD
   const world = defaultWorlds(catalogLooks(scenes).map((l) => l.id)).find(
     (w) => w.id === "aurora-veil",
   );
+=======
+  const worlds = defaultWorlds(catalogLooks(scenes).map((l) => l.id));
+  const world = worlds.find((w) => w.id === "aurora-veil");
+  assert.ok(world);
+>>>>>>> fleet/phosphor-worlds-wave5/aurora-veil
   assert.equal(world.id, "aurora-veil");
   assert.deepEqual(
     world.states.map((s) => s.look),
@@ -149,7 +156,9 @@ test("fold/kink dynamics are periodic, non-rigid and reversible without material
         const a = sheetPoint(u, 0.3, sheet, dev, 1.2);
         const b = sheetPoint(u, 0.3, sheet, dev + 1e-5, 1.2);
         assert.ok(a.every(Number.isFinite));
-        assert.ok(distance(a, b) < 0.003, `development Lipschitz ${dev}`);
+        // The 512-unit reach and open-curve morph have a larger analytic
+        // derivative than the former 272-unit cylinder; still C1 and bounded.
+        assert.ok(distance(a, b) < 0.008, `development Lipschitz ${dev}`);
         assert.deepEqual(
           a,
           sheetPoint(u, 0.3, sheet, dev, 1.2),
@@ -185,13 +194,15 @@ test("CPU mirror is pinned to the shader geometry coefficients", () => {
     "theta*2.3+phase+sheet*2.3",
     "mix(32.+sheet*20.,26.+sheet*18.,crown)*u_params[5]",
     "(3.+6.*rise)*u_params[2]*kink+1.7*sin(9.*theta-2.*phase)",
-    "14.+sheet*3.+6.*sin(1.6*theta+phase+sheet)+3.5*sin(4.3*theta-phase)+.55*sin(23.*theta-phase)+10.*crown",
-    "mix(8.,0.,crown)+r*cos(bend)",
-    "(62.+30.*rise+180.*crown)*u_params[3]*(.85+.15*sin(4.*theta-phase+sheet))",
+    "14.+sheet*3.+6.*sin(1.6*theta+phase+sheet)+3.5*sin(4.3*theta-phase)+.55*sin(23.*theta-phase)",
+    "theta*35.+24.*sin(w)",
+    "7.+sheet*33.+16.*sin(theta*1.3+sheet*1.7)+ripple*.65",
+    "base.xz=mix(base.xz,overhead*u_params[5],crown)",
+    "(62.+30.*rise+420.*crown)*u_params[3]*(.85+.15*sin(4.*theta-phase+sheet))",
     "eye=vec3(1.4*sin(a),2.2+.16*sin(2.*a)+.8*c,1.1*cos(a))",
-    "pitch=.30+.08*smoothstep(0.,1.,avDev())+1.12*c+u_params[6]",
+    "pitch=.30+.08*smoothstep(0.,1.,avDev())+.40*c+u_params[6]",
     "R=vec3(cos(yaw),0.,-sin(yaw))",
-    "1.22*(1.+.018*u_kick)/mix(1.,max(1.,u_params[5]),c)",
+    "mix(1.22,.80,c)*(1.+.018*u_kick)/mix(1.,max(1.,u_params[5]),c)",
   ])
     assert.ok(shaders.includes(line), line);
 });
@@ -222,23 +233,30 @@ test("the lake mirror obeys reflection geometry; camera has no roll and never en
   assert.match(shaders, /1\.\+\.018\*u_kick/);
 });
 
-test("overhead corona crosses every frame edge instead of fitting inside a flower silhouette", () => {
+test("open overhead sheets converge above the viewer while retaining a horizon sliver", () => {
   for (let phase = 0; phase < 2 * Math.PI; phase += 0.2) {
     const c = camera(2, phase);
-    const edges = [false, false, false, false];
-    const quadrants = new Set();
-    for (let sheet = 0; sheet < SHEETS; sheet++)
+    const vp = zenith(c.right, c.up, c.forward, c.focal);
+    assert.ok(Math.abs(vp[0]) < 0.1 && vp[1] > 0.7 && vp[1] < 0.95);
+    const horizon = -c.focal * c.forward[1] / c.up[1];
+    assert.ok(horizon > -0.85 && horizon < -0.7, "bottom 7–15% retains scale");
+    let left = Infinity,
+      right = -Infinity,
+      visible = 0;
+    for (let sheet = 0; sheet < SHEETS; sheet++) {
+      // An open curve has distant endpoints, not a closed luminous ring.
+      assert.ok(
+        distance(
+          sheetPoint(0, 0, sheet, 2, phase),
+          sheetPoint(1, 0, sheet, 2, phase),
+        ) > 150,
+      );
       for (let u = 0.02; u <= 0.98; u += 0.005) {
-        const low = project(
-          sheetPoint(u, 0.02, sheet, 2, phase),
-          c.eye,
-          c.right,
-          c.up,
-          c.forward,
-          c.focal,
-        );
+        const base = sheetPoint(u, 0.02, sheet, 2, phase);
+        if (dot(sub(base, c.eye), c.forward) < 1) continue;
+        const low = project(base, c.eye, c.right, c.up, c.forward, c.focal);
         const high = project(
-          sheetPoint(u, 0.8, sheet, 2, phase),
+          sheetPoint(u, 0.9, sheet, 2, phase),
           c.eye,
           c.right,
           c.up,
@@ -246,21 +264,50 @@ test("overhead corona crosses every frame edge instead of fitting inside a flowe
           c.focal,
         );
         assert.ok([...low, ...high].every(Number.isFinite));
-        edges[0] ||= low[0] < -16 / 9 && high[0] > -16 / 9;
-        edges[1] ||= low[0] > 16 / 9 && high[0] < 16 / 9;
-        edges[2] ||= low[1] < -1 && high[1] > -1;
-        edges[3] ||= low[1] > 1 && high[1] < 1;
-        if (Math.hypot(...high) < 0.55)
-          quadrants.add(`${high[0] > 0}:${high[1] > 0}`);
+        assert.ok(distance(high, vp) < distance(low, vp));
+        left = Math.min(left, low[0]);
+        right = Math.max(right, low[0]);
+        if (Math.abs(low[0]) < 1.5 && high[1] > low[1] + 0.3) visible++;
       }
-    assert.ok(
-      edges.every(Boolean),
-      `all sky edges at phase ${phase}: ${edges}`,
-    );
-    assert.equal(quadrants.size, 4, "rays converge from all directions");
-    // Even the bottom edge looks above the horizon once the crane settles.
-    assert.ok(c.forward[1] - c.up[1] / c.focal > 0);
+    }
+    assert.ok(left < -16 / 9 && right > 16 / 9);
+    assert.ok(visible > 60, "layered curtains fill the sky, not an empty ring");
   }
+});
+
+test("overhead curves contain actual returning S-folds, not monotone fan bases", () => {
+  for (let phase = 0; phase < 2 * Math.PI; phase += 0.4) {
+    let returning = 0;
+    for (let u = 0.02; u < 0.98; u += 0.005) {
+      const a = sheetPoint(u, 0, 0, 2, phase);
+      const b = sheetPoint(u + 0.0001, 0, 0, 2, phase);
+      if (b[0] < a[0]) returning++;
+    }
+    assert.ok(returning > 20, `genuine folded sheet at ${phase}`);
+  }
+});
+
+test("the sharply filtered hem has fine travelling kinks and soft, multi-octave ray tips", () => {
+  for (const dev of [0, 1, 1.5, 2])
+    for (let u = 0; u <= 1; u += 0.003)
+      for (const sheet of [0, 1, 2]) {
+        const a = hemOffset(u, 1.2, sheet, dev);
+        assert.ok(a >= 0.0028 && a <= 0.0072);
+        assert.ok(
+          Math.abs(a - hemOffset(u, 1.2 + 2 * Math.PI, sheet, dev)) < 1e-14,
+        );
+        assert.ok(Math.abs(a - hemOffset(u, 1.20001, sheet, dev)) < 0.00000006);
+      }
+  assert.ok(Math.abs(hemOffset(0.2, 0) - hemOffset(0.2, 0.7)) > 0.0001);
+  for (const token of [
+    ".0014*sin(u*61.-3.*phase+v_sheet)",
+    ".0008*sin(u*137.+2.*phase)",
+    "hemWidth=max(.0018,fwidth(h)*.85)",
+    "midFoot=fwidth(midPhase)",
+    "1.-smoothstep(tip*reach,1.,h)",
+    "mix(.20,.065,crown)",
+  ])
+    assert.ok(aurora.geometry.fragment.includes(token), token);
 });
 
 test("Glow and Curtains have tall rays and a full-width horizon, not a central strip", () => {
@@ -296,7 +343,7 @@ test("Glow and Curtains have tall rays and a full-width horizon, not a central s
     }
 });
 
-test("the camera basis stays continuous through zenith for every saved extra look", () => {
+test("the wide crane camera stays continuous for every saved extra look", () => {
   for (const tilt of [-0.15, 0, 0.1, 0.15]) {
     let previous = camera(1, 0.7, tilt);
     for (let dev = 1.001; dev <= 2; dev += 0.001) {
@@ -320,7 +367,10 @@ test("landscape and reflection use resolved frost, cracks, snow normals, mountai
     "galaxy",
     "float crack=",
     "float frost=",
-    "fwidth(cp)",
+    "fwidth(floe.y)",
+    "avFloe(warped)",
+    "float sparkle=",
+    "float crust=",
   ])
     assert.ok(aurora.fragment.includes(token), token);
   assert.match(aurora.geometry.fragment, /u\+=\(rough-\.5\)\*\.065/);
@@ -328,7 +378,7 @@ test("landscape and reflection use resolved frost, cracks, snow normals, mountai
     aurora.geometry.fragment,
     /rayCore=mix\(rayCore,\.1185,v_mirror\*\.8\)/,
   );
-  assert.match(aurora.geometry.fragment, /smoothstep\(\.015,\.19,h\)/);
+  assert.match(aurora.geometry.fragment, /smoothstep\(\.025,\.27,h\)/);
   assert.match(aurora.geometry.fragment, /u_accent\*edge\*\.025/);
 });
 

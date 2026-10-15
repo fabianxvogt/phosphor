@@ -55,17 +55,19 @@ export function sheetPoint(
     (3 + 6 * rise) * fold * kink + 1.7 * Math.sin(9 * theta - 2 * phase);
   const r = radius + ripple;
   const bend = theta + 0.17 * fold * Math.sin(5 * theta - phase + sheet);
-  const z = 8 * (1 - crown) + r * Math.cos(bend);
-  const x = r * Math.sin(bend);
+  const overheadX = theta * 35 + 24 * Math.sin(w);
+  const overheadZ =
+    7 + sheet * 33 + 16 * Math.sin(theta * 1.3 + sheet * 1.7) + ripple * 0.65;
+  const z = (8 + r * Math.cos(bend)) * (1 - crown) + overheadZ * spread * crown;
+  const x = r * Math.sin(bend) * (1 - crown) + overheadX * spread * crown;
   const base =
     14 +
     sheet * 3 +
     6 * Math.sin(1.6 * theta + phase + sheet) +
     3.5 * Math.sin(4.3 * theta - phase) +
-    0.55 * Math.sin(23 * theta - phase) +
-    10 * crown;
+    0.55 * Math.sin(23 * theta - phase);
   const length =
-    (62 + 30 * rise + 180 * crown) *
+    (62 + 30 * rise + 420 * crown) *
     height *
     (0.85 + 0.15 * Math.sin(4 * theta - phase + sheet));
   return [
@@ -74,11 +76,22 @@ export function sheetPoint(
     z + FIELD[2] * length * v,
   ];
 }
+// Fragment-space contour; independent of the coarse vertical mesh rows.
+export function hemOffset(u, phase = 0, sheet = 0, development = 0) {
+  const angle = u * 2 * Math.PI;
+  const crown = smooth(1, 2, development);
+  return (
+    0.005 +
+    (1 - 0.5 * crown) *
+      (0.0014 * Math.sin(angle * 61 - 3 * phase + sheet) +
+        0.0008 * Math.sin(angle * 137 + 2 * phase))
+  );
+}
 export const dot = (a, b) => a.reduce((sum, x, i) => sum + x * b[i], 0);
 export function camera(development, phase = 0, tilt = 0, spread = 1, kick = 0) {
   const crown = smooth(1, 2, development);
   const yaw = 0.055 * Math.sin(phase);
-  const pitch = 0.3 + 0.08 * smooth(0, 1, development) + 1.12 * crown + tilt;
+  const pitch = 0.3 + 0.08 * smooth(0, 1, development) + 0.4 * crown + tilt;
   const forward = [
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
@@ -96,7 +109,8 @@ export function camera(development, phase = 0, tilt = 0, spread = 1, kick = 0) {
     1.1 * Math.cos(phase),
   ];
   const focal =
-    (1.22 * (1 + 0.018 * kick)) / (1 + (Math.max(1, spread) - 1) * crown);
+    ((1.22 * (1 - crown) + 0.8 * crown) * (1 + 0.018 * kick)) /
+    (1 + (Math.max(1, spread) - 1) * crown);
   return { eye, right, up, forward, focal };
 }
 export function project(point, eye, right, up, forward, focal = 1.3) {
