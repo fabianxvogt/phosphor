@@ -51,6 +51,7 @@ import mycelium from "./scene-mycelium.mjs";
 import afterglow from "./scene-afterglow.mjs";
 import ferro from "./scene-ferro.mjs";
 import tide from "./scene-tide.mjs";
+import laser from "./scene-laser.mjs";
 
 export default [
   acid,
@@ -106,6 +107,7 @@ export default [
   abyss,
   ferro,
   tide,
+  laser,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
