@@ -13,6 +13,56 @@ export function filmReflectance(thickness, cosine, wavelength, index = 1.333) {
     (2 * r * (1 - Math.cos(phase))) / (1 + r * r - 2 * r * Math.cos(phase));
   return (airy(rs) + airy(rp)) / 2;
 }
+// CPU reference for the normalised, seam-free thickness chart below.
+// `q` is the cell-local position after the shared slow chart rotation.
+export function filmThickness(
+  q,
+  {
+    thickness = 640,
+    drainage = 0.65,
+    flow = 0,
+    drain = 0,
+    id = 0,
+    rhythm = 0,
+  } = {},
+) {
+  const smooth = (a, b, x) => {
+    const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  const [x, y, z] = q;
+  const vx = x - 0.17,
+    vy = y + 0.12;
+  const angle =
+    2.8 * Math.exp(-(vx * vx + vy * vy) * 2.4) + 0.3 * Math.sin(flow);
+  const v = [
+    Math.cos(angle) * vx + Math.sin(angle) * vy,
+    -Math.sin(angle) * vx + Math.cos(angle) * vy,
+  ];
+  const curl =
+    Math.sin(4.8 * v[0] + 1.5 * Math.sin(2.7 * z + flow)) +
+    Math.sin(3.1 * z - flow + Math.sin(v[1] * 3));
+  const height =
+    y +
+    0.28 * curl +
+    0.035 * Math.sin(23 * v[0] + curl * 3 + Math.sin(8 * y + flow));
+  const reservoir = 0.82 - 0.75 * height + 0.055 * Math.sin(drain + id * 0.71);
+  const cap = 1 - smooth(0.48 - 0.25 * drainage, 0.86, y + 0.045 * curl);
+  const d = Math.max(
+    6,
+    thickness *
+      (reservoir + 0.075 * Math.sin(12 * height + flow)) *
+      (0.015 + 0.985 * cap),
+  );
+  return d * (1 + 0.075 * rhythm * Math.exp(-(((y - 0.25) / 0.8) ** 2)));
+}
+export function filmPalettePosition(thickness, cosine) {
+  const mu = Math.min(1, Math.abs(cosine));
+  const ct = Math.sqrt(1 - (1 - mu * mu) / 1.333 ** 2);
+  const fringe =
+    0.5 + 0.5 * Math.sin((4 * Math.PI * 1.333 * thickness * ct) / 550);
+  return 0.02 + 0.79 * fringe + 0.17 * fringe ** 12;
+}
 export const PLATEAU_SITES = [
   [1, 1, 1],
   [1, -1, -1],
@@ -104,8 +154,9 @@ const fragment = `${lateClockGlsl}
 vec3 soapC[4];
 float soapR[4];
 float flowPhase, cameraPhase, drainPhase, form, cathedral, pixel;
-vec3 radiance;
-float opticalDepth;
+vec3 radiance, filmCentre;
+float opticalDepth, filmScale, focusDistance;
+float soapDefocus(float t) { return abs(t-focusDistance)*cathedral*.006; }
 mat2 soapTurn;
 const vec3 tetra[4] = vec3[4](vec3(1,1,1),vec3(1,-1,-1),vec3(-1,1,-1),vec3(-1,-1,1));
 
@@ -121,48 +172,65 @@ vec3 soapAiry(float thickness,float mu) {
  vec3 cp=cos(phase),s=1.0-cp;
  return .5*(2.0*rs*s/(1.0+rs*rs-2.0*rs*cp)+2.0*rp*s/(1.0+rp*rp-2.0*rp*cp));
 }
-// Reflected softboxes and narrow high windows: not opaque painted stripes.
+// Projected studio cards curve in the reflected direction, including the
+// crossbar of the key window. The film reflects a room, not painted stripes.
+float soapBox(vec3 r,vec3 direction,vec2 size,float mullion) {
+ vec3 z=normalize(direction),x=normalize(cross(vec3(0,1,0),z)),y=cross(z,x);
+ float facing=dot(r,z);
+ vec2 uv=vec2(dot(r,x),dot(r,y))/max(facing,.001);
+ vec2 edge=abs(uv)-size;
+ float panel=(1.0-smoothstep(-.035,.035,max(edge.x,edge.y)))*step(0.0,facing);
+ float bars=mix(1.0,.35,mullion*(1.0-smoothstep(.012,.022,min(abs(uv.x),abs(uv.y)))));
+ return panel*bars;
+}
 vec3 soapRoom(vec3 r) {
- vec3 pale=mix(u_secondary,vec3(1.0),.48);
- float top=pow(max(dot(r,normalize(vec3(-.35,.85,.4))),0.0),14.0);
- float strip=exp(-sq((r.x+.32)/.045))*smoothstep(-.3,.3,r.y)*(1.0-smoothstep(.8,.95,r.y));
- float side=pow(max(dot(r,normalize(vec3(.8,.25,.55))),0.0),35.0);
- float card=exp(-sq((r.x+.5)/.23)-sq((r.y-.53)/.35));
- float window=exp(-sq((r.x-.55)/.09)-sq((r.y-.35)/.5));
- return pale*(.065+.85*top+1.8*strip+.75*card)+mix(u_primary,vec3(1.0),.35)*(side*.9+window*.8);
+ vec3 pale=mix(u_secondary,vec3(1.0),.85);
+ float key=soapBox(r,vec3(-.55,.65,.65),vec2(.26,.47),1.0);
+ float strip=soapBox(r,vec3(.85,.15,.4),vec2(.04,.65),0.0);
+ float fill=pow(max(dot(r,normalize(vec3(-.6,.6,-.5))),0.0),6.0);
+ float lamp=pow(max(dot(r,normalize(vec3(.5,-.3,-.8))),0.0),85.0);
+ return pale*(.018+7.0*key+.16*fill)+mix(u_primary,vec3(1.0),.2)*strip*3.4+palette(.73)*lamp*1.8;
 }
 void soapFilm(vec3 p,vec3 n,vec3 rd,float distance,float id,float edge,float coverage) {
  if(coverage<=0.0||distance<.03)return;
- vec3 q=p; q.xz=soapTurn*q.xz;
+ vec3 q=(p-filmCentre)/filmScale; q.xz=soapTurn*q.xz;
  float mu=clamp(abs(dot(n,rd)),0.0,1.0);
- // A smooth, advected thickness field: gravity drains the top; two nested
- // vortices curl the horizontal fringes without a discontinuous chart seam.
- float curl=sin(2.1*q.x+sin(1.7*q.z+flowPhase))+sin(2.5*q.z-flowPhase+sin(q.y*2.0));
- float wave=sin(q.y*3.1+curl*1.75+flowPhase);
- float drain=.6+.25*sin(drainPhase+id*.71)-.19*u_params[4]*tanh(q.y*.7);
- float thickness=max(20.0,u_params[1]*(drain+.18*wave+.065*sin(9.0*q.y+curl*2.0-flowPhase)));
+ // A smooth, cell-local thickness field: gravity drains the top, while
+ // a compact vortex bends the draining layers into a whorl.
+ // Cartesian rotation has no atan chart seam or singular vortex centre.
+ vec2 vortex=q.xy-vec2(.17,-.12);
+ vortex=rot2(2.8*exp(-dot(vortex,vortex)*2.4)+.3*sin(flowPhase))*vortex;
+ float curl=sin(4.8*vortex.x+1.5*sin(2.7*q.z+flowPhase))+sin(3.1*q.z-flowPhase+sin(vortex.y*3.0));
+ // The phase advances downwards: gravity carries fine folded contours
+ // into the thicker lower reservoir. A continuously renewed black cap
+ // is optically thin, not an opaque dark patch painted on the sphere.
+ float height=q.y+.28*curl+.035*sin(23.0*vortex.x+curl*3.0+sin(8.0*q.y+flowPhase));
+ float drain=.82-.75*height+.055*sin(drainPhase+id*.71);
+ float blackCap=1.0-smoothstep(.48-.25*u_params[4],.86,q.y+.045*curl);
+ float thickness=max(6.0,u_params[1]*(drain+.075*sin(12.0*height+flowPhase))*(.015+.985*blackCap));
  thickness*=1.0+.075*u_rhythm.x*exp(-sq((q.y-.25)/.8));
  vec3 orders=soapAiry(thickness,mu);
- float fringe=.5+.5*sin(4.0*PI*1.333*thickness*sqrt(1.0-(1.0-mu*mu)/sq(1.333))/550.0);
+ float coherence=exp(-sq(soapDefocus(distance)*13.0));
+ float fringe=.5+.5*coherence*sin(4.0*PI*1.333*thickness*sqrt(1.0-(1.0-mu*mu)/sq(1.333))/550.0);
  // Optical order indexes the user's palette, never an RGB spectral rainbow.
- vec3 iridescence=palette(.025+.955*pow(fringe,4.0));
+ vec3 iridescence=palette(.02+.79*fringe+.17*pow(fringe,12.0));
  vec3 reflected=soapRoom(reflect(rd,n));
  float fresnel=.02+.98*pow(1.0-mu,3.5);
  float response=dot(orders,vec3(1.0/3.0));
- float grazing=pow(1.0-mu,7.0);
- float rim=exp(-edge/max(.013*u_params[5],distance*pixel*1.1));
+ float grazing=pow(1.0-mu,12.0);
+ float rim=exp(-edge/max(.006*u_params[5],distance*pixel*.85+soapDefocus(distance)*.3));
  float localPulse=1.0+.22*u_kick+.28*u_rhythm.y*exp(-sq(q.y-.5));
  float band=pow(fringe,3.0);
- vec3 colour=iridescence*(.045+1.8*response+.18*grazing+.26*band)*(.55+.45*max(dot(n,normalize(vec3(-.5,.7,.4))),0.0));
+ vec3 colour=iridescence*(.008+(6.1+.8*band)*response+.10*grazing)*(.65+.35*max(dot(n,normalize(vec3(-.5,.7,.4))),0.0));
  // The room lights have radiance above one: a 4% film reflection must
  // still carry a readable curved softbox, without an opaque diffuse coat.
  colour+=reflected*(.10+.85*fresnel)*(.2+4.5*response);
- colour+=mix(iridescence,vec3(1.0),.22)*grazing*.85;
- colour+=mix(u_secondary,vec3(1.0),.38)*rim*1.1*localPulse;
+ colour+=mix(iridescence,vec3(1.0),.40)*(grazing*.38+pow(1.0-mu,38.0)*1.5);
+ colour+=mix(u_secondary,vec3(1.0),.72)*rim*2.7*localPulse;
  float rare=pow(fringe,22.0)*pow(max(dot(n,normalize(vec3(.2,.9,.3))),0.0),8.0);
  colour+=u_accent*rare*.65*(1.0+u_rhythm.z);
- float fog=exp(-distance*.035);
- radiance+=colour*coverage*fog;
+ float fog=exp(-distance*mix(.025,.075,cathedral));
+ radiance+=(colour*fog+palette(.23)*.008*(1.0-fog))*coverage;
  opticalDepth+=(.04+.25*response+.1*fresnel)*coverage*fog;
 }
 // A cell is a spherical envelope clipped to its equal-pressure Voronoi
@@ -171,6 +239,7 @@ void soapFilm(vec3 p,vec3 n,vec3 rd,float distance,float id,float edge,float cov
 void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float groupId) {
  if(growth<.001)return;
  float size=radius*growth;
+ filmCentre=centre;filmScale=max(size,.001);
  vec2 bound=soapSpan(ro,rd,centre,size*1.7);
  if(bound.x>bound.y||bound.y<0.0)return;
  for(int j=0;j<4;j++) {
@@ -189,12 +258,16 @@ void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float group
   if(soapR[j]<.001)continue;
   vec3 rayOffset=ro-soapC[j];float tc=-dot(rayOffset,rd);
   float impact=sqrt(max(dot(rayOffset,rayOffset)-tc*tc,0.0));
-  float footprint=max(tc*pixel/1.85,.0001);
+  float footprint=max(tc*pixel/1.85,.0001)+soapDefocus(tc);
   float cover=1.0-smoothstep(soapR[j]-footprint,soapR[j]+footprint,impact);
   if(cover<=0.0)continue;
   float halfChord=sqrt(max(sq(soapR[j])-impact*impact,0.0));
   vec2 span=vec2(tc-halfChord,tc+halfChord);
   for(int side=0;side<2;side++) {
+   // At full foam rear films have zero weight. Reject before clipping,
+   // not after all four power planes have already been evaluated.
+   float attenuation=side==0?1.0:.12*(1.0-cathedral);
+   if(attenuation<.001)continue;
    float t=side==0?span.x:span.y;
    if(t<.03)continue;
    vec3 p=ro+rd*t;float clip=100.0;
@@ -204,8 +277,7 @@ void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float group
     float plane=(dot(soapC[k]+soapC[j],d)+sq(soapR[j])-sq(soapR[k]))*.5;
     clip=min(clip,(plane-dot(p,d))/planeNorm);
    }
-   float aa=max(t*pixel, .0005);
-   float attenuation=side==0?1.0:.32;
+   float aa=max(t*pixel, .0005)+soapDefocus(t);
    soapFilm(p,normalize(p-soapC[j]),rd,t,groupId*4.0+float(j),abs(clip),cover*attenuation*smoothstep(-aa,aa,clip));
   }
  }
@@ -217,7 +289,7 @@ void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float group
   float denom=dot(rd,n);if(abs(denom)<.0001)continue;
   float t=(plane/planeNorm-dot(ro,n))/denom;if(t<.03)continue;
   vec3 p=ro+rd*t;
-  float aa=max(t*pixel,.0005);
+  float aa=max(t*pixel,.0005)+soapDefocus(t);
   float clip=soapR[j]-length(p-soapC[j]);
   if(clip < -aa)continue; // Conservative disc rejection includes the AA fringe.
   for(int m=0;m<4;m++) {
@@ -226,7 +298,7 @@ void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float group
    float pl=(dot(soapC[m]+soapC[j],dm)+sq(soapR[j])-sq(soapR[m]))*.5;
    clip=min(clip,(pl-dot(p,dm))/planeNorm);
   }
-  soapFilm(p,dot(n,rd)>0.0?-n:n,rd,t,groupId*4.0+float(j+k)*.5,abs(clip),.65*smoothstep(-aa,aa,clip));
+  soapFilm(p,dot(n,rd)>0.0?-n:n,rd,t,groupId*4.0+float(j+k)*.5,abs(clip),.45*smoothstep(-aa,aa,clip));
  }
 }
 void main(){
@@ -240,9 +312,10 @@ void main(){
  float seedAngle=float(u_seedBits%997u)*.006302;
  soapTurn=rot2(.16*sin(cameraPhase)+seedAngle);
  vec2 uv=aspectUV()/min(u_resolution.x/u_resolution.y,1.0);
- float az=.13*sin(cameraPhase),h=(u_params[7]-.5)*1.2;
+ float az=(.13+.10*cathedral)*sin(cameraPhase),h=(u_params[7]-.5)*1.2;
  vec3 target=vec3(0,h*.2,-4.2*cathedral);
- vec3 ro=vec3(sin(az)*(6.3+2.1*form),h+.18*sin(cameraPhase*2.0)+.16*cathedral*sin(cameraPhase),6.3+2.1*form-2.9*cathedral);
+ vec3 ro=vec3(sin(az)*(5.4+3.0*form),h+.18*sin(cameraPhase*2.0)+.16*cathedral*sin(cameraPhase),5.4+3.0*form-2.9*cathedral);
+ focusDistance=length(target-ro);
  vec3 fw=normalize(target-ro),right=normalize(cross(fw,vec3(0,1,0))),up=cross(right,fw);
  vec3 rd=normalize(fw*1.85*(1.0+.018*u_kick)+uv.x*right+uv.y*up);
  radiance=vec3(0);opticalDepth=0.0;
@@ -267,11 +340,24 @@ void main(){
   float aa=max(tc*pixel/1.85,.0001),cover=1.0-smoothstep(radius-aa,radius+aa,impact);
   if(radius>.001&&tc>0.0&&cover>0.0){
    float t=tc-sqrt(max(radius*radius-impact*impact,0.0));vec3 p=ro+rd*t;
+   filmCentre=c;filmScale=radius;
    soapFilm(p,normalize(p-c),rd,t,id+40.0,100.0,.7*cover);
   }
  }
- vec3 background=u_secondary*.003;
- background+=mix(u_primary,u_secondary,.6)*.009*exp(-dot(uv,uv)*2.0)*cathedral;
+ // Dark photographic studio: defocused palette practicals recede behind
+ // the films. Positions are world-space so the camera produces parallax.
+ vec3 background=u_secondary*(.006+.012*exp(-sq(rd.y+.13)*14.0));
+ background+=mix(u_primary,u_secondary,.6)*.009*exp(-dot(uv,uv)*2.0);
+ for(int i=0;i<5;i++){
+  float id=float(i),side=mod(id,2.0)*2.0-1.0;
+  vec3 lightPos=vec3(side*(3.2+id*.8),sin(id*3.7)*2.8,-5.0-id*3.0);
+  vec3 delta=lightPos-ro;float t=dot(delta,rd);
+  float d=length(delta-rd*t)/max(t,.001);
+  float radius=.012+.004*id;
+  float disc=1.0-smoothstep(radius*.45,radius*1.65,d);
+  float halo=exp(-sq(d/(radius*2.8)))*.12;
+  background+=palette(.2+id*.15)*(disc+halo)*.20*step(0.0,t);
+ }
  // A restrained light pool beneath the suspended nave is a scale cue.
  if(rd.y<-.0001){
   float t=(-2.9-ro.y)/rd.y;vec3 p=ro+rd*t;
