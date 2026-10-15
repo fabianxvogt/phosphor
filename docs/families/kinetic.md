@@ -114,6 +114,16 @@ Evidence root: `/Users/fabian/Development/phosphor/.fleet/phosphor-worlds-wave5-
 
 Final wave-5 verification: `tests/kinetic.test.mjs tests/time.test.mjs` **24/24 pass**; root suite **737 pass, nine opt-in skips, zero failures** (746 total). Typecheck, build and headless native German/English UI i18n smoke pass. No catalog preview/curation files or tests were edited.
 
+## Final wave-5 review correction
+
+L0's independent film correctly exposed a gap in the previous framing test: `max(width,height)` allowed an edge-on band only ~30% high to pass. The top camera now follows the surface's **tilted normal**, at distance 4.9 with a 0.45-unit tangent orbit, rather than orbiting independently through edge-on views. The camera cranes only after the gathering lattice clears its path, then dollies inward. Both phases remain smooth, independently periodic and energy-independent. A small Möbius-weighted aim offset centres its asymmetric outline in portrait.
+
+The previous lens fit is retained with an additional `1.1 w_saddle (1 − w_saddle)` term, compensating the saddle's contracting transitions without enlarging held forms. A 16,632-case diagnostic spanning the complete four-form cycle, independent camera/form angles and four wave phases measures **61.3–75.5% short-side height**, at most **77.1% with the 2% kick**, and portrait edges within 96.3% of the clip boundary. This is height, not maximum extent. CPU regression now checks height and four wave phases; the original exact geometry, identity, motor, clock and haze tests still pass.
+
+Ceiling has stronger base emission and rim, slightly brighter motor-grid housings, a lifted minimum sheen and 28% more analytic layer haze. None is an energy-brightness multiplier.
+
+A conservative top-state mirror frustum rejection runs after one position evaluation and before four normal samples/lighting. The side-plane sphere bound includes maximum ring motion, globe radius, reflected blur and the two-pixel impostor apron; only wholly invisible reflected impostors are rejected. It changes no visible population or geometry buffers. Native culled/unculled image checks and final cost evidence are in the lane's `output/final-round/` directory. No engine changes. Three fresh improvement films were reviewed in addition to the baseline; the final delivery report supersedes the earlier self-rating and timing claims above.
+
 ## Limits
 
 The floor mirror is a sharp mirrored population with soft sphere coverage, not physically integrated glossy reflection. Surface occlusion is a proxy, not inter-sphere ray tracing. A few morph midpoints remain narrower than the held forms; pearl rows remain visible rather than becoming a seamless solid shell. Haze is deliberately subtle against the dark room. External-projector contrast and multi-hour Stage cadence remain unmeasured.

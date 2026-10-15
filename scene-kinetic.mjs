@@ -8,6 +8,9 @@ import {
   FOCAL_RISE,
   FRAME_GAIN,
   MORPH_FIT,
+  SADDLE_FIT,
+  HERO_DISTANCE,
+  HERO_PARALLAX,
   FORM,
   HALF,
   HANG,
@@ -57,19 +60,24 @@ vec4 chorus(float M){
 float seedAngle(float k){return K_TAU*fract(mod(u_seed,8192.)*k);}
 void cameraRig(float dev,out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float s2=sst(1.,2.,dev),a=u_clock[3]+seedAngle(.7548776662);
- float radius=6.-1.2*s2+(.4-.25*s2)*sin(2.*a),height=.75+.45*s2+.1*sin(3.*a);
- eye=vec3(radius*cos(a),height,radius*sin(a));
+ float radius=6.+.4*sin(2.*a),height=.75+.1*sin(3.*a);
+ float c=cos(u_clock[2]),s=sin(u_clock[2]),ca=cos(a),sa=sin(a);
+ vec3 hero=CENTER+${f(HERO_DISTANCE)}*vec3(-TS*s,TC,TS*c)
+  +${f(HERO_PARALLAX)}*vec3(c*ca-TC*s*sa,-TS*sa,s*ca+TC*c*sa);
+ vec3 travel=vec3(sst(1.85,2.,dev),sst(1.75,1.97,dev),sst(1.85,2.,dev));
+ eye=mix(vec3(radius*ca,height,radius*sa),hero,travel);
  float side=.9*(1.-s2);
- vec3 target=vec3(-sin(a)*side,2.2-.3*sst(0.,1.,dev)+.05*s2,cos(a)*side);
+ float aim=.25*s2*chorus(u_clock[1]+mod(u_seed,4.)).z;
+ vec3 target=vec3(-sin(a)*side+aim*c,2.2-.3*sst(0.,1.,dev)+.05*s2,cos(a)*side+aim*s);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
 float focal(){
  float peak=sst(1.,2.,DEV);
  if(peak<=0.)return FOCAL*(1.+.02*clamp(u_kick,0.,1.));
  vec4 w=chorus(u_clock[1]+mod(u_seed,4.));
- // Held forms keep their authored scale; a smooth bounded lens correction
- // compensates narrower forms and the contraction between choreographies.
- float fit=dot(w,vec4(${FRAME_GAIN.map(f).join(",")}))+${f(MORPH_FIT)}*(1.-dot(w,w));
+ // Compensate contraction, especially the saddle's folding transition.
+ // The normal-following camera keeps held bands from ever turning edge-on.
+ float fit=dot(w,vec4(${FRAME_GAIN.map(f).join(",")}))+${f(MORPH_FIT)}*(1.-dot(w,w))+${f(SADDLE_FIT)}*w.w*(1.-w.w);
  return (FOCAL+(${f(FOCAL_RISE)}+fit)*peak)*(1.+.02*clamp(u_kick,0.,1.));
 }
 vec3 tone(float h){
@@ -138,6 +146,9 @@ void main(){
  // The cables fade continuously before the free sculpture is complete.
  // Reject their now-zero triangles before five surface/normal evaluations.
  if(a_kind>1.5&&sig>=1.){gl_Position=vec4(0.,0.,2.,1.);v_ray=vec3(0.);return;}
+ vec3 eye,R,U,F;cameraRig(dev,eye,R,U,F);
+ float A=u_resolution.x/u_resolution.y,Fk=focal();
+ v_focal=Fk;
  vec4 w=chorus(M);
  float rp=ringP(rho,kick),ring=RAMP*kick*rp*amp;
  float base=seedAngle(.6180339887);
@@ -158,6 +169,19 @@ void main(){
   vec2 dims=vec2(${f(SURFACE_COLS)},${f(SURFACE_ROWS)});
   vec2 uv=(vec2(mod(index,dims.x),floor(index/dims.x))+.5)/dims,e=.5/dims;
   vec3 p=sculpt(uv,w,W,Phi,detail);
+  // Conservative top-state mirror frustum test before four additional
+  // surface samples and lighting. Includes maximum ring motion, globe
+  // radius, reflected blur and expanded impostor AA support.
+  if(a_kind>.5&&a_kind<1.5&&sig>=1.){
+   vec3 mirror=CENTER+p;mirror.y=-mirror.y;
+   vec3 c=mirror-eye;
+   vec3 cv=vec3(dot(c,R),dot(c,U),dot(c,F));
+   vec2 slope=vec2(max(A,1.)/Fk,1./(Fk*min(A,1.)));
+   float bound=.055*size+.6*RAMP*kick*amp+.03+4.*length(c)/(Fk*min(u_resolution.x,u_resolution.y));
+   if(any(greaterThan(abs(cv.xy)-cv.z*slope,bound*sqrt(vec2(1.)+slope*slope)))){
+    gl_Position=vec4(0.,0.,2.,1.);v_ray=vec3(0.);return;
+   }
+  }
   vec3 du=sculpt(uv+vec2(e.x,0.),w,W,Phi,detail)-sculpt(uv-vec2(e.x,0.),w,W,Phi,detail);
   vec3 dv=sculpt(uv+vec2(0.,e.y),w,W,Phi,detail)-sculpt(uv-vec2(0.,e.y),w,W,Phi,detail);
   vec3 cr=cross(dv,du);float cl=length(cr);
@@ -170,7 +194,6 @@ void main(){
  vec3 P=mix(pg,ps,sig);
  vec3 Ns=normalize(mix(ng,ns,sig)+vec3(0.,1e-4,0.));
  float r=size*mix(R0,rs,sig),hue=mix(hg,hs,sig);
- vec3 eye,R,U,F;cameraRig(dev,eye,R,U,F);
  // Surface light: every sphere carries the shading of the surface it
  // belongs to (facing ratio, glint, rim), so the lattice reads as one sheet.
  vec3 V=normalize(eye-P);
@@ -199,18 +222,16 @@ void main(){
  float ao=mix(1.,.3+.7*sst(.3,1.6,length(P-CENTER)),sig);
  // The level ceiling's faint ripple also travels as light: slow bands of
  // brightness drift across the lattice and fade as the waves take over.
- float sheen=1.+.7*(1.-s01)*(1.-sig)*rippleH(g,W)/.075;
+ float sheen=1.+.5*(1.-s01)*(1.-sig)*rippleH(g,W)/.075;
  float diffuse=max(dot(Nv,L),0.);
- vec3 emit=col*glow*(mix(.5,.12,sig)+mix(.55,.7,sig)*pow(facing,1.4)+.5*sig*diffuse)*(.6+.4*max(s01,sig))*ao*sheen;
+ vec3 emit=col*glow*(mix(.5,.12,sig)+mix(.55,.7,sig)*pow(facing,1.4)+.5*sig*diffuse)*(.85+.15*max(s01,sig))*ao*sheen;
  emit+=mix(col,vec3(1.),.55)*glow*(1.6*glint+.6*glint2)*mix(1.,1.8,sig)*ao;
- emit+=mix(u_secondary,vec3(1.),.35)*rim*mix(.28,.78,sig)*glow*(.4+.6*max(s01,sig));
+ emit+=mix(u_secondary,vec3(1.),.35)*rim*mix(.28,.78,sig)*glow*(.6+.4*max(s01,sig));
  emit+=mix(u_primary,vec3(1.),.55)*glow*crest*2.4;
  emit=mix(emit,u_accent*glow*2.,crest*.35);
  emit+=u_accent*lattice*glow*1.2;
  emit+=mix(col,vec3(1.),.5)*sweep*glow*.9;
  emit+=vec3(1.)*tw*glow*.35;
- float A=u_resolution.x/u_resolution.y,Fk=focal();
- v_focal=Fk;
  float pixA=2./(Fk*min(u_resolution.x,u_resolution.y));
  v_info=vec4(a_kind,r,sig,crest);
  vec3 Cw;
@@ -394,7 +415,7 @@ void main(){
   vec2 cell=P.xz/SP+.5*(N-1.);vec2 fw=fwidth(cell);
   vec2 sd=abs(fract(cell)-.5);
   float plate=(1.-sst(.18,.18+fw.x,max(sd.x,sd.y)))*sst(.6,.15,max(fw.x,fw.y))*poolGrid(P.xz);
-  vec3 ceilC=hazeC*pool*.012*glow+hazeC*plate*.02*glow*pool;
+  vec3 ceilC=hazeC*pool*.02*glow+hazeC*plate*.035*glow*pool;
   col=mix(fogC,ceilC,exp(-T*FOGK));
  }
  // Haze lit by the installation: a light layer at hang height while the
@@ -408,7 +429,7 @@ void main(){
  float tm=clamp((HANG-eye.y)/max(abs(rd.y),.08)*sign(rd.y),cs.x,max(cs.x,cs.y));
  vec2 hp=(eye+rd*tm).xz;
  float shafts=.72+.28*pow(.5+.5*cos(hp.x*.7+u_clock[0]) * cos(hp.y*.53-u_clock[0]),2.);
- col+=hazeC*glow*(mix(layer*.032*shafts,ball*.04,s2));
+ col+=hazeC*glow*(mix(layer*(.032+.009*(1.-s01))*shafts,ball*.04,s2));
  outColor=vec4(max(col,vec3(0.)),1.);
 }`;
 const schema = [
