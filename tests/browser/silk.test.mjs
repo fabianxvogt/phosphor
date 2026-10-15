@@ -56,16 +56,24 @@ test(
           for (const development of [0, 0.5, 1, 1.3, 1.7, 2]) {
             const pixels = shot(development, time);
             let lit = 0,
-              peak = 0;
+              peak = 0,
+              borderLit = 0,
+              borderPixels = 0;
             for (let i = 0; i < pixels.length; i += 4) {
               const value = Math.max(pixels[i], pixels[i + 1], pixels[i + 2]);
               if (value > 12) lit++;
+              const pixel = i / 4, x = pixel % engine.width, y = Math.floor(pixel / engine.width);
+              if (x < 5 || x >= engine.width - 5 || y < 5 || y >= engine.height - 5) {
+                borderPixels++;
+                if (value > 12) borderLit++;
+              }
               peak = Math.max(peak, value);
             }
             rows.push({
               time,
               development,
               lit: lit / (pixels.length / 4),
+              border: borderLit / borderPixels,
               peak,
             });
           }
@@ -86,6 +94,10 @@ test(
       for (const row of result.rows) {
         assert.ok(row.lit > 0.03, JSON.stringify(row));
         assert.ok(row.peak > 40, JSON.stringify(row));
+        if (row.development === 0) {
+          assert.ok(row.lit > 0.35, "veil must fill the frame: " + JSON.stringify(row));
+          assert.ok(row.border > 0.15, "no flag floating inside a black border: " + JSON.stringify(row));
+        }
       }
       assert.equal(result.different, 0);
       assert.equal(result.sameMesh, true);

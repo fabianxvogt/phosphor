@@ -1,7 +1,9 @@
 // Silk Storm: seeded material coordinates never depend on development.
 export const STRIPS = 28;
 export const ALONG = 160;
-export const ACROSS = 6;
+export const ACROSS = 4;
+export const MOTES = 112;
+export const ADDITIVE_FROM = STRIPS * ALONG * ACROSS * 6;
 export const LENGTH = 12;
 export const STROUHAL = 0.2;
 export const ATTRIBUTES = [2, 1, 3];
@@ -81,30 +83,48 @@ export function point(u, v, id, rnd, state = {}) {
     my = (g - 0.5) * 8.4,
     along = mx * 0.8 + my * 0.6 + 7.32,
     across = -mx * 0.6 + my * 0.8;
-  const veilPhase = phase + 0.38 * Math.sin(across * 0.45 + phase);
+  const veilPhase = phase + 0.9 * Math.sin(across * 0.45 + phase) +
+    0.25 * Math.sin(across * 0.9 - phase);
   const veilAmplitude =
     0.72 * amplitude * (0.85 + 0.15 * Math.cos(across * 0.55));
-  const centre = flutter(7.32 * 1.55, veilPhase, veilAmplitude);
-  const vf = flutter(along * 1.55, veilPhase, veilAmplitude).map(
-    (x, k) => (x - centre[k]) / 1.55,
+  const centre = flutter(7.32 * 2.6, veilPhase, veilAmplitude);
+  const vf = flutter(along * 2.6, veilPhase, veilAmplitude).map(
+    (x, k) => (x - centre[k]) / 2.6,
   );
   vf[1] += 0.3 * Math.cos(phase);
-  const vq = (TAU * 1.5 * along * 1.55) / LENGTH - veilPhase;
+  const vq = (TAU * 1.5 * along * 2.6) / LENGTH - veilPhase;
   const va = veilAmplitude * Math.sin(vq);
   const fine = 0.027 * Math.sin(3 * vq) + 0.008 * Math.sin(7 * vq);
   vf[0] -= Math.sin(va) * fine;
   vf[1] += Math.cos(va) * fine;
-  const s0 = [vf[0] * 0.8 - across * 0.6, vf[0] * 0.6 + across * 0.8, vf[1]];
+  const billow = 0.55 * Math.sin(mx * 0.52 - phase) * Math.cos(my * 0.38 + phase);
+  const s0 = [
+    (vf[0] * 0.8 - across * 0.6) * 1.35,
+    (vf[0] * 0.6 + across * 0.8) * 1.35,
+    vf[1] * 2.8 + billow,
+  ];
   const yy = (v - 0.5) * (0.38 + 0.48 * rnd[1]) * width;
   const torsion = 0.62 * Math.sin(2 * q + rnd[2] * TAU);
   const wy = yy * Math.cos(torsion),
     wz = yy * Math.sin(torsion);
-  const tilt = (rnd[2] - 0.5) * 3.5,
-    xx = x - LENGTH * 0.47;
+  const tilt = (rnd[2] - 0.5) * 3.5;
+  const curve = TAU * u - phi + rnd[2] * TAU;
+  const xx = (x - LENGTH * 0.47) * 1.6;
+  const cy = 2.1 * Math.sin(curve);
+  const tangent = [1.6 * LENGTH * Math.cos(angleW), 2.1 * TAU * Math.cos(curve),
+    1.3 * LENGTH * Math.sin(angleW) + 1.8 * TAU * Math.cos(curve + 1.3)];
+  const norm = (p) => p.map((x) => x / Math.hypot(...p));
+  const d = norm(tangent), w0 = norm([-d[1], d[0], 0]);
+  const n0 = [d[1] * w0[2] - d[2] * w0[1], d[2] * w0[0] - d[0] * w0[2], d[0] * w0[1] - d[1] * w0[0]];
+  const bw = (v - 0.5) * (0.24 + 1.3 * rnd[2] ** 2) * width;
+  const bannerTwist = 0.95 * Math.sin(2 * q + rnd[2] * TAU);
+  const ruffle1 = 0.025 * (0.24 + 1.3 * rnd[2] ** 2) * Math.sin(4 * q) * Math.sin(v * Math.PI);
+  const offset = w0.map((x, k) => bw * (x * Math.cos(bannerTwist) + n0[k] * Math.sin(bannerTwist)) + n0[k] * ruffle1);
+  const bx = xx + offset[0], by = cy + offset[1];
   const s1 = [
-    xx * Math.cos(tilt) - wy * Math.sin(tilt) + (rnd[2] - 0.5) * 4,
-    (rnd[0] - 0.5) * 7.8 * spread + xx * Math.sin(tilt) + wy * Math.cos(tilt),
-    (rnd[1] - 0.5) * 8.5 * spread + z + wz + 0.75 * Math.sin(q + rnd[2] * TAU),
+    bx * Math.cos(tilt) - by * Math.sin(tilt) + (rnd[2] - 0.5) * 3,
+    (rnd[0] - 0.5) * 6 * spread + bx * Math.sin(tilt) + by * Math.cos(tilt),
+    (rnd[1] - 0.5) * 9.5 * spread + 1.3 * z + 1.8 * Math.sin(curve + 1.3) + offset[2],
   ];
   const angle = id * 2.3999632297 + turn;
   const h = helix(u * LENGTH, angle);
@@ -130,7 +150,7 @@ export function camera(development, phase = 0) {
   const outside = [
     1.2 * Math.sin(phase),
     0.5 + 0.22 * Math.sin(2 * phase),
-    10 + 1.6 * smooth(development) + 0.3 * Math.cos(phase),
+    5.7 + 3.2 * smooth(development) + 0.3 * Math.cos(phase),
   ];
   const inside = [0.06 * Math.cos(phase), -5.7, 0.06 * Math.sin(phase)];
   const eye = outside.map((q, k) => q + approach * (inside[k] - q));
@@ -142,7 +162,7 @@ export function camera(development, phase = 0) {
   };
 }
 export function createGeometry(seed) {
-  const data = new Float32Array(STRIPS * ALONG * ACROSS * 6 * STRIDE);
+  const data = new Float32Array((ADDITIVE_FROM + MOTES * 6) * STRIDE);
   let at = 0;
   for (let id = 0; id < STRIPS; id++) {
     const rnd = identity(seed, id);
@@ -159,6 +179,14 @@ export function createGeometry(seed) {
           data.set([(u + du) / ALONG, (v + dv) / ACROSS, id, ...rnd], at);
           at += STRIDE;
         }
+  }
+  // Additive, depth-tested dust tail; the cloth itself remains opaque.
+  for (let id = 0; id < MOTES; id++) {
+    const rnd = identity(seed, STRIPS + id);
+    for (const [u, v] of [[-1, -1], [1, -1], [-1, 1], [-1, 1], [1, -1], [1, 1]]) {
+      data.set([u, v, -1 - id, ...rnd], at);
+      at += STRIDE;
+    }
   }
   return data;
 }
@@ -179,26 +207,44 @@ vec2 ssFlutter(float s,float phase,float a){
 }
 vec3 ssPoint(vec2 uv,float id,vec3 rnd){
  float b=ssSmooth(u_params[0]/.82),t=ssSmooth((u_params[0]-1.)/.72);
- float g=(id+uv.y)/SS_N,phi=u_clock[0]+g*.28+b*rnd.x*SS_TAU;
- float a=.48*u_params[2];
+ float g=(id+uv.y)/SS_N;
+ vec3 p0=vec3(0.);
+ // Uniform branches omit inactive charts, never geometry or persistent ids.
+ if(b<1. && t<1.){
+  float mx=(uv.x-.5)*SS_L,my=(g-.5)*8.4;
+  float along=mx*.8+my*.6+7.32,across=-mx*.6+my*.8;
+  float veilPhase=u_clock[0]+.9*sin(across*.45+u_clock[0])+.25*sin(across*.9-u_clock[0]);
+  float veilAmplitude=.72*u_params[2]*(.85+.15*cos(across*.55));
+  vec2 vf=(ssFlutter(along*2.6,veilPhase,veilAmplitude)-ssFlutter(7.32*2.6,veilPhase,veilAmplitude))/2.6;
+  vf.y+=.3*cos(u_clock[0]);
+  float vq=SS_TAU*1.5*along*2.6/SS_L-veilPhase,va=veilAmplitude*sin(vq);
+  float fine=.027*sin(3.*vq)+.008*sin(7.*vq);
+  vf+=vec2(-sin(va),cos(va))*fine;
+  float billow=.55*sin(mx*.52-u_clock[0])*cos(my*.38+u_clock[0]);
+  p0=vec3((vf.x*.8-across*.6)*1.35,(vf.x*.6+across*.8)*1.35,vf.y*2.8+billow);
+ }
+ if(b<=0.)return p0;
+ float phi=u_clock[0]+g*.28+b*rnd.x*SS_TAU,a=.48*u_params[2];
  vec2 fl=ssFlutter(uv.x*SS_L,phi,a);
  float q=SS_TAU*1.5*uv.x-phi,ang=a*sin(q);
  float wrinkle=.035*sin(3.*q+g*14.)+.016*sin(7.*q-g*22.);
  fl+=vec2(-sin(ang),cos(ang))*wrinkle;
- float mx=(uv.x-.5)*SS_L,my=(g-.5)*8.4;
- float along=mx*.8+my*.6+7.32,across=-mx*.6+my*.8;
- float veilPhase=u_clock[0]+.38*sin(across*.45+u_clock[0]);
- float veilAmplitude=.72*u_params[2]*(.85+.15*cos(across*.55));
- vec2 vf=(ssFlutter(along*1.55,veilPhase,veilAmplitude)-ssFlutter(7.32*1.55,veilPhase,veilAmplitude))/1.55;
- vf.y+=.3*cos(u_clock[0]);
- float vq=SS_TAU*1.5*along*1.55/SS_L-veilPhase,va=veilAmplitude*sin(vq);
- float fine=.027*sin(3.*vq)+.008*sin(7.*vq);
- vf+=vec2(-sin(va),cos(va))*fine;
- vec3 p0=vec3(vf.x*.8-across*.6,vf.x*.6+across*.8,vf.y);
  float yy=(uv.y-.5)*(.38+.48*rnd.y)*u_params[7];
  float torsion=.62*sin(2.*q+rnd.z*SS_TAU),wy=yy*cos(torsion),wz=yy*sin(torsion);
- float tilt=(rnd.z-.5)*3.5,xx=fl.x-SS_L*.47;
- vec3 p1=vec3(xx*cos(tilt)-wy*sin(tilt)+(rnd.z-.5)*4.,(rnd.x-.5)*7.8*u_params[3]+xx*sin(tilt)+wy*cos(tilt),(rnd.y-.5)*8.5*u_params[3]+fl.y+wz+.75*sin(q+rnd.z*SS_TAU));
+ vec3 p1=vec3(0.);
+ if(t<1.){
+  float tilt=(rnd.z-.5)*3.5,curve=SS_TAU*uv.x-phi+rnd.z*SS_TAU;
+  float xx=(fl.x-SS_L*.47)*1.6,cy=2.1*sin(curve);
+  vec3 d=normalize(vec3(1.6*SS_L*cos(ang),2.1*SS_TAU*cos(curve),1.3*SS_L*sin(ang)+1.8*SS_TAU*cos(curve+1.3)));
+  vec3 w0=normalize(vec3(-d.y,d.x,0.)),n0=cross(d,w0);
+  float bw=(uv.y-.5)*(.24+1.3*rnd.z*rnd.z)*u_params[7];
+  float bannerTwist=.95*sin(2.*q+rnd.z*SS_TAU);
+  float ruffle1=.025*(.24+1.3*rnd.z*rnd.z)*sin(4.*q)*sin(uv.y*3.14159265359);
+  vec3 offset=bw*(w0*cos(bannerTwist)+n0*sin(bannerTwist))+n0*ruffle1;
+  float bx=xx+offset.x,by=cy+offset.y;
+  p1=vec3(bx*cos(tilt)-by*sin(tilt)+(rnd.z-.5)*3.,(rnd.x-.5)*6.*u_params[3]+bx*sin(tilt)+by*cos(tilt),(rnd.y-.5)*9.5*u_params[3]+1.3*fl.y+1.8*sin(curve+1.3)+offset.z);
+ }
+ if(t<=0.)return mix(p0,p1,b);
  float r=.45+.235*uv.x*SS_L,theta=id*2.3999632297+u_clock[1]+.72/.235*log(r/.45);
  float ruffle=.04*sin(4.*q+uv.y*SS_TAU)*sin(uv.y*3.14159265359);
  float taper=sqrt(r/3.27),dr=(fl.y*.55+wz+ruffle)*taper,hy=sqrt(1.-.235*.235-.72*.72),w=wy*taper;
@@ -208,7 +254,7 @@ vec3 ssPoint(vec2 uv,float id,vec3 rnd){
 }
 void ssCamera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float t=ssSmooth(u_params[0]-1.),a=u_clock[2];
- vec3 outside=vec3(1.2*sin(a),.5+.22*sin(2.*a),10.+1.6*ssSmooth(u_params[0])+.3*cos(a));
+ vec3 outside=vec3(1.2*sin(a),.5+.22*sin(2.*a),5.7+3.2*ssSmooth(u_params[0])+.3*cos(a));
  float approach=ssSmooth(t/.72),rise=ssSmooth((t-.72)/.28);
  eye=mix(outside,vec3(.06*cos(a),-5.7,.06*sin(a)),approach);
  eye.y+=2.6*rise;
