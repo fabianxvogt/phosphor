@@ -94,9 +94,10 @@ test(
               ? gl.getTexParameter(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER)
               : null,
             linear: gl.LINEAR,
-            allocations: window.__inkAllocations.filter(
-              (t) => t.width === 1040 && t.height === 1168,
-            ),
+            allocations: window.__inkAllocations.filter((t) => {
+              const [w, h] = slot.scene.precompute.size;
+              return t.width === w && t.height === h;
+            }),
             half: gl.RGBA16F,
             halfType: gl.HALF_FLOAT,
             accounted: engine.liveTextures === engine.stats().textures,
@@ -121,8 +122,9 @@ test(
               slot = engine.slots.at(-1);
             const sample = () => {
               gl.bindFramebuffer(gl.FRAMEBUFFER, slot.precompute.fbo);
-              const p = new Float32Array(32 * 32 * 4);
-              gl.readPixels(560, 630, 32, 32, gl.RGBA, gl.FLOAT, p);
+              const { w, h } = slot.precompute;
+              const p = new Float32Array(w * h * 4);
+              gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, p);
               return p;
             };
             const before = sample(),
