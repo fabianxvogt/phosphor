@@ -10,7 +10,7 @@ import { SYSTEMS, flow, rk4 } from "./scene-attractor.mjs";
 
 export const RIBBONS = 192; // trajectories per flow
 export const HISTORY = 224; // samples kept per trajectory (state columns)
-export const SEGMENTS = 160; // rendered segments per ribbon
+export const SEGMENTS = 128; // rendered segments per ribbon; 224 exact history samples retained
 export const PER_RIBBON = SEGMENTS * 6;
 export const SUBSTEPS = 2; // RK4 steps per history sample
 export const ROWS = RIBBONS * 6 + 1; // 2 texels × 3 flows per ribbon + globals
@@ -103,10 +103,10 @@ export function camera(development, params, yawPhase, driftPhase) {
   ];
   const target = [
     0.15 * peak * Math.sin(1.3 * yaw + 0.5),
-    -0.14 * (1 - mid) - 0.15 * peak + 0.08 * peak * Math.sin(drift),
+    -0.14 * (1 - mid) - 0.04 * peak + 0.08 * peak * Math.sin(drift),
     0.15 * peak * Math.cos(1.3 * yaw + 0.5),
   ];
-  const focal = 2.1 + (1.75 - 2.1) * mid + (1.5 - 1.75) * peak;
+  const focal = 2.1 + (1.75 - 2.1) * mid + (1.72 - 1.75) * peak;
   return { eye, target, focal, dist, pitch };
 }
 // Ribbons thin to nothing near the eye, so a fly-through never fills the lens.

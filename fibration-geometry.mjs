@@ -4,7 +4,7 @@
 // far each layer has bloomed out of its parent latitude, and how far each
 // fibre has grown around its circle; the vertex shader mirrors the functions
 // below exactly.
-export const SEGMENTS = 144; // around each fibre circle
+export const SEGMENTS = 112; // round-circle silhouette; 22% fewer repeated vertices
 export const SIDES = 8; // around each tube
 export const PER_FIBRE = SEGMENTS * SIDES * 6;
 export const GROW = 0.3; // development span over which one fibre closes

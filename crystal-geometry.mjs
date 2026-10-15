@@ -47,13 +47,26 @@ const norm = (a) => {
   return [a[0] / l, a[1] / l, a[2] / l];
 };
 
+// Exact triangular-lattice Voronoi cell used by the wall material. The
+// lattice is the union of rectangular cosets (i, sqrt(3)j) and
+// (i+1/2, sqrt(3)(j+1/2)); the six bisectors bound one regular hexagon.
+export function hexCell(x, y) {
+  const h = Math.sqrt(3);
+  const a = [x - Math.floor(x + .5), y - h * Math.floor(y / h + .5)];
+  const b = [x - (Math.floor(x) + .5), y - h * (Math.floor(y / h) + .5)];
+  const local = dot2(a, a) < dot2(b, b) ? a : b;
+  const edge = .5 - Math.max(Math.abs(local[0]), Math.abs(.5 * local[0] + h / 2 * local[1]), Math.abs(-.5 * local[0] + h / 2 * local[1]));
+  return { local, centre: [x-local[0], y-local[1]], edge };
+}
+const dot2 = (a, b) => a[0]*b[0] + a[1]*b[1];
+
 // Shader mirror: growth factors [length, radius] of the Hall-sized crystal.
 // Pure in (kind, birth, development, detail), hence continuous and reversible.
 export function growth(kind, birth, development, detail = 0.5) {
   const dev = Math.min(2, Math.max(0, development));
   if (kind === KIND.seed) {
     const t = smooth(0, 2, dev);
-    return [0.3 + 0.7 * t, 0.8 + 0.2 * t];
+    return [0.45 + 0.55 * t, 0.9 + 0.1 * t];
   }
   if (kind === KIND.member) {
     const g1 = smooth(0.08 + 0.62 * birth, 0.38 + 0.62 * birth, dev),

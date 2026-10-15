@@ -17,6 +17,8 @@ import {
   foldProgress,
   liftProgress,
   netOverlaps,
+  paperNormal,
+  shardFrame,
   rotateAbout,
   shardOrbit,
   shardProgress,
@@ -172,6 +174,25 @@ test("field, vortex and camera never meet; orbit phases wrap without jumps", () 
   assert.ok(camera > FIELD + 1.5);
 });
 
+test("analytic paper normals match differences; banked shards stay rigid and periodic", () => {
+  const wave=(x,z,a,p)=>a*(Math.sin(.55*x+4*Math.PI*p)*Math.sin(.47*z-6*Math.PI*p)+.5*Math.sin(.31*(x+z)+10*Math.PI*p));
+  const e=1e-5;
+  for(const x of [-9,-.2,3,12]) for(const z of [-7,0,5]) for(const p of [0,.37,1]) {
+    const dx=(wave(x+e,z,.12,p)-wave(x-e,z,.12,p))/(2*e);
+    const dz=(wave(x,z+e,.12,p)-wave(x,z-e,.12,p))/(2*e);
+    const q=[-dx,1,-dz],len=Math.hypot(...q),n=paperNormal(x,z,.12,p);
+    assert.ok(dist(n,q.map(v=>v/len))<1e-9);
+    assert.ok(dist(n,paperNormal(x,z,.12,p+1))<1e-12);
+  }
+  for(const item of arrangement(527)) for(const face of item.shards) for(const shard of face) {
+    const f=shardFrame(shard,.37),wrapped=shardFrame(shard,1.37);
+    for(const v of Object.values(f))assert.ok(Math.abs(Math.hypot(...v)-1)<1e-12);
+    assert.ok(Math.abs(f.tangent.reduce((s,v,i)=>s+v*f.across[i],0))<1e-12);
+    assert.ok(dist(f.normal,wrapped.normal)<1e-12);
+  }
+  assert.deepEqual(scene.presets.map(p=>p.seed),[527,527,527,1931,88,3307,777,4096]);
+});
+
 test("geometry is deterministic, finite and bounded", () => {
   const a = createGeometry(527),
     b = createGeometry(528);
@@ -179,7 +200,7 @@ test("geometry is deterministic, finite and bounded", () => {
   assert.notDeepEqual(a.subarray(0, 2000), b.subarray(0, 2000));
   assert.ok(a.every(Number.isFinite));
   assert.equal(a.length % (STRIDE * 3), 0);
-  assert.ok(a.length / STRIDE < 120000);
+  assert.ok(a.length / STRIDE < 30000, "floor tessellation must not dominate vertex work");
   // Rodrigues sanity: a quarter turn about +y maps +x to -z.
   const r = rotateAbout([1, 0, 0], [0, 0, 0], [0, 1, 0], Math.PI / 2);
   assert.ok(dist(r, [0, 0, -1]) < 1e-12);

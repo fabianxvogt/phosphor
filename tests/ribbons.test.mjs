@@ -162,6 +162,19 @@ test("identity is fixed per seed and independent of development", () => {
     assert.ok(Math.abs(a[r * PER_RIBBON + 5] - ranks[r]) < 1e-6);
 });
 
+test("tube impostor normals use the across sign once, not twice", () => {
+  // Unsigned W plus a in [-1,1] makes a symmetric circular cross-section.
+  const normal = a => [a, Math.sqrt(1 - a * a)];
+  for (const a of [0, .25, .75, 1]) {
+    assert.ok(Math.abs(Math.hypot(...normal(a)) - 1) < 1e-12);
+    assert.equal(normal(-a)[0], -normal(a)[0]);
+    assert.equal(normal(-a)[1], normal(a)[1]);
+  }
+  assert.match(scene.geometry.vertex, /v_side = vec3\(dot\(W, right\), dot\(W, up\), -dot\(W, fwd\)\);/);
+  assert.ok(PER_RIBBON * RIBBONS < 150000, "20% fewer repeated vertices");
+  assert.deepEqual(scene.presets.map(p => p.seed), [9701,9701,9701,9702,9703,9704,9705,9706]);
+});
+
 test("looks validate; the three world states differ only in development", () => {
   assert.ok(scene.presets.length >= 6);
   for (let i = 0; i < scene.presets.length; i++) {

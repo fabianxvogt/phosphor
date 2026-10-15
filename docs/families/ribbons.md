@@ -33,7 +33,7 @@ Perspective with parallax; distance fog into the palette ground; ribbons are cam
 
 ## Cost (indicative, shared GPU)
 
-Simulation: one 258 k-texel pass per tick (heads integrate, the rest shift). Mesh: 192 × 160 segments × 6 = 184 k vertices, 1 float each. Whole frame at 1080p measured under heavy GPU sharing ≈ 1.2–2× Living Forms in the same run (see report). A seed change fills the history once: load ≈ 95 ms vs ≈ 25–45 ms for Living Forms.
+Simulation: one 258 k-texel pass per tick (heads integrate, the rest shift). Mesh: 192 × 128 segments × 6 = 147 k vertices, 1 float each. Whole frame at 1080p measured under heavy GPU sharing ≈ 1.2–2× Living Forms in the same run (see report). A seed change fills the history once: load ≈ 95 ms vs ≈ 25–45 ms for Living Forms.
 
 ## Endless
 
@@ -46,6 +46,14 @@ Flow constants match the shader tables; quantized trajectories stay in their box
 ## Labyrinth framing (polish 2026-10-15)
 
 At the peak the camera stood at 2.05 units (±16 %) with focal 1.55: the visible half-height at the centre was 1.1–1.5 units while Thomas excursions reach about 1.5, so loops touched the bottom edge, and all 192 ribbons made the core a uniform tangle. Now: distance 2.45 (±10 %), focal 1.5 (visible half-height 1.47–1.8), 90 % of the ribbons (`shown(2)` 1.08 → 0.88), width factor at the peak 0.7 → 0.88 and depth fog ×1.6. Ladder (480×270): loops stay inside the frame with a margin at all three energies for Thomas Labyrinth, Labyrinth Rush and Slow Labyrinth; the form fills about 55–65 % of the short side. Mean 8-bit level drops 10.2 → 7.9 (smaller on screen, fewer ribbons). Throughput unchanged (1080p 1.6 ms, 4K 3.7 ms, control 1.5 / 3.4–3.8 ms).
+
+## Wave 5 (2026-10-15): light as a solid trajectory
+
+Three filmed rounds: (1) correct the tube impostor's double-signed normal (the left/right halves had the same normal), initially reduce rendered subdivisions; (2) rank-weighted widths put a few broad trajectories against fine tracers, narrow dark troughs and stronger pearl glints; (3) increase the Labyrinth lens 1.5 → 1.72 and centre its target. Final cost polish uses 128 rendered segments, retaining all 224 exact history samples; portrait focal is reduced 12% to contain the butterfly's broad wings. No preset, seed, flow constant, world definition or schema changed.
+
+Initial single-run timings showed sub-millisecond shared-machine drift. A controlled interleaved comparison loads **both original scene and original geometry** from `deaaae1`, alternates baseline/final three times and takes the median of 36-frame p50s. 1080p states 0/1/2: **2.2/2.6/2.7 → 2.3/2.3/2.5 ms**; 4K: **5.9/6.2/5.9 → 5.8/5.7/5.8 ms**. Every state is within +5%; the largest is +4.55%. These are synchronous whole-frame probes, not venue cadence.
+
+Evidence: fleet worker `rework-geometry/output/evidence/ribbons/` (baseline/final films, Long Exposure, all-look energy ladder, ember and glacier portrait; paired-cost.json). Tests add a cross-section-normal reference and guard the vertex reduction. Honest rating **8.5/10**: the wings and vortex are strong; the Thomas state remains a compact chaotic knot during some parts of its evolution rather than consistently a grand spatial labyrinth.
 
 ## Limits
 

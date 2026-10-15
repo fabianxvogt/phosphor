@@ -42,7 +42,7 @@ Perspective with orbit parallax; distance fog to the palette ground; key light +
 
 ## Cost
 
-135 fibres × 144 segments × 8 sides = 933 120 vertices (2 floats each, 7.5 MB), built once per seed; no textures beyond a 4×1 phase state. Indicative M3 Pro whole-frame p50 (shared GPU): 1080p 2.7–3.5 ms, 4K see the report in `artifacts/performance/`.
+135 fibres × 112 segments × 8 sides = 725 760 vertices (2 floats each, 5.8 MB), built once per seed; no textures beyond a 4×1 phase state. Indicative M3 Pro whole-frame p50 (shared GPU): 1080p 2.7–3.5 ms, 4K see the report in `artifacts/performance/`.
 
 ## Endless
 
@@ -55,6 +55,12 @@ Hopf map of every visible fibre point equals its base point (also under the tumb
 ## Wave 2 (2026-10-14): Bundle as the headline
 
 Intentional visual change after owner review: the Bundle had been the busiest image, not the strongest. Now development 1 → 2 also lifts the camera (+0.34 rad), backs it off (+0.7) and re-aims below the centre so the whole bundle sits inside the frame (outer rings off the edges); the inner shells' light doubles toward the peak; the core circle is the one accent ring; rim and bead accent are reduced (rim accent 0.22 → 0.08, beads 0.6 → 0.3) and the fibre-chase cohort brightens its own colour instead of turning accent. Mathematics, mesh, looks and ids are unchanged; previews rebaked.
+
+## Wave 5 (2026-10-15): sculptural bundle
+
+Three filmed rounds: (1) reduce repeated circle vertices 144 → 112 while retaining eight tube sides; thicken the peak and reduce excessive rear fog; (2) narrower pearl glints, stronger secondary rim and inner-shell light, with less hollow outer-shell shading; (3) crane a further 0.18 radians into the peak, aim nearer the centre and increase the peak lens from 1.72 to 1.85. The linked circles remain the entire subject; no decorative overlay. All preset names, seeds, parameters and world definitions are unchanged.
+
+M3 Pro native headless synchronous whole-frame p50, states 0/1/2: 1080p **2.2/2.6/2.9 → 1.7/2.2/2.1 ms**; 4K **8.2/5.6/6.1 → 4.1/4.4/5.2 ms** (shared-machine measurements, not venue cadence). Baseline and final films, energy ladder, Glass Nest film, ember and glacier/portrait sweeps: fleet worker `rework-geometry/output/evidence/fibration/`. The rework test locks saved-look identity and bounds polygon sagitta below .002 scene units. Judged **9/10** for the continuous geometric read; the rear fibres remain intentionally subdued.
 
 ## Limits
 

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import scene from "../scene-fibration.mjs";
 import {
   LAYERS,
+  SEGMENTS,
+  SIDES,
   FIBRES,
   PER_FIBRE,
   MARGIN,
@@ -244,6 +246,20 @@ test("looks validate; the three world states differ only in development", () => 
   const development = continuousDevelopment(clips, scene);
   assert.deepEqual(development?.positions, [0, 1, 2]);
   assert.equal(development.key, "development");
+});
+
+test("rework keeps saved look identities and a bounded circle tessellation", () => {
+  assert.deepEqual(scene.presets.map(({ name, seed }) => [name, seed]), [
+    ["Linked Torus", 9601], ["Nested Shells", 9601], ["Full Bundle", 9601],
+    ["Cyclide Swing", 9602], ["Glass Nest", 9603], ["Bundle Weather", 9604],
+    ["Half Bloom", 9605], ["Slow Core", 9606],
+  ]);
+  assert.equal(SIDES, 8);
+  assert.ok(FIBRES * PER_FIBRE < 750000, "reduce repeated vertex work");
+  // A projected circle is contained by the projection ball; its polygon's
+  // sagitta stays below .002 scene units, without changing the exact curve.
+  const sagitta = (1 / Math.tan(MARGIN / 2)) * (1 - Math.cos(Math.PI / SEGMENTS));
+  assert.ok(sagitta < .002);
 });
 
 test("stereographic projection sends the pole fibre through infinity only", () => {

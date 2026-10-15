@@ -45,7 +45,7 @@ flat out vec4 v_axis;
 flat out float v_rad,v_hue;
 float ss(float a,float b,float x){return smoothstep(a,b,x);}
 vec2 growth(float kind,float birth,float dev,float detail){
- if(kind<1.5){float t=ss(0.,2.,dev);return vec2(.22+.78*t,.7+.3*t);}
+ if(kind<1.5){float t=ss(0.,2.,dev);return vec2(.45+.55*t,.9+.1*t);}
  if(kind<2.5){
   float g1=ss(.08+.62*birth,.38+.62*birth,dev),g2=ss(1.,2.,dev);
   return vec2(g1*(.62+.38*g2),ss(0.,.25,g1)*(.7+.3*g1)*(.8+.2*g2));
@@ -110,7 +110,7 @@ void main(){
   float shown=step(fract(a_a.w*7.31),.25+.75*clamp(u_params[6],0.,1.));
   view.xy+=a_p.xy*a_c.x*smoothstep(.5,1.5,view.z)*shown;
  }
- float A=u_resolution.x/u_resolution.y,F=1.55*(1.+.02*u_kick);
+ float A=u_resolution.x/u_resolution.y,F=mix(1.7,1.4,ss(1.,2.,dev))*(1.+.02*u_kick);
  float nearZ=.04,farZ=40.;
  gl_Position=vec4(view.x*F/max(A,1.),view.y*F*min(A,1.),
   (view.z*(farZ+nearZ)-2.*farZ*nearZ)/(farZ-nearZ),view.z);
@@ -141,8 +141,8 @@ void main(){
  vec3 K=normalize(vec3(-.35,.85,.45));
  vec3 lamp=vec3(.3,.45,-.3)-v_pos;float lampD=dot(lamp,lamp);lamp*=inversesqrt(lampD);
  float lampA=.8/(1.+.22*lampD)*mix(.45,1.,smoothstep(0.,1.2,dev));
- vec3 fogC=mix(u_secondary,u_primary,.3)*.035;
- float fog=max(1.-exp(-dist*.07),smoothstep(16.,25.,dist));
+ vec3 fogC=mix(u_secondary,u_primary,.3)*.025;
+ float fog=max(1.-exp(-dist*.055),smoothstep(16.,25.,dist));
  vec3 col;
  if(kind>4.5){
   float r2=dot(v_face,v_face);
@@ -153,14 +153,15 @@ void main(){
   if(dot(N,V)<0.)N=-N;
   // Periodic cellular surface on (theta, z): chipped rock that becomes a
   // druse lining of tiny hexagonal pyramids, first near the clusters.
-  vec2 cells=vec2(196.,432.);
-  vec2 uv=vec2((v_wall.z+PI*.5)/TAU*cells.x,v_abs.z/PERIOD*cells.y);
-  vec2 ci=floor(uv),best=vec2(0.),bestId=vec2(0.);float d1=9.,d2=9.;
-  for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){
-   vec2 id=mod(ci+vec2(i,j),cells),h=hash2(id);
-   vec2 o=ci+vec2(i,j)+.15+.7*h-uv;float dd=dot(o,o);
-   if(dd<d1){d2=d1;d1=dd;best=o;bestId=id;}else if(dd<d2)d2=dd;
-  }
+  // Exact hexagonal Wigner-Seitz cells of the triangular habit lattice.
+  // Two rectangular cosets replace nine random Voronoi candidates; both
+  // chart periods contain whole lattice cells, including the half coset.
+  vec2 cells=vec2(96.,192.),period=vec2(1.,1.73205080757);
+  vec2 uv=vec2((v_wall.z+PI*.5)/TAU*cells.x,v_abs.z/PERIOD*cells.y)*period;
+  vec2 a=uv-period*floor(uv/period+.5),b=uv-period*(floor(uv/period)+.5);
+  vec2 local=dot(a,a)<dot(b,b)?a:b,best=-local;
+  vec2 bestId=mod((uv-local)/period,cells);
+  float d1=dot(local,local);
   vec2 hc=hash2(bestId+17.);
   float fw=fwidth(uv.x)+fwidth(uv.y),detail=smoothstep(.9,.25,fw);
   float glowN=1.-exp(-v_wall.x*1.6);
@@ -168,7 +169,7 @@ void main(){
   float grow=smoothstep(hc.x*.8,hc.x*.8+.3,cover);
   // Each Voronoi cell is one crystal base; growth raises its hexagonal
   // pyramid from a flat rock chip to a pointed druse crystal.
-  float r=sqrt(d1),edge=sqrt(d2)-r;
+  float r=sqrt(d1),edge=.5-max(abs(local.x),max(abs(dot(local,vec2(.5,.8660254))),abs(dot(local,vec2(-.5,.8660254)))));
   vec3 T1=normalize(cross(N,vec3(0.,0.,1.))+vec3(1e-4,0.,0.)),T2=cross(N,T1);
   float ang=atan(-best.y,-best.x)+hc.y*TAU;
   float sector=floor(ang/(PI/3.)+.5)*(PI/3.);
@@ -230,8 +231,8 @@ void main(){
   float tipZone=smoothstep(.8,1.12,along);
   float hueT=mix(.04,.62,fract(v_hue+.13*rnd));
   vec3 tint=pal(hueT);
-  vec3 body=tint*.035;
-  vec3 coreC=mix(pal(mix(.12,.64,v_hue)),vec3(1.),.3);
+  vec3 body=tint*.065;
+  vec3 coreC=mix(pal(mix(.12,.64,v_hue)),vec3(1.),.14);
   vec3 seedC=mix(u_accent,vec3(1.),.12);
   // Seeds glow in accent; as they grow only their terminations keep it.
   float accentMix=seed?mix(1.,tipZone,smoothstep(.2,1.,dev)):0.;
@@ -239,11 +240,12 @@ void main(){
   float dormant=seed?(1.-smoothstep(.3,1.,dev)):0.;
   float glowP=u_params[4]*(seed?1.2:.75)*(.45+.55*g)*(1.+.45*smoothstep(1.,2.,dev))*(1.+dormant*(.9+.5*sin(TAU*phaseAt(1)*2.+rnd*TAU)));
   col=body*(.3+.7*diff+1.1*lit+.3*max(-N.y,0.));
-  col+=tint*haze*.16*glowP;
+  col+=tint*haze*.32*glowP;
   col+=mix(tint,vec3(1.),.45)*fres*.38;
-  col+=pal(fract(2.2*nv+rnd))*fres*.14;
-  col+=mix(u_primary,vec3(1.),.7)*spec*1.1;
-  col+=coreC*core*glowP*1.4;
+  // A bounded interference tint, no discontinuity at a palette endpoint.
+  col+=pal(.5-.5*cos(TAU*(2.2*nv+rnd)))*fres*.14;
+  col+=mix(tint,vec3(1.),.55)*spec*.5;
+  col+=coreC*core*glowP*.95;
   // Facet edges stay about 1.5 px wide at any output size.
   float ed=face<5.5?min(min(v_face.x,1.-v_face.x),1.-v_face.y)
    :min(min(v_face.x-.5*v_face.y,1.-v_face.x-.5*v_face.y),v_face.y);
