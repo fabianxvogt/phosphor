@@ -241,6 +241,17 @@ const AUTHORED = [
       { name: "Sculpture", look: "kinetic:Floating Sculpture" },
     ],
   },
+  {
+    id: "thunderhead",
+    name: "Thunderhead",
+    description:
+      "Heat lightning inside a distant cloud bank grows into branching cloud-to-cloud leaders and a rotating supercell with ground strikes and rain curtains. The same storm throughout.",
+    states: [
+      { name: "Haze", look: "storm:Haze" },
+      { name: "Towers", look: "storm:Towers" },
+      { name: "Supercell", look: "storm:Supercell" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
