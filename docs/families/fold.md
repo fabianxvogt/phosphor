@@ -36,7 +36,7 @@ Placement keeps every net circle and every tumbling solid inside a 9.6-unit fiel
 
 ## Cost
 
-90–120 solids per seed (1,600–2,000 fan triangles, each a shard) plus a 56×128 floor disc: ≈48k vertices of 28 floats. Vertex work is the hinge loop (≤5 rotations). Geometry creation takes 20–70 ms of CPU. Indicative throughput on the shared M3 Pro: see the wave-2 report (1080p and 4K).
+90–120 solids per seed (1,600–2,000 fan triangles, each a shard) plus a 32×96 floor disc: ≈24k vertices of 28 floats. Vertex work is the hinge loop (≤5 rotations). Geometry creation takes 20–70 ms of CPU. Indicative throughput on the shared M3 Pro: see the wave-2 report (1080p and 4K).
 
 ## Verification
 
@@ -46,6 +46,14 @@ Placement keeps every net circle and every tumbling solid inside a 9.6-unit fiel
 ## Sheet edge light (polish 2026-10-15)
 
 The Sheet was too dim (64×36 peak 71/255 at 320×180, 103 at 480×270): the rim glow started at 0.55 of its Fold value and the crease lines faded out between 6 and 16 units, while the high Sheet camera sits about 14–16 units from the nets. Now face rims start at 1.15 (Fold total 1.25 unchanged), and in the calm states the crease lines fade between 12 and 28 units and gain +0.04. Energy 0.1 at 480×270 (mean / 64×36 peak / max / pixels above 25): Creased Sheet 9.2 / 103 / 122 / 4.2 % → 19.1 / 192 / 220 / 29.3 %; at 320×180 the peak is 206. Brightness stays flat across energy (L.9/L.1 0.93). Fold and Shards are unchanged apart from the rim term at development < 1.
+
+## Wave 5 (2026-10-15): paper, not wire
+
+Three filmed rounds plus a framing correction: (1) exact analytic paper-wave derivatives replace four displaced wave evaluations per floor pixel, and lift the paper pigment; (2) distinct front/back palette-tinted paper bodies, less over-hot core/halo and quieter peak rims; (3) give every shard a persistent bank (orthonormal tangent/across frame), raise the peak target to 3.5 and keep a 1.45 peak lens. Full-size review caught near-side cap cropping, so a continuous 2.6-unit peak camera backoff now contains the funnel. It remains outside the original safety bound. Final cost polish reduces the floor grid 56×128 → 32×96: analytic normals retain the fine relief, without spending most vertices on a nearly flat dark floor. All exact hinge mathematics, net topology, instances, seeds, looks, schemas and world definitions remain intact.
+
+Standard native p50 (states 0/1/2): 1080p **2.4/2.2/2.2 → 2.2/2.3/2.1 ms**; 4K **6.2/7.0/6.5 → 6.1/5.8/6.1 ms**. Sub-millisecond drift and occasional fleet contention are visible in the raw runs. The final same-context, alternating-frame comparison loads original scene AND geometry from `deaaae1`, takes 64 paired complete-frame samples per state, and measures 1080p **2.5/2.2/2.3 → 2.3/2.1/2.1 ms**, 4K **6.7/6.3/5.9 → 6.2/6.0/5.7 ms**. Every state is faster. Raw samples, including the earlier context-separated noisy run, are retained; this is throughput, not venue cadence.
+
+Tests compare analytic normals with independent central differences, and check banked-frame orthogonality, unit normals and exact phase periodicity, alongside exact closure, intermediate rigidity and clearance. Evidence: fleet worker `rework-geometry/output/evidence/fold/` (baseline/final films and full-size stills, Slow Comet Ring, all-look energy ladder, ember/glacier portrait). Honest rating **8.5/10**: the arc reads and the paper survives the storm; the middle state's solids could still be more monumental.
 
 ## Limits
 

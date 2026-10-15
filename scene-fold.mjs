@@ -52,10 +52,10 @@ float phaseAt(int x){
 // of the sheet down to a low, upward view into the vortex.
 void cameraAt(float dev,out vec3 cam,out vec3 f,out vec3 r,out vec3 u){
  float pc=phaseAt(0),A=TAU*pc;
- float R=${CAMERA.radius.toFixed(2)}+${CAMERA.sway.toFixed(2)}*sin(TAU*2.*pc);
+ float R=${CAMERA.radius.toFixed(2)}+${CAMERA.sway.toFixed(2)}*sin(TAU*2.*pc)+2.6*ss(1.,2.,dev);
  float h=mix(mix(9.5,4.4,ss(0.,1.,dev)),1.7,ss(1.,2.,dev))+mix(.75,.45,ss(1.,2.,dev))*sin(TAU*3.*pc+1.)+3.5*clamp(u_params[7],0.,1.);
  cam=vec3(R*cos(A),h,R*sin(A));
- vec3 target=vec3(0.,mix(mix(-2.2,1.7,ss(0.,1.,dev)),3.1,ss(1.,2.,dev)),0.);
+ vec3 target=vec3(0.,mix(mix(-2.2,1.7,ss(0.,1.,dev)),3.5,ss(1.,2.,dev)),0.);
  f=normalize(target-cam);r=normalize(cross(vec3(0,1,0),f));u=cross(f,r);
 }
 vec3 wave(vec2 xz,float amp,float pv){
@@ -65,14 +65,15 @@ vec3 wave(vec2 xz,float amp,float pv){
 }
 float waveAmp(float dev){return .12*(1.-ss(0.,.45,dev));}
 vec3 floorNormal(vec2 xz,float amp,float pv){
- float e=.02;
- float hx=wave(xz+vec2(e,0.),amp,pv).y-wave(xz-vec2(e,0.),amp,pv).y;
- float hz=wave(xz+vec2(0.,e),amp,pv).y-wave(xz-vec2(0.,e),amp,pv).y;
- return normalize(vec3(-hx,2.*e,-hz));
+ // Analytic derivatives of wave(): no four displaced wave evaluations.
+ float w=TAU*pv,a=.55*xz.x+2.*w,b=.47*xz.y-3.*w,c=.31*(xz.x+xz.y)+5.*w;
+ float shared=.155*cos(c);
+ float hx=.55*cos(a)*sin(b)+shared,hz=.47*sin(a)*cos(b)+shared;
+ return normalize(vec3(-amp*hx,1.,-amp*hz));
 }
 vec3 coreAt(float dev){return vec3(0.,mix(.9,2.1,ss(.2,1.,dev))+.5*ss(1.,2.,dev),0.);}
 float coreLight(float dev){
- return u_params[4]*(ss(.3,1.,dev)*1.7+ss(1.05,2.,dev)*1.8)*(1.+.8*u_rhythm.z);
+ return u_params[4]*(ss(.3,1.,dev)*1.2+ss(1.05,2.,dev)*1.4)*(1.+.8*u_rhythm.z);
 }`;
 const vertex = `#version 300 es
 precision highp float;
@@ -138,7 +139,10 @@ void main(){
   float e=ss(1.04+.5*a5.x,1.42+.5*a5.x,dev),eR=ss(0.,.55,e);
   float oa=a4.y+TAU*a4.w*pv;
   vec3 H=vec3(a4.x*cos(oa),a4.z+.35*sin(TAU*3.*pv+a5.z),a4.x*sin(oa));
-  vec3 T=vec3(-sin(oa),0.,cos(oa)),B=vec3(0.,1.,0.);
+  // Persistent bank per shard: still an orthonormal rigid face frame,
+  // but front and back paper surfaces catch different raking light.
+  float bank=.38*cos(a5.w);
+  vec3 T=vec3(-sin(oa),0.,cos(oa)),B=normalize(vec3(bank*cos(oa),1.,bank*sin(oa)));
   vec2 o=(a0.xz-a6.xy)*mix(scale,min(scale,.8)*1.1,e)*vec2(1.,mix(1.,.6,e));
   float sa=a5.w;o=vec2(o.x*cos(sa)-o.y*sin(sa),o.x*sin(sa)+o.y*cos(sa));
   float stretch=1.+clamp(u_params[3],0.,2.)*3.2*e;
@@ -153,7 +157,7 @@ void main(){
  vec3 q2=p-cam;
  v_world=p;v_pos=q2;v_normal=n;
  vec3 view=vec3(dot(q2,rt),dot(q2,up),dot(q2,fw));
- float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.3,ss(1.,2.,dev))*(1.+.02*u_kick);
+ float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.45,ss(1.,2.,dev))*(1.+.02*u_kick);
  float nearZ=.05,farZ=80.;
  gl_Position=vec4(view.x*F/max(A,1.),view.y*F*min(A,1.),
   (view.z*(farZ+nearZ)-2.*farZ*nearZ)/(farZ-nearZ),view.z);
@@ -215,7 +219,8 @@ void main(){
   col*=1.-ss(14.,25.,rr);
  }else{
   float e=v_info.z;
-  vec3 paperO=pal(.04+.6*rnd)*.34*(1.-.55*e),paperI=mix(u_secondary,pal(.45),.5)*.2*(1.-.55*e);
+  vec3 paperO=mix(pal(.04+.6*rnd),vec3(1.),.16)*.5*(1.-.55*e);
+  vec3 paperI=mix(mix(u_secondary,pal(.45),.5),vec3(1.),.18)*.42*(1.-.55*e);
   vec3 base=outside?paperO:paperI;
   float key=max(dot(N,K),0.)*(1.-.75*e),cd=dot(N,L);
   // Lit sides face the core; backlit shards keep a faint transmission, so
@@ -233,7 +238,7 @@ void main(){
   float edge=mix(v_bary.x,edgeS,ss(0.,.3,e));
   float w=fwidth(edge);
   float rim=(1.-smoothstep(0.,w*1.6,edge))*smoothstep(.6,.15,w);
-  float rimG=u_params[5]*(1.15+.1*ss(.3,1.,dev)+1.4*e*(.4+att))*(1.+1.5*u_rhythm.x);
+  float rimG=u_params[5]*(1.15+.1*ss(.3,1.,dev)+.65*e*(.4+att))*(1.+1.1*u_rhythm.x);
   vec3 rimC=mix(pal(.2+.5*fract(rnd*5.3)),vec3(1.),.45);
   col+=mix(rimC,u_accent,.25*u_rhythm.x)*rim*rimG;
   // Shards glow as they stream; the trailing end fades into a streak.
@@ -250,14 +255,14 @@ ${common}
 void main(){
  float dev=u_dev;
  vec3 cam,fw,rt,up;cameraAt(dev,cam,fw,rt,up);
- float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.3,ss(1.,2.,dev))*(1.+.02*u_kick);
+ float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.45,ss(1.,2.,dev))*(1.+.02*u_kick);
  vec2 ndc=v_uv*2.-1.;
  vec3 rd=normalize(fw+rt*(ndc.x*max(A,1.)/F)+up*(ndc.y/(F*min(A,1.))));
  vec3 c=coreAt(dev)-cam;float t=max(dot(c,rd),0.);float d=length(c-rd*t);
  float I=coreLight(dev);
  vec3 coreC=mix(mix(u_primary,vec3(1.),.35),u_accent,.18+.3*u_rhythm.z);
  vec3 col=mix(u_secondary,u_primary,.25)*.03*(.7+.3*smoothstep(-.3,.4,rd.y));
- col+=coreC*I*(1.1*exp(-d*d*2.)+.28/(1.+d*d*.6));
+ col+=coreC*I*(1.1*exp(-d*d*2.)+.1/(1.+d*d*.6));
  col+=mix(u_accent,vec3(1.),.5)*I*exp(-d*d*28.)*.8;
  outColor=vec4(col,1.);
 }`;

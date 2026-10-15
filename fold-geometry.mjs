@@ -15,7 +15,7 @@ export const KIND = { floor: 0, face: 1 };
 export const MAX_DEPTH = 8;
 export const FIELD = 9.6; // every folded solid and shard stays inside this radius
 export const CAMERA = { radius: 12.6, sway: 0.6 }; // orbit never comes closer than 12
-export const FLOOR = { radius: 26, rings: 56, segments: 128 };
+export const FLOOR = { radius: 26, rings: 32, segments: 96 }; // analytic normals carry the fine paper relief
 const TAU = Math.PI * 2;
 
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -326,6 +326,20 @@ export function arrangement(seed) {
 // Seconds per swirl cycle at swirl 1 and energy base: the vortex phase period.
 export const SWIRL_PERIOD = 240;
 export const ORBIT_PERIOD = 150;
+
+// CPU mirrors of the analytic paper normal and rigid banked shard frame.
+export function paperNormal(x, z, amplitude, phase) {
+  const w=TAU*phase,a=.55*x+2*w,b=.47*z-3*w,c=.31*(x+z)+5*w;
+  const shared=.155*Math.cos(c);
+  return norm([-amplitude*(.55*Math.cos(a)*Math.sin(b)+shared),1,
+    -amplitude*(.47*Math.sin(a)*Math.cos(b)+shared)]);
+}
+export function shardFrame(shard, phase) {
+  const a=shard.angle+TAU*shard.turns*phase,bank=.38*Math.cos(shard.shardAngle);
+  const tangent=[-Math.sin(a),0,Math.cos(a)];
+  const across=norm([bank*Math.cos(a),1,bank*Math.sin(a)]);
+  return {tangent,across,normal:cross(tangent,across)};
+}
 
 // Shader mirror: shard centre on its vortex orbit at swirl phase `phase`.
 export function shardOrbit(shard, phase) {
