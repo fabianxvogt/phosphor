@@ -24,143 +24,168 @@ const rot = ([x, y], a) => [
   Math.cos(a) * x + Math.sin(a) * y,
   -Math.sin(a) * x + Math.cos(a) * y,
 ];
-const smin = (a, b, k) =>
-  Math.min(a, b) - Math.max(k - Math.abs(a - b), 0) ** 2 / (4 * k);
 const noise = (p) =>
   p.reduce(
     (s, v, i) =>
       s + [0.36, 0.32, 0.32][i] * Math.sin(v + Math.sin(p[(i + 1) % 3])),
     0,
   );
+const sq = (x) => x * x;
 
-// CPU mirror of the material field, not a photographic or fluid solver
-// reference. Reversal, interpolation and late-time periodicity exercise the
-// actual authored field (including its analytic backwards characteristic).
-function density(p, dev, phase = 0.7, seed = 11201, level = 0.5) {
+// Independent CPU transcription of the actual wound-sheet density, not a
+// fluid-solver claim. This also exercises the two cached material moments.
+function material(p, dev, phase = 0.7, seed = 11201, level = 0.5) {
   const grow = smooth(0, 1, dev),
     cloud = smooth(1, 2, dev);
   const finger = 0.9 * (0.7 + 0.35 * level),
-    q = [...p];
-  [q[0], q[2]] = rot([q[0], q[2]], 0.12 * Math.sin(phase) + 0.1 * q[1]);
-  const r0 = Math.hypot(q[0], q[2]),
-    h0 = r0 - 0.82,
-    aa = 0.32 ** 2;
-  const e = Math.exp(-(h0 * h0 + (q[1] + 0.25) ** 2) / aa);
-  const vr = (((0.75 / Math.PI) * r0 * (q[1] + 0.25)) / aa) * e;
-  const vy = (0.75 / TAU) * (2 - (2 * r0 * h0) / aa) * e;
-  const vel = [
-    (q[0] / Math.max(r0, 0.001)) * vr,
-    vy,
-    (q[2] / Math.max(r0, 0.001)) * vr,
-  ];
-  for (let i = 0; i < 3; i++) q[i] -= 0.12 * Math.sin(phase) * vel[i];
-  const n = noise(
-    q.map((v, i) => v * 3.3 + [((seed >>> 0) % 991) * 0.013, phase, -phase][i]),
-  );
-  const fine =
-    Math.sin(q[0] * 12 + n * 2) *
-    Math.sin(q[1] * 11 - phase) *
-    Math.sin(q[2] * 13);
-  const angle = Math.atan2(q[2], q[0] + 1e-7),
-    radial = Math.hypot(q[0], q[2]);
-  const fingers =
-    0.5 + 0.5 * Math.sin(angle * 9 + 1.5 * Math.sin(angle * 3) + phase);
-  const ringY = -0.25 - 0.22 * Math.sin(phase),
-    R = 0.82 + 0.35 * cloud;
-  const fy = 0.22 * finger * fingers * (1 - smooth(-0.7, -0.15, q[1] - ringY));
-  const tor = [radial - R, q[1] - ringY + fy];
-  const roll = Math.atan2(tor[1], tor[0] + 1e-7);
-  let d =
-    Math.hypot(...tor) - mix(0.19, 0.6, cloud) - n * (0.045 + 0.13 * cloud);
-  const stemR = mix(0.045, 0.12, cloud) + 0.025 * n + 0.04 * (q[1] - 1.5) ** 2;
-  const stem =
-    Math.hypot(
-      q[0] - 0.08 * Math.sin(q[1] * 4 + phase),
-      q[2] - 0.08 * Math.cos(q[1] * 3 - phase),
-      Math.max(Math.abs(q[1] - 0.8) - 0.78, 0),
-    ) - stemR;
-  d = smin(d, stem, 0.25);
-  const below = ringY - q[1],
-    reach = (0.4 + 0.95 * fingers) * finger * (1 + 0.2 * cloud);
-  const skirtR =
-    R +
-    0.12 * Math.sin(below * 4.5 - phase + angle * 3) -
-    0.12 * below +
-    0.07 * Math.sin(below * 9 + angle * 7);
-  const w = (0.025 + 0.06 * fingers) * (1 - smooth(0, reach, below));
-  const daughter =
-    Math.abs(radial - skirtR - 0.12 * Math.sin(angle * 18 + below * 6)) -
-    w * 0.5;
-  const skirt = Math.max(
-    Math.min(Math.abs(radial - skirtR) - w, daughter),
-    -below,
-    below - reach,
-  );
-  d = smin(d, skirt, 0.12);
-  const dome = Math.max(
-    Math.hypot(q[0], (q[1] - ringY) * 1.85, q[2]) - R,
-    ringY - q[1],
-  );
-  d = smin(d, dome + 0.045 * n, 0.12);
-  if (grow > 0.001)
+    seedPhase = ((seed >>> 0) % 991) * 0.013;
+  const carrier = (point, scale, ph) => {
+    const q = point.map((v) => v / scale);
+    const r0 = Math.hypot(q[0], q[2]),
+      h0 = r0 - 0.82,
+      aa = 0.32 ** 2;
+    const e = Math.exp(-(h0 * h0 + sq(q[1] + 0.25)) / aa);
+    const vr = (((0.75 / Math.PI) * r0 * (q[1] + 0.25)) / aa) * e;
+    const vy = (0.75 / TAU) * (2 - (2 * r0 * h0) / aa) * e;
+    const vel = [
+      (q[0] / Math.max(r0, 0.001)) * vr,
+      vy,
+      (q[2] / Math.max(r0, 0.001)) * vr,
+    ];
+    for (let i = 0; i < 3; i++) q[i] -= 0.12 * Math.sin(phase) * vel[i];
+    const a = Math.atan2(q[2], q[0] + 1e-7);
+    const n = noise(q.map((v, i) => v * 4.1 + [seedPhase, ph, -ph][i]));
+    const f = noise(q.map((v, i) => v * 11 + n * 2 + [ph, -ph, seedPhase][i]));
+    const y0 =
+      -0.25 -
+      0.13 * Math.sin(ph) +
+      0.04 * Math.sin(a * 3 + ph) +
+      0.08 * Math.sin(a);
+    const R =
+      0.82 + 0.035 * Math.sin(a * 5 + ph) + 0.025 * Math.sin(a * 9 - ph);
+    const tor = [Math.hypot(q[0], q[2]) - R + n * 0.035, q[1] - y0 + f * 0.035];
+    const rho = Math.hypot(...tor),
+      roll = Math.atan2(tor[1], tor[0] + 1e-7);
+    const turn = rho * 25 - roll * 2 - 2 * ph + n * 1.6;
+    const sheet = (0.5 + 0.5 * Math.cos(turn)) ** 6;
+    const ring =
+      (0.85 * Math.exp((-rho * rho) / 0.006) + sheet * 0.68) *
+      Math.exp((-rho * rho) / 0.08);
+    const below = y0 - q[1],
+      lobes = 0.5 + 0.5 * Math.sin(a * 11 + 1.4 * Math.sin(a * 4) + ph);
+    const reach = (0.75 + 0.95 * lobes) * finger,
+      tip = clamp((below - reach + 0.42) / 0.42);
+    const skirtR =
+      R -
+      0.06 * below +
+      0.22 * Math.sin(below * 3.5 + a * 3 - ph) +
+      0.065 * Math.sin(a * 13 + below * 5) +
+      0.16 * Math.sin(tip * Math.PI * 1.5) * tip;
+    const w = 0.032 + 0.026 * lobes,
+      d = Math.hypot(q[0], q[2]) - skirtR;
+    let skirt =
+      Math.exp(-sq((d + 0.035 * n) / w)) +
+      0.48 * Math.exp(-sq((d - 0.16 * Math.sin(a * 15 + below * 4)) / 0.032));
+    skirt *=
+      smooth(-0.05, 0.15, below) * (1 - smooth(reach - 0.4, reach, below));
+    skirt *=
+      (0.12 + 0.88 * sq(lobes)) *
+      (0.65 + 0.35 * Math.sin(a * 5 + below * 5 + ph));
+    const above = q[1] - y0;
+    const feed = [
+      q[0] - 0.09 * Math.sin(above * 4 + ph),
+      q[2] - 0.07 * Math.cos(above * 5 - ph),
+    ];
+    const stem =
+      Math.exp(-feed.reduce((s, v) => s + v * v, 0) / 0.0018) *
+      smooth(0.1, 0.45, above) *
+      (1 - smooth(1.4, 1.8, above));
+    const density = ring + skirt * 0.6 + stem * 0.42;
+    return [density, density * clamp(0.55 + 0.3 * f + 0.15 * n, 0.05, 1)];
+  };
+  const q = [...p];
+  [q[0], q[2]] = rot([q[0], q[2]], 0.12 * Math.sin(phase) + 0.08 * q[1]);
+  const result = carrier(q, 1 + 0.4 * cloud, phase);
+  if (grow > 0.0001)
     for (const side of [-1, 1]) {
-      const v = [
-        q[0] - side * (0.72 + 0.32 * cloud),
-        q[1] - (0.4 + side * 0.35),
-        q[2] - side * 0.32,
-      ];
-      [v[0], v[1]] = rot([v[0], v[1]], side * 0.42 * grow);
-      const f = 0.5 + 0.5 * Math.sin(v[0] * 9 + n * 2 + side * phase);
-      const cap = Math.hypot(
-        Math.hypot(v[0], v[2]) - (0.56 + 0.22 * cloud) * grow,
-        v[1] +
-          0.22 * Math.sin(phase + side) +
-          0.32 * finger * f * (1 - smooth(-0.8, 0, v[1])),
+      const v = q.map(
+        (c, i) => c - [side * 1.3, 0.65 + side * 0.25, side * 0.6][i],
       );
-      d = smin(d, cap - (0.2 + 0.48 * cloud) * grow - n * 0.12 * grow, 0.25);
+      [v[0], v[1]] = rot([v[0], v[1]], side * 0.36 * grow);
+      const m = carrier(
+        v,
+        Math.max(0.001, (0.72 + 0.38 * cloud) * grow),
+        phase + side * 1.2,
+      );
+      result.forEach((_, i) => (result[i] += m[i] * grow));
     }
-  let cd =
-    (Math.hypot(q[0] / 1.55, (q[1] + 0.45) / 1.05, q[2]) - 1) * 1.2 -
-    0.38 * n -
-    0.15 * fine;
-  cd += 0.12 * noise(q.map((v) => v * 6.5 + n - phase));
-  d = smin(d, cd + (1 - cloud) * 4, 0.35);
-  const edge =
-    (1 - smooth(-0.05, 0.12, d)) *
-    smooth(
-      0,
-      0.16,
-      Math.min(
-        2.5 - Math.abs(p[0]),
-        2.3 - Math.abs(p[1]),
-        1.8 - Math.abs(p[2]),
-      ),
+  if (cloud > 0.0001) {
+    const n = [
+      noise(q.map((v) => v * 2.1 + phase)),
+      noise([q[1], q[2], q[0]].map((v) => v * 2.5 - phase)),
+      noise([q[2], q[0], q[1]].map((v) => v * 2 + seedPhase)),
+    ];
+    const warp = q.map((v, i) => v + 0.3 * n[i]);
+    const broad = noise(
+      warp.map((v, i) => v * 2.2 + [seedPhase, phase, -phase][i]),
     );
-  const layers =
-    0.18 +
-    0.82 *
-      (0.5 +
-        0.5 * Math.sin(roll * 2 - 2 * phase + n * 3 + fine * 0.7 + q[1] * 3)) **
-        2;
-  return edge * layers;
+    const fine = noise(warp.map((v) => v * 7.5 + broad * 3));
+    const folds =
+      (0.5 + 0.5 * Math.sin(broad * 7 + fine * 0.65 - q[1] * 1.5)) ** 3;
+    const c =
+      smooth(-0.05, 0.3, broad + fine * 0.27 - (1 - cloud) * 2) *
+      (0.07 + folds * 0.65) *
+      Math.exp(-q.reduce((s, v, i) => s + sq(v / [3.2, 2.7, 2][i]), 0) * 0.65);
+    result[0] += c;
+    result[1] += c * (0.3 + 0.7 * folds);
+  }
+  const edge = smooth(
+    0,
+    0.24,
+    Math.min(3.2 - Math.abs(p[0]), 2.7 - Math.abs(p[1]), 2 - Math.abs(p[2])),
+  );
+  return result.map((v) => v * edge);
 }
-
-// Four-XY-corner packing used by the optional data pass.
-const grid = [80, 96, 64],
-  extent = [2.5, 2.3, 1.8];
-const address = ([x, y, z]) => [(z % 8) * 80 + x, Math.floor(z / 8) * 96 + y];
+const density = (...args) => material(...args)[0];
+const grid = [128, 144, 64],
+  tile = [130, 146],
+  atlas = [1040, 1168];
+const extent = (dev) => {
+  const a = smooth(0, 1, dev),
+    b = smooth(1, 2, dev);
+  return [
+    1.48 + 1.18 * a + 0.54 * b,
+    2.08 + 0.18 * a + 0.44 * b,
+    1.42 + 0.15 * a + 0.43 * b,
+  ];
+};
+const address = ([x, y, z]) => [
+  (z % 8) * tile[0] + x + 1,
+  Math.floor(z / 8) * tile[1] + y + 1,
+];
+const half = (v) => {
+  if (!v) return 0;
+  const quantum = Math.max(
+    2 ** -24,
+    2 ** (Math.floor(Math.log2(Math.abs(v))) - 10),
+  );
+  return Math.round(v / quantum) * quantum;
+};
 function cachedDensity(p, dev) {
+  const ext = extent(dev);
   const c = p.map((v, i) =>
-    clamp(((v / extent[i]) * 0.5 + 0.5) * (grid[i] - 1), 0, grid[i] - 1.001),
+    clamp(((v / ext[i]) * 0.5 + 0.5) * (grid[i] - 1), 0, grid[i] - 1.001),
   );
   const lo = c.map(Math.floor),
     f = c.map((v, i) => v - lo[i]);
   const sample = (dx, dy, dz) =>
-    density(
-      lo.map(
-        (v, i) => (((v + [dx, dy, dz][i]) / (grid[i] - 1)) * 2 - 1) * extent[i],
+    half(
+      density(
+        lo.map(
+          (v, i) => (((v + [dx, dy, dz][i]) / (grid[i] - 1)) * 2 - 1) * ext[i],
+        ),
+        dev,
       ),
-      dev,
     );
   const plane = (z) =>
     mix(
@@ -196,10 +221,7 @@ test("Kelvin thin-ring velocity has the correct constant, dimensions, sign and c
     [1, 1, 2],
   ])
     assert.throws(() => kelvinVelocity(...args), RangeError);
-  assert.match(
-    ink.fragment,
-    new RegExp(INK_SPEED.toFixed(10).replaceAll(".", "\\.")),
-  );
+  assert.ok(ink.fragment.includes(INK_SPEED.toFixed(10)));
 });
 
 test("analytic toroidal velocity matches independent streamfunction derivatives and is incompressible", () => {
@@ -234,10 +256,7 @@ test("analytic toroidal velocity matches independent streamfunction derivatives 
     }
   assert.ok(inkVelocity([0.82, 0.2, 0])[0] > 0);
   assert.ok(inkVelocity([0.82, -0.2, 0])[0] < 0);
-  assert.ok(
-    inkVelocity([100, 0, 0])[1] < 0,
-    "far water carries the descending ring",
-  );
+  assert.ok(inkVelocity([100, 0, 0])[1] < 0);
   assert.ok(inkVelocity([0, 0, 0]).every(Number.isFinite));
   for (const source of [
     "h0=r0-0.82",
@@ -248,7 +267,7 @@ test("analytic toroidal velocity matches independent streamfunction derivatives 
     assert.ok(ink.fragment.includes(source), source);
 });
 
-test("the same material and carrier identities persist across the full reversible development", () => {
+test("wound pigment sheets, not solid domes, stay finite, reversible and periodic", () => {
   const identity = inkIdentity(11201);
   assert.equal(identity.length, 3);
   assert.notDeepEqual(identity, inkIdentity(11202));
@@ -261,9 +280,9 @@ test("the same material and carrier identities persist across the full reversibl
   ]) {
     const values = Array.from({ length: 401 }, (_, i) => density(p, i / 200));
     for (let i = 0; i < values.length; i++) {
-      assert.ok(Number.isFinite(values[i]) && values[i] >= 0 && values[i] <= 1);
+      assert.ok(Number.isFinite(values[i]) && values[i] >= 0 && values[i] < 4);
       assert.equal(density(p, i / 200), values[i]);
-      if (i) assert.ok(Math.abs(values[i] - values[i - 1]) < 0.1);
+      if (i) assert.ok(Math.abs(values[i] - values[i - 1]) < 0.12);
       assert.deepEqual(inkIdentity(11201), identity);
     }
     for (const d of [0, 1, 2])
@@ -271,48 +290,62 @@ test("the same material and carrier identities persist across the full reversibl
     assert.ok(
       Math.abs(density(p, 1.4, 0.7) - density(p, 1.4, 0.7 + TAU)) < 1e-12,
     );
+    const [d, m] = material(p, 1.4);
+    assert.ok(m >= 0 && m <= d);
   }
   assert.equal(ink.geometry, undefined);
   assert.equal(ink.simulation, undefined);
-  assert.doesNotMatch(ink.fragment, /fract\(.*u_time|mod\(u_time/);
+  assert.doesNotMatch(ink.fragment, /fract\(.*u_time|mod\(u_time|float dome=/);
+  assert.doesNotMatch(ink.fragment, /uv\.x\*14\.0/); // old vertical bars
+  assert.match(ink.fragment, /broad\+fine\*0\.27-\(1\.0-gCloud\)\*2\.0/);
 });
 
-test("density lattice addressing is bijective and its interpolation is bounded", () => {
+test("guttered half-float density atlas has bijective nodes and bounded trilinear error", () => {
   const addresses = new Set();
-  for (let z = 0; z < 64; z++)
-    for (let y = 0; y < 96; y++)
-      for (let x = 0; x < 80; x++) {
+  for (let z = 0; z < grid[2]; z++)
+    for (let y = 0; y < grid[1]; y++)
+      for (let x = 0; x < grid[0]; x++) {
         const [u, v] = address([x, y, z]);
-        assert.ok(u >= 0 && u < 640 && v >= 0 && v < 768);
-        addresses.add(v * 640 + u);
+        assert.ok(u > 0 && u < atlas[0] && v > 0 && v < atlas[1]);
+        addresses.add(v * atlas[0] + u);
+        // Node's entire bilinear footprint lies inside its slice, including
+        // at the two extreme nodes, thanks to the duplicate one-node gutter.
+        assert.ok(u % tile[0] >= 1 && u % tile[0] <= grid[0]);
+        assert.ok(v % tile[1] >= 1 && v % tile[1] <= grid[1]);
       }
-  assert.equal(addresses.size, 80 * 96 * 64);
+  assert.equal(
+    addresses.size,
+    grid.reduce((a, b) => a * b),
+  );
   let sum = 0,
     max = 0,
     n = 0;
   for (const d of [0, 0.7, 1, 1.5, 2])
     for (let i = 0; i < 100; i++) {
-      const p = [
-        Math.sin(i * 2.39) * 2.2,
-        Math.sin(i * 3.73) * 1.9,
-        Math.cos(i * 1.17) * 1.5,
-      ];
+      const ext = extent(d),
+        p = [
+          Math.sin(i * 2.39) * ext[0] * 0.9,
+          Math.sin(i * 3.73) * ext[1] * 0.9,
+          Math.cos(i * 1.17) * ext[2] * 0.9,
+        ];
       const approx = cachedDensity(p, d),
         exact = density(p, d),
         error = Math.abs(approx - exact);
-      assert.ok(approx >= 0 && approx <= 1);
+      assert.ok(approx >= 0 && approx < 4);
       sum += error;
       max = Math.max(max, error);
       n++;
     }
   assert.ok(sum / n < 0.035, `mean density error ${sum / n}`);
-  assert.ok(max < 0.4, `worst thin-filament error ${max}`);
-  assert.deepEqual(ink.precompute.size, [640, 768]);
-  assert.match(ink.fragment, /return inkField\(p\)\.x/);
-  assert.match(ink.fragment, /for \(int i=0;i<56;\+\+i\)/);
+  assert.ok(max < 0.45, `worst thin-filament error ${max}`);
+  assert.deepEqual(ink.precompute.size, atlas);
+  assert.equal(ink.precompute.filter, "linear");
+  assert.equal(ink.precompute.format, "rgba16f");
+  assert.match(ink.fragment, /return vec3\(m\.x,inkField/);
+  assert.match(ink.fragment, /for \(int i=0;i<40;\+\+i\)/);
 });
 
-test("eight validated looks, appended world, gestures and Kelvin clocks obey the continuous contract", () => {
+test("eight stable looks, id-selected world, gestures and Kelvin clocks obey the contract", () => {
   assert.equal(ink.number, 112);
   assert.equal(ink.development, "development");
   assert.deepEqual(ink.type.values, [0, 1, 2]);
@@ -343,9 +376,10 @@ test("eight validated looks, appended world, gestures and Kelvin clocks obey the
     [0, 1, 2],
   );
   const worlds = defaultWorlds(catalogLooks(scenes).map((l) => l.id));
-  assert.equal(worlds.at(-1).id, "ink-bloom");
+  const world = worlds.find((w) => w.id === "ink-bloom");
+  assert.ok(world);
   assert.deepEqual(
-    worlds.at(-1).states.map((s) => s.name),
+    world.states.map((s) => s.name),
     ["Drop", "Plumes", "Nebula"],
   );
   assert.deepEqual(
@@ -354,7 +388,7 @@ test("eight validated looks, appended world, gestures and Kelvin clocks obey the
   );
   for (const ch of ["x", "y", "z"])
     assert.ok(ink.fragment.includes(`u_rhythm.${ch}`));
-  assert.match(ink.fragment, /2\.5\+0\.05\*u_kick/);
+  assert.match(ink.fragment, /2\.4\+0\.048\*u_kick/);
   const p = ink.schema.map((f) => f.default);
   for (const t of [3600, 4096, 43200]) {
     const state = {};

@@ -290,7 +290,12 @@ export class Engine {
       : this.pictureHeader;
     // Optional exact per-frame data cache; unsupported float targets keep
     // the original visual path, including on context restoration.
-    const precompute = scene.precompute && this.floatPicture;
+    const precompute =
+      scene.precompute &&
+      this.floatPicture &&
+      (scene.precompute.filter !== "linear" ||
+        scene.precompute.format === "rgba16f" ||
+        !!this.gl.getExtension("OES_texture_float_linear"));
     programs.visual = this.program(
       variant(
         header + (precompute ? "#define PRECOMPUTED\n" : "") + scene.fragment,
@@ -592,12 +597,13 @@ export class Engine {
       filter = "nearest",
       bytes = false,
       floatData = false,
+      halfData = false,
       depth = false,
     } = {},
   ) {
     const gl = this.gl;
     const floating =
-      this.floatPicture && (floatData || (!simulation && !bytes));
+      this.floatPicture && (floatData || halfData || (!simulation && !bytes));
     const texture = gl.createTexture();
     this.liveTextures++;
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -866,7 +872,9 @@ export class Engine {
     if (this.programs.get(scene.id).precompute)
       slot.precompute = this.target(...scene.precompute.size, {
         simulation: true,
-        floatData: true,
+        floatData: scene.precompute.format !== "rgba16f",
+        halfData: scene.precompute.format === "rgba16f",
+        filter: scene.precompute.filter,
       });
     if (scene.id === "melt") {
       const gl = this.gl;
