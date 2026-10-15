@@ -2,7 +2,9 @@
 // Additive, synchronous 3D CA over GF(2), infinite dead exterior:
 // s'(x,y,z) = XOR(s(x±1,y,z), s(x,y±1,z), s(x,y,z±1)).
 export const GENERATIONS = 27;
-export const SPACING = 2.85 / GENERATIONS;
+export const SPACING = 15 / GENERATIONS;
+export const ASSEMBLY_PITCH = [0.46, 0.44, 0.46];
+export const RAIN_HEIGHT = 14;
 export const MONOLITH = [8, 27, 6];
 export const COUNT = MONOLITH.reduce((a, b) => a * b);
 export const NEIGHBOURS = [
@@ -81,15 +83,19 @@ export function identities(seed) {
       id,
       rank: rank[id] / (COUNT - 1),
       random: hash(seed + 53, id),
-      rain: [(h - 0.5) * 12, hash(seed + 37, id) * 7.5 + 0.3, (h2 - 0.5) * 9],
+      rain: [
+        (h - 0.5) * 20,
+        hash(seed + 37, id) * RAIN_HEIGHT + 0.3,
+        (h2 - 0.5) * 20,
+      ],
       monolith: [
-        ((id % 8) - 3.5) * 0.155,
-        0.55 + Math.floor(id / 48) * 0.155,
-        ((Math.floor(id / 8) % 6) - 2.5) * 0.155,
+        ((id % 8) - 3.5) * ASSEMBLY_PITCH[0],
+        0.22 + Math.floor(id / 48) * ASSEMBLY_PITCH[1],
+        ((Math.floor(id / 8) % 6) - 2.5) * ASSEMBLY_PITCH[2],
       ],
       cell: architecture[rank[id]],
       target: architecture[rank[id]].map((v, i) =>
-        i === 1 ? 0.5 + (v + GENERATIONS) * SPACING : v * SPACING,
+        i === 1 ? 0.26 + (v + GENERATIONS) * SPACING : v * SPACING,
       ),
     };
   });
@@ -107,10 +113,26 @@ export function position(voxel, development, phase = 0) {
   );
   const rain = [...voxel.rain];
   rain[1] =
-    0.3 + 7.5 * (0.5 + 0.5 * Math.cos(2 * Math.PI * (phase + voxel.random)));
+    0.3 +
+    RAIN_HEIGHT * (0.5 + 0.5 * Math.cos(2 * Math.PI * (phase + voxel.random)));
   return rain.map(
     (v, i) => (v + (voxel.monolith[i] - v) * a) * (1 - b) + voxel.target[i] * b,
   );
+}
+// CPU camera reference: a low hall view cranes into the central CA void.
+export function cameraFrame(development, phase, distance = 1) {
+  const a = smooth(0, 1, development),
+    s = smooth(1, 2, development);
+  const angle = 0.48 + 0.24 * Math.sin(phase);
+  const radius = ((8.3 + (7.3 - 8.3) * a) * (1 - s) + 5.8 * s) * distance;
+  return {
+    eye: [
+      radius * Math.sin(angle),
+      1.35 + 11.15 * s + 0.18 * Math.sin(2 * phase),
+      radius * Math.cos(angle),
+    ],
+    target: [0, (3.1 + (2.3 - 3.1) * a) * (1 - s) + 16 * s, 0],
+  };
 }
 // Unit cube, shared by every instance and its depth-correct floor mirror.
 export const ATTRIBUTES = [3, 3];
@@ -138,6 +160,21 @@ export function createCube() {
         data.push(...p, ...n);
       }
     }
+  return new Float32Array(data);
+}
+// A camera-facing six-vertex luminous tail follows each falling cube.
+// Normal zero marks the additive range, leaving the solid cube unchanged.
+export function createGeometry() {
+  const data = [...createCube()];
+  for (const [x, y] of [
+    [-1, 0],
+    [1, 0],
+    [-1, 1],
+    [-1, 1],
+    [1, 0],
+    [1, 1],
+  ])
+    data.push(x, y, 0, 0, 0, 0);
   return new Float32Array(data);
 }
 // Sparse axis-aligned bridges cross the first two recursive void sizes.
