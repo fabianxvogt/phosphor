@@ -12,9 +12,9 @@ The signature detail is the visibly exact fold: nets with glowing crease and out
 
 | Development | State | Form |
 | --- | --- | --- |
-| 0 | Sheet | A dark, gently undulating paper floor with an origami crease grid; nets lie in it, creased by 3.5%, outlines glowing. High camera, narrow lens. Calm, but the net rims and creases carry readable edge light. |
+| 0 | Sheet | Paper-white, palette-tinted nets with soft face shading, quiet creases, and directional cast shadows on a dark shallow-relief floor. High camera, narrow lens; outlines no longer dominate the faces. |
 | 1 | Fold | Nets fold in birth order (deeper faces slightly later), close, rise and tumble above the sheet; a light core rises in the centre. |
-| 2 | Shards | Every fan triangle of every face leaves its solid for a vortex orbit: a funnel of streaking, rim-lit shards around a blazing core, reflected on the glossy floor. Low camera looking up. |
+| 2 | Shards | Every fan triangle leaves its solid for a vortex orbit: a towering funnel (1.7× height, 1.3× radius) of lit paper shards. The low camera approaches under the canopy; near shards pass the lens and the top extends beyond the frame. |
 
 Fold progress, lift and shard release are pure functions of development (`foldProgress`, `liftProgress`, `shardProgress` mirror the shader), so reversal retraces the forward motion. Between Fold and Shards each shard blends position and orientation from its place on the tumbling solid to a velocity-aligned frame on its orbit; its trailing vertices stretch with `streak` and fade, which reads as a motion streak.
 
@@ -24,7 +24,7 @@ Creased Sheet, Rising Solids and Shard Storm are the three states. Extra looks: 
 
 ## Camera, light and depth
 
-The camera orbits outside the field (radius 12.0–13.2) on an integrated phase and cranes from a high view of the sheet (narrow lens) to a low, upward view into the vortex (wide lens). The light core is a point light whose height and intensity follow development; faces are lit by a raking key and the core (lit side bright, backlit side dim, so shards in front of the core become silhouettes with glowing rims). The background draws the core's halo with the same camera. Depth comes from parallax of the orbit, fog, the core's falloff on faces and floor, and many small solids against a few large ones.
+The camera begins outside the field (radius 12.0–13.2), then at development 1.4–2 dollies under the expanding canopy to radius 5.7–6.9, height .72–1.08, aiming at height 5.5. A raised `crane` also backs the peak camera away, preserving clearance. The shared camera is mirrored on the CPU. The light core is a point light; a raking directional key, diffuse fill, front/back paper pigment and crease darkening keep faces readable rather than wireframe. Each hero net repeats its exact hinged triangles as a directional floor shadow; small paper has no duplicate shadow geometry. Shadows fade away before the storm. The background draws the core halo with the same camera. Parallax, distance fog, light falloff, cast shadows and small/large paper supply depth.
 
 ## Energy and rhythm
 
@@ -32,11 +32,11 @@ Energy moves `drift` (orbit speed ×0.7–1.4), `swirl` (vortex and tumble speed
 
 ## Safety and endlessness
 
-Placement keeps every net circle and every tumbling solid inside a 9.6-unit field; the vortex funnel stays within radius 7.35 plus its streaks; the camera never comes closer than 12.0 to the axis and never below the floor. `tests/fold.test.mjs` checks these bounds for four seeds.
+Placement keeps every net circle and tumbling solid inside a 9.6-unit field. The camera remains outside this field until late in the release, then moves beneath the enlarged cone. At the peak, tests conservatively bound each actual triangle's tangential streak, radial bank and vertical extent, independently maximizing camera sway, shard bob and phase: every shard is either radially inside the camera or vertically above it, including raised-crane looks. The peak check covers six authored seeds; it is not a formal proof of every intermediate mixed shard pose. All orbit/tumble harmonics are whole turns, and CPU camera/shard references verify seamless phase wraps.
 
 ## Cost
 
-90–120 solids per seed (1,600–2,000 fan triangles, each a shard) plus a 32×96 floor disc: ≈24k vertices of 28 floats. Vertex work is the hinge loop (≤5 rotations). Geometry creation takes 20–70 ms of CPU. Indicative throughput on the shared M3 Pro: see the wave-2 report (1080p and 4K).
+90–120 solids per seed (1,600–2,000 fan triangles, each a shard), hero-net shadow triangles and a 24×64 floor disc: seed 527 has 16,200 vertices of 28 floats. Vertex work is the hinge loop (≤5 rotations); shadow vertices return early after development 1.2. No shadow map, extra pass or engine change. Final native paired whole-frame p50 versus the previous wave-5 final, states 0/1/2: 1080p 2.550/2.350/2.250 → 2.575/2.300/2.225 ms; 4K 6.150/5.750/5.675 → 6.175/5.800/5.450 ms. Values are block-mean medians, not 0.025 ms precision guarantees; raw standard probes and shared-GPU contention are reported separately.
 
 ## Verification
 
@@ -55,6 +55,12 @@ Standard native p50 (states 0/1/2): 1080p **2.4/2.2/2.2 → 2.2/2.3/2.1 ms**; 4K
 
 Tests compare analytic normals with independent central differences, and check banked-frame orthogonality, unit normals and exact phase periodicity, alongside exact closure, intermediate rigidity and clearance. Evidence: fleet worker `rework-geometry/output/evidence/fold/` (baseline/final films and full-size stills, Slow Comet Ring, all-look energy ladder, ember/glacier portrait). Honest rating **8.5/10**: the arc reads and the paper survives the storm; the middle state's solids could still be more monumental.
 
+## Final round (2026-10-15): paper and a towering storm
+
+L0 rated the previous final around 7/10: opening nets still looked like a diagram and the storm was a small cone. Two filmed revisions: (1) lit off-white paper with palette tint, diffuse fill, soft crease shading and actual projected hero-net triangle shadows; enlarge the cone and dolly low underneath it; (2) lift the paper pigment further, reduce floor relief, separate the shadow/floor surfaces to avoid depth fighting and remove false fan-triangulation shadow seams. A filmed safety/cost correction delays the close dolly until the release is advanced, backs raised-crane looks away, reduces streak stretch 3.2 → 1.8, and reduces the floor 32×96 → 24×64 to pay for hero-net shadows. Exact hinge chains, rigid faces, identity, presets, seeds and schemas are unchanged.
+
+Evidence: fleet worker `rework-geometry/output/final-round/fold/` (before/final films, revision strips, glacier portrait, three-palette native 1080p and native 4K stills). CPU tests cover shadow/face attribute correspondence, the directional projection, camera periodicity and peak clearance. Native paused reversal is exact and retains the same mesh buffer. **Honest revised rating: 8/10**: materially stronger opening and immersive climax, though the middle-state composition remains modest and shadows are an inexpensive approximation.
+
 ## Limits
 
-Shards are fan triangles of the faces, not a fracture simulation; shards may interpenetrate in the vortex. Faces have no thickness. Multi-hour Stage endurance and external 4K cadence are unmeasured.
+Shadows do not darken other paper; they reproduce the floor material on projected triangles, with a barycentric penumbra and a small lift above the floor, not a physical shadow map. Shards are fan triangles of the faces, not a fracture simulation; shards may interpenetrate in the vortex. Faces have no thickness. Multi-hour Stage endurance and external 4K cadence are unmeasured.

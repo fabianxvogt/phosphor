@@ -6,6 +6,7 @@ import {
   MAX_DEPTH,
   ORBIT_PERIOD,
   SWIRL_PERIOD,
+  STORM,
   TEMPLATES,
   createGeometry,
 } from "./fold-geometry.mjs";
@@ -48,14 +49,15 @@ float phaseAt(int x){
  vec3 b=floor(texelFetch(u_state,ivec2(x,0),0).rgb*255.+.5);
  return (b.r*65536.+b.g*256.+b.b)/16777216.;
 }
-// Camera: an endless orbit outside the field that cranes from a high view
-// of the sheet down to a low, upward view into the vortex.
+// Camera: an endless orbit outside the paper field, then a late low dolly
+// below the expanding vortex canopy. Raised crane looks also back away.
 void cameraAt(float dev,out vec3 cam,out vec3 f,out vec3 r,out vec3 u){
  float pc=phaseAt(0),A=TAU*pc;
- float R=${CAMERA.radius.toFixed(2)}+${CAMERA.sway.toFixed(2)}*sin(TAU*2.*pc)+2.6*ss(1.,2.,dev);
- float h=mix(mix(9.5,4.4,ss(0.,1.,dev)),1.7,ss(1.,2.,dev))+mix(.75,.45,ss(1.,2.,dev))*sin(TAU*3.*pc+1.)+3.5*clamp(u_params[7],0.,1.);
+ float peak=ss(1.4,2.,dev);
+ float R=mix(${CAMERA.radius.toFixed(2)},${CAMERA.peakRadius.toFixed(2)},peak)+${CAMERA.sway.toFixed(2)}*sin(TAU*2.*pc)+3.5*clamp(u_params[7],0.,1.)*peak;
+ float h=mix(mix(8.2,4.4,ss(0.,1.,dev)),${CAMERA.peakHeight.toFixed(2)},peak)+mix(.75,.18,peak)*sin(TAU*3.*pc+1.)+3.5*clamp(u_params[7],0.,1.);
  cam=vec3(R*cos(A),h,R*sin(A));
- vec3 target=vec3(0.,mix(mix(-2.2,1.7,ss(0.,1.,dev)),3.5,ss(1.,2.,dev)),0.);
+ vec3 target=vec3(0.,mix(mix(-1.5,1.7,ss(0.,1.,dev)),${CAMERA.peakAim.toFixed(2)},peak),0.);
  f=normalize(target-cam);r=normalize(cross(vec3(0,1,0),f));u=cross(f,r);
 }
 vec3 wave(vec2 xz,float amp,float pv){
@@ -107,11 +109,14 @@ float foldS(float dev,float birth,float depth){
 }
 void main(){
  float dev=u_dev,kind=a1.y,pv=phaseAt(1);
+ // Shadows matter near the sheet, not as huge silhouettes under the storm.
+ gl_Position=vec4(2.,2.,2.,1.);
+ if(kind>1.5 && dev>=1.2)return;
  float amp=waveAmp(dev);
  vec3 p,n;v_bary=vec3(1.);v_trail=0.;
  v_info=vec4(kind,a5.y,0.,0.);
  if(kind<.5){
-  p=a0.xyz+wave(a0.xz,amp,pv);
+  p=a0.xyz+.25*wave(a0.xz,amp,pv)-vec3(0.,.22,0.);
   n=vec3(0.,1.,0.);
  }else{
   int g=int(a0.w+.5),t=TPL[g];
@@ -138,14 +143,16 @@ void main(){
   // Shards leave their solid for a vortex orbit around the light core.
   float e=ss(1.04+.5*a5.x,1.42+.5*a5.x,dev),eR=ss(0.,.55,e);
   float oa=a4.y+TAU*a4.w*pv;
-  vec3 H=vec3(a4.x*cos(oa),a4.z+.35*sin(TAU*3.*pv+a5.z),a4.x*sin(oa));
+  float tower=ss(1.,2.,dev);
+  float orbitR=a4.x*mix(1.,${STORM.radius.toFixed(2)},tower);
+  vec3 H=vec3(orbitR*cos(oa),mix(1.,${STORM.height.toFixed(2)},tower)*(a4.z+.35*sin(TAU*3.*pv+a5.z)),orbitR*sin(oa));
   // Persistent bank per shard: still an orthonormal rigid face frame,
   // but front and back paper surfaces catch different raking light.
   float bank=.38*cos(a5.w);
   vec3 T=vec3(-sin(oa),0.,cos(oa)),B=normalize(vec3(bank*cos(oa),1.,bank*sin(oa)));
   vec2 o=(a0.xz-a6.xy)*mix(scale,min(scale,.8)*1.1,e)*vec2(1.,mix(1.,.6,e));
   float sa=a5.w;o=vec2(o.x*cos(sa)-o.y*sin(sa),o.x*sin(sa)+o.y*cos(sa));
-  float stretch=1.+clamp(u_params[3],0.,2.)*3.2*e;
+  float stretch=1.+clamp(u_params[3],0.,2.)*${STORM.stretch.toFixed(2)}*e;
   if(o.x<0.){v_trail=e;o.x*=stretch;}
   vec3 target=T*o.x+B*o.y;
   p=mix(cA,H,e)+mix(pA-cA,target,eR);
@@ -153,11 +160,19 @@ void main(){
   v_bary=vec3(1.-a6.z-a6.w,a6.z,a6.w);
   v_info=vec4(kind,a5.y,e,float(t));
  }
+ if(kind>1.5){
+  // Directional projection of the actual folded triangle, with a tiny lift
+  // above the floor to avoid depth fighting. Its soft edge is shaded below.
+  v_trail=max(p.y+.22,0.);
+  p.xz-=v_trail*vec2(-.75,-.42)/.6;
+  p.y=.25*wave(p.xz,amp,pv).y-.185;
+  n=vec3(0.,1.,0.);
+ }
  vec3 cam,fw,rt,up;cameraAt(dev,cam,fw,rt,up);
  vec3 q2=p-cam;
  v_world=p;v_pos=q2;v_normal=n;
  vec3 view=vec3(dot(q2,rt),dot(q2,up),dot(q2,fw));
- float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.45,ss(1.,2.,dev))*(1.+.02*u_kick);
+ float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.25,ss(1.,2.,dev))*(1.+.02*u_kick);
  float nearZ=.05,farZ=80.;
  gl_Position=vec4(view.x*F/max(A,1.),view.y*F*min(A,1.),
   (view.z*(farZ+nearZ)-2.*farZ*nearZ)/(farZ-nearZ),view.z);
@@ -183,17 +198,17 @@ void main(){
  vec3 N=normalize(v_normal);
  bool outside=dot(N,V)>0.;
  if(!outside)N=-N;
- vec3 K=normalize(vec3(-.75,.38,-.42));
+ vec3 K=normalize(vec3(-.75,.6,-.42));
  vec3 L=coreAt(dev)-v_world;float l2=dot(L,L);L*=inversesqrt(l2);
  float I=coreLight(dev),att=I/(1.+.11*l2);
  vec3 coreC=mix(mix(u_primary,vec3(1.),.3),u_accent,.22+.3*u_rhythm.z);
  vec3 fogC=mix(u_secondary,u_primary,.25)*.03;
  float fog=1.-exp(-max(dist-6.,0.)*.035);
  vec3 col;
- if(kind<.5){
+ if(kind<.5 || kind>1.5){
   // Paper floor: an origami crease grid lit by the raking key and the core.
   vec2 xz=v_world.xz;
-  N=floorNormal(xz,waveAmp(dev),phaseAt(1));
+  N=floorNormal(xz,.25*waveAmp(dev),phaseAt(1));
   float lines=0.;
   for(int i=0;i<3;i++){
    float a=float(i)*PI/3.+.3;
@@ -203,33 +218,45 @@ void main(){
    lines=max(lines,(1.-smoothstep(.5-w*1.3,.5,d))*smoothstep(.12,.02,w));
   }
   float rr=length(xz);
-  vec3 paper=mix(u_secondary,vec3(.5),.4)*.07;
+  vec3 paper=mix(u_secondary,vec3(1.),.5)*.09;
   float key=max(dot(N,K),0.);
   float pool=I/(1.+.35*l2);
   col=paper*(.2+1.3*key)*(1.-.6*ss(1.,2.,dev))+coreC*pool*max(dot(N,L),0.)*.2;
   // The Sheet's high camera sees the creases from further away, and the
   // calm state lights them more (no core yet).
   float calm=1.-ss(.3,1.,dev);
-  col+=mix(u_primary,vec3(1.),.4)*lines*(.07+.04*calm+.08*key+.2*pool)*u_params[5]*(1.-ss(mix(6.,12.,calm),mix(16.,28.,calm),dist));
+  col+=mix(u_primary,vec3(1.),.4)*lines*(.025+.04*key+.12*pool)*u_params[5]*(1.-ss(mix(6.,12.,calm),mix(16.,28.,calm),dist));
   // Glossy sheet: the core reflects as a long streak towards the camera.
   vec3 Rv=reflect(-V,N)-L,rt=normalize(cross(vec3(0.,1.,0.),V));
   float sx=dot(Rv,rt),sy=length(Rv-rt*sx);
   float sheen=exp(-sx*sx*700.-sy*sy*9.);
   col+=coreC*I*sheen*.4/(1.+.02*l2);
   col*=1.-ss(14.,25.,rr);
+  if(kind>1.5){
+   // Only the polygon perimeter casts a soft edge: no false seams along
+   // the fan triangulation. Floor relief is shallower than the paper.
+   float edge=v_bary.x;
+   float penumbra=max(fwidth(edge)*1.5,.018+.025*v_trail);
+   float shadow=ss(0.,penumbra,edge)*(1.-ss(1.,1.2,dev));
+   col*=mix(1.,.18,shadow);
+  }
  }else{
   float e=v_info.z;
-  vec3 paperO=mix(pal(.04+.6*rnd),vec3(1.),.16)*.5*(1.-.55*e);
-  vec3 paperI=mix(mix(u_secondary,pal(.45),.5),vec3(1.),.18)*.42*(1.-.55*e);
+  // Paper-white pigment with palette in the fibres, not dark neon nets.
+  vec3 paperO=mix(pal(.04+.6*rnd),vec3(1.),.82)*mix(.94,.82,e);
+  vec3 paperI=mix(mix(u_secondary,pal(.45),.5),vec3(1.),.76)*mix(.88,.72,e);
   vec3 base=outside?paperO:paperI;
-  float key=max(dot(N,K),0.)*(1.-.75*e),cd=dot(N,L);
+  float key=max(dot(N,K),0.)*(1.-.35*e),cd=dot(N,L);
   // Lit sides face the core; backlit shards keep a faint transmission, so
   // shards in front of the core read as silhouettes with glowing rims.
   float core=max(cd,0.)+mix(.6,.18,e)*max(-cd,0.);
   float nv=abs(dot(N,V)),fres=pow(1.-nv,3.);
   float spec=pow(max(dot(N,normalize(K+V)),0.),40.);
   vec3 tintS=pal(.04+.6*fract(rnd*2.7));
-  col=base*(.15+1.25*key)+mix(base,mix(coreC,tintS,.45*e),.55+.3*e)*att*core*(.95+.8*e);
+  float paperEdge=ss(0.,.3,v_bary.x);
+  float creaseShade=mix(.72,1.,paperEdge);
+  float fill=mix(.22,.12,e)+mix(.3,.12,e)*max(N.y,0.);
+  col=base*(fill+.9*key)*creaseShade+mix(base,mix(coreC,tintS,.45*e),.55+.3*e)*att*core*(.6+.75*e);
   col+=mix(u_secondary,vec3(1.),.5)*fres*.22;
   col+=vec3(1.)*spec*.25*key;
   // Glowing rims on every polygon edge, about 1.5 px at any resolution.
@@ -238,7 +265,7 @@ void main(){
   float edge=mix(v_bary.x,edgeS,ss(0.,.3,e));
   float w=fwidth(edge);
   float rim=(1.-smoothstep(0.,w*1.6,edge))*smoothstep(.6,.15,w);
-  float rimG=u_params[5]*(1.15+.1*ss(.3,1.,dev)+.65*e*(.4+att))*(1.+1.1*u_rhythm.x);
+  float rimG=u_params[5]*(.18+.35*ss(.3,1.,dev)+.25*e*(.4+att))*(1.+1.1*u_rhythm.x);
   vec3 rimC=mix(pal(.2+.5*fract(rnd*5.3)),vec3(1.),.45);
   col+=mix(rimC,u_accent,.25*u_rhythm.x)*rim*rimG;
   // Shards glow as they stream; the trailing end fades into a streak.
@@ -255,7 +282,7 @@ ${common}
 void main(){
  float dev=u_dev;
  vec3 cam,fw,rt,up;cameraAt(dev,cam,fw,rt,up);
- float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.45,ss(1.,2.,dev))*(1.+.02*u_kick);
+ float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.25,ss(1.,2.,dev))*(1.+.02*u_kick);
  vec2 ndc=v_uv*2.-1.;
  vec3 rd=normalize(fw+rt*(ndc.x*max(A,1.)/F)+up*(ndc.y/(F*min(A,1.))));
  vec3 c=coreAt(dev)-cam;float t=max(dot(c,rd),0.);float d=length(c-rd*t);

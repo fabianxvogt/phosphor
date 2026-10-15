@@ -7,11 +7,14 @@ import {
   ATTRIBUTES,
   CAMERA,
   FIELD,
+  KIND,
+  STORM,
   MAX_DEPTH,
   STRIDE,
   SWIRL_PERIOD,
   TEMPLATES,
   arrangement,
+  cameraPose,
   createGeometry,
   foldPoint,
   foldProgress,
@@ -22,6 +25,7 @@ import {
   rotateAbout,
   shardOrbit,
   shardProgress,
+  shadowPoint,
 } from "../fold-geometry.mjs";
 
 const scene = scenes.find((s) => s.id === "fold");
@@ -144,7 +148,7 @@ test("development is continuous, reversible and staged sheet → fold → shards
   }
 });
 
-test("field, vortex and camera never meet; orbit phases wrap without jumps", () => {
+test("nets and solids stay in their field; expanded vortex phases wrap without jumps", () => {
   const camera = CAMERA.radius - CAMERA.sway;
   for (const seed of [527, 1931, 88, 3307]) {
     const items = arrangement(seed);
@@ -160,9 +164,6 @@ test("field, vortex and camera never meet; orbit phases wrap without jumps", () 
       for (const face of it.shards)
         for (const shard of face) {
           assert.ok(Number.isInteger(shard.turns) && shard.turns >= 1);
-          // Shard centre plus its longest streak (tangential) stays inside.
-          const streak = 0.65 * 1.1 * Math.min(it.scale, 0.8) * (1 + 2 * 3.2);
-          assert.ok(Math.hypot(shard.radius + 0.6, streak) < camera - 1);
           const a = shardOrbit(shard, 0),
             b = shardOrbit(shard, 1);
           assert.ok(dist(a, b) < 1e-9, "integer turns: phase wrap is seamless");
@@ -171,7 +172,65 @@ test("field, vortex and camera never meet; orbit phases wrap without jumps", () 
     }
   }
   assert.ok(SWIRL_PERIOD > 0);
-  assert.ok(camera > FIELD + 1.5);
+  assert.ok(camera > FIELD + 1.5, "early camera stays outside the paper field");
+});
+
+test("low camera is inside the storm canopy, outside every peak shard and streak", () => {
+  const peak = cameraPose(2, .25);
+  assert.ok(Math.hypot(peak.eye[0], peak.eye[2]) < FIELD);
+  assert.ok(peak.target[1] > peak.eye[1] + 3);
+  // Bound actual triangle extents in their orthonormal shard frame. Taking
+  // worst bob, camera sway and height independently covers every phase.
+  for (const seed of [527, 1931, 88, 3307, 777, 4096]) for (const item of arrangement(seed)) {
+    const t = TEMPLATES[item.t];
+    t.flat.forEach((face, f) => {
+      const c = [0, 1, 2].map(k => face.reduce((s, p) => s + p[k], 0) / face.length);
+      face.forEach((a, i) => {
+        const b = face[(i + 1) % face.length], pts = [c, a, b];
+        const tc = [0, 1, 2].map(k => pts.reduce((s, p) => s + p[k], 0) / 3);
+        const shard = item.shards[f][i], sa = shard.shardAngle;
+        const scale = Math.min(item.scale, .8) * 1.1;
+        const offsets = pts.map(p => {
+          const x = (p[0] - tc[0]) * scale, y = (p[2] - tc[2]) * scale * .6;
+          const ox = x * Math.cos(sa) - y * Math.sin(sa), oy = x * Math.sin(sa) + y * Math.cos(sa);
+          return [ox * (ox < 0 ? 1 + 2 * STORM.stretch : 1), oy];
+        });
+        const mx = Math.max(...offsets.map(o => Math.abs(o[0]))), my = Math.max(...offsets.map(o => Math.abs(o[1])));
+        const bank = .38 * Math.cos(sa), len = Math.hypot(bank, 1);
+        const radialMax = Math.hypot(shard.radius * STORM.radius + Math.abs(bank) * my / len, mx);
+        const yMin = STORM.height * (shard.height - .35) - my / len;
+        for (const crane of [0, .25, .5, .75, 1]) {
+          const cameraR = CAMERA.peakRadius - CAMERA.sway + 3.5 * crane;
+          const cameraY = CAMERA.peakHeight + .18 + 3.5 * crane;
+          assert.ok(radialMax < cameraR - .1 || yMin > cameraY + .1,
+            `shard/camera overlap seed ${seed}, crane ${crane}: r ${radialMax}, y ${yMin}`);
+        }
+      });
+    });
+  }
+  for (const dev of [0, .8, 1.4, 1.7, 2]) {
+    const a = cameraPose(dev, .37), b = cameraPose(dev, 1.37);
+    assert.ok(dist(a.eye, b.eye) < 1e-12);
+  }
+});
+
+test("cast shadows reuse exact hinge attributes and project in the key direction", () => {
+  const data = createGeometry(527);
+  let pairs = 0;
+  for (let i = 0; i < data.length; i += STRIDE * 3) {
+    if (data[i + 5] !== KIND.face || data[i + 10] < .45) continue;
+    const next = i + STRIDE * 3;
+    assert.equal(data[next + 5], KIND.shadow);
+    for (let v = 0; v < 3; v++) for (let k = 0; k < STRIDE; k++) {
+      if (k !== 5) assert.equal(data[i + v * STRIDE + k], data[next + v * STRIDE + k]);
+    }
+    pairs++;
+  }
+  assert.ok(pairs > 300, "all hero nets carry actual triangle shadows");
+  const p = [1, 2, -3], q = shadowPoint(p), h = p[1] + .22;
+  assert.ok(Math.abs((q[0] - p[0]) / h - .75 / .6) < 1e-12);
+  assert.ok(Math.abs((q[2] - p[2]) / h - .42 / .6) < 1e-12);
+  assert.equal(q[1], -.185);
 });
 
 test("analytic paper normals match differences; banked shards stay rigid and periodic", () => {

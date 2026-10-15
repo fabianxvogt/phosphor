@@ -8,14 +8,16 @@
 // lift), a2 = (x, z, scale, spin0), a3 = (axisTheta, axisPhi, turns, threshold),
 // a4 = (orbitRadius, orbitAngle, orbitHeight, orbitTurns), a5 = (order, rnd,
 // bob, shardAngle), a6 = (triangle centre x, z, bary a, bary b); each fan
-// triangle becomes its own shard. Floor vertices use a0.xyz as position and kind 0.
+// triangle becomes its own shard. Floor vertices use a0.xyz and kind 0;
+// hero-net shadow vertices repeat face attributes with kind 2.
 export const STRIDE = 28;
 export const ATTRIBUTES = [4, 4, 4, 4, 4, 4, 4];
-export const KIND = { floor: 0, face: 1 };
+export const KIND = { floor: 0, face: 1, shadow: 2 };
 export const MAX_DEPTH = 8;
-export const FIELD = 9.6; // every folded solid and shard stays inside this radius
-export const CAMERA = { radius: 12.6, sway: 0.6 }; // orbit never comes closer than 12
-export const FLOOR = { radius: 26, rings: 32, segments: 96 }; // analytic normals carry the fine paper relief
+export const FIELD = 9.6; // flat nets and folded solids, before the storm expands
+export const CAMERA = { radius: 12.6, sway: 0.6, peakRadius: 6.3, peakHeight: .9, peakAim: 5.5 };
+export const STORM = { radius: 1.3, height: 1.7, stretch: 1.8 };
+export const FLOOR = { radius: 26, rings: 24, segments: 64 }; // analytic normals carry the fine paper relief
 const TAU = Math.PI * 2;
 
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -341,23 +343,48 @@ export function shardFrame(shard, phase) {
   return {tangent,across,normal:cross(tangent,across)};
 }
 
+// CPU camera reference. The peak eye is below the widening cone, not outside
+// its entire bounding sphere; upper paper passes above and beside the lens.
+export function cameraPose(development, phase, crane = 0) {
+  const peak = smooth(1.4, 2, development), fold = smooth(0, 1, development);
+  const mix = (a, b, t) => a + (b - a) * t;
+  const R = mix(CAMERA.radius, CAMERA.peakRadius, peak) + CAMERA.sway * Math.sin(TAU * 2 * phase) + 3.5 * crane * peak;
+  const height = mix(mix(8.2, 4.4, fold), CAMERA.peakHeight, peak)
+    + mix(.75, .18, peak) * Math.sin(TAU * 3 * phase + 1) + 3.5 * crane;
+  return {
+    eye: [R * Math.cos(TAU * phase), height, R * Math.sin(TAU * phase)],
+    target: [0, mix(mix(-1.5, 1.7, fold), CAMERA.peakAim, peak), 0],
+    focal: mix(mix(2, 1.45, fold), 1.25, smooth(1, 2, development)),
+  };
+}
+
 // Shader mirror: shard centre on its vortex orbit at swirl phase `phase`.
-export function shardOrbit(shard, phase) {
-  const a = shard.angle + TAU * shard.turns * phase;
+export function shardOrbit(shard, phase, development = 2) {
+  const a = shard.angle + TAU * shard.turns * phase, peak = smooth(1, 2, development);
+  const r = shard.radius * (1 + (STORM.radius - 1) * peak);
   return [
-    shard.radius * Math.cos(a),
-    shard.height + 0.35 * Math.sin(TAU * 3 * phase + shard.bob),
-    shard.radius * Math.sin(a),
+    r * Math.cos(a),
+    (1 + (STORM.height - 1) * peak) * (shard.height + .35 * Math.sin(TAU * 3 * phase + shard.bob)),
+    r * Math.sin(a),
   ];
+}
+
+// Directional cast-shadow projection onto the floor's mean plane.
+export function shadowPoint(p) {
+  const h = Math.max(p[1] + .22, 0);
+  return [p[0] + h * .75 / .6, -.185, p[2] + h * .42 / .6];
 }
 
 export function createGeometry(seed) {
   const items = arrangement(seed);
-  let triangles = 0;
+  let triangles = 0, shadowTriangles = 0;
   for (const it of items)
-    for (const face of TEMPLATES[it.t].faces) triangles += face.length;
+    for (const face of TEMPLATES[it.t].faces) {
+      triangles += face.length;
+      if (!it.small) shadowTriangles += face.length;
+    }
   const floorTriangles = FLOOR.rings * FLOOR.segments * 2;
-  const data = new Float32Array((triangles + floorTriangles) * 3 * STRIDE);
+  const data = new Float32Array((triangles + shadowTriangles + floorTriangles) * 3 * STRIDE);
   let o = 0;
   const put = (values) => {
     data.set(values, o);
@@ -382,9 +409,14 @@ export function createGeometry(seed) {
           s.radius, s.angle, s.height, s.turns,
           s.order, s.rnd, s.bob, s.shardAngle,
         ];
-        put([...c, g, 1, KIND.face, ...tail, tc[0], tc[2], 0, 0]);
-        put([...a, g, 0, KIND.face, ...tail, tc[0], tc[2], 1, 0]);
-        put([...b, g, 0, KIND.face, ...tail, tc[0], tc[2], 0, 1]);
+        // The same exact hinge chain also projects a cast shadow onto the
+        // floor. No shadow texture, extra render pass or engine extension.
+        // Sub-pixel paper does not need a second set of hinge evaluations.
+        for (const kind of it.small ? [KIND.face] : [KIND.face, KIND.shadow]) {
+          put([...c, g, 1, kind, ...tail, tc[0], tc[2], 0, 0]);
+          put([...a, g, 0, kind, ...tail, tc[0], tc[2], 1, 0]);
+          put([...b, g, 0, kind, ...tail, tc[0], tc[2], 0, 1]);
+        }
       }
     });
   }

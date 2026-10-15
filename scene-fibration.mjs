@@ -1,5 +1,5 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { createGeometry, layerGLSL, LAYERS } from "./fibration-geometry.mjs";
+import { cameraGLSL, createGeometry, layerGLSL, LAYERS } from "./fibration-geometry.mjs";
 
 // Hopf Bloom (#96): the Hopf fibration of the 3-sphere as lit tubes in
 // space. Every tube is one exact fibre (a great circle of S³ over one point
@@ -33,8 +33,11 @@ void main() {
 const shared = `
 vec3 ground(vec2 frag) {
   vec2 p = (frag - .5 * u_resolution) / min(u_resolution.x, u_resolution.y);
-  float glow = exp(-dot(p, p) * 2.4);
-  return mix(u_secondary * .012, mix(u_secondary, u_primary, .3) * .055, glow);
+  // Broad, low studio haze: keep a visible palette ground between fibres,
+  // without painting a bright disc behind the sculpture.
+  vec2 q = p - vec2(-.15, .12);
+  float glow = exp(-dot(q, q) * 1.7);
+  return u_secondary * .028 + mix(u_secondary, u_primary, .25) * .1 * glow;
 }
 `;
 
@@ -53,6 +56,7 @@ out float v_s, v_core, v_fog, v_glow, v_cohort, v_u, v_shell, v_cover, v_heart;
 flat out float v_layer, v_phi;
 const float PI = 3.14159265359, TAU = 6.28318530718;
 ${layerGLSL()}
+${cameraGLSL()}
 float unpack24(vec4 c) { vec3 b = floor(c.rgb * 255. + .5); return dot(b, vec3(65536., 256., 1.)) / 16777216.; }
 float phase(int i) { return unpack24(texelFetch(u_state, ivec2(i, 0), 0)); }
 vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t)),u_accent,smoothstep(.65,1.,t)); }
@@ -101,23 +105,13 @@ void main() {
   radius *= mix(1., 1.14, smoothstep(.9, 2., dev)) * (1. - .3 * shellOut);
   vec3 n = cos(ring) * N + sin(ring) * B;
 
-  // Camera: a slow orbit around the axis. Development moves it closer with a
-  // wider lens, so the bundle's outer shells sweep past with real parallax.
-  float yaw = TAU * phase(0), drift = TAU * phase(3);
-  float bloom = smoothstep(0., 2., dev);
-  // Elevation sets the look's vantage: 0 the equator, 1 down the axis.
-  // The bundle is seen from higher up: its nested shells open around the
-  // axis like an eye, and the outer rings frame the image instead of
-  // crossing it.
-  float full = smoothstep(1., 2., dev);
-  float pitch = mix(.3, .5, bloom) + .52 * full + 1.15 * (u_params[6] - .35) + mix(.17, .12, full) * sin(drift) + .05 * sin(2.3 * drift + 1.);
-  pitch = clamp(pitch, -.3, 1.32);
-  float dist = u_params[7] * (mix(7.2, 8.0, bloom) + .7 * full) * (1. + .04 * sin(1.7 * drift));
-  vec3 eye = dist * vec3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw));
-  // The tumble moves the core circle's centre to x = tan a; follow it.
-  vec3 target = vec3(.8 * tan(a), mix(-.1, -.45, bloom) - .25 * full, 0.);
+  // Dolly from a frame-filling torus into the outer bundle. At the climax
+  // the eye is inside its projection ball, above the swept tube envelope:
+  // foreground arcs pass the frame while the linked core stays legible.
+  float full = smoothstep(1., 2., dev), focal, dist;
+  vec3 eye, target;
+  cameraAt(dev, TAU * phase(0), TAU * phase(3), a, eye, target, focal, dist);
   vec3 fwd = normalize(target - eye), right = normalize(cross(fwd, vec3(0., 1., 0.))), up = cross(right, fwd);
-  float focal = (mix(2.45, 1.6, bloom) + .25 * full) * (1. + .022 * u_kick);
   float minSide = min(u_resolution.x, u_resolution.y);
   // Keep every tube at least ~1.3 px wide; thinner tubes dim instead.
   float depth = max(.2, dot(p - eye, fwd));
@@ -132,7 +126,7 @@ void main() {
                      (view.z * (far + near) + 2. * far * near) / (near - far), -view.z);
   v_normal = vec3(dot(n, right), dot(n, up), -dot(n, fwd));
   v_view = view;
-  v_fog = -view.z - dist;
+  v_fog = -view.z;
 
   // Colour is the map: the base point (θ, φ) on S² picks the palette.
   // Latitude sets the shell's tone (inner shells warmer), longitude
@@ -184,13 +178,16 @@ void main() {
   if (dot(N, V) < 0.) N = -N;
   vec3 L = normalize(vec3(-.45, .75, .55));
   float diffuse = max(0., dot(N, L)), wrap = .5 + .5 * dot(N, L);
-  float fresnel = pow(1. - max(0., dot(N, V)), 3.);
+  float nv = max(0., dot(N, V)), grazing = 1. - nv;
+  float fresnel = grazing * grazing * grazing;
   float spec = pow(max(0., dot(N, normalize(L + V))), 64.);
   float ao = 1. - v_core;
   vec3 base = v_color;
   // Outer shells are glassy (rim-lit, dim body) so inner tori show through.
   float body = 1. - .3 * v_shell;
+  float back = max(0., dot(N, normalize(vec3(.6, -.1, -.7))));
   vec3 color = base * (.03 + (.74 * diffuse + .14 * wrap) * ao * body);
+  color += mix(base, u_secondary, .55) * back * .13 * body;
   vec3 rim = mix(mix(u_secondary, vec3(1.), .3), u_accent, .08);
   color += rim * fresnel * (.48 + .5 * v_shell) * (.55 + .45 * ao);
   color += mix(base, vec3(1.), .55) * spec * .85 * ao * body;
@@ -199,26 +196,30 @@ void main() {
   // Bead count rises with detail; the next bead fades in, never jumps.
   float n = 1. + 3. * u_params[5], n0 = floor(n);
   float arg = v_s - TAU * flow;
-  float bead = mix(pow(.5 + .5 * cos(n0 * arg + v_phi * 2.), 150.),
-                   pow(.5 + .5 * cos((n0 + 1.) * arg + v_phi * 2.), 150.), smoothstep(.2, .8, n - n0));
+  // A filtered light window, rather than two expensive high-exponent
+  // lobes per foreground pixel. The next bead still enters continuously.
+  float bead = mix(smoothstep(.973, 1., .5 + .5 * cos(n0 * arg + v_phi * 2.)),
+                   smoothstep(.973, 1., .5 + .5 * cos((n0 + 1.) * arg + v_phi * 2.)), smoothstep(.2, .8, n - n0));
   color += (mix(base, u_accent, .3) * 1.1 + .2) * bead * .7;
   // The core circle (all fibres over the north pole) is the one accent ring.
   if (v_layer > 7.5) color += u_accent * (.35 + .5 * wrap);
   // The innermost shells are the focus: a faint inner light.
   color += base * v_heart * (.12 + .45 * wrap);
   color += mix(base, u_accent, .6) * v_glow * (.35 + .9 * fresnel);
-  float chase = pow(.5 + .5 * cos(v_s - TAU * flow * 3. - v_phi), 8.);
-  color = mix(color, mix(base * 1.5, u_accent, .15) * (.5 + .9 * diffuse), .5 * v_cohort);
-  color += mix(u_accent, vec3(1.), .4) * v_cohort * 1.1 * chase;
+  if (v_cohort > .001) {
+    float chase = pow(.5 + .5 * cos(v_s - TAU * flow * 3. - v_phi), 8.);
+    color = mix(color, mix(base * 1.5, u_accent, .15) * (.5 + .9 * diffuse), .5 * v_cohort);
+    color += mix(u_accent, vec3(1.), .4) * v_cohort * 1.1 * chase;
+  }
   color *= v_cover;
   // Atmosphere: distance fades towards the ground; silhouettes soften into
   // it over about a pixel, which keeps thin tubes from shimmering.
   vec3 ground = ground(gl_FragCoord.xy);
-  float fog = 1. - exp(-max(0., v_fog + .8) * .16);
+  float fog = 1. - exp(-max(0., v_fog - 1.8) * .07);
   color = mix(color, ground, clamp(fog, 0., .88));
-  float edge = abs(dot(normalize(v_normal), V));
-  color = mix(ground, color, smoothstep(0., max(fwidth(edge) * 1.5, .02), edge));
-  outColor = vec4(pow(max(color, vec3(0.)), vec3(.9)), 1.);
+  color = mix(ground, color, smoothstep(0., max(fwidth(nv) * 1.5, .02), nv));
+  // The shared post chain handles display transfer; no per-tube RGB power.
+  outColor = vec4(max(color, vec3(0.)) * 1.08, 1.);
 }`;
 
 const schema = [
