@@ -18,8 +18,9 @@
 export const CLOCK_PERIOD = 1440; // seconds; every global cycle divides it
 export const TWO32 = 4294967296;
 export const RMAX = 1.6; // galaxy radius (world units)
-// One point per state texel (texel 0 is the clock). The last 24 rows are
-// dust absorbers: drawn after every star, their alpha darkens what is beneath.
+// One point per state texel (texel 0 is the clock). The last 24 rows retain
+// their legacy dust identities/state, but no longer draw a screen overlay.
+// Extinction is evaluated on each emitter→eye segment instead.
 export const SIZE = [512, 256];
 export const ABSORBERS = SIZE[0] * (SIZE[1] - 24);
 export const CLOUD = 1.9; // dust cloud radius
@@ -38,6 +39,20 @@ export const N = {
 export const ORBIT_V = 0.22; // flat rotation curve speed
 export const ORBIT_CORE = 0.26; // solid-body core radius
 export const RELAX = 0.55; // ψ relaxation rate (1/s) when dispersing
+
+// Normalised sech² dust slab: rho(y) = k/(2h) sech²(ky/h).
+// Exact line integral on a finite segment. A foreground star does not
+// include the dust behind it; a grazing ray has a finite parallel limit.
+export function dustColumn(start, eye) {
+  const h = .035, k = 1.20276058;
+  const dy = eye[1] - start[1];
+  const len = Math.hypot(...eye.map((v, i) => v - start[i]));
+  if (Math.abs(dy) < .0001) {
+    const a = Math.tanh(k * start[1] / h);
+    return len * k / (2 * h) * (1 - a * a);
+  }
+  return .5 * len / Math.abs(dy) * Math.abs(Math.tanh(k * eye[1] / h) - Math.tanh(k * start[1] / h));
+}
 
 export function hash32(x) {
   x >>>= 0;

@@ -91,7 +91,7 @@ NbCam nbCamera(uint clock, float dev) {
   uint key = nbKey();
   float yaw = NB_TAU * (nbCycle(clock, ${N.yaw}u) + nbRnd(key, 0u, 907u));
   float el = mix(.16, 1.1, clamp(u_params[6], 0., 1.)) + .1 * sin(NB_TAU * nbCycle(clock, ${N.lift}u));
-  c.dist = u_params[5] * (mix(4.15, 2.45, nbSmooth(0., 1., dev)) + 1.1 * nbSmooth(1., 2., dev))
+  c.dist = u_params[5] * (mix(4.7, 2.45, nbSmooth(0., 1., dev)) + 1.1 * nbSmooth(1., 2., dev))
     * (1. + .04 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u)));
   c.eye = c.dist * vec3(cos(el) * sin(yaw), sin(el), cos(el) * cos(yaw));
   c.fwd = normalize(vec3(0., -.06, 0.) - c.eye);
@@ -156,7 +156,26 @@ const vertex = `
 ${common}
 ${camera}
 ${modes}
-out float v_soft, v_alpha;
+out float v_soft;
+// Normalised sech² dust column on the finite emitter→eye segment.
+// Unlike a screen overlay, a foreground emitter never sees dust behind it.
+float nbDustColumn(vec3 start, vec3 eye) {
+  vec3 ray = eye - start;
+  float dy = ray.y, h = .035;
+  if (abs(dy) < .0001) { float a = tanh(1.20276058 * start.y / h); return length(ray) * .60138029 / h * (1. - a * a); }
+  return .5 * length(ray) / abs(dy) * abs(tanh(1.20276058 * eye.y / h) - tanh(1.20276058 * start.y / h));
+}
+float nbTransmission(vec3 start, vec3 eye, uint key, uint clock, float arms) {
+  vec3 ray = eye - start;
+  float t = abs(ray.y) > .0001 ? clamp(-start.y / ray.y, 0., 1.) : 0.;
+  vec3 q = start + ray * t;
+  float r = length(q.xz);
+  float beta = r * (2.2 + .9 * nbRnd(key, 0u, 905u)) * arms + NB_TAU * nbCycle(clock, ${N.pattern}u);
+  float w = atan(q.z, q.x) - beta + .7853981634 + .42;
+  float off = mod(w + 1.5707963, 3.1415926536) - 1.5707963;
+  float lane = exp(-off * off / .065) * nbSmooth(.12, .4, r) * (1. - nbSmooth(1.35, 1.7, r));
+  return exp(-2.4 * lane * min(nbDustColumn(start, eye), 12.));
+}
 vec3 nbRotY(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(c * p.x - s * p.z, p.y, s * p.x + c * p.z); }
 void main() {
   gl_Position = vec4(2., 2., 2., 1.);
@@ -164,7 +183,7 @@ void main() {
   v_color = vec3(0.);
   v_soft = 0.;
   uint id = uint(gl_VertexID);
-  if (id == 0u) return;
+  if (id == 0u || id >= ${ABSORBERS}u) return;
   uint key = nbKey(), clock = nbClock();
   NbStar s = nbStar(key, id);
   float dev = clamp(u_params[0], 0., 2.);
@@ -180,9 +199,9 @@ void main() {
   float cloud = NB_TAU * nbCycle(clock, ${N.cloud}u);
   float lambda = s.ang0 + cloud + psi;
   vec3 pos;
-  float crest = 0., lane = 0., compress = 1., absorb = 0.;
+  float crest = 0., compress = 1.;
   vec3 hue = u_primary;
-  float bright = 0., size = 1.6, soft = 0.;
+  float bright = 0., size = 1.6, soft = 0., shellStage = 0.;
   if (s.kind == 2) {
     // Distant stars: parallax and scale against the near form.
     pos = s.shellDir * 9.;
@@ -207,8 +226,6 @@ void main() {
       // Arms are where neighbouring ellipses crowd: u ≈ −π/4 (mod π).
       float w = u + .7853981634;
       crest = pow(.5 + .5 * cos(2. * w), 3.);
-      float l = mod(w + .42 + 1.5707963, 3.1415926536) - 1.5707963;
-      lane = exp(-l * l / .05) * nbSmooth(.12, .4, s.a);
     }
     float rhoQ = length(s.q.xz);
     float rho = mix(rhoQ, rhoG, p), y = mix(s.q.y, yG, p);
@@ -227,13 +244,13 @@ void main() {
     }
     // Dust: gas glows faintly; the web's caustics brighten by crowding.
     vec3 gas = mix(u_secondary, u_primary, clamp(.1 + .3 * s.tone + .18 * compress, 0., 1.));
-    float dustB = .045 * pow(compress, 1.35) + 1.6 * pow(s.tone, 60.);
+    float dustB = .016 * pow(compress, 1.35) + 1.1 * pow(s.tone, 60.);
     float dustSize = 1.9 + 2.6 * s.layer;
     // Spiral: crest stars young and light, inter-arm stars old, lanes dark.
-    vec3 young = mix(u_primary, vec3(1.), .38), old = mix(u_secondary, u_primary, .45);
+    vec3 young = mix(u_primary, vec3(1.), .18), old = mix(u_secondary, u_primary, .45);
     vec3 starHue = s.kind == 1 ? mix(mix(u_primary, u_accent, .3), vec3(1.), .3) : mix(old, young, crest);
     // The bulge's centre is dense already: dim its stars there (no white blob).
-    float starB = s.kind == 1 ? .24 * (.3 + .7 * nbSmooth(.03, .26, s.a)) : (.3 + 1.1 * crest) * (1. - lane) * (.25 + .75 * nbSmooth(.04, .4, s.a)) * (.45 + 2.2 * pow(s.tone, 10.));
+    float starB = s.kind == 1 ? .24 * (.3 + .7 * nbSmooth(.03, .26, s.a)) : (.3 + 1.1 * crest) * (.25 + .75 * nbSmooth(.04, .4, s.a)) * (.45 + 2.2 * pow(s.tone, 10.));
     if (s.kind == 0 && s.tone > .975 && crest > .55) { starHue = u_accent; starB = 1.1; }
     hue = mix(gas, starHue, p);
     bright = mix(dustB, starB, p);
@@ -243,8 +260,8 @@ void main() {
     if (cloudlet) {
       // Glowing gas: large soft sprites trace the web, then the arms.
       hue = mix(mix(u_secondary, u_primary, .3 + .2 * s.tone), mix(u_primary, u_accent, .12), p * crest);
-      bright = mix(.12 * pow(compress, 1.1), (.1 + .6 * crest) * (1. - lane) * nbSmooth(.05, .5, s.a), p);
-      size = mix(11. + 8. * s.tone, 8. + 7. * s.tone, p);
+      bright = mix(.15 * pow(compress, 1.1), (.16 + .85 * crest) * nbSmooth(.05, .5, s.a), p);
+      size = mix(20. + 12. * s.tone, 14. + 9. * s.tone, p);
       soft = 1.;
     }
     if (n > 0.) {
@@ -280,12 +297,13 @@ void main() {
         shell = nd * (R + .08 * front);
       }
       float s1 = nbSmooth(0., .3, n), s2 = nbSmooth(.18, 1., n);
+      shellStage = s2;
       pos = mix(pos * (1. - .62 * s1), shell, s2);
       // Ignition: the core flares as it collapses, then settles.
       float ignite = exp(-nbSq((n - .24) / .1));
       vec3 rim = mix(u_primary, vec3(1.), .22), ejecta = mix(u_secondary, u_primary, .3);
       vec3 novaHue = s.kind == 1 ? mix(u_accent, vec3(1.), .45) : (s.layer < .6 ? rim : ejecta);
-      float novaB = s.kind == 1 ? .045 : (s.layer < .6 ? .3 + .22 * shellCompress : .22);
+      float novaB = s.kind == 1 ? .045 : (s.layer < .6 ? .12 + .12 * shellCompress * shellCompress : .12);
       novaHue = mix(novaHue, u_accent, .7 * clamp(front, 0., 1.));
       novaB += 1.3 * front;
       if (jet >= 0.) {
@@ -294,17 +312,9 @@ void main() {
       }
       hue = mix(hue, novaHue, s2);
       bright = mix(bright, novaB, s2) + ignite * (s.kind == 1 ? .5 : .12);
-      size = mix(size, cloudlet ? 5. + 4. * s.tone : 1.6 + .7 * front, s2);
-      if (cloudlet) bright = mix(bright, (.1 + .1 * shellCompress) + .4 * front, s2);
+      size = mix(size, cloudlet ? 8. + 6. * s.tone : 1.6 + .7 * front, s2);
+      if (cloudlet) bright = mix(bright, (.08 + .07 * shellCompress * shellCompress) + .45 * front, s2);
       else soft *= 1. - s2;
-    }
-    if (s.kind == 3) {
-      // Cold dust: dark lanes on the arms' concave side, dark cores inside
-      // the web's densest filaments; it thins out as the nova blows.
-      absorb = (.6 * lane * p + .35 * (1. - p) * nbSmooth(1.6, 4.5, compress)) * (1. - n);
-      bright = 0.;
-      size = 6. + 6. * s.tone;
-      soft = 1.;
     }
     // Rhythm: arm/filament accent, core flare, outward ripple.
     float r3 = length(pos);
@@ -312,7 +322,6 @@ void main() {
     if (s.kind == 1) { bright += u_rhythm.y * .35; hue = mix(hue, u_accent, .5 * u_rhythm.y); }
     float ripple = 2.6 * (1. - u_rhythm.z);
     bright += u_rhythm.z * .6 * exp(-nbSq((r3 - ripple) / .14));
-    if (s.kind == 3) bright = 0.;
   }
   NbCam cam = nbCamera(clock, dev);
   vec3 v = pos - cam.eye;
@@ -330,12 +339,13 @@ void main() {
   float spread = max(1., gl_PointSize / (1.6 * res));
   spread = mix(spread * spread, spread, soft);
   v_soft = soft;
-  // Dust absorbers (the last rows, drawn last) darken what lies beneath,
-  // including stars that are really in front of them. Depth-weighted: dust
-  // behind the galaxy's centre (seen from the eye) has the bright bulge and
-  // near side in front of it, so it absorbs less; dust in front keeps it all.
-  float behind = nbSmooth(-.1, .9, z - dot(-cam.eye, cam.fwd));
-  v_alpha = absorb * shown * clamp(fog, .4, 1.) * (1. - .7 * behind);
+  if (shellStage > 0. && s.kind == 0) {
+    float limb = pow(max(0., 1. - abs(dot(normalize(pos), normalize(cam.eye - pos)))), .6);
+    bright *= mix(1., .4 + .95 * limb, shellStage);
+    hue = mix(hue, mix(u_secondary, u_primary, limb), .4 * shellStage);
+  }
+  float galaxy = nbSmooth(0., 1., dev) * (1. - nbSmooth(1., 2., dev));
+  if (galaxy > 0.) bright *= mix(1., nbTransmission(pos, cam.eye, key, clock, arms), galaxy);
   hue = mix(hue * .8 + u_secondary * .2, hue, clamp(fog, 0., 1.));
   v_color = hue * bright * fog * light * shown * (1.3 - .35 * level) / spread * ${f(4.2 * 65536 / (SIZE[0] * SIZE[1]))};
 }
@@ -344,14 +354,14 @@ void main() {
 const particleFragment = `#version 300 es
 precision highp float;
 in vec3 v_color;
-in float v_soft, v_alpha;
+in float v_soft;
 out vec4 outColor;
 void main() {
   vec2 d = gl_PointCoord * 2. - 1.;
   float r2 = dot(d, d);
   if (r2 > 1.) discard;
   float m = mix(exp(-r2 * 4.), exp(-r2 * 2.2) * (1. - r2), v_soft);
-  outColor = vec4(v_color * m, v_alpha * m);
+  outColor = vec4(v_color * m, 0.);
 }
 `;
 
@@ -469,5 +479,5 @@ export default {
   ],
   fragment,
   simulation: { fragment: simulation, size: SIZE, steps: 1 },
-  particles: { vertex, fragment: particleFragment, blend: "absorb" },
+  particles: { vertex, fragment: particleFragment },
 };

@@ -8,6 +8,7 @@ import {
   TWO32,
   clockStep,
   cycle,
+  dustColumn,
   ellipsePolar,
   identity,
   jetLight,
@@ -297,6 +298,32 @@ test("Nova freezes the record and Sedov–Taylor fronts expand as t^(2/5)", () =
       if (tb < ta) assert.ok(jetLight(ta) < 0.01 && jetLight(tb) < 0.01);
       else assert.ok(jump < 0.03, `jet ${id.id}`);
     }
+});
+
+test("dust extinction integrates only the finite emitter-to-eye column", () => {
+  assert.equal(nebula.particles.blend, undefined, "no screen-space absorber overlay");
+  assert.match(nebula.particles.vertex, /nbTransmission\(pos, cam.eye, key, clock, arms\)/);
+  assert.match(nebula.particles.vertex, /id >= 118784u/);
+  assert.match(nebula.particles.vertex, /\.60138029 \/ h \* \(1\. - a \* a\)/);
+  assert.equal(dustColumn([0, .7, 0], [0, 3, 0]), 0, "foreground star is untouched");
+  assert.ok(dustColumn([0, -.7, 0], [0, 3, 0]) > .999, "background star sees the slab");
+  for (const [start, eye] of [
+    [[0, -.1, 0], [2, 1, 1]],
+    [[0, .01, 0], [1, 2, 0]],
+    [[0, -.03, 0], [3, .2, 1]],
+    [[0, .02, 0], [1, .02, 2]],
+  ]) {
+    const len = dist(start, eye), steps = 20000;
+    let integral = 0;
+    for (let i = 0; i < steps; i++) {
+      const y = start[1] + (eye[1] - start[1]) * (i + .5) / steps;
+      integral += 1.20276058 / .07 / Math.cosh(1.20276058 * y / .035) ** 2 * len / steps;
+    }
+    assert.ok(Math.abs(dustColumn(start, eye) - integral) < 1e-5);
+    assert.ok(Math.exp(-2.4 * dustColumn(start, eye)) >= 0);
+  }
+  // Reversal of the ray preserves its integrated column.
+  assert.equal(dustColumn([0, -.1, 0], [1, .3, 0]), dustColumn([1, .3, 0], [0, -.1, 0]));
 });
 
 test("shader constants follow the CPU model", () => {

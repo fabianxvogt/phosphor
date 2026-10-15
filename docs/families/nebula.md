@@ -42,4 +42,21 @@ Indicative native-GPU throughput (`profile-families.mjs --types`, M3 Pro, whole 
 
 ## Limits
 
-Kinematic, not dynamical: no self-gravity, no gas physics, no real dust extinction (additive light cannot occlude, so dust lanes are only dimmed stars). Absorption is draw-order based: absorbers are drawn after every star and also darken stars that lie in front of them. Mitigation (2026-10-15): absorbers behind the galaxy's centre plane as seen from the eye absorb up to 70 % less (smoothstep over −0.1…0.9 units of depth), since the bright bulge and near side lie in front of them; lanes in front keep full strength. The effect is small in the authored looks (bulge region of Edge-on Lanes +1.8 %, Grand Spiral +0.5 %; family means within 1 %). A correct fix needs depth-ordered drawing (stars behind, dust, stars in front) — an engine change to the particle path, left for an engine lane. The GLSL is a hand port of the CPU model; the tests exercise the model, the films and ladder exercise the shader. 4K cadence under an uncontended GPU, external-display cadence and multi-hour endurance are not yet measured.
+Kinematic, not dynamical: no self-gravity or gas hydrodynamics. Dust now uses line-of-sight extinction, not draw-order absorption (see below). Its lane density is sampled once near the mid-plane along each emitter ray, so it approximates a thin disk rather than solving full spatial radiative transfer; the web has no cold opaque cores. Gas remains finite soft sprites, and fine stellar grain is visible in the small review film. The GLSL is a hand port of the CPU model; the tests exercise the model, the films and ladder exercise the shader. External-display cadence and multi-hour endurance are not claimed.
+
+## Wave 5 rework · 2026-10-15
+
+No engine change. All world/state/look IDs, names, seeds, preset parameters and schema are unchanged. The last 24 rows retain their legacy particle identities and state but stop drawing a screen overlay. Each emitter is attenuated by `exp(-tau)`, where tau is the exact finite-segment column of a normalised **sech²** vertical dust slab, weighted by the seeded two-arm lane field. Foreground emitters therefore exclude dust behind them, including the distant sky stars. Near-parallel rays have a finite analytic limit. This avoids sorting/readback/new renderer passes and removes 12,288 absorber sprites.
+
+Visual rounds, each filmed/reviewed: (1) replace global dust compositing and intrinsic lane dimming with emitter-to-eye transmission; (2) shift light from tiny grains into broader gas sprites (the first 4%-large-sprite trial looked too puffy); (3) restore a denser lower-intensity gas population, add shell limb shading and palette-coloured front/back separation; (4) make the compressed shell filaments superlinear emissive highlights, dim the uncompressed interior, and move the starting cloud camera back so portrait has breathing room. The same Zel'dovich modes, ellipse trajectories, Sedov–Taylor fronts, fixed-point phases and shell geometry survive every round.
+
+Native headless M3 Pro p50 ms, whole synchronous frame including post, same all-state command before/after:
+
+| Resolution | Dust | Spiral | Nova |
+| --- | --- | --- | --- |
+| 1080p baseline → final | 1.9 → 1.6 | 1.8 → 1.7 | 2.0 → 1.6 |
+| 4K baseline → final | 5.2 → 4.4 | 5.0 → 4.2 | 5.0 → 4.7 |
+
+Zero GL/non-finite errors. New CPU tests compare the dust column to numerical integration, its parallel limit, ray reversal and foreground/background extinction; existing identity, continuity, potential gradient, spiral crowding and shock tests retained. Reviewed ladder, Edge-on Lanes, Phosphor/Ember/Glacier and portrait. Honest rating: **8.5/10** — stronger cloud light and shell climax, fixed foreground absorption, but the resolved stars still read too grainy in 540p to honestly claim 9. The cost ceiling took priority over a denser particle volume.
+
+Evidence in fleet `rework-space/output/`: `nebula-baseline/nebula.{mp4,png}`, `nebula-final/nebula.{mp4,png}`, `nebula-extra/`, `nebula-ember/`, `nebula-glacier-portrait/`, `nebula-ladder/` and baseline/final profile JSONs. Superseded films removed.
