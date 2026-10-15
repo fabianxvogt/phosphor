@@ -30,7 +30,7 @@ function hex(p) {
 }
 function profile(q, lift) {
   const n = q.map((x) => x / Math.max(length(q), 0.00001));
-  const chart = [n[0], n[2]].map((x) => x / (1 + Math.abs(n[1])));
+  const chart = [n[0], n[2]].map((x) => x / (1 + Math.sqrt(n[1] * n[1] + 0.025)));
   const cell = hex(
     chart.map((x, i) => (x + [0.031, -0.017][i]) / FERRO_SPACING),
   );
@@ -49,8 +49,8 @@ function field(
 ) {
   const form = smooth(0, 1, dev),
     lift = smooth(1, 2, dev);
-  const radii = [1.65, 0.3 + 0.018 * Math.sin(phase), 1.65].map((x) =>
-    mix(x, 0.96, lift),
+  const radii = [1.9, 0.24 + 0.018 * Math.sin(phase), 1.9].map((x) =>
+    mix(x, 1, lift),
   );
   radii[1] *= 1 + 0.025 * level * Math.sin(phase * 2);
   const centre = [0, 0.23 + 1.25 * lift + 0.035 * Math.sin(phase) * lift, 0];
@@ -71,9 +71,11 @@ function field(
     smooth(0.15, 0.5, k0),
   );
   const shell = smooth(0.3, 0.8, k0);
+  const r = Math.hypot(q[0], q[2]);
+  const ripple = (1 - form) * 0.006 * Math.sin(17 * r - 2 * phase) *
+    Math.exp(-0.45 * r * r) * smooth(0, 0.22, r) * smooth(0, 0.35, v[1]);
   return Math.max(
-    body -
-      form * (0.25 + 0.16 * lift) * fieldStrength * profile(v, lift) * shell,
+    body - (form * (0.25 + 0.16 * lift) * fieldStrength * profile(v, lift) + ripple) * shell,
     -p[1] - 0.003,
   );
 }
@@ -153,14 +155,15 @@ test("the shader remains pinned to the tested chart, lattice, profile and carrie
     "vec2 a = p - period * floor(p / period + 0.5);",
     "vec2 b = p - period * (floor(p / period) + 0.5);",
     "return dot(a, a) < dot(b, b) ? a : b;",
-    "vec2 chart = n.xz / (1.0 + abs(n.y));",
+    "vec2 chart = n.xz / (1.0 + sqrt(n.y * n.y + 0.025));",
     "ferroHex((chart + vec2(0.031, -0.017)) / 0.28) * 0.28",
     "float peak = max(0.0, 1.0 - length(cell) / 0.139);",
     "float spikes = peak * peak;",
     "float body = k0 * (k0 - 1.0) / max(k1, 0.0001);",
     "body = mix(-min(gRadii.x, gRadii.y), body, smoothstep(0.15, 0.5, k0));",
     "float shell = smoothstep(0.3, 0.8, k0);",
-    "return max(body - gAmp * ferroProfile(v) * shell, -p.y - 0.003);",
+    "return max(body - (gAmp * ferroProfile(v) + ripple) * shell, -p.y - 0.003);",
+    "float ripple = gRipple * sin(17.0 * r - 2.0 * gPhase) *",
   ])
     assert.ok(ferro.fragment.includes(source), source);
   const chartSource = ferro.fragment.slice(
@@ -197,20 +200,19 @@ test("the exact field is finite and continuous through the entire development, i
         Math.abs(field(p, boundary + 1e-6) - field(p, boundary - 1e-6)) < 1e-8,
       );
   }
-  // Stereographic hemispheres meet continuously at the equator.
-  for (let a = 0; a < TAU; a += 0.1)
-    assert.ok(
-      Math.abs(
-        profile([Math.cos(a), 1e-8, Math.sin(a)], 1) -
-          profile([Math.cos(a), -1e-8, Math.sin(a)], 1),
-      ) < 1e-10,
-    );
+  // The equator is C1, not merely C0: mirrored hemispheres have zero
+  // chart slope at the join, so the conductor normal cannot flip there.
+  for (let a = 0; a < TAU; a += 0.1) {
+    const at = (y) => profile([Math.cos(a), y, Math.sin(a)], 1);
+    assert.ok(Math.abs(at(1e-8) - at(-1e-8)) < 1e-10);
+    const h = 1e-6;
+    assert.ok(Math.abs((at(h) - at(0)) / h - (at(0) - at(-h)) / h) < 0.001);
+  }
 });
 
 test("carrier camera bounds, kick and persistent droplets stay bounded", () => {
-  // Any carrier is within 1.65 + max displacement 0.75 of its centre.
-  // The camera is 7.6 from its target, whose offset to the centre is < 0.4.
-  assert.ok(7.6 - 0.4 > 1.65 + 0.75 + 1.85 * 0.15);
+  // Bound includes maximum spikes, ripples and camera-target offset.
+  assert.ok(7.1 - 0.4 > 1.9 + 0.75 + 0.04 + 1.85 * 0.15);
   assert.match(ferro.fragment, /1\.0 \+ 0\.022 \* u_kick/);
   assert.match(
     ferro.fragment,
@@ -234,7 +236,7 @@ test("rate clocks stay periodic and continuous at 3600 seconds and 12 hours", ()
     const before = advanceClocks(state, ferro.clocks, t, params, 0.1).slice();
     const changed = params.map((p, i) => (i === 2 || i === 3 ? p * 1.5 : p));
     const after = advanceClocks(state, ferro.clocks, t + 1 / 60, changed, 0.9);
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       const delta = (after[i] - before[i] + TAU) % TAU;
       assert.ok(delta < 0.01 && Number.isFinite(delta));
     }

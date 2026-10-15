@@ -130,7 +130,7 @@ const presets = [
 ];
 
 const fragment = `${lateClockGlsl}
-float gForm, gLift, gPhase, gCam, gBreath, gAmp, gPixel, gWidth;
+float gForm, gLift, gPhase, gCam, gStudio, gBreath, gAmp, gPixel, gWidth, gRipple;
 vec3 gRadii, gCentre;
 mat2 gRotation;
 
@@ -145,7 +145,8 @@ vec2 ferroHex(vec2 p) {
 }
 float ferroProfile(vec3 q) {
   vec3 n = q / max(length(q), 0.00001);
-  vec2 chart = n.xz / (1.0 + abs(n.y));
+  // C1 hemisphere join: no abs(y) derivative flip / equatorial crease.
+  vec2 chart = n.xz / (1.0 + sqrt(n.y * n.y + 0.025));
   vec2 cell = ferroHex((chart + vec2(0.031, -0.017)) / 0.28) * 0.28;
   float peak = max(0.0, 1.0 - length(cell) / 0.139);
   // Peaks have conical tips and rounded shoulders, not plastic bubbles.
@@ -163,7 +164,10 @@ float ferroMap(vec3 p) {
   // exterior zero set, but keeps the entire field continuous on reversal.
   body = mix(-min(gRadii.x, gRadii.y), body, smoothstep(0.15, 0.5, k0));
   float shell = smoothstep(0.3, 0.8, k0);
-  return max(body - gAmp * ferroProfile(v) * shell, -p.y - 0.003);
+  float r = length(q.xz);
+  float ripple = gRipple * sin(17.0 * r - 2.0 * gPhase) *
+    exp(-0.45 * r * r) * smoothstep(0.0, 0.22, r) * smoothstep(0.0, 0.35, v.y);
+  return max(body - (gAmp * ferroProfile(v) + ripple) * shell, -p.y - 0.003);
 }
 vec2 ferroBound(vec3 ro, vec3 rd, vec3 c, float r) {
   vec3 p = ro - c;
@@ -198,17 +202,20 @@ float ferroBox(vec3 d, vec3 direction, float width, float height) {
   return panel * (0.7 + 0.3 * exp(-dot(uv, uv) * 0.8));
 }
 vec3 ferroStudio(vec3 d) {
-  vec3 primary = mix(u_primary, vec3(1.0), 0.82);
-  vec3 silver = mix(u_secondary, vec3(1.0), 0.76);
+  // The studio keeps moving even when the fluid-motion fader is zero.
+  d.xz = rot2(gStudio) * d.xz;
+  d.xy = rot2(0.16 * sin(gStudio)) * d.xy;
+  vec3 primary = mix(u_primary, vec3(1.0), 0.42);
+  vec3 silver = mix(u_secondary, vec3(1.0), 0.48);
   vec3 col = silver * (0.018 + 0.04 * smoothstep(-0.6, 0.7, d.y));
   // Large reflected diffusion cards describe the curvature between strips.
   col += silver * 0.22 * pow(max(dot(d, normalize(vec3(0.4, 0.8, 0.6))), 0.0), 7.0);
   col += primary * 0.12 * pow(max(dot(d, normalize(vec3(-0.8, 0.4, -0.4))), 0.0), 4.0);
-  col += silver * ferroBox(d, vec3(-0.25, 1.0, 0.2), 0.75, 0.4) * 0.28;
-  col += primary * ferroBox(d, vec3(-0.65, 0.65, 0.6), 0.31 * gWidth, 0.95) * 1.2;
-  col += mix(u_secondary, vec3(1.0), 0.6) * ferroBox(d, vec3(0.8, 0.45, 0.1), 0.65, 0.23 * gWidth) * 1.35;
-  col += primary * ferroBox(d, vec3(0.1, 0.25, -1.0), 0.075 * gWidth, 1.2) * 1.6;
-  col += u_accent * ferroBox(d, vec3(-0.85, 0.1, -0.5), 0.024 * gWidth, 0.6) * 1.2;
+  col += silver * ferroBox(d, vec3(-0.25, 1.0, 0.2), 1.2, 0.48) * 0.5;
+  col += primary * ferroBox(d, vec3(-0.65, 0.65, 0.6), 0.36 * gWidth, 1.15) * 1.3;
+  col += silver * ferroBox(d, vec3(0.8, 0.45, 0.1), 1.1, 0.25 * gWidth) * 1.5;
+  col += primary * ferroBox(d, vec3(0.1, 0.25, -1.0), 0.045 * gWidth, 1.4) * 2.0;
+  col += u_accent * ferroBox(d, vec3(-0.85, 0.1, -0.5), 0.018 * gWidth, 0.6) * 1.2;
   col += primary * 0.15 * exp(-sq((d.y - 0.06) / 0.09));
   return col;
 }
@@ -227,16 +234,19 @@ void main() {
 #ifdef PHOSPHOR_LATE
   gPhase = u_clock[0];
   gCam = u_clock[1];
+  gStudio = u_clock[2];
 #else
   gPhase = u_time * u_params[2] * 0.22;
   gCam = u_time * u_params[3] * 0.045;
+  gStudio = u_time * 0.065;
 #endif
   float seedAngle = float(u_seedBits % 997u) * 0.0063;
   gBreath = sin(gPhase);
   gRotation = rot2(0.15 * sin(gPhase) + seedAngle);
   float impulse = 1.0 + 0.11 * u_kick + 0.12 * u_rhythm.x;
   gAmp = gForm * (0.25 + 0.16 * gLift) * u_params[1] * impulse;
-  gRadii = mix(vec3(1.65, 0.30 + 0.018 * gBreath, 1.65), vec3(0.96), gLift);
+  gRipple = (1.0 - gForm) * (0.006 + 0.018 * u_kick + 0.012 * u_rhythm.x);
+  gRadii = mix(vec3(1.9, 0.24 + 0.018 * gBreath, 1.9), vec3(1.0), gLift);
   gRadii.y *= 1.0 + 0.035 * u_rhythm.y + 0.025 * u_level * sin(gPhase * 2.0);
   gCentre = vec3(0.0, 0.23 + 1.25 * gLift + 0.035 * sin(gPhase) * gLift, 0.0);
   gPixel = 1.0 / min(u_resolution.x, u_resolution.y);
@@ -245,11 +255,11 @@ void main() {
   float az = 0.55 + gCam + 0.08 * sin(gPhase);
   float el = 0.34 + 0.5 * u_params[4] + 0.02 * sin(gCam);
   vec3 target = vec3(0.0, 0.28 + 0.98 * gLift, 0.0);
-  vec3 ro = target + 7.6 * vec3(cos(el) * sin(az), sin(el), cos(el) * cos(az));
+  vec3 ro = target + 7.1 * vec3(cos(el) * sin(az), sin(el), cos(el) * cos(az));
   vec3 fw = normalize(target - ro), right = normalize(cross(fw, vec3(0.0, 1.0, 0.0)));
   vec3 up = cross(right, fw);
   vec2 uv = aspectUV() / min(u_resolution.x / u_resolution.y, 1.0);
-  float focal = 1.7 * u_params[7] * (1.0 + 0.022 * u_kick);
+  float focal = mix(1.8, 2.05, gLift) * u_params[7] * (1.0 + 0.022 * u_kick);
   vec3 accumulated = vec3(0.0);
   // Two deterministic subpixel rays resolve sharp conductor glints. There
   // is no temporal noise, so nothing shimmers when paused or at late times.
@@ -276,8 +286,8 @@ void main() {
         col += ferroMetal(rp, ferroNormal(rp, rt), reflection, 0.75) * 0.17 * pool * gLift;
       }
     }
-    float rim = exp(-sq((length(floorP.xz) - 2.3) / 0.032));
-    col += mix(u_primary, vec3(1.0), 0.65) * rim * 0.04;
+    float rim = exp(-sq((length(floorP.xz) - 2.3) / 0.024));
+    col += mix(u_primary, vec3(1.0), 0.4) * rim * 0.1;
   }
   float hit = ferroMarch(ro, rd);
   bool mainHit = hit < 90.0;
@@ -331,6 +341,7 @@ export default {
   clocks: [
     { rate: (p) => p[2] * 0.22, period: 2 * Math.PI },
     { rate: (p) => p[3] * 0.045, period: 2 * Math.PI },
+    { rate: () => 0.065, period: 2 * Math.PI },
   ],
   rhythm: [
     familyEffect(
