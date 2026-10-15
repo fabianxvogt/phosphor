@@ -316,7 +316,8 @@ uniform vec3 u_primary, u_secondary, u_accent;
 ${common}
 ${view}
 out vec3 v_normal, v_view;
-out float v_startle, v_density, v_kind, v_tip, v_depth;
+out float v_startle, v_density, v_kind, v_tip, v_depth, v_cover;
+out vec3 v_bary;
 void main() {
   gl_Position = vec4(2., 2., 2., 1.);
   uint key = muKey(), clock = muClock();
@@ -359,9 +360,25 @@ void main() {
   if (z < .3) return;
   float res = min(u_resolution.x, u_resolution.y);
   float span = kind > .5 ? .2 : .06;
-  // At least about 2.6 px wide at 1080p; birds by the lens shrink away.
+  // At least about 3 px wide at 1080p; birds by the lens shrink away.
   float px = span * cam.focal / z * res * .5;
-  float scale = max(1., 2.6 * res / 1080. / px) * muSmooth(.3, 1.1, z);
+  float grow = max(1., 3. * res / 1080. / px);
+  float scale = grow * muSmooth(.3, 1.1, z);
+  // Small birds: body width and wing chord (0.2 and 0.28 template units)
+  // would be sub-pixel slivers that flicker in and out of pixels, so they
+  // thicken to about 2 px and their light spreads over the larger footprint
+  // (v_cover, a cheap coverage antialiasing).
+  float fat = clamp(9. * res / 1080. / (px * grow), 1., 3.);
+  if (gl_VertexID % 12 < 6) local.z *= fat;
+  else local.x = -.05 + (local.x + .05) * fat;
+  v_cover = 1. / (grow * fat);
+  // Barycentrics for edge antialiasing. Inner edges (the body's centre line,
+  // the wing roots inside the body) are held at 1 so they never darken.
+  int corner = gl_VertexID % 3, tri = (gl_VertexID % 12) / 3;
+  v_bary = vec3(corner == 0, corner == 1, corner == 2);
+  if (tri < 2) v_bary.x = 1.;
+  else if (tri == 2) v_bary.z = 1.;
+  else v_bary.y = 1.;
   vec3 world = p + (fw * local.x + nrm * local.y + side * local.z) * span * scale;
   vec3 rel = world - cam.eye;
   float vz = dot(rel, cam.fwd);
@@ -381,7 +398,8 @@ const surface = `#version 300 es
 precision highp float;
 precision highp int;
 in vec3 v_normal, v_view;
-in float v_startle, v_density, v_kind, v_tip, v_depth;
+in float v_startle, v_density, v_kind, v_tip, v_depth, v_cover;
+in vec3 v_bary;
 uniform highp sampler2D u_state;
 uniform highp uint u_seedBits;
 uniform float u_params[8];
@@ -402,9 +420,12 @@ void main() {
   // N faces the viewer: front-lit birds sparkle, backlit birds silhouette.
   float key = max(0., dot(N, K));
   float trans = pow(max(0., dot(-V, K)), 4.);
-  float spec = pow(max(0., dot(reflect(-K, N), V)), 18.);
-  float fres = pow(1. - abs(dot(N, V)), 3.);
-  vec3 irid = mix(u_secondary, u_primary, fract(.2 + .7 * dot(N, V) + .25 * v_tip));
+  // Sub-pixel birds lose the glints that would twinkle from frame to frame:
+  // sheen and fresnel fade to their mean, iridescence to its mid tone.
+  float detail = muSmooth(.3, .8, v_cover);
+  float spec = mix(.03, pow(max(0., dot(reflect(-K, N), V)), 18.), detail);
+  float fres = mix(.15, pow(1. - abs(dot(N, V)), 3.), detail);
+  vec3 irid = mix(mix(u_secondary, u_primary, .55), mix(u_secondary, u_primary, fract(.2 + .7 * dot(N, V) + .25 * v_tip)), detail);
   vec3 warm = mix(u_primary, vec3(1.), .3);
   vec3 col = u_secondary * .015;
   col += warm * key * .9 * light;
@@ -418,7 +439,14 @@ void main() {
   col += irid * (spec + .2) * u_rhythm.x * .6;
   if (v_kind > .5) col = mix(u_accent, vec3(1.), .2) * (.5 + .9 * fres + spec);
   // Aerial perspective: distance takes the sky's colour.
-  col = mix(col, muSky(-V), 1. - exp(-v_depth * .018));
+  vec3 sky = muSky(-V);
+  col = mix(col, sky, 1. - exp(-v_depth * .018));
+  // Coverage: a bird drawn larger than it is shows its light spread thinly,
+  // and outer edges fade into the sky over about a pixel.
+  float e = min(v_bary.x, min(v_bary.y, v_bary.z));
+  float edge = clamp(e / max(fwidth(e), 1e-6) + .5, 0., 1.);
+  // (Dense clouds have birds, not sky, behind those edges: fade only half.)
+  col = mix(sky, col, (.45 + .55 * v_cover) * mix(.5, 1., edge));
   outColor = vec4(col, 1.);
 }
 `;
