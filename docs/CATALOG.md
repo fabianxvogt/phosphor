@@ -85,6 +85,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Moon Tide](families/tide.md) (world Moon Tide / Mondflut) | tide | Deep-water Gerstner dispersion and a continuous spiral heightfield | Calm / Swell / Maelstrom | 8 |
 
 | [Liquid Chrome](families/ferro.md) | ferro | Raymarched ferrofluid with a Rosensweig hexagonal spike lattice and procedural studio reflections | Pool / Crown / Sculpture | 8 |
+| [Kinetic Rain](families/kinetic.md) (world Kinetic Rain) | kinetic | Kinetic sphere lattice: travelling-wave heightfields and morphing parametric surfaces on one index grid | Ceiling / Waves / Sculpture | 8 |
 
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 
