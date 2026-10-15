@@ -184,6 +184,17 @@ const AUTHORED = [
       { name: "Reef", look: "abyss:Lantern Reef" },
     ],
   },
+  {
+    id: "kinetic-rain",
+    name: "Kinetic Rain",
+    description:
+      "Thousands of glowing spheres on threads hang level under the ceiling, break into interfering wave choreographies and gather into one floating surface that morphs from sphere to torus, Möbius band and saddle. The same spheres throughout.",
+    states: [
+      { name: "Ceiling", look: "kinetic:Still Ceiling" },
+      { name: "Waves", look: "kinetic:Wave Choreography" },
+      { name: "Sculpture", look: "kinetic:Floating Sculpture" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

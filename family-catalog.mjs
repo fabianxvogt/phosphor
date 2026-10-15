@@ -49,6 +49,14 @@ export const FAMILY_CATALOG = {
     styles: ["organic", "spatial", "particles"],
     variants: ["Sparks", "Swarms", "Reef"],
   },
+  kinetic: {
+    algorithm:
+      "Kinetic sphere lattice: travelling-wave heightfields and morphing parametric surfaces on one index grid",
+    description:
+      "A club kinetic installation: thousands of glowing spheres on threads ripple under a motor ceiling, run interfering wave choreographies and gather into one floating surface that morphs between sphere, torus, Möbius band and saddle.",
+    styles: ["geometric", "spatial"],
+    variants: ["Ceiling", "Waves", "Sculpture"],
+  },
   descent: {
     algorithm: "Raymarched multi-scale sponge with a morphing coarse carving",
     description:

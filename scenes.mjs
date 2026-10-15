@@ -2,6 +2,7 @@ import metamorphosis from "./scene-metamorphosis.mjs";
 import crystal from "./scene-crystal.mjs";
 import fold from "./scene-fold.mjs";
 import abyss from "./scene-abyss.mjs";
+import kinetic from "./scene-kinetic.mjs";
 import acid from "./scene-acid.mjs";
 import magnetic from "./scene-magnetic.mjs";
 import cathedral from "./scene-cathedral.mjs";
@@ -102,6 +103,7 @@ export default [
   afterglow,
   horizon,
   abyss,
+  kinetic,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
