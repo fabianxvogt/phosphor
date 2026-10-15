@@ -163,39 +163,11 @@ vec4 tdWave(int i) {
   float amp=amplitude*u_params[2]*mix(.48,2.35,swell);
   return vec4(k*cos(angle), k*sin(angle), amp, phase);
 }
-`;
-const precompute = `${common}
-void main() { outColor = tdWave(int(gl_FragCoord.x)); }
-`;
-
-const fragment = `${common}
-#ifdef PRECOMPUTED
-uniform highp sampler2D u_precomputed;
-#endif
-vec4 gW[6];
-float gVortex, gSwell, gFlow, gPixel, gWavePhase;
-vec3 gMoon;
-// Newton inversion of Gerstner's horizontal map. Its Jacobian has
-// lambda_min >= 1 - sum(Q*k*A) >= .446 over the ENTIRE schema range.
-vec2 tdMaterial(vec2 x) {
-  vec2 q=x;
-  for(int iteration=0;iteration<2;iteration++) {
-    vec2 displacement=vec2(0.);
-    float jxx=1., jxz=0., jzz=1.;
-    for(int i=0;i<6;i++) {
-      vec4 w=gW[i]; float k=length(w.xy), phase=dot(w.xy,q)+w.w;
-      displacement += .65*w.z*(w.xy/k)*cos(phase);
-      float v=.65*w.z*sin(phase)/k;
-      jxx-=v*w.x*w.x; jxz-=v*w.x*w.y; jzz-=v*w.y*w.y;
-    }
-    vec2 error=q+displacement-x;
-    q-=vec2(jzz*error.x-jxz*error.y,jxx*error.y-jxz*error.x)/(jxx*jzz-jxz*jxz);
-  }
-  return q;
-}
-vec3 tdBowl(vec2 p) {
+float gVortex, gFlow;
+vec3 tdBowlExact(vec2 p) {
+  if(gVortex==0.) return vec3(0.);
   float r=max(length(p),.001), a=atan(p.y,p.x);
-  float depression=-27.*exp(-r*r/245.);
+  float depression=-42.*exp(-r*r/190.);
   float lip=3.8*exp(-sq((r-23.)/7.));
   // Integer angular harmonics keep the atan seam EXACTLY periodic.
   float meander=3.*a-.12*r+gFlow;
@@ -206,11 +178,97 @@ vec3 tdBowl(vec2 p) {
   float envelope=gaussian*window;
   float derivative=gaussian*(r<4.?1.5*inner*(1.-inner):0.)-envelope*2.*(r-20.)/289.;
   float spiral=.8*sin(phase)*envelope;
-  float dr=-depression*2.*r/245.-lip*2.*(r-23.)/49.;
+  float dr=-depression*2.*r/190.-lip*2.*(r-23.)/49.;
   dr+=.8*(envelope*(.44-.0336*cos(meander))*cos(phase)+derivative*sin(phase));
   float da=.8*(5.+.84*cos(meander))*cos(phase)*envelope;
   vec2 gradient=dr*p/r+da*vec2(-p.y,p.x)/(r*r);
   return gVortex*vec3(depression+lip+spiral,gradient);
+}
+`;
+const precompute = `${common}
+void main() {
+  ivec2 cell=ivec2(gl_FragCoord.xy);
+  if(cell.y==0) {
+    outColor=cell.x<6?tdWave(cell.x):vec4(0.);
+    return;
+  }
+  gVortex=smoothstep(1.,2.,u_params[0]);
+  gFlow=mod(tdFlowClock(),TAU);
+  vec2 p=(vec2(cell.x,cell.y-1)/255.-.5)*128.;
+  outColor=vec4(tdBowlExact(p),0.);
+}
+`;
+
+const fragment = `${common}
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+#endif
+vec4 gW[6];
+float gK[6];
+vec2 gD[6];
+float gSwell, gPixel, gWavePhase, gWaveHeight;
+vec3 gMoon;
+// Quintic gradient noise: zero value at lattice vertices, continuous first
+// AND second derivatives across the lattice. Foam never thresholds cell values.
+vec2 tdGradient(vec2 p) {
+  vec2 g=fract(tdHash(p)*vec2(1.,37.))*2.-1.;
+  return g*inversesqrt(max(dot(g,g),.01));
+}
+float tdLace(vec2 p) {
+  vec2 i=floor(p), f=fract(p), s=f*f*f*(f*(6.*f-15.)+10.);
+  return mix(mix(dot(tdGradient(i),f),dot(tdGradient(i+vec2(1,0)),f-vec2(1,0)),s.x),
+             mix(dot(tdGradient(i+vec2(0,1)),f-vec2(0,1)),dot(tdGradient(i+vec2(1)),f-vec2(1)),s.x),s.y);
+}
+// Sparse Gaussian droplets: the cell is only a candidate lookup, never a
+// shaded square. Each point vanishes well before its cell border; widen by
+// the pixel footprint and conserve its integrated flux when subpixel.
+float tdDroplets(vec2 p, float fp) {
+  vec2 cell=floor(p), f=fract(p);
+  float rnd=tdHash(cell+43.);
+  vec2 center=.25+.5*vec2(tdHash(cell+11.),tdHash(cell+29.));
+  float variance=.0012+min(.012,fp*fp*.7);
+  return exp(-dot(f-center,f-center)/variance)*(.0012/variance)
+    *smoothstep(.91,.96,rnd)*(1.-smoothstep(.15,.45,fp));
+}
+// Newton inversion of Gerstner's horizontal map. Its Jacobian has
+// lambda_min >= 1 - sum(Q*k*A) >= .446 over the ENTIRE schema range.
+vec2 tdMaterial(vec2 x) {
+  vec2 q=x;
+  for(int iteration=0;iteration<2;iteration++) {
+    vec2 displacement=vec2(0.);
+    float jxx=1., jxz=0., jzz=1.;
+    for(int i=0;i<6;i++) {
+      vec4 w=gW[i]; float k=gK[i], phase=dot(w.xy,q)+w.w;
+      displacement += .65*w.z*gD[i]*cos(phase);
+      float v=.65*w.z*sin(phase)/k;
+      jxx-=v*w.x*w.x; jxz-=v*w.x*w.y; jzz-=v*w.y*w.y;
+    }
+    vec2 error=q+displacement-x;
+    q-=vec2(jzz*error.x-jxz*error.y,jxx*error.y-jxz*error.x)/(jxx*jzz-jxz*jxz);
+  }
+  return q;
+}
+vec3 tdBowl(vec2 p) {
+  if(gVortex==0.) return vec3(0.);
+#ifdef PRECOMPUTED
+  // A world-space data table, never a cached picture: 256² samples of the
+  // authored bowl height and analytic gradient, refreshed every frame.
+  // Wave inversion, crests, lighting and foam still run at full resolution.
+  // Keep the small polar core exact, where angular gradients turn fastest.
+  if(max(abs(p.x),abs(p.y))<63.5 && dot(p,p)>36.) {
+    vec2 grid=(p/128.+.5)*255.;
+    ivec2 cell=ivec2(floor(grid))+ivec2(0,1);
+    vec2 f=fract(grid);
+    vec3 data=mix(mix(texelFetch(u_precomputed,cell,0).xyz,
+                      texelFetch(u_precomputed,cell+ivec2(1,0),0).xyz,f.x),
+                  mix(texelFetch(u_precomputed,cell+ivec2(0,1),0).xyz,
+                      texelFetch(u_precomputed,cell+ivec2(1),0).xyz,f.x),f.y);
+    float blend=smoothstep(36.,64.,dot(p,p))*(1.-smoothstep(62.,63.5,max(abs(p.x),abs(p.y))));
+    if(blend<1.) return mix(tdBowlExact(p),data,blend);
+    return data;
+  }
+#endif
+  return tdBowlExact(p);
 }
 vec2 tdSea(vec2 x) {
   vec2 q=tdMaterial(x);
@@ -218,7 +276,7 @@ vec2 tdSea(vec2 x) {
   for(int i=0;i<6;i++) {
     vec4 w=gW[i]; float s=sin(dot(w.xy,q)+w.w);
     h+=w.z*s;
-    crest+=length(w.xy)*w.z*s;
+    crest+=gK[i]*w.z*s;
   }
   return vec2(h+tdBowl(x).x,crest);
 }
@@ -230,7 +288,7 @@ vec4 tdSurface(vec2 x) {
   float jxx=1., jxz=0., jzz=1., h=0., crest=0.;
   for(int i=0;i<6;i++) {
     vec4 w=gW[i]; float phase=dot(w.xy,q)+w.w;
-    float s=sin(phase), c=cos(phase), k=length(w.xy);
+    float s=sin(phase), c=cos(phase), k=gK[i];
     h+=w.z*s; crest+=k*w.z*s;
     gradient+=w.z*w.xy*c;
     float v=.65*w.z*s/k;
@@ -261,22 +319,36 @@ vec3 tdSky(vec3 d, bool stars) {
   }
   return col;
 }
-// A safeguarded regula-falsi solve on a heightfield. The upper/lower height
-// planes bracket the ocean. The finite capped solve keeps cost independent
+// A safeguarded Illinois regula-falsi solve on a heightfield. Conservative
+// ray-specific height planes bracket the ocean. The capped solve keeps cost independent
 // of horizon distance; far waves dissolve into horizon haze.
 float tdIntersect(vec3 ro, vec3 rd) {
   if(rd.y>=-.006) return -1.;
-  float lo=0., hi=min(700.,(-38.-ro.y)/rd.y);
-  float flo=ro.y-tdSea(ro.xz).x;
+  // Conservative ray-specific height slab: the depression along the ray
+  // cannot exceed its value at the closest projected approach to the axis.
+  // Outside the funnel this avoids solving against a fictitious -55 m sea.
+  float closest=max(0.,-dot(ro.xz,rd.xz)/max(dot(rd.xz,rd.xz),.0001));
+  vec2 nearAxis=ro.xz+rd.xz*closest;
+  // Include the table cell's full diagonal in the radial lower bound.
+  float nearRadius=max(0.,length(nearAxis)-.72);
+  float lower=-gWaveHeight-gVortex*(.8+42.*exp(-nearRadius*nearRadius/190.));
+  float upper=gWaveHeight+4.6*gVortex;
+  float lo=max(0.,(upper-ro.y)/rd.y), hi=min(700.,(lower-ro.y)/rd.y);
+  if(lo>=hi) return -1.;
+  float flo=(ro+rd*lo).y-tdSea((ro+rd*lo).xz).x;
   float fhi=(ro+rd*hi).y-tdSea((ro+rd*hi).xz).x;
   if(fhi>0.) return -1.;
   float t=lo;
+  int previous=0;
   for(int i=0;i<15;i++) {
     t=mix(lo,hi,clamp(flo/(flo-fhi),.08,.92));
     vec3 p=ro+rd*t;
     float f=p.y-tdSea(p.xz).x;
     if(abs(f)<.008+gPixel*t*.2) break;
-    if(f>0.) {lo=t; flo=f;} else {hi=t; fhi=f;}
+    // Halve only the stale endpoint's secant weight, never its position.
+    // This avoids the slow one-sided convergence of ordinary false position.
+    if(f>0.) {lo=t; flo=f; if(previous==1) fhi*=.5; previous=1;}
+    else {hi=t; fhi=f; if(previous==-1) flo*=.5; previous=-1;}
   }
   return t;
 }
@@ -287,16 +359,22 @@ void main() {
   gWavePhase=mod(tdWaveClock(),TAU);
   gPixel=2./min(u_resolution.x,u_resolution.y);
   gMoon=normalize(vec3(.27,u_params[5],-1.));
+  gWaveHeight=0.;
   for(int i=0;i<6;i++) {
 #ifdef PRECOMPUTED
     gW[i]=texelFetch(u_precomputed,ivec2(i,0),0);
 #else
     gW[i]=tdWave(i);
 #endif
+    gK[i]=length(gW[i].xy);
+    gD[i]=gW[i].xy/gK[i];
+    gWaveHeight+=gW[i].z;
   }
   float orbit=mod(tdOrbitClock(),TAU);
-  vec3 ro=vec3(5.*sin(orbit),mix(4.8+1.6*gSwell+3.*u_params[6],33.+13.*u_params[6],gVortex),54.+3.*cos(orbit));
-  vec3 target=vec3(0.,mix(2.,-4.,gVortex),mix(-30.,0.,gVortex));
+  float radius=mix(54.+3.*cos(orbit),45.+2.*cos(2.*orbit),gVortex);
+  vec3 ro=vec3(mix(5.*sin(orbit),radius*sin(orbit),gVortex),
+    mix(4.8+1.6*gSwell+3.*u_params[6],35.+12.*u_params[6]+2.*sin(orbit),gVortex),mix(radius,radius*cos(orbit),gVortex));
+  vec3 target=vec3(0.,mix(2.,-5.,gVortex),mix(-30.,0.,gVortex));
   vec3 fw=normalize(target-ro), rt=normalize(cross(fw,vec3(0,1,0))), up=cross(rt,fw);
   vec2 uv=2.*aspectUV();
   float focal=1.5*(1.+.022*u_kick);
@@ -305,12 +383,26 @@ void main() {
   float t=tdIntersect(ro,rd);
   vec3 p=ro+rd*max(t,0.);
   // Footprints outside divergent flow, including on the horizon quads.
-  float footprint=max(gPixel*max(t,1.),.018);
+  float footprint=max(max(length(dFdx(p.xz)),length(dFdy(p.xz))),.012);
   vec4 surface=tdSurface(p.xz);
+  float crestAA=max(.008,1.5*fwidth(surface.w));
+  // These derivatives are outside the water branch, including horizon quads.
+  vec2 windUV=vec2(.83*p.x+.56*p.z,-.56*p.x+.83*p.z)*vec2(.85,1.50);
+  // Smooth domain bending removes even the implicit gradient lattice from
+  // the lace; the separate wind filaments remain gently anisotropic.
+  windUV+=.9*vec2(sin(.16*p.x+.21*p.z+gFlow),cos(.23*p.x-.14*p.z-2.*gFlow));
+  windUV+=vec2(cos(gFlow),sin(gFlow))*.65;
+  float lace=tdLace(windUV);
+  float fineLace=tdLace(windUV*2.7+vec2(17.,9.));
+  float laceAA=max(.025,1.5*fwidth(lace));
+  float armPhase=5.*atan(p.z,p.x)+.44*length(p.xz)-2.*gFlow
+    +.28*sin(3.*atan(p.z,p.x)-.12*length(p.xz)+gFlow);
+  // Differentiate sin, not atan: no artificially broad line at the polar seam.
+  float armWave=sin(armPhase), armAA=max(.025,1.5*fwidth(armWave));
   float h=surface.x;
   vec3 normal=normalize(vec3(-surface.y,1.,-surface.z));
   if(t>0.) {
-    float r=length(p.xz), a=atan(p.z,p.x);
+    float r=length(p.xz);
     float wind=u_params[7]*(.25+.75*u_level);
     // Band-limited capillary ripples alter normals, not the silhouette.
     float keep=1.-smoothstep(.12,.5,footprint);
@@ -329,15 +421,23 @@ void main() {
     float glitter=pow(nh,180.)*2.2+pow(nh,32.)*.09;
     col+=mix(u_primary,vec3(1.),.45)*glitter*(.2+.8*fresnel);
     float crest=surface.w;
-    float texture=mix(.5,tdNoise(p.xz*1.6+vec2(cos(gFlow),sin(gFlow))),1.-smoothstep(.3,1.,footprint*1.6));
-    float foam=smoothstep(mix(.014,.065,gSwell),mix(.095,.32,gSwell),crest)*smoothstep(.30,.68,texture);
-    foam*=mix(.20,1.,gSwell);
-    float armPhase=5.*a+.44*r-2.*gFlow+.28*sin(3.*a-.12*r+gFlow);
-    float spiral=pow(.5+.5*sin(armPhase),22.)*exp(-sq((r-21.)/17.))*gVortex;
-    float veins=mix(.5,tdNoise(p.xz*5.),1.-smoothstep(.3,1.,footprint*5.));
-    float filaments=.65+.35*sin(p.x*8.+p.z*3.+3.*texture)*(1.-smoothstep(.5,1.5,footprint*8.));
-    float living=foam*(.35+.85*veins)*filaments+spiral*(.3+.7*texture);
-    living*=u_params[3];
+    float crestMask=smoothstep(mix(.035,.14,gSwell)-crestAA,mix(.075,.29,gSwell)+crestAA,crest);
+    float laceKeep=1.-smoothstep(.3,1.2,footprint*1.50);
+    float ridge=abs(lace+.22*fineLace-.035);
+    float threads=1.-smoothstep(.035-laceAA,.11+laceAA,ridge);
+    float streak=.5+.5*sin((-p.x*.56+p.z*.83)*7.+5.*lace);
+    float filamentKeep=1.-smoothstep(.25,.9,footprint*7.);
+    float lacy=mix(.27,.07+.84*threads+.09*streak*filamentKeep,laceKeep);
+    float foam=crestMask*lacy*mix(.10,1.,gSwell);
+    float inner=smoothstep(3.,8.,r);
+    float spiral=smoothstep(.76-armAA,.97+armAA,armWave)*exp(-sq((r-18.)/19.))*inner*gVortex;
+    float lip=exp(-sq((r-22.5)/1.35))*gVortex;
+    float coreWidth=.018+.45*armAA;
+    float spiralCore=exp(-(1.-armWave)/coreWidth)*(.018/coreWidth)
+      *exp(-sq((r-17.)/17.))*inner*gVortex;
+    float spark=.5+.5*sin(.51*p.x-.37*p.z+3.*gWavePhase+4.*lace);
+    float ignition=.46+.72*spark*spark+.45*u_kick*pow(spark,4.);
+    float living=(foam*4.+spiral*(.50+2.6*threads*laceKeep)+lip*(.30+.6*threads))*u_params[3]*ignition;
     // Local gestures: an advected foam crest, a luminous spiral ridge, and
     // one broad incoming ring. None changes time or seed identity.
     float packet=pow(.5+.5*sin(.17*p.x+.22*p.z-gWavePhase*2.),8.);
@@ -345,16 +445,35 @@ void main() {
     living+=spiral*u_rhythm.y*.5;
     float ring=exp(-sq((r-(10.+30.*(1.-u_rhythm.z)))/1.8));
     living+=gVortex*ring*u_rhythm.z*.3;
-    vec3 bio=mix(u_primary,u_secondary,.4);
-    col+=bio*living*1.45;
-    col+=u_accent*(pow(max(0.,living-.65),3.)*.65+spiral*pow(texture,4.)*.32);
-    col+=u_secondary*gVortex*exp(-r*r/500.)*max(0.,1.-normal.y)*.045;
-    // Fine wind-torn spindrift, tied to the crests rather than screen noise.
-    float spray=pow(tdNoise(p.xz*8.),14.)*foam*wind*(1.-smoothstep(.35,1.,footprint*8.));
-    col+=u_primary*spray*3.;
-    float fog=1.-exp(-t*.006);
+    // The throat loses reflected light exponentially; luminous arms remain
+    // visible down its walls. The small subsurface pool is deliberately faint.
+    float depth=exp(min(0.,h)*.072*gVortex);
+    col*=mix(1.,depth,gVortex);
+    float bioDepth=mix(1.,.32+.68*depth,gVortex);
+    vec3 bio=mix(u_secondary,u_primary,.20);
+    col+=bio*living*bioDepth*1.75;
+    float hot=pow(spark,16.)*smoothstep(.85,1.55,living);
+    col+=mix(u_accent,u_primary,.15)*hot*(foam+spiral)*5.;
+    col+=u_primary*threads*threads*(foam+spiral*.3)*.20;
+    col+=mix(u_secondary,u_accent,.24)*spiralCore*ignition*bioDepth*2.8*u_params[3];
+    col+=mix(u_secondary,u_accent,.15)*gVortex*exp(-r*r/55.)*.25;
+    // Smooth subpixel-filtered wind-torn droplets, not thresholded cells.
+    float spray=tdDroplets(windUV*1.8,footprint*2.7)*(crestMask+spiral)*wind;
+    col+=mix(u_accent,u_primary,.35)*spray*9.;
+    col+=u_secondary*lip*(.025+.035*lace)*wind;
+    float fog=1.-exp(-t*.0045);
     col=mix(col,tdSky(vec3(rd.x,.012,rd.z),false),fog);
   }
+  // A shallow mist/spray layer above the funnel lip. The water hit masks it
+  // correctly; it is analytic suspended spray, not an airborne simulation.
+  float mistT=(6.-ro.y)/min(rd.y,-.001);
+  vec3 mistP=ro+rd*max(0.,mistT);
+  float mistFP=max(length(dFdx(mistP.xz)),length(dFdy(mistP.xz)));
+  float mistRadius=length(mistP.xz);
+  float mistRing=exp(-sq((mistRadius-22.5)/3.2))*gVortex;
+  float mistVisible=mistT>0. && (t<0. || mistT<t)?1.:0.;
+  float mistSpark=tdDroplets(mistP.xz*.65+vec2(cos(gFlow),sin(gFlow)),mistFP*.65);
+  col+=mistVisible*mistRing*(u_secondary*.022+mix(u_primary,u_accent,.2)*mistSpark*7.)*u_params[3];
   outColor=vec4(max(col,vec3(0.)),1.);
 }
 `;
@@ -405,5 +524,5 @@ export default {
     ),
   ],
   fragment,
-  precompute: { fragment: precompute, size: [6, 1] },
+  precompute: { fragment: precompute, size: [256, 257] },
 };
