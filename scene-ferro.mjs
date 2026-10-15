@@ -147,10 +147,15 @@ float ferroProfile(vec3 q) {
   vec3 n = q / max(length(q), 0.00001);
   // C1 hemisphere join: no abs(y) derivative flip / equatorial crease.
   vec2 chart = n.xz / (1.0 + sqrt(n.y * n.y + 0.025));
-  vec2 cell = ferroHex((chart + vec2(0.031, -0.017)) / 0.28) * 0.28;
-  float peak = max(0.0, 1.0 - length(cell) / 0.139);
+  vec2 grid = (chart + vec2(0.031, -0.017)) / 0.28;
+  vec2 local = ferroHex(grid);
+  vec2 site = grid - local;
+  float cohort = fract(dot(site, vec2(0.754877666, 0.569840296)));
+  // Fixed maximal lattice: energy raises dormant sites, never slides them.
+  float population = smoothstep(cohort - 0.14, cohort + 0.14, 0.2 + 0.8 * u_level);
+  float peak = max(0.0, 1.0 - length(local) * 0.28 / 0.139);
   // Peaks have conical tips and rounded shoulders, not plastic bubbles.
-  float spikes = peak * peak;
+  float spikes = peak * peak * mix(0.12, 1.0, population);
   float upper = mix(smoothstep(-0.1, 0.3, n.y), 1.0, gLift);
   return spikes * upper;
 }
@@ -175,7 +180,13 @@ vec2 ferroBound(vec3 ro, vec3 rd, vec3 c, float r) {
   return h < 0.0 ? vec2(1.0, -1.0) : vec2(-b - sqrt(h), -b + sqrt(h));
 }
 float ferroMarch(vec3 ro, vec3 rd) {
-  vec2 bound = ferroBound(ro, rd, gCentre, max(gRadii.x, gRadii.y) + gAmp + 0.025);
+  // The expanded ellipsoid contains its offset surface (sqrt(3) margin).
+  // In Pool this rejects the enormous empty volume of a sphere bound.
+  vec3 extent = gRadii + vec3(1.733 * (gAmp + gRipple) + 0.025);
+  vec3 p = (ro - gCentre) / extent, v = rd / extent;
+  float a = dot(v, v), b = dot(p, v), h = b * b - a * (dot(p, p) - 1.0);
+  if (h < 0.0) return 100.0;
+  vec2 bound = vec2(-b - sqrt(h), -b + sqrt(h)) / a;
   float t = max(bound.x, 0.0);
   for (int i = 0; i < 144; ++i) {
     if (t > bound.y) break;
@@ -218,6 +229,18 @@ vec3 ferroStudio(vec3 d) {
   col += u_accent * ferroBox(d, vec3(-0.85, 0.1, -0.5), 0.018 * gWidth, 0.6) * 1.2;
   col += primary * 0.15 * exp(-sq((d.y - 0.06) / 0.09));
   return col;
+}
+vec3 ferroValley(vec3 p, vec3 n, vec3 rd, float profile) {
+  if (gForm < 0.001) return vec3(1.0);
+  vec3 reflected = reflect(rd, n);
+  float nearD = ferroMap(p + reflected * 0.075);
+  float farD = ferroMap(p + reflected * 0.19);
+  float visibility = clamp(min(nearD / 0.052, farD / 0.13), 0.0, 1.0);
+  // A single environment bounce about the carrier normal approximates
+  // neighbouring chrome walls; no recursive ray march / extra normal.
+  vec3 carrierNormal = normalize((p - gCentre) / (gRadii * gRadii));
+  vec3 bounce = ferroStudio(reflect(reflected, carrierNormal));
+  return mix(vec3(0.35) + bounce * 0.16, vec3(1.0), visibility);
 }
 vec3 ferroMetal(vec3 p, vec3 n, vec3 rd, float cavity) {
   vec3 reflection = reflect(rd, n);
@@ -296,9 +319,14 @@ void main() {
     vec3 p = ro + rd * hit;
     normal = ferroNormal(p, hit);
     vec3 q = p - gCentre; q.xz = gRotation * q.xz;
-    float cavity = 0.55 + 0.45 * ferroProfile(q / gRadii);
-    cavity = mix(1.0, cavity, gForm);
-    col = ferroMetal(p, normal, rd, cavity);
+    float profile = ferroProfile(q / gRadii);
+    float cavity = mix(1.0, 0.62 + 0.38 * profile, gForm);
+    col = ferroMetal(p, normal, rd, cavity) * ferroValley(p, normal, rd, profile);
+    // A small hot reflection at the active tips, not an emissive paint coat.
+    vec3 tipLight = normalize(vec3(cos(gStudio), 0.65, sin(gStudio)));
+    float tip = smoothstep(0.38, 0.8, profile) *
+      pow(max(dot(reflect(rd, normal), tipLight), 0.0), 18.0);
+    col += mix(u_primary, u_accent, 0.8) * tip * 2.0 * gForm;
     col *= 0.7 + 0.3 * smoothstep(-0.05, 0.25, p.y);
   }
   // Persistent satellite indices; radius grows continuously out of the body.
