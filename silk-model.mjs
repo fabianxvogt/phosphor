@@ -23,7 +23,7 @@ export function identity(seed, id) {
   return [rand(), rand(), rand()];
 }
 // Integrated tangent (cos(a sin q), sin(a sin q)), Bessel series through J4.
-// For a <= .72 the omitted terms bound the longitudinal strain below .02%.
+// At a <= 1.08 the omitted terms bound the tangent strain below .15%.
 export function flutter(s, phase, a = 0.5) {
   const k = (TAU * 1.5) / LENGTH,
     a2 = a * a;
@@ -63,7 +63,7 @@ export function point(u, v, id, rnd, state = {}) {
     spread = 1,
     width = 1,
   } = state;
-  const b = smooth(development),
+  const b = smooth(development / 0.82),
     t = smooth((development - 1) / 0.72);
   const g = (id + v) / STRIPS;
   const phi = phase + g * 0.28 + b * rnd[0] * TAU;
@@ -75,17 +75,36 @@ export function point(u, v, id, rnd, state = {}) {
     0.035 * Math.sin(3 * q + g * 14) + 0.016 * Math.sin(7 * q - g * 22);
   const x = fl[0] - Math.sin(angleW) * wrinkle,
     z = fl[1] + Math.cos(angleW) * wrinkle;
-  const s0 = [x - LENGTH * 0.47, (g - 0.5) * 8.4, z];
+  // Oblique material chart: a generalized cylinder, not a displaced flat flag.
+  // Rotation of the chart preserves the metric; waves travel across the sheet.
+  const mx = (u - 0.5) * LENGTH,
+    my = (g - 0.5) * 8.4,
+    along = mx * 0.8 + my * 0.6 + 7.32,
+    across = -mx * 0.6 + my * 0.8;
+  const veilPhase = phase + 0.38 * Math.sin(across * 0.45 + phase);
+  const veilAmplitude =
+    0.72 * amplitude * (0.85 + 0.15 * Math.cos(across * 0.55));
+  const centre = flutter(7.32 * 1.55, veilPhase, veilAmplitude);
+  const vf = flutter(along * 1.55, veilPhase, veilAmplitude).map(
+    (x, k) => (x - centre[k]) / 1.55,
+  );
+  vf[1] += 0.3 * Math.cos(phase);
+  const vq = (TAU * 1.5 * along * 1.55) / LENGTH - veilPhase;
+  const va = veilAmplitude * Math.sin(vq);
+  const fine = 0.027 * Math.sin(3 * vq) + 0.008 * Math.sin(7 * vq);
+  vf[0] -= Math.sin(va) * fine;
+  vf[1] += Math.cos(va) * fine;
+  const s0 = [vf[0] * 0.8 - across * 0.6, vf[0] * 0.6 + across * 0.8, vf[1]];
   const yy = (v - 0.5) * (0.38 + 0.48 * rnd[1]) * width;
   const torsion = 0.62 * Math.sin(2 * q + rnd[2] * TAU);
   const wy = yy * Math.cos(torsion),
     wz = yy * Math.sin(torsion);
-  const tilt = (rnd[2] - 0.5) * 1.4,
+  const tilt = (rnd[2] - 0.5) * 3.5,
     xx = x - LENGTH * 0.47;
   const s1 = [
-    xx * Math.cos(tilt) - wy * Math.sin(tilt) + (rnd[2] - 0.5) * 2,
-    (rnd[0] - 0.5) * 6.8 * spread + xx * Math.sin(tilt) + wy * Math.cos(tilt),
-    (rnd[1] - 0.5) * 5.2 * spread + z + wz,
+    xx * Math.cos(tilt) - wy * Math.sin(tilt) + (rnd[2] - 0.5) * 4,
+    (rnd[0] - 0.5) * 7.8 * spread + xx * Math.sin(tilt) + wy * Math.cos(tilt),
+    (rnd[1] - 0.5) * 8.5 * spread + z + wz + 0.75 * Math.sin(q + rnd[2] * TAU),
   ];
   const angle = id * 2.3999632297 + turn;
   const h = helix(u * LENGTH, angle);
@@ -109,9 +128,9 @@ export function camera(development, phase = 0) {
     approach = smooth(t / 0.72),
     rise = smooth((t - 0.72) / 0.28);
   const outside = [
-    2.1 * Math.sin(phase),
-    1.1 + 0.28 * Math.sin(2 * phase),
-    12.8 + 0.4 * Math.cos(phase),
+    1.2 * Math.sin(phase),
+    0.5 + 0.22 * Math.sin(2 * phase),
+    10 + 1.6 * smooth(development) + 0.3 * Math.cos(phase),
   ];
   const inside = [0.06 * Math.cos(phase), -5.7, 0.06 * Math.sin(phase)];
   const eye = outside.map((q, k) => q + approach * (inside[k] - q));
@@ -159,18 +178,27 @@ vec2 ssFlutter(float s,float phase,float a){
  -2.*j1/k*(cos(q)-cos(phase))-2.*j3/(3.*k)*(cos(3.*q)-cos(3.*phase)));
 }
 vec3 ssPoint(vec2 uv,float id,vec3 rnd){
- float b=ssSmooth(u_params[0]),t=ssSmooth((u_params[0]-1.)/.72);
+ float b=ssSmooth(u_params[0]/.82),t=ssSmooth((u_params[0]-1.)/.72);
  float g=(id+uv.y)/SS_N,phi=u_clock[0]+g*.28+b*rnd.x*SS_TAU;
  float a=.48*u_params[2];
  vec2 fl=ssFlutter(uv.x*SS_L,phi,a);
  float q=SS_TAU*1.5*uv.x-phi,ang=a*sin(q);
  float wrinkle=.035*sin(3.*q+g*14.)+.016*sin(7.*q-g*22.);
  fl+=vec2(-sin(ang),cos(ang))*wrinkle;
- vec3 p0=vec3(fl.x-SS_L*.47,(g-.5)*8.4,fl.y);
+ float mx=(uv.x-.5)*SS_L,my=(g-.5)*8.4;
+ float along=mx*.8+my*.6+7.32,across=-mx*.6+my*.8;
+ float veilPhase=u_clock[0]+.38*sin(across*.45+u_clock[0]);
+ float veilAmplitude=.72*u_params[2]*(.85+.15*cos(across*.55));
+ vec2 vf=(ssFlutter(along*1.55,veilPhase,veilAmplitude)-ssFlutter(7.32*1.55,veilPhase,veilAmplitude))/1.55;
+ vf.y+=.3*cos(u_clock[0]);
+ float vq=SS_TAU*1.5*along*1.55/SS_L-veilPhase,va=veilAmplitude*sin(vq);
+ float fine=.027*sin(3.*vq)+.008*sin(7.*vq);
+ vf+=vec2(-sin(va),cos(va))*fine;
+ vec3 p0=vec3(vf.x*.8-across*.6,vf.x*.6+across*.8,vf.y);
  float yy=(uv.y-.5)*(.38+.48*rnd.y)*u_params[7];
  float torsion=.62*sin(2.*q+rnd.z*SS_TAU),wy=yy*cos(torsion),wz=yy*sin(torsion);
- float tilt=(rnd.z-.5)*1.4,xx=fl.x-SS_L*.47;
- vec3 p1=vec3(xx*cos(tilt)-wy*sin(tilt)+(rnd.z-.5)*2.,(rnd.x-.5)*6.8*u_params[3]+xx*sin(tilt)+wy*cos(tilt),(rnd.y-.5)*5.2*u_params[3]+fl.y+wz);
+ float tilt=(rnd.z-.5)*3.5,xx=fl.x-SS_L*.47;
+ vec3 p1=vec3(xx*cos(tilt)-wy*sin(tilt)+(rnd.z-.5)*4.,(rnd.x-.5)*7.8*u_params[3]+xx*sin(tilt)+wy*cos(tilt),(rnd.y-.5)*8.5*u_params[3]+fl.y+wz+.75*sin(q+rnd.z*SS_TAU));
  float r=.45+.235*uv.x*SS_L,theta=id*2.3999632297+u_clock[1]+.72/.235*log(r/.45);
  float ruffle=.04*sin(4.*q+uv.y*SS_TAU)*sin(uv.y*3.14159265359);
  float taper=sqrt(r/3.27),dr=(fl.y*.55+wz+ruffle)*taper,hy=sqrt(1.-.235*.235-.72*.72),w=wy*taper;
@@ -180,7 +208,7 @@ vec3 ssPoint(vec2 uv,float id,vec3 rnd){
 }
 void ssCamera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float t=ssSmooth(u_params[0]-1.),a=u_clock[2];
- vec3 outside=vec3(2.1*sin(a),1.1+.28*sin(2.*a),12.8+.4*cos(a));
+ vec3 outside=vec3(1.2*sin(a),.5+.22*sin(2.*a),10.+1.6*ssSmooth(u_params[0])+.3*cos(a));
  float approach=ssSmooth(t/.72),rise=ssSmooth((t-.72)/.28);
  eye=mix(outside,vec3(.06*cos(a),-5.7,.06*sin(a)),approach);
  eye.y+=2.6*rise;

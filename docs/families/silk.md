@@ -1,88 +1,84 @@
 # Silk Storm / Seidensturm
 
-**INCREMENTAL / EMPIRICAL**, 2026-10-15. Family **111**, renderer `silk`, world `silk-storm`. A continuous, prescribed cloth world; not a collision-resolving finite-element cloth simulation. No renderer or engine changes.
+**INCREMENTAL / EMPIRICAL**, revised 2026-10-15. Family **111**, renderer `silk`, world `silk-storm`. Prescribed, continuously deforming cloth; not a collision-resolving cloth simulation. No engine changes.
 
-## Signature mathematics
+## Persistent material and signature mathematics
 
-Twenty-eight persistent material strips share one **160 × 6** tessellation each. At development 0 their boundaries coincide exactly, making one **12 × 8.4** silk sheet. Seed-only attributes are `(u, v, ribbon id, three random identity values)`; development never rebuilds the mesh. The full mesh contains 161,280 vertices, six floats per vertex (~3.9 MB).
+Twenty-eight persistent strips share a **160 × 6** tessellation each: 161,280 vertices, six floats per vertex (~3.9 MB). Attributes are `(u, v, ribbon id, three seeded identity values)`. Only seed changes rebuild the mesh. At development 0 adjacent material edges coincide exactly, forming one nominal **12 × 8.4** sheet.
 
-The flutter frequency is the flag Strouhal relation **f = St U/L**, with **St = 0.2**, L = 12 and wind U = 2–12. The default U = 7.5 gives f = 0.125 Hz before energy modulation. A material wave has 1.5 wavelengths over the sheet's length. An integrated engine clock owns `2π f`; changing wind changes speed, never the existing phase.
+The Strouhal relation is **f = St U/L**, with **St = 0.2**, L = 12, U = 2–12. Default U = 7.5 gives f = 0.125 Hz before energy modulation. An integrated clock owns `2π f`: wind changes speed, never existing phase.
 
-Instead of adding a sine displacement to an unstretched x coordinate, integrate the unit tangent
+The carrier integrates the unit tangent
 
-`C'(s) = (cos(a sin(ks − φ)), sin(a sin(ks − φ)))`.
+`C′(s) = (cos(a sin(ks − φ)), sin(a sin(ks − φ)))`.
 
-The Bessel expansion through J4 gives closed-form x/z positions without a per-vertex integration loop. At the largest allowed tangent amplitude a = 0.72 the CPU derivative certificate bounds the truncation strain below **0.02%**. Two small normal-direction travelling harmonics produce silk micro-folds. CPU tests measure the complete rendered Veil metric, including shear: singular values of the material Jacobian stay within **3.4% of one** (longitudinal <3.1%, transverse <1.2%). This is a bounded near-inextensible surface, not just a test of the abstract sine frequency.
+The Bessel expansion through J4 has measured tangent strain below **0.062%** for a ≤ 1.08; tests allow 0.15%. `flutter()` and its GLSL equivalent share the same formula.
 
-The core vortex carrier is a unit-speed conical helix:
+The revised Veil uses an oblique material chart:
 
-- `r(s) = 0.45 + 0.235 s`
-- `θ(s) = θ₀ + (0.72/0.235) ln(r/0.45)`
-- `y(s) = sqrt(1 − 0.235² − 0.72²) (s − L/2)`.
+- `x = 12(u − 1/2)`, `y = 8.4(g − 1/2)`;
+- `s = 0.8x + 0.6y + 7.32`, `w = −0.6x + 0.8y`;
+- `φ = clock + 0.38 sin(0.45w + clock)`;
+- `a = 0.72 amplitude (0.85 + 0.15 cos(0.55w))`.
 
-Thus `r'² + (r θ')² + y'² = 1`. The tower grows from radius 0.45 to 3.27 over ~7.84 units of height. Each ribbon keeps its golden-angle phase. Width tapers towards the base; travelling torsion and small transverse ruffles make the same ribbon catch light differently along its length. Four persistent ribbons unfurl into longer outer turns as spatial foreground cues.
+The carrier is evaluated at `1.55s`, divided by 1.55 and centred at the material midpoint. This gives approximately 2.325 longitudinal waves, with curved ridges and varying fold depth rather than parallel painted stripes. Two small normal-direction travelling harmonics add fine folds. The rotation itself preserves length; phase/depth variation and the fine folds are **artistic gathering**, not an isometry. CPU tests measure the _complete rendered surface_: maximum sampled longitudinal deformation 12.05%, transverse 13.72%, principal stretch/compression 13.97%, conservatively bounded at 13% / 15% / 15%. The previous 3.4% bound no longer applies. No global material-conservation claim is made.
 
-**Model boundary:** development deliberately changes the prescribed rest composition: joining/separating strips, banner spacing, width taper and the four long outer turns are artistic morphs, not material-conservation assertions. The 3.4% strain certificate applies to the joined fluttering Veil; the unit-speed certificate applies to the core helix carrier. There is no global collision, bending-energy or inextensibility solve for every morph midpoint. CPU reference and shader formulas live together in `silk-model.mjs`.
+The vortex carrier is a unit-speed conical helix:
+
+- `r(s) = 0.45 + 0.235s`;
+- `θ(s) = θ₀ + (0.72/0.235) ln(r/0.45)`;
+- `y(s) = sqrt(1 − 0.235² − 0.72²)(s − L/2)`.
+
+Thus `r′² + (rθ′)² + y′² = 1`. Radius grows from 0.45 to 3.27 over ~7.84 units of height. Golden-angle identities persist through the entire morph. Width taper, travelling torsion, transverse ruffles and four long outer turns enrich the cone. Joining/separating strips and changing their rest composition are authored morphs, not a finite-element solve.
 
 ## States and looks
 
-All three states have seed **1811** and identical non-development parameters. Development is continuous and reversible.
+All state presets retain seed **1811**, names and identical non-development parameters. Every intermediate value is real geometry, reversible without resetting time or identity.
 
-| Development | EN / DE | Composition |
-| --- | --- | --- |
-| 0 | Veil / Schleier | One large sheet in the dark, with travelling folds and a slowly moving raking key. |
-| 1 | Banners / Banner | Twenty-eight broad silk banners open into independently tilted, interwoven wind paths. |
-| 2 | Tornado / Tornado | The banners wind into a tall cone; the camera cranes beneath it and rises into its hollow axis. |
+| Development | EN / DE           | Composition                                                                                                |
+| ----------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| 0           | Veil / Schleier   | One large silk sheet, ~65–80% of landscape frame height, with deep curved travelling folds in darkness.    |
+| 1           | Banners / Banner  | Twenty-eight long ribbons with varied 3D tilt, torsion and near/far layers, rather than horizontal strips. |
+| 2           | Tornado / Tornado | A towering conical vortex; the camera cranes below it and rises into its hollow axis.                      |
 
-Five additional looks (eight total):
+Five additional stable looks: **Raking Moon / Streifmond**, **Crosswind / Querwind**, **Woven Night / Gewebte Nacht**, **Spindle / Spindel**, **Satin Wake / Satinspur**. Their preset names, seeds and parameters remain unchanged. Woven Night is intentionally a sparse transitional view; it is weaker than the main state compositions.
 
-- **Raking Moon / Streifmond:** slow early separation, deeper flutter, restrained camera.
-- **Crosswind / Querwind:** widely spaced, broad banners with stronger wind and folds.
-- **Woven Night / Gewebte Nacht:** dense held banner-to-spiral composition, development 1.28.
-- **Spindle / Spindel:** narrow ribbons and a slower, tighter interior vortex.
-- **Satin Wake / Satinspur:** restrained flutter across a widely opening veil.
+## Light, camera, depth and rhythm
 
-## Light, camera and energy
+Fabric has **one uniform palette-secondary dye**: no longitudinal palette blobs. Two persistent ribbons receive rare palette-accent dye as the tornado forms. A single raking key establishes bright anisotropic sheen ridges and dark troughs; key direction glides continuously into the established vortex lighting. The anisotropic lobe uses different longitudinal/transverse roughness. Specular values can exceed 1.0 on the float target. Backlight transmission is concentrated at free edges; weave and hems are derivative-filtered.
 
-Two-sided silk combines palette-dyed diffuse light, longitudinal anisotropic sheen, broad specular highlights, backlit transmission, grazing rim light and a moving raking-light pool. Highlights can exceed 1.0 on the float target. Fold-valley and inner-vortex soft darkening approximate self-shadowing; depth testing supplies actual inter-ribbon occlusion. These are analytic lighting proxies, not a shadow map or sorted refractive transparency. Fine weave is derivative-filtered; soft material-edge shading and dense tessellation avoid heavy outlines. All colour is palette primary/secondary, rare accent hems, and white/black mixes. Background haze, a soft shaft and a dark floor pool establish space without competing with the cloth.
+Six bounded material-space ray samples per vertex measure local moving-fold occlusion, interpolated across the dense mesh. This is an approximate local self-shadow, not a shadow map and **not complete inter-ribbon cast shadows**. Actual depth testing provides inter-ribbon occlusion; an inner-vortex darkening term adds contact depth. Distance fog strengthens toward Tornado, dimming far layers while near highlights retain contrast. No sorted transparency/refraction is used.
 
-The camera starts around z = 13 with a slow lateral drift. During the upper transition it cranes to y = −5.7 **beneath the completed cone**, then rises to y = −3.1 inside its hollow centre. Geometry completes its cone by development 1.72, before the camera rises through the throat. A smoothly changing up-vector avoids the vertical-look singularity. The peak intentionally surrounds the camera and extends beyond the image: this is an interior view of the hero, not a cropped exterior miniature. Exterior structure remains visible on approach. Projection uses the short side, including portrait; kick focal punch is bounded to 1.8%.
+The camera now starts around z = 10, not 13, with slow lateral drift. It eases back as the banners spread through ~8.5 units of depth. The existing continuous below-cone crane and hollow-axis rise are retained. A changing up-vector avoids a vertical-look singularity. Top-state foreground ribbons intentionally surround the camera and cross the frame border. Projection is short-side based; kick focal punch stays below 1.8%. Portrait and three library palettes were filmed.
 
-Energy changes wind speed (×0.7–1.3) and fold amplitude (×0.75–1.2), not master brightness. Three bounded `familyEffect` gestures trace the signature:
+Energy changes wind speed (×0.7–1.3) and fold amplitude (×0.75–1.2), not brightness. Stable `familyEffect` gestures:
 
-1. **Flutter packet**, 4 beats: a sheen packet travels along existing material folds.
-2. **Selvedge cohort**, 8 beats: one persistent cohort's hems catch rare accent light.
-3. **Vortex sweep**, 16 beats: a broad raking-light front climbs the cloth into the spiral.
+1. **Flutter packet**, 4 beats: a restrained sheen packet follows existing material folds.
+2. **Selvedge cohort**, 8 beats: one persistent ribbon cohort catches accent at its hems.
+3. **Vortex sweep**, 16 beats: a broad bounded light front climbs the fabric.
 
-## Endlessness and verification
+Four bounded 2π-periodic clocks own flutter, vortex turn, drift and raking-light modulation. Shaders never use `u_time`; development never reseeds or resets anything.
 
-Four bounded, 2π-periodic clocks own flutter, vortex turn, camera drift and raking light. No shader uses `u_time`; no populations are reseeded or replaced by development. Every harmonic completes an integer number of cycles in its clock period.
+## Verification and cost
 
-- `node --test tests/silk.test.mjs tests/time.test.mjs`: **16/16 pass**. Includes measured zero-crossing frequency, tangent and full Veil strain, unit-speed helix, seed-only identity, exact joined seams, continuity/reversal, periodicity, finite presets and camera clearance/nonsingular frames.
-- Native GPU low-energy samples at development 0/.5/1/1.3/1.7/2, times 3600 and 43200: zero GL errors and non-finite uploads; no empty frames. Paused .65 → 1.92 → .65 is **pixel-identical** and retains the same mesh buffer.
-- `scripts/check-time-wrap.mjs --rig --port 48506 --families silk`: zero seams/errors through 3600, 4096 and 43200, including energy/rate nudges.
-- `npm run typecheck`, build, dictionary CPU tests and DE/EN native browser i18n smoke pass.
-- Full repository test results are recorded in the fleet report; only the three expected unbaked-preview/editorial-catalog failures remain. Preview/curation files are intentionally untouched for integration.
+- `node --test tests/silk.test.mjs tests/time.test.mjs`: **17/17 pass**. Frequency from actual zero crossings, tangent reference, complete gathered-sheet metric, unit-speed helix, joined seams, seeded identity, real fold depth / banner angle and depth span, continuity/reversal, periodicity, camera clearance and finite presets. World lookup is by **id**, never registry position.
+- `PHOSPHOR_HEADLESS_RIG=1 PHOSPHOR_SILK_GPU=1 node --test tests/browser/silk.test.mjs`: pass. Twelve low-energy GPU frames across development 0/.5/1/1.3/1.7/2 and times 3600/43200; zero GL/non-finite errors. Paused .65 → 1.92 → .65 is pixel-identical and keeps the same mesh buffer.
+- Native `check-time-wrap.mjs --rig --port 48506 --families silk`: zero seam/rate errors across 3600, 4096 and 43200 s.
+- Typecheck, build and native DE/EN i18n smoke pass.
+- Full CPU repository suite: 739 pass, 9 skip, 3 expected unbaked-preview/editorial-catalog failures; integration owns those files.
 
-Native headless Chrome / ANGLE Metal / Apple M3 Pro, energy 0.95, 12 synchronous samples including the post chain:
+Apple M3 Pro / Chrome / ANGLE Metal, energy .95, 12 synchronous samples including post-processing, p50 / p95 milliseconds:
 
-| State | 1080p p50 / p95 | 4K p50 / p95 |
-| --- | --- | --- |
-| Veil | 1.8 / 2.0 ms | 4.2 / 5.0 ms |
-| Banners | 3.1 / 8.5 ms | 4.0 / 4.2 ms |
-| Tornado | 2.8 / 4.5 ms | 4.5 / 4.8 ms |
+| State   | Baseline 1080p | Final 1080p   | Baseline 4K | Final 4K      |
+| ------- | -------------- | ------------- | ----------- | ------------- |
+| Veil    | 2.2 / 2.4      | **2.3 / 3.9** | 4.4 / 4.5   | **5.2 / 5.7** |
+| Banners | 1.9 / 2.1      | **2.0 / 2.2** | 4.4 / 5.3   | **4.3 / 4.7** |
+| Tornado | 2.1 / 2.3      | **2.0 / 2.3** | 4.3 / 4.5   | **4.8 / 5.0** |
 
-An earlier quieter pass measured 1.6–1.7 ms p50 at 1080p and 4.0–4.2 ms at 4K; the final shared-machine 1080p pass includes a contention spike (Banners p95 8.5 ms). These are shared-machine throughput samples, not projector/display-cadence qualification. Every state is comfortably below the 8/16 ms budgets.
+Every state is below the required 8 ms / 16 ms p50 budgets. These are shared-machine throughput samples, not external-display cadence qualification.
 
-## Review evidence and limits
+## Review
 
-After the first working film, five-plus improvement passes addressed scale, rigid banner orientation, cylindrical vortex shape, torsion/folds, the immersive camera climax, micro-ruffles and camera-frame/strain safety. Superseded rounds were deleted; baseline and final remain.
+Baseline plus **four 30-second filmed improvement rounds**, compared with an independently filmed **Liquid Chrome** reference. Rounds addressed scale/uniform dye, directional variety and anisotropy, curved folds/local shadowing, then material centring and restrained secondary dye. Superseded intermediate films were deleted; their strips, baseline/reference/final films, three-palette evidence, portrait, full-size stills, all eight energy ladders and logs remain in the fleet worker's `output/evidence/` (absolute paths in its report).
 
-- World film/strip: `artifacts/silk/final/silk-storm.{mp4,png}`.
-- Ember and Glacier world films/strips: same directory, `silk-storm-{ember,glacier}`.
-- Extra look: `artifacts/silk/final/silk-spindle-silver.{mp4,png}`.
-- Portrait: `artifacts/silk/portrait/silk-storm-glacier.{mp4,png}`.
-- All eight looks at energy .1/.5/.9: `artifacts/silk/ladder/index.html`.
-- GPU and timing records: `artifacts/silk/gpu-verification.json`, `profile-1080/profile.json`, `profile-4k/profile.json`, `time-audit/`.
-
-The cloth remains stylised satin. Banners can intersect during prescribed interweaving; self-shadow and transmission are bounded analytic approximations. Edge coverage is not multisample or order-independent transparency. The peak is deliberately an enveloping interior, with foreground ribbons crossing the image border. No claim is made of multi-hour external-display cadence or physical cloth collisions.
+Honest final rating: **8/10**, versus approximately 6/10 baseline, **not 9/10** against Liquid Chrome. The improvement is clear, especially uniform silk sheen and spatial banners. Remaining limits: stylised prescribed satin, no collision solve or complete cast-shadow/translucency transport, some regularity in Veil ridges and a sparse Woven Night transition. The immersive vortex remains the strongest state.

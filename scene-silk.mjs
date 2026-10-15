@@ -18,6 +18,7 @@ uniform float u_kick;
 uniform vec2 u_resolution;
 ${GLSL}
 out vec3 v_p,v_n,v_t;
+out float v_shadow;
 out vec2 v_uv;
 flat out float v_id;
 flat out vec3 v_rnd;
@@ -27,6 +28,18 @@ void main(){
  vec3 dv=ssPoint(a_uv+vec2(0.,.0005),a_id,a_rnd)-p;
  v_p=p;v_t=normalize(du);v_n=normalize(cross(du,dv));
  v_uv=a_uv;v_id=a_id;v_rnd=a_rnd;
+ // Bounded local fold-ray occlusion, evaluated on the moving mesh, not a
+ // painted cosine. Each sample is the same persistent material surface.
+ vec3 key=normalize(mix(vec3(-.82,-.5,.26),vec3(-.65,.55,.85),ssSmooth(u_params[0]-1.)));
+ v_shadow=1.;
+ for(int j=0;j<6;j++){
+  float stepU=(j<2?.045:(j<4?.12:.25))*(mod(float(j),2.)<.5?-1.:1.);
+  vec2 uv=vec2(clamp(a_uv.x+stepU,0.,1.),a_uv.y);
+  vec3 delta=ssPoint(uv,a_id,a_rnd)-p;
+  float forward=dot(delta,key),perp=length(delta-key*forward);
+  float hit=(1.-smoothstep(.07,.24,perp))*smoothstep(.12,.38,forward);
+  v_shadow*=1.-.72*hit;
+ }
  vec3 eye,R,U,F;ssCamera(eye,R,U,F);
  vec3 q=p-eye;float z=dot(q,F),A=u_resolution.x/u_resolution.y,f=ssFocal();
  gl_Position=vec4(dot(q,R)*f/max(A,1.),dot(q,U)*f*min(A,1.),(z*(60.+.1)-2.*60.*.1)/(60.-.1),z);
@@ -34,6 +47,7 @@ void main(){
 const material = `#version 300 es
 precision highp float;
 in vec3 v_p,v_n,v_t;
+in float v_shadow;
 in vec2 v_uv;
 flat in float v_id;
 flat in vec3 v_rnd;
@@ -49,41 +63,45 @@ void main(){
  vec3 eye,R,U,F;ssCamera(eye,R,U,F);
  vec3 V=normalize(eye-v_p),N=normalize(v_n),T=normalize(v_t);
  if(dot(N,V)<0.)N=-N;
- float t=ssSmooth(u_params[0]-1.),b=ssSmooth(u_params[0]);
+ float t=ssSmooth(u_params[0]-1.),b=ssSmooth(u_params[0]/.82);
  float light=u_clock[3];
- vec3 L=normalize(vec3(-.65+.4*sin(light),.55,.85));
- vec3 B=normalize(vec3(.55,.3,-1.));
- vec3 H=normalize(L+V);
- float diffuse=max(dot(N,L),0.),rim=pow(1.-max(dot(N,V),0.),3.);
- float spec=pow(max(dot(N,H),0.),24.);
- // Longitudinal fibres scatter into a broad anisotropic highlight.
- float aniso=pow(max(0.,1.-pow(dot(T,H),2.)),18.)*pow(max(dot(N,H),0.),4.);
- float back=pow(max(dot(-N,B),0.),2.)*.65;
- float transmitted=pow(max(dot(-V,B),0.),6.)*(.35+.65*abs(dot(N,B)));
- float fold=cos(v_uv.x*SS_TAU*1.5-u_clock[0]+b*v_rnd.x*SS_TAU);
- float shadow=.55+.45*ssSmooth(.5+.5*fold);
- shadow*=mix(1.,.6+.4*ssSmooth((length(v_p.xz)-.8)/2.3),t);
+ // One raking key: the dye is uniform; changes in value come from form.
+ vec3 L=normalize(mix(vec3(-.82,-.5,.26),vec3(-.65,.55,.85),t));
+ vec3 B=normalize(vec3(.25,.45,-1.));
+ vec3 H=normalize(L+V),C=normalize(cross(N,T));
+ float nl=dot(N,L),nv=max(dot(N,V),.015),nh=max(dot(N,H),.015);
+ float diffuse=max(nl,0.),rim=pow(1.-nv,4.);
+ float ht=dot(H,T)/.42,hb=dot(H,C)/.17;
+ float aniso=exp(-(ht*ht+hb*hb)/(nh*nh))/max(.2,sqrt(max(nl,0.)*nv));
  float g=(v_id+v_uv.y)/SS_N;
- vec3 dye=mix(u_secondary,u_primary,.22+.5*(.5+.5*cos(g*SS_TAU*1.7)));
+ float seam=min(v_uv.y,1.-v_uv.y);
+ float fabricEdge=mix(min(g,1.-g),seam,b);
+ float thin=exp(-fabricEdge*85.);
+ float back=pow(max(dot(-N,B),0.),2.);
+ float transmitted=(.035+.7*thin)*back;
+ float shadow=mix(.18,1.,ssSmooth((nl+.12)/.52))*v_shadow;
+ shadow*=mix(1.,.24+.76*ssSmooth((length(v_p.xz)-.8)/2.3),t);
+ vec3 dye=u_secondary;
+ float brightRibbon=1.-step(.5,mod(v_id+2.,11.));
+ dye=mix(dye,u_accent,brightRibbon*t*.8);
  float weaveFrequency=550.;
  float weaveAA=1.-smoothstep(.2,.65,max(fwidth(v_uv.x*weaveFrequency),fwidth(g*weaveFrequency)));
  float weave=1.+.025*weaveAA*sin(v_uv.x*weaveFrequency*SS_TAU)*sin(g*weaveFrequency*SS_TAU);
- float rake=.45+.55*exp(-pow((v_p.x-3.5*sin(light))*.25,2.));
- vec3 col=dye*(.075+.55*diffuse*shadow+back+transmitted*.6)*weave;
- col+=mix(dye,vec3(1.),.32)*(1.25*aniso+.35*spec)*u_params[4]*shadow*rake;
- col+=mix(u_secondary,u_primary,.6)*rim*.5;
- float seam=min(v_uv.y,1.-v_uv.y);
+ float rake=.72+.28*exp(-pow((v_p.x-2.*sin(light))*.22,2.));
+ vec3 col=dye*(.022+.72*diffuse*shadow+transmitted)*weave;
+ col+=mix(dye,vec3(1.),.42)*2.4*aniso*u_params[4]*shadow*rake;
+ col+=mix(dye,vec3(1.),.2)*rim*(.1+.3*thin);
  float hem=(1.-smoothstep(.02,.02+fwidth(seam)*1.5,seam))*b;
  col+=mix(dye,vec3(1.),.25)*hem*.18;
  float packet=exp(-pow((v_uv.x-(1.-u_rhythm.x))*9.,2.))*u_rhythm.x;
  float cohort=1.-step(.6,abs(mod(v_id-u_rhythmCount.y,7.)));
- col+=mix(dye,vec3(1.),.4)*packet*.9;
+ col+=mix(dye,vec3(1.),.4)*packet*.24*diffuse;
  col+=u_accent*hem*cohort*u_rhythm.y*.8;
  float spiral=exp(-pow((v_uv.x-(1.-u_rhythm.z))*6.,2.))*u_rhythm.z;
- col+=mix(u_primary,vec3(1.),.3)*spiral*.7;
- col*=exp(-length(eye-v_p)*.025);
- vec3 fog=mix(u_secondary,u_primary,.25)*.006;
- col=mix(fog,col,exp(-length(eye-v_p)*.018));
+ col+=mix(dye,vec3(1.),.3)*spiral*.3*diffuse;
+ float depth=length(eye-v_p);
+ vec3 fog=mix(u_secondary,u_primary,.25)*(.008+.018*t);
+ col=mix(fog,col,exp(-max(depth-2.,0.)*(.045+.025*t)));
  // Resolution-scaled coverage on free material edges; joined veil seams
  // stay invisible. This is coverage darkening, not sorted transparency.
  float edgeV=mix(min(g,1.-g),min(v_uv.y,1.-v_uv.y),b);
