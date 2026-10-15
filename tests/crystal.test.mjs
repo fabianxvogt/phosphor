@@ -15,6 +15,7 @@ import {
   cavern,
   createGeometry,
   growth,
+  hexCell,
   wallPoint,
 } from "../crystal-geometry.mjs";
 
@@ -159,6 +160,26 @@ test("no crystal ever reaches the camera corridor at any development or energy",
     }
     assert.ok(nearest >= CORRIDOR - 0.03, `seed ${seed}: ${nearest}`);
   }
+});
+
+test("hexagonal wall cells are exact nearest sites and repeat without a seam", () => {
+  const h = Math.sqrt(3);
+  for (let x=-2; x<2; x+=.137) for(let y=-2; y<2; y+=.193) {
+    const c=hexCell(x,y);
+    let best=Infinity;
+    for(let i=-4;i<=4;i++) for(let j=-4;j<=4;j++) for(const s of [0,.5])
+      best=Math.min(best,Math.hypot(x-i-s,y-h*(j+s)));
+    close(Math.hypot(...c.local),best,1e-10);
+    assert.ok(c.edge >= -1e-10);
+    const shifted=hexCell(x+96,y+192*h);
+    c.local.forEach((v,i)=>close(v,shifted.local[i],1e-10));
+    close(c.edge,shifted.edge,1e-10);
+  }
+  close(hexCell(.5,0).edge,0);
+  close(hexCell(0,0).edge,.5);
+  close(growth(KIND.seed,0,0)[0],.45);
+  assert.match(scene.geometry.vertex, /vec2\(\.45\+\.55\*t,\.9\+\.1\*t\)/);
+  assert.deepEqual(scene.presets.map(p=>p.seed),[311,311,311,1207,4421,58,2718,911]);
 });
 
 test("camera travel integrates in exact 24-bit steps at every speed", () => {

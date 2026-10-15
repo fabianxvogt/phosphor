@@ -50,6 +50,14 @@ About 2700 crystals, a 96×144 wall grid and 520 motes: ~231k vertices (18 float
 - GPU (native, headless rig): zero GL errors and non-finite values; paused redraws at development 0.5 → 1.7 → 0.5 are pixel-identical; frames after 8 hours of scene time render normally; Seeds at energy 0.1 has mean 14/255 with peak 245 (dark ground, bright signature).
 - Energy ladder: `node scripts/contact.mjs --dist . --sheet ladder --family crystal --rig`. Review films: `node scripts/world-film.mjs --world cavern --rig` and `--look "crystal:Needle Grotto"`.
 
+## Wave 5 (2026-10-15): faceted light, cheaper lining
+
+Three filmed rounds: (1) replace nine random Voronoi candidates per wall pixel with the exact two-coset triangular-lattice nearest site and its six analytic hexagon bisectors; coarser, readable hexagonal druse cells replace fine noisy chips, and correct the shader/CPU seed-growth mismatch; (2) retain palette tint in glints, lower the broad white specular, darken distant atmosphere and use a continuous cosine interference palette coordinate; (3) increase dormant seed size to 45% length/90% radius, rebake their wall light pools, widen the peak lens 1.55 → 1.4 while the opening uses 1.7, and broaden tinted internal haze instead of an over-hot narrow core. Hall bounds and camera corridor are unchanged.
+
+M3 Pro native headless whole-frame p50, states 0/1/2: 1080p **3.2/3.8/3.7 → 2.8/3.0/3.1 ms**; 4K **9.3/10.0/10.3 → 8.3/8.5/8.5 ms**. Tests compare the analytic cell to exhaustive nearest-site search, verify exact chart periodicity and CPU/GPU seed-growth constants, in addition to the existing independent corridor check. All preset names, seeds, schema and world definitions remain intact.
+
+Evidence: fleet worker `rework-geometry/output/evidence/crystal/`, including baseline/final films, Needle Grotto, all-look energy ladder and ember/glacier portrait. Honest rating **8.5/10**: stronger gems and depth, cheaper and calmer lining; the opening remains an environmental cave with distributed seeds, not a single monumental hero. The wall's hexagonal regularity is visible at close range.
+
 ## Limits
 
 Authored growth, not physics: crystals may intersect each other inside a druse, and lining cells are shading, not geometry. Shared palette recolouring of catalog images is approximate. Multi-hour endurance on Stage and external-display 4K cadence are unmeasured.
