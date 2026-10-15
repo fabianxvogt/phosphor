@@ -41,6 +41,8 @@ import {
   rippleHeight,
   seedAngles,
   sculptureUV,
+  sculpture,
+  sculptureDerivatives,
   shimmerAt,
   waveHeight,
 } from "../kinetic-model.mjs";
@@ -440,9 +442,12 @@ test("all four peak forms fill the short side, stay above the mirror and fit por
     const F = norm(sub(target, eye)), R = norm(cross(F, [0, 1, 0])), U = cross(R, F);
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (let index = 0; index < N * N; index += 17) {
-      const b = ball(index % N, Math.floor(index / N), { ...base, dev: 2, M, Phi, W, seed: 0, detail: 1 });
-      assert.ok(b.p[1] - b.r * 1.5 > 0, `floor clearance ${M}/${a}/${Phi}`);
-      const c = sub(b.p, eye), z = dot(c, F);
+      const p = sculpture(...sculptureUV(index % N, Math.floor(index / N)), chorus(M), W, Phi, 1)
+        .map((x, i) => x + CENTER[i]);
+      // Conservative maximum pearl radius: no need to evaluate normals
+      // millions of times just to project the identical position law.
+      assert.ok(p[1] - 0.055 * 1.5 > 0, `floor clearance ${M}/${a}/${Phi}`);
+      const c = sub(p, eye), z = dot(c, F);
       const x = dot(c, R) / z * focalLength(2, 0, M), y = dot(c, U) / z * focalLength(2, 0, M);
       x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
     }
@@ -480,7 +485,7 @@ test("mirror culling includes ring motion, sphere radius, blur and the impostor 
   assert.match(vertex, /a_kind>\.5&&a_kind<1\.5&&sig>=1\./);
   assert.match(vertex, /bound=\.055\*size\+\.6\*RAMP\*kick\*amp\+\.03\+4\.\*length\(c\)/);
   assert.match(vertex, /bound\*sqrt\(vec2\(1\.\)\+slope\*slope\)/);
-  assert.ok(vertex.indexOf("Conservative top-state mirror") < vertex.indexOf("vec3 du=sculpt"));
+  assert.ok(vertex.indexOf("Conservative top-state mirror") < vertex.indexOf("vec3 du,dv;sculptDerivatives"));
 });
 
 test("hero camera follows the tilted normal with bounded periodic parallax, not energy", () => {
@@ -495,6 +500,21 @@ test("hero camera follows the tilted normal with bounded periodic parallax, not 
   assert.ok(scene.geometry.vertex.includes(`${SADDLE_FIT}*w.w`));
   assert.match(scene.geometry.vertex, /\.85\+\.15\*max\(s01,sig\)/);
   assert.match(scene.fragment, /layer\*\(\.032\+\.009\*\(1\.-s01\)\)/);
+});
+
+test("analytic surface differentials agree with independent tiny finite differences", () => {
+  const eps = 1e-6;
+  for (let M = 0; M < 4; M += 0.19) for (let k = 1; k < 25; k++) {
+    const u = k / 26, v = ((k * 17) % 29 + 1) / 31, w = chorus(M);
+    const at = (u, v) => sculpture(u, v, w, 1.3, 2.1, 1);
+    const derivatives = sculptureDerivatives(u, v, w, 1.3, 2.1, 1);
+    for (let axis = 0; axis < 2; axis++) {
+      const a = at(u + (axis === 0 ? eps : 0), v + (axis === 1 ? eps : 0));
+      const b = at(u - (axis === 0 ? eps : 0), v - (axis === 1 ? eps : 0));
+      for (let i = 0; i < 3; i++) close(derivatives[axis][i], (a[i] - b[i]) / (2 * eps * (axis === 0 ? SURFACE_COLS : SURFACE_ROWS)), 1e-8);
+    }
+  }
+  assert.doesNotMatch(scene.geometry.vertex, /sculpt\(uv[+-]/);
 });
 
 test("haze glow: the closed form equals numeric integration", () => {

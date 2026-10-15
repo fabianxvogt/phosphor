@@ -134,6 +134,41 @@ vec3 sculpt(vec2 uv,vec4 w,float W,float Phi,float detail){
  float c=cos(Phi),s=sin(Phi);
  return vec3(c*p.x-s*p.z,p.y,s*p.x+c*p.z)*shimmer;
 }
+// Exact differential of the same blended position law. Two derivative
+// vectors replace four complete neighbouring surface evaluations.
+void sculptDerivatives(vec2 uv,vec4 w,float W,float Phi,float detail,vec3 p,out vec3 du,out vec3 dv){
+ float th=TAU*uv.x,c=cos(th),s=sin(th);
+ du=vec3(0.);dv=vec3(0.);
+ if(w.x>0.){
+  float ph=PI*uv.y,sp=sin(ph),cp=cos(ph);
+  du+=w.x*TAU*FSPH*sp*vec3(-s,0.,c);
+  dv+=w.x*PI*FSPH*vec3(cp*c,-sp,cp*s);
+ }
+ if(w.y>0.){
+  float ps=PI*.5-TAU*uv.y,sp=sin(ps),cp=cos(ps),r=FTR+FTr*cp;
+  du+=w.y*TAU*r*vec3(-s,0.,c);
+  dv+=w.y*TAU*FTr*vec3(sp*c,-cp,sp*s);
+ }
+ if(w.z>0.){
+  float m=FMW*(1.-2.*uv.y),ch=cos(th*.5),sh=sin(th*.5),r=FMR+m*ch,dr=-.5*TAU*m*sh;
+  du+=w.z*vec3(dr*c-TAU*r*s,.5*TAU*m*ch,dr*s+TAU*r*c);
+  dv+=w.z*(-2.*FMW)*vec3(ch*c,sh,ch*s);
+ }
+ if(w.w>0.){
+  float r=FSR*sqrt(.02+.98*uv.y),a=2.6*r-2.*W,dr=.49*FSR*FSR/r;
+  du+=w.w*TAU*vec3(-r*s,-2.*FSK*r*r*sin(2.*th),r*c);
+  dv+=w.w*dr*vec3(c,2.*FSK*r*cos(2.*th)+FSW*(sin(a)+2.6*r*cos(a)),s);
+ }
+ du.yz=vec2(TC*du.y-TS*du.z,TS*du.y+TC*du.z);
+ dv.yz=vec2(TC*dv.y-TS*dv.z,TS*dv.y+TC*dv.z);
+ float cp=cos(Phi),sp=sin(Phi);
+ du=vec3(cp*du.x-sp*du.z,du.y,sp*du.x+cp*du.z);
+ dv=vec3(cp*dv.x-sp*dv.z,dv.y,sp*dv.x+cp*dv.z);
+ float a=(.01+.02*detail),phase=TAU*(5.*uv.x+3.*uv.y)-2.*W;
+ float sh=1.+a*sin(phase),ds=a*cos(phase)*TAU;
+ du=(du*sh+p*(ds*5./sh))/${f(SURFACE_COLS)};
+ dv=(dv*sh+p*(ds*3./sh))/${f(SURFACE_ROWS)};
+}
 void main(){
  // The seed picks the first form / choreography (whole steps: a hold).
  float dev=DEV,W=u_clock[0],M=u_clock[1]+mod(u_seed,4.),Phi=u_clock[2];
@@ -169,8 +204,8 @@ void main(){
   vec2 dims=vec2(${f(SURFACE_COLS)},${f(SURFACE_ROWS)});
   vec2 uv=(vec2(mod(index,dims.x),floor(index/dims.x))+.5)/dims,e=.5/dims;
   vec3 p=sculpt(uv,w,W,Phi,detail);
-  // Conservative top-state mirror frustum test before four additional
-  // surface samples and lighting. Includes maximum ring motion, globe
+  // Conservative top-state mirror frustum test before differential
+  // evaluation and lighting. Includes maximum ring motion, globe
   // radius, reflected blur and expanded impostor AA support.
   if(a_kind>.5&&a_kind<1.5&&sig>=1.){
    vec3 mirror=CENTER+p;mirror.y=-mirror.y;
@@ -182,8 +217,7 @@ void main(){
     gl_Position=vec4(0.,0.,2.,1.);v_ray=vec3(0.);return;
    }
   }
-  vec3 du=sculpt(uv+vec2(e.x,0.),w,W,Phi,detail)-sculpt(uv-vec2(e.x,0.),w,W,Phi,detail);
-  vec3 dv=sculpt(uv+vec2(0.,e.y),w,W,Phi,detail)-sculpt(uv-vec2(0.,e.y),w,W,Phi,detail);
+  vec3 du,dv;sculptDerivatives(uv,w,W,Phi,detail,p,du,dv);
   vec3 cr=cross(dv,du);float cl=length(cr);
   ns=cl>1e-9?cr/cl:vec3(0.,1.,0.);
   ps=CENTER+p+ns*ring*.6;
@@ -202,8 +236,11 @@ void main(){
  vec3 L=normalize(vec3(-eye.x*.35,2.6,-eye.z*.35));
  vec3 Hh=normalize(L+V);
  float glint=pow(max(dot(Nv,Hh),0.),28.);
- vec3 L2=normalize(vec3(eye.z,-1.4,-eye.x));
- float glint2=pow(max(dot(Nv,normalize(L2+V)),0.),18.);
+ float glint2=0.;
+ if(sig<1.){
+  vec3 L2=normalize(vec3(eye.z,-1.4,-eye.x));
+  glint2=pow(max(dot(Nv,normalize(L2+V)),0.),18.);
+ }
  float rim=pow(1.-facing,3.);
  float glow=u_params[4];
  vec3 col=tone(hue);
@@ -215,8 +252,14 @@ void main(){
  float lattice=float(mod(a_cell.x,8.)<.5||mod(a_cell.y,8.)<.5)*clamp(u_rhythm.z,0.,1.);
  float q=(a_cell.x+a_cell.y)/(2.*N);
  float sweep=exp(-pow((q-(1.-clamp(u_rhythm.y,0.,1.)))*11.,2.))*min(1.,u_rhythm.y*4.);
- float slot=floor(u_time*1.3+a_rnd*9.);
- float tw=step(1.-(.006+.05*detail),fract(sin(slot*12.9898+a_rnd*78.233)*43758.5453))*sin(PI*fract(u_time*1.3+a_rnd*9.));
+ float tw=0.;
+ if(sig<1.){
+  float slot=floor(u_time*1.3+a_rnd*9.);
+  tw=step(1.-(.006+.05*detail),fract(sin(slot*12.9898+a_rnd*78.233)*43758.5453))*sin(PI*fract(u_time*1.3+a_rnd*9.));
+ }
+ // Coherent key/rim lighting owns Sculpture, not random twinkles or a
+ // second specular lobe. Fade both to zero before skipping their work.
+ glint2*=1.-sig;tw*=1.-sig;
  // Occlusion proxy for the sculpture: spheres near its axis (the torus
  // hole, the saddle's centre, the band's inner rim) sit deeper in the form.
  float ao=mix(1.,.3+.7*sst(.3,1.6,length(P-CENTER)),sig);
@@ -400,12 +443,14 @@ void main(){
   // Mirror of the haze glow in the floor (Schlick-weighted).
   vec3 md=vec3(rd.x,-rd.y,rd.z);
   float fres=.08+.6*pow(1.-abs(rd.y),5.);
-  vec2 ms=columnSpan(P.xz,md.xz,EXT,30.);
-  float mh;
-  if(s2<=0.)mh=hazeLayer(0.,md.y,ms.x,ms.y,layerH,.4,1.3,12.);
-  else if(s2>=1.)mh=hazeBall(P,md,30.,CENTER,1.3);
-  else mh=mix(hazeLayer(0.,md.y,ms.x,ms.y,layerH,.4,1.3,12.),hazeBall(P,md,30.,CENTER,1.3),s2);
-  floorC+=hazeC*mh*.105*glow*fres*sheen;
+  // The real mirrored globes carry Sculpture's reflection. Fade the
+  // broad reflected haze wash as the ceiling gathers; avoid a second
+  // glow-ball integral over the entire downward-looking peak frame.
+  if(s2<1.){
+   vec2 ms=columnSpan(P.xz,md.xz,EXT,30.);
+   float mh=hazeLayer(0.,md.y,ms.x,ms.y,layerH,.4,1.3,12.)*(1.-s2);
+   floorC+=hazeC*mh*.105*glow*fres*sheen;
+  }
   col=mix(fogC,floorC,exp(-T*FOGK));
  }else if(rd.y>1e-4){
   T=min((CEIL-eye.y)/rd.y,40.);

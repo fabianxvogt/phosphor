@@ -199,7 +199,45 @@ export function sculpture(u, v, w, W, Phi, detail) {
   return [(c * p[0] - s * z) * shimmer, y * shimmer, (s * p[0] + c * z) * shimmer];
 }
 
-const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+// Analytic differential, in the same lattice-step units as the old
+// centred differences. Position/identity is untouched; normals and local
+// pearl spacing no longer need four additional complete surface samples.
+export function sculptureDerivatives(u, v, w, W, Phi, detail, p = sculpture(u, v, w, W, Phi, detail)) {
+  const th = TAU * u, c = Math.cos(th), s = Math.sin(th);
+  const du = [0, 0, 0], dv = [0, 0, 0];
+  const add = (a, b, k) => { for (let i = 0; i < 3; i++) a[i] += b[i] * k; };
+  if (w[0] > 0) {
+    const sp = Math.sin(Math.PI * v), cp = Math.cos(Math.PI * v);
+    add(du, [-s, 0, c], w[0] * TAU * FORM.sphere * sp);
+    add(dv, [cp * c, -sp, cp * s], w[0] * Math.PI * FORM.sphere);
+  }
+  if (w[1] > 0) {
+    const ps = Math.PI / 2 - TAU * v, sp = Math.sin(ps), cp = Math.cos(ps);
+    add(du, [-s, 0, c], w[1] * TAU * (FORM.torusR + FORM.torusr * cp));
+    add(dv, [sp * c, -cp, sp * s], w[1] * TAU * FORM.torusr);
+  }
+  if (w[2] > 0) {
+    const m = FORM.mobiusW * (1 - 2 * v), ch = Math.cos(th / 2), sh = Math.sin(th / 2);
+    const r = FORM.mobiusR + m * ch, dr = -0.5 * TAU * m * sh;
+    add(du, [dr * c - TAU * r * s, 0.5 * TAU * m * ch, dr * s + TAU * r * c], w[2]);
+    add(dv, [ch * c, sh, ch * s], w[2] * -2 * FORM.mobiusW);
+  }
+  if (w[3] > 0) {
+    const r = FORM.saddleR * Math.sqrt(0.02 + 0.98 * v), a = 2.6 * r - 2 * W;
+    const dr = 0.49 * FORM.saddleR ** 2 / r;
+    add(du, [-r * s, -2 * FORM.saddleK * r * r * Math.sin(2 * th), r * c], w[3] * TAU);
+    add(dv, [c, 2 * FORM.saddleK * r * Math.cos(2 * th) + FORM.saddleWave * (Math.sin(a) + 2.6 * r * Math.cos(a)), s], w[3] * dr);
+  }
+  const ct = Math.cos(TILT), st = Math.sin(TILT), cp = Math.cos(Phi), sp = Math.sin(Phi);
+  const phase = TAU * (5 * u + 3 * v) - 2 * W, a = 0.01 + 0.02 * detail;
+  const sh = 1 + a * Math.sin(phase), ds = a * Math.cos(phase) * TAU;
+  return [du, dv].map((d, axis) => {
+    const y = ct * d[1] - st * d[2], z = st * d[1] + ct * d[2];
+    const rot = [cp * d[0] - sp * z, y, sp * d[0] + cp * z];
+    return rot.map((x, i) => (x * sh + p[i] * ds * (axis === 0 ? 5 : 3) / sh) / (axis === 0 ? SURFACE_COLS : SURFACE_ROWS));
+  });
+}
+
 const cross = (a, b) => [
   a[1] * b[2] - a[2] * b[1],
   a[2] * b[0] - a[0] * b[2],
@@ -249,11 +287,8 @@ export function ball(i, j, state) {
     hs = 0.5;
   if (sig > 0) {
     const [u, v] = sculptureUV(i, j);
-    const eu = 0.5 / SURFACE_COLS, ev = 0.5 / SURFACE_ROWS;
-    const f = (a, b) => sculpture(a, b, w, W, Phi, detail);
-    const p = f(u, v);
-    const du = sub(f(u + eu, v), f(u - eu, v)),
-      dv = sub(f(u, v + ev), f(u, v - ev));
+    const p = sculpture(u, v, w, W, Phi, detail);
+    const [du, dv] = sculptureDerivatives(u, v, w, W, Phi, detail, p);
     // The parametric orientation is continuous in time for every sphere;
     // the ring moves along it. Shading uses the upward-facing side.
     const no = normalize(cross(dv, du));
