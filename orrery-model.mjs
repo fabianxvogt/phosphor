@@ -406,7 +406,7 @@ export function createGeometry(seed) {
     box(-4.5, -4.41, -4.7, 4.7, -0.2, 0.02);
     box(4.41, 4.5, -4.7, 4.7, -0.2, 0.02);
   }
-  // Pointed barrel-vault ribs: substantial curved metal, not a 2D outline.
+  // Barrel-vault ribs: substantial curved metal, not a 2D outline.
   // These static carriers join the receding clockwork banks into one nave.
   const tube = (points, thickness) => {
     for (let j = 0; j < points.length - 1; j++) {
