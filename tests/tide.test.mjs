@@ -79,7 +79,7 @@ function material(x, w, iterations = 2) {
 function bowl(p, dev, flow = 0) {
   const r = Math.max(Math.hypot(...p), 0.001),
     a = Math.atan2(p[1], p[0]);
-  const depression = -27 * Math.exp((-r * r) / 245),
+  const depression = -42 * Math.exp((-r * r) / 190),
     lip = 3.8 * Math.exp(-(((r - 23) / 7) ** 2));
   const m = 3 * a - 0.12 * r + flow,
     phase = 5 * a + 0.44 * r - 2 * flow + 0.28 * Math.sin(m);
@@ -90,7 +90,7 @@ function bowl(p, dev, flow = 0) {
   const derivative =
     gaussian * (r < 4 ? 1.5 * inner * (1 - inner) : 0) -
     (env * 2 * (r - 20)) / 289;
-  let dr = (-depression * 2 * r) / 245 - (lip * 2 * (r - 23)) / 49;
+  let dr = (-depression * 2 * r) / 190 - (lip * 2 * (r - 23)) / 49;
   dr +=
     0.8 *
     (env * (0.44 - 0.0336 * Math.cos(m)) * Math.cos(phase) +
@@ -155,7 +155,7 @@ test("Gerstner steepness bound: no horizontal fold over the complete schema", ()
   assert.ok(max < 0.554 && max > 0.55, `maximum sum QkA = ${max}`);
   assert.match(
     tide.fragment,
-    /displacement \+= \.65\*w.z\*\(w.xy\/k\)\*cos\(phase\);/,
+    /displacement \+= \.65\*w.z\*gD\[i\]\*cos\(phase\);/,
   );
   for (const seed of [10301, 10302, 10303, 10304, 10305, 10306])
     for (const dev of [0, 0.5, 1, 1.5, 2]) {
@@ -265,7 +265,7 @@ test("identity persists and development reverses without a phase or position res
       assert.ok(Number.isFinite(h));
     }
   }
-  assert.ok(maxStep < 0.005, `development Lipschitz check ${maxStep}`);
+  assert.ok(maxStep < 0.007, `development Lipschitz check ${maxStep}`);
   for (const edge of [0, 1, 2]) {
     const eps = 1e-5,
       x = [17, 8];
