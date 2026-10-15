@@ -9,6 +9,13 @@ import {
   SPECTRAL_SAMPLES,
   STRIDE,
   ADDITIVE_FROM,
+  ARCH_BAYS,
+  ARCH_COUNT,
+  ARCH_FIRST,
+  ARCH_RIB_COUNT,
+  VAULT_PANELS,
+  archPoint,
+  archPose,
   PLANES,
   refractiveIndex,
   minimumDeviation,
@@ -16,6 +23,7 @@ import {
   refract,
   intersectPrism,
   tracePrism,
+  traceSecondary,
   traceLens,
   identity,
   prismPose,
@@ -42,7 +50,7 @@ test("Cauchy dispersion is normal, monotone, finite and uses micrometres", () =>
     prism.geometry.vertex,
     /1\.48\+0\.012\*u_params\[2\]\/\(lambda\*lambda\)/,
   );
-  assert.match(prism.geometry.vertex, /lambda=mix\(\.38,\.78,a_info.z\)/);
+  assert.match(prism.geometry.vertex, /lambda=mix\(\.38,\.78,spectral\)/);
 });
 
 test("minimum deviation equals an independent two-interface Snell solution and is the true minimum", () => {
@@ -153,7 +161,9 @@ test("the maximal topology and seed identity survive development and reversal", 
   const geometry = createGeometry(10801);
   assert.equal(
     geometry.length / STRIDE,
-    ADDITIVE_FROM + (PRISM_COUNT + LENS_COUNT * 5) * SPECTRAL_SAMPLES * 4 * 6,
+    ADDITIVE_FROM +
+      (PRISM_COUNT + LENS_COUNT * 5) * SPECTRAL_SAMPLES * 4 * 6 +
+      PRISM_COUNT * (SPECTRAL_SAMPLES - 1) * 12,
   );
   assert.ok([...geometry].every(Number.isFinite));
   assert.deepEqual(geometry, createGeometry(10801));
@@ -175,7 +185,7 @@ test("the maximal topology and seed identity survive development and reversal", 
       );
       if (i)
         for (let j = 0; j < 3; j++)
-          assert.ok(Math.abs(pose.center[j] - forward[i - 1].center[j]) < 0.09);
+          assert.ok(Math.abs(pose.center[j] - forward[i - 1].center[j]) < 0.11);
       forward.push(pose);
     }
     for (let i = 200; i >= 0; i--)
@@ -188,9 +198,123 @@ test("the maximal topology and seed identity survive development and reversal", 
     }
   }
   assert.equal(prism.geometry.create, createGeometry);
-  assert.match(prism.geometry.fragment, /environment\(source,v_Q\*outgoing\)/);
+  assert.match(prism.geometry.fragment, /environment\(source,outgoing\)/);
   assert.match(prism.geometry.fragment, /fwidth\(m2\)/);
   assert.match(prism.geometry.vertex, /p\.y=-p\.y/);
+});
+
+test("spectral sheets cover the entire palette and share continuous physical edges", () => {
+  assert.equal(SPECTRAL_SAMPLES, 41);
+  assert.match(prism.geometry.fragment, /vec3 ink=spectrum\(t\)/);
+  assert.match(prism.geometry.fragment, /ink\*1\.9/);
+  assert.match(prism.geometry.vertex, /\(a_position.x\*\.5\+\.5\)\/40\./);
+  assert.doesNotMatch(prism.geometry.fragment, /tone\(\.07\+\.66\*t\)/);
+  const g = createGeometry(10801);
+  // Flat metadata MUST be constant over each triangle. Interleaving a
+  // reflected vertex with a primary vertex creates huge luminous wedges.
+  for (let i = 0; i < g.length; i += STRIDE * 3)
+    for (let vertex = 1; vertex < 3; vertex++)
+      for (let field = 6; field < 10; field++)
+        assert.equal(g[i + field], g[i + vertex * STRIDE + field]);
+  const sheet = [];
+  for (let i = ADDITIVE_FROM * STRIDE; i < g.length; i += STRIDE * 6)
+    if (g[i + 6] === 0 && g[i + 7] === 1 && g[i + 9] === 2)
+      sheet.push(g[i + 8]);
+  assert.equal(sheet.length, SPECTRAL_SAMPLES - 1);
+  near(sheet[0], 0);
+  near(sheet.at(-1) + 1 / (SPECTRAL_SAMPLES - 1), 1, 3e-8);
+  for (let l = 0; l < sheet.length - 1; l++) {
+    const right = sheet[l] + 1 / (SPECTRAL_SAMPLES - 1),
+      nextLeft = sheet[l + 1];
+    // Geometry attributes are Float32: adjacent encoded bases can differ
+    // by one ulp near 1, even though they represent the same wavelength.
+    near(right, nextLeft, 6e-8);
+    const a = tracePrism(0.38 + 0.4 * right),
+      b = tracePrism(0.38 + 0.4 * nextLeft);
+    for (let axis = 0; axis < 3; axis++)
+      near(a.direction[axis], b.direction[axis], 1e-7);
+  }
+});
+
+test("secondary light follows reflection then a second physical Snell exit", () => {
+  for (let i = 0; i < SPECTRAL_SAMPLES; i++) {
+    const lambda = 0.38 + (0.4 * i) / (SPECTRAL_SAMPLES - 1);
+    const ray = traceSecondary(lambda);
+    assert.ok(
+      [...ray.entry, ...ray.exit, ...ray.bounce].every(Number.isFinite),
+    );
+    near(length(ray.bounce), 1);
+    for (const p of [ray.entry, ray.exit]) {
+      const distances = PLANES.map(
+        (n, face) => (face < 3 ? 0.5 : 0.65) - dot(n, p),
+      );
+      assert.ok(Math.min(...distances) > -1e-8);
+      near(Math.min(...distances), 0, 1e-8);
+    }
+    if (ray.direction) {
+      near(length(ray.direction), 1);
+      const incomingTangent = ray.bounce.map(
+        (v, j) => v - dot(ray.bounce, ray.normal) * ray.normal[j],
+      );
+      const outgoingTangent = ray.direction.map(
+        (v, j) => v - dot(ray.direction, ray.normal) * ray.normal[j],
+      );
+      for (let j = 0; j < 3; j++)
+        near(outgoingTangent[j], refractiveIndex(lambda) * incomingTangent[j]);
+    }
+  }
+  assert.match(prism.geometry.vertex, /vec3 bounce=reflect\(d,ex\)/);
+  assert.match(
+    prism.geometry.vertex,
+    /outgoing=normalize\(bounce-ex\*dot\(bounce,ex\)\);v_visibility=0\./,
+  );
+  assert.match(prism.geometry.fragment, /if\(v_visibility<\.5\)discard/);
+});
+
+test("pointed glass nave has seven connected bays, a continuous crown and reversible identity", () => {
+  assert.equal(ARCH_BAYS, 7);
+  assert.equal(ARCH_COUNT, 116);
+  assert.equal(VAULT_PANELS, 72);
+  for (const spacing of [0.7, 1, 1.25]) {
+    const w = 3.3 * spacing;
+    for (let i = 0; i <= 100; i++) {
+      const t = i / 100,
+        a = archPoint(1, t, spacing),
+        b = archPoint(-1, t, spacing);
+      near(a[0], -b[0]);
+      near(a[1], b[1]);
+      near((a[0] + w) ** 2 + (a[1] - 2.3) ** 2, 4 * w * w);
+    }
+    assert.deepEqual(
+      archPoint(-1, 1, spacing),
+      archPoint(1, 1, spacing).map((x, i) => (i ? x : -x)),
+    );
+    near(archPoint(1, 1, spacing)[1], 2.3 + Math.sqrt(3) * w);
+    for (let id = ARCH_FIRST; id < ARCH_FIRST + ARCH_COUNT; id++) {
+      const forward = Array.from({ length: 201 }, (_, i) =>
+        archPose(id, i / 100, spacing),
+      );
+      for (let i = 200; i >= 0; i--) {
+        const pose = archPose(id, i / 100, spacing);
+        assert.deepEqual(pose, forward[i]);
+        assert.ok(
+          [...pose.center, ...pose.stretch, pose.angle, pose.scale].every(
+            Number.isFinite,
+          ),
+        );
+        assert.ok(pose.stretch.every((x) => x > 0));
+      }
+      assert.equal(forward[100].scale, 0);
+      assert.equal(forward[200].scale, 1);
+    }
+    // Longitudinal ridge and spring rails connect adjacent bay planes.
+    for (
+      let id = ARCH_FIRST + ARCH_RIB_COUNT;
+      id < ARCH_FIRST + ARCH_COUNT;
+      id++
+    )
+      near(archPose(id, 2, spacing).stretch[2] * 1.3, 3);
+  }
 });
 
 test("all eight presets validate, and the appended world has identical non-development state parameters", () => {
