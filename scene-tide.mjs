@@ -392,14 +392,17 @@ void main() {
   vec4 surface=tdSurface(p.xz);
   float crestAA=max(.008,1.5*fwidth(surface.w));
   // These derivatives are outside the water branch, including horizon quads.
-  vec2 windUV=vec2(.83*p.x+.56*p.z,-.56*p.x+.83*p.z)*vec2(.85,1.50);
+  vec2 windUV=vec2(.83*p.x+.56*p.z,-.56*p.x+.83*p.z)*vec2(.42,1.50);
   // Smooth domain bending removes even the implicit gradient lattice from
   // the lace; the separate wind filaments remain gently anisotropic.
   windUV+=.9*vec2(sin(.16*p.x+.21*p.z+gFlow),cos(.23*p.x-.14*p.z-2.*gFlow));
   windUV+=vec2(cos(gFlow),sin(gFlow))*.65;
   float lace=tdLace(windUV);
   float fineLace=tdLace(windUV*2.7+vec2(17.,9.));
-  float laceAA=max(.025,1.5*fwidth(lace));
+  float laceField=lace+.22*fineLace-.035;
+  float laceAA=max(.025,max(1.5*fwidth(laceField),.32*footprint));
+  float streakPhase=(-p.x*.56+p.z*.83)*7.+5.*lace;
+  float streakAA=max(.02,fwidth(streakPhase));
   float armPhase=5.*atan(p.z,p.x)+.44*length(p.xz)-2.*gFlow
     +.28*sin(3.*atan(p.z,p.x)-.12*length(p.xz)+gFlow);
   // Differentiate sin, not atan: no artificially broad line at the polar seam.
@@ -412,7 +415,7 @@ void main() {
     // Band-limited capillary ripples alter normals, not the silhouette.
     float keep=1.-smoothstep(.12,.5,footprint);
     vec2 micro=vec2(cos(3.1*p.x+2.4*p.z-5.*gWavePhase),sin(-2.2*p.x+4.3*p.z-7.*gWavePhase));
-    normal=normalize(normal+vec3(micro.x,0.,micro.y)*.065*wind*keep);
+    normal=normalize(normal+vec3(micro.x,0.,micro.y)*.065*wind*keep*mix(.25,1.,gSwell));
     vec3 reflected=reflect(rd,normal);
     float fresnel=.025+.975*pow(1.-max(0.,dot(-rd,normal)),5.);
     vec3 water=mix(u_secondary*.018,u_primary*.025,.5+.5*normal.y);
@@ -428,14 +431,14 @@ void main() {
     float crest=surface.w;
     float crestMask=smoothstep(mix(.035,.14,gSwell)-crestAA,mix(.075,.29,gSwell)+crestAA,crest);
     float laceKeep=1.-smoothstep(.3,1.2,footprint*1.50);
-    float ridge=abs(lace+.22*fineLace-.035);
+    float ridge=abs(laceField);
     float threads=1.-smoothstep(.035-laceAA,.11+laceAA,ridge);
-    float streak=.5+.5*sin((-p.x*.56+p.z*.83)*7.+5.*lace);
+    float streak=.5+.5*sin(streakPhase)*exp(-.5*streakAA*streakAA);
     float filamentKeep=1.-smoothstep(.25,.9,footprint*7.);
-    // Aerated patches with darker bubble pockets, not a uniform neon net.
-    float aeration=smoothstep(-.14-laceAA,.18+laceAA,lace+.22*fineLace);
-    float lacy=mix(.32,.13+.58*aeration+.20*threads+.09*streak*filamentKeep,laceKeep);
-    float foam=crestMask*lacy*mix(.10,1.,gSwell);
+    // Restore open gradient-noise lace, not filled camouflage islands.
+    // Calm is a glassy moon path: foam develops only with the swell.
+    float lacy=mix(.23,.025+.74*threads+.16*streak*filamentKeep,laceKeep);
+    float foam=crestMask*lacy*smoothstep(.08,.85,gSwell);
     float inner=smoothstep(3.,8.,r);
     float spiral=smoothstep(.76-armAA,.97+armAA,armWave)*exp(-sq((r-18.)/19.))*inner*gVortex;
     float lip=exp(-sq((r-22.5)/1.35))*gVortex;
@@ -459,8 +462,8 @@ void main() {
     float bioDepth=mix(1.,.32+.68*depth,gVortex);
     vec3 bio=mix(u_secondary,u_primary,.20);
     col+=bio*living*bioDepth*1.75;
-    // Lunar scattering belongs to the foam's body; living light is a finer
-    // second layer, so crest interiors no longer read as hollow wire cells.
+    // A faint lunar contribution follows the filtered filaments themselves;
+    // never fill the noise lobes or trace their candidate-cell boundaries.
     col+=mix(u_secondary,vec3(1.),.65)*foam*(.12+.26*key)*bioDepth;
     float hot=pow(spark,16.)*smoothstep(.85,1.55,living);
     col+=mix(u_accent,u_primary,.15)*hot*(foam+spiral)*5.;
@@ -468,7 +471,7 @@ void main() {
     col+=mix(u_secondary,u_accent,.24)*spiralCore*ignition*bioDepth*2.8*u_params[3];
     col+=mix(u_secondary,u_accent,.15)*gVortex*exp(-r*r/55.)*.25;
     // Smooth subpixel-filtered wind-torn droplets, not thresholded cells.
-    float spray=tdDroplets(windUV*1.8,footprint*2.7)*(crestMask+spiral)*wind;
+    float spray=tdDroplets(windUV*1.8,footprint*2.7)*(crestMask*gSwell+spiral)*wind;
     col+=mix(u_accent,u_primary,.35)*spray*9.;
     col+=u_secondary*lip*(.025+.035*lace)*wind;
     float fog=1.-exp(-t*.0045);
