@@ -60,6 +60,13 @@ const simulationFragment = grayScottSimulation(
   spores,
 );
 
+export const COLONY_RADII = [.54, .47];
+export function colonyEnvelope(x, y) {
+  const r = Math.hypot(x / COLONY_RADII[0], y / COLONY_RADII[1]);
+  const t = Math.max(0, Math.min(1, (r - .72) / .28));
+  return 1 - t * t * (3 - 2 * t);
+}
+
 const fragment = `${stateCodec}
 float tideW() { return smoothstep(0., 1., clamp(u_params[0], 0., 1.)); }
 float cityW() { return smoothstep(1., 2., clamp(u_params[0], 1., 2.)); }
@@ -71,27 +78,41 @@ float shape(float v, float contrast, float city) {
   float body = smoothstep(.04, .30, v * contrast);
   float steps = body * 3.;
   float terrace = (floor(steps) + smoothstep(.30, .70, fract(steps))) / 3.;
-  return mix(body, terrace, city * .85);
+  return mix(body, terrace, city * .55);
 }
 const vec2 WORLD = vec2(${(320 / 192).toFixed(6)}, 1.) * 1.25;
 vec2 worldToUv(vec2 xy) { return xy / WORLD; }
+// A finite colony makes the continuing chemical field read as one organism.
+// The camera and colony share a focus; only the periodic chemistry drifts.
+vec2 colonyFocus;
+float colony(vec2 xy) {
+  float r = length((xy - colonyFocus) / vec2(${COLONY_RADII.join(", ")}));
+  return 1. - smoothstep(.72, 1., r);
+}
+float terrain(vec2 xy, float contrast, float city) {
+  float c = colony(xy);
+  if (c <= 0.) return 0.;
+  return c * (shape(activator(worldToUv(xy)), contrast, city)
+    + city * .26 * max(0., 1. - dot((xy-colonyFocus)/.55, (xy-colonyFocus)/.55)));
+}
 
 void main() {
   float aspect = u_resolution.x / u_resolution.y;
-  vec2 p = (v_uv - .5) * vec2(aspect, 1.);
+  vec2 p = (v_uv - .5) * vec2(max(aspect, 1.), max(1., 1. / aspect));
   float tide = tideW(), city = cityW();
   float contrast = clamp(u_params[6], .7, 1.9);
   float relief = clamp(u_params[4], .3, 1.6);
-  float scale = mix(mix(.010, .030, tide), .050, city) * relief;
+  float scale = mix(mix(.025, .065, tide), .155, city) * relief;
 
   // Camera: an endless slow orbit around a drifting focus. Development tilts
   // it from a near-vertical forest-floor view to an oblique city flight.
   float orbit = TAU * fract(u_time / 720.) + .32 * sin(TAU * fract(u_time / 96.));
-  float pitch = mix(mix(.30, .60, tide), .92, city);
-  float distanceToFocus = 1.25 * clamp(u_params[5], .7, 1.4);
+  float pitch = mix(mix(.42, .65, tide), .94, city);
+  float distanceToFocus = 1.48 * clamp(u_params[5], .7, 1.4);
   // The focus starts on the seeded composition (uv .5) and drifts across the
   // periodic field; one full lap wraps onto an identical texel.
   vec2 focus = WORLD * (.5 + vec2(fract(u_time / 560.), fract(u_time / 1330.)));
+  colonyFocus = focus;
   vec2 heading = vec2(sin(orbit), cos(orbit));
   vec3 forward = vec3(heading * sin(pitch), -cos(pitch));
   vec3 right = vec3(heading.y, -heading.x, 0.);
@@ -101,20 +122,27 @@ void main() {
   vec3 rd = normalize(p.x * right + p.y * up + lens * forward);
 
   // March the heightfield from its top slab down to the ground plane.
-  float tTop = (scale - ro.z) / rd.z, tGround = -ro.z / rd.z;
-  float t = tTop, dt = (tGround - tTop) / 12.;
+  float tTop = (scale * 1.26 - ro.z) / rd.z, tGround = -ro.z / rd.z;
+  float samples = mix(mix(8., 12., tide), 22., city);
+  float t = max(0., tTop), dt = (tGround - max(0., tTop)) / samples;
   vec3 hit = ro + rd * tGround;
-  float prev = tTop;
-  for (int i = 0; i < 12; i++) {
+  // Conservative slab/colony rejection: empty ground does no texture march.
+  vec2 start = (ro + rd * t).xy - focus;
+  vec2 span = (ro + rd * tGround).xy - focus - start;
+  vec2 closest = start + span * clamp(-dot(start, span) / max(dot(span, span), 1e-6), 0., 1.);
+  bool inColony = dot(closest, closest) < .55 * .55;
+  float prev = t;
+  for (int i = 0; i <= 22; i++) {
+    if (!inColony || float(i) > samples) break;
     vec3 q = ro + rd * t;
-    float h = scale * shape(activator(worldToUv(q.xy)), contrast, city);
+    float h = scale * terrain(q.xy, contrast, city);
     if (q.z <= h) {
       // Bisect between the last free sample and this one.
       float a = prev, b = t;
-      for (int k = 0; k < 5; k++) {
+      for (int k = 0; k < 6; k++) {
         float m = .5 * (a + b);
         vec3 r = ro + rd * m;
-        if (r.z <= scale * shape(activator(worldToUv(r.xy)), contrast, city)) b = m; else a = m;
+        if (r.z <= scale * terrain(r.xy, contrast, city)) b = m; else a = m;
       }
       hit = ro + rd * b;
       break;
@@ -124,14 +152,20 @@ void main() {
   }
   vec2 uv = worldToUv(hit.xy);
   vec2 texel = 1. / vec2(textureSize(u_state, 0));
-  float v = activator(uv);
+  float colonyMask = colony(hit.xy);
+  float v = colonyMask > 0. ? activator(uv) * colonyMask : 0.;
   vec2 e = 1.5 * texel;
-  float vx1 = activator(uv + vec2(e.x, 0.)), vx0 = activator(uv - vec2(e.x, 0.));
-  float vy1 = activator(uv + vec2(0., e.y)), vy0 = activator(uv - vec2(0., e.y));
-  float height = shape(v, contrast, city);
+  float vx1 = 0., vx0 = 0., vy1 = 0., vy0 = 0.;
+  if (colonyMask > 0.) {
+    vx1 = activator(uv + vec2(e.x, 0.)) * colonyMask; vx0 = activator(uv - vec2(e.x, 0.)) * colonyMask;
+    vy1 = activator(uv + vec2(0., e.y)) * colonyMask; vy0 = activator(uv - vec2(0., e.y)) * colonyMask;
+  }
+  float height = hit.z / scale;
+  vec2 local = (hit.xy - focus) / .55;
   vec2 slope = vec2(shape(vx1, contrast, city) - shape(vx0, contrast, city),
                     shape(vy1, contrast, city) - shape(vy0, contrast, city)) * scale
              / (2. * e * WORLD);
+  slope -= city * .52 * local / .55 * scale * colonyMask;
   vec3 normal = normalize(vec3(-slope, 1.));
   vec2 gradient = vec2(vx1 - vx0, vy1 - vy0) * .5;
 
@@ -146,9 +180,11 @@ void main() {
   float specular = pow(max(0., dot(normal, normalize(key + view))), mix(18., 60., tide));
   // Self-shadow toward the key light and contact darkening in the valleys.
   float shadow = 1.;
-  for (int i = 1; i <= 4; i++) {
+  for (int i = 1; i <= 3; i++) {
+    if (colonyMask <= 0.) break;
     vec3 s = vec3(hit.xy, scale * height) + key * float(i) * scale * .9;
-    float ground = scale * shape(activatorFast(worldToUv(s.xy)), contrast, city);
+    float ground = scale * colony(s.xy) * (shape(colony(s.xy) > 0. ? activatorFast(worldToUv(s.xy)) : 0., contrast, city)
+      + city * .26 * max(0., 1. - dot((s.xy-focus)/.55, (s.xy-focus)/.55)));
     shadow = min(shadow, 1. - .55 * smoothstep(0., scale * .25, ground - s.z));
   }
   float cavity = 1. - .5 * (1. - height) * smoothstep(.0, .35, (vx1 + vx0 + vy1 + vy0) * .25 - v + .05);
@@ -163,7 +199,7 @@ void main() {
   float travel = length(hit - ro) - distanceToFocus;
   float near = 1. - smoothstep(0., 1.2, travel);
 
-  vec3 ground = u_secondary * .018 + vec3(.004, .006, .009);
+  vec3 ground = u_secondary * .009;
   // Two-tone bodies so every palette shows its range: tops lean toward
   // primary, flanks and low bodies toward secondary, and a slow regional
   // drift across the field shifts the mix (accent stays for edges/events).
@@ -172,7 +208,7 @@ void main() {
   vec3 inkTop = palette(clamp(.22 + .42 * region + .14 * crest, 0., .8));
   vec3 inkSide = mix(u_secondary, palette(.22 + .2 * region), .35);
   vec3 ink = mix(inkSide, inkTop, top);
-  float lightAmount = (.05 + .72 * pow(diffuse, 1.3) * shadow + .08 * wrap) * cavity;
+  float lightAmount = (.025 + .82 * pow(diffuse, 1.3) * shadow + .05 * wrap) * cavity;
   // A cool fill from the opposite side keeps shadowed flanks coloured.
   float fill = max(0., dot(normal, normalize(vec3(.6, -.5, .45))));
   vec3 lit = ink * lightAmount + mix(u_secondary, ink, .3) * fill * .16 * cavity;
@@ -180,7 +216,7 @@ void main() {
 
   // Understory: a dark floor, luminous threads with a soft halo and low,
   // dimly lit colony bodies.
-  vec3 under = ground + ink * body * .16 * lightAmount
+  vec3 under = ground + ink * body * .48 * lightAmount
              + mix(palette(.35 + .4 * region), vec3(1.), .15) * (thread * .9 + halo * .10)
              + u_accent * crest * pow(diffuse, 6.) * .08;
   // Tide: wet membranes with specular sheen, fresnel rims and a translucent
@@ -198,12 +234,18 @@ void main() {
   float storeyLine = abs(fract(storeys) - .5) / max(fwidth(storeys), 1e-4);
   vec2 block = floor(uv * vec2(textureSize(u_state, 0)) * .34) + floor(storeys) * 17.;
   float windows = (1. - smoothstep(lineWidth * .5, lineWidth * 1.2, storeyLine))
-                * step(mix(.84, .66, u_level), hash(block)) * steep * (.35 + .65 * near);
-  vec3 town = mix(ground, lit * mix(.45, .85, level), body)
-            + mix(u_primary, vec3(1.), .3) * specular * crest * shadow * .30
-            + rimColor * rim * body * .30
-            + mix(u_accent, vec3(1.), .2) * windows * .85
-            + u_primary * halo * (1. - body) * .05;
+                * step(mix(.94, .86, u_level), hash(block)) * steep * (.35 + .65 * near);
+  vec3 town = mix(ground, lit * mix(.48, .85, level), body)
+            + mix(u_primary, vec3(1.), .3) * specular * crest * shadow * .65
+            + mix(u_secondary, vec3(1.), .22) * rim * body * .55
+            + mix(u_accent, vec3(1.), .2) * windows * 1.8
+            + mix(u_primary, vec3(1.), .12) * thread * (.28 + .6 * rim)
+            + u_primary * halo * (1. - body) * .10;
+  // Fine gills follow the actual chemical contour, not screen coordinates.
+  float gillPhase = v * 105.;
+  float gills = (1. - smoothstep(.22, .22 + max(fwidth(gillPhase), .08), abs(sin(gillPhase)))) * body;
+  membrane *= 1. - .20 * gills;
+  town *= 1. - .18 * gills * top;
   vec3 color = mix(mix(under, membrane, tide), town, city);
 
   // Rhythm: reaction front, a selected concentration band (feed is simulation).
@@ -216,6 +258,8 @@ void main() {
   // Atmosphere: distance fades toward the palette's dark.
   float fog = smoothstep(-.35, mix(1.2, 1.7, city), travel);
   color = mix(color, ground * .7, fog);
+  vec3 pool = ground + u_secondary * .018 * exp(-dot((hit.xy-focus)/.62, (hit.xy-focus)/.62) * 2.);
+  color = mix(pool, color, smoothstep(0., .12, colonyMask));
   vec2 frame = v_uv * (1. - v_uv);
   color *= .72 + .28 * pow(clamp(frame.x * frame.y * 16., 0., 1.), .35);
   outColor = vec4(max(color, 0.), 1.);
