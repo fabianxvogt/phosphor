@@ -184,6 +184,16 @@ const AUTHORED = [
       { name: "Reef", look: "abyss:Lantern Reef" },
     ],
   },
+  {
+    id: "laser-grid",
+    name: "Laser Grid",
+    description: "A wireframe horizon raises vector towers and folds into a vaulted tunnel of converging lasers. The same grid throughout.",
+    states: [
+      { name: "Horizon", look: "laser:Horizon" },
+      { name: "Towers", look: "laser:Towers" },
+      { name: "Tunnel", look: "laser:Tunnel" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

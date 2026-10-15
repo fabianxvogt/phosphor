@@ -12,6 +12,12 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  laser: {
+    algorithm: "Hinged vector planes and closed-form Gaussian beam scattering",
+    description: "A vector plane raises wireframe towers, then folds into a vaulted laser cathedral. Crisp material grid lines and sweeping laser fans inhabit analytically integrated scattering haze.",
+    styles: ["geometric", "spatial"],
+    variants: ["Horizon", "Towers", "Tunnel"],
+  },
   fold: {
     algorithm: "Rigid folding of polyhedral nets along hinge chains",
     description:
