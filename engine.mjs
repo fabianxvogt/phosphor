@@ -164,6 +164,7 @@ export class Engine {
     // OES_texture_half_float_linear is core in WebGL2 (unlike float32
     // filtering). EXT_color_buffer_float adds the renderable RGBA16F format.
     this.floatPicture = !!gl.getExtension("EXT_color_buffer_float");
+    this.floatDataLinear = !!gl.getExtension("OES_texture_float_linear");
     this.pictureHeader = this.floatPicture
       ? shaderHeader.replace(
           "outColor = quantize8(value);",
@@ -293,7 +294,14 @@ export class Engine {
     const precompute = scene.precompute && this.floatPicture;
     programs.visual = this.program(
       variant(
-        header + (precompute ? "#define PRECOMPUTED\n" : "") + scene.fragment,
+        header +
+          (precompute ? "#define PRECOMPUTED\n" : "") +
+          (precompute &&
+          scene.precompute.filter === "linear" &&
+          this.floatDataLinear
+            ? "#define PRECOMPUTED_LINEAR\n"
+            : "") +
+          scene.fragment,
       ),
       true,
     );
@@ -893,6 +901,7 @@ export class Engine {
       slot.precompute = this.target(...scene.precompute.size, {
         simulation: true,
         floatData: true,
+        filter: this.floatDataLinear ? scene.precompute.filter : "nearest",
       });
     if (scene.id === "melt") {
       const gl = this.gl;

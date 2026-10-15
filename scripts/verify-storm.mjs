@@ -163,8 +163,8 @@ try {
       const { engine } = window.__phosphorLab,
         gl = engine.gl;
       gl.bindFramebuffer(gl.FRAMEBUFFER, engine.slots.at(-1).precompute.fbo);
-      const values = new Float32Array(64 * 3 * 4);
-      gl.readPixels(0, 0, 64, 3, gl.RGBA, gl.FLOAT, values);
+      const values = new Float32Array(128 * 3 * 4);
+      gl.readPixels(0, 0, 128, 3, gl.RGBA, gl.FLOAT, values);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       return Array.from(values);
     });
@@ -174,16 +174,16 @@ try {
       snapshot.params.height,
     );
     let error = 0;
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 120; i++) {
       for (let axis = 0; axis < 3; axis++) {
         error = Math.max(
           error,
-          Math.abs(data[(64 + i) * 4 + axis] - graph[i].a[axis]),
-          Math.abs(data[(128 + i) * 4 + axis] - graph[i].b[axis]),
+          Math.abs(data[(128 + i) * 4 + axis] - graph[i].a[axis]),
+          Math.abs(data[(256 + i) * 4 + axis] - graph[i].b[axis]),
         );
       }
       const weight = graph[i].active ? (i % 30 < 18 ? 1 : 0.52) : 0;
-      assert.ok(Math.abs(data[(64 + i) * 4 + 3] - weight) < 1e-6);
+      assert.ok(Math.abs(data[(128 + i) * 4 + 3] - weight) < 1e-6);
     }
     assert.ok(error < 0.00001, `CPU/GPU graph error ${error}`);
     const diff = await lab.page.evaluate(async () => {
@@ -231,22 +231,30 @@ try {
       gl.deleteProgram(fallback.p);
       let max = 0,
         sum = 0,
-        differing = 0;
+        differing = 0,
+        outliers = 0;
       for (let i = 0; i < direct.length; i++) {
         const d = Math.abs(direct[i] - cached[i]);
         max = Math.max(max, d);
         sum += d;
         differing += Number(d > 0);
+        outliers += Number(d > 2);
       }
       return {
         max,
         mean: sum / direct.length,
         differing,
+        outlierFraction: outliers / direct.length,
         glError: gl.getError(),
       };
     });
     assert.equal(diff.glError, 0);
-    assert.ok(diff.max <= 2 && diff.mean < 0.01, JSON.stringify(diff));
+    // Float texture hardware has subtexel precision limits. Compare against
+    // the manual, uncached interpolation with a sparse-contour error budget.
+    assert.ok(
+      diff.max <= 2 && diff.mean < 0.01 && diff.outlierFraction === 0,
+      JSON.stringify(diff),
+    );
     comparisons.push({ development, graphMaxError: error, fallback: diff });
   }
   for (const [name, index, width, height] of [
@@ -282,7 +290,7 @@ try {
     JSON.stringify({ rows, comparisons }, null, 2) + "\n",
   );
   console.log(
-    `PASS: ${rows.length} late frames, 300 GPU/CPU segments, five cache differentials; stills in ${out}`,
+    `PASS: ${rows.length} late frames, 600 GPU/CPU segments, five cache differentials; stills in ${out}`,
   );
 } finally {
   await runtime.stop();

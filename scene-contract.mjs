@@ -109,6 +109,10 @@ vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t
 // once per visual draw. The visual body receives PRECOMPUTED and may declare
 // uniform highp sampler2D u_precomputed. Keep an equivalent fallback path:
 // without EXT_color_buffer_float no cache is created and no macro is defined.
+// precompute.filter:'linear' optionally enables float32 interpolation when
+// OES_texture_float_linear exists and defines PRECOMPUTED_LINEAR in the visual.
+// Otherwise filtering stays nearest; authors must retain manual interpolation.
+// texelFetch remains exact in either mode (e.g. topology sharing an atlas).
 // Data passes use their own size for u_resolution; they retain visual-time
 // uniforms and the latest simulation state, without advancing that state.
 // simulation {fragment,size:[w,h],steps,filter?} ping-pongs RGBA8 state;

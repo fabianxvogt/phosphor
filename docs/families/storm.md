@@ -1,72 +1,86 @@
 # Thunderhead / Gewitterzelle
 
-World `thunderhead`, renderer `storm`, family **107**. One night storm seen from a high overlook: **Haze / Dunst → Towers / Türme → Supercell / Superzelle**. Eight looks; the three world presets share seed **10701** and identical non-development parameters. No engine changes, simulation, assets or reduced-resolution colour pass.
+World `thunderhead`, scene `storm`, family **107**. **Haze / Dunst → Towers / Türme → Supercell / Superzelle**. All eight look names, seeds, schema keys and preset parameters remain unchanged. The three world states share seed **10701** and identical non-development parameters.
 
-## Signature: connected stepped leaders
+## Composition and development
 
-`storm-model.mjs` is the CPU reference for `scene-storm-data.mjs`. A uint avalanche hash supplies exact 24-bit random samples keyed only by `(seed, network, sample)`. Two persistent leader trees each have eighteen trunk segments and three possible four-segment branches: **60 maximum edges**. Every branch attaches to an existing trunk endpoint (steps 4, 8 and 12); every following branch edge begins at its predecessor's endpoint. Dormant branches never leave disconnected illuminated pieces.
+A horizon-wide weather bank rises into a group of cumulonimbus towers, then spreads into an anvil and a lowering, rotating wall cloud. Five smoothly joined ellipsoid fields plus six persistent seeded crown lobes carry the development. Three noise octaves sculpt the billows; the base has less erosion than the crown. The same material chart twists into helical strata beneath the supercell. Centres and lobe identities never reseed on development changes or reversals.
 
-The field-biased trunk advances by `1/18` in longitudinal material coordinate per step. Lateral coordinates have bounded seed-derived jitter, with the root's jitter subtracted so the root is exactly zero. Differences of independent uniform samples give lateral step variance `0.16² / 6`; z jitter is bounded at 0.12. Branches have random left/right handedness, a forward bias and additional bounded step jitter. Each branch exists with probability **0.78**, giving 4.68 expected branches and 54.72 expected active edges across the two trees. This is an authored stepped-leader model, not a dielectric-breakdown/electrostatic solver.
+The camera is now low (roughly 1.6 world units), with a closed lateral/dolly/crane path in front of the volume. It approaches the supercell rather than viewing a small cloud from a high overlook. Towers occupy about 60–70% of landscape frame height; the anvil spans the frame width. Portrait retains the large subject rather than shrinking it to keep the entire horizontal storm inside the screen. The horizon stays stable. A shaded moon, two far weather shelves, ridges, tiny town lights, rain curtains and local wet-ground strike/reflection footprints anchor scale.
 
-Development deforms the *same* material vertices. During Towers their long axis runs between charged cells; during Supercell it turns down toward the basin. Trunk endpoints terminate at y=0 exactly in the top state. The second root is higher and its ground target wider, avoiding mirror-image bolts. Seed, graph ancestry, activation and step indices never depend on development, energy or clocks. Reversal retraces the geometry without rebuilding anything.
+## Signature mathematics: four connected stepped-leader trees
 
-An optional **64×35 RGBA32F** geometry-data pass stores projected/world endpoints and four exact 16-bit candidate masks per screen tile. Bounds include the full seven-width AA/glow support, including portrait framing; below 240 px short side the shader retains every candidate. The fallback computes the identical graph directly. The cache contains no colour image and refreshes on each actual visual draw.
+`storm-model.mjs` independently mirrors the GLSL in `scene-storm-data.mjs`. A uint avalanche hash gives deterministic 24-bit random samples keyed by `(seed, network, sample)`. Four trees each have eighteen trunk edges and three possible four-edge branches: **120 maximum segments**. Every branch attaches at a trunk endpoint (steps 4, 8, 12), and each subsequent edge starts at the preceding endpoint. Activation probability is **0.78**, with unbiased branch handedness.
 
-## Clouds and light
+The trunk advances by `1/18` in material longitudinal coordinate per step. Lateral increments are differences of uniform samples, with variance `0.16²/6`; z increments are bounded by 0.12. The root jitter is subtracted so each root is exactly `(0,0,0)`. This is a bounded statistical leader model, not an electrostatic-breakdown solver.
 
-Five smoothly joined analytic ellipsoid fields carry the cloud bank, unequal growing towers, anvil and lowering wall cloud. The near-surface quadratic field is `(1−dot(q,q)) min(rx,ry)/2`; smooth maximum blends fields and their normals. The same centres grow continuously rather than dissolving between pictures. Two analytic cubic-noise octaves perturb density and normals. A rotating material chart and depth-dependent twist, plus twofold helical density strata, give the final mesocyclone its rotation and layered underside.
+The original two trees turn from cloud-to-cloud discharge into ground strikes as development reaches 2; trunk endpoints terminate at y=0 exactly. Two additional trees remain **cloud-base crawlers**, spanning more than twelve world units horizontally, including in Supercell. Their identity and connected ancestry remain independent of development, energy and clocks. Stronger cores (5.5 before event/branch weights) exceed 1.0 on the float path, feeding bloom without flashing the entire picture.
 
-A conservative slab clips a **14-sample maximum** front-to-back march. Positive analytic density becomes `alpha = 1−exp(−rho ds 1.65)`; transmittance multiplies after every sample, with an early stop below 0.012. Cloud transforms/inverse radii and the uniform rotation are hoisted outside the march. No shadow march, nested volumetric loop, temporal dither, texture simulation or resolution cap is used.
+Projected/world endpoints and conservative 16-bit tile masks share the first 35 rows of the optional data atlas. Empty 16-edge groups are skipped before bit traversal; the shader does not scan all 120 edges at every empty sky pixel. Bounds include the full seven-width AA/glow support; below a 280-pixel short side the exact all-candidate path is used.
 
-A soft palette key, noise-perturbed carrier normals and grazing rim reveal the cloud between discharges. Beer compositing supplies view occlusion; interior attenuation darkens cavities. Lightning roots are *inside the volume*: exponentially localized illumination is integrated at the cloud samples. Bolts have HDR cores and soft, pixel-scaled sheaths. Their cloud-to-cloud phase is deliberately more buried; the ground phase emerges below the wall cloud. Small strike footprints light the basin, not the whole screen. The engine's shared flash limiter remains authoritative and untouched.
+## Volume and light transport
 
-A shaded palette-tinted moon, a far analytic cloud shelf, layered dark ridges and finite rain curtains establish depth and scale. Rain is a bounded filament/optical-depth approximation, not individual simulated drops. Colour comes only from primary, secondary, accent and black/white mixes. Accent is confined to a small ionisation corona.
+`scene-storm-volume.mjs` defines a camera-independent **128×80×48 world-space optical lattice** across `[-24,24] × [0.4,16.8] × [0,13]`. Four scalar values per voxel are stored in a **1024×515 RGBA32F atlas**:
 
-## Looks
+1. density;
+2. moonlight transmission × local normal/key factor;
+3. internal-light coefficient for the first charged region;
+4. internal-light coefficient for the second region.
+
+These are volume properties, **not a low-resolution colour image or a screen-space render**. No palette colours or camera projections enter the optical field. Each output pixel independently traces the world-space volume at full output resolution, with at most **28 samples**, Beer–Lambert opacity `alpha = 1−exp(−rho ds)`, front-to-back compositing and transmittance early-out below 0.012.
+
+Moonlight optical depth uses bounded quadrature along the light direction. Internal lightning attenuation uses distance, inverse-square-like dilution and density along a midpoint light path, rather than an unshadowed Gaussian painted over the cloud. Internal coefficients also include local crawler illumination. Moonlit crowns are brighter; the bulk and softer underside remain dark. All colour is mixed from palette primary/secondary/accent and black/white. Accent is confined to a small expanding ionisation corona. Flash envelopes never bypass the shared limiter.
+
+### Small optional engine extension
+
+`precompute.filter: "linear"` now requests float32 texture filtering **only when `OES_texture_float_linear` exists**. The engine defines `PRECOMPUTED_LINEAR` for that visual shader. This lets storm interpolate two adjacent atlas slices with two hardware-filtered texture samples instead of eight manual fetches.
+
+Defaults are unchanged: every existing precompute target remains nearest-filtered. `texelFetch` keeps topology/mask data exact even in a linearly filtered atlas. Without float32 linear support, storm manually interpolates the same eight lattice corners. Without float render targets it directly evaluates those same lattice nodes. The byte-picture fallback works, but cannot retain float HDR highlights and is not claimed to have the native path's performance or identical bloom.
+
+`tests/browser/storm-precompute.test.mjs` covers hardware/manual interpolation, disabled-extension fallback, uncached byte rendering, paused refresh without advancing simulation, context restoration, texture accounting, and legacy Hilbert nearest-filter defaults. No other family opts in.
+
+## Energy, rhythm and endlessness
+
+Energy changes storm/camera rate, branch detail and rain detail, not exposure. The existing three gesture IDs/defaults remain:
+
+- **Buried discharge**, 4 beats: alternating bounded internal discharge, also driven by kick.
+- **Branch corona**, 8 beats: expanding local ionisation halo and cloud-base crawler accent.
+- **Stepped return**, 16 beats: bright return-stroke window traversing connected leader ranks.
+
+Kick focal punch remains **2%**. Two integrated engine clocks drive weather and camera, each with period 2π. Temporal harmonics are integers. Development changes spatial twist, never the temporal multiplier; fractional states remain periodic. All motion and geometry reverse without state resets. The camera stays outside the volume.
+
+## Looks (unchanged)
 
 | EN | DE | Development / composition |
 | --- | --- | --- |
-| Haze | Dunst | 0 · distant low bank, moon, occasional buried heat lightning |
-| Towers | Türme | 1 · unequal rising cells, internal illumination and branching horizontal discharges |
-| Supercell | Superzelle | 2 · broad anvil, rotating strata, lowering wall cloud, rain shafts and ground leaders |
-| Heat Lantern | Wetterlaterne | 0.25 · low cloud bank, high overlook, slow thin weather |
-| Anvil Choir | Ambosschor | 1.2 · tall dense cells, low overlook, more branch detail |
-| Silent Shelf | Stille Wolkenbank | 0.8 · squat dense shelf, restrained rain and camera |
-| Ground Current | Erdstrom | 2 · lower overlook, strong branching, clearer strike footprints |
-| Midnight Rotation | Mitternachtsrotation | 1.8 · high drifting overlook, dense rain and developed rotation |
+| Haze | Dunst | 0 · horizon-wide bank, distant shelves and heat lightning |
+| Towers | Türme | 1 · growing crown lobes and long branching discharges |
+| Supercell | Superzelle | 2 · close wall cloud/anvil, rain, ground strikes and crawlers |
+| Heat Lantern | Wetterlaterne | 0.25 · low, thinner bank and slow motion |
+| Anvil Choir | Ambosschor | 1.2 · tall dense crown, low camera, stronger branching |
+| Silent Shelf | Stille Wolkenbank | 0.8 · squat dense shelf and restrained rain |
+| Ground Current | Erdstrom | 2 · low viewpoint, clearer strike/reflection footprints |
+| Midnight Rotation | Mitternachtsrotation | 1.8 · developed rotation, more rain and camera drift |
 
-## Energy, rhythm, camera and time
+## Native performance
 
-Energy changes motion ×0.75→1.35, camera rate ×0.8→1.3, branch-detail population and rain-filament detail, **not exposure**. The three scheduled gestures act on the signature:
+Apple M3 Pro / Chrome / ANGLE Metal, `PHOSPHOR_HEADLESS_RIG=1`, port 48502. Synchronous whole-frame throughput including post, excluding asynchronous flash approval. Thirty samples per standard state at energy 0.95. Baseline is commit `c67f71a`, measured again before this rework.
 
-- **Buried discharge / Verborgene Entladung**, 4 beats: alternates the charged root receiving a bounded local kick/gesture discharge.
-- **Branch corona / Verzweigungskorona**, 8 beats: a small ionisation glow expands around the first persistent root.
-- **Stepped return / Gestufter Rückstrom**, 16 beats: a narrow return-stroke highlight walks the existing trunk/branch ranks; its buried precursor is visible in Haze.
+| State | 1080p baseline → final p50 | Final p95 | 4K baseline → final p50 | Final p95 |
+| --- | --- | --- | --- | --- |
+| Haze | 2.8 → **3.6 ms** | 4.1 ms | 9.6 → **10.7 ms** | 10.9 ms |
+| Towers | 4.4 → **3.7 ms** | 3.9 ms | 12.9 → **12.0 ms** | 12.2 ms |
+| Supercell | 4.4 → **3.6 ms** | 3.7 ms | 16.7 → **11.2 ms** | 11.4 ms |
 
-The kick also supplies a bounded local root glow and **2%** focal punch. There is no full-screen white or independent flash approval.
+All standard states meet **≤8 / ≤16 ms p50**. Haze pays for the much wider cloud and optical field, while the more expensive upper states are faster. All eight looks at 4K peak at **12.3 ms p50** (Anvil Choir). These shared-machine timings are not worst-case or dual-world venue-cadence guarantees. Rejected sharper variants reached 19–28 ms at 4K and were not shipped.
 
-A closed lateral/dolly/crane path stays in front of the cloud volume. The stable-horizon camera never cuts or enters geometry. Short-side framing widens in portrait so the anvil remains inside the image. Two engine clocks integrate storm and camera motion; both have period 2π. All temporal harmonics are integers. In particular, development affects the chart's spatial twist, **never its time multiplier**, so fractional states do not jump when the phase wraps. The authored and late branches use matching phases; rate changes cannot move the phase by elapsed-time × rate delta.
+## Verification and honest visual review
 
-## Measured cost
+- **22 CPU/time tests pass**: independent BigInt uint hash oracle, 6,000-seed branch/step statistics across four networks, graph connectivity, 401-point identity/reversal sweeps, exact ground termination, persistent horizontal crawlers, atlas address bijection, affine-exact trilinear interpolation, Beer attenuation, conservative AA bounds, stable presets/world lookup **by ID**, gesture slots and long-show clock continuity.
+- **60 native late frames**: five developments × low/high energy × Glacier/Ember/Phosphor × 3600/43200 s. Minimum lit fraction above 12/255: **14.99%**. Zero GL/non-finite errors. Portrait states and a 4K still reviewed.
+- **600 GPU/CPU segments** agree within **1.01×10⁻⁶ world units**. Five cached/direct float-path comparisons have maximum **2 byte levels**, mean ≤0.0084 levels/channel; no differences over two levels. Hardware/manual cache interpolation differs by at most one byte in the separate extension test.
+- Native time-wrap/rate-step check, typecheck, build and German/English i18n checks pass. Root suite: **756 tests, 744 passed, nine opt-in skips, three expected integration-owned preview/curation failures**. No preview or curation sources/tests changed.
+- Baseline and Liquid Chrome reference were filmed side by side. More than four subsequent 30-second improvement films were inspected: scale/camera; optical transport; crawlers/ground; bounded culling; crown lobes; performance rejection; finish/portrait. A discontinuous sharp-skin experiment was removed after the 4K still exposed contour patches. Final uses continuous lattice transport, not that experiment.
+- Final films/strips, baseline, reference, round strips, ladder, profiles and native JSON are copied to the worker's `output/round2/` directory. Superseded full movies were removed.
 
-Headless native Chrome / ANGLE Metal, Apple M3 Pro. Thirty measured frames per standard state at energy 0.95, synchronous whole-frame throughput including post. Commands use `PHOSPHOR_HEADLESS_RIG=1`, assigned port 48502, and `scripts/profile-families.mjs --types --families storm --frames 30` (plus `--width 3840 --height 2160`).
-
-| State | 1080p p50 / p95 | 4K p50 / p95 |
-| --- | --- | --- |
-| Haze | 2.9 / 3.2 ms | 8.7 / 9.0 ms |
-| Towers | 3.9 / 4.1 ms | 12.3 / 12.5 ms |
-| Supercell | 4.3 / 4.9 ms | 13.9 / 14.1 ms |
-
-All three standard states meet the 8 / 16 ms median budgets. A separate twelve-frame **all-eight-look 4K** profile peaks at **13.5 ms p50 / 13.7 ms p95**. Rejected earlier shaders reached 21.6 ms at 4K; hoisted transforms, O(1) leader coordinates and the final fourteen-sample cap replace those versions. Shared-machine/thermal contention can change these numbers; this is not a dual-world display-cadence qualification or a hard worst-frame guarantee.
-
-## Verification and visual review
-
-- `node --test tests/storm.test.mjs tests/time.test.mjs`: **19 passed**. Independent BigInt uint oracle; 6,000-seed branching/handedness/step-variance statistics; active-graph connectivity; 401-point identity/reversal checks; exact ground termination; conservative AA cache bounds; finite Beer compositing; world/preset/rhythm validation; fractional-state phase periodicity and late-rate continuity.
-- `scripts/verify-storm.mjs --port 48502`: **60 native late-time frames** across five developments, energies 0.1/0.9, Glacier/Ember/Phosphor, 3600/43200 s. Minimum lit fraction above 12/255 is 6.18%; zero GL/non-finite errors. Portrait states and a 4K still were opened and reviewed.
-- The same script compares **300 GPU segment endpoints/weights** with the CPU model: maximum coordinate error **6.04×10⁻⁷** world units. Five native cached/uncached differentials: three pixel-identical; the others differ in one channel by one 8-bit level.
-- Native `check-time-wrap --rig --families storm`: no seams/errors at 3600, 4096 or 43200 s; energy/fader rate-step gates pass.
-- Typecheck, build and native German/English `test:i18n` pass. Final root suite: **753 tests, 741 passed, nine opt-in skips, three expected catalog preview/editorial-curation failures**. Preview baking and curation are intentionally left to integration; no catalog tests or generated catalogs were changed.
-- First working film plus at least three improvement films were opened: (1) enlarged the tiny dark storm and lit billows, (2) joined the anvil/wall cloud and established moon/terrain/rain, (3) refined rotating strata and asymmetrical leaders while reducing march cost. Finish passes corrected portrait crop, phase periodicity and transform-hoisting cost. Superseded film rounds were removed; baseline and final remain.
-- Final evidence: `artifacts/films/storm-final/thunderhead.{mp4,png}`, Glacier `storm-anvil-choir-glacier.{mp4,png}`, Ember reverse film under `reverse/`, all-look energy ladder, full-size stills and `verification/gpu-checks.json`. State/all-look profiles: `artifacts/performance/storm-final-*`. Worker delivery also contains copies under `output/evidence/`.
-
-**Final authored visual rating: 9/10.** This is deliberately a stylized stage storm, not photoreal meteorology. Remaining weaknesses: rain can read as long filaments; the brightest root glows temporarily soften fine cloud texture; the distant first state is intentionally restrained; the environment lighting is an analytic approximation, not multiple scattering or full cloud self-shadowing. The branch graph is a bounded statistical model, not a physical charge-field solution.
+**Revised honest rating: 7.5/10, not 9.** Scale, lightning and light transport are materially better than the independently rated 5/10 baseline, but this still does not match Liquid Chrome's material/readability finish. Crown microstructure remains soft at 4K; the anvil can look fibrous, the persistent bolt shapes are recognisable across repeated events, rain has regular filaments, and terrain/town lights are subtle. There is no claim of photoreal clouds or multiple scattering.

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import storm from "../scene-storm.mjs";
 import { stormData } from "../scene-storm-data.mjs";
+import { stormVolume } from "../scene-storm-volume.mjs";
 import {
   hash,
   random,
@@ -43,7 +44,7 @@ test("uint avalanche and 24-bit random values are deterministic and seed-specifi
 });
 
 test("every active branch is connected to an existing trunk or branch endpoint", () => {
-  assert.equal(SEGMENTS, 60);
+  assert.equal(SEGMENTS, 120);
   for (let seed = 10700; seed < 10900; seed++) {
     for (const development of [0, 0.33, 1, 1.7, 2]) {
       const graph = lightningGraph(seed, development);
@@ -73,7 +74,7 @@ test("branching probability and unbiased stepped-leader jitter meet independent 
     steps = 0,
     left = 0;
   for (let seed = 0; seed < 6000; seed++) {
-    for (let network = 0; network < 2; network++) {
+    for (let network = 0; network < 4; network++) {
       for (let branch = 0; branch < 3; branch++) {
         active += Number(
           leaderSegment(seed, network * 30 + 18 + branch * 4).active,
@@ -151,15 +152,16 @@ test("the same field-biased leaders become cloud-to-cloud and terminate exactly 
 });
 
 test("conservative cached tile bounds include the whole AA lightning support", () => {
-  // At >=240 px even the widest portrait AA support fits the data bound.
-  for (const shortSide of [240, 540, 1080, 2160])
-    for (const framing of [0.74, 1]) {
-      const width = Math.max((2 / (shortSide * 2.35 * framing)) * 0.8, 0.0007);
+  // At >=280 px even the widest portrait AA support fits the data bound.
+  for (const shortSide of [280, 540, 1080, 2160])
+    for (const framing of [0.74, 1, 1.05]) {
+      const width = Math.max((2 / (shortSide * 1.65 * framing)) * 0.8, 0.00085);
       assert.ok(width * 7 < 0.035);
     }
-  assert.match(storm.fragment, /shortSide >= 240\.0/);
+  assert.match(storm.fragment, /shortSide >= 280\.0/);
   assert.match(storm.precompute.fragment, /min\(p.xy,p.zw\) - 0\.035/);
-  assert.deepEqual(storm.precompute.size, [64, 35]);
+  assert.deepEqual(storm.precompute.size, [1024, 515]);
+  assert.equal(storm.precompute.filter, "linear");
   assert.match(
     storm.fragment,
     /return stDatum\(i, row\)/,
@@ -170,30 +172,114 @@ test("conservative cached tile bounds include the whole AA lightning support", (
 });
 
 test("volume and local lighting are bounded and never bypass the shared flash limiter", () => {
-  assert.match(storm.fragment, /for \(int j = 0; j < 14;/);
-  assert.match(storm.fragment, /float ds = \(farT - nearT\) \/ 14\.0/);
+  assert.match(storm.fragment, /for \(int j = 0; j < 28;/);
+  assert.match(storm.fragment, /float ds = \(farT - nearT\) \/ 28\.0/);
   assert.match(storm.fragment, /if \(trans < 0\.012\) break/);
-  assert.match(storm.fragment, /exp\(-dot\(q0,q0\) \* 0\.42\)/);
+  assert.match(stormVolume, /exp\(-d0\*\(0\.16\+depth0\*0\.16\)\)/);
+  assert.match(stormVolume, /stDensity\(p\+moonLight\*0\.8\)/);
+  assert.match(stormVolume, /stDensity\(mix\(p,s0,0\.5\)\)/);
   assert.match(storm.fragment, /cloud \+= trans \* alpha \* light/);
   assert.doesNotMatch(storm.fragment, /flashLimit|flashExempt|gl_FragDepth/);
   assert.match(storm.fragment, /1\.0 \+ 0\.02 \* u_kick/);
   assert.ok(
-    Math.exp(-100 * 0.42) < 1e-18,
+    Math.exp(-1000 * 0.16) < 1e-18,
     "glow has negligible far-field support",
   );
   // Beer-Lambert compositing stays finite and energy conserving in opacity.
   for (const density of [0, 0.1, 1, 5, 100]) {
     let trans = 1,
       integral = 0;
-    const ds = 9 / 14,
-      alpha = 1 - Math.exp(-density * ds * 1.65);
-    for (let i = 0; i < 14; i++) {
+    const ds = 9 / 28,
+      alpha = 1 - Math.exp(-density * ds);
+    for (let i = 0; i < 28; i++) {
       integral += trans * alpha;
       trans *= 1 - alpha;
     }
     assert.ok(Math.abs(integral + trans - 1) < 1e-12);
     assert.ok(trans >= 0 && trans <= 1);
   }
+});
+
+test("cloud-base crawlers remain horizontal while the original leaders turn to ground", () => {
+  for (const d of [0, 0.5, 1, 1.5, 2]) {
+    const graph = lightningGraph(10701, d);
+    for (const net of [2, 3]) {
+      const a = graph[net * 30].a,
+        b = graph[net * 30 + 17].b;
+      assert.ok(Math.abs(a[0] - b[0]) > 12);
+      assert.ok(Math.abs(a[1] - b[1]) < 1);
+      assert.ok(b[1] > 2.5);
+    }
+  }
+  assert.match(storm.fragment, /for \(int group = 0; group < 8;/);
+  assert.match(storm.fragment, /if \(bits == 0u\) continue/);
+});
+
+test("3D atlas addresses are bijective and trilinear interpolation preserves affine fields", () => {
+  const grid = [128, 80, 48],
+    size = [48, 16.4, 13],
+    lo = [-24, 0.4, 0];
+  const address = ([x, y, z]) => [
+    (z % 8) * 128 + x,
+    35 + Math.floor(z / 8) * 80 + y,
+  ];
+  for (let z = 0; z < grid[2]; z++)
+    for (let y = 0; y < grid[1]; y++)
+      for (let x = 0; x < grid[0]; x++) {
+        const [u, v] = address([x, y, z]);
+        assert.ok(u >= 0 && u < 1024 && v >= 35 && v < 515);
+        assert.deepEqual(
+          [
+            u % 128,
+            (v - 35) % 80,
+            Math.floor((v - 35) / 80) * 8 + Math.floor(u / 128),
+          ],
+          [x, y, z],
+        );
+      }
+  const affine = (p) => 0.7 + p[0] * 0.23 - p[1] * 0.51 + p[2] * 0.37;
+  for (let j = 1; j < 100; j++) {
+    const q = [(j * 1.271) % 126, (j * 0.731) % 78, (j * 0.431) % 46];
+    let value = 0;
+    for (let z = 0; z < 2; z++)
+      for (let y = 0; y < 2; y++)
+        for (let x = 0; x < 2; x++) {
+          const corner = [x, y, z],
+            fraction = q.map((v) => v - Math.floor(v));
+          const weight = corner.reduce(
+            (w, c, k) => w * (c ? fraction[k] : 1 - fraction[k]),
+            1,
+          );
+          const p = q.map(
+            (v, k) =>
+              lo[k] + ((Math.floor(v) + corner[k] + 0.5) / grid[k]) * size[k],
+          );
+          value += affine(p) * weight;
+        }
+    const exact = affine(
+      q.map((v, k) => lo[k] + ((v + 0.5) / grid[k]) * size[k]),
+    );
+    assert.ok(Math.abs(value - exact) < 1e-12);
+  }
+  assert.match(stormVolume, /const vec3 stGrid = vec3\(128,80,48\)/);
+  assert.match(stormVolume, /#ifdef PRECOMPUTED_LINEAR/);
+  assert.match(stormVolume, /return stOptical\(stVolumeLo/);
+});
+
+test("Beer light transport falls with optical depth and internal distance", () => {
+  const light = (d, density) =>
+    Math.exp(-d * (0.16 + density * 0.16)) / (1 + d * d * 0.08);
+  for (const density of [0, 0.1, 1, 10]) {
+    let previous = 1;
+    for (let d = 0; d < 100; d += 0.25) {
+      const current = light(d, density);
+      assert.ok(current >= 0 && current <= previous);
+      previous = current;
+    }
+  }
+  assert.ok(light(4, 2) < light(4, 0.2));
+  assert.ok(Math.exp(-4) < Math.exp(-0.4));
+  assert.match(stormVolume, /float moon = exp\(-tau\*0\.55\)/);
 });
 
 test("eight complete bounded presets register one continuous three-state world", () => {
@@ -212,7 +298,11 @@ test("eight complete bounded presets register one continuous three-state world",
   const worlds = defaultWorlds(catalogLooks(scenes).map((l) => l.id));
   const world = worlds.find((w) => w.id === "thunderhead");
   assert.ok(world);
-  assert.ok(worlds.some((w) => w.id === "thunderhead"));
+  assert.equal(world.id, "thunderhead");
+  assert.deepEqual(
+    world.states.map((s) => s.look),
+    ["storm:Haze", "storm:Towers", "storm:Supercell"],
+  );
   const clips = world.states.map((state) => ({
     snapshot: presetSnapshot(
       storm,
