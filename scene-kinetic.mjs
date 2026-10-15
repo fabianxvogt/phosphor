@@ -5,6 +5,7 @@ import {
   CEILING,
   CENTER,
   FOCAL,
+  FOCAL_RISE,
   FORM,
   HALF,
   HANG,
@@ -16,10 +17,12 @@ import {
   RMAX,
   SPACING,
   STAGGER,
+  SURFACE_COLS,
+  SURFACE_ROWS,
   TILT,
   createGeometry,
 } from "./kinetic-model.mjs";
-// Kinetic Rain: a club kinetic installation. 6400 glowing spheres hang on
+// Kinetic Rain: a club kinetic installation. 9216 glowing spheres hang on
 // threads from a motor ceiling; one index lattice carries every state.
 // Ceiling (level, faint ripple) → Waves (interfering travelling-wave
 // choreographies, kick rings) → Sculpture (the lattice becomes the (u, v)
@@ -52,13 +55,13 @@ vec4 chorus(float M){
 float seedAngle(float k){return K_TAU*fract(mod(u_seed,8192.)*k);}
 void cameraRig(float dev,out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float s2=sst(1.,2.,dev),a=u_clock[3]+seedAngle(.7548776662);
- float radius=6.-1.4*s2+.4*sin(2.*a),height=.75+.5*s2+.1*sin(3.*a);
+ float radius=6.-1.2*s2+(.4-.25*s2)*sin(2.*a),height=.75+.45*s2+.1*sin(3.*a);
  eye=vec3(radius*cos(a),height,radius*sin(a));
  float side=.9*(1.-s2);
- vec3 target=vec3(-sin(a)*side,2.2-.3*sst(0.,1.,dev)+.3*s2,cos(a)*side);
+ vec3 target=vec3(-sin(a)*side,2.2-.3*sst(0.,1.,dev)-.25*s2,cos(a)*side);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
-float focal(){return FOCAL*(1.+.02*clamp(u_kick,0.,1.));}
+float focal(){return (FOCAL+${f(FOCAL_RISE)}*sst(1.,2.,DEV))*(1.+.02*clamp(u_kick,0.,1.));}
 vec3 tone(float h){
  return mix(mix(u_secondary,u_primary,sst(.05,.72,h)),mix(u_primary,vec3(1.),.28),sst(.8,1.,h)*.6);
 }`;
@@ -137,15 +140,17 @@ void main(){
  }
  vec3 ps=vec3(0.),ns=vec3(0.,1.,0.);float rs=R0,hs=.5;
  if(sig>0.){
-  vec2 uv=(a_cell+.5)/N;float e=.5/N;
+  float index=a_cell.y*N+a_cell.x;
+  vec2 dims=vec2(${f(SURFACE_COLS)},${f(SURFACE_ROWS)});
+  vec2 uv=(vec2(mod(index,dims.x),floor(index/dims.x))+.5)/dims,e=.5/dims;
   vec3 p=sculpt(uv,w,W,Phi,detail);
-  vec3 du=sculpt(uv+vec2(e,0.),w,W,Phi,detail)-sculpt(uv-vec2(e,0.),w,W,Phi,detail);
-  vec3 dv=sculpt(uv+vec2(0.,e),w,W,Phi,detail)-sculpt(uv-vec2(0.,e),w,W,Phi,detail);
+  vec3 du=sculpt(uv+vec2(e.x,0.),w,W,Phi,detail)-sculpt(uv-vec2(e.x,0.),w,W,Phi,detail);
+  vec3 dv=sculpt(uv+vec2(0.,e.y),w,W,Phi,detail)-sculpt(uv-vec2(0.,e.y),w,W,Phi,detail);
   vec3 cr=cross(dv,du);float cl=length(cr);
   ns=cl>1e-9?cr/cl:vec3(0.,1.,0.);
   ps=CENTER+p+ns*ring*.6;
   if(ns.y<0.)ns=-ns;
-  rs=clamp(.5*sqrt(length(du)*length(dv)),.014,.046);
+  rs=clamp(.55*sqrt(length(du)*length(dv)),.014,.055);
   hs=clamp(.5+.34*p.y,0.,1.);
  }
  vec3 P=mix(pg,ps,sig);
@@ -166,7 +171,10 @@ void main(){
  float glow=u_params[4];
  vec3 col=tone(hue);
  // Kick ring crests and lattice lines are the rare accent.
- float crest=max(rp,0.)*min(1.,kick*2.5);
+ // Light outlives the small motor displacement, making the travelling
+ // front readable even at breakdown energy. The launch still grows from 0.
+ float gain=KSTR*(.12+.88*sst(0.,1.,u_level));
+ float crest=max(rp,0.)*sst(0.,.06,kick/max(gain,1e-5));
  float lattice=float(mod(a_cell.x,8.)<.5||mod(a_cell.y,8.)<.5)*clamp(u_rhythm.z,0.,1.);
  float q=(a_cell.x+a_cell.y)/(2.*N);
  float sweep=exp(-pow((q-(1.-clamp(u_rhythm.y,0.,1.)))*11.,2.))*min(1.,u_rhythm.y*4.);
@@ -178,10 +186,12 @@ void main(){
  // The level ceiling's faint ripple also travels as light: slow bands of
  // brightness drift across the lattice and fade as the waves take over.
  float sheen=1.+.7*(1.-s01)*(1.-sig)*rippleH(g,W)/.075;
- vec3 emit=col*glow*(mix(.5,.14,sig)+mix(.55,1.2,sig)*pow(facing,1.4))*(.6+.4*max(s01,sig))*ao*sheen;
+ float diffuse=max(dot(Nv,L),0.);
+ vec3 emit=col*glow*(mix(.5,.12,sig)+mix(.55,.7,sig)*pow(facing,1.4)+.5*sig*diffuse)*(.6+.4*max(s01,sig))*ao*sheen;
  emit+=mix(col,vec3(1.),.55)*glow*(1.6*glint+.6*glint2)*mix(1.,1.8,sig)*ao;
- emit+=mix(u_secondary,vec3(1.),.35)*rim*.28*glow*(.4+.6*max(s01,sig));
- emit=mix(emit,u_accent*glow*1.6,crest*.7);
+ emit+=mix(u_secondary,vec3(1.),.35)*rim*mix(.28,.55,sig)*glow*(.4+.6*max(s01,sig));
+ emit+=mix(u_primary,vec3(1.),.55)*glow*crest*2.4;
+ emit=mix(emit,u_accent*glow*2.,crest*.35);
  emit+=u_accent*lattice*glow*1.2;
  emit+=mix(col,vec3(1.),.5)*sweep*glow*.9;
  emit+=vec3(1.)*tw*glow*.8;
@@ -208,8 +218,8 @@ void main(){
   if(a_kind>.5){
    vec3 toM=normalize(Cw-eye);
    float cosI=clamp(-toM.y,0.,1.);
-   refl=.45+.4*pow(1.-cosI,2.);
-   blur=.012*max(P.y,0.);
+   refl=.55+.35*pow(1.-cosI,2.);
+   blur=.004*max(P.y,0.);
   }
   float L2c=dot(cv,cv);
   float ext=r*sqrt(L2c/max(L2c-r*r,1e-6))+2.*sqrt(L2c)*pixA+blur;
@@ -275,8 +285,10 @@ void main(){
   vec3 hit=d*t,n=(hit-v_c)/r;
   float mu=max(dot(n,-d),0.);
   // Frosted globe: bright diffuse core and a soft limb.
-  vec3 col=v_col*(.5+.5*pow(mu,.6));
-  col+=mix(v_col,vec3(1.),.6)*pow(1.-mu,2.5)*.25;
+  vec3 nn=normalize(n+vec3(0.,0.,1e-6));
+  float key=max(dot(nn,normalize(vec3(-.45,.65,-.6))),0.);
+  vec3 col=v_col*(.32+.38*pow(mu,.6)+.3*key);
+  col+=mix(v_col,vec3(1.),.6)*pow(1.-mu,2.5)*.2;
   col*=v_info.w;
   col=mix(fogC,col,exp(-t*FOGK));
   col=mix(fogC*.5,col,cover);
@@ -289,7 +301,7 @@ void main(){
   float fade=exp(-along*1.05)*sst(0.,.08,along);
   float dist=v_ray.z;
   float k=v_info.y/R0;
-  vec3 col=mix(v_col,vec3(1.),.2)*side*side*fade*mix(.11,.035,v_info.z)*min(k*k,1.4)*exp(-dist*FOGK);
+  vec3 col=mix(v_col,vec3(1.),.2)*side*side*fade*mix(.11,.006,v_info.z)*min(k*k,1.4)*exp(-dist*FOGK);
   outColor=vec4(max(col,vec3(0.)),1.);
   gl_FragDepth=gl_FragCoord.z;
  }
@@ -352,8 +364,8 @@ void main(){
   vec3 md=vec3(rd.x,-rd.y,rd.z);
   float fres=.08+.6*pow(1.-abs(rd.y),5.);
   vec2 ms=columnSpan(P.xz,md.xz,EXT,30.);
-  float mh=mix(hazeLayer(0.,md.y,ms.x,ms.y,layerH,.4,.9,12.),hazeBall(P,md,30.,CENTER,1.3),s2);
-  floorC+=hazeC*mh*.05*glow*fres*sheen;
+  float mh=mix(hazeLayer(0.,md.y,ms.x,ms.y,layerH,.4,1.3,12.),hazeBall(P,md,30.,CENTER,1.3),s2);
+  floorC+=hazeC*mh*.105*glow*fres*sheen;
   col=mix(fogC,floorC,exp(-T*FOGK));
  }else if(rd.y>1e-4){
   T=min((CEIL-eye.y)/rd.y,40.);
@@ -369,9 +381,14 @@ void main(){
  // Haze lit by the installation: a light layer at hang height while the
  // grid hangs, the sculpture's glow ball as it gathers.
  vec2 cs=columnSpan(eye.xz,rd.xz,EXT,T);
- float layer=hazeLayer(eye.y,rd.y,cs.x,cs.y,layerH,.4,.9,12.);
+ float layer=hazeLayer(eye.y,rd.y,cs.x,cs.y,layerH,.4,1.3,12.);
  float ball=hazeBall(eye,rd,T,CENTER,1.3);
- col+=hazeC*glow*(mix(layer*.014,ball*.05,s2));
+ // Broad shafts inside the installation's footprint: smooth modulation of
+ // the analytic light integral, never grainy raymarch noise.
+ float tm=clamp((HANG-eye.y)/max(abs(rd.y),.08)*sign(rd.y),cs.x,max(cs.x,cs.y));
+ vec2 hp=(eye+rd*tm).xz;
+ float shafts=.72+.28*pow(.5+.5*cos(hp.x*.7+u_clock[0]) * cos(hp.y*.53-u_clock[0]),2.);
+ col+=hazeC*glow*(mix(layer*.032*shafts,ball*.04,s2));
  outColor=vec4(max(col,vec3(0.)),1.);
 }`;
 const schema = [
