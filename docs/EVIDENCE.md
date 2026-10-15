@@ -2,6 +2,14 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Worlds wave 5 and the 9/10 rework 2026-10-16
+
+**INCREMENTAL / EMPIRICAL.** Fifteen lanes (Codex Sol, xhigh): ten new continuous worlds (families 106–115: `aurora`, `storm`, `prism`, `orrery`, `escher`, `silk`, `ink`, `soap`, `dunes`, `voxel`) and five rework lanes over all 17 earlier worlds. L0 filmed every world independently after each round (30 s world films on the native GPU) and returned concrete critiques; lane self-ratings proved too lenient (often 9/10 where L0 judged 5–7), so most worlds took two to four rounds. Each world has a CPU test of its signature mathematics (for example Cauchy dispersion and minimum deviation, involute meshing ratios, Penrose and Droste maps, Strouhal flutter, the Kelvin vortex-ring speed, thin-film fringe orders and Plateau angles, barchan slip faces, the voxel automaton). Performance rule: new worlds ≤ 8 ms p50 at 1080p and ≤ 16 ms at 4K; reworks at most +5 % over their measured baseline (lane reports). L0 judgement of the final films: about 8–9/10 for Liquid Chrome, Event Horizon, Abyssal Bloom, Murmuration, Soap Cathedral, Prism Engine, Aurora Veil, Brass Orrery, Silk Storm, Unfolding Garden and Hopf Bloom; about 7–7.5 for Thunderhead, Ink Bloom, Moon Tide foam, Magma Rift and Spiral Nebula.
+
+**Engine (small, optional):** precompute caches accept `format: "rgba16f"` (half floats, always filterable) and `nearestFallback: true` (a linear float32 cache stays enabled with nearest sampling on devices without `OES_texture_float_linear` when the shader handles the absence of `PRECOMPUTED_LINEAR`); `PRECOMPUTED_LINEAR` is now also injected into mesh shaders. L0 fixed contour-line moire on Ink Bloom's cloud skins.
+
+**Verification:** 904 unit tests; GPU precompute tests for Ink and Thunderhead; typecheck; build and distribution check; DE/EN i18n; Stage, output-control and Autopilot UI checks; the full browser suite (all 540 looks render without WebGL errors or non-finite values). 212 previews rebaked. Films: `artifacts/films/` in the integration worktree (not committed).
+
 ## Worlds wave 4 and the world tour 2026-10-15
 
 **INCREMENTAL / EMPIRICAL.** Five continuous worlds (families 101–105), each built in its own lane with two review rounds judged from 30 s films, merged on `worlds-wave4`: Liquid Chrome (`ferro`, Rosensweig hexagonal lattice with λc = 2π√(σ/ρg), chrome conductor shading), Moon Tide (`tide`, deep-water dispersion ω² = gk, Gerstner steepness bound, filtered bioluminescent foam), Laser Grid (`laser`, closed-form Gaussian beam integrals checked against quadrature), Magma Rift (`magma`, Voronoi plate seams, ballistic ejecta) and Kinetic Rain (`kinetic`, 9,216 persistent spheres, implicit sphere/torus/Möbius/saddle surfaces). Lane self-ratings 7–8/10. Native M3 Pro throughput under five-lane contention, 1080p / 4K p50 at the top state: Chrome 4.1 / 14.3 ms, Tide within 8 ms / 24.9 ms, Laser 3.0 / 11.3 ms, Magma 6.4 / 23.3 ms, Kinetic 2.7 / 8.5 ms. Magma and Moon Tide exceed the 4K budget like Descent and Cathedral. World tour and featured-world start per D71 (`show.mjs`, `control.mjs`, `control-worlds.mjs`).
@@ -159,61 +167,61 @@ All 178 variants have median completed-frame time below 16.67 ms at 1920×1080 i
 Times are median completed-frame milliseconds; lower is better.
 
 | Renderer / variant | 1080p before | 1080p after | 4K before | 4K after |
-| --- | ---: | ---: | ---: | ---: |
-| fourspace / 0 | 33.2 | 5.2 | 111.2 | 19.0 |
-| fourspace / 1 | 30.4 | 6.6 | 83.7 | 22.6 |
-| fourspace / 2 | 55.5 | 12.7 | 185.0 | 42.9 |
-| fourspace / 3 | 89.0 | 11.4 | 330.2 | 42.4 |
-| quasicrystal / 0 | 23.7 | 3.6 | 73.5 | 14.9 |
-| quasicrystal / 1 | 10.6 | 2.7 | 36.9 | 9.6 |
-| quasicrystal / 2 | 47.9 | 7.5 | 165.0 | 27.9 |
-| quasicrystal / 3 | 33.7 | 5.4 | 106.3 | 19.7 |
+| ------------------ | -----------: | ----------: | --------: | -------: |
+| fourspace / 0      |         33.2 |         5.2 |     111.2 |     19.0 |
+| fourspace / 1      |         30.4 |         6.6 |      83.7 |     22.6 |
+| fourspace / 2      |         55.5 |        12.7 |     185.0 |     42.9 |
+| fourspace / 3      |         89.0 |        11.4 |     330.2 |     42.4 |
+| quasicrystal / 0   |         23.7 |         3.6 |      73.5 |     14.9 |
+| quasicrystal / 1   |         10.6 |         2.7 |      36.9 |      9.6 |
+| quasicrystal / 2   |         47.9 |         7.5 |     165.0 |     27.9 |
+| quasicrystal / 3   |         33.7 |         5.4 |     106.3 |     19.7 |
 
 ### Every family
 
 Each value is the **slowest variant's median** in that family, rather than a family average. The JSON reports retain per-variant medians, p95, CPU submission times, dimensions and error counts.
 
-| Renderer | Variants | 1080p before (ms) | 1080p after (ms) | 4K after (ms) |
-| --- | ---: | ---: | ---: | ---: |
-| Acid Mycelium (acid) | 6 | 3.8 | 3.0 | 6.8 |
-| Magnetic Choir (magnetic) | 3 | 3.5 | 3.3 | 6.4 |
-| Cathedrals of Error (cathedral) | 4 | 18.1 | 16.3 | 53.5 |
-| Alien Aquarium (aquarium) | 3 | 2.4 | 2.6 | 7.0 |
-| Causal Tapestry (tapestry) | 4 | 2.9 | 3.1 | 7.8 |
-| Feedback Chapel (feedback) | 4 | 1.9 | 2.7 | 5.5 |
-| Interference Rituals (interference) | 6 | 3.2 | 4.1 | 9.2 |
-| Topological Melt (melt) | 4 | 13.9 | 15.6 | 46.4 |
-| Phase Transition Theatre (phase) | 3 | 3.8 | 3.1 | 8.0 |
-| Evolution Garden (evolution) | 4 | 2.6 | 2.1 | 6.1 |
-| Pulse Geometry (pulse) | 4 | 2.1 | 2.0 | 5.5 |
-| Fractal Flight (flight) | 4 | 12.4 | 11.7 | 38.5 |
-| Light Beams (beams) | 4 | 4.8 | 4.9 | 13.2 |
-| Julia Observatory (julia) | 4 | 5.1 | 3.7 | 14.5 |
-| Fourth Dimension (fourspace) | 4 | 89.0 | 12.7 | 42.9 |
-| Hyperbolic Loom (hyperbolic) | 4 | 2.1 | 2.3 | 6.0 |
-| Particle Swarm (swarm) | 4 | 7.1 | 8.1 | 10.0 |
-| Game of Life (life) | 6 | 4.6 | 4.1 | 11.5 |
-| Strange Attractors (attractor) | 6 | 2.9 | 2.5 | 6.5 |
-| Mandelbrot Dive (mandelbrot) | 5 | 16.0 | 12.7 | 42.7 |
-| Abelian Sandpile (sandpile) | 4 | 3.2 | 2.9 | 6.4 |
-| Newton Basins (newton) | 5 | 6.1 | 4.4 | 16.3 |
-| Fractal Flames (flame) | 6 | 3.2 | 2.2 | 7.0 |
-| Aperiodic Tilings (quasicrystal) | 4 | 47.9 | 7.5 | 27.9 |
-| Voronoi Cells (voronoi) | 4 | 10.7 | 10.0 | 29.6 |
-| Ripple Tank (ripple) | 4 | 2.7 | 3.0 | 6.0 |
-| Langton's Ant (turmite) | 6 | 8.6 | 5.7 | 9.2 |
-| Indra's Pearls (kleinian) | 4 | 2.3 | 2.0 | 5.0 |
-| Harmonograph (harmonograph) | 4 | 3.2 | 2.2 | 6.2 |
-| Wallpaper Groups (wallpaper) | 17 | 8.2 | 6.3 | 24.4 |
-| Truchet Tiles (truchet) | 4 | 3.4 | 2.8 | 9.8 |
-| Space-filling Curves (hilbert) | 4 | 14.8 | 12.8 | 44.6 |
-| Phyllotaxis (phyllotaxis) | 4 | 2.7 | 2.5 | 7.0 |
-| Hopf Fibration (hopf) | 4 | 2.2 | 2.2 | 6.8 |
-| Chladni Figures (chladni) | 4 | 2.9 | 2.6 | 8.4 |
-| Domain Colouring (domain) | 4 | 3.4 | 2.7 | 11.6 |
-| Physarum Networks (physarum) | 4 | 2.2 | 2.8 | 6.8 |
-| Geometric Caustics (caustics) | 3 | 2.2 | 2.6 | 6.9 |
-| Space Colonization (colonization) | 3 | 2.3 | 2.3 | 7.2 |
+| Renderer                            | Variants | 1080p before (ms) | 1080p after (ms) | 4K after (ms) |
+| ----------------------------------- | -------: | ----------------: | ---------------: | ------------: |
+| Acid Mycelium (acid)                |        6 |               3.8 |              3.0 |           6.8 |
+| Magnetic Choir (magnetic)           |        3 |               3.5 |              3.3 |           6.4 |
+| Cathedrals of Error (cathedral)     |        4 |              18.1 |             16.3 |          53.5 |
+| Alien Aquarium (aquarium)           |        3 |               2.4 |              2.6 |           7.0 |
+| Causal Tapestry (tapestry)          |        4 |               2.9 |              3.1 |           7.8 |
+| Feedback Chapel (feedback)          |        4 |               1.9 |              2.7 |           5.5 |
+| Interference Rituals (interference) |        6 |               3.2 |              4.1 |           9.2 |
+| Topological Melt (melt)             |        4 |              13.9 |             15.6 |          46.4 |
+| Phase Transition Theatre (phase)    |        3 |               3.8 |              3.1 |           8.0 |
+| Evolution Garden (evolution)        |        4 |               2.6 |              2.1 |           6.1 |
+| Pulse Geometry (pulse)              |        4 |               2.1 |              2.0 |           5.5 |
+| Fractal Flight (flight)             |        4 |              12.4 |             11.7 |          38.5 |
+| Light Beams (beams)                 |        4 |               4.8 |              4.9 |          13.2 |
+| Julia Observatory (julia)           |        4 |               5.1 |              3.7 |          14.5 |
+| Fourth Dimension (fourspace)        |        4 |              89.0 |             12.7 |          42.9 |
+| Hyperbolic Loom (hyperbolic)        |        4 |               2.1 |              2.3 |           6.0 |
+| Particle Swarm (swarm)              |        4 |               7.1 |              8.1 |          10.0 |
+| Game of Life (life)                 |        6 |               4.6 |              4.1 |          11.5 |
+| Strange Attractors (attractor)      |        6 |               2.9 |              2.5 |           6.5 |
+| Mandelbrot Dive (mandelbrot)        |        5 |              16.0 |             12.7 |          42.7 |
+| Abelian Sandpile (sandpile)         |        4 |               3.2 |              2.9 |           6.4 |
+| Newton Basins (newton)              |        5 |               6.1 |              4.4 |          16.3 |
+| Fractal Flames (flame)              |        6 |               3.2 |              2.2 |           7.0 |
+| Aperiodic Tilings (quasicrystal)    |        4 |              47.9 |              7.5 |          27.9 |
+| Voronoi Cells (voronoi)             |        4 |              10.7 |             10.0 |          29.6 |
+| Ripple Tank (ripple)                |        4 |               2.7 |              3.0 |           6.0 |
+| Langton's Ant (turmite)             |        6 |               8.6 |              5.7 |           9.2 |
+| Indra's Pearls (kleinian)           |        4 |               2.3 |              2.0 |           5.0 |
+| Harmonograph (harmonograph)         |        4 |               3.2 |              2.2 |           6.2 |
+| Wallpaper Groups (wallpaper)        |       17 |               8.2 |              6.3 |          24.4 |
+| Truchet Tiles (truchet)             |        4 |               3.4 |              2.8 |           9.8 |
+| Space-filling Curves (hilbert)      |        4 |              14.8 |             12.8 |          44.6 |
+| Phyllotaxis (phyllotaxis)           |        4 |               2.7 |              2.5 |           7.0 |
+| Hopf Fibration (hopf)               |        4 |               2.2 |              2.2 |           6.8 |
+| Chladni Figures (chladni)           |        4 |               2.9 |              2.6 |           8.4 |
+| Domain Colouring (domain)           |        4 |               3.4 |              2.7 |          11.6 |
+| Physarum Networks (physarum)        |        4 |               2.2 |              2.8 |           6.8 |
+| Geometric Caustics (caustics)       |        3 |               2.2 |              2.6 |           6.9 |
+| Space Colonization (colonization)   |        3 |               2.3 |              2.3 |           7.2 |
 
 ### Reproduction and limits
 
@@ -230,7 +238,6 @@ Each value is the **slowest variant's median** in that family, rather than a fam
 - Native-GPU browser lab passed all 328 authored looks, energy extremes, 32:9/square/portrait rendering, per-family fades without texture leaks, and all 24 simulation families’ preparation/held-transition contracts (`npm run test:browser -- --only lab --native-gpu --port 48144`).
 - Full unit suite: 501 passed, 11 optional probes skipped, zero failures. Typecheck, formatting, build and offline distribution verification passed.
 
-
 ## Responsive panel contents 2026-10-12
 
 **INCREMENTAL / EMPIRICAL.** Tall two-column windows previously distributed spare height between horizontal faders and centred the rhythm grid, leaving truncated labels and large gaps. Look/Performance now stack labels above full-width sliders in square/portrait desktop windows, with bounded spacing. A size container makes rhythm rows respond to available panel height. Family/Global switches move into the heading to preserve room for all four Global tracks in short landscape panels. The owner-provided chassis images and panel openings are unchanged.
@@ -240,7 +247,6 @@ Each value is the **slowest variant's median** in that family, rather than a fam
 - The tall two-column result was visually inspected in the in-app browser; local proof is `artifacts/ui/responsive-panels.png` (not a published asset). Independent review reported no remaining actionable findings.
 
 Limits: these are representative Chromium viewport and interaction checks, not a claim to cover every device, browser or accessibility zoom combination. Physical venue-display and endurance checks remain separate.
-
 
 ## Shared tempo and selectable output 2026-10-11
 
@@ -286,7 +292,6 @@ Executed checks:
 - Preview bake rendered all 328 authored looks with zero reported GL/non-finite failures. Independent review caught and verified fixes for preview ID lookup and short-window overflow; final narrow review reported no remaining defects.
 
 Limits/next gate: owner visual acceptance of the implemented UI remains open. These checks establish functional behavior and local layout, not external-display rehearsal or endurance. Local screenshots remain under `artifacts/ui/` and are not published as assets.
-
 
 ## Visual rhythms and catalog expansion 2026-10-11
 
@@ -445,13 +450,14 @@ Reproduce motion review with `node scripts/rhythm-audit.mjs`; use `--families ph
 - Change (`beat-tracker.mjs`): onsets weighted toward a 150–2000 Hz kick-body band (sub 0.5, hats 0.15); phase corrections from a comb over the last eight beats instead of the single strongest onset; tempo from a straight line through the last 32 observed beats; acquisition searches tempo ±1 % jointly with phase (the autocorrelation estimate is coarse at 10 ms frames: 130.45 for a 131 BPM click track).
 - `EMPIRICAL` Same evaluator before → after (`npm run beat:eval -- songs/*.mp3 --constant-tempo`; one-grid fit to the agreeing kick attacks, ≥ 497 anchors per track after the change):
 
-  | Track | Tempo jumps > 1 BPM | Phase vs constant grid: median | ≤ 20 ms |
-  | --- | --- | --- | --- |
-  | Track A (126 BPM) | 29 → 0 | 120 → 1.1 ms | 27 % → 100 % |
-  | Track B (124 BPM) | 8 → 0 | 13 → 2.9 ms | 71 % → 94 % |
-  | Track C (129 BPM) | 14 → 0 | 226 → 1.5 ms | 15 % → 99 % |
+  | Track             | Tempo jumps > 1 BPM | Phase vs constant grid: median | ≤ 20 ms      |
+  | ----------------- | ------------------- | ------------------------------ | ------------ |
+  | Track A (126 BPM) | 29 → 0              | 120 → 1.1 ms                   | 27 % → 100 % |
+  | Track B (124 BPM) | 8 → 0               | 13 → 2.9 ms                    | 71 % → 94 %  |
+  | Track C (129 BPM) | 14 → 0              | 226 → 1.5 ms                   | 15 % → 99 %  |
 
   Tempo p10/p50/p90 is now exactly 126.0 / 124.0 / 129.0; first lock ~7 s unchanged. Synthetic suite 12/12 (tempo changes relock within 8 beats, 32-bar breakdown coasts within ±6 ms, 44.1 kHz, noise never locks). The demo beat rendered offline locks at 120.00 BPM with 0 ms phase error; in installed Chrome the stage locked the demo at 120.0 BPM within 8 s. In headless SwiftShader under heavy machine load the demo did not lock (timer-driven demo scheduling starves); not a tracker result.
+
 - Still untested: DJ mixes (tempo changes between tracks, long breakdowns on real music, line input). Auto tracking meets its phase target on three produced tracks only.
 
 ## 2026-10-08 — Owner sign-off and first real-music beat check
@@ -459,12 +465,12 @@ Reproduce motion review with `node scripts/rhythm-audit.mjs`; use `--families ph
 - Owner approved all six group 1–2 packets (D51); with rig timing passed, Feedback, Tapestry, Cathedral, Interference, Pulse Geometry and Fractal Flight pass the family gate.
 - `EMPIRICAL` `npm run beat:eval` on the owner's three produced tracks (MP3 via ffmpeg, local only, `songs/` ignored by Git). Tempos are steady and right; phase is not yet good enough:
 
-  | Track | Length | First lock | Locked | Tempo p10/p50/p90 | Phase vs kick: median / p90 | ≤ 20 ms |
-  | --- | --- | --- | --- | --- | --- | --- |
-  | Track A (house) | 5.9 min | 6.8 s | 98.1 % | 125.4 / 126.0 / 126.8 | 53 / 107 ms | 26 % |
-  | Track B (deep house) | 7.3 min | 6.9 s | 98.4 % | 123.8 / 124.0 / 124.2 | 10 / 74 ms | 68 % |
-  | Track C (house) | 6.3 min | 7.1 s | 98.1 % | 128.7 / 129.0 / 129.4 | 27 / 99 ms | 41 % |
-  | Synthetic kicks, 126 BPM (control) | 1.9 min | 6.7 s | 94.2 % | 126.0 | 8 / 11 ms | 99 % |
+  | Track                              | Length  | First lock | Locked | Tempo p10/p50/p90     | Phase vs kick: median / p90 | ≤ 20 ms |
+  | ---------------------------------- | ------- | ---------- | ------ | --------------------- | --------------------------- | ------- |
+  | Track A (house)                    | 5.9 min | 6.8 s      | 98.1 % | 125.4 / 126.0 / 126.8 | 53 / 107 ms                 | 26 %    |
+  | Track B (deep house)               | 7.3 min | 6.9 s      | 98.4 % | 123.8 / 124.0 / 124.2 | 10 / 74 ms                  | 68 %    |
+  | Track C (house)                    | 6.3 min | 7.1 s      | 98.1 % | 128.7 / 129.0 / 129.4 | 27 / 99 ms                  | 41 %    |
+  | Synthetic kicks, 126 BPM (control) | 1.9 min | 6.7 s      | 94.2 % | 126.0                 | 8 / 11 ms                   | 99 %    |
 
   Phase is measured against the strongest low-band attack within ±120 ms of each predicted beat, a heuristic reference (busy basslines can pull it off the kick); the synthetic control shows its own offset is ~8 ms. Tempo jumps above 1 BPM: 29, 8 and 14. Against the < 20 ms target, automatic tracking does not yet qualify (D24); listening files: `artifacts/beat/*.clicks.wav`. These are produced tracks, not DJ mixes: relock after tempo changes and holding through a 32-bar breakdown are not tested by them.
 
@@ -575,7 +581,6 @@ The isolated live Foil Ribbon Eclipse run at 1920×1080 output delivered 888 ren
 Ten owner-requested Sol 6.1 medium workers implemented one scene each against a shared contract. Separate engine/offline/output and workflow reviews identified integration defects; fixes cover cue identity, manual override, clock/edge semantics, source ownership, recording bounds, export snapshots, cache generations, context recovery, hidden output and responsive layout. Focused final reviews reported no additional findings in interrupted-transition buffer ownership/global grading, shading budgets, source-worker cache behavior, effective tempo, demo scheduling/teardown and recording setup. Workflow review also exposed transport edges; runtime verification and fixes followed. Review is bounded evidence, not proof that the entire application contains no defects.
 
 Final persistence review found retained, unsupported lineage properties could inflate pretty-printed exports beyond the import bound. Canonical field whitelisting fixes it; the regression failed before and passed after. Actual browser File/DOM ingestion of an 8 MB synthetic extension produced an 8,454-byte canonical set that reopened successfully, with structured output and GPU error zero. A separate security review reported no evidence-backed finding in its bounded import/DOM/audio/output/cache read set; this is not a security certification.
-
 
 ## Languages (2026-10-12)
 
