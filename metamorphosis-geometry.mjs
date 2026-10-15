@@ -8,14 +8,14 @@ function random(seed) {
 export function organism(seed) {
   const rand = random(seed),
     base = [
-      [-0.55, -0.62, 0.68],
-      [0.58, -0.3, 0.86],
-      [-0.42, 0.44, 0.78],
-      [0.64, 0.77, 0.43],
-      [-1.02, 0.91, 0.38],
-      [1.22, -0.87, 0.35],
-      [-1.25, -0.93, 0.32],
-      [1.25, 0.34, 0.4],
+      [-.98, -.55, .43],
+      [.06, -.05, 1.22], // hero; all other centres are persistent scale cues
+      [-.68, .92, .48],
+      [.80, .91, .35],
+      [-1.25, .48, .29],
+      [1.12, -.63, .30],
+      [-.84, -1.05, .26],
+      [1.20, .30, .32],
     ];
   return base.map(([x, y, size], i) => ({
     x: x + (rand() - 0.5) * 0.34,
@@ -46,8 +46,8 @@ export function mesh(nodes) {
   nodes.forEach((n, i) => {
     for (let p = 0; p < n.petals; p++)
       grid(
-        36,
-        20,
+        28,
+        12,
         n.x,
         n.y,
         n.size,
@@ -75,3 +75,37 @@ export function mesh(nodes) {
 }
 
 export const createGeometry = (seed) => mesh(organism(seed));
+
+// CPU reference for the signature deformation; phase is the integrated
+// speed clock, not time times a changing speed. No identity is regenerated.
+export function petalPoint(node, petal, t, v, development, { phase = 0, sway = 1, edgeGesture = 0 } = {}) {
+  const smooth = x => {x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+  const membrane=smooth(development),flower=smooth(development-1);
+  const angle=node.angle+petal/node.petals*Math.PI*2;
+  const radial=[Math.cos(angle),Math.sin(angle)],side=[-radial[1],radial[0]];
+  const envelope=Math.max(.00001,Math.sin(Math.PI*Math.pow(Math.max(0,Math.min(1,t)),.83)))**.75;
+  const sector=angle+v*Math.PI/node.petals;
+  const filament=[radial[0]*t*.70+side[0]*v*.012*envelope,radial[1]*t*.70+side[1]*v*.012*envelope];
+  const sheet=[Math.cos(sector)*t*.70,Math.sin(sector)*t*.70];
+  const pet=[radial[0]*(t*.98-.16*t*t*t)+side[0]*v*.29*envelope,radial[1]*(t*.98-.16*t*t*t)+side[1]*v*.29*envelope];
+  const mix=(a,b,w)=>a+(b-a)*w;
+  const drift=.012*sway*Math.sin(phase*.4+node.id*1.3+angle)*t*t*(1-membrane+flower);
+  const p=[node.x,node.y].map((x,i)=>x+node.size*mix(mix(filament[i],sheet[i],membrane),pet[i],flower)+side[i]*drift);
+  const sheetRise=node.size*(.10*Math.sin(t*Math.PI)+.014*Math.sin(sector*node.petals)*t*t);
+  const petalRise=node.size*(.62*t*t-.12*Math.sin(t*Math.PI)+.016*Math.cos(v*Math.PI*2)*envelope+.10*v*v*envelope+.025*edgeGesture*t*t);
+  const filamentRise=.025*Math.sin(t*Math.PI)+.012*Math.sqrt(Math.max(0,1-v*v))*envelope;
+  const z=mix(mix(filamentRise,sheetRise,membrane),petalRise,flower)+.008*sway*Math.sin(phase*.52+node.id+t*4)*t;
+  return [...p,z];
+}
+
+export function projectPoint(point, time, aspect=16/9, kick=0) {
+  const yaw=.26*Math.sin(time*.025)+.08*Math.sin(time*.017);
+  const eye=[2.55*Math.sin(yaw),-2.55*Math.cos(yaw),3.65];
+  const norm=v=>{const l=Math.hypot(...v);return v.map(x=>x/l);};
+  const F=norm(eye.map((x,i)=>(i===2?.18:0)-x));
+  const R=norm([F[1],-F[0],0]);
+  const U=[R[1]*F[2],-R[0]*F[2],R[0]*F[1]-R[1]*F[0]];
+  const q=point.map((x,i)=>x-eye[i]),dot=v=>q.reduce((sum,x,i)=>sum+x*v[i],0);
+  const depth=dot(F),lens=2.75*(1+.015*Math.max(0,Math.min(1,kick)));
+  return [dot(R)*lens/(Math.max(1,aspect)*depth),dot(U)*lens/(Math.max(1,1/aspect)*depth),depth];
+}
