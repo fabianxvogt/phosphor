@@ -2078,4 +2078,11 @@ export default {
   "A front of light sweeps across the reef: crowns, sea pens and fans flare in turn.": "A front of light sweeps across the reef: crowns, sea pens and fans flare in turn.",
   "Abyssal Bloom": "Abyssal Bloom",
   "Blinking sparks in the dark gather into pulsing jellyfish blooms and open onto a glowing reef under shafts of light. The same animals throughout.": "Blinking sparks in the dark gather into pulsing jellyfish blooms and open onto a glowing reef under shafts of light. The same animals throughout.",
+  "Autopilot stays in this world.": "Autopilot stays in this world.",
+  "The tour waits while you play.": "The tour waits while you play.",
+  "Next world in {value1} bars: {value2}": "Next world in {value1} bars: {value2}",
+  "Next development in {value1} bars": "Next development in {value1} bars",
+  "World tour": "World tour",
+  "Autopilot plays every development of this world, then the next world.": "Autopilot plays every development of this world, then the next world.",
+  "Autopilot plays every development, then moves on to the next world.": "Autopilot plays every development, then moves on to the next world.",
 };

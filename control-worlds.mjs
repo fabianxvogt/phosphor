@@ -83,6 +83,8 @@ export class WorldPanel {
         development: !!ws.active.development,
       },
       ws.bars,
+      ws.tour?.on,
+      ws.tour?.active,
       ws.prepared,
       ws.queued,
       !!ws.transition,
@@ -110,6 +112,7 @@ export class WorldPanel {
     });
     if (this.developmentDuration)
       this.developmentDuration.value = String(ws.bars);
+    if (this.tourNote) this.tourNote.textContent = this.tourText(ws);
     if (this.developmentRange && ws.active?.development) {
       const d = ws.active.development;
       if (document.activeElement !== this.developmentRange || !this.dragging)
@@ -128,6 +131,21 @@ export class WorldPanel {
       this.liveLabel.textContent = tr("Next bar · {value1} beats", {
         value1: Math.ceil(status.pending?.beats ?? 0),
       });
+  }
+  tourText(ws) {
+    const tour = ws.tour;
+    if (!tour?.on) return tr("Autopilot stays in this world.");
+    if (!tour.active) return tr("The tour waits while you play.");
+    if (tour.nextIn === null) return "";
+    const next = tour.next
+      ? this.getSet().worlds?.find((w) => w.id === tour.next)
+      : null;
+    return next
+      ? tr("Next world in {value1} bars: {value2}", {
+          value1: tour.nextIn,
+          value2: worldPresentation(next).name,
+        })
+      : tr("Next development in {value1} bars", { value1: tour.nextIn });
   }
   paintDevelopment() {
     const input = this.developmentRange;
@@ -313,6 +331,25 @@ export class WorldPanel {
     this.developments.hidden = !active;
     this.progress = null;
     this.liveLabel = null;
+    this.tourNote = null;
+    if (active) {
+      const on = ws.tour?.on !== false;
+      const toggle = button(tr("World tour"), () =>
+        this.act({ type: "world-tour", on: !on }),
+      );
+      toggle.className = "world-tour-toggle";
+      toggle.ariaPressed = String(on);
+      toggle.title = tr(
+        "Autopilot plays every development of this world, then the next world.",
+      );
+      this.tourNote = node("span", {
+        className: "world-tour-note",
+        textContent: this.tourText(ws),
+      });
+      this.dock.append(
+        node("div", { className: "world-tour" }, toggle, this.tourNote),
+      );
+    }
     if (active) {
       const state = active.states[ws.active.state];
       this.live.append(
@@ -428,9 +465,13 @@ export class WorldPanel {
         node("p", {
           className: "note",
           textContent: active
-            ? tr(
-                "Autopilot develops this world. Only you can start a different one.",
-              )
+            ? ws.tour?.on !== false
+              ? tr(
+                  "Autopilot plays every development, then moves on to the next world.",
+                )
+              : tr(
+                  "Autopilot develops this world. Only you can start a different one.",
+                )
             : tr(
                 "Choose a world to prepare. The current visual keeps playing until you start.",
               ),

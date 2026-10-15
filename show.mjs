@@ -33,6 +33,17 @@ const DRIFT_SPAN = 0.12; // drift targets stay within ±12 % of each range
 const PALETTE_BEATS = 4;
 const PALETTE_KEYS = ["primary", "secondary", "accent"];
 const PARAMS = Object.freeze({ type: "params" });
+// World tour (autopilot inside worlds): every world plays its whole arc:
+// hold the first development, grow state by state, hold the top state,
+// then crossfade into the next world of the library. Bars on the show clock.
+export const TOUR = Object.freeze({
+  hold: 8, // bars on each lower state
+  peak: 16, // bars on the top state before the next world
+  morph: 16, // bars of each development step
+  world: 8, // bars of the crossfade into the next world
+  breakdown: 32, // a breakdown holds the tour at most this long
+  energy: [0.35, 0.75], // energy glides with the arc: first to top state
+});
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const rhythmKey = (target) =>
@@ -94,6 +105,7 @@ export class Show {
     this.worldMorph = null;
     this.worldFreezeBeat = null;
     this.worldWalk = 1;
+    this.tourNext = null; // bar of the next tour step
     this.live = null; // { clip, base } — clip.id is the look id; base: authored params
     this.drift = null; // { keys, from, to, t0, seconds } while params glide
     this.scenes = new Map(scenes.map((s) => [s.id, s]));
@@ -812,8 +824,117 @@ export class Show {
     return this.worldFreezeBeat ?? this.clock.at(t).beat;
   }
 
+  // The tour runs while autopilot plays a world and the set allows it.
+  #touring(bar) {
+    return (
+      !!this.world &&
+      this.set.worldTour !== false &&
+      this.autopilot.active(bar ?? this.clock.at(this.clock.last).bar)
+    );
+  }
+
+  #barAt(beat, t) {
+    return Math.ceil((beat - this.clock.at(t).origin) / 4 - 1e-9);
+  }
+
+  // Nearest authored state of the live world (continuous or discrete).
+  #worldState(world, development = this.#development(world)) {
+    if (!development)
+      return world.states.findIndex((s) => s.look === this.live?.clip.id);
+    const value = this.live?.clip.snapshot.params[development.key];
+    let here = 0;
+    development.positions.forEach((p, i) => {
+      if (Math.abs(p - value) < Math.abs(development.positions[here] - value))
+        here = i;
+    });
+    return here;
+  }
+
+  // The next world the tour would play: library order, skipping worlds whose
+  // first development cannot play (unknown look or failed family).
+  #tourTarget(world = this.#world()) {
+    const worlds = this.set.worlds ?? [];
+    const from = worlds.findIndex((w) => w.id === world?.id);
+    for (let i = 1; i < worlds.length; i++) {
+      const candidate = worlds[(from + i) % worlds.length];
+      if (this.#worldClip(candidate, 0)) return candidate;
+    }
+    return null;
+  }
+
+  #tourEnergy(world, state) {
+    const last = Math.max(1, world.states.length - 1);
+    const [low, high] = TOUR.energy;
+    return low + ((high - low) * Math.min(state, last)) / last;
+  }
+
+  // One tour step when it is due: grow to the next state, or after the top
+  // state crossfade into the next world. `force` (Next) skips the hold.
+  #tourStep(t, bar, force = false) {
+    const world = this.#world();
+    if (!world || this.pending || (!force && this.#worldBusy(t))) return [];
+    if (
+      !force &&
+      this.autopilot.breakdownSince !== null &&
+      bar < this.autopilot.breakdownSince + TOUR.breakdown
+    )
+      return [];
+    this.tourNext ??= bar + TOUR.hold;
+    if (!force && bar < this.tourNext) return [];
+    const development = this.#development(world);
+    const here = this.#worldState(world, development);
+    const last = world.states.length - 1;
+    const clock = this.clock.at(t);
+    const at = clock.beat - clock.beatInBar + 4;
+    let target = world,
+      state = here + 1,
+      bars = development ? TOUR.morph : TOUR.world;
+    if (here < 0 || here >= last) {
+      target = this.#tourTarget(world);
+      state = 0;
+      bars = TOUR.world;
+      if (!target) {
+        // A single world climbs again from its first state.
+        if (!development || here <= 0) {
+          this.tourNext = bar + TOUR.hold;
+          return [];
+        }
+        target = world;
+        bars = TOUR.morph * 2;
+      }
+    }
+    const clip = this.#worldClip(target, state);
+    if (!clip) {
+      this.tourNext = bar + TOUR.hold;
+      return [];
+    }
+    this.pending = {
+      clip,
+      at,
+      fade: bars * 4,
+      adoptPalette: false,
+      transition: "crossfade",
+      world: target.id,
+      carryTraces: true,
+      morph: target === world && !!development,
+    };
+    this.tourNext = this.#barAt(at + bars * 4, t) + TOUR.hold;
+    // Without loudness events the arc carries the energy; events still move
+    // it from there (builds, drops and breakdowns stay authoritative).
+    if (this.autopilot.breakdownSince !== null) return [];
+    this.energy = this.#tourEnergy(target, state);
+    return [
+      {
+        type: "energy",
+        value: this.energy,
+        seconds: (bars * 4 * 60) / clock.bpm,
+      },
+    ];
+  }
+
   #leaveWorld() {
     this.world = null;
+    this.tourNext = null;
     this.worldTransition = null;
     this.worldMorph = null;
     this.worldFreezeBeat = null;
@@ -891,6 +1012,19 @@ export class Show {
         ),
       },
       bars: this.set.worldBars ?? 4,
+      tour: {
+        on: this.set.worldTour !== false,
+        active: this.#touring(this.clock.at(t).bar),
+        nextIn:
+          world && this.tourNext !== null
+            ? Math.max(0, this.tourNext - this.clock.at(t).bar)
+            : null,
+        next:
+          world &&
+          (this.#worldState(world) < world.states.length - 1
+            ? null
+            : (this.#tourTarget(world)?.id ?? null)),
+      },
       queued: !!this.pending?.world,
       transition: this.worldTransition && {
         ...this.worldTransition,
@@ -962,6 +1096,10 @@ export class Show {
 
   // An autopilot trigger: always a catalog look, keeping the show palette.
   #autoTrigger(t, a, event = null) {
+    // On tour, regular changes belong to the tour; loudness events still
+    // push a continuous world forward or back.
+    if (this.world && this.set.worldTour !== false)
+      return event && this.#development() ? this.#autoDevelop(t, event) : [];
     if (this.world && this.#development()) return this.#autoDevelop(t, event);
     if (this.#worldBusy(t)) return [];
     if (this.world) {
@@ -1191,6 +1329,9 @@ export class Show {
       this.live = { clip, base: p.clip.snapshot.params };
       this.worldTransition = { start: p.at, end: p.at + p.fade, kind: "morph" };
       this.worldMorph = { key: development.key, from, to };
+      this.tourNext =
+        this.#barAt(p.at + p.fade, t) +
+        (to >= development.positions.at(-1) - 1e-6 ? TOUR.peak : TOUR.hold);
       this.drift = null;
       this.preparedWorld = null;
       this.autopilot.played(clip.id);
@@ -1201,6 +1342,10 @@ export class Show {
     if (p.world) {
       this.world = p.world;
       this.worldTransition = { start: p.at, end: p.at + p.fade };
+      const world = this.#world(),
+        top = world && p.clip.id === world.states.at(-1).look;
+      this.tourNext =
+        this.#barAt(p.at + p.fade, t) + (top ? TOUR.peak : TOUR.hold);
       if (this.preparedWorld?.id === p.world) this.preparedWorld = null;
     } else if (
       this.world &&
@@ -1397,6 +1542,36 @@ export class Show {
         if (WORLD_DURATIONS.includes(action.bars))
           this.set.worldBars = action.bars;
         return [];
+      case "world-tour":
+        this.set.worldTour = action.on ?? this.set.worldTour === false;
+        return [];
+      case "world-play": {
+        // Start a world at once (a fresh window opening on the featured
+        // world). Not a performer takeover unless `manual`.
+        const world = this.#world(action.id);
+        const state = Number.isInteger(action.state) ? action.state : 0;
+        const clip = this.#worldClip(world, state);
+        if (!clip) return [];
+        if (action.manual !== false) this.#manual(t);
+        if (this.world !== world.id) this.#leaveWorld();
+        this.preparedWorld = null;
+        this.pending = {
+          clip,
+          at: this.clock.at(t).beat,
+          fade: 0,
+          adoptPalette: false,
+          transition: "crossfade",
+          world: world.id,
+          carryTraces: false,
+          morph: false,
+        };
+        const actions = this.#fire(t);
+        if (world.states.length > 1 && this.set.worldTour !== false) {
+          this.energy = this.#tourEnergy(world, state);
+          actions.push({ type: "energy", value: this.energy, seconds: 0 });
+        }
+        return actions;
+      }
       case "world-seek": {
         const development = this.#development();
         if (!development || !Number.isFinite(action.value)) return [];
@@ -1532,6 +1707,9 @@ export class Show {
         return [];
       case "next": {
         if (this.#worldBusy(t)) return [];
+        // On tour, Next takes the tour's next step at once.
+        if (this.world && this.set.worldTour !== false)
+          return this.#tourStep(t, this.clock.at(t).bar, true);
         // Next (D66): autopilot's next pick now, on the next beat with the
         // regular fade. Not a takeover; works with autopilot off too.
         const pick = this.autopilot.next({
@@ -1649,6 +1827,8 @@ export class Show {
         else if (a.type === "drift" && !this.world)
           this.#startDrift(t, a.bars, now.bpm);
       }
+      if (!event && this.#touring(now.bar))
+        actions.push(...this.#tourStep(t, now.bar));
     }
     if (this.drift && this.live) {
       const d = this.drift;
@@ -1766,6 +1946,8 @@ export class Show {
             : 0,
         },
         prepared: structuredClone(this.preparedWorld),
+        tourIn:
+          this.tourNext === null ? null : this.tourNext - this.clock.at(t).bar,
         pending: this.pending?.world
           ? {
               id: this.pending.world,
@@ -1921,6 +2103,10 @@ export class Show {
         };
       }
     }
+    this.tourNext =
+      this.world && Number.isFinite(saved.worlds?.tourIn)
+        ? this.clock.at(t).bar + Math.max(0, Math.min(64, saved.worlds.tourIn))
+        : null;
     if (saved.worlds?.prepared) this.#prepareWorld(saved.worlds.prepared);
     const queued = saved.worlds?.pending;
     if (

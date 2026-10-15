@@ -7,7 +7,7 @@ import {
   formatNumber,
 } from "./i18n/index.mjs";
 translateDocument();
-import { withoutWorldLook } from "./worlds.mjs";
+import { withoutWorldLook, FEATURED_WORLD } from "./worlds.mjs";
 import { WorldPanel } from "./control-worlds.mjs";
 // Control window: owns set editing and local performance until a stage connects.
 // The stage owns live playback once open; control reloads never stop the show.
@@ -254,6 +254,11 @@ function performanceStatus() {
 function act(action) {
   if (action.type === "world-duration" && [4, 8, 16].includes(action.bars)) {
     set.worldBars = action.bars;
+    saveSoon();
+  }
+  if (action.type === "world-tour") {
+    set.worldTour = action.on ?? set.worldTour === false;
+    action = { ...action, on: set.worldTour };
     saveSoon();
   }
   if (action.type === "tap") requestedTempo = null;
@@ -2084,7 +2089,18 @@ addEventListener("phosphor-theme-change", () =>
 translateDocument($("themeToggle"));
 labels = await keyLabels();
 catalog.refreshKeys();
-selectLook(catalog.first() ?? looks[0].id, true, false);
+// A fresh window opens on the featured world and tours the library from it
+// (owner direction 2026-10-15); a running Stage replaces this through hello.
+const opening = (set.worlds ?? []).find((w) => w.id === FEATURED_WORLD);
+selectLook(
+  opening?.states[0].look ?? catalog.first() ?? looks[0].id,
+  !opening,
+  false,
+);
+if (opening) {
+  act({ type: "world-play", id: opening.id, manual: false });
+  worldPanel.setView(true);
+}
 render();
 send({ type: "hello" });
 send({ type: "devices" });

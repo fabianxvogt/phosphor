@@ -202,6 +202,7 @@ function auto() {
   const set = initialShowSet(scenes);
   set.clock.mode = "manual";
   set.autopilot.enabled = true;
+  set.worldTour = false; // the in-world walk; tours: world-tour.test.mjs
   const show = new Show({
     set,
     scenes,

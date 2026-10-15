@@ -32,6 +32,7 @@ function make() {
   set.worlds[1] = structuredClone(CLASSIC_GARDEN);
   set.clock.mode = "manual";
   set.autopilot.enabled = false;
+  set.worldTour = false; // in-world autopilot; tours: world-tour.test.mjs
   const show = new Show({
     set,
     scenes,

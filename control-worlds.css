@@ -245,3 +245,25 @@ body[data-catalog-mode="worlds"] .chassis-catalog-footer > * {
   margin: 0;
   opacity: 0.65;
 }
+
+.world-tour {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.world-tour-toggle {
+  padding: 4px 12px;
+  font-size: 11px;
+}
+.world-tour-toggle[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-ink, #000);
+  border-color: var(--accent);
+}
+.world-tour-note {
+  font-size: 11px;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}

@@ -2,6 +2,8 @@ import { tr } from "./i18n/index.mjs";
 // Curated performances above the look catalog. Definitions travel with a set;
 // runtime selection/transport belongs to Show, never to the catalog UI.
 export const WORLD_DURATIONS = [4, 8, 16]; // bars, always measured on the show clock
+// A fresh control window opens on this world and tours the library from it.
+export const FEATURED_WORLD = "horizon";
 // Living Mycelium until 2026-10-14: three acid looks with curated chemistry.
 // Since then it is one continuous world (scene-mycelium.mjs).
 const MYCELIUM_ACID = {

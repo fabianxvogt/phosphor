@@ -146,6 +146,7 @@ export function initialShowSet(scenes) {
     name: tr("New show"),
     looks: [],
     worldBars: 4,
+    worldTour: true,
     worlds: defaultWorlds(catalogLooks(scenes).map((look) => look.id)),
     ratings: {},
     favorites: [],
@@ -454,6 +455,7 @@ export function validateShowSet(value, scenes) {
     name: common.name,
     looks,
     worldBars: WORLD_DURATIONS.includes(value.worldBars) ? value.worldBars : 4,
+    worldTour: value.worldTour !== false,
     worlds: validateWorlds(
       value.worlds,
       catalogLooks(scenes, looks).map((look) => look.id),

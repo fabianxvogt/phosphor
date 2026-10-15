@@ -2078,4 +2078,11 @@ export default {
   "A front of light sweeps across the reef: crowns, sea pens and fans flare in turn.": "Eine Lichtfront zieht über das Riff: Kronen, Seefedern und Fächer leuchten nacheinander auf.",
   "Abyssal Bloom": "Tiefseeblüte",
   "Blinking sparks in the dark gather into pulsing jellyfish blooms and open onto a glowing reef under shafts of light. The same animals throughout.": "Blinkende Funken im Dunkel sammeln sich zu pulsierenden Quallenblüten und öffnen sich zu einem leuchtenden Riff unter Lichtschächten. Durchgehend dieselben Tiere.",
+  "Autopilot stays in this world.": "Der Autopilot bleibt in dieser Welt.",
+  "The tour waits while you play.": "Die Tour wartet, solange du spielst.",
+  "Next world in {value1} bars: {value2}": "Nächste Welt in {value1} Takten: {value2}",
+  "Next development in {value1} bars": "Nächste Entwicklung in {value1} Takten",
+  "World tour": "Welten-Tour",
+  "Autopilot plays every development of this world, then the next world.": "Der Autopilot spielt jede Entwicklung dieser Welt und dann die nächste Welt.",
+  "Autopilot plays every development, then moves on to the next world.": "Der Autopilot spielt jede Entwicklung und zieht dann weiter zur nächsten Welt.",
 };
