@@ -178,18 +178,24 @@ test("ratings sort first by rating, then unrated, then never (0); ties by family
     "b:1",
     "sorting does not mutate",
   );
-  // Unrated authored looks follow the editorial order.
+  // Unrated authored looks follow editorial order, then the documented
+  // family/preset fallback for not-yet-curated additions (wave-4 lane brief).
+  const unlisted = looks.filter((l) => !CURATED.includes(l.id))
+    .sort((a, b) => a.number - b.number || a.index - b.index);
   assert.deepEqual(
     sortCatalog(looks, {}).map((l) => l.id),
-    CURATED,
+    [...CURATED, ...unlisted.map((l) => l.id)],
   );
 });
 
-test("the editorial order covers every authored look exactly once", () => {
+test("the editorial order covers released looks exactly once, with wave-4 additions pending", () => {
   assert.equal(new Set(CURATED).size, CURATED.length);
-  assert.deepEqual([...CURATED].sort(), looks.map((l) => l.id).sort());
-  // Every family shows its best look early: within two looks per family.
-  const families = new Set(looks.map((l) => l.sceneId));
+  const curatedLooks = looks.filter((l) => CURATED.includes(l.id));
+  assert.deepEqual([...CURATED].sort(), curatedLooks.map((l) => l.id).sort());
+  for (const look of looks.filter((l) => !CURATED.includes(l.id)))
+    assert.ok(look.number >= 101 && look.number <= 105, `uncurated released look: ${look.id}`);
+  // Every curated family shows its best look early: within two looks per family.
+  const families = new Set(curatedLooks.map((l) => l.sceneId));
   const early = new Set(
     CURATED.slice(0, 2 * families.size).map((id) => id.split(":")[0]),
   );
