@@ -49,15 +49,9 @@ test("Aurora Veil appends a registered continuous world with eight valid looks",
         `${preset.name}.${f.key}`,
       );
   }
-<<<<<<< HEAD
-  const world = defaultWorlds(catalogLooks(scenes).map((l) => l.id)).find(
-    (w) => w.id === "aurora-veil",
-  );
-=======
   const worlds = defaultWorlds(catalogLooks(scenes).map((l) => l.id));
   const world = worlds.find((w) => w.id === "aurora-veil");
   assert.ok(world);
->>>>>>> fleet/phosphor-worlds-wave5/aurora-veil
   assert.equal(world.id, "aurora-veil");
   assert.deepEqual(
     world.states.map((s) => s.look),
