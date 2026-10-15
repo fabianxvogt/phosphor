@@ -226,7 +226,8 @@ void main() {
 #ifdef PRECOMPUTED
   // One tile fetch replaces 53 per-pixel geometry/bounds lookups.
   if (all(lessThan(abs(view), vec2(2.0))))
-    candidates = uvec4(texelFetch(u_precomputed, ivec2(floor((view + 2.0) * 8.0)) + ivec2(0, 9), 0));
+    if (min(u_resolution.x, u_resolution.y) >= 180.0)
+      candidates = uvec4(texelFetch(u_precomputed, ivec2(floor((view + 2.0) * 8.0)) + ivec2(0, 9), 0));
 #endif
   gRay = normalize(gFw + gRight * view.x + gUp * view.y);
   gPixel = 2.0 / (min(u_resolution.x, u_resolution.y) * focal);
@@ -268,7 +269,7 @@ void main() {
     uint mask = i < 16 ? candidates.x : candidates.y;
     if ((mask & (1u << uint(i % 16))) == 0u) continue;
     vec4 bounds = lgData(i, 2);
-    if (any(lessThan(view, bounds.xy - gPixel * 2.0)) || any(greaterThan(view, bounds.zw + gPixel * 2.0))) continue;
+    if (any(lessThan(view, bounds.xy - gPixel * 4.0)) || any(greaterThan(view, bounds.zw + gPixel * 4.0))) continue;
     float side = (i % 2) == 0 ? -1.0 : 1.0;
     vec3 tx = vec3(side * ct, st, 0), ty = vec3(-side * st, ct, 0);
     vec3 origin = lgData(i, 0).xyz, size = lgData(i, 1).xyz;
@@ -288,17 +289,17 @@ void main() {
       towerLight = 0.4 + 0.6 * abs(d.x); towerId = float(i);
     }
   }
-  vec3 edgeDistance = abs(abs(towerP) - towerSize);
-  // Analytic world footprint avoids derivatives across different box hits.
-  vec3 edgeAA = vec3(max(0.008, gPixel * towerDepth * 0.8));
-  vec3 edge = 1.0 - smoothstep(edgeAA * 0.55, edgeAA * 1.65, edgeDistance);
-  float corners = max(max(min(edge.x, edge.y), min(edge.y, edge.z)), min(edge.z, edge.x));
-  float rowCoordinate = (towerP.y + towerSize.y) / (gSpace * 0.38);
-  float levels = lgLine(rowCoordinate, max(edgeAA.y / (gSpace * 0.38), 0.0001));
-  float occupied = 0.3 + 0.7 * lgHash(floor(rowCoordinate + 0.5) + towerId * 31.0);
-  float uprights = max(lgLine(towerP.x / 0.9, edgeAA.x / 0.9) * edge.z,
-                       lgLine(towerP.z, edgeAA.z) * edge.x);
   if (towerDepth < depth) {
+    vec3 edgeDistance = abs(abs(towerP) - towerSize);
+    // Analytic world footprint avoids derivatives across different box hits.
+    vec3 edgeAA = vec3(max(0.008, gPixel * towerDepth * 0.8));
+    vec3 edge = 1.0 - smoothstep(edgeAA * 0.55, edgeAA * 1.65, edgeDistance);
+    float corners = max(max(min(edge.x, edge.y), min(edge.y, edge.z)), min(edge.z, edge.x));
+    float rowCoordinate = (towerP.y + towerSize.y) / (gSpace * 0.38);
+    float levels = lgLine(rowCoordinate, max(edgeAA.y / (gSpace * 0.38), 0.0001));
+    float occupied = 0.3 + 0.7 * lgHash(floor(rowCoordinate + 0.5) + towerId * 31.0);
+    float uprights = max(lgLine(towerP.x / 0.9, edgeAA.x / 0.9) * edge.z,
+                         lgLine(towerP.z, edgeAA.z) * edge.x);
     depth = towerDepth;
     col = u_secondary * 0.004 + mix(u_secondary, u_primary, 0.68) *
       (corners * 1.15 + levels * occupied * 0.85 + uprights * 0.18) * exp(-depth * 0.025) * towerLight;
@@ -312,9 +313,10 @@ void main() {
     if ((mask & (1u << uint(i % 16))) == 0u) continue;
     vec4 endpoints = lgData(i, 5);
     vec4 metrics = lgData(i, 6);
-    float bound = metrics.x + gPixel * 4.0;
-    float distance2 = lgSegment2(view, endpoints.xy, endpoints.zw);
-    if (distance2 > bound * bound) continue;
+    // Below thumbnail scale the AA core may exceed the .4-unit sheath;
+    // retain all candidates instead of using a non-conservative bound.
+    vec2 radii = min(u_resolution.x, u_resolution.y) < 180.0 ? vec2(1e6) : metrics.zw;
+    if (!lgInsideTaper(view, endpoints.xy, endpoints.zw, radii + gPixel * 4.0)) continue;
     vec4 source = lgData(i, 3), target = lgData(i, 4);
     float weight = source.w;
     if (weight < 0.001) continue;
@@ -323,7 +325,7 @@ void main() {
     float width = max(0.025, gPixel * metrics.y * 0.6);
     float core = 0.0;
     // The same conservative bound, tightened for the AA core.
-    if (distance2 < sq(bound * width / 0.4 + gPixel * 2.0))
+    if (lgInsideTaper(view, endpoints.xy, endpoints.zw, radii * (width / 0.4) + gPixel * 2.0))
       core = lgBeam(gRay, axis.xyz, axis.w, eyeOffset.xyz, eyeOffset.w, width, limit, 0.014, false) / width;
     float volume = lgBeam(gRay, axis.xyz, axis.w, eyeOffset.xyz, eyeOffset.w, 0.18 + 0.22 * haze, limit, 0.021, true);
     vec3 ink = mix(u_primary, u_secondary, target.w);
@@ -337,8 +339,9 @@ void main() {
     float along = clamp(dot(surface - a, axis.xyz), 0.0, axis.w);
     vec3 off = surface - a - axis.xyz * along;
     float spotWidth = max(0.1, gPixel * depth * 1.1);
-    float spot = exp(-dot(off, off) / sq(spotWidth));
-    col += mix(ink, vec3(1), 0.2) * weight * spot * 3.5 * step(depth, 129.0);
+    float spotRadius2 = dot(off, off) / sq(spotWidth);
+    if (spotRadius2 < 12.0 && depth < 129.0)
+      col += mix(ink, vec3(1), 0.2) * weight * exp(-spotRadius2) * 3.5;
   }
   // Liquid sky: a finite, softly filled scanning plane from a far emitter.
   // Analytic ray/plane crossing, with a grazing-angle cap, no volume march.
@@ -366,23 +369,26 @@ void main() {
     float t0 = (-coneB - root) / coneA, t1 = (-coneB + root) / coneA;
     // Beer-integrated homogeneous fill inside the finite cone. The ray
     // segment is additionally clipped to the mouth/apex z planes.
-    float nearT = max(0.0, min(t0, t1)), farT = min(depth, max(t0, t1));
-    if (coneC < 0.0) nearT = 0.0;
-    nearT = max(nearT, (2.0 - gEye.z) / max(gRay.z, 0.01));
+    // The tested camera is inside the first nappe. Use the FIRST positive
+    // exit, not the second root on the cone's forward continuation.
+    float exitT = min(t0 > 0.0 ? t0 : 1e6, t1 > 0.0 ? t1 : 1e6);
+    float nearT = max(0.0, (2.0 - gEye.z) / max(gRay.z, 0.01));
+    float farT = min(depth, exitT);
     farT = min(farT, (53.0 - gEye.z) / max(gRay.z, 0.01));
     float fill = max(0.0, exp(-nearT * 0.018) - exp(-farT * 0.018));
     col += mix(u_secondary, u_primary, 0.25) * fill * gFold * haze * 0.11;
     for (int side = 0; side < 2; ++side) {
       float t = (-coneB + (side == 0 ? -root : root)) / coneA;
+      if (t <= 0.0 || t >= depth) continue;
       vec3 p = coneV + gRay * t;
       float env = smoothstep(0.0, 9.0, -p.z) * (1.0 - smoothstep(32.0, 55.0, -p.z));
+      if (env < 0.0001) continue;
       vec3 normal = normalize(vec3(p.xy, -sq(coneSlope) * p.z));
       // Broad axial density waves reveal the cone's circular cross-section,
       // like a scan tunnel in real haze, rather than a flat starburst.
       float rings = exp(-sq((p.z + 36.0 + 4.0 * sin(gPhase)) / 1.15));
       rings += 0.55 * exp(-sq((p.z + 20.0 + 3.0 * sin(gPhase * 2.0)) / 0.95));
-      if (t > 0.0 && t < depth)
-        col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * coneEdge * (0.065 + 0.3 * rings + 0.02 * sin(p.z * 0.45 + p.x * 0.4 + gPhase)) * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
+      col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * coneEdge * (0.065 + 0.3 * rings + 0.02 * sin(p.z * 0.45 + p.x * 0.4 + gPhase)) * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
     }
   }
   // Two finite scan fronts reveal the cone mouth at projector scale.
@@ -394,9 +400,9 @@ void main() {
     vec2 p = (gEye + gRay * t).xy - vec2(0, 5.7);
     float off = length(p) - coneSlope * (55.0 - z);
     float width = max(0.045, gPixel * t * 0.8);
+    if (t <= 0.0 || t >= depth || abs(off) > width * 20.0) continue;
     float front = exp(-sq(off / width)) + 0.12 * exp(-sq(off / (width * 5.0)));
-    if (t > 0.0 && t < depth)
-      col += mix(u_primary, u_secondary, 0.38) * front * gFold * haze * exp(-t * 0.014) * mix(1.5, 0.9, float(ring));
+    col += mix(u_primary, u_secondary, 0.38) * front * gFold * haze * exp(-t * 0.014) * mix(1.5, 0.9, float(ring));
   }
   // A sparse travelling grid rib, not a whole-frame beat flash.
   float rib = exp(-sq((gridUV.y - (52.0 - 58.0 * u_rhythm.z)) / 0.65));
@@ -434,14 +440,16 @@ void main() {
   for (int i = 0; i < 21; ++i) {
     if (lgDatum(i, 3).w < 0.001) continue;
     vec4 p = lgDatum(i, 5);
-    float radius = lgDatum(i, 6).x + 0.03;
+    vec4 metrics = lgDatum(i, 6);
+    float radius = metrics.x + 0.03;
     vec2 b0 = min(p.xy, p.zw) - radius, b1 = max(p.xy, p.zw) + radius;
-    if (all(greaterThanEqual(b1, lo)) && all(lessThanEqual(b0, hi))) {
+    if (all(greaterThanEqual(b1, lo)) && all(lessThanEqual(b0, hi)) &&
+        lgInsideTaper((lo + hi) * 0.5, p.xy, p.zw, metrics.zw + 0.03 + 0.088388348)) {
       if (i < 16) bits.z |= 1u << uint(i); else bits.w |= 1u << uint(i - 16);
     }
   }
   outColor = vec4(bits);
-}`, 
+}`,
   },
   stage: ["sweep", "haze", "spread"],
   type: { key: "development", values: [0, 1, 2] },

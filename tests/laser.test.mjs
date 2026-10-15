@@ -113,7 +113,7 @@ test("source pins the exact Gaussian/Beer integral, with no volume march", () =>
     "float coverage = sheath ? lgSheathErf(x1) - lgSheathErf(x0) : lgErf(x1) - lgErf(x0);",
     "float ell = len * 0.38;",
     "float c = dot(rd, d), axial = z + len * 0.5;",
-    "return vec4(p - z * d, z);", 
+    "return vec4(p - z * d, z);",
     "if (0.5 * (dot(nearQ, nearQ) * iw + nearZ * nearZ * il) > 18.0) return 0.0;",
   ])
     assert.ok(laser.fragment.includes(source), source);
@@ -329,8 +329,15 @@ test("presets declare a continuous world, eight bounded looks and three gestures
 
 test("sheath erf removes two exponentials with a bounded sub-0.05% error", () => {
   function cheapErf(x) {
-    const a = Math.abs(x), a2 = a * a;
-    const r = 1 / (1 + 0.278393 * a + 0.230389 * a2 + 0.000972 * a2 * a + 0.078108 * a2 * a2);
+    const a = Math.abs(x),
+      a2 = a * a;
+    const r =
+      1 /
+      (1 +
+        0.278393 * a +
+        0.230389 * a2 +
+        0.000972 * a2 * a +
+        0.078108 * a2 * a2);
     return Math.sign(x) * (1 - r ** 4);
   }
   for (let x = -12; x <= 12; x += 0.001) {
@@ -342,14 +349,20 @@ test("sheath erf removes two exponentials with a bounded sub-0.05% error", () =>
 
 test("prepared beam coordinates preserve axial clipping and closest-point quadratic", () => {
   for (let i = 0; i < 100; i++) {
-    const ro = [Math.sin(i) * 3, 2, -9], a = [-7, 1, 49], b = [6, 8, 2];
-    const d = norm(sub(b, a)), len = Math.hypot(...sub(b, a));
-    const p = sub(ro, mul(add(a, b), 0.5)), z = dot(p, d), q = sub(p, mul(d, z));
+    const ro = [Math.sin(i) * 3, 2, -9],
+      a = [-7, 1, 49],
+      b = [6, 8, 2];
+    const d = norm(sub(b, a)),
+      len = Math.hypot(...sub(b, a));
+    const p = sub(ro, mul(add(a, b), 0.5)),
+      z = dot(p, d),
+      q = sub(p, mul(d, z));
     assert.ok(Math.abs(dot(sub(ro, a), d) - (z + len / 2)) < 1e-13);
     for (const t of [0, 3, 17, 60]) {
       const rd = norm([Math.sin(i * 0.1), Math.cos(i * 0.3), 1]);
       const v = sub(rd, mul(d, dot(rd, d)));
-      const original = add(p, mul(rd, t)), axial = dot(original, d);
+      const original = add(p, mul(rd, t)),
+        axial = dot(original, d);
       const transverse = sub(original, mul(d, axial));
       assert.ok(Math.hypot(...sub(transverse, add(q, mul(v, t)))) < 1e-13);
     }
@@ -361,67 +374,177 @@ test("perspective tube bounds conservatively include every six-sigma candidate",
   // Bound the projection's Lipschitz constant over its radius-2.4 capsule.
   const project = (v) => [v[0] / v[2], v[1] / v[2]];
   const distance = (p, a, b) => {
-    const v = sub(b, a), h = clamp(dot(sub(p, a), v) / dot(v, v), 0, 1);
+    const v = sub(b, a),
+      h = clamp(dot(sub(p, a), v) / dot(v, v), 0, 1);
     return Math.hypot(...sub(sub(p, a), mul(v, h)));
   };
+  function insideTaper(p, a, b, radii) {
+    const v = sub(b, a),
+      q = sub(p, a),
+      dr = radii[1] - radii[0];
+    const A = dot(v, v) - dr * dr,
+      B = -dot(q, v) - radii[0] * dr;
+    const t = A > 1e-8 ? clamp(-B / A, 0, 1) : 0;
+    const off = sub(q, mul(v, t));
+    return (
+      Math.min(
+        dot(off, off) - (radii[0] + dr * t) ** 2,
+        dot(q, q) - radii[0] ** 2,
+        dot(sub(q, v), sub(q, v)) - radii[1] ** 2,
+      ) <= 1e-12
+    );
+  }
   for (let i = 0; i < 50; i++) {
-    const a = [-8 + Math.sin(i) * 3, 4, 55], b = [8 * Math.cos(i), -3, 9 + i % 7];
-    const pa = project(a), pb = project(b), z = Math.min(a[2], b[2]);
-    const radius = 2.4 * (1 + Math.max(Math.hypot(...pa), Math.hypot(...pb))) / (z - 2.4);
+    const a = [-8 + Math.sin(i) * 3, 4, 55],
+      b = [8 * Math.cos(i), -3, 9 + (i % 7)];
+    const pa = project(a),
+      pb = project(b),
+      z = Math.min(a[2], b[2]);
+    const radius =
+      (2.4 * (1 + Math.max(Math.hypot(...pa), Math.hypot(...pb)))) / (z - 2.4);
+    const factor =
+      (2.4 * (1 + Math.max(Math.hypot(...pa), Math.hypot(...pb)))) /
+      (1 - 2.4 / z);
+    const radii = [factor / a[2], factor / b[2]];
     for (let j = 0; j < 100; j++) {
-      const p = add(add(mul(a, j / 99), mul(b, 1 - j / 99)), mul(norm([Math.sin(j), Math.cos(j * 2), Math.sin(j * 3)]), 2.4));
+      const p = add(
+        add(mul(a, j / 99), mul(b, 1 - j / 99)),
+        mul(norm([Math.sin(j), Math.cos(j * 2), Math.sin(j * 3)]), 2.4),
+      );
       assert.ok(distance(project(p), pa, pb) <= radius + 1e-12);
+      assert.ok(
+        insideTaper(project(p), pa, pb, radii),
+        "taper contains every projected six-sigma point",
+      );
     }
   }
   assert.match(laser.fragment, /6\.0 \* 0\.4 \* \(1\.0 \+ projectedSlope\)/);
   assert.deepEqual(laser.precompute.size, [32, 41]);
   assert.match(laser.precompute.fragment, /vec4\(bits\)/);
-  assert.match(laser.fragment, /return lgDatum\(i, row\)/, "non-float fallback uses identical geometry");
+  assert.match(
+    laser.fragment,
+    /return lgDatum\(i, row\)/,
+    "non-float fallback uses identical geometry",
+  );
   // Two 16-bit halves are exactly representable in RGBA32F.
   for (let i = 0; i <= 65535; i++) assert.equal(Math.fround(i), i);
 });
 
 test("surface-end clipping stops rays at the same hinged material, in either direction", () => {
   function clip(a, b, dev) {
-    const v = sub(b, a), fold = smooth(1, 2, dev), theta = fold * Math.PI / 2;
+    const v = sub(b, a),
+      fold = smooth(1, 2, dev),
+      theta = (fold * Math.PI) / 2;
     let nearest = 1;
     const strip = (base, tangent, span) => {
-      const n = [-tangent[1], tangent[0], 0], den = dot(v, n);
+      const n = [-tangent[1], tangent[0], 0],
+        den = dot(v, n);
       if (Math.abs(den) < 1e-6) return;
-      const t = dot(sub(base, a), n) / den, u = dot(sub(add(a, mul(v, t)), base), tangent);
+      const t = dot(sub(base, a), n) / den,
+        u = dot(sub(add(a, mul(v, t)), base), tangent);
       if (t > 0.001 && t < nearest && u >= 0 && u <= span) nearest = t;
     };
-    strip([-9,0,0], [1,0,0], 18);
-    for (const side of [-1,1]) {
-      strip([side * 9,0,0], [side * Math.cos(theta), Math.sin(theta),0], 11);
+    strip([-9, 0, 0], [1, 0, 0], 18);
+    for (const side of [-1, 1]) {
+      strip([side * 9, 0, 0], [side * Math.cos(theta), Math.sin(theta), 0], 11);
       const angle = fold * (Math.PI - 0.42);
-      strip([side * (9 + 11 * Math.cos(theta)), 11 * Math.sin(theta),0], [side * Math.cos(angle), Math.sin(angle),0], 9.85665208);
+      strip(
+        [side * (9 + 11 * Math.cos(theta)), 11 * Math.sin(theta), 0],
+        [side * Math.cos(angle), Math.sin(angle), 0],
+        9.85665208,
+      );
     }
     return add(a, mul(v, nearest));
   }
   for (let d = 0; d <= 2; d += 0.01) {
-    assert.ok(Math.hypot(...sub(clip([0,5,55], [0,-10,2], d), [0,0,55 - 53 / 3])) < 1e-13);
-    for (const side of [-1,1]) {
-      const result = clip([0,5,55], [side * 50,5,2], d);
+    assert.ok(
+      Math.hypot(
+        ...sub(clip([0, 5, 55], [0, -10, 2], d), [0, 0, 55 - 53 / 3]),
+      ) < 1e-13,
+    );
+    for (const side of [-1, 1]) {
+      const result = clip([0, 5, 55], [side * 50, 5, 2], d);
       assert.ok(Math.abs(result[0]) <= 50 && result[1] === 5);
-      assert.deepEqual(result, clip([0,5,55], [side * 50,5,2], d), "no state or direction history");
+      assert.deepEqual(
+        result,
+        clip([0, 5, 55], [side * 50, 5, 2], d),
+        "no state or direction history",
+      );
     }
   }
   assert.match(laser.fragment, /b = lgSurfaceEnd\(a, b\)/);
   assert.match(laser.fragment, /i < 21/);
   assert.match(laser.fragment, /0\.65 \* u_kick \* gFold/);
-  assert.match(laser.fragment, /core \* 0\.65/, "HDR core power is not a master-gain envelope");
+  assert.match(
+    laser.fragment,
+    /core \* 0\.65/,
+    "HDR core power is not a master-gain envelope",
+  );
+});
+
+test("finite cone fill uses the first positive exit and matches numeric Beer transport", () => {
+  const eye = [0.7, 2.8, -8],
+    apex = [0, 5.7, 55],
+    slope = 0.19,
+    sigma = 0.018;
+  for (const x of [-0.8, -0.23, -0.17, -0.05, 0, 0.05, 0.17, 0.23, 0.8])
+    for (const y of [-0.2, 0, 0.2]) {
+      const r = norm([x, y, 1]),
+        v = sub(eye, apex);
+      const A = r[0] ** 2 + r[1] ** 2 - (slope * r[2]) ** 2;
+      const B = v[0] * r[0] + v[1] * r[1] - slope ** 2 * v[2] * r[2];
+      const C = v[0] ** 2 + v[1] ** 2 - (slope * v[2]) ** 2;
+      const root = Math.sqrt(B * B - A * C),
+        t0 = (-B - root) / A,
+        t1 = (-B + root) / A;
+      const exit = Math.min(t0 > 0 ? t0 : 1e6, t1 > 0 ? t1 : 1e6);
+      const near = Math.max(0, (2 - eye[2]) / r[2]),
+        far = Math.min(120, exit, (53 - eye[2]) / r[2]);
+      const analytic = Math.max(
+        0,
+        Math.exp(-sigma * near) - Math.exp(-sigma * far),
+      );
+      let numeric = 0;
+      const n = 24000,
+        dt = 120 / n;
+      for (let j = 0; j < n; j++) {
+        const t = (j + 0.5) * dt,
+          p = add(eye, mul(r, t)),
+          q = sub(p, apex);
+        if (
+          p[2] >= 2 &&
+          p[2] <= 53 &&
+          q[0] ** 2 + q[1] ** 2 <= (slope * q[2]) ** 2
+        )
+          numeric += sigma * Math.exp(-sigma * t) * dt;
+      }
+      assert.ok(
+        Math.abs(analytic - numeric) < 0.00015,
+        `${x},${y}: ${analytic} vs ${numeric}`,
+      );
+    }
+  assert.match(
+    laser.fragment,
+    /float exitT = min\(t0 > 0\.0 \? t0 : 1e6, t1 > 0\.0 \? t1 : 1e6\)/,
+  );
 });
 
 test("camera stays inside the filled cone for every declared eye height and phase", () => {
   for (let camera = 0; camera < 2 * Math.PI; camera += 0.02)
     for (const eye of [1.5, 2.8, 5]) {
-      const z = -9 + 1.8 * Math.cos(camera), y = eye + 0.25 * Math.sin(camera * 2);
+      const z = -9 + 1.8 * Math.cos(camera),
+        y = eye + 0.25 * Math.sin(camera * 2);
       const transverse2 = 1.1 ** 2 + (y - 5.7) ** 2;
-      assert.ok(transverse2 < (0.165 * (z - 55)) ** 2, "valid inside-cone interval branch");
+      assert.ok(
+        transverse2 < (0.165 * (z - 55)) ** 2,
+        "valid inside-cone interval branch",
+      );
     }
   assert.match(laser.fragment, /float coneAA = max\(fwidth\(discr\)/);
-  assert.match(laser.fragment, /exp\(-nearT \* 0\.018\) - exp\(-farT \* 0\.018\)/);
+  assert.match(
+    laser.fragment,
+    /exp\(-nearT \* 0\.018\) - exp\(-farT \* 0\.018\)/,
+  );
 });
 
 test("rate-dependent phases stay continuous at 3600 s and 12 h without touching development", () => {

@@ -24,6 +24,18 @@ vec2 lgProject(vec3 p) {
   vec3 v = p - gEye;
   return vec2(dot(v, gRight), dot(v, gUp)) / max(dot(v, gFw), 0.01);
 }
+// Union of discs along a projected segment with linearly varying radius.
+// Minimize the signed squared distance (a quadratic); concave quadratics
+// attain their minimum at an endpoint, included explicitly below.
+bool lgInsideTaper(vec2 p, vec2 a, vec2 b, vec2 radii) {
+  vec2 v = b - a, q = p - a;
+  float dr = radii.y - radii.x;
+  float A = dot(v,v) - dr * dr, B = -dot(q,v) - radii.x * dr;
+  float t = A > 1e-8 ? clamp(-B / A, 0.0, 1.0) : 0.0;
+  vec2 off = q - v * t;
+  float f = dot(off,off) - sq(radii.x + dr * t);
+  return min(f, min(dot(q,q) - sq(radii.x), dot(q-v,q-v) - sq(radii.y))) <= 0.0;
+}
 void lgTower(int i, out vec3 origin, out vec3 size) {
   float fi = float(i), side = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
   float bay = floor(fi / 2.0), u = 2.4 + 5.0 * mod(bay, 2.0);
@@ -65,6 +77,9 @@ void lgEndpoints(int i, out vec3 a, out vec3 b, out float weight, out float tint
     a = vec3(0, 5.7, 55);
     b = a + vec3(cos(angle) * slope * 53.0, sin(angle) * slope * 53.0, -53.0);
     weight = gFold * smoothstep(mod(spoke, 4.0) - 0.65, mod(spoke, 4.0) + 0.65, 0.7 + 2.6 * level + 0.6 * u_kick);
+    // Four persistent spokes gain four interleaved neighbours on the kick.
+    // A soft pedestal and smooth envelope avoid binary on/off strobing.
+    weight *= mix(1.0, 0.14 + 0.86 * smoothstep(0.0, 0.55, u_kick), mod(spoke, 2.0));
     tint = 0.16 + 0.15 * mod(spoke, 2.0);
   } else {
     float bank = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
@@ -117,9 +132,15 @@ vec4 lgDatum(int i, int row) {
     vec3 p = gEye - (a + b) * 0.5; float z = dot(p, d);
     return vec4(p - z * d, z);
   }
-  float nearZ = min(dot(a - gEye, gFw), dot(b - gEye, gFw));
+  vec2 depths = vec2(dot(a - gEye, gFw), dot(b - gEye, gFw));
+  float nearZ = min(depths.x, depths.y);
   float projectedSlope = max(length(lgProject(a)), length(lgProject(b)));
-  // Perspective Lipschitz bound for the six-sigma tube (w <= .4).
-  return vec4(6.0 * 0.4 * (1.0 + projectedSlope) / max(nearZ - 2.4, 0.01), length((a + b) * 0.5 - gEye), 0, 0);
+  // Inverse depth is affine along the projected segment. This conservative
+  // Lipschitz radius therefore tapers instead of expanding the entire beam
+  // to its nearest endpoint's width. Six sigma, including end caps.
+  float factor = 6.0 * 0.4 * (1.0 + projectedSlope) / max(1.0 - 2.4 / nearZ, 0.001);
+  vec2 radii = factor / depths;
+  return vec4(max(radii.x, radii.y), length((a + b) * 0.5 - gEye), radii);
+
 }
 `;
