@@ -328,7 +328,9 @@ test("all eight presets validate; the final authored world is continuous with id
     identity(states[0]),
     identity(states[0]),
   ]);
-  const world = defaultWorlds(catalogLooks(scenes).map((l) => l.id)).at(-1);
+  const world = defaultWorlds(catalogLooks(scenes).map((l) => l.id)).find(
+    (w) => w.id === "soap-cathedral",
+  );
   assert.equal(world.id, "soap-cathedral");
   assert.deepEqual(
     world.states.map((s) => s.name),

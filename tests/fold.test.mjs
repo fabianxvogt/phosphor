@@ -47,9 +47,15 @@ test("fold is a registered continuous world with three authored states", () => {
   for (const preset of scene.presets)
     for (const field of scene.schema) {
       const value = preset.params[field.key];
-      assert.ok(value >= field.min && value <= field.max, `${preset.name}.${field.key}`);
+      assert.ok(
+        value >= field.min && value <= field.max,
+        `${preset.name}.${field.key}`,
+      );
     }
-  assert.equal(ATTRIBUTES.reduce((a, b) => a + b), STRIDE);
+  assert.equal(
+    ATTRIBUTES.reduce((a, b) => a + b),
+    STRIDE,
+  );
 });
 
 test("Platonic nets are flat, non-overlapping spanning trees with short hinge chains", () => {
@@ -61,10 +67,13 @@ test("Platonic nets are flat, non-overlapping spanning trees with short hinge ch
     assert.ok(!netOverlaps(t), `template ${t.id} overlaps`);
     assert.equal(t.parent.filter((p) => p < 0).length, 1, "one root");
     assert.ok(t.maxDepth <= MAX_DEPTH);
-    for (const face of t.flat) for (const v of face) assert.ok(Math.abs(v[1]) < 1e-12);
+    for (const face of t.flat)
+      for (const v of face) assert.ok(Math.abs(v[1]) < 1e-12);
     // Every unfolded edge has unit length.
     t.flat.forEach((face) =>
-      face.forEach((v, i) => assert.ok(Math.abs(dist(v, face[(i + 1) % face.length]) - 1) < 1e-9)),
+      face.forEach((v, i) =>
+        assert.ok(Math.abs(dist(v, face[(i + 1) % face.length]) - 1) < 1e-9),
+      ),
     );
   }
 });
@@ -83,7 +92,12 @@ test("hinge chains close every solid exactly (CPU reference of the shader)", () 
     // All copies of one solid vertex coincide, so no face is left open.
     const copies = new Map();
     t.faces.forEach((face, f) =>
-      face.forEach((v, k) => copies.set(v, [...(copies.get(v) ?? []), foldPoint(t, f, t.flat[f][k])])),
+      face.forEach((v, k) =>
+        copies.set(v, [
+          ...(copies.get(v) ?? []),
+          foldPoint(t, f, t.flat[f][k]),
+        ]),
+      ),
     );
     for (const list of copies.values())
       for (const p of list) assert.ok(dist(p, list[0]) < 1e-9);
@@ -94,8 +108,12 @@ test("folding is rigid at every intermediate development", () => {
   const t = TEMPLATES[4];
   for (const development of [0, 0.3, 0.55, 0.81, 1]) {
     t.faces.forEach((face, f) => {
-      const pts = t.flat[f].map((p) => foldPoint(t, f, p, (g) => foldProgress(development, 0.4, t.depth[g])));
-      pts.forEach((p, i) => assert.ok(Math.abs(dist(p, pts[(i + 1) % pts.length]) - 1) < 1e-9));
+      const pts = t.flat[f].map((p) =>
+        foldPoint(t, f, p, (g) => foldProgress(development, 0.4, t.depth[g])),
+      );
+      pts.forEach((p, i) =>
+        assert.ok(Math.abs(dist(p, pts[(i + 1) % pts.length]) - 1) < 1e-9),
+      );
     });
   }
 });
@@ -103,7 +121,10 @@ test("folding is rigid at every intermediate development", () => {
 test("development is continuous, reversible and staged sheet → fold → shards", () => {
   for (const birth of [0, 0.5, 1])
     for (const depth of [0, 2, 5]) {
-      assert.ok(Math.abs(foldProgress(0, birth, depth) - 0.035) < 1e-12, "faint creases at Sheet");
+      assert.ok(
+        Math.abs(foldProgress(0, birth, depth) - 0.035) < 1e-12,
+        "faint creases at Sheet",
+      );
       assert.equal(foldProgress(1, birth, depth), 1, "closed at Fold");
       assert.equal(foldProgress(2, birth, depth), 1);
       assert.equal(liftProgress(0, birth), 0);
@@ -130,7 +151,9 @@ test("field, vortex and camera never meet; orbit phases wrap without jumps", () 
       const t = TEMPLATES[it.t];
       // A lifted solid tumbles about its centre: it stays inside the field.
       const centre = Math.hypot(t.solidCentre[0], t.solidCentre[2]) * it.scale;
-      assert.ok(Math.hypot(it.x, it.z) + centre + t.solidRadius * it.scale <= FIELD);
+      assert.ok(
+        Math.hypot(it.x, it.z) + centre + t.solidRadius * it.scale <= FIELD,
+      );
       assert.ok(Math.hypot(it.x, it.z) + it.r <= FIELD);
       for (const face of it.shards)
         for (const shard of face) {

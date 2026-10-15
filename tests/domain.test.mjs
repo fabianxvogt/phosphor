@@ -127,7 +127,9 @@ test("along the critical line the zeta terrain has its pits exactly at the zeros
     if (height(t) < height(t - 0.005) && height(t) < height(t + 0.005))
       minima.push(t);
   assert.equal(minima.length, ZETA_ZEROS.length);
-  minima.forEach((t, i) => assert.ok(Math.abs(t - ZETA_ZEROS[i]) < 0.01, `${t}`));
+  minima.forEach((t, i) =>
+    assert.ok(Math.abs(t - ZETA_ZEROS[i]) < 0.01, `${t}`),
+  );
   for (const t of ZETA_ZEROS) assert.ok(height(t) < -0.99);
   // The pole at s = 1 is a spire.
   assert.ok(terrainHeight(logAbs(zeta([1.001, 0]))) > 0.99);

@@ -121,7 +121,10 @@ test("authored shared accents increase with energy without hiding family structu
   assert.ok(responses[0].punch < responses[1].punch);
   assert.ok(responses[1].punch < responses[2].punch);
   assert.ok(responses[1].pulse < responses[2].pulse);
-  assert.ok(responses[2].punch < 0.05, "global zoom supports the local gesture");
+  assert.ok(
+    responses[2].punch < 0.05,
+    "global zoom supports the local gesture",
+  );
   assert.ok(responses[2].pulse < 0.4);
   engine.beat = 8.75;
   engine.updatePerformance(1 / 60, false);

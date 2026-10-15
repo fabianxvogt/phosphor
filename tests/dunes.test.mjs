@@ -285,7 +285,7 @@ test("three exact state snapshots form one continuous world, followed by five ex
   const looks = catalogLooks(scenes),
     worlds = defaultWorlds(looks.map((l) => l.id)),
     world = worlds.find((w) => w.id === "dune-sea");
-  assert.equal(worlds.at(-1).id, "dune-sea");
+  assert.ok(worlds.some((w) => w.id === "dune-sea"));
   assert.deepEqual(
     world.states.map((s) => s.look),
     ["dunes:Ripples", "dunes:Dunes", "dunes:Storm"],

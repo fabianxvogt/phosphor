@@ -140,7 +140,11 @@ test("Conway: gun and eater stay exactly periodic (period 30, no debris)", () =>
   assert.equal(rows[0].length, GUN_EATER.size[0]);
   for (const o of [0, 5]) {
     const settled = run(CONWAY, place(w, h, rows, 2, 2, o), w, h, 600);
-    assert.deepEqual(run(CONWAY, settled, w, h, 30), settled, `orientation ${o}`);
+    assert.deepEqual(
+      run(CONWAY, settled, w, h, 30),
+      settled,
+      `orientation ${o}`,
+    );
     assert.notDeepEqual(run(CONWAY, settled, w, h, 15), settled);
   }
 });
@@ -287,15 +291,25 @@ test("Bosco's rule: the bug travels (0,−5) every 6 generations", () => {
 // Decode the shader's select-chain tables: they are the GPU seed data.
 function shaderTables() {
   const src = life.simulation.fragment;
-  const info = [...src.matchAll(/if \(id == (\d+)\) r = ivec4\((\d+),(\d+),(\d+),(\d+)\);/g)]
+  const info = [
+    ...src.matchAll(
+      /if \(id == (\d+)\) r = ivec4\((\d+),(\d+),(\d+),(\d+)\);/g,
+    ),
+  ]
     .map((m) => m.slice(1).map(Number))
     .map(([id, w, h, offset, dir]) => ({ id, w, h, offset, dir }));
   const words = [];
   for (const m of src.matchAll(/if \(k == (\d+)\) w = (\d+)u;/g))
     words[Number(m[1])] = Number(m[2]);
-  const eater = src.match(/EATER_INFO = ivec4\((\d+),(\d+),(\d+),(\d+)\)/).slice(1).map(Number);
+  const eater = src
+    .match(/EATER_INFO = ivec4\((\d+),(\d+),(\d+),(\d+)\)/)
+    .slice(1)
+    .map(Number);
   const ids = Object.fromEntries(
-    [...src.matchAll(/const int P_(\w+) = (\d+);/g)].map((m) => [m[1], Number(m[2])]),
+    [...src.matchAll(/const int P_(\w+) = (\d+);/g)].map((m) => [
+      m[1],
+      Number(m[2]),
+    ]),
   );
   const bit = (k) => (words[k >> 5] >>> (k & 31)) & 1;
   return { info, words, eater, ids, bit };
@@ -308,7 +322,11 @@ test("GPU pattern words decode to exactly the CPU patterns", () => {
     assert.equal(ids[name.toUpperCase()], i, `P_${name.toUpperCase()}`);
     const p = parsePattern(PATTERNS[name]);
     const t = info[i];
-    assert.deepEqual([t.w, t.h, t.dir], [p.w, p.h, dx + 1 + 3 * (dy + 1)], name);
+    assert.deepEqual(
+      [t.w, t.h, t.dir],
+      [p.w, p.h, dx + 1 + 3 * (dy + 1)],
+      name,
+    );
     for (let k = 0; k < p.w * p.h; k++)
       assert.equal(bit(t.offset + k), p.bits[k], `${name} bit ${k}`);
   });
@@ -318,7 +336,10 @@ test("GPU pattern words decode to exactly the CPU patterns", () => {
     info[PATTERN_ORDER.findIndex(([n]) => n === "eater")].offset,
   ]);
   assert.equal(ids.GUNEATER, PATTERN_ORDER.length);
-  assert.deepEqual(packPatterns().words.length, Math.max(...info.map((t) => t.offset + t.w * t.h + 31)) >> 5);
+  assert.deepEqual(
+    packPatterns().words.length,
+    Math.max(...info.map((t) => t.offset + t.w * t.h + 31)) >> 5,
+  );
 });
 
 test("GPU stamp addressing (gun plus eater companion) matches the CPU stamp", () => {
@@ -357,7 +378,10 @@ test("life: at least ten looks, every rule shown, every preset valid", () => {
   assert.equal(life.number, 64);
   assert.ok(scenes.includes(life));
   assert.ok(life.presets.length >= 10);
-  assert.equal(new Set(life.presets.map((p) => p.name)).size, life.presets.length);
+  assert.equal(
+    new Set(life.presets.map((p) => p.name)).size,
+    life.presets.length,
+  );
   const keys = life.schema.map((d) => d.key);
   for (const preset of life.presets) {
     assert.deepEqual(Object.keys(preset.params).sort(), [...keys].sort());

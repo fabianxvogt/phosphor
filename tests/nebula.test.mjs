@@ -137,7 +137,7 @@ test("exact clock: integer cycles per period wrap with uint arithmetic", () => {
   // Late in a night the phase resolution is unchanged.
   const late = (Math.imul(step, 8 * 3600 * 60) >>> 0) >>> 0;
   const d = cycle((late + step) >>> 0, N.yaw) - cycle(late, N.yaw);
-  assert.ok(Math.abs(d - (N.yaw / CLOCK_PERIOD) / 60) < 1e-7);
+  assert.ok(Math.abs(d - N.yaw / CLOCK_PERIOD / 60) < 1e-7);
 });
 
 test("Zel'dovich displacement is minus the potential gradient", () => {

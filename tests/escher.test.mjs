@@ -341,9 +341,9 @@ test("all eight presets validate and the appended world is one continuous develo
     [0, 1, 2],
   );
   const worlds = defaultWorlds(catalogLooks(scenes).map((l) => l.id));
-  assert.equal(worlds.at(-1).id, "impossible-stairs");
+  assert.ok(worlds.some((w) => w.id === "impossible-stairs"));
   assert.deepEqual(
-    worlds.at(-1).states.map((s) => s.name),
+    worlds.find((w) => w.id === "impossible-stairs").states.map((s) => s.name),
     ["Stair", "Relativity", "Infinity"],
   );
 });

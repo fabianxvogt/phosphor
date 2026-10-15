@@ -155,7 +155,14 @@ test("each group lists the Tables' mirrors, glides and rotation centres", () => 
     const [mirrors, glides, orders] = ELEMENTS[g.name];
     assert.equal(lines.filter((l) => !l.glide).length, mirrors, g.name);
     assert.equal(lines.filter((l) => l.glide).length, glides, g.name);
-    assert.equal(centres.map((c) => c.order).sort().join(""), orders, g.name);
+    assert.equal(
+      centres
+        .map((c) => c.order)
+        .sort()
+        .join(""),
+      orders,
+      g.name,
+    );
   }
 });
 
@@ -188,8 +195,14 @@ test("every rotation centre has exactly its order and is a critical point of F",
       }
       // ∇F(o) = R·∇F(o) for a rotation R ≠ 1 forces ∇F(o) = 0.
       const diff = (a, b) => a.map((x, j) => (x - b[j]) / (2 * h));
-      const dx = diff(F([o[0] + h, o[1]], g, terms), F([o[0] - h, o[1]], g, terms));
-      const dy = diff(F([o[0], o[1] + h], g, terms), F([o[0], o[1] - h], g, terms));
+      const dx = diff(
+        F([o[0] + h, o[1]], g, terms),
+        F([o[0] - h, o[1]], g, terms),
+      );
+      const dy = diff(
+        F([o[0], o[1] + h], g, terms),
+        F([o[0], o[1] - h], g, terms),
+      );
       assert.ok(Math.hypot(...dx, ...dy) < 1e-6, `${g.name} centre ${X}`);
     }
   }

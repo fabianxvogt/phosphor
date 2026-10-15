@@ -49,14 +49,23 @@ test("abyss is a registered continuous world with three authored states", () => 
   }));
   assert.deepEqual(continuousDevelopment(clips, scene)?.positions, [0, 1, 2]);
   assert.ok(scene.presets.length >= 8);
-  assert.equal(new Set(scene.presets.map((p) => p.name)).size, scene.presets.length);
+  assert.equal(
+    new Set(scene.presets.map((p) => p.name)).size,
+    scene.presets.length,
+  );
   for (const preset of scene.presets)
     for (const field of scene.schema) {
       const value = preset.params[field.key];
       assert.ok(Number.isFinite(value), `${preset.name}.${field.key}`);
-      assert.ok(value >= field.min && value <= field.max, `${preset.name}.${field.key}`);
+      assert.ok(
+        value >= field.min && value <= field.max,
+        `${preset.name}.${field.key}`,
+      );
     }
-  assert.equal(ATTRIBUTES.reduce((a, b) => a + b), STRIDE);
+  assert.equal(
+    ATTRIBUTES.reduce((a, b) => a + b),
+    STRIDE,
+  );
   assert.equal(scene.geometry.additiveFrom, OPAQUE_VERTICES);
   assert.equal(scene.particles.depth, true);
 });
@@ -76,7 +85,8 @@ test("geometry is deterministic, finite, seed-dependent and split at a fixed opa
     // Opaque kinds (floor and reef) strictly before the additive tail.
     for (let v = 0; v < vertices; v += 97) {
       const kind = data[v * STRIDE];
-      if (v < OPAQUE_VERTICES) assert.ok(kind <= KIND.pen, `opaque ${v} kind ${kind}`);
+      if (v < OPAQUE_VERTICES)
+        assert.ok(kind <= KIND.pen, `opaque ${v} kind ${kind}`);
       else assert.ok(kind >= KIND.fan, `additive ${v} kind ${kind}`);
     }
   }
@@ -109,7 +119,8 @@ test("integer hash mirrors lowbias32 and stays in [0, 1)", () => {
 
 test("identity is independent of development; growth and reveal are continuous and reversible", () => {
   // Placement depends on the seed only.
-  for (let i = 0; i < NJ + NS; i += 7) assert.deepEqual(jelly(61, i), jelly(61, i));
+  for (let i = 0; i < NJ + NS; i += 7)
+    assert.deepEqual(jelly(61, i), jelly(61, i));
   const { items } = reef(61);
   for (const birth of [0, 0.3, 0.7, 1]) {
     let last = reefGrowth(birth, 0);
@@ -125,11 +136,15 @@ test("identity is independent of development; growth and reveal are continuous a
   }
   assert.ok(items.length > 1000);
   const jellies = Array.from({ length: NJ + NS }, (_, i) => jelly(61, i));
-  const count = (dev) => jellies.filter((j) => jellyReveal(j, dev) > 0.5).length;
+  const count = (dev) =>
+    jellies.filter((j) => jellyReveal(j, dev) > 0.5).length;
   // Sparks: only the five lone medusae. Swarms: every large medusa, few
   // swarm members. Reef: everything.
   assert.equal(count(0), 5);
-  assert.equal(jellies.slice(0, NJ).filter((j) => jellyReveal(j, 1) > 0.99).length, NJ);
+  assert.equal(
+    jellies.slice(0, NJ).filter((j) => jellyReveal(j, 1) > 0.99).length,
+    NJ,
+  );
   const early = jellies.slice(NJ).filter((j) => jellyReveal(j, 1) > 0.5).length;
   assert.ok(early > 0 && early < NS * 0.3, `${early} swarm members at Swarms`);
   assert.equal(count(2), NJ + NS);
@@ -159,7 +174,10 @@ test("Reef settles medusae into a band above the reef, continuously", () => {
       last = next;
     }
   }
-  assert.ok(scene.geometry.vertex.includes("dSettle(") && scene.simulation.fragment.includes("dSettle("));
+  assert.ok(
+    scene.geometry.vertex.includes("dSettle(") &&
+      scene.simulation.fragment.includes("dSettle("),
+  );
 });
 
 test("seabed and camera path are periodic, so the glide is endless", () => {
@@ -190,7 +208,8 @@ test("camera clearance: the glide never enters the reef, a medusa or a chain", (
   for (const seed of [61, 1709, 433, 2203, 877, 3301]) {
     // Reef: the tallest vertex stays below the lowest camera height.
     let camLow = Infinity;
-    for (let z = 0; z < PERIOD; z += 0.05) camLow = Math.min(camLow, cameraPath(z, 2)[1]);
+    for (let z = 0; z < PERIOD; z += 0.05)
+      camLow = Math.min(camLow, cameraPath(z, 2)[1]);
     for (const it of reef(seed).items) {
       assert.ok(it.height <= REEF_TOP, `${seed} reef height ${it.height}`);
       assert.ok(it.root[1] + REEF_TOP < camLow - 0.5, `${seed} reef top`);
@@ -200,28 +219,48 @@ test("camera clearance: the glide never enters the reef, a medusa or a chain", (
     for (let i = 0; i < NJ + NS; i++) {
       const j = jelly(seed, i);
       const reach =
-        j.R * 1.05 + 0.25 * j.R + 0.25 * j.R * 1.5 + 0.05 * j.tentacle + DRIFT[0];
+        j.R * 1.05 +
+        0.25 * j.R +
+        0.25 * j.R * 1.5 +
+        0.05 * j.tentacle +
+        DRIFT[0];
       const [lo, hi] = camXRange(j.anchor[2], DRIFT[2] + 0.5);
-      const gap = Math.min(Math.abs(j.anchor[0] - lo), Math.abs(j.anchor[0] - hi));
+      const gap = Math.min(
+        Math.abs(j.anchor[0] - lo),
+        Math.abs(j.anchor[0] - hi),
+      );
       const inside = j.anchor[0] > lo && j.anchor[0] < hi;
-      assert.ok(!inside && gap - reach > 0.5, `${seed} jelly ${i} clearance ${gap - reach}`);
+      assert.ok(
+        !inside && gap - reach > 0.5,
+        `${seed} jelly ${i} clearance ${gap - reach}`,
+      );
     }
     for (let k = 0; k < NCH; k++) {
       const c = chain(seed, k);
       const half = c.length / 2 + 0.8;
       const reach = Math.abs(c.dir[0]) * half + 0.3 + 0.18;
       const [lo, hi] = camXRange(c.anchor[2], half * Math.abs(c.dir[2]) + 0.2);
-      const gap = Math.min(Math.abs(c.anchor[0] - lo), Math.abs(c.anchor[0] - hi));
-      assert.ok(gap - reach > 0.5, `${seed} chain ${k} clearance ${gap - reach}`);
+      const gap = Math.min(
+        Math.abs(c.anchor[0] - lo),
+        Math.abs(c.anchor[0] - hi),
+      );
+      assert.ok(
+        gap - reach > 0.5,
+        `${seed} chain ${k} clearance ${gap - reach}`,
+      );
     }
   }
 });
 
 test("shader and CPU agree on the reserved state layout and counts", () => {
-  const src = scene.simulation.fragment + scene.particles.vertex + scene.geometry.vertex;
+  const src =
+    scene.simulation.fragment + scene.particles.vertex + scene.geometry.vertex;
   assert.deepEqual(scene.simulation.size, [256, 256]);
   assert.ok(src.includes(`const int D_NJ = ${NJ}, D_NS = ${NS}`));
-  assert.ok(scene.geometry.vertex.includes("dJelly(") && scene.simulation.fragment.includes("dJelly("));
+  assert.ok(
+    scene.geometry.vertex.includes("dJelly(") &&
+      scene.simulation.fragment.includes("dJelly("),
+  );
   // Every loop is constant-capped.
   for (const m of src.matchAll(/for \(int (\w+) = 0; \1 < (\w+)/g))
     assert.ok(/^(\d+|D_[A-Z]+)$/.test(m[2]), m[0]);

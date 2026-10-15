@@ -46,9 +46,15 @@ test("crystal is a registered continuous world with three authored states", () =
     for (const field of scene.schema) {
       const value = preset.params[field.key];
       assert.ok(Number.isFinite(value), `${preset.name}.${field.key}`);
-      assert.ok(value >= field.min && value <= field.max, `${preset.name}.${field.key}`);
+      assert.ok(
+        value >= field.min && value <= field.max,
+        `${preset.name}.${field.key}`,
+      );
     }
-  assert.deepEqual(ATTRIBUTES.reduce((a, b) => a + b), STRIDE);
+  assert.deepEqual(
+    ATTRIBUTES.reduce((a, b) => a + b),
+    STRIDE,
+  );
 });
 
 test("geometry is deterministic, finite, seed-dependent and bounded", () => {

@@ -6,19 +6,41 @@ import { StageAudio } from "../stage-audio.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { bloomAmount } from "../compositor.mjs";
 
-function performer(scene, { level = 0.5, snapshot = presetSnapshot(scene) } = {}) {
+function performer(
+  scene,
+  { level = 0.5, snapshot = presetSnapshot(scene) } = {},
+) {
   const engine = Object.create(Engine.prototype);
   const slot = {
-    scene, snapshot, baseLevel: 0.5, params: new Float32Array(8),
+    scene,
+    snapshot,
+    baseLevel: 0.5,
+    params: new Float32Array(8),
   };
   Object.assign(engine, {
-    slots: [slot], level, levelDuration: 0, uniformFrame: 0,
+    slots: [slot],
+    level,
+    levelDuration: 0,
+    uniformFrame: 0,
     features: {
-      energy: 1, low: 1, mid: 1, high: 1, onset: 1, flux: 1,
-      hit: false, hitId: 0, active: true, locked: true,
+      energy: 1,
+      low: 1,
+      mid: 1,
+      high: 1,
+      onset: 1,
+      flux: 1,
+      hit: false,
+      hitId: 0,
+      active: true,
+      locked: true,
     },
-    options: {}, beatFx: {}, counters: { nonFinite: 0 },
-    speed: 1, beat: 0.5, lastKickBeat: null, flashHeld: false,
+    options: {},
+    beatFx: {},
+    counters: { nonFinite: 0 },
+    speed: 1,
+    beat: 0.5,
+    lastKickBeat: null,
+    flashHeld: false,
     gesture: [0.5, 0.5, 0],
   });
   return { engine, slot };
@@ -48,19 +70,29 @@ for (const scene of scenes.filter((s) => GATED.has(s.id))) {
         const def = scene.schema[i];
         const mapping = scene.audio.find((m) => m.param === def.key);
         // The upload array is float32, so decimal schema endpoints round.
-        assert.ok(peak[i] >= def.min - 1e-6 && peak[i] <= def.max + 1e-6,
-          `${def.key} range`);
+        assert.ok(
+          peak[i] >= def.min - 1e-6 && peak[i] <= def.max + 1e-6,
+          `${def.key} range`,
+        );
         if (!mapping) assert.equal(peak[i], base[i], `${def.key} untouched`);
         else {
           const cap = Math.abs(mapping.amount) * (def.max - def.min);
           const rounding = def.step === 1 ? 0.5 : 0;
-          assert.ok(Math.abs(peak[i] - base[i]) <= cap + rounding + 1e-6,
-            `${def.key} capped over energy`);
-          assert.ok(Math.abs(attack[i] - base[i]) <= Math.abs(peak[i] - base[i]) + 1e-6,
-            `${def.key} attack is smooth`);
+          assert.ok(
+            Math.abs(peak[i] - base[i]) <= cap + rounding + 1e-6,
+            `${def.key} capped over energy`,
+          );
+          assert.ok(
+            Math.abs(attack[i] - base[i]) <= Math.abs(peak[i] - base[i]) + 1e-6,
+            `${def.key} attack is smooth`,
+          );
         }
       }
-      assert.deepEqual(slot.snapshot, original, "audio never edits the saved clip");
+      assert.deepEqual(
+        slot.snapshot,
+        original,
+        "audio never edits the saved clip",
+      );
     }
   });
 
@@ -81,15 +113,24 @@ for (const scene of scenes.filter((s) => GATED.has(s.id))) {
       engine.updatePerformance(1 / 60, false);
       const first = parameters(engine, slot);
       for (let i = 0; i < first.length; i++)
-        assert.ok(Math.abs(first[i] - peak[i]) < 0.005, "dropout does not snap");
+        assert.ok(
+          Math.abs(first[i] - peak[i]) < 0.005,
+          "dropout does not snap",
+        );
       settle(engine, 1);
       assert.ok(engine.audioWeight > 0.4 && engine.audioWeight < 0.6);
       settle(engine, 1.5);
       const faded = parameters(engine, slot);
       assert.equal(engine.audioWeight, 0);
       for (let i = 0; i < faded.length; i++)
-        assert.ok(Math.abs(faded[i] - baseline[i]) < 0.001, `${scene.schema[i]?.key} released`);
-      assert.ok(Math.abs(engine.kick - Math.exp(-3.5)) < 1e-12, "clock kick restored");
+        assert.ok(
+          Math.abs(faded[i] - baseline[i]) < 0.001,
+          `${scene.schema[i]?.key} released`,
+        );
+      assert.ok(
+        Math.abs(engine.kick - Math.exp(-3.5)) < 1e-12,
+        "clock kick restored",
+      );
     }
   });
 }
@@ -113,9 +154,17 @@ test("D61 runtime caps excessive signed amounts and feature values, and ignores 
   assert.ok(Math.abs(values[2] - base[2] + 0.27) < 1e-6);
   assert.equal(values[6], base[6]);
   for (const def of scene.schema) slot.snapshot.params[def.key] = def.max;
-  assert.ok(parameters(engine, slot).every((v, i) => v <= scene.schema[i]?.max || i >= scene.schema.length));
+  assert.ok(
+    parameters(engine, slot).every(
+      (v, i) => v <= scene.schema[i]?.max || i >= scene.schema.length,
+    ),
+  );
   for (const def of scene.schema) slot.snapshot.params[def.key] = def.min;
-  assert.ok(parameters(engine, slot).every((v, i) => v >= scene.schema[i]?.min || i >= scene.schema.length));
+  assert.ok(
+    parameters(engine, slot).every(
+      (v, i) => v >= scene.schema[i]?.min || i >= scene.schema.length,
+    ),
+  );
 });
 
 test("audio heroes respect lock while sequenced injections stay on the grid", () => {

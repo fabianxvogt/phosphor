@@ -33,7 +33,7 @@ test("silk: registered world, eight valid looks and identical state parameters",
   const worlds = defaultWorlds(
     scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`)),
   );
-  const world = worlds.at(-1);
+  const world = worlds.find((w) => w.id === "silk-storm");
   assert.equal(world.id, "silk-storm");
   assert.deepEqual(
     world.states.map((s) => s.name),

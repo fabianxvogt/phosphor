@@ -498,7 +498,10 @@ test("output resolution defaults to native for old sets and round-trips explicit
   delete set.options.outputResolution;
   assert.equal(validateShowSet(set, scenes).options.outputResolution, "native");
   set.options.outputResolution = "1920";
-  assert.equal(parseShowSet(json(set), scenes).set.options.outputResolution, "1920");
+  assert.equal(
+    parseShowSet(json(set), scenes).set.options.outputResolution,
+    "1920",
+  );
   set.options.outputResolution = "infinite";
   assert.throws(() => validateShowSet(set, scenes), /Output resolution/);
 });

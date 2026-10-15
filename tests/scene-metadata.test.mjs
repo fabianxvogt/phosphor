@@ -29,18 +29,27 @@ for (const scene of scenes)
         `beat.${name}`,
       );
     if (GATED.has(scene.id))
-      assert.ok(scene.audio?.length > 0, "gated family has real-audio mappings");
+      assert.ok(
+        scene.audio?.length > 0,
+        "gated family has real-audio mappings",
+      );
     const mappings = scene.audio ?? [];
     assert.ok(mappings.length <= 3, "at most three audio hero parameters");
     const mapped = new Set();
     for (const { param, feature, amount } of mappings) {
       assert.ok(keys.has(param), `audio.${param} is not a parameter`);
-      assert.notEqual(param, scene.type.key, "audio does not change family type");
+      assert.notEqual(
+        param,
+        scene.type.key,
+        "audio does not change family type",
+      );
       assert.ok(!mapped.has(param), `duplicate audio hero ${param}`);
       mapped.add(param);
       assert.ok(AUDIO_FEATURES.includes(feature), `audio feature ${feature}`);
-      assert.ok(Number.isFinite(amount) && Math.abs(amount) <= AUDIO_MAPPING_CAP,
-        `audio.${param} amount cap`);
+      assert.ok(
+        Number.isFinite(amount) && Math.abs(amount) <= AUDIO_MAPPING_CAP,
+        `audio.${param} amount cap`,
+      );
     }
     assert.equal(scene.stage.length, 3);
     for (const key of scene.stage) assert.ok(keys.has(key), `stage ${key}`);

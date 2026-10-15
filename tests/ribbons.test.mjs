@@ -154,7 +154,10 @@ test("identity is fixed per seed and independent of development", () => {
   assert.deepEqual(a, b);
   assert.notDeepEqual(a, c);
   const ranks = ribbonRanks(9701);
-  assert.equal(new Set(ranks.map((r) => Math.floor(r * RIBBONS))).size, RIBBONS);
+  assert.equal(
+    new Set(ranks.map((r) => Math.floor(r * RIBBONS))).size,
+    RIBBONS,
+  );
   for (let r = 0; r < RIBBONS; r += 17)
     assert.ok(Math.abs(a[r * PER_RIBBON + 5] - ranks[r]) < 1e-6);
 });

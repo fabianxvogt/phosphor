@@ -30,7 +30,9 @@ function hex(p) {
 }
 function profile(q, lift, level = 0.5) {
   const n = q.map((x) => x / Math.max(length(q), 0.00001));
-  const chart = [n[0], n[2]].map((x) => x / (1 + Math.sqrt(n[1] * n[1] + 0.025)));
+  const chart = [n[0], n[2]].map(
+    (x) => x / (1 + Math.sqrt(n[1] * n[1] + 0.025)),
+  );
   const grid = chart.map((x, i) => (x + [0.031, -0.017][i]) / FERRO_SPACING);
   const cell = hex(grid);
   const site = grid.map((x, i) => x - cell[i]);
@@ -38,7 +40,12 @@ function profile(q, lift, level = 0.5) {
   const cohort = value - Math.floor(value);
   const population = smooth(cohort - 0.14, cohort + 0.14, 0.2 + 0.8 * level);
   const peak = Math.max(0, 1 - (length(cell) * FERRO_SPACING) / 0.139);
-  return peak * peak * mix(0.12, 1, population) * mix(smooth(-0.1, 0.3, n[1]), 1, lift);
+  return (
+    peak *
+    peak *
+    mix(0.12, 1, population) *
+    mix(smooth(-0.1, 0.3, n[1]), 1, lift)
+  );
 }
 // Mirror of the carrier and signed-distance estimate. Fixed time/seed,
 // no identity parameter ever depends on development.
@@ -78,8 +85,14 @@ function field(
   const displacement = amp > 0.00001 ? amp * profile(v, lift, level) : 0;
   const rippleAmp = (1 - form) * 0.006;
   const r = Math.hypot(q[0], q[2]);
-  const ripple = rippleAmp > 0.00001 ? rippleAmp * Math.sin(17 * r - 2 * phase) *
-    Math.exp(-0.45 * r * r) * smooth(0, 0.22, r) * smooth(0, 0.35, v[1]) : 0;
+  const ripple =
+    rippleAmp > 0.00001
+      ? rippleAmp *
+        Math.sin(17 * r - 2 * phase) *
+        Math.exp(-0.45 * r * r) *
+        smooth(0, 0.22, r) *
+        smooth(0, 0.35, v[1])
+      : 0;
   return Math.max(body - (displacement + ripple) * shell, -p[1] - 0.003);
 }
 
@@ -218,11 +231,13 @@ test("the exact field is finite and continuous through the entire development, i
 });
 
 test("energy grows persistent lattice sites continuously without retiming the chart", () => {
-  let dormant = 0, active = 0;
+  let dormant = 0,
+    active = 0;
   for (let a = 0; a < TAU; a += 0.07)
     for (let y = -0.9; y < 0.95; y += 0.09) {
       const p = [Math.cos(a), y, Math.sin(a)];
-      const low = profile(p, 1, 0.1), high = profile(p, 1, 0.9);
+      const low = profile(p, 1, 0.1),
+        high = profile(p, 1, 0.9);
       assert.ok(high >= low - 1e-12);
       dormant += Number(low > 0.03);
       active += Number(high > 0.03);
@@ -230,22 +245,30 @@ test("energy grows persistent lattice sites continuously without retiming the ch
     }
   assert.ok(active > dormant * 1.3, `${dormant} -> ${active}`);
   assert.match(ferro.fragment, /ferroMap\(p \+ reflected \* 0\.075\)/);
-  assert.match(ferro.fragment, /vec3 bounceDirection = reflect\(reflected, carrierNormal\);/);
+  assert.match(
+    ferro.fragment,
+    /vec3 bounceDirection = reflect\(reflected, carrierNormal\);/,
+  );
 });
 
 test("overshot estimator hits are bracketed before shading, including strong-field crowns", () => {
   assert.match(ferro.fragment, /float lo = previous, hi = t;/);
   assert.match(ferro.fragment, /for \(int j = 0; j < 7; \+\+j\)/);
-  assert.match(ferro.fragment, /if \(ferroMap\(ro \+ rd \* mid\) > 0\.0\) lo = mid; else hi = mid;/);
+  assert.match(
+    ferro.fragment,
+    /if \(ferroMap\(ro \+ rd \* mid\) > 0\.0\) lo = mid; else hi = mid;/,
+  );
   // CPU mirror of the exact refinement, using actual crown fields rather
   // than a generic sphere. Bracket error contracts by 2^-7.
   let hits = 0;
   for (const x of [-1.6, -1, -0.4, 0.3, 0.9, 1.6]) {
-    let previous = 3, before = field([x, previous, 0.2], 1, 0.7, 10103, 0.9, 1.2);
+    let previous = 3,
+      before = field([x, previous, 0.2], 1, 0.7, 10103, 0.9, 1.2);
     for (let y = 2.95; y >= 0; y -= 0.05) {
       const d = field([x, y, 0.2], 1, 0.7, 10103, 0.9, 1.2);
       if (before > 0 && d < 0) {
-        let lo = y, hi = previous;
+        let lo = y,
+          hi = previous;
         for (let j = 0; j < 7; j++) {
           const mid = (lo + hi) / 2;
           if (field([x, mid, 0.2], 1, 0.7, 10103, 0.9, 1.2) > 0) hi = mid;

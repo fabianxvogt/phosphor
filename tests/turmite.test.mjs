@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import turmite, { RULES, ruleMask, runAnt, antFrame } from "../scene-turmite.mjs";
+import turmite, {
+  RULES,
+  ruleMask,
+  runAnt,
+  antFrame,
+} from "../scene-turmite.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
 
 test("rule masks: one bit per colour, set for a right turn", () => {
@@ -64,19 +69,24 @@ test("early ant structures fill a useful view without changing their rule state"
   const frame = antFrame(ant.grid, [ant]);
   assert.ok(frame.span < 0.45, `early view span=${frame.span}`);
   assert.deepEqual(ant.grid, before);
-  for (let y = 0; y < 180; y++) for (let x = 0; x < 320; x++) {
-    if (!ant.grid[y * 320 + x] && (x !== ant.x || y !== ant.y)) continue;
-    assert.ok(x / 320 >= frame.center[0] - frame.span * 0.5);
-    assert.ok((x + 1) / 320 <= frame.center[0] + frame.span * 0.5);
-    assert.ok(y / 180 >= frame.center[1] - frame.span * 0.5);
-    assert.ok((y + 1) / 180 <= frame.center[1] + frame.span * 0.5);
-  }
+  for (let y = 0; y < 180; y++)
+    for (let x = 0; x < 320; x++) {
+      if (!ant.grid[y * 320 + x] && (x !== ant.x || y !== ant.y)) continue;
+      assert.ok(x / 320 >= frame.center[0] - frame.span * 0.5);
+      assert.ok((x + 1) / 320 <= frame.center[0] + frame.span * 0.5);
+      assert.ok(y / 180 >= frame.center[1] - frame.span * 0.5);
+      assert.ok((y + 1) / 180 <= frame.center[1] + frame.span * 0.5);
+    }
 });
 
 test("framing includes zero-colour hot trails and every ant across torus boundaries", () => {
-  const grid = new Uint8Array(320 * 180), heat = new Uint8Array(grid.length);
+  const grid = new Uint8Array(320 * 180),
+    heat = new Uint8Array(grid.length);
   heat[4 * 320 + 3] = 255;
-  const ants = [{ x: 319, y: 179 }, { x: 120, y: 70 }];
+  const ants = [
+    { x: 319, y: 179 },
+    { x: 120, y: 70 },
+  ];
   const frame = antFrame(grid, ants, { heat });
   for (const [x, y] of [[3, 4], ...ants.map((ant) => [ant.x, ant.y])]) {
     assert.ok(x / 320 >= frame.center[0] - frame.span * 0.5);
@@ -84,18 +94,25 @@ test("framing includes zero-colour hot trails and every ant across torus boundar
     assert.ok(y / 180 >= frame.center[1] - frame.span * 0.5);
     assert.ok((y + 1) / 180 <= frame.center[1] + frame.span * 0.5);
   }
-  assert.ok(frame.span > 1, "spanning activity fits the whole field with margin");
+  assert.ok(
+    frame.span > 1,
+    "spanning activity fits the whole field with margin",
+  );
 });
 
 test("composition follows continuously rather than jumping with each ant step", () => {
-  const grid = new Uint8Array(320 * 180), ants = [{ x: 270, y: 150 }];
+  const grid = new Uint8Array(320 * 180),
+    ants = [{ x: 270, y: 150 }];
   const previous = { center: [0.5, 0.5], span: 1 };
   const target = antFrame(grid, ants);
   const next = antFrame(grid, ants, { previous });
-  assert.ok(next.center[0] > previous.center[0] && next.center[0] < target.center[0]);
+  assert.ok(
+    next.center[0] > previous.center[0] && next.center[0] < target.center[0],
+  );
   assert.ok(next.span < previous.span && next.span > target.span);
   let frame = previous;
-  for (let tick = 0; tick < 120; tick++) frame = antFrame(grid, ants, { previous: frame });
+  for (let tick = 0; tick < 120; tick++)
+    frame = antFrame(grid, ants, { previous: frame });
   assert.ok(Math.abs(frame.center[0] - target.center[0]) < 0.01);
   assert.ok(Math.abs(frame.span - target.span) < 0.01);
 });

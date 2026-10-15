@@ -343,9 +343,9 @@ test("eight validated looks, appended world, gestures and Kelvin clocks obey the
     [0, 1, 2],
   );
   const worlds = defaultWorlds(catalogLooks(scenes).map((l) => l.id));
-  assert.equal(worlds.at(-1).id, "ink-bloom");
+  assert.ok(worlds.some((w) => w.id === "ink-bloom"));
   assert.deepEqual(
-    worlds.at(-1).states.map((s) => s.name),
+    worlds.find((w) => w.id === "ink-bloom").states.map((s) => s.name),
     ["Drop", "Plumes", "Nebula"],
   );
   assert.deepEqual(

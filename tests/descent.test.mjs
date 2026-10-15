@@ -21,17 +21,30 @@ function frame(dev, open) {
     b = open / 3,
     rise = Math.exp(2.8 * city);
   const xs = [mix(b, 2.6, cave) * rise, mix(b, 2.0, cave) - 0.1 * city];
-  const zs = [mix(b, 2.1, cave) - 0.6 * city, mix(b, 2.6, cave) * Math.exp(3.2 * city)];
+  const zs = [
+    mix(b, 2.1, cave) - 0.6 * city,
+    mix(b, 2.6, cave) * Math.exp(3.2 * city),
+  ];
   const ys = [mix(b, 0.9, cave), mix(b, 0.9, cave)];
   // The narrowest per-block variant is contained in every block's free space.
   const narrow = {
     xs: [mix(xs[0], Math.min(xs[0], 2.7), city), xs[1]],
-    zs: [zs[0] * mix(1, 0.55, variation), mix(zs[1], Math.min(zs[1], 1.6), city)],
+    zs: [
+      zs[0] * mix(1, 0.55, variation),
+      mix(zs[1], Math.min(zs[1], 1.6), city),
+    ],
     ys: ys.map((v) => v * mix(1, 0.6, variation)),
   };
   const coreY = Math.min(xs[0], 1.6) - b,
     coreZ = xs[1] - b;
-  return { b, xs, narrow, deck: 0.4 * city, ay: 0.15 * b + 0.5 * coreY, az: 0.15 * b + 0.55 * coreZ };
+  return {
+    b,
+    xs,
+    narrow,
+    deck: 0.4 * city,
+    ay: 0.15 * b + 0.5 * coreY,
+    az: 0.15 * b + 0.55 * coreZ,
+  };
 }
 function narrowHall(f, p) {
   const q = p.map((v) => v - Math.floor(v / 6 + 0.5) * 6).map(Math.abs);
@@ -98,7 +111,8 @@ test("banking and the kick stay within the style limits", () => {
 // (phase + wrap counter) must advance smoothly, so block variation keyed by
 // floor(x / 6) + counter never jumps when the phase wraps.
 test("travel phase and wrap counter integrate without jumps", () => {
-  const pack = (v) => Math.floor(Math.min(1, Math.max(0, v)) * 65535 + 0.5) / 65535;
+  const pack = (v) =>
+    Math.floor(Math.min(1, Math.max(0, v)) * 65535 + 0.5) / 65535;
   let state = [pack((9301 * 0.0173) % 1), 0];
   let previous = null,
     wraps = 0;
@@ -131,17 +145,25 @@ test("descent declares a continuous three-state world and strong extra looks", (
   for (const preset of descent.presets)
     for (const field of descent.schema) {
       const v = preset.params[field.key];
-      assert.ok(Number.isFinite(v) && v >= field.min && v <= field.max, `${preset.name}.${field.key}`);
+      assert.ok(
+        Number.isFinite(v) && v >= field.min && v <= field.max,
+        `${preset.name}.${field.key}`,
+      );
     }
   const ids = catalogLooks(scenes).map((l) => l.id);
   const world = defaultWorlds(ids).find((w) => w.id === "descent");
   assert.ok(world, "authored world is playable");
   const clips = world.states.map((s) => {
-    const index = descent.presets.findIndex((p) => `descent:${p.name}` === s.look);
+    const index = descent.presets.findIndex(
+      (p) => `descent:${p.name}` === s.look,
+    );
     return { snapshot: presetSnapshot(descent, index) };
   });
   assert.deepEqual(continuousDevelopment(clips, descent)?.positions, [0, 1, 2]);
-  assert.equal(new Set(descent.presets.map((p) => p.seed)).size, descent.presets.length - 2);
+  assert.equal(
+    new Set(descent.presets.map((p) => p.seed)).size,
+    descent.presets.length - 2,
+  );
 });
 
 test("descent rhythm gestures use periods 4, 8 and 16", () => {

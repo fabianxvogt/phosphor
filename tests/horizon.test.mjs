@@ -36,7 +36,10 @@ function encke(y, h) {
 }
 const stepOf = (y) => {
   const u = Math.max(y[0], 0);
-  return Math.min(0.6 / (1 + 18 * u), (0.5 * Math.max(u, 0.02)) / Math.max(Math.abs(y[1]), 1e-6));
+  return Math.min(
+    0.6 / (1 + 18 * u),
+    (0.5 * Math.max(u, 0.02)) / Math.max(Math.abs(y[1]), 1e-6),
+  );
 };
 function trace(y, cap = 4000) {
   let phi = 0;
@@ -50,7 +53,11 @@ function trace(y, cap = 4000) {
         0.5 * (y[0] + next[0] * c - next[1] * s),
         0.5 * (y[1] + next[0] * s + next[1] * c),
       ];
-      return { escaped: true, phiInf: phi + Math.atan2(zm[0], -zm[1]), steps: i + 1 };
+      return {
+        escaped: true,
+        phiInf: phi + Math.atan2(zm[0], -zm[1]),
+        steps: i + 1,
+      };
     }
     if (next[0] >= 0.5) return { captured: true, steps: i + 1 };
     y = next;
@@ -59,7 +66,10 @@ function trace(y, cap = 4000) {
   return { steps: cap };
 }
 // A ray arriving from (practically) infinity with impact parameter b.
-const incoming = (b, u0 = 1e-6) => [u0, Math.sqrt(1 / (b * b) - u0 * u0 * (1 - 2 * u0))];
+const incoming = (b, u0 = 1e-6) => [
+  u0,
+  Math.sqrt(1 / (b * b) - u0 * u0 * (1 - 2 * u0)),
+];
 
 test("shader keeps the mirrored geodesic integrator", () => {
   for (const line of [
@@ -93,7 +103,10 @@ test("deflection matches the weak-field limit 4M/b", () => {
       Math.abs(deflection - expected) / (4 / b) < 0.01,
       `b=${b}: ${deflection} vs ${expected}`,
     );
-    assert.ok(Math.abs(deflection * b / 4 - 1) < 6 / b, `b=${b} weak-field ratio`);
+    assert.ok(
+      Math.abs((deflection * b) / 4 - 1) < 6 / b,
+      `b=${b} weak-field ratio`,
+    );
   }
 });
 
@@ -114,7 +127,7 @@ test("static-observer rays: capture exactly below √27 M from any camera radius
       lapse = Math.sqrt(1 - 2 * u0);
     // Inward ray at local angle ψ from the outward radial direction.
     const ray = (b) => {
-      const sp = (b * u0 * lapse);
+      const sp = b * u0 * lapse;
       const cp = -Math.sqrt(1 - sp * sp);
       return [u0, (-u0 * lapse * cp) / sp];
     };
@@ -129,8 +142,12 @@ test("Hermite crossings agree with a fine reference integration", () => {
   const hermite = (a, b, h, s) => {
     const s2 = s * s,
       s3 = s2 * s;
-    return (2 * s3 - 3 * s2 + 1) * a[0] + (s3 - 2 * s2 + s) * h * a[1] +
-      (-2 * s3 + 3 * s2) * b[0] + (s3 - s2) * h * b[1];
+    return (
+      (2 * s3 - 3 * s2 + 1) * a[0] +
+      (s3 - 2 * s2 + s) * h * a[1] +
+      (-2 * s3 + 3 * s2) * b[0] +
+      (s3 - s2) * h * b[1]
+    );
   };
   for (const b of [6, 8, 12, 20]) {
     const start = [1 / 30, Math.sqrt(1 / (b * b) - (1 / 900) * (1 - 2 / 30))];
@@ -159,7 +176,13 @@ const EPS = 0.002,
   X0 = Math.asinh(-Math.sqrt(27) / EPS),
   DPHI = (3.2 * Math.PI) / 127;
 const rowB = (row, x1) =>
-  Math.sqrt(27) + EPS * Math.sinh(row < 255.75 ? (X0 * (255.5 - row)) / 255.5 : (x1 * (row - 255.5)) / 255.5);
+  Math.sqrt(27) +
+  EPS *
+    Math.sinh(
+      row < 255.75
+        ? (X0 * (255.5 - row)) / 255.5
+        : (x1 * (row - 255.5)) / 255.5,
+    );
 const rowF = (b, x1) => {
   const x = Math.asinh((b - Math.sqrt(27)) / EPS);
   return x < 0 ? 255.5 * (1 - x / X0) : 255.5 + (255.5 * x) / x1;
@@ -188,13 +211,17 @@ test("table rows invert, never straddle the shadow edge, and match direct integr
     assert.ok(horizon.fragment.includes(line), line);
   const r = 27,
     x1 = Math.asinh((r / Math.sqrt(1 - 2 / r) - Math.sqrt(27)) / EPS);
-  for (const row of [0, 17, 255, 256, 400, 511]) assert.ok(Math.abs(rowF(rowB(row, x1), x1) - row) < 1e-6);
+  for (const row of [0, 17, 255, 256, 400, 511])
+    assert.ok(Math.abs(rowF(rowB(row, x1), x1) - row) < 1e-6);
   assert.ok(rowB(255, x1) < Math.sqrt(27) && rowB(256, x1) > Math.sqrt(27));
   let worst = 0,
     checked = 0;
   for (const b of [1.5, 3, 4.6, 5.6, 7, 9.5, 14, 20]) {
     const inside = b < Math.sqrt(27);
-    const rf = Math.min(Math.max(rowF(b, x1), inside ? 0 : 256), inside ? 255 : 511);
+    const rf = Math.min(
+      Math.max(rowF(b, x1), inside ? 0 : 256),
+      inside ? 255 : 511,
+    );
     const r0 = Math.floor(rf),
       r1 = Math.min(r0 + 1, inside ? 255 : 511),
       w = rf - r0;
@@ -208,8 +235,12 @@ test("table rows invert, never straddle the shadow edge, and match direct integr
         if (a[0] >= 0.5 || c[0] >= 0.5) return null;
         const s2 = sf * sf,
           s3 = s2 * sf;
-        return (2 * s3 - 3 * s2 + 1) * a[0] + (s3 - 2 * s2 + sf) * DPHI * a[1] +
-          (-2 * s3 + 3 * s2) * c[0] + (s3 - s2) * DPHI * c[1];
+        return (
+          (2 * s3 - 3 * s2 + 1) * a[0] +
+          (s3 - 2 * s2 + sf) * DPHI * a[1] +
+          (-2 * s3 + 3 * s2) * c[0] +
+          (s3 - s2) * DPHI * c[1]
+        );
       };
       const u0 = sample(r0),
         u1 = sample(r1);
@@ -237,7 +268,11 @@ function cameraRadius(dev, az) {
   const form = smooth(0, 1, dev),
     blaze = smooth(1, 2, dev);
   const pass = blaze * Math.pow(0.5 + 0.5 * Math.cos(az - 1.9), 6);
-  return mix(mix(46, 34, form), 27, blaze) * (1 - 0.42 * pass) * (1 + 0.025 * Math.sin(3 * az));
+  return (
+    mix(mix(46, 34, form), 27, blaze) *
+    (1 - 0.42 * pass) *
+    (1 + 0.025 * Math.sin(3 * az))
+  );
 }
 test("the camera never enters the horizon or the photon sphere", () => {
   for (const line of [
@@ -248,8 +283,12 @@ test("the camera never enters the horizon or the photon sphere", () => {
     assert.ok(horizon.fragment.includes(line), line);
   let least = Infinity;
   for (let dev = 0; dev <= 2.0001; dev += 0.01)
-    for (let az = 0; az < 2 * Math.PI; az += 0.01) least = Math.min(least, cameraRadius(dev, az));
-  assert.ok(least > 15 && least > 3 && least > 2, `closest camera radius ${least}`);
+    for (let az = 0; az < 2 * Math.PI; az += 0.01)
+      least = Math.min(least, cameraRadius(dev, az));
+  assert.ok(
+    least > 15 && least > 3 && least > 2,
+    `closest camera radius ${least}`,
+  );
 });
 
 // The flow counter (texel 2) counts wraps of the flow phase (texel 1) with
@@ -268,13 +307,22 @@ test("flow layers keep their seed while visible and advance on reset", () => {
       const tau = (flow + 0.5 * k) % 1;
       const id = count + Math.floor(flow + 0.5 * k);
       if (lastId[k] !== null && id !== lastId[k])
-        assert.ok(tau < 0.02, `layer ${k} reseeded at weight ${1 - Math.abs(2 * tau - 1)}`);
+        assert.ok(
+          tau < 0.02,
+          `layer ${k} reseeded at weight ${1 - Math.abs(2 * tau - 1)}`,
+        );
       lastId[k] = id;
     }
   }
   assert.ok(count > 20);
-  assert.match(horizon.simulation.fragment, /float wraps = floor\(flow \+ u_dt \* hzRate\(1\)\);/);
-  assert.match(horizon.simulation.fragment, /outColor = pack24\(value \+ u_dt \* hzRate\(i\)\);/);
+  assert.match(
+    horizon.simulation.fragment,
+    /float wraps = floor\(flow \+ u_dt \* hzRate\(1\)\);/,
+  );
+  assert.match(
+    horizon.simulation.fragment,
+    /outColor = pack24\(value \+ u_dt \* hzRate\(i\)\);/,
+  );
 });
 
 test("horizon declares a continuous three-state world and strong extra looks", () => {
@@ -285,17 +333,25 @@ test("horizon declares a continuous three-state world and strong extra looks", (
   for (const preset of horizon.presets)
     for (const field of horizon.schema) {
       const v = preset.params[field.key];
-      assert.ok(Number.isFinite(v) && v >= field.min && v <= field.max, `${preset.name}.${field.key}`);
+      assert.ok(
+        Number.isFinite(v) && v >= field.min && v <= field.max,
+        `${preset.name}.${field.key}`,
+      );
     }
   const ids = catalogLooks(scenes).map((l) => l.id);
   const world = defaultWorlds(ids).find((w) => w.id === "horizon");
   assert.ok(world, "authored world is playable");
   const clips = world.states.map((s) => {
-    const index = horizon.presets.findIndex((p) => `horizon:${p.name}` === s.look);
+    const index = horizon.presets.findIndex(
+      (p) => `horizon:${p.name}` === s.look,
+    );
     return { snapshot: presetSnapshot(horizon, index) };
   });
   assert.deepEqual(continuousDevelopment(clips, horizon)?.positions, [0, 1, 2]);
-  assert.equal(new Set(horizon.presets.map((p) => p.seed)).size, horizon.presets.length - 2);
+  assert.equal(
+    new Set(horizon.presets.map((p) => p.seed)).size,
+    horizon.presets.length - 2,
+  );
 });
 
 test("style limits: kick punch, roll, speed range and gesture periods", () => {

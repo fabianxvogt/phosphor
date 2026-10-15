@@ -102,7 +102,8 @@ test("projected fibres are round, planar circles", () => {
     );
     const radii = pts.map((p) => Math.hypot(...sub(p, centre)));
     assert.ok(Math.max(...radii) - Math.min(...radii) < 1e-6, "round");
-    for (const p of pts) near(dot(sub(p, a), w) / Math.sqrt(w2), 0, 1e-8, "planar");
+    for (const p of pts)
+      near(dot(sub(p, a), w) / Math.sqrt(w2), 0, 1e-8, "planar");
   }
 });
 
@@ -148,13 +149,17 @@ test("development blooms continuously and each integer state is complete", () =>
   const complete = (dev) =>
     new Set(
       LAYERS.map((_, k) => k).filter((k) =>
-        list.filter((f) => f.layer === k).every((f) => growth(f.start, dev) === 1),
+        list
+          .filter((f) => f.layer === k)
+          .every((f) => growth(f.start, dev) === 1),
       ),
     );
   const hidden = (dev) =>
     new Set(
       LAYERS.map((_, k) => k).filter((k) =>
-        list.filter((f) => f.layer === k).every((f) => growth(f.start, dev) === 0),
+        list
+          .filter((f) => f.layer === k)
+          .every((f) => growth(f.start, dev) === 0),
       ),
     );
   assert.deepEqual([...complete(0)], [0]);
@@ -164,7 +169,12 @@ test("development blooms continuously and each integer state is complete", () =>
   assert.equal(complete(2).size, LAYERS.length);
   for (const dev of [0, 1, 2])
     for (const f of visible(dev))
-      near(layerTheta(f.layer, dev), LAYERS[f.layer].theta, 1e-12, "final latitude");
+      near(
+        layerTheta(f.layer, dev),
+        LAYERS[f.layer].theta,
+        1e-12,
+        "final latitude",
+      );
   // Lipschitz continuity in development: no jumps anywhere in [0, 2].
   for (let dev = 0; dev < 2; dev += 0.001)
     for (let k = 0; k < LAYERS.length; k++) {
@@ -173,7 +183,10 @@ test("development blooms continuously and each integer state is complete", () =>
     }
   for (const f of list)
     for (let dev = 0; dev < 2; dev += 0.01)
-      assert.ok(growth(f.start, dev + 0.01) - growth(f.start, dev) <= 0.01 / GROW + 1e-12);
+      assert.ok(
+        growth(f.start, dev + 0.01) - growth(f.start, dev) <=
+          0.01 / GROW + 1e-12,
+      );
   // A new torus appears out of its parent latitude, never out of nowhere.
   for (let k = 1; k < LAYERS.length; k++)
     near(layerTheta(k, LAYERS[k].a), LAYERS[LAYERS[k].from].theta, 1e-12);
@@ -237,5 +250,8 @@ test("stereographic projection sends the pole fibre through infinity only", () =
   // Sanity of the margin argument: the south-pole fibre contains the pole.
   const q = fibrePoint(Math.PI, 0, Math.PI / 2);
   near(q[3], 1, 1e-12);
-  assert.ok(!Number.isFinite(Math.hypot(...stereo(q))) || Math.hypot(...stereo(q)) > 1e12);
+  assert.ok(
+    !Number.isFinite(Math.hypot(...stereo(q))) ||
+      Math.hypot(...stereo(q)) > 1e12,
+  );
 });

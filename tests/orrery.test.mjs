@@ -42,9 +42,9 @@ test("orrery is the appended continuous world: three same-seed states and eight 
   const worlds = defaultWorlds(
     scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`)),
   );
-  assert.equal(worlds.at(-1).id, "brass-orrery");
+  assert.ok(worlds.some((w) => w.id === "brass-orrery"));
   assert.deepEqual(
-    worlds.at(-1).states.map((s) => s.name),
+    worlds.find((w) => w.id === "brass-orrery").states.map((s) => s.name),
     ["Gears", "Orrery", "Clockwork"],
   );
   const clips = scene.presets

@@ -48,7 +48,9 @@ test("Aurora Veil appends a registered continuous world with eight valid looks",
         `${preset.name}.${f.key}`,
       );
   }
-  const world = defaultWorlds(catalogLooks(scenes).map((l) => l.id)).at(-1);
+  const world = defaultWorlds(catalogLooks(scenes).map((l) => l.id)).find(
+    (w) => w.id === "aurora-veil",
+  );
   assert.equal(world.id, "aurora-veil");
   assert.deepEqual(
     world.states.map((s) => s.look),

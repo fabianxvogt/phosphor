@@ -27,7 +27,10 @@ import { Engine } from "../engine.mjs";
 
 const close = (actual, expected, eps = 1e-12, label = "") =>
   actual.forEach((v, i) =>
-    assert.ok(Math.abs(v - expected[i]) <= eps, `${label}[${i}] ${v} ≠ ${expected[i]}`),
+    assert.ok(
+      Math.abs(v - expected[i]) <= eps,
+      `${label}[${i}] ${v} ≠ ${expected[i]}`,
+    ),
   );
 const schemaOf = (key) => attractor.schema.find((d) => d.key === key);
 
@@ -72,7 +75,11 @@ function lyapunov(system, k, { steps, rnd }) {
     p = step(system, p, k);
     q = step(system, q, k);
     assert.ok(inBox(system, p), `${SYSTEMS[system].id} left its box at ${p}`);
-    const d = Math.hypot(q[0] - p[0], q[1] - p[1], system === 5 ? 0 : q[2] - p[2]);
+    const d = Math.hypot(
+      q[0] - p[0],
+      q[1] - p[1],
+      system === 5 ? 0 : q[2] - p[2],
+    );
     sum += Math.log(d / 1e-8);
     q = p.map((v, j) => v + ((q[j] - v) * 1e-8) / d);
     if (system === 5) q[2] = p[2];
@@ -86,19 +93,34 @@ const STEPS = [30000, 25000, 40000, 25000, 25000, 3000];
 const FLOOR = [0.45, 0.025, 0.025, 0.015, 0.15, 0.05];
 
 test("attractor declares six systems, each covered by authored looks", () => {
-  assert.deepEqual(attractor.type, { key: "system", values: [0, 1, 2, 3, 4, 5] });
+  assert.deepEqual(attractor.type, {
+    key: "system",
+    values: [0, 1, 2, 3, 4, 5],
+  });
   assert.equal(schemaOf("system").step, 1);
   assert.equal(schemaOf("system").max, SYSTEMS.length - 1);
   assert.ok(attractor.presets.length >= 8);
-  assert.equal(new Set(attractor.presets.map((p) => p.name)).size, attractor.presets.length);
+  assert.equal(
+    new Set(attractor.presets.map((p) => p.name)).size,
+    attractor.presets.length,
+  );
   for (const value of attractor.type.values)
-    assert.ok(attractor.presets.some((p) => p.params.system === value), `system ${value}`);
+    assert.ok(
+      attractor.presets.some((p) => p.params.system === value),
+      `system ${value}`,
+    );
   for (let i = 0; i < attractor.presets.length; i++) {
     const snapshot = presetSnapshot(attractor, i);
-    assert.deepEqual(validateSnapshot(JSON.parse(JSON.stringify(snapshot)), [attractor]), snapshot);
+    assert.deepEqual(
+      validateSnapshot(JSON.parse(JSON.stringify(snapshot)), [attractor]),
+      snapshot,
+    );
     for (const def of attractor.schema) {
       const v = snapshot.params[def.key];
-      assert.ok(Number.isFinite(v) && v >= def.min && v <= def.max, `${snapshot.preset}/${def.key}`);
+      assert.ok(
+        Number.isFinite(v) && v >= def.min && v <= def.max,
+        `${snapshot.preset}/${def.key}`,
+      );
     }
   }
   assert.deepEqual(attractor.simulation.size, [256, 512]);
@@ -126,22 +148,39 @@ test("energy raises speed, particle count, trail, orbit and morph depth for ever
     });
     for (const key of keys) {
       const [lo, mid, hi] = ladder.map((p) => p[index[key]]);
-      assert.ok(lo <= mid && mid <= hi && lo < hi, `${attractor.presets[i].name}/${key}`);
+      assert.ok(
+        lo <= mid && mid <= hi && lo < hi,
+        `${attractor.presets[i].name}/${key}`,
+      );
     }
     for (const p of ladder) assert.equal(p[0], slot.snapshot.params.system);
   }
 });
 
 test("derivatives match the textbook systems", () => {
-  close(flow(0, [1, 1, 1], [10, 28, 8 / 3]), [0, 26, 1 - 8 / 3], 1e-12, "Lorenz");
-  close(flow(1, [1, 2, 3], [0.2, 0.2, 5.7]), [-5, 1.4, 0.2 + 3 * (1 - 5.7)], 1e-12, "Rössler");
+  close(
+    flow(0, [1, 1, 1], [10, 28, 8 / 3]),
+    [0, 26, 1 - 8 / 3],
+    1e-12,
+    "Lorenz",
+  );
+  close(
+    flow(1, [1, 2, 3], [0.2, 0.2, 5.7]),
+    [-5, 1.4, 0.2 + 3 * (1 - 5.7)],
+    1e-12,
+    "Rössler",
+  );
   const [x, y, z] = [0.1, 0.2, 0.3];
   close(
     flow(2, [x, y, z], [0.95]),
     [
       (z - 0.7) * x - 3.5 * y,
       3.5 * x + (z - 0.7) * y,
-      0.6 + 0.95 * z - z ** 3 / 3 - (x * x + y * y) * (1 + 0.25 * z) + 0.1 * z * x ** 3,
+      0.6 +
+        0.95 * z -
+        z ** 3 / 3 -
+        (x * x + y * y) * (1 + 0.25 * z) +
+        0.1 * z * x ** 3,
     ],
     1e-12,
     "Aizawa",
@@ -197,10 +236,15 @@ test("RK4 is fourth order on every flow", () => {
       return q;
     };
     const reference = fine(64);
-    const e1 = Math.hypot(...step(system, p, k).map((v, i) => v - reference[i]));
+    const e1 = Math.hypot(
+      ...step(system, p, k).map((v, i) => v - reference[i]),
+    );
     const e2 = Math.hypot(...fine(2).map((v, i) => v - reference[i]));
     // Halving h shrinks the error ~16× (allow slack for round-off).
-    assert.ok(e2 < e1 / 8 || e1 < 1e-11, `${SYSTEMS[system].id}: ${e1} → ${e2}`);
+    assert.ok(
+      e2 < e1 / 8 || e1 < 1e-11,
+      `${SYSTEMS[system].id}: ${e1} → ${e2}`,
+    );
   }
 });
 
@@ -233,10 +277,18 @@ test("every look's system stays chaotic and inside its box at its morph extremes
     const rnd = random(preset.seed);
     const species = preset.seed % CLIFFORD_SPECIES.length;
     for (const m of [0, 1])
-      for (const w of [[-1, -1], [1, 1], [-1, 1], [1, -1]]) {
+      for (const w of [
+        [-1, -1],
+        [1, 1],
+        [-1, 1],
+        [1, -1],
+      ]) {
         const k = systemParams(system, m, w, species);
         const lambda = lyapunov(system, k, { steps: STEPS[system], rnd });
-        assert.ok(lambda > FLOOR[system], `${preset.name} m=${m} w=${w}: λ=${lambda}`);
+        assert.ok(
+          lambda > FLOOR[system],
+          `${preset.name} m=${m} w=${w}: λ=${lambda}`,
+        );
       }
   }
 });
@@ -262,7 +314,9 @@ test("full-depth morph sweeps stay chaotic in every window of the sweep", () => 
       const ticks = Math.round((60 * MORPH_PERIOD) / MORPH_WAVES[0]);
       for (let t = 0; t < ticks; t++) {
         const time = t / 60;
-        const w = MORPH_WAVES.map((n) => Math.sin((2 * Math.PI * n * time) / MORPH_PERIOD));
+        const w = MORPH_WAVES.map((n) =>
+          Math.sin((2 * Math.PI * n * time) / MORPH_PERIOD),
+        );
         k = systemParams(system, 1, w);
         accumulator += stepsPerTick(system, schemaOf("speed").max);
         const n = Math.min(Math.floor(accumulator), MAX_STEPS);
@@ -275,11 +329,17 @@ test("full-depth morph sweeps stay chaotic in every window of the sweep", () => 
           q = p.map((v, j) => v + ((q[j] - v) * 1e-8) / d);
           if (++count === windowSteps) {
             const lambda = sum / (count * S.h);
-            assert.ok(lambda > FLOOR[system] / 2, `${S.id} at ${time.toFixed(0)} s: λ=${lambda}`);
+            assert.ok(
+              lambda > FLOOR[system] / 2,
+              `${S.id} at ${time.toFixed(0)} s: λ=${lambda}`,
+            );
             sum = count = 0;
           }
         }
-        assert.ok(inBox(system, p), `${S.id} left its box at ${time.toFixed(1)} s`);
+        assert.ok(
+          inBox(system, p),
+          `${S.id} left its box at ${time.toFixed(1)} s`,
+        );
       }
     }
   }
@@ -290,15 +350,23 @@ test("full-depth morph sweeps stay chaotic in every window of the sweep", () => 
       const k = systemParams(5, 1, w, species);
       const rnd = random(77 + i);
       const lambda = lyapunov(5, k, { steps: 2500, rnd });
-      assert.ok(lambda > FLOOR[5], `Clifford species ${species} w=${w[0]}: λ=${lambda}`);
+      assert.ok(
+        lambda > FLOOR[5],
+        `Clifford species ${species} w=${w[0]}: λ=${lambda}`,
+      );
       // Dust, not a few points: the orbit covers many cells of a 128² grid.
       let p = start(5, k, rnd);
       const cells = new Set();
       for (let n = 0; n < 4000; n++) {
         p = cliffordMap(p, k);
-        cells.add(Math.floor((p[0] + 3.2) * 20) * 1000 + Math.floor((p[1] + 3.2) * 20));
+        cells.add(
+          Math.floor((p[0] + 3.2) * 20) * 1000 + Math.floor((p[1] + 3.2) * 20),
+        );
       }
-      assert.ok(cells.size > 600, `Clifford species ${species} w=${w[0]}: ${cells.size} cells`);
+      assert.ok(
+        cells.size > 600,
+        `Clifford species ${species} w=${w[0]}: ${cells.size} cells`,
+      );
     }
 });
 
@@ -321,11 +389,14 @@ test("16-bit storage, morph and kicks keep a long run bounded and spread out", (
     const visited = new Set();
     for (let t = 0; t < 12000; t++) {
       const time = (t / 60) * 50;
-      const w = MORPH_WAVES.map((n) => Math.sin((2 * Math.PI * n * time) / MORPH_PERIOD));
+      const w = MORPH_WAVES.map((n) =>
+        Math.sin((2 * Math.PI * n * time) / MORPH_PERIOD),
+      );
       k = systemParams(system, 1, w, t % 3);
       const kick = t % 30 < 6 ? 1 - (t % 30) / 6 : 0;
       if (system === 5) {
-        if (rnd() < (2.5 * (1 + KICK_SURGE * kick) * MAP_HOPS) / 60) p = cliffordMap(p, k);
+        if (rnd() < (2.5 * (1 + KICK_SURGE * kick) * MAP_HOPS) / 60)
+          p = cliffordMap(p, k);
       } else {
         accumulator += stepsPerTick(system, 2.5, kick);
         const n = Math.min(Math.floor(accumulator), MAX_STEPS);
@@ -334,7 +405,9 @@ test("16-bit storage, morph and kicks keep a long run bounded and spread out", (
       }
       p = quantize(p);
       assert.ok(inBox(system, p), `${S.id} escaped at tick ${t}: ${p}`);
-      visited.add(p.map((v, i) => Math.floor(((v - S.lo[i]) / span[i]) * 8)).join());
+      visited.add(
+        p.map((v, i) => Math.floor(((v - S.lo[i]) / span[i]) * 8)).join(),
+      );
     }
     // The orbit wanders over the attractor instead of settling on a point.
     assert.ok(visited.size >= 12, `${S.id} visited ${visited.size} cells`);
@@ -384,7 +457,17 @@ test("description and metadata name the family", () => {
 
 // One GPU tick replayed on the CPU from the GPU's own state: the shader's
 // flows, map, morph, step accumulator and hop coins must match the reference.
-function replayTick({ system, before, after, params, time, tick, kick, level, seed }) {
+function replayTick({
+  system,
+  before,
+  after,
+  params,
+  time,
+  tick,
+  kick,
+  level,
+  seed,
+}) {
   const S = SYSTEMS[system];
   const span = S.hi.map((h, i) => h - S.lo[i]);
   const u16 = (bytes, at) => (bytes[at] * 256 + bytes[at + 1]) / 65535;
@@ -392,12 +475,23 @@ function replayTick({ system, before, after, params, time, tick, kick, level, se
     const a = ((i >> 8) * 256 + (i & 255)) * 4;
     const b = a + 256 * 256 * 4;
     const n = [u16(bytes, a), u16(bytes, a + 2), u16(bytes, b)];
-    return { p: n.map((v, j) => S.lo[j] + v * span[j]), age: u16(bytes, b + 2) };
+    return {
+      p: n.map((v, j) => S.lo[j] + v * span[j]),
+      age: u16(bytes, b + 2),
+    };
   };
   const t = (Math.fround(time) % MORPH_PERIOD) / MORPH_PERIOD;
-  const w = MORPH_WAVES.map((n, j) => Math.sin(2 * Math.PI * (n * t + rand(11 + j, 0, seed))));
-  const k = systemParams(system, Math.min(1, Math.max(0, params[6])), w, seed % CLIFFORD_SPECIES.length);
-  const speed = Math.max(0, params[1]) * (1 + KICK_SURGE * kick * (0.25 + 0.75 * level));
+  const w = MORPH_WAVES.map((n, j) =>
+    Math.sin(2 * Math.PI * (n * t + rand(11 + j, 0, seed))),
+  );
+  const k = systemParams(
+    system,
+    Math.min(1, Math.max(0, params[6])),
+    w,
+    seed % CLIFFORD_SPECIES.length,
+  );
+  const speed =
+    Math.max(0, params[1]) * (1 + KICK_SURGE * kick * (0.25 + 0.75 * level));
   const accumulator = decode24([0, 1, 2].map((j) => before[256 * 256 * 4 + j]));
   const total = accumulator + (S.rate * speed) / S.h / 60;
   const steps = Math.min(Math.floor(total), MAX_STEPS);
@@ -406,14 +500,20 @@ function replayTick({ system, before, after, params, time, tick, kick, level, se
     worst = 0;
   // Tolerance: 2.5 storage quanta; the map also allows for software-GPU
   // sin/cos error (~1e-4), which a flow step scales down by h.
-  const tolerance = span.map((s) => Math.max((2.5 * s) / 65535, system === 5 ? 2e-3 : 0));
+  const tolerance = span.map((s) =>
+    Math.max((2.5 * s) / 65535, system === 5 ? 2e-3 : 0),
+  );
   for (let i = 1; i < COUNT; i++) {
     const old = read(before, i),
       next = read(after, i);
     if (next.age < old.age) continue; // the cluster respawned
     let p = old.p;
     if (system === 5) {
-      const coin = rand((((i / CLUSTER) | 0) ^ Math.imul(tick, 2654435761)) >>> 0, 50, seed);
+      const coin = rand(
+        (((i / CLUSTER) | 0) ^ Math.imul(tick, 2654435761)) >>> 0,
+        50,
+        seed,
+      );
       if (coin < (speed * MAP_HOPS) / 60) p = cliffordMap(p, k);
     } else for (let j = 0; j < steps; j++) p = step(system, p, k);
     if (!inBox(system, p)) continue; // the escape guard moved it
@@ -426,63 +526,85 @@ function replayTick({ system, before, after, params, time, tick, kick, level, se
 }
 
 if (process.argv.includes("--port")) {
-  test("software GPU: every system renders and its simulation matches the CPU reference", { timeout: 3600000 }, async () => {
-    const { options, serve, launch, openLab } = await import("../scripts/browser-runtime.mjs");
-    const { renderLook } = await import("./browser/client.mjs");
-    const args = options();
-    const server = await serve(".", args.port);
-    const runtime = await launch();
-    try {
-      const lab = await openLab(runtime.browser, server.url);
-      // ATTRACTOR_PROBE=0,5 limits the probe to some systems.
-      const only = process.env.ATTRACTOR_PROBE?.split(",").map(Number);
-      for (const system of attractor.type.values) {
-        if (only && !only.includes(system)) continue;
-        const index = attractor.presets.findIndex((p) => p.params.system === system);
-        const look = await lab.page.evaluate(renderLook, {
-          sceneId: "attractor",
-          index,
-          frames: 60,
-          capture: false,
-        });
-        assert.equal(look.glError, 0);
-        assert.equal(look.nonFinite, 0);
-        assert.ok(look.peak > 40, `${attractor.presets[index].name}: peak ${look.peak}`);
-        const state = await lab.page.evaluate(() => {
-          const { engine } = window.__phosphorLab;
-          const gl = engine.gl;
-          const read = () => {
+  test(
+    "software GPU: every system renders and its simulation matches the CPU reference",
+    { timeout: 3600000 },
+    async () => {
+      const { options, serve, launch, openLab } =
+        await import("../scripts/browser-runtime.mjs");
+      const { renderLook } = await import("./browser/client.mjs");
+      const args = options();
+      const server = await serve(".", args.port);
+      const runtime = await launch();
+      try {
+        const lab = await openLab(runtime.browser, server.url);
+        // ATTRACTOR_PROBE=0,5 limits the probe to some systems.
+        const only = process.env.ATTRACTOR_PROBE?.split(",").map(Number);
+        for (const system of attractor.type.values) {
+          if (only && !only.includes(system)) continue;
+          const index = attractor.presets.findIndex(
+            (p) => p.params.system === system,
+          );
+          const look = await lab.page.evaluate(renderLook, {
+            sceneId: "attractor",
+            index,
+            frames: 60,
+            capture: false,
+          });
+          assert.equal(look.glError, 0);
+          assert.equal(look.nonFinite, 0);
+          assert.ok(
+            look.peak > 40,
+            `${attractor.presets[index].name}: peak ${look.peak}`,
+          );
+          const state = await lab.page.evaluate(() => {
+            const { engine } = window.__phosphorLab;
+            const gl = engine.gl;
+            const read = () => {
+              const s = engine.slots.at(-1);
+              const bytes = new Uint8Array(256 * 512 * 4);
+              gl.bindFramebuffer(gl.FRAMEBUFFER, s.sim[s.si].fbo);
+              gl.readPixels(0, 0, 256, 512, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+              gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+              return bytes;
+            };
+            const before = read();
             const s = engine.slots.at(-1);
-            const bytes = new Uint8Array(256 * 512 * 4);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, s.sim[s.si].fbo);
-            gl.readPixels(0, 0, 256, 512, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-            return bytes;
-          };
-          const before = read();
-          const s = engine.slots.at(-1);
-          const time = s.time; // the next tick adds 1/60 before it runs
-          engine.advance(1 / 60, false);
-          return {
-            before: Array.from(before),
-            after: Array.from(read()),
-            params: Array.from(s.params),
-            time: time + 1 / 60,
-            tick: s.tick,
-            kick: engine.kick,
-            level: engine.level,
-            seed: s.snapshot.seed,
-          };
-        });
-        const result = replayTick({ system, ...state });
-        console.log(JSON.stringify({ system: SYSTEMS[system].id, peak: look.peak, ...result }));
-        assert.ok(result.compared > 60000, `${SYSTEMS[system].id}: compared ${result.compared}`);
-        assert.ok(result.mismatched <= result.compared * 0.002, `${SYSTEMS[system].id}: ${JSON.stringify(result)}`);
+            const time = s.time; // the next tick adds 1/60 before it runs
+            engine.advance(1 / 60, false);
+            return {
+              before: Array.from(before),
+              after: Array.from(read()),
+              params: Array.from(s.params),
+              time: time + 1 / 60,
+              tick: s.tick,
+              kick: engine.kick,
+              level: engine.level,
+              seed: s.snapshot.seed,
+            };
+          });
+          const result = replayTick({ system, ...state });
+          console.log(
+            JSON.stringify({
+              system: SYSTEMS[system].id,
+              peak: look.peak,
+              ...result,
+            }),
+          );
+          assert.ok(
+            result.compared > 60000,
+            `${SYSTEMS[system].id}: compared ${result.compared}`,
+          );
+          assert.ok(
+            result.mismatched <= result.compared * 0.002,
+            `${SYSTEMS[system].id}: ${JSON.stringify(result)}`,
+          );
+        }
+        assert.deepEqual(lab.errors, []);
+      } finally {
+        await runtime.stop();
+        await server.close();
       }
-      assert.deepEqual(lab.errors, []);
-    } finally {
-      await runtime.stop();
-      await server.close();
-    }
-  });
+    },
+  );
 }

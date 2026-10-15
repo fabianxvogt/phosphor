@@ -6,7 +6,10 @@ import { FlashLimiter } from "../flash-limiter.mjs";
 // events or a paired-flash anchor. One >=0.1 run is one flash transition.
 function transitions(samples) {
   const times = [];
-  let start = samples[0].y, previous = start, sign = 0, counted = false;
+  let start = samples[0].y,
+    previous = start,
+    sign = 0,
+    counted = false;
   for (const { y, time } of samples.slice(1)) {
     const nextSign = Math.sign(y - previous);
     if (nextSign !== 0 && nextSign !== sign) {
@@ -14,7 +17,12 @@ function transitions(samples) {
       sign = nextSign;
       counted = false;
     }
-    if (!counted && sign !== 0 && Math.abs(y - start) >= .1 && Math.min(y, start) < .8) {
+    if (
+      !counted &&
+      sign !== 0 &&
+      Math.abs(y - start) >= 0.1 &&
+      Math.min(y, start) < 0.8
+    ) {
       times.push(time);
       counted = true;
     }
@@ -37,70 +45,127 @@ function strobe(enabled, exempt = false) {
 
 test("a 10 Hz full-frame strobe has at most three general flashes in any second", () => {
   const { times, limiter } = strobe(true);
-  for (const time of times) assert.ok(times.filter(t => t > time - 1 && t <= time).length <= 6);
+  for (const time of times)
+    assert.ok(times.filter((t) => t > time - 1 && t <= time).length <= 6);
   assert.ok(limiter.limitedFrames > 0);
 });
 
 test("disabled and safe-look-exempt strobes remain unchanged", () => {
-  for (const [enabled, exempt] of [[false, false], [true, true]]) {
+  for (const [enabled, exempt] of [
+    [false, false],
+    [true, true],
+  ]) {
     const { samples, times } = strobe(enabled, exempt);
-    assert.deepEqual(samples.map(s => s.y), samples.map((_, frame) => Math.floor(frame / 3) % 2));
+    assert.deepEqual(
+      samples.map((s) => s.y),
+      samples.map((_, frame) => Math.floor(frame / 3) % 2),
+    );
     assert.ok(times.length > 90);
   }
 });
 
 test("steady images are untouched, including after a limited burst", () => {
   const limiter = new FlashLimiter();
-  for (let frame = 0; frame < 120; frame++) assert.equal(limiter.update(0.45, frame / 60), 1);
-  for (let frame = 120; frame < 180; frame++) limiter.update(Math.floor(frame / 3) % 2, frame / 60);
+  for (let frame = 0; frame < 120; frame++)
+    assert.equal(limiter.update(0.45, frame / 60), 1);
+  for (let frame = 120; frame < 180; frame++)
+    limiter.update(Math.floor(frame / 3) % 2, frame / 60);
   for (let frame = 180; frame < 360; frame++) limiter.update(0.45, frame / 60);
   assert.equal(limiter.update(0.45, 6), 1);
 });
 
 test("the first bright approved frame reserves the flash from startup black", () => {
   const limiter = new FlashLimiter();
-  const samples = [{time:0,y:0}];
-  for (let frame=1;frame<60;frame++) {
-    const input=Math.floor(frame/3)%2===0 ? .7 : 0;
-    samples.push({time:frame/60,y:input*limiter.update(input,frame/60)});
+  const samples = [{ time: 0, y: 0 }];
+  for (let frame = 1; frame < 60; frame++) {
+    const input = Math.floor(frame / 3) % 2 === 0 ? 0.7 : 0;
+    samples.push({
+      time: frame / 60,
+      y: input * limiter.update(input, frame / 60),
+    });
   }
-  const times=transitions(samples);
-  assert.ok(times.length<=6,`startup emitted ${times.length} flash transitions`);
+  const times = transitions(samples);
+  assert.ok(
+    times.length <= 6,
+    `startup emitted ${times.length} flash transitions`,
+  );
 });
 
 test("sRGB8 rounding cannot turn subthreshold excursions into unlimited flashes", () => {
   const limiter = new FlashLimiter();
-  const quantizedLuminance = linear => {
-    const srgb = linear <= .0031308 ? linear*12.92 : 1.055*linear**(1/2.4)-.055;
-    const byte = Math.round(srgb*255)/255;
-    return byte <= .04045 ? byte/12.92 : ((byte+.055)/1.055)**2.4;
+  const quantizedLuminance = (linear) => {
+    const srgb =
+      linear <= 0.0031308
+        ? linear * 12.92
+        : 1.055 * linear ** (1 / 2.4) - 0.055;
+    const byte = Math.round(srgb * 255) / 255;
+    return byte <= 0.04045 ? byte / 12.92 : ((byte + 0.055) / 1.055) ** 2.4;
   };
-  const samples = [{time:0,y:0}];
-  for (let frame=1;frame<600;frame++) {
-    const input=Math.floor(frame/3)%2===0 ? .549 : .45;
-    samples.push({time:frame/60,y:quantizedLuminance(input*limiter.update(input,frame/60))});
+  const samples = [{ time: 0, y: 0 }];
+  for (let frame = 1; frame < 600; frame++) {
+    const input = Math.floor(frame / 3) % 2 === 0 ? 0.549 : 0.45;
+    samples.push({
+      time: frame / 60,
+      y: quantizedLuminance(input * limiter.update(input, frame / 60)),
+    });
   }
-  const times=transitions(samples);
-  for (const time of times) assert.ok(times.filter(t=>t>time-1&&t<=time).length<=6);
+  const times = transitions(samples);
+  for (const time of times)
+    assert.ok(times.filter((t) => t > time - 1 && t <= time).length <= 6);
 });
 
 for (const [name, inputAt] of [
-  ["anchor-centred flicker", frame => frame < 20 ? .3 : frame < 40 ? .6 : frame < 120 ? .3 : Math.floor(frame/3)%2 ? .385 : .215],
-  ["post-cap strobe", frame => frame < 36 ? Math.floor(frame/6)%2 ? .085 : .6 : Math.floor(frame/3)%2 ? .6 : 0],
-  ["varying troughs", frame => frame < 36 ? Math.floor(frame/6)%2 ? .085 : .6 : Math.floor(frame/3)%2 ? .6 : [0,.015,.03,.045][Math.floor(frame/6)%4]],
+  [
+    "anchor-centred flicker",
+    (frame) =>
+      frame < 20
+        ? 0.3
+        : frame < 40
+          ? 0.6
+          : frame < 120
+            ? 0.3
+            : Math.floor(frame / 3) % 2
+              ? 0.385
+              : 0.215,
+  ],
+  [
+    "post-cap strobe",
+    (frame) =>
+      frame < 36
+        ? Math.floor(frame / 6) % 2
+          ? 0.085
+          : 0.6
+        : Math.floor(frame / 3) % 2
+          ? 0.6
+          : 0,
+  ],
+  [
+    "varying troughs",
+    (frame) =>
+      frame < 36
+        ? Math.floor(frame / 6) % 2
+          ? 0.085
+          : 0.6
+        : Math.floor(frame / 3) % 2
+          ? 0.6
+          : [0, 0.015, 0.03, 0.045][Math.floor(frame / 6) % 4],
+  ],
 ]) {
   test(`${name} cannot exceed six independent flash transitions per second`, () => {
     const limiter = new FlashLimiter();
-    const samples = [{time:0,y:0}];
-    for (let frame=1;frame<600;frame++) {
-      const input=inputAt(frame);
-      samples.push({time:frame/60,y:input*limiter.update(input,frame/60)});
+    const samples = [{ time: 0, y: 0 }];
+    for (let frame = 1; frame < 600; frame++) {
+      const input = inputAt(frame);
+      samples.push({
+        time: frame / 60,
+        y: input * limiter.update(input, frame / 60),
+      });
     }
-    const times=transitions(samples);
+    const times = transitions(samples);
     for (const time of times) {
-      const count=times.filter(t=>t>time-1&&t<=time).length;
-      assert.ok(count<=6,`${count} transitions at ${time}s`);
+      const count = times.filter((t) => t > time - 1 && t <= time).length;
+      assert.ok(count <= 6, `${count} transitions at ${time}s`);
     }
-    assert.ok(limiter.limitedFrames>0);
+    assert.ok(limiter.limitedFrames > 0);
   });
 }

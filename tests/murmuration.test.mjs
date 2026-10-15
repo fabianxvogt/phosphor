@@ -41,7 +41,10 @@ test("presets: three world states share seed and parameters; the world is author
   const clips = [0, 1, 2].map((i) => ({
     snapshot: presetSnapshot(murmuration, i),
   }));
-  assert.deepEqual(continuousDevelopment(clips, murmuration).positions, [0, 1, 2]);
+  assert.deepEqual(
+    continuousDevelopment(clips, murmuration).positions,
+    [0, 1, 2],
+  );
   const ids = scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`));
   const world = defaultWorlds(ids).find((w) => w.id === "murmuration");
   assert.deepEqual(
@@ -129,9 +132,20 @@ test("Surge holds a folded cloud and Formation converges to its slots", () => {
   let miss = 0;
   form.birds.slice(1).forEach((b, i) => {
     const id = i + 1;
-    const s = slot(key, (id % 32) / 32, Math.floor(id / 32) / 16, rnd(key, id, 6), form.clock, 0);
+    const s = slot(
+      key,
+      (id % 32) / 32,
+      Math.floor(id / 32) / 16,
+      rnd(key, id, 6),
+      form.clock,
+      0,
+    );
     const j = [8, 9, 10].map((k) => (rnd(key, id, k) - 0.5) * 0.16);
-    miss += dist(b.p, [home[0] + j[0] + s[0], home[1] + j[1] + s[1], home[2] + j[2] + s[2]]);
+    miss += dist(b.p, [
+      home[0] + j[0] + s[0],
+      home[1] + j[1] + s[1],
+      home[2] + j[2] + s[2],
+    ]);
   });
   miss /= form.birds.length - 1;
   assert.ok(miss < 0.5, `mean slot error ${miss}`);
@@ -143,8 +157,8 @@ test("formation slots: the vortex is a torus; the tilt is a rotation", () => {
   const clock = 123456789;
   const A = [0, 1.2, 0];
   for (let k = 0; k < 200; k++) {
-    const u = (k * 37) % 256 / 256,
-      v = (k * 13) % 128 / 128,
+    const u = ((k * 37) % 256) / 256,
+      v = ((k * 13) % 128) / 128,
       h = (k % 10) / 10;
     const p = slot(key, u, v, h, clock, 0);
     const r = dist(p, A);
@@ -153,7 +167,7 @@ test("formation slots: the vortex is a torus; the tilt is a rotation", () => {
   }
   // The surge cloud is a finite blob around home.
   for (let k = 0; k < 100; k++) {
-    const c = cloud(key, k / 100, (k * 7) % 100 / 100, (k % 9) / 9, clock);
+    const c = cloud(key, k / 100, ((k * 7) % 100) / 100, (k % 9) / 9, clock);
     assert.ok(Math.hypot(...c) < 9);
   }
 });
