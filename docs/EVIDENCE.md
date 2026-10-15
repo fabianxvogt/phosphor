@@ -2,6 +2,12 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## World polish pass 2026-10-15
+
+**INCREMENTAL / EMPIRICAL.** Owner direction "fix alles": known weaknesses from the wave reports. Abyss Sparks at energy 0.1 reads as deep space (mean 1.5 → 2.1/255, lit 0.5 → 1.1%), medusae stay inside the frame at Reef, and the seabed shader is cheaper (Reef about −5% at 4K; the earlier 8.3 ms was GPU contention, 6.0 ms on a quiet GPU). Fold's Sheet gains edge light (small-size peak 103 → 192). The Ribbons Labyrinth stays within frame margins. Wallpaper exposure follows the rendered frame (energy ratio 0.82–1.43 for all 17 looks, previously up to 5.3). Murmuration birds have a 2 px floor and soft edges. Nebula's absorbing dust spares the far side of the galaxy plane (small effect; correct depth-ordered particles would need an engine change, documented). Look ids, seeds and world continuity unchanged; 55 previews of touched families rebaked.
+
+**Verification:** 660 unit tests; time-wrap, abyss-layer, particle-absorb and precompute GPU tests; native-GPU Stage output and the full browser suite (all 420 looks, no GPU errors) pass on the merged tree. Four review films free of black stretches.
+
 ## Rate-continuous clocks 2026-10-15
 
 **INCREMENTAL / EMPIRICAL.** Owner direction "fix alles" after the hourly-seam fix. Scene clocks now integrate rate·dt in double precision from load, and the engine switches to the clock variant as soon as any clock rate changes (or at 3600 s); while rates stay constant the authored program runs untouched. Phases are integrated in Beams, Pulse, Feedback, Interference (gated; identical at constant rates), Julia, Swarm, Hyperbolic, Colonization, Magnetic, Metamorphosis and Melt, plus the twelve families clocked earlier. Newton and Sandpile palette drifts ping-pong instead of wrapping (a look change after the first palette end). Beams pillar speeds round to 0.01 steps so every use is 200π-periodic. Details: [TIME.md](families/TIME.md).
