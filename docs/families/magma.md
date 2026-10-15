@@ -82,6 +82,30 @@ Native headless Chrome, ANGLE Metal, Apple M3 Pro; synchronous whole-frame throu
 
 Review rounds: (1) replace the tiny central jet with a much taller multi-jet curtain and higher/longer ballistic trails; (2) widen the crown and lake, enlarge/warp the floes, reduce accent saturation and add conservative bounds; (3) remove hard chord/height seams, smooth the plume, lift the aim and frame high-force looks; (4) cache plate hashes and simplify/locally cull billows to recover the 1080p budget. Films and individual stills were opened after each main visual round.
 
+## Wave 5 rework · 15 October 2026
+
+All world/look IDs, names, seeds, schema keys and preset values are preserved. No world-definition/HISTORY or engine edits.
+
+Filmed rounds: (1) replaced the lake's second Voronoi web with advected pahoehoe material and reserved accent for hotter matter; (2) separated dense tapered liquid jets from darker billowing ash, tightened the jet support bound to 0.50 and broadened liquid tears; (3) refined lake fold scale/temperature and basalt key, and skipped nearest-site searches in the provably fully molten centre; (4) rejected the overly graphic zebra-like intermediate lake by breaking its folds with periodic advected scum and reducing thermal contrast. Final optimization skips plate data outside the finite basalt field (valid inert Plate, zero rock gradient), not geometry or visual resolution.
+
+The molten-centre proof uses maximum slab height `0.175 − 0.32 < 0.075`, maximum nearest-site offset `< 0.9√2 < 1.6` cells and a radius margin through the entire sinking transition. It applies **only when lake amount = 1**, never at a shore or during partial sinking. Shading still obtains real plate data when needed; it cannot reuse an unfilled record. CPU regression covers this proof and the new tapered width bound. Lake turn/flow remains 16-cycle-periodic; all original Voronoi/ballistic/identity tests remain.
+
+### Performance qualification
+
+The shared machine varied substantially (the known wave-4 ~23 ms Eruption became 36–46 ms during this lane). Standard required 30-frame probes were run before edits: 1080p **6.2/10.1/10.8**, 4K **30.4/33.3/45.6** ms. Sequential later probes were noisy enough to make unchanged Crust arithmetic vary by >20%; all raw reports are retained rather than claiming those differences as shader gains.
+
+An additional optional `scripts/profile-rework-pair.mjs` alternates baseline `deaaae1` and final in ABBA blocks, 64 measured frames/candidate, same Chrome/GPU, to control fleet contention. Final qualification:
+
+| State | Interleaved 1080p baseline → final p50 | Interleaved 4K baseline → final p50 |
+| --- | --- | --- |
+| Crust | 8.1 → 8.5 ms | 27.7 → 27.1 ms |
+| Rivers | 9.3 → 9.3 ms | 32.3 → 32.2 ms |
+| Eruption | 10.1 → 9.5 ms | 41.9 → 39.5 ms |
+
+Every median is within +5%; Eruption is cheaper at both resolutions, not raised. This is a **relative throughput result, not a claim of ≤23 ms or venue cadence under current contention**. Final 4K p95 33.0/33.7/53.6 ms. No downsampling, extra loop populations or higher march caps.
+
+Evidence root: `/Users/fabian/Development/phosphor/.fleet/phosphor-worlds-wave5-20261015162322/workers/rework-wave4/output/magma/`. Baseline `baseline/magma-rift.{mp4,png}`, final `final/magma-rift.{mp4,png}`; Ember Night Fountain, Glacier reverse world, all-look ladder, full-size Eruption still, three-palette/portrait states and 4K still. The native verification script passes 60 intermediate-development/low/high-energy/12-hour cases, zero errors. Superseded films removed. Honest rating: **8/10** — improved material separation and performance, but the seven analytic jets and marbled lake still read stylised rather than physically convincing enough for 9.
+
 ## Remaining limits
 
 This is stylised volcanism, not a fluid/thermal simulation. The lake still exposes its cellular construction, and the curtain can read as palette-coloured fire rather than dense falling liquid. The broad ash deck may extend beyond the frame naturally. Volume dither remains visible in close stills; faint distant terrain can show small seam sparkles. 4K is not within a 60 Hz single-family budget. No venue or human art sign-off is claimed.

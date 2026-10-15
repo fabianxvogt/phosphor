@@ -350,7 +350,7 @@ test("clocks are the authored products and every use is periodic", () => {
   for (const use of azUses) assert.match(use, /^(sin|cos)\(az( \* 2\.0)?( \+ 0\.7)?\)$/, use);
   // Flow (period 16): sin(TAU·φ), the lake turn TAU·φ/16, fract and floor mod 16.
   for (const use of src.match(/[^\n]*gFlow[^\n]*/g).filter((l) => !/gFlow = |float gDev/.test(l)))
-    assert.match(use, /sin\(TAU \* gFlow|TAU \* gFlow \/ 16\.0|gFlow \+ 0\.5 \* float\(k\)|sin\(r \* 4\.0 - TAU \* gFlow\)/, use);
+    assert.match(use, /sin\(TAU \* gFlow|TAU \* gFlow \/ 16\.0|gFlow \+ 0\.5 \* float\(k\)|sin\(r \* 4\.0 - TAU \* gFlow\)|float foldPhase = .* - TAU \* gFlow;/, use);
   assert.match(src, /float id = mod\(floor\(ph\), 16\.0\);/);
   // Eruption (period 64): integer fountain harmonics and ash ×0.5, embers ×0.5/0.75.
   for (const use of src.match(/[^\n]*gErPh[^\n]*/g).filter((l) => !/gErPh = |float gDev/.test(l)))
@@ -361,6 +361,31 @@ test("clocks are the authored products and every use is periodic", () => {
     );
   assert.match(src, /mrBillow\(p \* 0\.95 \+ vec3\(gSeedOff, 0\.0\), TAU \* gErPh \* 0\.5\)/);
   for (const m of [8, 5, 1, 0.5, 0.75]) assert.ok(Number.isInteger(64 * m));
+});
+
+test("the molten-centre shortcut excludes every plate and never reuses an unfilled Plate", () => {
+  assert.match(src, /gLakeAmt >= 1\.0 && length\(p\.xz\) \+ 1\.6 \* gS < gLakeR - 1\.6/);
+  assert.match(src, /height = baseH \+ 0\.075/);
+  assert.match(src, /haveP = !molten/);
+  assert.match(src, /if \(haveP\) Pl = marchP; else Pl = mrPlates/);
+  assert.match(src, /if \(mask > 0\.0\) \{/);
+  assert.match(src, /if \(mask <= 0\.0\) \{ grad = vec2\(0\.0\); return base; \}/);
+  // Any point has a candidate in its own cell at distance <= .9√2.
+  assert.ok(0.9 * Math.SQRT2 < 1.6);
+  for (const scale of [0.66, 1.1, 1.76])
+    for (const [x, y] of points(3000, 9)) {
+      const p = plates(x / scale, y / scale);
+      const r = Math.hypot(x, y), sr = Math.hypot(...p.site) * scale;
+      assert.ok(Math.hypot(x / scale - p.site[0], y / scale - p.site[1]) < 1.6);
+      if (r + 1.6 * scale < 6.2 - 1.6) {
+        assert.ok(sr < 6.2 - 1.6, "the whole nearest slab is fully sunk");
+        assert.ok(0.1 + 0.025 + 0.05 - 0.32 < 0.075);
+      }
+    }
+  // The lake no longer performs a second nearest/bisector lattice search.
+  const lake = src.slice(src.indexOf("float la = TAU"), src.indexOf("// Sinking plates"));
+  assert.doesNotMatch(lake, /mrBorder|mrPlates/);
+  assert.match(lake, /mix\(folds, scum, 0\.75\)/);
 });
 
 test("plate hash tile addresses are exact and contain every terrain site", () => {
@@ -381,8 +406,10 @@ test("plate hash tile addresses are exact and contain every terrain site", () =>
 
 test("curtain bound contains every compact-support jet, including its AA width", () => {
   const maxBillow = 0.5 + 0.28 * (1 + 0.6 + 0.3);
-  const maxWidth = (0.28 + 0.3) * (0.6 + maxBillow);
-  assert.ok(maxWidth < 0.947);
+  const maxWidth = 0.4 * (0.8 + 0.4 * maxBillow);
+  assert.ok(maxWidth < 0.50);
+  assert.match(src, /float maxSig = max\(0\.50, gPix \* cs\.y \* 1\.5\)/);
+  assert.match(src, /float wcol = \(0\.4 - 0\.24 \* clamp\(hy, 0\.0, 1\.0\)\) \* \(0\.8 \+ 0\.4 \* billow\)/);
   assert.ok(3.3 + 4 * maxWidth < 7.2);
   assert.match(src, /max\(7\.2, 3\.3 \+ 6\.0 \* gPix \* 80\.0\)/);
   assert.match(src, /cs\.x >= 4\.0 \* maxSig/);
