@@ -49,20 +49,14 @@ test("basis palette is an identity transform and black stays black", async () =>
   );
 });
 
-test("every integrated catalogue look has a matching baked preview", async () => {
+test("every authored catalogue look has a matching baked preview", async () => {
   const { PREVIEWS } = await import("../catalog-previews.mjs");
   const { default: scenes } = await import("../scenes.mjs");
   const { catalogLooks } = await import("../catalog.mjs");
   const { thumbnailKey } = await import("../thumbnail-palette.mjs");
   const looks = catalogLooks(scenes);
-  // The wave-4 brief explicitly delegates baking to L0. Keep all shipped
-  // preview keys strict; allow only unbaked assigned families 101–105 until
-  // integration. Once a preview exists it is checked, without an exemption.
-  const integrated = looks.filter(
-    (look) => look.number < 101 || look.number > 105 || PREVIEWS[look.id],
-  );
-  assert.equal(Object.keys(PREVIEWS).length, integrated.length);
-  for (const look of integrated) {
+  assert.equal(Object.keys(PREVIEWS).length, looks.length);
+  for (const look of looks) {
     const preview = PREVIEWS[look.id];
     assert.ok(preview, look.id);
     assert.equal(preview.key, thumbnailKey(look.snapshot), look.id);
