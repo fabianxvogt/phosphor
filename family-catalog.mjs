@@ -12,6 +12,12 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  ferro: {
+    algorithm: "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
+    description: "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",
+    styles: ["spatial", "organic"],
+    variants: ["Pool", "Crown", "Sculpture"],
+  },
   fold: {
     algorithm: "Rigid folding of polyhedral nets along hinge chains",
     description:
