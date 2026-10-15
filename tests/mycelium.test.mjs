@@ -7,7 +7,12 @@ import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { initialShowSet, validateShowSet } from "../show-set.mjs";
 import { catalogLooks } from "../catalog.mjs";
 import acid, { grayScottSimulation } from "../scene-acid.mjs";
-import mycelium, { CHEMISTRY, COLONY_RADII, colonyEnvelope } from "../scene-mycelium.mjs";
+import mycelium, { CHEMISTRY } from "../scene-mycelium.mjs";
+import {
+  landscapeGeometry,
+  LANDSCAPE_VERTICES,
+  SPORE_COUNT,
+} from "../organic-landscape.mjs";
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 const clips = (ids) =>
@@ -68,32 +73,21 @@ test("the Living Mycelium world is one continuous development of one field", () 
     }
 });
 
-test("finite colony is smooth, symmetric and inside the conservative march bound", () => {
-  assert.equal(colonyEnvelope(0, 0), 1);
-  assert.equal(colonyEnvelope(COLONY_RADII[0], 0), 0);
-  assert.equal(colonyEnvelope(0, COLONY_RADII[1]), 0);
-  let previous = 1;
-  for (let i = 0; i <= 1000; i++) {
-    const x = i / 1000 * .6;
-    const mask = colonyEnvelope(x, 0);
-    assert.ok(mask <= previous && mask >= 0);
-    assert.equal(mask, colonyEnvelope(-x, 0));
-    previous = mask;
-    for (let j = 0; j < 32; j++) {
-      const a = j / 32 * 2 * Math.PI;
-      if (colonyEnvelope(x * Math.cos(a), x * Math.sin(a)) > 0)
-        assert.ok(x < .55, "march rejection cannot remove visible terrain");
-    }
+test("the landscape is a persistent full-resolution mesh with depth-tested spores", () => {
+  const a = landscapeGeometry();
+  assert.deepEqual(a, landscapeGeometry());
+  assert.equal(a.length / 3, LANDSCAPE_VERTICES + SPORE_COUNT * 6);
+  assert.ok(LANDSCAPE_VERTICES < 520000);
+  assert.equal(mycelium.geometry.additiveFrom, LANDSCAPE_VERTICES);
+  for (let i = 0; i < LANDSCAPE_VERTICES * 3; i += 3) {
+    assert.ok(a[i] >= 0 && a[i] <= 1 && a[i + 1] >= 0 && a[i + 1] <= 1);
+    assert.equal(a[i + 2], 0);
   }
-  assert.match(mycelium.fragment, /if \(c <= 0\.\) return 0\./);
-  assert.match(mycelium.fragment, /float samples = mix\(mix\(10\., 16\., tide\), 40\., city\)/);
+  assert.match(mycelium.geometry.vertex, /meshHeight\(p\.xy/);
+  assert.match(mycelium.geometry.fragment, /floor\(fract\(uv\)/);
   assert.equal(mycelium.simulation.filter, "linear");
   assert.match(mycelium.simulation.fragment, /texelFetch\(u_state/);
   assert.doesNotMatch(mycelium.simulation.fragment, /texture\(u_state/);
-  // Palette regions and hashed lantern cells cannot jump when the periodic
-  // camera focus wraps onto an equivalent chemical texel.
-  assert.match(mycelium.fragment, /vec2 colonyXY = hit.xy - focus/);
-  assert.match(mycelium.fragment, /floor\(fract\(uv\)/);
 });
 
 test("development chemistry stays inside acid's stability clamps", () => {
@@ -129,24 +123,38 @@ test("saved sets with the earlier acid-based Living Mycelium upgrade; edited one
       },
     ],
   };
-  const current = initialShowSet(scenes).worlds[0];
+  const worldIndex = initialShowSet(scenes).worlds.findIndex(
+    (w) => w.id === "mycelium",
+  );
+  const current = initialShowSet(scenes).worlds.find(
+    (w) => w.id === "mycelium",
+  );
   for (const old of [
     previous,
     { ...previous, states: previous.states.map(({ params, ...s }) => s) },
   ]) {
     const set = initialShowSet(scenes);
-    set.worlds[0] = structuredClone(old);
-    assert.deepEqual(validateShowSet(set, scenes).worlds[0], current);
+    set.worlds[worldIndex] = structuredClone(old);
+    assert.deepEqual(
+      validateShowSet(set, scenes).worlds.find((w) => w.id === "mycelium"),
+      current,
+    );
     // An untouched prefix of only the old world still gains the newer worlds.
     set.worlds = [structuredClone(old)];
     const upgraded = validateShowSet(set, scenes).worlds;
-    assert.deepEqual(upgraded[0], current);
+    assert.deepEqual(
+      upgraded.find((w) => w.id === "mycelium"),
+      current,
+    );
     assert.equal(upgraded.length, initialShowSet(scenes).worlds.length);
   }
   const set = initialShowSet(scenes);
-  set.worlds[0] = { ...structuredClone(previous), name: "My mycelium" };
+  set.worlds[worldIndex] = {
+    ...structuredClone(previous),
+    name: "My mycelium",
+  };
   assert.deepEqual(
-    validateShowSet(set, scenes).worlds[0].states,
+    validateShowSet(set, scenes).worlds.find((w) => w.id === "mycelium").states,
     previous.states,
   );
 });

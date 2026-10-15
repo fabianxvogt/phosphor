@@ -1,18 +1,14 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { grayScottSimulation, stateCodec } from "./scene-acid.mjs";
+import { grayScottSimulation } from "./scene-acid.mjs";
+import { landscape, landscapeBackdrop } from "./organic-landscape.mjs";
 
-// Living Mycelium as one continuous world: acid's Gray–Scott field, seen as
-// a lit terrain. Development (0 Understory, 1 Tide, 2 City) changes how the
-// same field is lit, raised and viewed, and slowly steers its chemistry
-// inside a band where abrupt jumps cannot extinguish it. The simulation is
-// never reset by development. An artistic chemical model, not biology.
-
-// Chemistry per state: [feed, kill, nutrient diffusion]. Measured on a CPU
-// mirror (tests/mycelium.test.mjs): every pairwise jump keeps a living field.
+// One continuing Gray–Scott field, now a landscape seen from inside its
+// membranes. Development changes relief, lighting and safe chemistry, never
+// the simulation's identity. Artistic chemical choreography, not biology.
 export const CHEMISTRY = [
-  [0.027, 0.058, 0.8], // Understory: broken threads and spores
-  [0.037, 0.061, 1.0], // Tide: long parallel lamellae
-  [0.029, 0.057, 0.9], // City: a closed labyrinth network
+  [0.027, 0.058, 0.8],
+  [0.037, 0.061, 1.0],
+  [0.029, 0.057, 0.9],
 ];
 const glslState = (i) =>
   `vec3(${CHEMISTRY[i].map((x) => x.toFixed(4)).join(", ")})`;
@@ -23,9 +19,7 @@ vec3 myceliumChemistry() {
   return d < 1. ? mix(a, b, smoothstep(0., 1., d)) : mix(b, c, smoothstep(1., 2., d));
 }
 `;
-// Spore rain: every two seconds three seeded discs land. A disc takes only
-// where the surrounding ring has gone dark, so a living network is untouched
-// while any extinct region regrows. u_tick counts simulation steps (480/s).
+// Seed only extinct regions; the ring probe leaves a living colony untouched.
 const spores = `
   if (u_tick % 960u < 8u) {
     uint epoch = (u_tick / 960u) % 65521u;
@@ -46,8 +40,7 @@ const spores = `
     }
   }
 `;
-// Linear byte decoding allows hardware-filtered visual concentrations.
-// Preserve exact nearest reads for chemistry, sources and spore probes.
+// Linear visual decoding; exact nearest reads for the original chemistry.
 const nearestStencil = `
 vec4 colonyTexel(vec2 uv) {
   ivec2 size = textureSize(u_state, 0);
@@ -63,227 +56,23 @@ vec2 colonyLaplacian(vec2 uv) {
   return unpack16(sum);
 }
 `;
-const simulationFragment = nearestStencil + grayScottSimulation(
-  {
-    family: "u_params[3]",
-    audio: "u_params[7]",
-    feed: "myceliumChemistry().x",
-    kill: "myceliumChemistry().y",
-    diffusion: "myceliumChemistry().z",
-    speed: "u_params[1]",
-    injection: "u_params[2]",
-  },
-  chemistry,
-  spores,
-).replace("texture(u_state, uv)", "colonyTexel(uv)")
- .replace("laplacian9(u_state, v_uv)", "colonyLaplacian(v_uv)");
-
-export const COLONY_RADII = [.54, .47];
-export function colonyEnvelope(x, y) {
-  const r = Math.hypot(x / COLONY_RADII[0], y / COLONY_RADII[1]);
-  const t = Math.max(0, Math.min(1, (r - .72) / .28));
-  return 1 - t * t * (3 - 2 * t);
-}
-
-const fragment = `${stateCodec}
-float tideW() { return smoothstep(0., 1., clamp(u_params[0], 0., 1.)); }
-float cityW() { return smoothstep(1., 2., clamp(u_params[0], 1., 2.)); }
-float activator(vec2 uv) { return unpack16(texture(u_state, uv)).y; }
-float activatorFast(vec2 uv) { return unpack16(texture(u_state, uv)).y; }
-// Terrain height in [0,1] from the activator: a low swell in Understory, a
-// soft membrane in Tide, stepped plateaus (terraces) in City.
-float shape(float v, float contrast, float city) {
-  float body = smoothstep(.04, .30, v * contrast);
-  float steps = body * 3.;
-  float terrace = (floor(steps) + smoothstep(.30, .70, fract(steps))) / 3.;
-  return mix(body, terrace, city * .55);
-}
-const vec2 WORLD = vec2(${(320 / 192).toFixed(6)}, 1.) * 1.25;
-vec2 worldToUv(vec2 xy) { return xy / WORLD; }
-// A finite colony makes the continuing chemical field read as one organism.
-// The camera and colony share a focus; only the periodic chemistry drifts.
-vec2 colonyFocus;
-float colony(vec2 xy) {
-  float r = length((xy - colonyFocus) / vec2(${COLONY_RADII.join(", ")}));
-  return 1. - smoothstep(.72, 1., r);
-}
-float terrain(vec2 xy, float contrast, float city) {
-  float c = colony(xy);
-  if (c <= 0.) return 0.;
-  return c * (shape(activator(worldToUv(xy)), contrast, city)
-    + city * .26 * max(0., 1. - dot((xy-colonyFocus)/.55, (xy-colonyFocus)/.55)));
-}
-
-void main() {
-  float aspect = u_resolution.x / u_resolution.y;
-  vec2 p = (v_uv - .5) * vec2(max(aspect, 1.), max(1., 1. / aspect));
-  float tide = tideW(), city = cityW();
-  float contrast = clamp(u_params[6], .7, 1.9);
-  float relief = clamp(u_params[4], .3, 1.6);
-  float scale = mix(mix(.025, .065, tide), .155, city) * relief;
-
-  // Camera: an endless slow orbit around a drifting focus. Development tilts
-  // it from a near-vertical forest-floor view to an oblique city flight.
-  float orbit = TAU * fract(u_time / 720.) + .32 * sin(TAU * fract(u_time / 96.));
-  float pitch = mix(mix(.42, .65, tide), .94, city);
-  float distanceToFocus = 1.48 * clamp(u_params[5], .7, 1.4);
-  // The focus starts on the seeded composition (uv .5) and drifts across the
-  // periodic field; one full lap wraps onto an identical texel.
-  vec2 focus = WORLD * (.5 + vec2(fract(u_time / 560.), fract(u_time / 1330.)));
-  colonyFocus = focus;
-  vec2 heading = vec2(sin(orbit), cos(orbit));
-  vec3 forward = vec3(heading * sin(pitch), -cos(pitch));
-  vec3 right = vec3(heading.y, -heading.x, 0.);
-  vec3 up = cross(right, forward);
-  vec3 ro = vec3(focus, scale * .5) - forward * distanceToFocus;
-  float lens = 1.55 * (1. + .015 * clamp(u_kick, 0., 1.));
-  vec3 rd = normalize(p.x * right + p.y * up + lens * forward);
-
-  // March the heightfield from its top slab down to the ground plane.
-  float tTop = (scale * 1.26 - ro.z) / rd.z, tGround = -ro.z / rd.z;
-  float samples = mix(mix(10., 16., tide), 40., city);
-  float t = max(0., tTop), dt = (tGround - max(0., tTop)) / samples;
-  vec3 hit = ro + rd * tGround;
-  // Conservative slab/colony rejection: empty ground does no texture march.
-  vec2 start = (ro + rd * t).xy - focus;
-  vec2 span = (ro + rd * tGround).xy - focus - start;
-  vec2 closest = start + span * clamp(-dot(start, span) / max(dot(span, span), 1e-6), 0., 1.);
-  bool inColony = dot(closest, closest) < .55 * .55;
-  float prev = t;
-  for (int i = 0; i <= 40; i++) {
-    if (!inColony || float(i) > samples) break;
-    vec3 q = ro + rd * t;
-    float h = scale * terrain(q.xy, contrast, city);
-    if (q.z <= h) {
-      // Bisect between the last free sample and this one.
-      float a = prev, b = t;
-      for (int k = 0; k < 8; k++) {
-        float m = .5 * (a + b);
-        vec3 r = ro + rd * m;
-        if (r.z <= scale * terrain(r.xy, contrast, city)) b = m; else a = m;
-      }
-      hit = ro + rd * b;
-      break;
-    }
-    prev = t;
-    t += dt;
-  }
-  vec2 uv = worldToUv(hit.xy);
-  vec2 texel = 1. / vec2(textureSize(u_state, 0));
-  float colonyMask = colony(hit.xy);
-  float v = colonyMask > 0. ? activator(uv) * colonyMask : 0.;
-  vec2 e = 1.5 * texel;
-  float vx1 = 0., vx0 = 0., vy1 = 0., vy0 = 0.;
-  if (colonyMask > 0.) {
-    vx1 = activator(uv + vec2(e.x, 0.)) * colonyMask; vx0 = activator(uv - vec2(e.x, 0.)) * colonyMask;
-    vy1 = activator(uv + vec2(0., e.y)) * colonyMask; vy0 = activator(uv - vec2(0., e.y)) * colonyMask;
-  }
-  float height = hit.z / scale;
-  vec2 local = (hit.xy - focus) / .55;
-  vec2 slope = vec2(shape(vx1, contrast, city) - shape(vx0, contrast, city),
-                    shape(vy1, contrast, city) - shape(vy0, contrast, city)) * scale
-             / (2. * e * WORLD);
-  slope -= city * .52 * local / .55 * scale * colonyMask;
-  vec3 normal = normalize(vec3(-slope, 1.));
-  vec2 gradient = vec2(vx1 - vx0, vy1 - vy0) * .5;
-
-  // Light: a soft key, a cool fill and a rim in accent/secondary.
-  // In City the key is a raking light at low energy (long shadows, a mostly
-  // dark frame) that climbs with energy; other states keep a fixed key.
-  vec3 key = normalize(vec3(-.55, .45, mix(.70, mix(.16, .62, clamp(u_level, 0., 1.)), city)));
-  vec3 view = -rd;
-  float diffuse = max(0., dot(normal, key));
-  float wrap = .5 + .5 * dot(normal, key);
-  float rim = pow(1. - max(0., dot(normal, view)), 3.);
-  float specular = pow(max(0., dot(normal, normalize(key + view))), mix(18., 60., tide));
-  // Self-shadow toward the key light and contact darkening in the valleys.
-  float shadow = 1.;
-  for (int i = 1; i <= 3; i++) {
-    if (colonyMask <= 0.) break;
-    vec3 s = vec3(hit.xy, scale * height) + key * float(i) * scale * .9;
-    float ground = scale * colony(s.xy) * (shape(colony(s.xy) > 0. ? activatorFast(worldToUv(s.xy)) : 0., contrast, city)
-      + city * .26 * max(0., 1. - dot((s.xy-focus)/.55, (s.xy-focus)/.55)));
-    shadow = min(shadow, 1. - .55 * smoothstep(0., scale * .25, ground - s.z));
-  }
-  float cavity = 1. - .5 * (1. - height) * smoothstep(.0, .35, (vx1 + vx0 + vy1 + vy0) * .25 - v + .05);
-
-  // Thread: the activator isoline at the colony edge, a constant-width line.
-  float lineWidth = max(1.5, u_resolution.y / 720.);
-  float edge = abs(v * contrast - .13) / max(fwidth(v * contrast), 1e-4);
-  float thread = 1. - smoothstep(lineWidth * .5, lineWidth, edge);
-  float halo = exp(-edge / (lineWidth * 5.));
-  float body = smoothstep(.04, .30, v * contrast);
-  float crest = smoothstep(.18, .34, v * contrast);
-  float travel = length(hit - ro) - distanceToFocus;
-  float near = 1. - smoothstep(0., 1.2, travel);
-
-  vec3 ground = u_secondary * .009;
-  // Two-tone bodies so every palette shows its range: tops lean toward
-  // primary, flanks and low bodies toward secondary, and a slow regional
-  // drift across the field shifts the mix (accent stays for edges/events).
-  vec2 colonyXY = hit.xy - focus;
-  float region = .5 + .5 * sin(dot(colonyXY, vec2(1.7, 2.3)) + 1.3 * sin(colonyXY.x * .9 - colonyXY.y * 1.4));
-  float top = smoothstep(.55, .95, normal.z) * smoothstep(.2, .8, height);
-  vec3 inkTop = palette(clamp(.22 + .42 * region + .14 * crest, 0., .8));
-  vec3 inkSide = mix(u_secondary, palette(.22 + .2 * region), .35);
-  vec3 ink = mix(inkSide, inkTop, top);
-  float lightAmount = (.025 + .82 * pow(diffuse, 1.3) * shadow + .05 * wrap) * cavity;
-  // A cool fill from the opposite side keeps shadowed flanks coloured.
-  float fill = max(0., dot(normal, normalize(vec3(.6, -.5, .45))));
-  vec3 lit = ink * lightAmount + mix(u_secondary, ink, .3) * fill * .16 * cavity;
-  vec3 rimColor = mix(u_primary, u_accent, .3);
-
-  // Understory: a dark floor, luminous threads with a soft halo and low,
-  // dimly lit colony bodies.
-  vec3 under = ground + ink * body * .48 * lightAmount
-             + mix(palette(.35 + .4 * region), vec3(1.), .15) * (thread * .9 + halo * .10)
-             + u_accent * crest * pow(diffuse, 6.) * .08;
-  // Tide: wet membranes with specular sheen, fresnel rims and a translucent
-  // margin where the activator thins out.
-  vec3 membrane = mix(ground, lit, body)
-                + mix(u_primary, vec3(1.), .45) * specular * body * shadow * .85
-                + rimColor * rim * body * .42
-                + mix(u_primary, u_secondary, .5) * (1. - body) * smoothstep(.02, .09, v) * .08
-                + u_primary * thread * .18;
-  // City: stepped plateaus with dark walls and dim roofs; one row of lit
-  // windows runs along the middle of each terrace wall.
-  float level = clamp(hit.z / max(scale, 1e-5), 0., 1.);
-  float steep = smoothstep(.25, .6, 1. - normal.z);
-  float storeys = level * 3.;
-  float storeyLine = abs(fract(storeys) - .5) / max(fwidth(storeys), 1e-4);
-  vec2 block = floor(fract(uv) * vec2(textureSize(u_state, 0)) * .34) + floor(storeys) * 17.;
-  float windows = (1. - smoothstep(lineWidth * .5, lineWidth * 1.2, storeyLine))
-                * step(mix(.94, .86, u_level), hash(block)) * steep * (.35 + .65 * near);
-  vec3 town = mix(ground, lit * mix(.48, .85, level), body)
-            + mix(u_primary, vec3(1.), .3) * specular * crest * shadow * .65
-            + mix(u_secondary, vec3(1.), .22) * rim * body * .55
-            + mix(u_accent, vec3(1.), .2) * windows * 1.8
-            + mix(u_primary, vec3(1.), .12) * thread * (.28 + .6 * rim)
-            + u_primary * halo * (1. - body) * .10;
-  // Fine gills follow the actual chemical contour, not screen coordinates.
-  float gillPhase = v * 105.;
-  float gills = (1. - smoothstep(.22, .22 + max(fwidth(gillPhase), .08), abs(sin(gillPhase)))) * body;
-  membrane *= 1. - .20 * gills;
-  town *= 1. - .18 * gills * top;
-  vec3 color = mix(mix(under, membrane, tide), town, city);
-
-  // Rhythm: reaction front, a selected concentration band (feed is simulation).
-  color += mix(ink, u_accent, .4) * thread * u_rhythm.x * .9;
-  float band = exp(-sq((v - (.08 + .05 * mod(u_rhythmCount.y, 5.))) / .022));
-  color += ink * band * body * u_rhythm.y * .55;
-  float audioLight = clamp(u_params[7], 0., 1.) * clamp(u_mid, 0., 1.);
-  color += u_accent * thread * audioLight * .04;
-
-  // Atmosphere: distance fades toward the palette's dark.
-  float fog = smoothstep(-.35, mix(1.2, 1.7, city), travel);
-  color = mix(color, ground * .7, fog);
-  vec3 pool = ground + u_secondary * .018 * exp(-dot((hit.xy-focus)/.62, (hit.xy-focus)/.62) * 2.);
-  color = mix(pool, color, smoothstep(0., .12, colonyMask));
-  vec2 frame = v_uv * (1. - v_uv);
-  color *= .72 + .28 * pow(clamp(frame.x * frame.y * 16., 0., 1.), .35);
-  outColor = vec4(max(color, 0.), 1.);
-}
-`;
+const simulationFragment =
+  nearestStencil +
+  grayScottSimulation(
+    {
+      family: "u_params[3]",
+      audio: "u_params[7]",
+      feed: "myceliumChemistry().x",
+      kill: "myceliumChemistry().y",
+      diffusion: "myceliumChemistry().z",
+      speed: "u_params[1]",
+      injection: "u_params[2]",
+    },
+    chemistry,
+    spores,
+  )
+    .replace("texture(u_state, uv)", "colonyTexel(uv)")
+    .replace("laplacian9(u_state, v_uv)", "colonyLaplacian(v_uv)");
 
 const schema = [
   {
@@ -366,7 +155,6 @@ const look = (name, seed, development, params = {}) => ({
     ...params,
   },
 });
-
 export default {
   id: "mycelium",
   number: 99,
@@ -431,14 +219,13 @@ export default {
       { period: 16, strength: 0.6, duration: 0.25, kind: "simulation" },
     ),
   ],
-  fragment,
-  // Same codec and stability bounds as acid (see scene-acid.mjs): feed, kill
-  // and diffusion stay inside acid's clamped ranges for every development.
+  fragment: landscapeBackdrop(false),
+  geometry: landscape(false),
   simulation: {
     continuity: "gray-scott-uv16-v1",
     fragment: simulationFragment,
     size: [320, 192],
     steps: 8,
-    filter: "linear", // visual only; simulation uses the exact nearest stencil
+    filter: "linear",
   },
 };

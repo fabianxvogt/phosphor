@@ -12,6 +12,14 @@ import { initialShowSet, validateShowSet } from "../show-set.mjs";
 import { catalogLooks } from "../catalog.mjs";
 import evolution, { morphogenSimulation } from "../scene-evolution.mjs";
 import afterglow, { CHEMISTRY, crownEnvelope } from "../scene-afterglow.mjs";
+import {
+  calyxHeight,
+  gardenEye,
+  landscapeGeometry,
+  GARDEN_LANDSCAPE_VERTICES as LANDSCAPE_VERTICES,
+  CALYX_VERTICES,
+  SPORE_COUNT,
+} from "../organic-landscape.mjs";
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 
@@ -74,42 +82,133 @@ test("linear visual filtering decodes exactly; simulation retains explicit neare
   assert.match(afterglow.simulation.fragment, /texelFetch\(u_state/);
   assert.doesNotMatch(afterglow.simulation.fragment, /texture\(u_state/);
   assert.match(afterglow.simulation.fragment, /gardenLaplacian\(v_uv\)/);
-  const encode = x => [Math.floor(x/256)/255, (x%256)/255];
-  const decode = a => (256*a[0]+a[1])*255/65535;
-  for (let i=0;i<1000;i++) {
-    const a=(i*7919)%65536,b=(i*15401+255)%65536,t=(i%97)/97;
-    const aa=encode(a),bb=encode(b);
-    const filtered=decode(aa.map((x,j)=>x+(bb[j]-x)*t));
-    assert.ok(Math.abs(filtered-((1-t)*a+t*b)/65535)<1e-15);
+  const encode = (x) => [Math.floor(x / 256) / 255, (x % 256) / 255];
+  const decode = (a) => ((256 * a[0] + a[1]) * 255) / 65535;
+  for (let i = 0; i < 1000; i++) {
+    const a = (i * 7919) % 65536,
+      b = (i * 15401 + 255) % 65536,
+      t = (i % 97) / 97;
+    const aa = encode(a),
+      bb = encode(b);
+    const filtered = decode(aa.map((x, j) => x + (bb[j] - x) * t));
+    assert.ok(Math.abs(filtered - ((1 - t) * a + t * b) / 65535) < 1e-15);
   }
 });
 
 test("calyx envelope has exact six-fold symmetry and continuous bounded development", () => {
   for (let i = 0; i < 200; i++) {
-    const angle = i * .17, r = i / 200 * .7;
-    const x = r * Math.cos(angle), y = r * Math.sin(angle);
+    const angle = i * 0.17,
+      r = (i / 200) * 0.7;
+    const x = r * Math.cos(angle),
+      y = r * Math.sin(angle);
     for (let k = 0; k < 6; k++) {
-      const a = angle + k * Math.PI / 3;
-      assert.ok(Math.abs(crownEnvelope(x,y,1) - crownEnvelope(r*Math.cos(a),r*Math.sin(a),1)) < 1e-12);
+      const a = angle + (k * Math.PI) / 3;
+      assert.ok(
+        Math.abs(
+          crownEnvelope(x, y, 1) -
+            crownEnvelope(r * Math.cos(a), r * Math.sin(a), 1),
+        ) < 1e-12,
+      );
     }
     let previous = 1;
     for (let k = 0; k <= 200; k++) {
-      const mask = crownEnvelope(x,y,k/200);
+      const mask = crownEnvelope(x, y, k / 200);
       assert.ok(mask >= 0 && mask <= previous + 1e-12);
       previous = mask;
     }
   }
-  assert.equal(crownEnvelope(0,0,1),1);
-  assert.equal(crownEnvelope(.551,0,1),0);
+  assert.equal(crownEnvelope(0, 0, 1), 1);
+  assert.equal(crownEnvelope(0.551, 0, 1), 0);
   // Algebraic cos(6 theta) avoids trigonometry in every march sample.
   for (let i = 0; i < 100; i++) {
-    const a = i*.2, x = Math.cos(a), y = Math.sin(a);
-    const c3 = x*(x*x-3*y*y);
-    assert.ok(Math.abs(2*c3*c3-1-Math.cos(6*a)) < 1e-13);
+    const a = i * 0.2,
+      x = Math.cos(a),
+      y = Math.sin(a);
+    const c3 = x * (x * x - 3 * y * y);
+    assert.ok(Math.abs(2 * c3 * c3 - 1 - Math.cos(6 * a)) < 1e-13);
   }
-  assert.match(afterglow.fragment, /if \(bloom <= 0\.\) break/);
-  assert.match(afterglow.fragment, /gardenHeight\(bloomAt/);
-  assert.match(afterglow.fragment, /vec2 localXY = hit.xy - focus/);
+  for (let i = 0; i < 200; i++) {
+    const a = i * 0.17,
+      r = (i / 200) * 0.8,
+      v = 0.25;
+    const h = calyxHeight(r * Math.cos(a), r * Math.sin(a), v, 1);
+    assert.ok(
+      Math.abs(
+        h -
+          calyxHeight(
+            r * Math.cos(a + Math.PI / 3),
+            r * Math.sin(a + Math.PI / 3),
+            v,
+            1,
+          ),
+      ) < 1e-12,
+    );
+    assert.ok(
+      calyxHeight(2, 2, v, 1) > 0,
+      "field never contracts into an island",
+    );
+    assert.ok(
+      Math.abs(h - calyxHeight(r * Math.cos(a), r * Math.sin(a), v, 1 - 1e-6)) <
+        1e-6,
+    );
+  }
+  assert.match(afterglow.geometry.vertex, /return low\+city\(\)/);
+  assert.match(
+    afterglow.geometry.fragment,
+    /vec2 local=v_position.xy-focus\(\)/,
+  );
+});
+
+test("material-aligned calyx rings remain finite, persistent and depth ordered", () => {
+  const data = landscapeGeometry(true);
+  assert.equal(
+    data.length / 3,
+    LANDSCAPE_VERTICES + CALYX_VERTICES + SPORE_COUNT * 6,
+  );
+  assert.equal(
+    afterglow.geometry.additiveFrom,
+    LANDSCAPE_VERTICES + CALYX_VERTICES,
+  );
+  assert.ok(data.every(Number.isFinite));
+  for (
+    let i = LANDSCAPE_VERTICES * 3;
+    i < (LANDSCAPE_VERTICES + CALYX_VERTICES) * 3;
+    i += 3
+  ) {
+    assert.equal(data[i + 2], -1);
+    assert.ok(
+      data[i] >= 0 && data[i] <= 1 && data[i + 1] >= 0 && data[i + 1] <= 1,
+    );
+  }
+  assert.match(
+    afterglow.geometry.fragment,
+    /derivative[s]? defined before discarding/,
+  );
+  assert.doesNotMatch(
+    afterglow.geometry.vertex,
+    /city\(\)<=0.*gl_Position/,
+    "the inner carrier persists even before Bloom",
+  );
+  assert.match(
+    afterglow.geometry.fragment,
+    /if\(v_kind>-.5&&crown\(local\)>0\.\)discard/,
+  );
+});
+
+test("camera clearance survives low altitude, high relief and development reversal", () => {
+  for (let d = 0; d <= 2; d += 0.01)
+    for (const altitude of [0.7, 1, 1.4])
+      for (const relief of [0.3, 1, 1.6])
+        for (const yaw of [0, 0.18, 1, 2]) {
+          const [x, y, z] = gardenEye(d, altitude, relief, yaw);
+          const b = Math.max(0, Math.min(1, d - 1)),
+            bloom = b * b * (3 - 2 * b);
+          assert.ok(
+            z >
+              calyxHeight(x, y, 1, bloom, { relief, fieldScale: 0.065 }) + 0.03,
+            "camera remains above the maximal field",
+          );
+        }
 });
 
 test("saved sets with the earlier evolution-based Afterglow Garden upgrade; edited ones stay", () => {
@@ -125,20 +224,26 @@ test("saved sets with the earlier evolution-based Afterglow Garden upgrade; edit
       { name: "Bloom", look: "evolution:Coral Orchard", params: chemistry },
     ],
   };
-  const current = initialShowSet(scenes).worlds[1];
+  const worldIndex = initialShowSet(scenes).worlds.findIndex(
+    (w) => w.id === "garden",
+  );
+  const current = initialShowSet(scenes).worlds.find((w) => w.id === "garden");
   assert.equal(current.states[0].look, "afterglow:Glowing Roots");
   for (const old of [
     previous,
     { ...previous, states: previous.states.map(({ params, ...s }) => s) },
   ]) {
     const set = initialShowSet(scenes);
-    set.worlds[1] = structuredClone(old);
-    assert.deepEqual(validateShowSet(set, scenes).worlds[1], current);
+    set.worlds[worldIndex] = structuredClone(old);
+    assert.deepEqual(
+      validateShowSet(set, scenes).worlds.find((w) => w.id === "garden"),
+      current,
+    );
   }
   const set = initialShowSet(scenes);
-  set.worlds[1] = { ...structuredClone(previous), name: "My garden" };
+  set.worlds[worldIndex] = { ...structuredClone(previous), name: "My garden" };
   assert.deepEqual(
-    validateShowSet(set, scenes).worlds[1].states,
+    validateShowSet(set, scenes).worlds.find((w) => w.id === "garden").states,
     previous.states,
   );
 });

@@ -195,7 +195,11 @@ test("geometry has deterministic finite connected ancestry and bounded mesh size
   assert.ok(data.every(Number.isFinite));
   assert.ok(data.length < 2500000);
   assert.equal(data.length % 24, 0);
-  assert.equal(organism(112).length, 8);
+  assert.equal(organism(112).length, 14); // eight foreground centres + six distant blossoms
+  assert.ok(
+    data.length / 8 <= 143232,
+    "background depth stays inside the previous vertex budget",
+  );
 });
 
 function auto() {
