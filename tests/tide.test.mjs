@@ -219,6 +219,9 @@ test("two-step inverse and analytic normal agree with converged reference", () =
 });
 
 test("bowl normal, angular seam and center are continuous", () => {
+  assert.match(tide.fragment, /depression=-42\.\*exp\(-r\*r\/190\.\)/);
+  assert.match(tide.fragment, /dr=-depression\*2\.\*r\/190\./);
+  assert.ok(bowl([0, 0], 2).h < -41.9, "the throat is 42 m deep");
   for (const r of [0.01, 0.5, 2, 3.99, 4, 4.01, 10, 20, 40, 100])
     for (const phase of [0, 0.9, 3.2, 6.28]) {
       const x = [r * Math.cos(phase), r * Math.sin(phase)],
@@ -275,6 +278,228 @@ test("identity persists and development reverses without a phase or position res
   }
 });
 
+function gradient(x, y) {
+  const h = hash(x, y),
+    g = [fract(h) * 2 - 1, fract(h * 37) * 2 - 1],
+    length = Math.sqrt(Math.max(g[0] ** 2 + g[1] ** 2, 0.01));
+  return g.map((v) => v / length);
+}
+function lace(x, y) {
+  const i = Math.floor(x),
+    j = Math.floor(y),
+    f = x - i,
+    g = y - j;
+  const fade = (t) => t ** 3 * (t * (6 * t - 15) + 10);
+  const at = (dx, dy) => {
+    const v = gradient(i + dx, j + dy);
+    return v[0] * (f - dx) + v[1] * (g - dy);
+  };
+  const mix = (a, b, t) => a + (b - a) * t;
+  return mix(
+    mix(at(0, 0), at(1, 0), fade(f)),
+    mix(at(0, 1), at(1, 1), fade(f)),
+    fade(g),
+  );
+}
+
+test("foam is quintic gradient lace, continuous across lattice edges and pixel filtered", () => {
+  assert.match(tide.fragment, /s=f\*f\*f\*\(f\*\(6\.\*f-15\.\)\+10\.\)/);
+  assert.match(
+    tide.fragment,
+    /g=fract\(tdHash\(p\)\*vec2\(1\.,37\.\)\)\*2\.-1\./,
+  );
+  assert.match(tide.fragment, /laceAA=max\(\.025,1\.5\*fwidth\(lace\)\)/);
+  assert.match(tide.fragment, /length\(dFdx\(p.xz\)\)/);
+  assert.match(tide.fragment, /ridge=abs\(lace\+\.22\*fineLace-\.035\)/);
+  assert.ok(
+    !tide.fragment.includes("tdNoise(p.xz"),
+    "no thresholded world-space value-noise foam",
+  );
+  const eps = 1e-4;
+  for (let cell = -8; cell <= 8; cell++)
+    for (const v of [-2.71, -0.19, 0.37, 3.73])
+      for (const transpose of [false, true]) {
+        const n = (t) => (transpose ? lace(v, t) : lace(t, v));
+        const l = (n(cell) - n(cell - eps)) / eps;
+        const r = (n(cell + eps) - n(cell)) / eps;
+        assert.ok(Math.abs(l - r) < 1e-5, `C1 seam ${cell}, ${v}`);
+        const ll = (n(cell) - 2 * n(cell - eps) + n(cell - 2 * eps)) / eps ** 2;
+        const rr = (n(cell + 2 * eps) - 2 * n(cell + eps) + n(cell)) / eps ** 2;
+        assert.ok(Math.abs(ll - rr) < 0.04, `C2 seam ${cell}, ${v}`);
+      }
+  // Physical detail fades before becoming subpixel at all output sizes.
+  for (const height of [540, 1080, 2160]) {
+    const fp = (80 * 2) / height,
+      keep = 1 - smooth(0.3, 1.2, fp * 1.5);
+    assert.ok(keep >= 0 && keep <= 1);
+    const aa = Math.max(0.025, 1.5 * fp);
+    for (let ridge = 0; ridge <= 1; ridge += 0.01) {
+      const coverage = 1 - smooth(0.035 - aa, 0.11 + aa, ridge);
+      assert.ok(Number.isFinite(coverage) && coverage >= 0 && coverage <= 1);
+    }
+  }
+});
+
+test("living light is HDR, locally kick-modulated; droplets conserve subpixel flux", () => {
+  assert.match(
+    tide.fragment,
+    /ignition=\.46\+\.72\*spark\*spark\+\.45\*u_kick\*pow\(spark,4\.\)/,
+  );
+  assert.match(tide.fragment, /col\+=bio\*living\*bioDepth\*1\.75/);
+  assert.match(tide.fragment, /\.0012\/variance/);
+  assert.match(tide.fragment, /mistT<t/);
+  assert.ok(
+    tide.fragment.indexOf("armAA=max") < tide.fragment.lastIndexOf("if(t>0.)"),
+  );
+  const crest = 0.6,
+    glow = 0.85,
+    spark = 1;
+  const base = crest * 4 * glow * (0.46 + 0.72 * spark ** 2) * 1.75;
+  const kick = crest * 4 * glow * (0.46 + 0.72 + 0.45) * 1.75;
+  assert.ok(
+    base > 4 && kick / base < 1.4,
+    "living cores exceed 1 without a global flash",
+  );
+  for (const fp of [0, 0.02, 0.1, 0.2, 0.4]) {
+    const variance = 0.0012 + Math.min(0.012, fp * fp * 0.7);
+    // Integral of the Gaussian over R² = pi * variance.
+    assert.ok(
+      Math.abs(Math.PI * variance * (0.0012 / variance) - Math.PI * 0.0012) <
+        1e-15,
+    );
+    const atCellBorder =
+      Math.exp(-(0.25 ** 2) / variance) * (0.0012 / variance);
+    assert.ok(atCellBorder < 0.001, "no visible square candidate boundary");
+  }
+});
+
+function cachedBowl(p, dev, flow) {
+  if (Math.hypot(...p) <= 6 || Math.max(...p.map(Math.abs)) >= 63.5) {
+    const b = bowl(p, dev, flow);
+    return [b.h, ...b.gradient];
+  }
+  const grid = p.map((v) => (v / 128 + 0.5) * 255);
+  const cell = grid.map(Math.floor),
+    f = grid.map((v, i) => v - cell[i]);
+  const at = (x, y) => {
+    const b = bowl([(x / 255 - 0.5) * 128, (y / 255 - 0.5) * 128], dev, flow);
+    return [b.h, ...b.gradient];
+  };
+  const corners = [
+    at(cell[0], cell[1]),
+    at(cell[0] + 1, cell[1]),
+    at(cell[0], cell[1] + 1),
+    at(cell[0] + 1, cell[1] + 1),
+  ];
+  const data = [0, 1, 2].map(
+    (k) =>
+      (corners[0][k] * (1 - f[0]) + corners[1][k] * f[0]) * (1 - f[1]) +
+      (corners[2][k] * (1 - f[0]) + corners[3][k] * f[0]) * f[1],
+  );
+  const blend =
+    smooth(36, 64, p[0] ** 2 + p[1] ** 2) *
+    (1 - smooth(62, 63.5, Math.max(...p.map(Math.abs))));
+  if (blend < 1) {
+    const b = bowl(p, dev, flow),
+      exact = [b.h, ...b.gradient];
+    return data.map((v, k) => exact[k] + (v - exact[k]) * blend);
+  }
+  return data;
+}
+
+test("world-space bowl data cache preserves height and normal without caching colour", () => {
+  assert.deepEqual(tide.precompute.size, [256, 257]);
+  assert.match(tide.precompute.fragment, /vec4\(tdBowlExact\(p\),0\.\)/);
+  assert.match(tide.fragment, /return tdBowlExact\(p\)/);
+  assert.match(tide.fragment, /nearRadius=max\(0\.,length\(nearAxis\)-\.72\)/);
+  let heightError = 0,
+    normalError = 0;
+  for (const flow of [0, 0.9, 2.1, 4.7, 6.28])
+    for (let i = 0; i < 6000; i++) {
+      const p = [63.4 * Math.sin(i * 1.71), 63.4 * Math.cos(i * 0.37)];
+      const b = bowl(p, 2, flow),
+        c = cachedBowl(p, 2, flow);
+      heightError = Math.max(heightError, Math.abs(b.h - c[0]));
+      const a = [-b.gradient[0], 1, -b.gradient[1]],
+        d = [-c[1], 1, -c[2]];
+      const al = Math.hypot(...a),
+        dl = Math.hypot(...d);
+      normalError = Math.max(
+        normalError,
+        Math.hypot(...a.map((v, k) => v / al - d[k] / dl)),
+      );
+    }
+  assert.ok(heightError < 0.03, `cached bowl height error ${heightError} m`);
+  assert.ok(
+    normalError < 0.025,
+    `cached bowl unit-normal error ${normalError}`,
+  );
+});
+
+test("ray-specific slabs bound the exact ocean, including the deep throat", () => {
+  assert.match(tide.fragment, /lower=-gWaveHeight-gVortex\*\(\.8\+42\.\*exp/);
+  assert.match(tide.fragment, /if\(previous==1\) fhi\*=\.5/);
+  assert.match(tide.fragment, /if\(previous==-1\) flo\*=\.5/);
+  let worstResidual = 0;
+  for (const dev of [0, 0.5, 1, 1.5, 2])
+    for (const seed of [10301, 10303]) {
+      const w = waves(seed, dev, 1.3, 1.8),
+        v = smooth(1, 2, dev);
+      const height = w.reduce((s, a) => s + a.amplitude, 0);
+      const ro = [0, 9 + 33 * v, 47];
+      for (const dx of [-0.7, -0.3, 0, 0.3, 0.7])
+        for (const dy of [-1, -0.7, -0.4]) {
+          const length = Math.hypot(dx, dy, -1),
+            rd = [dx / length, dy / length, -1 / length];
+          const closest = Math.max(
+            0,
+            -(ro[0] * rd[0] + ro[2] * rd[2]) / (rd[0] ** 2 + rd[2] ** 2),
+          );
+          const radius2 =
+            (ro[0] + rd[0] * closest) ** 2 + (ro[2] + rd[2] * closest) ** 2;
+          const nearRadius = Math.max(0, Math.sqrt(radius2) - 0.72);
+          const lower =
+            -height - v * (0.8 + 42 * Math.exp(-(nearRadius ** 2) / 190));
+          const upper = height + 4.6 * v;
+          let lo = Math.max(0, (upper - ro[1]) / rd[1]),
+            hi = Math.min(700, (lower - ro[1]) / rd[1]);
+          const sample = (t) =>
+            sea([ro[0] + rd[0] * t, ro[2] + rd[2] * t], w, dev, 0.8).h;
+          for (let i = 0; i <= 40; i++) {
+            const h = sample(lo + ((hi - lo) * i) / 40);
+            assert.ok(h >= lower - 1e-10 && h <= upper + 1e-10);
+          }
+          const f = (t) => ro[1] + rd[1] * t - sample(t);
+          let flo = f(lo),
+            fhi = f(hi),
+            previous = 0,
+            t = lo;
+          assert.ok(flo >= 0 && fhi <= 0);
+          for (let i = 0; i < 15; i++) {
+            t = lo + (hi - lo) * clamp(flo / (flo - fhi), 0.08, 0.92);
+            const value = f(t);
+            if (Math.abs(value) < 0.008 + (2 / 1080) * t * 0.2) break;
+            if (value > 0) {
+              lo = t;
+              flo = value;
+              if (previous === 1) fhi *= 0.5;
+              previous = 1;
+            } else {
+              hi = t;
+              fhi = value;
+              if (previous === -1) flo *= 0.5;
+              previous = -1;
+            }
+          }
+          worstResidual = Math.max(worstResidual, Math.abs(f(t)));
+        }
+    }
+  assert.ok(
+    worstResidual < 0.15,
+    `15-step intersection residual ${worstResidual} m`,
+  );
+});
+
 test("camera remains above the sea; kick bounded; energy never changes development", () => {
   for (let dev = 0; dev <= 2; dev += 0.01) {
     const vortex = smooth(1, 2, dev),
@@ -284,6 +509,38 @@ test("camera remains above the sea; kick bounded; energy never changes developme
       waves(10301, dev, 1.3).reduce((s, w) => s + w.amplitude, 0) +
       4.6 * vortex;
     assert.ok(eye > upper, `${dev}: eye ${eye} above upper envelope ${upper}`);
+  }
+  assert.match(
+    tide.fragment,
+    /mix\(5\.\*sin\(orbit\),radius\*sin\(orbit\),gVortex\)/,
+  );
+  assert.match(tide.fragment, /mix\(radius,radius\*cos\(orbit\),gVortex\)/);
+  const camera = (dev, phase) => {
+    const v = smooth(1, 2, dev),
+      s = smooth(0, 1, dev);
+    const radius =
+      (54 + 3 * Math.cos(phase)) * (1 - v) + (45 + 2 * Math.cos(2 * phase)) * v;
+    return [
+      5 * Math.sin(phase) * (1 - v) + radius * Math.sin(phase) * v,
+      (4.8 + 1.6 * s) * (1 - v) + (35 + 2 * Math.sin(phase)) * v,
+      radius * (1 - v) + radius * Math.cos(phase) * v,
+    ];
+  };
+  for (const dev of [0, 0.5, 1, 1.25, 1.5, 1.75, 2]) {
+    const a = camera(dev, -1e-7),
+      b = camera(dev, 2 * Math.PI - 1e-7);
+    assert.ok(
+      Math.hypot(...a.map((v, i) => v - b[i])) < 1e-10,
+      "camera wraps at intermediate development too",
+    );
+  }
+  for (let phase = 0; phase < 2 * Math.PI; phase += 0.1) {
+    const p = camera(2, phase),
+      radius = Math.hypot(p[0], p[2]);
+    assert.ok(
+      radius >= 43 - 1e-10 && radius <= 47 + 1e-10,
+      "closer full peak orbit",
+    );
   }
   assert.match(tide.fragment, /1\.\+\.022\*u_kick/);
   assert.ok(!tide.energy.development);

@@ -163,9 +163,40 @@ vec4 tdWave(int i) {
   float amp=amplitude*u_params[2]*mix(.48,2.35,swell);
   return vec4(k*cos(angle), k*sin(angle), amp, phase);
 }
+float gVortex, gFlow;
+vec3 tdBowlExact(vec2 p) {
+  if(gVortex==0.) return vec3(0.);
+  float r=max(length(p),.001), a=atan(p.y,p.x);
+  float depression=-42.*exp(-r*r/190.);
+  float lip=3.8*exp(-sq((r-23.)/7.));
+  // Integer angular harmonics keep the atan seam EXACTLY periodic.
+  float meander=3.*a-.12*r+gFlow;
+  float phase=5.*a + .44*r - 2.*gFlow + .28*sin(meander);
+  float inner=clamp(r/4.,0.,1.);
+  float window=inner*inner*(3.-2.*inner);
+  float gaussian=exp(-sq((r-20.)/17.));
+  float envelope=gaussian*window;
+  float derivative=gaussian*(r<4.?1.5*inner*(1.-inner):0.)-envelope*2.*(r-20.)/289.;
+  float spiral=.8*sin(phase)*envelope;
+  float dr=-depression*2.*r/190.-lip*2.*(r-23.)/49.;
+  dr+=.8*(envelope*(.44-.0336*cos(meander))*cos(phase)+derivative*sin(phase));
+  float da=.8*(5.+.84*cos(meander))*cos(phase)*envelope;
+  vec2 gradient=dr*p/r+da*vec2(-p.y,p.x)/(r*r);
+  return gVortex*vec3(depression+lip+spiral,gradient);
+}
 `;
 const precompute = `${common}
-void main() { outColor = tdWave(int(gl_FragCoord.x)); }
+void main() {
+  ivec2 cell=ivec2(gl_FragCoord.xy);
+  if(cell.y==0) {
+    outColor=cell.x<6?tdWave(cell.x):vec4(0.);
+    return;
+  }
+  gVortex=smoothstep(1.,2.,u_params[0]);
+  gFlow=mod(tdFlowClock(),TAU);
+  vec2 p=(vec2(cell.x,cell.y-1)/255.-.5)*128.;
+  outColor=vec4(tdBowlExact(p),0.);
+}
 `;
 
 const fragment = `${common}
@@ -175,13 +206,13 @@ uniform highp sampler2D u_precomputed;
 vec4 gW[6];
 float gK[6];
 vec2 gD[6];
-float gVortex, gSwell, gFlow, gPixel, gWavePhase;
+float gSwell, gPixel, gWavePhase, gWaveHeight;
 vec3 gMoon;
 // Quintic gradient noise: zero value at lattice vertices, continuous first
 // AND second derivatives across the lattice. Foam never thresholds cell values.
 vec2 tdGradient(vec2 p) {
-  float angle=TAU*tdHash(p);
-  return vec2(cos(angle),sin(angle));
+  vec2 g=fract(tdHash(p)*vec2(1.,37.))*2.-1.;
+  return g*inversesqrt(max(dot(g,g),.01));
 }
 float tdLace(vec2 p) {
   vec2 i=floor(p), f=fract(p), s=f*f*f*(f*(6.*f-15.)+10.);
@@ -218,23 +249,26 @@ vec2 tdMaterial(vec2 x) {
   return q;
 }
 vec3 tdBowl(vec2 p) {
-  float r=max(length(p),.001), a=atan(p.y,p.x);
-  float depression=-42.*exp(-r*r/190.);
-  float lip=3.8*exp(-sq((r-23.)/7.));
-  // Integer angular harmonics keep the atan seam EXACTLY periodic.
-  float meander=3.*a-.12*r+gFlow;
-  float phase=5.*a + .44*r - 2.*gFlow + .28*sin(meander);
-  float inner=clamp(r/4.,0.,1.);
-  float window=inner*inner*(3.-2.*inner);
-  float gaussian=exp(-sq((r-20.)/17.));
-  float envelope=gaussian*window;
-  float derivative=gaussian*(r<4.?1.5*inner*(1.-inner):0.)-envelope*2.*(r-20.)/289.;
-  float spiral=.8*sin(phase)*envelope;
-  float dr=-depression*2.*r/190.-lip*2.*(r-23.)/49.;
-  dr+=.8*(envelope*(.44-.0336*cos(meander))*cos(phase)+derivative*sin(phase));
-  float da=.8*(5.+.84*cos(meander))*cos(phase)*envelope;
-  vec2 gradient=dr*p/r+da*vec2(-p.y,p.x)/(r*r);
-  return gVortex*vec3(depression+lip+spiral,gradient);
+  if(gVortex==0.) return vec3(0.);
+#ifdef PRECOMPUTED
+  // A world-space data table, never a cached picture: 256² samples of the
+  // authored bowl height and analytic gradient, refreshed every frame.
+  // Wave inversion, crests, lighting and foam still run at full resolution.
+  // Keep the small polar core exact, where angular gradients turn fastest.
+  if(max(abs(p.x),abs(p.y))<63.5 && dot(p,p)>36.) {
+    vec2 grid=(p/128.+.5)*255.;
+    ivec2 cell=ivec2(floor(grid))+ivec2(0,1);
+    vec2 f=fract(grid);
+    vec3 data=mix(mix(texelFetch(u_precomputed,cell,0).xyz,
+                      texelFetch(u_precomputed,cell+ivec2(1,0),0).xyz,f.x),
+                  mix(texelFetch(u_precomputed,cell+ivec2(0,1),0).xyz,
+                      texelFetch(u_precomputed,cell+ivec2(1),0).xyz,f.x),f.y);
+    float blend=smoothstep(36.,64.,dot(p,p))*(1.-smoothstep(62.,63.5,max(abs(p.x),abs(p.y))));
+    if(blend<1.) return mix(tdBowlExact(p),data,blend);
+    return data;
+  }
+#endif
+  return tdBowlExact(p);
 }
 vec2 tdSea(vec2 x) {
   vec2 q=tdMaterial(x);
@@ -285,22 +319,36 @@ vec3 tdSky(vec3 d, bool stars) {
   }
   return col;
 }
-// A safeguarded regula-falsi solve on a heightfield. The upper/lower height
-// planes bracket the ocean. The finite capped solve keeps cost independent
+// A safeguarded Illinois regula-falsi solve on a heightfield. Conservative
+// ray-specific height planes bracket the ocean. The capped solve keeps cost independent
 // of horizon distance; far waves dissolve into horizon haze.
 float tdIntersect(vec3 ro, vec3 rd) {
   if(rd.y>=-.006) return -1.;
-  float lo=0., hi=min(700.,(-55.-ro.y)/rd.y);
-  float flo=ro.y-tdSea(ro.xz).x;
+  // Conservative ray-specific height slab: the depression along the ray
+  // cannot exceed its value at the closest projected approach to the axis.
+  // Outside the funnel this avoids solving against a fictitious -55 m sea.
+  float closest=max(0.,-dot(ro.xz,rd.xz)/max(dot(rd.xz,rd.xz),.0001));
+  vec2 nearAxis=ro.xz+rd.xz*closest;
+  // Include the table cell's full diagonal in the radial lower bound.
+  float nearRadius=max(0.,length(nearAxis)-.72);
+  float lower=-gWaveHeight-gVortex*(.8+42.*exp(-nearRadius*nearRadius/190.));
+  float upper=gWaveHeight+4.6*gVortex;
+  float lo=max(0.,(upper-ro.y)/rd.y), hi=min(700.,(lower-ro.y)/rd.y);
+  if(lo>=hi) return -1.;
+  float flo=(ro+rd*lo).y-tdSea((ro+rd*lo).xz).x;
   float fhi=(ro+rd*hi).y-tdSea((ro+rd*hi).xz).x;
   if(fhi>0.) return -1.;
   float t=lo;
+  int previous=0;
   for(int i=0;i<15;i++) {
     t=mix(lo,hi,clamp(flo/(flo-fhi),.08,.92));
     vec3 p=ro+rd*t;
     float f=p.y-tdSea(p.xz).x;
     if(abs(f)<.008+gPixel*t*.2) break;
-    if(f>0.) {lo=t; flo=f;} else {hi=t; fhi=f;}
+    // Halve only the stale endpoint's secant weight, never its position.
+    // This avoids the slow one-sided convergence of ordinary false position.
+    if(f>0.) {lo=t; flo=f; if(previous==1) fhi*=.5; previous=1;}
+    else {hi=t; fhi=f; if(previous==-1) flo*=.5; previous=-1;}
   }
   return t;
 }
@@ -311,6 +359,7 @@ void main() {
   gWavePhase=mod(tdWaveClock(),TAU);
   gPixel=2./min(u_resolution.x,u_resolution.y);
   gMoon=normalize(vec3(.27,u_params[5],-1.));
+  gWaveHeight=0.;
   for(int i=0;i<6;i++) {
 #ifdef PRECOMPUTED
     gW[i]=texelFetch(u_precomputed,ivec2(i,0),0);
@@ -319,6 +368,7 @@ void main() {
 #endif
     gK[i]=length(gW[i].xy);
     gD[i]=gW[i].xy/gK[i];
+    gWaveHeight+=gW[i].z;
   }
   float orbit=mod(tdOrbitClock(),TAU);
   float radius=mix(54.+3.*cos(orbit),45.+2.*cos(2.*orbit),gVortex);
@@ -402,8 +452,8 @@ void main() {
     float bioDepth=mix(1.,.32+.68*depth,gVortex);
     vec3 bio=mix(u_secondary,u_primary,.20);
     col+=bio*living*bioDepth*1.75;
-    float hot=pow(spark,12.)*smoothstep(.85,1.55,living);
-    col+=mix(u_accent,u_primary,.12)*hot*(foam+spiral)*3.2;
+    float hot=pow(spark,16.)*smoothstep(.85,1.55,living);
+    col+=mix(u_accent,u_primary,.15)*hot*(foam+spiral)*5.;
     col+=u_primary*threads*threads*(foam+spiral*.3)*.20;
     col+=mix(u_secondary,u_accent,.24)*spiralCore*ignition*bioDepth*2.8*u_params[3];
     col+=mix(u_secondary,u_accent,.15)*gVortex*exp(-r*r/55.)*.25;
@@ -474,5 +524,5 @@ export default {
     ),
   ],
   fragment,
-  precompute: { fragment: precompute, size: [6, 1] },
+  precompute: { fragment: precompute, size: [256, 257] },
 };
