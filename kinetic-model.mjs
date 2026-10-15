@@ -27,10 +27,14 @@ export const FOCAL = 1.4; // short-side focal length (half FOV ≈ 35.5°)
 export const FOCAL_RISE = 0.22;
 export const FRAME_GAIN = [0.08, 0.03, 0.065, 0];
 export const MORPH_FIT = 0.18;
+export const SADDLE_FIT = 1.1;
+export const HERO_DISTANCE = 4.9;
+export const HERO_PARALLAX = 0.45;
 export function focalLength(dev, kick = 0, M = 0, seed = 0) {
   const w = chorus(M + (Number(seed) % 8192) % 4);
   const fit = w.reduce((s, x, i) => s + x * FRAME_GAIN[i], 0) +
-    MORPH_FIT * (1 - w.reduce((s, x) => s + x * x, 0));
+    MORPH_FIT * (1 - w.reduce((s, x) => s + x * x, 0)) +
+    SADDLE_FIT * w[3] * (1 - w[3]);
   return (FOCAL + (FOCAL_RISE + fit) * smoothstep(1, 2, dev)) * (1 + 0.02 * clamp(kick, 0, 1));
 }
 export const RING = { reach: 13, width: 1.8, amp: 0.16, wave: 1.9, grow: 8 };
@@ -195,7 +199,45 @@ export function sculpture(u, v, w, W, Phi, detail) {
   return [(c * p[0] - s * z) * shimmer, y * shimmer, (s * p[0] + c * z) * shimmer];
 }
 
-const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+// Analytic differential, in the same lattice-step units as the old
+// centred differences. Position/identity is untouched; normals and local
+// pearl spacing no longer need four additional complete surface samples.
+export function sculptureDerivatives(u, v, w, W, Phi, detail, p = sculpture(u, v, w, W, Phi, detail)) {
+  const th = TAU * u, c = Math.cos(th), s = Math.sin(th);
+  const du = [0, 0, 0], dv = [0, 0, 0];
+  const add = (a, b, k) => { for (let i = 0; i < 3; i++) a[i] += b[i] * k; };
+  if (w[0] > 0) {
+    const sp = Math.sin(Math.PI * v), cp = Math.cos(Math.PI * v);
+    add(du, [-s, 0, c], w[0] * TAU * FORM.sphere * sp);
+    add(dv, [cp * c, -sp, cp * s], w[0] * Math.PI * FORM.sphere);
+  }
+  if (w[1] > 0) {
+    const ps = Math.PI / 2 - TAU * v, sp = Math.sin(ps), cp = Math.cos(ps);
+    add(du, [-s, 0, c], w[1] * TAU * (FORM.torusR + FORM.torusr * cp));
+    add(dv, [sp * c, -cp, sp * s], w[1] * TAU * FORM.torusr);
+  }
+  if (w[2] > 0) {
+    const m = FORM.mobiusW * (1 - 2 * v), ch = Math.cos(th / 2), sh = Math.sin(th / 2);
+    const r = FORM.mobiusR + m * ch, dr = -0.5 * TAU * m * sh;
+    add(du, [dr * c - TAU * r * s, 0.5 * TAU * m * ch, dr * s + TAU * r * c], w[2]);
+    add(dv, [ch * c, sh, ch * s], w[2] * -2 * FORM.mobiusW);
+  }
+  if (w[3] > 0) {
+    const r = FORM.saddleR * Math.sqrt(0.02 + 0.98 * v), a = 2.6 * r - 2 * W;
+    const dr = 0.49 * FORM.saddleR ** 2 / r;
+    add(du, [-r * s, -2 * FORM.saddleK * r * r * Math.sin(2 * th), r * c], w[3] * TAU);
+    add(dv, [c, 2 * FORM.saddleK * r * Math.cos(2 * th) + FORM.saddleWave * (Math.sin(a) + 2.6 * r * Math.cos(a)), s], w[3] * dr);
+  }
+  const ct = Math.cos(TILT), st = Math.sin(TILT), cp = Math.cos(Phi), sp = Math.sin(Phi);
+  const phase = TAU * (5 * u + 3 * v) - 2 * W, a = 0.01 + 0.02 * detail;
+  const sh = 1 + a * Math.sin(phase), ds = a * Math.cos(phase) * TAU;
+  return [du, dv].map((d, axis) => {
+    const y = ct * d[1] - st * d[2], z = st * d[1] + ct * d[2];
+    const rot = [cp * d[0] - sp * z, y, sp * d[0] + cp * z];
+    return rot.map((x, i) => (x * sh + p[i] * ds * (axis === 0 ? 5 : 3) / sh) / (axis === 0 ? SURFACE_COLS : SURFACE_ROWS));
+  });
+}
+
 const cross = (a, b) => [
   a[1] * b[2] - a[2] * b[1],
   a[2] * b[0] - a[0] * b[2],
@@ -245,11 +287,8 @@ export function ball(i, j, state) {
     hs = 0.5;
   if (sig > 0) {
     const [u, v] = sculptureUV(i, j);
-    const eu = 0.5 / SURFACE_COLS, ev = 0.5 / SURFACE_ROWS;
-    const f = (a, b) => sculpture(a, b, w, W, Phi, detail);
-    const p = f(u, v);
-    const du = sub(f(u + eu, v), f(u - eu, v)),
-      dv = sub(f(u, v + ev), f(u, v - ev));
+    const p = sculpture(u, v, w, W, Phi, detail);
+    const [du, dv] = sculptureDerivatives(u, v, w, W, Phi, detail, p);
     // The parametric orientation is continuous in time for every sphere;
     // the ring moves along it. Shading uses the upward-facing side.
     const no = normalize(cross(dv, du));
@@ -283,16 +322,26 @@ export function ball(i, j, state) {
   };
 }
 
-// Camera: a slow closed orbit under the lattice that moves in and stays
-// low to make the morph the hero. alpha is clock 3 plus the seed angle.
-export function camera(dev, alpha) {
+// Crane from beneath the grid to the sculpture's tilted normal. Following
+// its normal prevents edge-on Möbius/saddle holds; a small tangent orbit
+// retains parallax. All phases are independently periodic, with no angle lerp.
+export function camera(dev, alpha, Phi = 0, M = 0) {
   const s2 = smoothstep(1, 2, clamp(dev, 0, 2));
-  const radius = 6.0 - 1.2 * s2 + (0.4 - 0.25 * s2) * Math.sin(2 * alpha);
-  const height = 0.75 + 0.45 * s2 + 0.1 * Math.sin(3 * alpha);
-  const eye = [radius * Math.cos(alpha), height, radius * Math.sin(alpha)];
+  const radius = 6.0 + 0.4 * Math.sin(2 * alpha);
+  const height = 0.75 + 0.1 * Math.sin(3 * alpha);
+  const c = Math.cos(Phi), s = Math.sin(Phi), ca = Math.cos(alpha), sa = Math.sin(alpha);
+  const ct = Math.cos(TILT), st = Math.sin(TILT), d = HERO_DISTANCE, q = HERO_PARALLAX;
+  const hero = [-d * st * s + q * (c * ca - ct * s * sa),
+    CENTER[1] + d * ct - q * st * sa, d * st * c + q * (s * ca + ct * c * sa)];
+  const start = [radius * ca, height, radius * sa];
+  // Wait for the outer lattice to clear the crane's path; rise before
+  // dollying inward. A direct lerp crossed the gathering spheres.
+  const crane = smoothstep(1.75, 1.97, dev), dolly = smoothstep(1.85, 2, dev);
+  const eye = start.map((x, i) => x + (hero[i] - x) * (i === 1 ? crane : dolly));
   const side = 0.9 * (1 - s2);
   const s01 = smoothstep(0, 1, clamp(dev, 0, 1));
-  const target = [-Math.sin(alpha) * side, 2.2 - 0.3 * s01 + 0.05 * s2, Math.cos(alpha) * side];
+  const aim = 0.25 * s2 * chorus(M)[2];
+  const target = [-Math.sin(alpha) * side + aim * c, 2.2 - 0.3 * s01 + 0.05 * s2, Math.cos(alpha) * side + aim * s];
   return { eye, target };
 }
 

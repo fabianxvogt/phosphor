@@ -389,6 +389,48 @@ vec3 mrBomb(vec3 p0, vec3 v0, float tt) {
   return p0 + v0 * tt + vec3(0.0, -0.5 * G_ACC * tt * tt, 0.0);
 }
 
+// Closest approach to the exact parabola, not a polyline. Project the
+// quadratic onto the plane perpendicular to the ray; squared distance is
+// quartic. Its derivative is cubic: test ALL real roots plus endpoints.
+// A single Newton seed misses falling branches near the apex.
+float mrCbrt(float x) { return sign(x) * pow(abs(x), 1.0 / 3.0); }
+vec3 mrRayArc(vec3 ro, vec3 rd, vec3 p0, vec3 v0, float lo, float hi) {
+  float span = hi - lo;
+  vec3 a = vec3(0.0, -0.5 * G_ACC * span * span, 0.0);
+  vec3 b = (v0 + vec3(0.0, -G_ACC * lo, 0.0)) * span;
+  vec3 c = mrBomb(p0, v0, lo) - ro;
+  a -= rd * dot(a, rd); b -= rd * dot(b, rd); c -= rd * dot(c, rd);
+  float aa = 2.0 * dot(a, a);
+  vec3 roots;
+  if (aa < 1e-8) roots = vec3(-dot(b, c) / max(dot(b, b), 1e-8));
+  else {
+    float B = 3.0 * dot(a, b) / aa;
+    float C = (dot(b, b) + 2.0 * dot(a, c)) / aa, D = dot(b, c) / aa;
+    float p = C - B * B / 3.0, q = 2.0 * B * B * B / 27.0 - B * C / 3.0 + D;
+    float disc = q * q * 0.25 + p * p * p / 27.0;
+    if (disc >= 0.0) {
+      float r = sqrt(disc);
+      roots = vec3(mrCbrt(-0.5 * q + r) + mrCbrt(-0.5 * q - r) - B / 3.0);
+    } else {
+      float r = 2.0 * sqrt(-p / 3.0);
+      float angle = acos(clamp(1.5 * q / p * sqrt(-3.0 / p), -1.0, 1.0)) / 3.0;
+      roots = r * cos(vec3(angle, angle - TAU / 3.0, angle - 2.0 * TAU / 3.0)) - B / 3.0;
+    }
+  }
+  float best = dot(c, c), u = 0.0;
+  vec3 end = a + b + c;
+  if (dot(end, end) < best) { best = dot(end, end); u = 1.0; }
+  for (int k = 0; k < 3; ++k) {
+    float v = clamp(roots[k], 0.0, 1.0);
+    vec3 e = (a * v + b) * v + c;
+    float dd = dot(e, e);
+    if (dd < best) { best = dd; u = v; }
+  }
+  vec3 point = mrBomb(p0, v0, mix(lo, hi, u)) - ro;
+  float t = max(dot(point, rd), 0.0);
+  return vec3(length(point - rd * t), t, u);
+}
+
 // Cheap billow for the ash plume (domain-warped sines, no lattice).
 float mrBillow(vec3 p, float phase) {
   // Integer phase harmonics advect each billow upward continuously. One
@@ -451,7 +493,7 @@ bool mrLaunch(int i, out vec3 p0, out vec3 v0, out float tt, out float tf, out f
   vec3 hb = mrH3(vec3(fi, id, 3.7) + vec3(gSeedOff, 0.0));
   float kf = sqrt(max(gForce, 0.05));
   float vy = (big ? mix(8.5, 11.0, hb.x) : mix(5.5, 9.5, hb.x)) * kf;
-  float vh = (big ? mix(0.9, 2.1, hb.y) : mix(0.1, 1.1, hb.y)) * kf;
+  float vh = (big ? mix(1.8, 2.8, hb.y) : mix(0.1, 1.1, hb.y)) * kf;
   float ang = TAU * hb.z;
   v0 = vec3(vh * cos(ang), vy, vh * sin(ang));
   p0 = gVent + vec3(0.25 * cos(ang), 0.05, 0.25 * sin(ang));
@@ -460,9 +502,9 @@ bool mrLaunch(int i, out vec3 p0, out vec3 v0, out float tt, out float tf, out f
   tt = tau * CYCLE;
   return on > 0.0 && tt < tf;
 }
-// Trail of a bomb: three chords back over 3·trail seconds. The arc lies in
-// the sphere around the chord midpoint (deviation ≤ gΔ²/8).
-float mrTrail(bool big) { return big ? 0.22 : 0.10; }
+// Exact curved tail over 3·trail seconds. The complete parabola lies in
+// the sphere around the endpoint midpoint (deviation ≤ gΔ²/8).
+float mrTrail(bool big) { return big ? 0.42 : 0.10; }
 vec4 mrBombBound(vec3 p0, vec3 v0, float tt, bool big) {
   float span = 3.0 * mrTrail(big);
   vec3 h0 = mrBomb(p0, v0, tt);
@@ -792,8 +834,8 @@ void main() {
   // Ash column above the vent, ray-cylinder bounded, lit from below by the
   // fountain. Integer phase harmonics keep its upward billow endless.
   float plumeAmt = gErupt;
-  // Conservative curtain bound. The authored Gaussian kernels taper to
-  // zero at four core widths; include the AA width on small outputs too.
+  // Conservative column/halo bound. The turbulent core stays below 1.7
+  // units and the halo vanishes by 2.5; retain the wider AA-safe envelope.
   vec3 curtainBound = mrRaySeg(ro, rd, gVent, gVent + vec3(0.0, gFountH, 0.0));
   float curtainRadius = max(7.2, 3.3 + 6.0 * gPix * 80.0);
   bool seesCurtain = curtainBound.x < curtainRadius && curtainBound.y < t + curtainRadius;
@@ -822,18 +864,18 @@ void main() {
           vec3 p = ro + rd * s;
           float hy = p.y - y0;
           vec2 axis = vec2(0.16, 0.07) * hy + 0.25 * vec2(sin(hy * 0.35 + 1.0), cos(hy * 0.3));
-          float rad = 1.0 + 0.5 * hy;
+          float rad = 1.3 + 0.5 * hy;
           float dr = length(p.xz - axis);
-          float shape = smoothstep(rad, rad * 0.25, dr) * smoothstep(0.0, 1.2, hy) * (1.0 - smoothstep(10.0, 14.0, hy));
+          float shape = smoothstep(rad, rad * 0.6, dr) * smoothstep(0.0, 1.2, hy) * (1.0 - smoothstep(10.0, 14.0, hy));
           if (shape <= 0.0) continue;
           float nRaw = mrBillow(p * 0.95 + vec3(gSeedOff, 0.0), TAU * gErPh * 0.5);
           float dens = smoothstep(0.38, 0.75, nRaw) * shape * 2.6 * plumeAmt;
           // Lit from below: the fountain's light decays with height and
           // reaches deeper into the core.
           float under = exp(-hy / (5.0 + 2.0 * gForce)) * (0.5 + 0.5 * smoothstep(rad, rad * 0.3, dr));
-          vec3 lightC = glowCol * (0.48 * under * (0.6 + 0.4 * gForce) * (1.0 + 0.3 * u_rhythm.z)) + hazeCol * 1.5;
+          vec3 lightC = glowCol * (1.15 * under * (0.6 + 0.4 * gForce) * (1.0 + 0.3 * u_rhythm.z)) + mix(u_secondary, vec3(1.0), 0.2) * 0.025 + hazeCol * 1.5;
           // Thin billow edges catch the light; dense cores stay dark ash.
-          lightC *= mix(1.3, 0.12, smoothstep(0.5, 0.95, nRaw));
+          lightC *= mix(1.3, 0.2, smoothstep(0.5, 0.95, nRaw));
           float a = 1.0 - exp(-dens * ds * 2.2);
           acc += trans * a * lightC;
           trans *= 1.0 - a;
@@ -847,31 +889,27 @@ void main() {
   // ------------------------------------------------------------ fountain
   vec3 add = vec3(0.0);
   if (gErupt > 0.01) {
-    // Seven overlapping incandescent jets form a towering curtain.
-    // Single smooth capsules avoid chord-winner seams at the jet elbows.
-    if (seesCurtain) for (int j = 0; j < 7; ++j) {
-      float fj = float(j), ang = TAU * fj / 7.0;
-      vec2 dir = vec2(cos(ang), sin(ang));
-      float h = gFountH * (0.8 + 0.2 * sin(fj * 4.7 + 1.3));
-      vec3 a = gVent + vec3(dir.x, 0.0, dir.y) * 0.7;
-      vec3 b = gVent + vec3(dir.x * 3.3, h, dir.y * 3.3);
-      vec3 cs = mrRaySeg(ro, rd, a, b);
-      float hy = cs.z;
-      // Upper bound on the billow's core width: skip its turbulence and
-      // thermal ramp entirely outside the compact-support jet kernel.
-      float maxSig = max(0.50, gPix * cs.y * 1.5);
-      if (cs.y >= t + 0.2 || cs.x >= 4.0 * maxSig) continue;
-      vec3 q = ro + rd * cs.y;
-      float billow = mrBillow(q * 2.1, TAU * gErPh);
-      // Dense liquid tapers on ascent; the separate ash volume billows.
-      // Widening flame-shaped tips made the old fountain read as a bonfire.
-      float wcol = (0.4 - 0.24 * clamp(hy, 0.0, 1.0)) * (0.8 + 0.4 * billow);
-      float sig = max(wcol, gPix * cs.y * 1.5);
-      float flick = 0.75 + 0.25 * sin(TAU * (gErPh * 8.0) - hy * 14.0 + fj) * sin(TAU * gErPh * 5.0 + hy * 7.0);
-      float T = 1.05 - 0.18 * hy + 0.15 * billow * billow;
-      float edge = 1.0 - smoothstep(3.4 * sig, 4.0 * sig, cs.x);
-      add += mrHeat(T) * exp(-sq(cs.x / sig)) * (wcol / sig) * gErupt * flick * edge * 0.9;
-      add += mrHeat(T - 0.24) * exp(-sq(cs.x / (2.0 * sig))) * gErupt * flick * edge * 0.12;
+    // One dense molten column, not a fan of soft flame streaks. The
+    // incandescent interior has a sharp turbulent liquid/air interface;
+    // only the thin exterior halo is Gaussian. Reuses one billow sample.
+    if (seesCurtain) {
+      vec3 cs = mrRaySeg(ro, rd, gVent, gVent + vec3(0.0, gFountH * 0.83, 0.0));
+      if (cs.y < t + 0.2 && cs.x < 2.5) {
+        vec3 q = ro + rd * cs.y;
+        float hy = cs.z;
+        float billow = mrBillow(q * 2.1, TAU * gErPh);
+        float width = (1.05 - 0.38 * hy) * (0.55 + 0.85 * billow);
+        width *= 1.0 + 0.13 * sin(hy * 39.0 - TAU * gErPh * 3.0 + q.x * 4.0);
+        float aa = max(0.035, gPix * cs.y * 1.5);
+        float liquid = 1.0 - smoothstep(width - aa, width + aa, cs.x);
+        float core = 1.0 - smoothstep(width * 0.08, width * 0.62, cs.x);
+        float skin = smoothstep(0.53, 0.82, billow);
+        float T = 1.0 - 0.1 * hy + 0.12 * billow - 0.18 * skin;
+        // Distance to the capped segment makes a rounded irregular crown,
+        // not a horizontal cutoff. White-hot core, cooler molten margins.
+        add += (mrHeat(T) + mrHeat(1.68 - 0.1 * hy) * core * (0.65 + 0.3 * billow)) * liquid * gErupt;
+        add += mrHeat(0.94) * exp(-sq(cs.x / (width * 1.5))) * gErupt * 0.18 * (1.0 - smoothstep(2.1, 2.5, cs.x));
+      }
     }
 
     // Ejecta (see mrLaunch). With the precompute pass each bomb's bounding
@@ -906,25 +944,30 @@ void main() {
       float trail = mrTrail(big);
       vec3 h0 = mrBomb(p0, v0, tt);
       float life = tt / tf;
-      float T = (big ? 1.2 : 1.1) - 0.5 * life;
+      float T = (big ? 1.35 : 1.18) - 0.4 * life;
       float fade = smoothstep(0.0, 0.05, tt) * (1.0 - smoothstep(0.82, 1.0, life)) * on;
       // Head: distance from the ray to the bomb.
       float tq = dot(h0 - ro, rd);
       float sigH = max(size, gPix * tq * 1.2);
       float head = exp(-sq(length(ro + rd * tq - h0) / sigH)) * sq(size / sigH) * 2.5 * step(tq, t + 0.05);
       vec3 glow = mrHeat(T) * head;
-      // Trail: three chords of the parabola behind the head.
-      vec3 hp = h0;
-      for (int k = 1; k <= 3; ++k) {
-        if (!big && k == 3) break;
-        vec3 hn = mrBomb(p0, v0, max(tt - trail * float(k), 0.0));
-        vec3 sg = mrRaySeg(ro, rd, hn, hp);
-        float sw = size * (1.0 - 0.22 * float(k));
-        float sig = max(sw, gPix * sg.y * 1.2);
-        float along = mix(1.0 - 0.3 * float(k), 1.0 - 0.3 * float(k - 1), sg.z);
-        glow += mrHeat(T - 0.08 * float(k)) * exp(-sq(sg.x / sig)) * (sw / sig) * along * 0.6 * step(sg.y, t + 0.05);
-        hp = hn;
+      // Large tails follow one exact parabola: the head can already be
+      // falling while the cooling ember wake still curves over the apex.
+      vec3 sg;
+      if (big) sg = mrRayArc(ro, rd, p0, v0, max(tt - 3.0 * trail, 0.0), tt);
+      else {
+        // Fine short spray retains two cheap chords (each deviates from
+        // its parabola by <= .009 world units), not the long-arc solver.
+        vec3 mid = mrBomb(p0, v0, max(tt - trail, 0.0));
+        vec3 tailP = mrBomb(p0, v0, max(tt - 2.0 * trail, 0.0));
+        vec3 s0 = mrRaySeg(ro, rd, tailP, mid), s1 = mrRaySeg(ro, rd, mid, h0);
+        s0.z *= 0.5; s1.z = 0.5 + 0.5 * s1.z;
+        sg = s0.x < s1.x ? s0 : s1;
       }
+      float sw = size * mix(0.22, 0.82, sg.z);
+      float sig = max(sw, gPix * sg.y * 1.2);
+      float tail = exp(-sq(sg.x / sig)) * (sw / sig) * smoothstep(0.0, 0.65, sg.z);
+      glow += mrHeat(min(T, 1.08) - 0.22 * (1.0 - sg.z)) * tail * 0.9 * step(sg.y, t + 0.05);
       add += glow * fade * (1.0 + 0.6 * u_rhythm.z);
     }
   }
