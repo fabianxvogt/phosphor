@@ -9,6 +9,8 @@ import {
   CENTER,
   FORM,
   FOCAL_RISE,
+  FRAME_GAIN,
+  MORPH_FIT,
   HALF,
   HANG,
   HOLD,
@@ -91,7 +93,8 @@ test("the shaders are built from the model's constants", () => {
     `RREACH=${RING.reach}`,
     `TC=${Math.cos(TILT).toFixed(7)}`,
     `vec2 dims=vec2(${SURFACE_COLS}.,${SURFACE_ROWS}.);`,
-    `FOCAL+${FOCAL_RISE}*sst(1.,2.,DEV)`,
+    `FOCAL+(${FOCAL_RISE}+fit)*peak`,
+    `dot(w,vec4(${FRAME_GAIN.map(x => x === 0 ? "0." : String(x)).join(",")}))+${MORPH_FIT}*(1.-dot(w,w))`,
     `rs=clamp(.55*sqrt(length(du)*length(dv)),.014,.055)`,
     `crest=max(rp,0.)*sst(0.,.06,kick/max(gain,1e-5))`,
   ])
@@ -426,7 +429,9 @@ test("all four peak forms fill the short side, stay above the mirror and fit por
   const dot = (a, b) => a.reduce((s, v, k) => s + v * b[k], 0);
   const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
   const norm = (a) => a.map((v) => v / Math.hypot(...a));
-  for (let M = 0.3; M < 4; M++) for (let a = 0; a < TAU; a += 1.2) for (let Phi = 0; Phi < TAU; Phi += 1.2) {
+  // Include the blends, not just holds: the old framing missed a 52%
+  // saddle→sphere midpoint while its four held-form tests still passed.
+  for (let M = 0.1; M < 4; M += 0.15) for (let a = 0; a < TAU; a += 0.9) for (let Phi = 0; Phi < TAU; Phi += 0.9) {
     const { eye, target } = camera(2, a);
     const F = norm(sub(target, eye)), R = norm(cross(F, [0, 1, 0])), U = cross(R, F);
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -434,15 +439,33 @@ test("all four peak forms fill the short side, stay above the mirror and fit por
       const b = ball(index % N, Math.floor(index / N), { ...base, dev: 2, M, Phi, seed: 0, detail: 1 });
       assert.ok(b.p[1] - b.r * 1.5 > 0, `floor clearance ${M}/${a}/${Phi}`);
       const c = sub(b.p, eye), z = dot(c, F);
-      const x = dot(c, R) / z * focalLength(2), y = dot(c, U) / z * focalLength(2);
+      const x = dot(c, R) / z * focalLength(2, 0, M), y = dot(c, U) / z * focalLength(2, 0, M);
       x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
     }
     const extent = Math.max(x1 - x0, y1 - y0) / 2;
-    // Conservative allowance for the saddle's narrowest viewing angle.
-    assert.ok(extent > 0.57 && extent < 0.85, `short-side extent ${extent}`);
+    // The full cycle, including narrow intermediate forms, meets the
+    // short-side hero bound without changing any sphere's position.
+    assert.ok(extent > 0.55 && extent < 0.85, `short-side extent ${extent}, ${M}/${a}/${Phi}`);
     assert.ok(Math.max(Math.abs(y0), Math.abs(y1)) < 0.99, `portrait edge ${y0}/${y1}`);
   }
   for (const dev of [0, 0.4, 1, 1.4, 2]) close(focalLength(dev, 1) / focalLength(dev, 0), 1.02, 1e-12);
+});
+
+test("the lens fit is smooth, periodic and threads are culled only after fading to zero", () => {
+  for (let M = 0; M < 4; M += 0.007) {
+    close(focalLength(2, 0, M), focalLength(2, 0, M + 4), 1e-12);
+    close(focalLength(2, 0, M, 6006), focalLength(2, 0, M + 2), 1e-12);
+    assert.ok(focalLength(2, 0, M) >= 1.62 - 1e-12 && focalLength(2, 0, M) < 1.8);
+    assert.ok(Math.abs(focalLength(2, 0, M + 0.0001) - focalLength(2, 0, M)) < 0.0002);
+    close(focalLength(0, 0, M), 1.4, 1e-12);
+    close(focalLength(2, 1, M) / focalLength(2, 0, M), 1.02, 1e-12);
+  }
+  assert.match(scene.geometry.vertex, /if\(a_kind>1\.5&&sig>=1\.\)/);
+  assert.match(scene.geometry.vertex, /v_focal=Fk;/);
+  assert.match(scene.geometry.fragment, /pixA=2\.\/\(v_focal\*/);
+  assert.match(scene.fragment, /if\(peak<=0\.\)return FOCAL/);
+  assert.match(scene.geometry.fragment, /1\.-sst\(\.9,1\.,v_info\.z\)/);
+  assert.ok(scene.geometry.vertex.indexOf("a_kind>1.5&&sig>=1.") < scene.geometry.vertex.indexOf("vec3 p=sculpt"));
 });
 
 test("haze glow: the closed form equals numeric integration", () => {
