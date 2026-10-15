@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import soap, {
   filmReflectance,
+  filmThickness,
+  filmPalettePosition,
   PLATEAU_SITES,
   PLATEAU_BORDER_ANGLE,
 } from "../scene-soap.mjs";
@@ -140,6 +142,70 @@ test("reflectance is bounded, even in angle, and approaches a bright grazing fil
   assert.match(soap.fragment, /vec3 iridescence=palette\(/);
 });
 
+test("draining films have a black cap, thick lower reservoir and a smooth periodic vortex", () => {
+  let upper = 0,
+    lower = 0;
+  for (let i = 0; i < 64; i++) {
+    const flow = (i * 2 * Math.PI) / 64;
+    const options = { flow, drain: flow, drainage: 0.65 };
+    upper += filmThickness([0, 1, 0], options);
+    lower += filmThickness([0, -1, 0], options);
+    assert.ok(filmThickness([0, 1, 0], options) < 25);
+    for (const q of [
+      [0.17, -0.12, 0.4],
+      [0.7, 0.1, -0.3],
+      [-0.4, -0.5, 0.2],
+    ]) {
+      const d = filmThickness(q, options);
+      assert.ok(d >= 6 && d < 1800);
+      near(
+        d,
+        filmThickness(q, {
+          ...options,
+          flow: flow + 2 * Math.PI,
+          drain: flow + 2 * Math.PI,
+        }),
+        1e-9,
+      );
+      const adjacent = filmThickness(add(q, [1e-7, 0, 0]), options);
+      assert.ok(Math.abs(adjacent - d) < 0.01, "no vortex/chart seam");
+      const pulse = filmThickness(q, { ...options, rhythm: 1 });
+      assert.ok(pulse >= d && pulse <= d * 1.075 + 1e-10);
+    }
+  }
+  assert.ok(
+    lower / upper > 60,
+    "gravity drains the upper cap, not the lower reservoir",
+  );
+  assert.match(soap.fragment, /float height=q\.y\+\.28\*curl/);
+  assert.match(
+    soap.fragment,
+    /sin\(12\.0\*height\+flowPhase\)/,
+    "positive phase carries fringes downwards",
+  );
+  assert.match(soap.fragment, /\(\.015\+\.985\*blackCap\)/);
+});
+
+test("optical thickness traverses the full palette without a sawtooth wrap", () => {
+  const bins = [0, 0, 0];
+  for (let d = 6; d <= 1500; d++) {
+    const t = filmPalettePosition(d, 0.8);
+    assert.ok(t >= 0.02 && t <= 0.98 + 1e-12);
+    bins[t < 0.3 ? 0 : t < 0.8 ? 1 : 2]++;
+    assert.ok(Math.abs(t - filmPalettePosition(d + 0.001, 0.8)) < 0.001);
+  }
+  assert.ok(
+    bins.every((n) => n > 150),
+    `all palette regions must be present: ${bins}`,
+  );
+  assert.match(
+    soap.fragment,
+    /palette\(\.02\+\.79\*fringe\+\.17\*pow\(fringe,12\.0\)\)/,
+  );
+  assert.match(soap.fragment, /soapDefocus\(float t\)/);
+  assert.match(soap.fragment, /filmCentre=centre;filmScale=max\(size,\.001\)/);
+});
+
 test("every tetrahedral triple carries three equal-tension films at 120 degrees", () => {
   for (let a = 0; a < 4; a++)
     for (let b = a + 1; b < 4; b++)
@@ -251,34 +317,40 @@ test("identity survives every development value, energy, reversal and stationary
 test("the camera remains outside every film over its full closed orbit", () => {
   for (const preset of soap.presets)
     for (const level of [0.1, 0.9])
-      for (let step = 0; step < 32; step++) {
-        const phase = (2 * Math.PI * step) / 32,
-          dev = preset.params.development;
-        const f = smooth(0, 1, dev),
-          cathedral = smooth(1, 2, dev),
-          h = (preset.params.elevation - 0.5) * 1.2;
-        const az = 0.13 * Math.sin(phase);
-        const ro = [
-          Math.sin(az) * (6.3 + 2.1 * f),
-          h + 0.18 * Math.sin(2 * phase) + 0.16 * cathedral * Math.sin(phase),
-          6.3 + 2.1 * f - 2.9 * cathedral,
-        ];
-        for (const c of cells(
-          dev,
-          preset.seed,
-          phase,
-          phase,
-          level,
-          preset.params.chamber,
-        ))
-          assert.ok(
-            length(sub(ro, c.c)) > c.r + 0.1,
-            `${preset.name} camera inside ${c.id}`,
-          );
-      }
+      for (let k = 0; k <= 20; k++)
+        for (let step = 0; step < 32; step++) {
+          const phase = (2 * Math.PI * step) / 32,
+            dev = k / 10;
+          const f = smooth(0, 1, dev),
+            cathedral = smooth(1, 2, dev),
+            h = (preset.params.elevation - 0.5) * 1.2;
+          const az = (0.13 + 0.1 * cathedral) * Math.sin(phase);
+          const ro = [
+            Math.sin(az) * (5.4 + 3.0 * f),
+            h + 0.18 * Math.sin(2 * phase) + 0.16 * cathedral * Math.sin(phase),
+            5.4 + 3.0 * f - 2.9 * cathedral,
+          ];
+          for (const c of cells(
+            dev,
+            preset.seed,
+            phase,
+            phase,
+            level,
+            preset.params.chamber,
+          ))
+            assert.ok(
+              length(sub(ro, c.c)) > c.r + 0.1,
+              `${preset.name} camera inside ${c.id}`,
+            );
+        }
   assert.match(soap.fragment, /1\.0\+\.018\*u_kick/);
   assert.match(soap.fragment, /float footprint=max\(tc\*pixel\/1\.85,\.0001\)/);
-  assert.match(soap.fragment, /float thickness=max\(20\.0,/);
+  assert.match(soap.fragment, /float thickness=max\(6\.0,/);
+  const diameter = (2 * 1.85) / Math.sqrt(5.4 ** 2 - 1);
+  assert.ok(
+    diameter >= 0.5 && diameter <= 0.7,
+    "Bubble fills 50–70% of the short side",
+  );
 });
 
 test("all signature gestures are bounded 4/8/16-beat effects, and time stays continuous for 12 hours", () => {
@@ -306,12 +378,24 @@ test("all signature gestures are bounded 4/8/16-beat effects, and time stays con
   assert.ok(soap.clocks.every((c) => c.period === 2 * Math.PI));
 });
 
-test("all eight presets validate; the final authored world is continuous with identical state identity", () => {
+test("all eight presets validate; the authored world is found by id and has continuous state identity", () => {
   assert.equal(soap.number, 113);
   assert.equal(soap.development, "development");
   assert.equal(soap.presets.length, 8);
   assert.deepEqual(soap.type.values, [0, 1, 2]);
-  assert.equal(new Set(soap.presets.map((p) => p.name)).size, 8);
+  assert.deepEqual(
+    soap.presets.map((p) => p.name),
+    [
+      "Bubble",
+      "Cluster",
+      "Foam",
+      "Pearl Vessel",
+      "Tidal Glass",
+      "Quiet Junction",
+      "Opal Nave",
+      "Black Pearl",
+    ],
+  );
   for (const preset of soap.presets)
     for (const f of soap.schema)
       assert.ok(
@@ -328,9 +412,8 @@ test("all eight presets validate; the final authored world is continuous with id
     identity(states[0]),
     identity(states[0]),
   ]);
-  const world = defaultWorlds(catalogLooks(scenes).map((l) => l.id)).find(
-    (w) => w.id === "soap-cathedral",
-  );
+  const worlds = defaultWorlds(catalogLooks(scenes).map((l) => l.id));
+  const world = worlds.find((w) => w.id === "soap-cathedral");
   assert.equal(world.id, "soap-cathedral");
   assert.deepEqual(
     world.states.map((s) => s.name),
