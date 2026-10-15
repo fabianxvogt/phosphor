@@ -19,8 +19,8 @@ void stSetup() {
   stPhase = u_time * u_params[1] * 0.16;
   stCamera = u_time * u_params[6] * 0.035;
 #endif
-  stEye = vec3(1.6 * sin(stCamera), 4.8 + u_params[5] * 1.6 + 0.18 * sin(2.0 * stCamera), -12.5 + 0.7 * cos(stCamera));
-  vec3 target = vec3(0, mix(3.0, 4.6, stRise) * u_params[2], 3.5);
+  stEye = vec3(1.2 * sin(stCamera), 1.15 + u_params[5] * 0.9 + 0.12 * sin(2.0 * stCamera), mix(-10.5,-6.7,stSuper) + 0.5 * cos(stCamera));
+  vec3 target = vec3(0, mix(3.1, 6.6, stRise) * u_params[2], 5.5);
   stF = normalize(target - stEye);
   stR = normalize(cross(stF, vec3(0,1,0))); stU = cross(stR, stF);
 }
@@ -40,11 +40,14 @@ vec3 stBranch(int network, int branch, int n) {
     (stRand(network,190+branch*8+n)-stRand(network,190+branch*8))*0.1);
 }
 vec3 stWorld(vec3 p, int network) {
-  float side = network == 0 ? -1.0 : 1.0;
+  float side = network%2 == 0 ? -1.0 : 1.0;
+  if (network >= 2) return vec3(side*(-6.5+p.y*13.0+p.x*4.0),
+    (mix(3.1,5.8,stRise)-stSuper*1.9+p.y*0.35+sin(p.y*9.0)*0.35*stRise+p.z*3.0)*u_params[2],
+    4.2+float(network-2)*0.8+p.z*4.0);
   float offset = float(network) * 0.65;
-  return vec3(side * (0.65 + p.x * 3.6 + p.y * mix(3.4, 1.1 + offset, stSuper)),
-    (mix(3.1, 6.2 + offset, stRise) - p.y * mix(0.6, 6.2 + offset, stSuper)) * u_params[2],
-    3.7 + float(network) * 0.7 + p.z * 3.2);
+  return vec3(side * (0.8 + p.x * 5.0 + p.y * mix(8.0, 2.0 + offset, stSuper)),
+    (mix(3.1, 8.6 + offset, stRise) - p.y * mix(0.6, 8.6 + offset, stSuper)) * u_params[2],
+    5.1 + float(network) * 0.8 + p.z * 3.2);
 }
 void stSegment(int i, out vec3 a, out vec3 b, out float weight) {
   int network = i / 30, local = i % 30;
@@ -58,7 +61,7 @@ void stSegment(int i, out vec3 a, out vec3 b, out float weight) {
   a = stWorld(a, network); b = stWorld(b, network);
 }
 vec4 stDatum(int i, int row) {
-  if (i >= 60) return vec4(0);
+  if (i >= 120) return vec4(0);
   vec3 a, b; float weight; stSegment(i, a, b, weight);
   if (row == 0) return vec4(stProject(a), stProject(b));
   if (row == 1) return vec4(a, weight);

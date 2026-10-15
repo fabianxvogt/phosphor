@@ -3,7 +3,7 @@
 export const TRUNK_STEPS = 18;
 export const BRANCHES = 3;
 export const BRANCH_STEPS = 4;
-export const SEGMENTS = 2 * (TRUNK_STEPS + BRANCHES * BRANCH_STEPS);
+export const SEGMENTS = 4 * (TRUNK_STEPS + BRANCHES * BRANCH_STEPS);
 export const BRANCH_PROBABILITY = 0.78;
 export function hash(x) {
   x = (x ^ (x >>> 16)) >>> 0;
@@ -72,13 +72,24 @@ export function leaderSegment(seed, index) {
 export function worldPoint(p, network, development, height = 1) {
   const rise = smooth(0, 1, development),
     supercell = smooth(1, 2, development);
-  const side = network === 0 ? -1 : 1;
+  const side = network % 2 === 0 ? -1 : 1;
+  if (network >= 2)
+    return [
+      side * (-6.5 + p[1] * 13 + p[0] * 4),
+      (mix(3.1, 5.8, rise) -
+        supercell * 1.9 +
+        p[1] * 0.35 +
+        Math.sin(p[1] * 9) * 0.35 * rise +
+        p[2] * 3) *
+        height,
+      4.2 + (network - 2) * 0.8 + p[2] * 4,
+    ];
   const offset = network * 0.65;
   return [
-    side * (0.65 + p[0] * 3.6 + p[1] * mix(3.4, 1.1 + offset, supercell)),
-    (mix(3.1, 6.2 + offset, rise) - p[1] * mix(0.6, 6.2 + offset, supercell)) *
+    side * (0.8 + p[0] * 5 + p[1] * mix(8, 2 + offset, supercell)),
+    (mix(3.1, 8.6 + offset, rise) - p[1] * mix(0.6, 8.6 + offset, supercell)) *
       height,
-    3.7 + network * 0.7 + p[2] * 3.2,
+    5.1 + network * 0.8 + p[2] * 3.2,
   ];
 }
 export function lightningGraph(seed, development = 0, height = 1) {
