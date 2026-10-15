@@ -115,12 +115,14 @@ DJelly dJelly(int i, float dev, float Z, float swarmParam, float rhythmX) {
   j.swarm = i >= D_NJ;
   if (!j.swarm) {
     bool lone = i < 5;
-    float z = fract(float(i) * .618034 + .37 + .05 * dRnd(id, 1u)) * D_PERIOD;
+    // A seeded foreground sentinel is already ahead when this water loads.
+    float z = i == 0 ? mod(float(dHash(u_seedBits)) * (D_PERIOD / 4294967296.) + 12., D_PERIOD)
+      : fract(float(i) * .618034 + .37 + .05 * dRnd(id, 1u)) * D_PERIOD;
     float h5 = dRnd(id, 5u), h3 = dRnd(id, 3u);
-    j.R = lone ? .9 + .15 * h5 : .3 + .45 * h5 * h5;
+    j.R = lone ? 1.25 + .2 * h5 : .3 + .45 * h5 * h5;
     float side = dRnd(id, 2u) < .5 ? -1. : 1.;
-    float gap = 1.9 + j.R + (lone ? .3 + 1.2 * h3 : 4.5 * h3 * sqrt(h3));
-    anchor = vec3(dCamX(z) + side * gap, dSettle(lone ? .8 + 1.4 * dRnd(id, 4u) : -1.3 + 4. * dRnd(id, 4u), dev), z);
+    float gap = 1.9 + j.R + (lone ? .55 + 1.2 * h3 : 4.5 * h3 * sqrt(h3));
+    anchor = vec3(dCamX(z) + side * gap, dSettle(lone ? .6 + .9 * dRnd(id, 4u) : -1.3 + 4. * dRnd(id, 4u), dev), z);
     birth = lone ? -1. : .3 + .65 * dRnd(id, 6u);
     j.reveal = lone ? 1. : dSS(birth - .25, birth + .05, dev);
   } else {
@@ -574,8 +576,8 @@ void main() {
       // Seabed: dark sediment, glow pools around the reef, caustics.
       float grain = h1(floor(v_w.x * 9.) + floor(v_w.z * 9.) * 57.);
       col = mix(u_secondary, vec3(.55), .5) * .01 * (.75 + .5 * grain) * (.4 + .6 * N.y);
-      col += mix(dPal(.3 + .25 * rnd), u_secondary, .3) * v_i.z * .1 * glowP;
-      col += mix(u_secondary, vec3(1.), .45) * caust * .11 * max(N.y, 0.);
+      col += mix(dPal(.3 + .25 * rnd), u_secondary, .3) * v_i.z * .055 * glowP;
+      col += mix(u_secondary, vec3(1.), .45) * caust * .075 * max(N.y, 0.);
       // Edge of the seabed grid fades into the water.
       // Light waves sweep across the seabed as luminous rings.
       float ring = v_fade > .015 ? dWaveLight(v_l.xyz, dCycle(dWord(0), 1u) * D_PERIOD, dev, clamp(u_params[4], 0., 2.5)) : 0.;
@@ -637,7 +639,7 @@ void main() {
     float wave = exp(-pow((fract(r * .7 - t + rnd) - .5) * 5., 2.));
     vec3 cc = dPal(.12 + .38 * rnd);
     float fres = pow(1. - abs(dot(N, V)), 2.);
-    col = cc * (vein * (.32 + .9 * wave) + link * .14 * detail + .02 + .05 * fres + 1.4 * v_i.w * vein);
+    col = cc * (vein * (.32 + .9 * wave) + link * .14 * detail + .004 + .035 * fres + 1.4 * v_i.w * vein);
     col *= glowP * v_i.z * dSS(0., .05, r);
     outColor = vec4(col * keep, 1.);
     return;
@@ -704,8 +706,11 @@ void main() {
   float lobes = pow(.5 + .5 * cos(vv * 4.), 3.) * exp(-pow((u - .32) * 6., 2.));
   float ring = exp(-pow((u - con) * 7., 2.)) * con;
   vec3 core = accent > .5 ? mix(u_accent, vec3(1.), .1) : mix(jc, vec3(1.), .2);
-  col = jc * (.035 + .05 * u) + rimC * fres * .55 + rimC * margin * 1.2 + mix(rimC, vec3(1.), .4) * lights * 1.5;
-  col += jc * canals * .35 + core * lobes * (accent > .5 ? .9 : .45) + rimC * ring * .8;
+  float key = max(dot(N, normalize(vec3(-.4, .8, -.3))), 0.);
+  // Thin mesoglea: a dark transparent body, raking key and living canals.
+  // Keep the broad fresnel below the narrow emissive margin.
+  col = jc * (.012 + .022 * u + .035 * key) + rimC * fres * .24 + rimC * margin * .85 + mix(rimC, vec3(1.), .3) * lights * 1.5;
+  col += jc * canals * .7 + core * lobes * (accent > .5 ? .8 : .35) + rimC * ring * .5;
   col += rimC * (fres + margin) * 1.6 * v_l.w;
   // Beat-locked swarms flash as they contract.
   col *= v_i.z * glowP * (1. + .9 * con * beatLock);
@@ -803,6 +808,12 @@ void main() {
   // Contracting bells push the water: plankton around them light up.
   if (dev > .25) {
     for (int i = 0; i < D_NJ; i++) {
+      // Conservative axial broad phase, before pulse/tilt/hash work. The
+      // largest bell radius is 1.45 (others .75), with .7 axial drift.
+      float jz = i == 0 ? mod(float(dHash(u_seedBits)) * (D_PERIOD / 4294967296.) + 12., D_PERIOD)
+        : fract(float(i) * .618034 + .37 + .05 * dRnd(uint(i), 1u)) * D_PERIOD;
+      float dz = abs(mod(jz - Z - p.z + D_PERIOD * .5, D_PERIOD) - D_PERIOD * .5);
+      if (dz > (i < 5 ? 1.45 : .75) * 3. + .7) continue;
       DJelly j = dJelly(i, dev, Z, u_params[3], u_rhythm.x);
       if (j.reveal < .05) continue;
       vec3 jc = j.c;
