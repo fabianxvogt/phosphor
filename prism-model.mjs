@@ -2,7 +2,7 @@
 export const CAUCHY_A = 1.48;
 export const CAUCHY_B = 0.012;
 export const PRISM_COUNT = 19;
-export const SPECTRAL_SAMPLES = 13;
+export const SPECTRAL_SAMPLES = 41;
 export const refractiveIndex = (lambda, dispersion = 1) =>
   CAUCHY_A + (CAUCHY_B * dispersion) / (lambda * lambda);
 export const minimumDeviation = (apex, n) =>
@@ -77,6 +77,33 @@ export function tracePrism(lambda, dispersion = 1, slope = 0.34) {
   }
   return { points, direction, reflections };
 }
+// Independently follow the energy reflected at the first exit face.
+// A branch still undergoing TIR at its second exit is deliberately omitted.
+export function traceSecondary(lambda, dispersion = 1, slope = 0.34) {
+  const primary = tracePrism(lambda, dispersion, slope);
+  const entry = primary.points[1],
+    leave = primary.points[2];
+  const delta = leave.map((v, i) => v - entry[i]),
+    len = Math.hypot(...delta);
+  const d = delta.map((v) => v / len);
+  const h = intersectPrism(
+    entry.map((v, i) => v + d[i] * 1e-5),
+    d,
+  );
+  const cosine = d.reduce((s, v, i) => s + v * h.exit[i], 0);
+  const bounce = d.map((v, i) => v - 2 * cosine * h.exit[i]);
+  const next = intersectPrism(
+    leave.map((v, i) => v + bounce[i] * 1e-5),
+    bounce,
+  );
+  const exit = leave.map((v, i) => v + bounce[i] * (next.far + 1e-5));
+  const direction = refract(
+    bounce,
+    next.exit.map((v) => -v),
+    refractiveIndex(lambda, dispersion),
+  );
+  return { entry: leave, exit, bounce, normal: next.exit, direction };
+}
 export function traceLens(lambda, aperture = [0.65, 0]) {
   const norm = (v) => v.map((x) => x / Math.hypot(...v));
   const dot2 = (a, b) => a[0] * b[0] + a[1] * b[1];
@@ -125,8 +152,8 @@ export function prismPose(seed, id, development, phase = 0, spacing = 1) {
   if (!id)
     return {
       identity: ident,
-      center: [0, 1.55 + 0.6 * vault, 0],
-      scale: 2 - 0.35 * rise + 0.18 * vault,
+      center: [0, 1.55 + 0.25 * vault, -2.2 * vault],
+      scale: 2 - 0.35 * rise + 0.45 * vault,
       angle: 0.08 * Math.sin(phase),
       yaw,
     };
@@ -136,36 +163,55 @@ export function prismPose(seed, id, development, phase = 0, spacing = 1) {
     return {
       identity: ident,
       center: [
-        side * 1.75 * spacing * rise,
-        (2.15 + 1.05 * vault) * rise,
-        (Math.floor(lens / 2) - 0.5) * 3.5 * rise,
+        side * (1.75 - 0.7 * vault) * spacing * rise,
+        (2.15 + vault * (Math.floor(lens / 2) < 0.5 ? 1.05 : 3.15)) * rise,
+        ((Math.floor(lens / 2) - 0.5) * 3.5 * (1 - vault) - 1.2 * vault) * rise,
       ],
-      scale: (0.65 + 0.3 * vault) * rise,
+      scale: (0.65 + 0.04 * vault) * rise,
       angle: 0,
-      yaw: side * 0.35 + 0.1 * Math.sin(phase),
+      yaw: (side * 0.35 + 0.1 * Math.sin(phase)) * (1 - vault),
     };
   }
   const upper = id > 8,
     growth = upper ? vault : rise,
     bay = upper ? Math.floor((id - 9) / 2) : ident.bay;
   const side = ident.side;
+  if (upper) {
+    const theta = (id - 9) * 0.6283185307 + 0.06 * Math.sin(phase);
+    return {
+      identity: ident,
+      center: [
+        Math.cos(theta) * 2.45 * spacing * growth,
+        (4.25 + Math.sin(theta) * 2.45) * growth,
+        -1.5 * growth,
+      ],
+      scale: 0.82 * growth,
+      angle: theta + 3.48,
+      yaw: 0.05 * Math.sin(phase + ident.phase),
+    };
+  }
   const center = [
-    side * (upper ? 2.6 - 0.35 * bay : 2.65) * spacing * growth,
-    (upper ? 2.8 + bay * 0.43 : 1.05 + 0.12 * Math.sin(ident.phase)) * growth,
-    (bay - (upper ? 2 : 1.5)) * 1.65 * growth,
+    side * (upper ? 2.6 : 2.65 + 0.4 * vault) * spacing * growth,
+    (upper
+      ? 4.3 + 0.15 * bay
+      : 1.05 + 1.15 * vault + 0.12 * Math.sin(ident.phase)) * growth,
+    (bay - (upper ? 2 + 1.6 * vault : 1.5 + 0.9 * vault)) *
+      (1.65 + 0.95 * vault) *
+      growth,
   ];
   return {
     identity: ident,
     center,
-    scale: (upper ? 0.85 : 0.8) * growth,
+    scale: (upper ? 1.05 : 0.8) * growth,
     angle:
-      (upper ? side * (0.2 + bay * 0.035) : side * 0.12) +
+      (upper ? side * 0.16 : side * 0.12) +
       0.07 * Math.sin(phase + ident.phase),
     yaw:
       Math.atan2(
         -(bay - (upper ? 2 : 1.5)) * 1.65,
-        side * (upper ? 2.6 - 0.35 * bay : 2.65) * spacing,
+        side * (upper ? 2.6 : 2.65) * spacing,
       ) +
+      Math.PI * vault +
       0.08 * Math.sin(phase + ident.phase),
   };
 }
@@ -187,14 +233,69 @@ export const STRIDE = 10;
 export const LENS_COUNT = 4;
 export const LENS_SLICES = 48;
 export const LENS_RINGS = 8;
+export const ARCH_BAYS = 7;
+export const ARCH_SEGMENTS = 7; // column + six curved ribs, on each side
+export const ARCH_RIB_COUNT = ARCH_BAYS * ARCH_SEGMENTS * 2;
+export const ARCH_RAIL_COUNT = (ARCH_BAYS - 1) * 3;
+export const ARCH_COUNT = ARCH_RIB_COUNT + ARCH_RAIL_COUNT;
+export const VAULT_PANELS = (ARCH_BAYS - 1) * 12;
+export const ARCH_FIRST = PRISM_COUNT + LENS_COUNT;
 export const ADDITIVE_FROM =
-  PRISM_COUNT * 48 + LENS_COUNT * LENS_SLICES * LENS_RINGS * 12;
+  (PRISM_COUNT + ARCH_COUNT) * 48 +
+  LENS_COUNT * LENS_SLICES * LENS_RINGS * 12 +
+  VAULT_PANELS * 6;
+// Two equal circular arcs meet continuously at a pointed vault crown.
+export function archPoint(side, t, spacing = 1) {
+  const w = 3.3 * spacing,
+    x = w * (1 - t);
+  return [side * x, 2.3 + Math.sqrt(Math.max(0, 4 * w * w - (w + x) ** 2))];
+}
+export function archPose(id, development, spacing = 1) {
+  const index = id - ARCH_FIRST,
+    growth = smooth(1, 2, development);
+  if (index >= ARCH_RIB_COUNT) {
+    const rail = index - ARCH_RIB_COUNT,
+      side = (rail % 3) - 1;
+    return {
+      center: [
+        side * 3.3 * spacing * growth,
+        (side ? 2.3 : archPoint(1, 1, spacing)[1]) * growth,
+        (4.5 - Math.floor(rail / 3) * 3) * growth,
+      ],
+      scale: growth,
+      angle: 0,
+      stretch: [0.14, 0.14, 3 / 1.3],
+    };
+  }
+  const bay = Math.floor(index / 14);
+  const side = index % 14 < 7 ? -1 : 1,
+    step = index % 7;
+  const a = step
+    ? archPoint(side, (step - 1) / 6, spacing)
+    : [side * 3.3 * spacing, 0.04];
+  const b = step
+    ? archPoint(side, step / 6, spacing)
+    : archPoint(side, 0, spacing);
+  return {
+    center: [
+      (a[0] + b[0]) * 0.5 * growth,
+      (a[1] + b[1]) * 0.5 * growth,
+      (6 - bay * 3) * growth,
+    ],
+    scale: growth,
+    angle: -Math.atan2(b[0] - a[0], b[1] - a[1]),
+    stretch: [0.23, 0.23, Math.hypot(b[0] - a[0], b[1] - a[1]) / 1.3],
+  };
+}
 export function createGeometry(seed) {
   const data = [];
   const push = (p, n, id, kind, wavelength = 0, segment = 0) =>
     data.push(...p, ...n, id, kind, wavelength, segment);
-  for (const kind of [0, 4])
-    for (let id = 0; id < PRISM_COUNT; id++) {
+  for (const mirror of [false, true])
+    for (let index = 0; index < PRISM_COUNT + ARCH_COUNT; index++) {
+      const architectural = index >= PRISM_COUNT;
+      const id = architectural ? ARCH_FIRST + index - PRISM_COUNT : index;
+      const kind = architectural ? (mirror ? 6 : 5) : mirror ? 4 : 0;
       for (const z of [-0.65, 0.65])
         for (const i of [0, 1, 2])
           push([TRI[i][0], TRI[i][1], z], [0, 0, Math.sign(z)], id, kind);
@@ -241,6 +342,22 @@ export function createGeometry(seed) {
           }
         }
   }
+  // Faceted, thin glass infill encloses the ribs. The normal points into
+  // the nave; these are real world-space panes, not a background graphic.
+  for (let bay = 0; bay < ARCH_BAYS - 1; bay++)
+    for (const side of [-1, 1])
+      for (let step = 0; step < 6; step++) {
+        const a = archPoint(side, step / 6),
+          b = archPoint(side, (step + 1) / 6);
+        const dx = b[0] - a[0],
+          dy = b[1] - a[1],
+          len = Math.hypot(dx, dy);
+        const n = [(-side * dy) / len, (side * dx) / len, 0];
+        for (const [u, v] of corners) {
+          const p = u < 0 ? a : b;
+          push([p[0], p[1], 6 - bay * 3 - (v + 1) * 1.5], n, 0, 7);
+        }
+      }
   for (let id = 0; id < PRISM_COUNT; id++)
     for (let l = 0; l < SPECTRAL_SAMPLES; l++)
       for (let segment = 0; segment < 4; segment++)
@@ -250,6 +367,20 @@ export function createGeometry(seed) {
             [0, 0, 0],
             id,
             segment === 3 ? 2 : 1,
+            l / (SPECTRAL_SAMPLES - 1),
+            segment === 2 ? 2.5 : segment,
+          );
+  // Adjacent exact wavelength traces share their edges: the outgoing fan
+  // is a continuous dispersive sheet, not a stack of aliased laser lines.
+  for (let id = 0; id < PRISM_COUNT; id++)
+    for (let l = 0; l < SPECTRAL_SAMPLES - 1; l++)
+      for (const segment of [2, 5])
+        for (const [x, y] of corners)
+          push(
+            [x, y, 0],
+            [0, 0, 0],
+            id,
+            1,
             l / (SPECTRAL_SAMPLES - 1),
             segment,
           );
