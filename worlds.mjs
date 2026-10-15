@@ -189,7 +189,8 @@ const AUTHORED = [
   {
     id: "liquid-chrome",
     name: "Liquid Chrome",
-    description: "A black mirror pool grows a magnetic crown of sharp hexagonal spikes, then rises into a floating liquid-metal sculpture with orbiting chrome droplets.",
+    description:
+      "A black mirror pool grows a magnetic crown of sharp hexagonal spikes, then rises into a floating liquid-metal sculpture with orbiting chrome droplets.",
     states: [
       { name: "Pool", look: "ferro:Pool" },
       { name: "Crown", look: "ferro:Crown" },
@@ -210,7 +211,8 @@ const AUTHORED = [
   {
     id: "laser-grid",
     name: "Laser Grid",
-    description: "A wireframe horizon raises vector towers and folds into a vaulted tunnel of converging lasers. The same grid throughout.",
+    description:
+      "A wireframe horizon raises vector towers and folds into a vaulted tunnel of converging lasers. The same grid throughout.",
     states: [
       { name: "Horizon", look: "laser:Horizon" },
       { name: "Towers", look: "laser:Towers" },
