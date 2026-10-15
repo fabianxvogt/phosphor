@@ -1,80 +1,93 @@
 # Laser Grid / Lasergitter
 
-Family **105**, renderer `laser`, world `laser-grid`. Fragment-only: a hinged vector sheet, seeded wireframe towers and analytically integrated club lasers. No engine extension, simulation, volume march or reduced-resolution image pass.
+Family **105**, renderer `laser`, world `laser-grid`. A hinged vector landscape develops into a dense skyline and a vaulted club laser show. Full-resolution analytic rendering; no volume march, simulation, engine extension or reduced-resolution colour pass.
 
 ## Signature mathematics
 
-The original grid is five planar strips extruded along z: a floor of width 18, two 11-unit wings, and two `9 / cos(0.42)`-unit outer wings. Development 1→2 rotates the wings by `θ = smoothstep(1,2,d) π/2` and the outer wings by `φ = smoothstep(1,2,d) (π−0.42)`. The result is a pointed vault, closing exactly at x=0. Material coordinates survive every hinge, rather than dissolving between independent grids. Analytic ray/plane intersections supply the nearest surface, derivative-antialiased grid lines, four-cell architectural ribs and lit hinge rails.
+Five planar strips share one material grid: an 18-unit floor, two 11-unit wings, and two `9 / cos(0.42)`-unit outer wings. Development 1→2 rotates the wings by `smoothstep(1,2,d) π/2`, and the outer wings by `smoothstep(1,2,d) (π−0.42)`. The roof closes at x=0. Analytic ray/plane intersections retain material coordinates through the hinges. Footprint-filtered grid lines, four-cell ribs and hinge rails give the architecture its crisp vector identity.
 
-Twelve seed-derived towers share `(side, bay, hash(index, seed))` across all states. Heights grow with `smoothstep(0,1,d)`, then retract to 16% while riding the side-wing basis. In the vault they become wall relief. Ray/box intersections occlude the grid and laser volume; bright silhouette edges, floor bands and fine uprights reveal scale.
+**32 persistent towers** share `(side, bay, seed-derived height/footprint)` throughout development. Heights grow with `smoothstep(0,1,d)`, then retract to 16% while following the wing basis. Varied footprints, occupied window-row lines, uprights and antenna tips make a skyline rather than twelve identical boxes. Analytic box intersections provide opaque view occlusion. Lasers leave hot Gaussian impact dots on the nearest visible surface; their endpoints also stop at the developing floor/walls/roof.
 
-### Closed-form single scattering
+### Closed-form beam integral
 
-A finite beam has axis n, length L, transverse Gaussian radius w and longitudinal Gaussian radius `ell = 0.38 L`. Its density is
+A finite beam has axis n, length L, transverse Gaussian radius w and longitudinal Gaussian radius `ell = 0.38 L`:
 
 `rho(p) = exp(−|p_perp|²/(2w²) − z²/(2ell²))`, clipped to axial distance `[0,L]`.
 
-For view ray `p(t)=p0+t r`, define `c=r·n`, `z=p0·n`, `q=p0−zn`, `v=r−cn`, with p0 relative to the beam midpoint:
+For view ray `p(t)=p0+t r`, with p0 relative to the beam midpoint:
 
-- `A = (v·v/w² + c²/ell²)/2`
-- `B = q·v/w² + z c/ell²`
-- `tc = −B/(2A)`
-- `C = |q+v tc|²/(2w²) + (z+c tc)²/(2ell²)`
+- `c=r·n`, `z=p0·n`, `q=p0−zn`, `v=r−cn`
+- `A=(v·v/w²+c²/ell²)/2`, `B=q·v/w²+zc/ell²`
+- `tc=−B/(2A)`
+- `C=|q+v tc|²/(2w²)+(z+c tc)²/(2ell²)`
 
-The axial end planes, camera near plane and nearest opaque surface give `[lo,hi]`. With homogeneous camera extinction sigma, completing the square yields
+End planes, the camera near plane and nearest opaque surface give `[lo,hi]`. Beer extinction sigma is **inside** the integral:
 
 `I = exp(−C−sigma tc+sigma²/(4A)) sqrt(pi)/(2 sqrt(A)) [erf(sqrt(A)(hi−shift))−erf(sqrt(A)(lo−shift))]`
 
-where `shift=tc−sigma/(2A)`. This includes Beer attenuation inside the integral, not at a representative sample. The axial envelope keeps A positive even for exactly parallel rays. `lgErf` is Abramowitz–Stegun 7.1.26 (absolute error <1.5e−7). A 6-sigma candidate rejection discards at most `limit exp(−18)` before transmittance. A narrow integral is the laser core; a second, broader integral is its scattering sheath, with a bounded Henyey–Greenstein angular factor (`g=0.3`, normalization absorbed into gain). There are at most 17 beams, never ray steps.
+where `shift=tc−sigma/(2A)`. The axial envelope keeps A positive for parallel rays. The core retains Abramowitz–Stegun 7.1.26 (erf absolute error <1.5e−7); the soft sheath uses 7.1.25 (<4.7e−4), removing two exponentials. Both use the same closed-form integral. Six-sigma rejection discards at most `limit exp(−18)` before attenuation. A bounded Henyey–Greenstein phase function (`g=0.3`) weights the sheath. Core emission exceeds 1.0 on the float picture path and feeds bloom.
 
-The longitudinal envelope is authored beam power falloff, not a simulated laser transport solution. There is no multiple scattering or geometry shadowing along the light-to-scatter path.
+There are at most **21 beams**: one horizon scanner, twelve façade/crossfire rays, and eight convergent cone spokes. The scanning liquid-sky plane is a finite analytic ray/plane crossing, softly filled and rippled. The finite cone has quadratic intersections, Beer-integrated interior fill and Gaussian scan bands. Two circular scan fronts make its mouth legible at projector scale. Those thin bands are centre-plane approximations, not a second volume march.
+
+## Exact geometry cache and bounds
+
+`scene-laser-data.mjs` supplies the same geometry to the picture and optional **32×41 RGBA32F** per-frame data pass (~20.5 KiB). It stores tower bounds/transforms, beam endpoints, camera-relative Gaussian coordinates, and a 32×32 screen-tile candidate mask. This is geometry data, never a cached low-resolution picture. It refreshes on every visual draw, including paused edits. Without float data targets the shader evaluates the same functions directly.
+
+Tower bounds are perspective extrema of all eight rotated box vertices, including the antenna tip. Beam bounds enclose the complete six-sigma capsule. For camera-space endpoint depths za, zb, radius R=2.4 and maximum projected endpoint norm S, a conservative screen radius is
+
+`r(u) = R (1+S) [(1−u)/za+u/zb] / (1−R/min(za,zb))`.
+
+Inverse depth is affine along the projected segment, so this radius tapers. A quadratic minimum tests the union of those discs; the tile test additionally includes its half-diagonal and AA margin. Candidate order is unchanged. Core bounds tighten by its physical radius. Below 180 px short-side output the shader conservatively retains all beam candidates, since the AA core can become wider than the physical sheath. Wire AA uses an analytic world footprint; façade calculations run only on actual box hits. Tiny impact-dot and scan-band tails are rejected before exponentials.
 
 ## States and looks
 
-The first three presets share seed **10501** and every parameter except development.
+The first three presets share seed **10501** and every non-development parameter. No IDs or names changed in round 2.
 
 | EN | DE | Development / composition |
 | --- | --- | --- |
-| Horizon | Horizont | 0: a single wireframe plane and one slowly scanning laser |
-| Towers | Türme | 1: twelve raised, ribbed towers and horizon fans |
-| Tunnel | Tunnel | 2: the same sheet folds into a cathedral; floor and ceiling banks cross through it |
+| Horizon | Horizont | 0: sparse vector plane, scanning laser, faint horizon haze and sheet |
+| Towers | Türme | 1: 32 varied towers, lit rows, antenna tips and bright façade strikes |
+| Tunnel | Tunnel | 2: the same sheet closes into a vault; crossfire, liquid sky and a convergent light tunnel |
 | Low Voltage | Niederspannung | 0.3: low viewpoint, coarse grid, slow broad haze |
-| Vector District | Vektorviertel | 1: tall towers, high viewpoint and fine façades |
-| Folded Chapel | Gefaltete Kapelle | 1.65: held-open wings, low eye, dense scattering |
-| Light Organ | Lichtorgel | 2: fine vault, narrow aperture and higher eye |
-| Afterimage Arcade | Nachbildarkade | 2: coarse vault, shallow relief, wide aperture and drifting view |
+| Vector District | Vektorviertel | 1: tall skyline, high viewpoint, fine façades |
+| Folded Chapel | Gefaltete Kapelle | 1.65: held-open wings and low viewpoint |
+| Light Organ | Lichtorgel | 2: fine vault, narrow aperture, higher eye |
+| Afterimage Arcade | Nachbildarkade | 2: coarse vault, shallow relief, wider aperture and drifting view |
 
 ## Energy, rhythm and camera
 
-Energy never multiplies picture gain. It changes sweep/glide rate by ×0.75→1.35, interleaved beam population, and the visibility of half-cell grid detail. Even at energy 0.1, both upper and lower banks survive in the tunnel; Horizon stays one beam at every energy.
+Energy changes sweep/glide rates (×0.75→1.35), interleaved beam population and half-cell grid detail, not picture gain. Four persistent cone spokes acquire four softly enveloped neighbours on the kick: multiplication is bounded by the 21-beam cap, with a nonzero pedestal instead of binary strobing. Low-energy Tunnel retains upper and lower banks. Horizon remains sparse at every energy.
 
-Three bounded family gestures: **Beam address / Strahladresse** (4 beats, one persistent beam receives an accent), **Aperture breath / Atmende Öffnung** (8 beats, ≤12% opening), **Vault rib / Gewölberippe** (16 beats, one narrow travelling material rib). Accent is otherwise absent from the static field. A kick changes focal length by at most **2%**. No roll, shake or flash.
+The three unchanged family gestures are **Beam address / Strahladresse** (4 beats, one beam receives accent), **Aperture breath / Atmende Öffnung** (8 beats, ≤12% opening), and **Vault rib / Gewölberippe** (16 beats, a narrow travelling material rib). Accent is otherwise absent from the static field. The kick changes focal length by at most **2%**.
 
-The camera follows a slow closed lateral/dolly/crane path: x±1.1, z=−9±1.8, eye±0.25. It looks toward the centre of the developing vault without cutting. The CPU test conservatively bounds every tower's x envelope outside the entire camera corridor, including maximum tower height. Portrait uses the short screen dimension for its ray footprint and FOV.
+The camera follows a slow closed lateral/dolly/crane path: x±1.1, z=−9±1.8, eye±0.25. No roll or cuts. Every tower remains ahead of the entire camera path, even at maximum footprint/height. Short-side ray footprints compose natively in landscape and portrait.
 
 ## Endlessness and continuity
 
-Two engine clocks integrate the parameter-dependent sweep and camera rates, both with period 2π. The authored branch uses the same rate products; the late branch uses clocks. Every trigonometric use is an integer harmonic, and phases are reduced before adding spatial/seed offsets. Development never enters the clocks, seed, tower indexing or camera phase. Reversal physically unfolds the sheet and lowers the same towers.
+Two engine clocks integrate sweep and camera rates with period 2π. The authored branches retain the corresponding rate products. Every trigonometric use is an integer harmonic; phases reduce before spatial/seed sums. Development never enters the clocks, tower identity or camera phase. Reversal unfolds the same material sheet and lowers the same towers.
 
-## Measured cost and verification
+## Cost and verification
 
-Apple M3 Pro / Chrome ANGLE Metal, synchronous whole-frame probe including post, 12 measured frames per state. Shared GPU, so these are indicative throughput figures, not display-cadence qualification.
+Apple M3 Pro / Chrome ANGLE Metal; synchronous whole-frame throughput including post, twelve measured frames per state. All films remain 960×540, and every rig process is headless.
 
 | State | 1080p p50 / p95 | 4K p50 / p95 |
 | --- | --- | --- |
-| Horizon | 3.3 / 3.4 ms | 13.2 / 14.0 ms |
-| Towers | 6.2 / 6.6 ms | 26.7 / 30.5 ms |
-| Tunnel | 6.9 / 7.2 ms | 25.1 / 26.3 ms |
+| Horizon | 2.2 / 2.5 ms | 5.4 / 5.7 ms |
+| Towers | 2.5 / 2.7 ms | 8.8 / 9.1 ms |
+| Tunnel | 3.0 / 3.2 ms | 11.3 / 11.7 ms |
 
-`tests/laser.test.mjs` pins shader arithmetic to a CPU mirror and independently integrates the original 3D density with 24,000-step Simpson quadrature. It covers widths 0.022–0.4, perpendicular/oblique/parallel/antiparallel rays, extinction, occlusion endpoints, rejection bounds, erf error, hinge joins/isometry, roof closure, seeded identity, reversibility, camera safety, preset bounds, continuous-world recognition, rhythm periods and late clock continuity.
+A separate 4K run across all eight looks peaked at **12.1 ms p50 / 12.7 ms p95**. The previous state measurements were 13.2 / 26.7 / 25.1 ms medians, with 30.5 ms p95 in Towers. An additional 84-case probe covers seven development positions, six times through 43,200 s and both resolutions at energy 0.95. Worst medians: **4.9 ms at 1080p, 14.3 ms at 4K**. Shared-machine wall-time tails reached **8.1 / 22.2 ms** respectively; this is not a hard per-frame ≤16 ms or dual-world venue-cadence guarantee.
 
-Native GPU checks: every look at energy 0.1 and 0.9 across 3600 s and 43,200 s (16 cases); built-in time-wrap probe also checks 4096 s and rate changes at two hours. No GL errors or non-finite uploads. Full-resolution 4K 12-hour still and 1080p low-energy one-hour still were read visually. Forward/reverse films, an extra look, portrait, the complete 24-cell ladder and three palettes (Phosphor, Glacier, Ember) were reviewed.
+`tests/laser.test.mjs` independently integrates the original 3D beam density with 24,000-step Simpson quadrature: narrow/broad beams, parallel/antiparallel rays, extinction, endpoint occlusion and rejection tails. It also checks both erf errors, prepared-coordinate equivalence, conservative tapered perspective bounds, exact float mask storage, hinge joins/isometry/roof closure, 32-tower identity and reversibility, surface-end clipping, cone Beer fill against numerical integration, camera safety, preset/world continuity, gesture bounds and late clocks.
 
-Evidence (uncommitted) is under `artifacts/films/laser-final`, `laser-extra`, `laser-palettes`, `laser-portrait`, `laser-reverse`, `laser-ladder` and `laser-fullres`. Three improvement rounds after v0: tower scale/façade definition and thinner cores; floor/ceiling crossfire and vault ribs; low-energy bank interleaving, fine grid, atmospheric separation, outer-edge fade and exact roof closure.
+Native GPU differential check: 24 cases spanning intermediate development, 19/3600/43,200 s and tiny thumbnails. Both an **unbounded beam path** and **uncached geometry fallback** differ by at most one 8-bit level; all three thumbnail cases are pixel-identical. Zero GL errors/non-finite uploads in the differential, state profiles and extended timing matrix. CPU suites/typecheck pass; native German/English UI i18n test passes.
 
-## Limits and integration
+Evidence under `artifacts/films/laser-r2-*`: v1/v2/v3 and final world films/contact strips, Ember extra look, Glacier reverse look, all-look energy ladder, three-palette stills and portrait/late-time captures. Performance JSON lives under `artifacts/performance/laser-r2-*`.
 
-- Deliberately restrained retro-vector material, not photoreal solid architecture. The open Horizon has a large black sky by design.
-- Smooth, homogeneous haze rather than turbulent smoke. Laser illumination of solid surfaces and light-path shadows are omitted; view occlusion is exact.
-- 4K is not a 60 Hz dual-world guarantee (peak whole-frame throughput is about 25–31 ms).
-- Generated previews and curated order are intentionally untouched per the wave-4 brief. Narrow test allowances cover only family numbers 101–105 pending integration; existing previews and editorial coverage remain validated. L0 must bake/curate after combining the lanes.
+## Limits
+
+- Deliberately graphic vector architecture, not photoreal buildings. Horizon retains a large dark sky for breakdowns.
+- Homogeneous/analytic haze and stylised scan bands, not turbulent smoke or multiple scattering.
+- View occlusion and folded-sheet endpoint clipping are analytic; full light-path shadowing through every tower is not simulated.
+- The standard states and all extended medians meet the timing targets; shared-GPU wall-time tails do not establish a strict worst-frame bound.
+- Catalog preview/curation generation remains L0's responsibility. No engine, control UI, ordering or catalog-test changes in round 2.
