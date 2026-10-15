@@ -271,8 +271,8 @@ function base(x, z) {
 }
 test("the camera orbit never enters the ground", () => {
   for (const line of [
-    "float R = mix(8.6, 9.4, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
-    "ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) + 0.9 * gErupt + 0.15 * wob;",
+    "float R = mix(mix(7.6, 8.6, gSplit), 9.4, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
+    "ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) * mix(0.8, 1.0, gSplit) + 0.9 * gErupt + 0.15 * wob;",
     "const float TOP_BOUND = 0.2;",
   ])
     assert.ok(src.includes(line), line);
@@ -281,27 +281,30 @@ test("the camera orbit never enters the ground", () => {
     for (const camH of [0, 0.5, 1])
       for (const wob of [-1, 0, 1])
         for (let az = 0; az < 2 * Math.PI; az += 0.02) {
-          const erupt = smooth(1.3, 2, dev);
-          const R = mix(8.6, 9.4, erupt) * (1 + 0.05 * wob) + 1.2 * camH;
+          const erupt = smooth(1.3, 2, dev),
+            split = smooth(0.08, 1, dev);
+          const R = mix(mix(7.6, 8.6, split), 9.4, erupt) * (1 + 0.05 * wob) + 1.2 * camH;
+          // Ejecta (which land within 7.37) fly only once the camera is back.
+          if (erupt > 0) assert.ok(R > 7.6, `camera radius ${R} during the eruption`);
           assert.ok(R < 19, "inside the plate field, far from the wall");
           const x = R * Math.cos(az),
             z = R * Math.sin(az);
-          const y = base(x, z) + mix(2.2, 6.6, camH) + 0.9 * erupt + 0.15 * wob;
+          const y = base(x, z) + mix(2.2, 6.6, camH) * mix(0.8, 1, split) + 0.9 * erupt + 0.15 * wob;
           least = Math.min(least, y - (base(x, z) + 0.2));
         }
-  assert.ok(least > 1.8, `clearance ${least}`);
+  assert.ok(least > 1.3, `clearance ${least}`);
 });
 
 // ------------------------------------------------------------- time
 test("clocks are the authored products and every use is periodic", () => {
-  assert.match(early, /gOrbit = u_time \* \(u_params\[5\] \* 0\.045\);/);
+  assert.match(early, /gOrbit = u_time \* \(u_params\[5\] \* 0\.07\);/);
   assert.match(early, /gFlow = u_time \* \(u_params\[1\] \* 0\.18\);/);
   assert.match(early, /gErPh = u_time \* \(\(0\.8 \+ 0\.45 \* clamp\(u_level, 0\.0, 1\.0\)\) \/ 3\.4\);/);
   assert.match(late, /gOrbit = u_clock\[0\];/);
   const p = magma.schema.map((f) => f.default);
   p[5] = 0.7;
   p[1] = 1.3;
-  assert.equal(magma.clocks[0].rate(p, 0.5), 0.7 * 0.045);
+  assert.equal(magma.clocks[0].rate(p, 0.5), 0.7 * 0.07);
   assert.equal(magma.clocks[1].rate(p, 0.5), 1.3 * 0.18);
   assert.equal(magma.clocks[2].rate(p, 0.4), (0.8 + 0.45 * 0.4) / 3.4);
   assert.deepEqual(

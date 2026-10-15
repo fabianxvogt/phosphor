@@ -95,7 +95,7 @@ const presets = [
 ];
 
 // Clock rates mirror the authored GLSL products exactly.
-const orbitRate = (p) => p[5] * 0.045; // rad/s, period 2π
+const orbitRate = (p) => p[5] * 0.07; // rad/s, period 2π
 const flowRate = (p) => p[1] * 0.18; // flow-layer cycles/s, period 16
 const eruptRate = (p, level) =>
   (0.8 + 0.45 * Math.min(1, Math.max(0, level))) / CYCLE_SECONDS; // cycles/s, period 64
@@ -223,7 +223,7 @@ Plate mrPlates(vec2 q, float wScale) {
   }
   // Seam half-width is a smooth field (wide along the river channels), so
   // the band edge border − width is continuous across every seam.
-  float width = wScale * (0.22 + 3.0 * mrRiver(q * gS));
+  float width = wScale * (0.22 + 3.0 * mrRiver(q * gS)) * (0.55 + 0.9 * mrNoise(q * 0.45 + 17.0));
   vec2 oA = vec2(float(bi % 3) - 1.0, float(bi / 3) - 1.0);
   Plate P;
   P.cellA = ic + oA;
@@ -299,8 +299,9 @@ float mrBound(vec2 x) { return mrBase(x) + TOP_BOUND * mrPlateMask(length(x)); }
 // (r, θ) the flow is a constant shift in r: two layers, reseeded at zero
 // weight with a counter id (mod 16), stream forever without shear. The
 // lattice is periodic in θ (96 cells around), so there is no seam at ±π.
-float mrFlowNoise(float r, float th, float salt) {
-  float sum = 0.0, wsum = 0.0;
+vec2 mrFlowNoise(float r, float th, float salt) {
+  vec2 sum = vec2(0.0);
+  float wsum = 0.0;
   for (int k = 0; k < 2; ++k) {
     float ph = gFlow + 0.5 * float(k);
     float tau = fract(ph);
@@ -310,10 +311,13 @@ float mrFlowNoise(float r, float th, float salt) {
     vec2 pp = vec2(r * 1.5 - tau * 2.4 + o, th * (96.0 / TAU));
     float n = 0.55 * mrNoiseP(pp, 96.0) + 0.3 * mrNoiseP(vec2(pp.x * 2.0 + 5.1, pp.y * 2.0), 192.0)
             + 0.15 * mrNoiseP(vec2(pp.x * 4.0 + 1.7, pp.y * 4.0), 384.0);
-    sum += w * (n - 0.5);
+    // Ropy folds across the flow (pahoehoe), carried with the crust.
+    float rope = sin(pp.x * 9.0 + 5.0 * n);
+    sum += w * vec2(n - 0.5, rope);
     wsum += w * w;
   }
-  return 0.5 + sum / sqrt(max(wsum, 1e-3));
+  sum /= sqrt(max(wsum, 1e-3));
+  return vec2(0.5 + sum.x, sum.y);
 }
 
 // ------------------------------------------------------------------ helpers
@@ -366,7 +370,7 @@ void main() {
   gFlow = u_clock[1];
   gErPh = u_clock[2];
 #else
-  gOrbit = u_time * (u_params[5] * 0.045);
+  gOrbit = u_time * (u_params[5] * 0.07);
   gFlow = u_time * (u_params[1] * 0.18);
   gErPh = u_time * ((0.8 + 0.45 * clamp(u_level, 0.0, 1.0)) / ${CYCLE_SECONDS.toFixed(1)});
 #endif
@@ -385,10 +389,10 @@ void main() {
                   float(seedHash(uint(int(pk) + 1) ^ 0x51ed27u) >> 8u) / 16777216.0,
                   smoothstep(0.55, 1.0, fract(phrase))) * 2.0 - 1.0;
   float camH = clamp(u_params[6], 0.0, 1.0);
-  float R = mix(8.6, 9.4, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;
+  float R = mix(mix(7.6, 8.6, gSplit), 9.4, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;
   vec3 ro = vec3(R * cos(az), 0.0, R * sin(az));
-  ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) + 0.9 * gErupt + 0.15 * wob;
-  vec3 target = vec3(0.0, gVent.y - mix(0.9, 1.6, camH) + 2.2 * gErupt, 0.0);
+  ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) * mix(0.8, 1.0, gSplit) + 0.9 * gErupt + 0.15 * wob;
+  vec3 target = vec3(0.0, gVent.y - mix(0.9, 1.6, camH) - 1.1 * (1.0 - gSplit) + 2.2 * gErupt, 0.0);
   // Keep the vent a little off-centre, alternating slowly.
   vec3 fw0 = normalize(target - ro);
   vec3 side = normalize(cross(fw0, vec3(0.0, 1.0, 0.0)));
@@ -511,13 +515,16 @@ void main() {
       // Lava: crust skins stream outward along the rivers, with hot seams
       // between them; banks are cooler than the channel centre.
       float th = atan(x.y, x.x);
-      float n = mrFlowNoise(r, th, 11.0);
-      float skin = smoothstep(0.55 + 0.08 * surge, 0.62, n);
-      float crack = exp(-sq((n - 0.555) / 0.02));
+      vec2 fn = mrFlowNoise(r, th, 11.0);
+      // Contrast-stretched: open incandescent lava, dull crust skins with
+      // ropy folds, and hot seams where skins tear apart.
+      float n = clamp((fn.x - 0.5) * 2.8 + 0.5, 0.0, 1.0);
+      float skin = smoothstep(0.48 - 0.1 * surge, 0.6, n) * gSplit;
+      float crack = (1.0 - smoothstep(0.0, 0.07, abs(n - 0.54))) * gSplit;
       float centre = sqrt(clamp(-Pl.gap / max(Pl.width * 0.8, 1e-3), 0.0, 1.0));
-      float T = min(seamT, 0.78) * (0.72 + 0.28 * centre + 0.1 * smoothstep(0.05, 0.2, Pl.width));
-      T *= (0.82 + 0.4 * (0.5 - n)) * (1.0 - 0.45 * skin * gSplit);
-      T += 0.1 * crack * gSplit * centre;
+      float T = min(seamT, 0.8) * (0.72 + 0.3 * centre + 0.08 * smoothstep(0.05, 0.2, Pl.width));
+      T *= mix(1.06, 0.52 + 0.08 * fn.y, skin);
+      T += 0.16 * crack * centre;
       if (lakeM > 0.01) {
         // The lake circulates: a rigid slow turn (one turn per 16 flow
         // cycles) carries a finer crust of floes with incandescent cracks.
