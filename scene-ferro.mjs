@@ -169,10 +169,14 @@ float ferroMap(vec3 p) {
   // exterior zero set, but keeps the entire field continuous on reversal.
   body = mix(-min(gRadii.x, gRadii.y), body, smoothstep(0.15, 0.5, k0));
   float shell = smoothstep(0.3, 0.8, k0);
-  float r = length(q.xz);
-  float ripple = gRipple * sin(17.0 * r - 2.0 * gPhase) *
-    exp(-0.45 * r * r) * smoothstep(0.0, 0.22, r) * smoothstep(0.0, 0.35, v.y);
-  return max(body - (gAmp * ferroProfile(v) + ripple) * shell, -p.y - 0.003);
+  float displacement = gAmp > 0.00001 ? gAmp * ferroProfile(v) : 0.0;
+  float ripple = 0.0;
+  if (gRipple > 0.00001) {
+    float r = length(q.xz);
+    ripple = gRipple * sin(17.0 * r - 2.0 * gPhase) *
+      exp(-0.45 * r * r) * smoothstep(0.0, 0.22, r) * smoothstep(0.0, 0.35, v.y);
+  }
+  return max(body - (displacement + ripple) * shell, -p.y - 0.003);
 }
 vec2 ferroBound(vec3 ro, vec3 rd, vec3 c, float r) {
   vec3 p = ro - c;
@@ -187,12 +191,26 @@ float ferroMarch(vec3 ro, vec3 rd) {
   float a = dot(v, v), b = dot(p, v), h = b * b - a * (dot(p, p) - 1.0);
   if (h < 0.0) return 100.0;
   vec2 bound = vec2(-b - sqrt(h), -b + sqrt(h)) / a;
-  float t = max(bound.x, 0.0);
-  for (int i = 0; i < 144; ++i) {
+  float t = max(bound.x, 0.0), previous = t;
+  for (int i = 0; i < 128; ++i) {
     if (t > bound.y) break;
     float d = ferroMap(ro + rd * t);
-    if (d < max(0.00045, t * gPixel * 0.24)) return t;
-    t += max(d * mix(0.7, 0.32, gForm), 0.0002);
+    if (d < max(0.00045, t * gPixel * 0.24)) {
+      // The displaced ellipsoid is a distance estimator, not an exact SDF.
+      // Bracket an overshoot before taking normals: otherwise shallow,
+      // strong-field crowns show stair-stepped interior intersections.
+      if (d < -0.00045) {
+        float lo = previous, hi = t;
+        for (int j = 0; j < 7; ++j) {
+          float mid = 0.5 * (lo + hi);
+          if (ferroMap(ro + rd * mid) > 0.0) lo = mid; else hi = mid;
+        }
+        return 0.5 * (lo + hi);
+      }
+      return t;
+    }
+    previous = t;
+    t += max(d * mix(0.7, 0.4, gForm), 0.0002);
   }
   return 100.0;
 }
@@ -208,7 +226,7 @@ float ferroBox(vec3 d, vec3 direction, float width, float height) {
   float z = dot(d, c);
   vec2 uv = vec2(dot(d, x), dot(d, y)) / max(z, 0.001);
   vec2 edge = abs(uv) - vec2(width, height);
-  float aa = max(gPixel * 3.0, 0.035);
+  float aa = max(gPixel * 3.0, 0.065);
   float panel = (1.0 - smoothstep(-aa, aa, max(edge.x, edge.y))) * step(0.0, z);
   return panel * (0.7 + 0.3 * exp(-dot(uv, uv) * 0.8));
 }
@@ -230,7 +248,7 @@ vec3 ferroStudio(vec3 d) {
   col += primary * 0.15 * exp(-sq((d.y - 0.06) / 0.09));
   return col;
 }
-vec3 ferroValley(vec3 p, vec3 n, vec3 rd, float profile) {
+vec3 ferroValley(vec3 p, vec3 n, vec3 rd) {
   if (gForm < 0.001) return vec3(1.0);
   vec3 reflected = reflect(rd, n);
   float nearD = ferroMap(p + reflected * 0.075);
@@ -239,8 +257,14 @@ vec3 ferroValley(vec3 p, vec3 n, vec3 rd, float profile) {
   // A single environment bounce about the carrier normal approximates
   // neighbouring chrome walls; no recursive ray march / extra normal.
   vec3 carrierNormal = normalize((p - gCentre) / (gRadii * gRadii));
-  vec3 bounce = ferroStudio(reflect(reflected, carrierNormal));
-  return mix(vec3(0.35) + bounce * 0.16, vec3(1.0), visibility);
+  vec3 bounceDirection = reflect(reflected, carrierNormal);
+  bounceDirection.xz = rot2(gStudio) * bounceDirection.xz;
+  // Only the low-frequency soft cards survive a rough neighbour bounce.
+  vec3 bounce = mix(u_secondary, vec3(1.0), 0.45) *
+    (0.08 + 0.55 * pow(max(dot(bounceDirection, normalize(vec3(0.4, 0.8, 0.6))), 0.0), 4.0));
+  bounce += mix(u_primary, vec3(1.0), 0.35) *
+    0.45 * pow(max(dot(bounceDirection, normalize(vec3(-0.8, 0.4, -0.4))), 0.0), 4.0);
+  return mix(vec3(0.35) + bounce * 0.22, vec3(1.0), visibility);
 }
 vec3 ferroMetal(vec3 p, vec3 n, vec3 rd, float cavity) {
   vec3 reflection = reflect(rd, n);
@@ -283,19 +307,19 @@ void main() {
   vec3 up = cross(right, fw);
   vec2 uv = aspectUV() / min(u_resolution.x / u_resolution.y, 1.0);
   float focal = mix(1.8, 2.05, gLift) * u_params[7] * (1.0 + 0.022 * u_kick);
-  vec3 accumulated = vec3(0.0);
-  // Two deterministic subpixel rays resolve sharp conductor glints. There
-  // is no temporal noise, so nothing shimmers when paused or at late times.
-  for (int sampleIndex = 0; sampleIndex < 2; ++sampleIndex) {
-  vec2 jitter = vec2(0.24, 0.19) * (sampleIndex == 0 ? -1.0 : 1.0) * gPixel;
-  vec3 rd = normalize(fw * focal + right * (uv.x + jitter.x) + up * (uv.y + jitter.y));
+  // One full-resolution ray. Pixel-scaled normals and angularly filtered
+  // studio cards resolve glints without duplicating the complete SDF path.
+  vec3 rd = normalize(fw * focal + right * uv.x + up * uv.y);
   vec3 col = u_secondary * (0.003 + 0.003 * exp(-dot(uv, uv) * 3.0));
 
-  // Analytic black mirror pool. The basin has no hard frame boundary.
+  float hit = ferroMarch(ro, rd);
+  bool mainHit = hit < 90.0;
+  // Analytic black mirror pool. Never shade / reflect pixels hidden by the
+  // primary sculpture. The basin has no hard frame boundary.
   float floorT = -ro.y / min(rd.y, -0.00001);
   vec3 floorP = ro + rd * floorT;
   float pool = 1.0 - smoothstep(2.1, 2.55, length(floorP.xz));
-  if (rd.y < -0.0001) {
+  if (rd.y < -0.0001 && !mainHit) {
     vec3 reflection = reflect(rd, vec3(0.0, 1.0, 0.0));
     float shadow = 1.0 - 0.8 * exp(-dot(floorP.xz, floorP.xz) / (1.6 + gLift));
     col += mix(u_secondary, vec3(1.0), 0.4) * (0.008 + 0.012 * pool) * shadow;
@@ -312,8 +336,6 @@ void main() {
     float rim = exp(-sq((length(floorP.xz) - 2.3) / 0.024));
     col += mix(u_primary, vec3(1.0), 0.4) * rim * 0.1;
   }
-  float hit = ferroMarch(ro, rd);
-  bool mainHit = hit < 90.0;
   vec3 normal = vec3(0.0);
   if (mainHit) {
     vec3 p = ro + rd * hit;
@@ -321,7 +343,7 @@ void main() {
     vec3 q = p - gCentre; q.xz = gRotation * q.xz;
     float profile = ferroProfile(q / gRadii);
     float cavity = mix(1.0, 0.62 + 0.38 * profile, gForm);
-    col = ferroMetal(p, normal, rd, cavity) * ferroValley(p, normal, rd, profile);
+    col = ferroMetal(p, normal, rd, cavity) * ferroValley(p, normal, rd);
     // A small hot reflection at the active tips, not an emissive paint coat.
     vec3 tipLight = normalize(vec3(cos(gStudio), 0.65, sin(gStudio)));
     float tip = smoothstep(0.38, 0.8, profile) *
@@ -346,9 +368,7 @@ void main() {
   }
   // Lens falloff is stable in portrait too; no output-aspect dependent crop.
   col *= 1.0 - 0.15 * smoothstep(0.6, 1.6, length(uv));
-  accumulated += col * 0.5;
-  }
-  outColor = vec4(max(accumulated, vec3(0.0)), 1.0);
+  outColor = vec4(max(col, vec3(0.0)), 1.0);
 }
 `;
 

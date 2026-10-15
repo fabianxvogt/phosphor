@@ -74,13 +74,13 @@ function field(
     smooth(0.15, 0.5, k0),
   );
   const shell = smooth(0.3, 0.8, k0);
+  const amp = form * (0.25 + 0.16 * lift) * fieldStrength;
+  const displacement = amp > 0.00001 ? amp * profile(v, lift, level) : 0;
+  const rippleAmp = (1 - form) * 0.006;
   const r = Math.hypot(q[0], q[2]);
-  const ripple = (1 - form) * 0.006 * Math.sin(17 * r - 2 * phase) *
-    Math.exp(-0.45 * r * r) * smooth(0, 0.22, r) * smooth(0, 0.35, v[1]);
-  return Math.max(
-    body - (form * (0.25 + 0.16 * lift) * fieldStrength * profile(v, lift, level) + ripple) * shell,
-    -p[1] - 0.003,
-  );
+  const ripple = rippleAmp > 0.00001 ? rippleAmp * Math.sin(17 * r - 2 * phase) *
+    Math.exp(-0.45 * r * r) * smooth(0, 0.22, r) * smooth(0, 0.35, v[1]) : 0;
+  return Math.max(body - (displacement + ripple) * shell, -p[1] - 0.003);
 }
 
 test("critical Rosensweig wavelength minimizes the capillary/gravity threshold", () => {
@@ -168,8 +168,9 @@ test("the shader remains pinned to the tested chart, lattice, profile and carrie
     "float body = k0 * (k0 - 1.0) / max(k1, 0.0001);",
     "body = mix(-min(gRadii.x, gRadii.y), body, smoothstep(0.15, 0.5, k0));",
     "float shell = smoothstep(0.3, 0.8, k0);",
-    "return max(body - (gAmp * ferroProfile(v) + ripple) * shell, -p.y - 0.003);",
-    "float ripple = gRipple * sin(17.0 * r - 2.0 * gPhase) *",
+    "float displacement = gAmp > 0.00001 ? gAmp * ferroProfile(v) : 0.0;",
+    "return max(body - (displacement + ripple) * shell, -p.y - 0.003);",
+    "ripple = gRipple * sin(17.0 * r - 2.0 * gPhase) *",
   ])
     assert.ok(ferro.fragment.includes(source), source);
   const chartSource = ferro.fragment.slice(
@@ -229,7 +230,38 @@ test("energy grows persistent lattice sites continuously without retiming the ch
     }
   assert.ok(active > dormant * 1.3, `${dormant} -> ${active}`);
   assert.match(ferro.fragment, /ferroMap\(p \+ reflected \* 0\.075\)/);
-  assert.match(ferro.fragment, /ferroStudio\(reflect\(reflected, carrierNormal\)\)/);
+  assert.match(ferro.fragment, /vec3 bounceDirection = reflect\(reflected, carrierNormal\);/);
+});
+
+test("overshot estimator hits are bracketed before shading, including strong-field crowns", () => {
+  assert.match(ferro.fragment, /float lo = previous, hi = t;/);
+  assert.match(ferro.fragment, /for \(int j = 0; j < 7; \+\+j\)/);
+  assert.match(ferro.fragment, /if \(ferroMap\(ro \+ rd \* mid\) > 0\.0\) lo = mid; else hi = mid;/);
+  // CPU mirror of the exact refinement, using actual crown fields rather
+  // than a generic sphere. Bracket error contracts by 2^-7.
+  let hits = 0;
+  for (const x of [-1.6, -1, -0.4, 0.3, 0.9, 1.6]) {
+    let previous = 3, before = field([x, previous, 0.2], 1, 0.7, 10103, 0.9, 1.2);
+    for (let y = 2.95; y >= 0; y -= 0.05) {
+      const d = field([x, y, 0.2], 1, 0.7, 10103, 0.9, 1.2);
+      if (before > 0 && d < 0) {
+        let lo = y, hi = previous;
+        for (let j = 0; j < 7; j++) {
+          const mid = (lo + hi) / 2;
+          if (field([x, mid, 0.2], 1, 0.7, 10103, 0.9, 1.2) > 0) hi = mid;
+          else lo = mid;
+        }
+        assert.ok(hi - lo <= 0.05 / 128 + 1e-12);
+        assert.ok(field([x, hi, 0.2], 1, 0.7, 10103, 0.9, 1.2) >= 0);
+        hits++;
+        break;
+      }
+      previous = y;
+      before = d;
+    }
+  }
+  assert.ok(hits >= 4);
+  assert.match(ferro.fragment, /if \(rd\.y < -0\.0001 && !mainHit\)/);
 });
 
 test("carrier camera bounds, kick and persistent droplets stay bounded", () => {
