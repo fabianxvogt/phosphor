@@ -287,16 +287,17 @@ vec2 hzJet(vec3 A, vec3 B) {
   // A collimated core inside a widening sheath; brightest near the base.
   float sheathW = 0.5 + 0.11 * y, coreW = 0.16 + 0.02 * y;
   // Most chords pass far from the axis: reject before any transcendentals.
-  if (y < 2.4 || y > 4.0 * gJetLen || dot(P.xz, P.xz) > 9.0 * sheathW * sheathW) return vec2(0.0);
+  if (y < 2.4 || y > 1.4 * gJetLen || dot(P.xz, P.xz) > 9.0 * sheathW * sheathW) return vec2(0.0);
   float lxz = sqrt(dd);
-  float along = smoothstep(2.4, 4.5, y) * exp(-y / gJetLen) * (1.0 + 2.0 * exp(-(y - 2.4) / 3.5));
+  float along = smoothstep(2.4, 4.5, y) * exp(-y / gJetLen) *
+    (1.0 - smoothstep(0.85 * gJetLen, 1.4 * gJetLen, y)) * (1.0 + 2.0 * exp(-(y - 2.4) / 3.5));
   // Knots travel outward on integer harmonics of the knot phase.
   // Sharp knots; energy raises their contrast (activity), not the mean.
   float knotWave = pow(0.5 + 0.5 * sin(0.42 * y - TAU * gKnot * 2.0), 3.0);
   float knots = mix(1.0, 0.45 + 1.6 * knotWave, 0.35 + 0.6 * gLevel);
   knots *= 0.8 + 0.2 * sin(0.17 * y - TAU * gKnot + 1.3);
   // Gesture: one bright knot ejected along both jets.
-  float burstY = 4.5 + 30.0 * (1.0 - u_rhythm.z);
+  float burstY = 4.5 + gJetLen * (1.0 - u_rhythm.z);
   knots += 2.5 * u_rhythm.z * exp(-sq((y - burstY) / 2.2));
   float span0 = sStar * lxz, span1 = (1.0 - sStar) * lxz;
   vec2 cover = vec2(
@@ -373,7 +374,7 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   float dth = mod(th - gHeadAngle + PI, TAU) - PI;
   float headR = r - R_STAR, headS = R_STAR * dth;
   float stretch = mix(0.9, 3.2, smoothstep(0.0, 0.9, gDev));
-  float head = exp(-sq(headR / 0.42) - sq(headS / stretch)) * (1.0 - smoothstep(0.5, 1.4, gDev));
+  float head = exp(-sq(headR / 0.6) - sq(headS / stretch)) * (1.0 - smoothstep(0.5, 1.4, gDev));
   head += 0.35 * exp(-sq(headR / 0.2) - sq(headS / 0.2)) * (1.0 - smoothstep(0.3, 0.9, gDev));
 
   // The disk: Novikov–Thorne-like envelope with a sharp ISCO edge, faint
@@ -397,17 +398,17 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
     float id = gCycle + floor(gFlow + 0.5 * float(k));
     float angle0 = th + omega * (tau - 0.5) * 30.0;
     float salt = mod(id * 2.0 + float(k) + gSeedShift, 61.0) * 37.0;
-    n += w * hzTurbulence(lr, angle0, fl, salt, order < 0.5 ? 4 : 2);
+    n += w * hzTurbulence(lr, angle0, fl, salt, order < 0.5 ? 3 : 2);
     wsum += w * w;
   }
   n /= sqrt(max(wsum, 1e-3));
 
   stream *= 1.0 + 0.5 * gTurb * n;
-  float arms = 1.0 + 0.25 * gForm * sin(2.0 * th + 5.5 * lr + 1.7) * (1.0 - smoothstep(0.2, 0.8, fl * 6.0));
+  float arms = 1.0 + 0.45 * gForm * sin(2.0 * th + 5.5 * lr + 1.7) * (1.0 - smoothstep(0.2, 0.8, fl * 6.0));
   // Fine ringlets: concentric streaks sheared out of the turbulence.
-  float ringlets = 1.0 + 0.3 * gTurb * sin(lr * 70.0 + 5.0 * n) * (1.0 - smoothstep(0.02, 0.06, fl));
+  float ringlets = 1.0 + 0.12 * gTurb * sin(lr * 42.0 + 5.0 * n) * (1.0 - smoothstep(0.02, 0.06, fl));
   float turb = 0.5 + 1.1 * gTurb;
-  float disk = env * gMass * arms * ringlets * pow(max(0.0, 1.0 + turb * n), 1.5) * pow(R_IN / max(r, R_IN), 0.35);
+  float disk = env * gMass * arms * ringlets * pow(max(0.0, 1.0 + turb * n), 2.0) * pow(R_IN / max(r, R_IN), 0.35);
   disk *= mix(1.0, 0.75, smoothstep(0.0, 1.0, order - 1.0));
 
   float density = disk + stream;
@@ -425,9 +426,9 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   vec3 col = hue * density * pow(T, 2.6) * pow(gb, 1.6) * 0.75;
   // Tidal debris glows by itself (shocked gas), so the stream reads before
   // the disk has heated: cool toward secondary, its inner wraps warmer.
-  col += mix(u_secondary, u_primary, 0.35 + 0.3 * smoothstep(R_STAR, R_IN, r)) * stream * 0.55 * pow(gb, 1.5) * (1.0 - 0.6 * gBlaze);
+  col += mix(u_secondary, u_primary, 0.35 + 0.3 * smoothstep(R_STAR, R_IN, r)) * stream * 0.95 * pow(gb, 1.5) * (1.0 - 0.6 * gBlaze);
   // The star glows with its own light, cooler than the hot inner disk.
-  col += mix(u_primary, vec3(1.0), 0.35) * head * 2.2 * (1.0 + 2.5 * u_rhythm.x * (1.0 - gMass)) * pow(gb, 1.5);
+  col += mix(u_primary, vec3(1.0), 0.35) * head * 3.4 * (1.0 + 2.5 * u_rhythm.x * (1.0 - gMass)) * pow(gb, 1.5);
 
   // Gesture: an orbiting hot spot flares in the inner disk (Sgr A*-style).
   col += mix(u_primary, u_accent, 0.6) * spot * 3.0 * pow(gb, 3.0);
@@ -497,8 +498,8 @@ vec3 hzSky(vec3 dir, float fp) {
   vec3 col = mix(u_secondary, mix(u_primary, u_secondary, 0.4), smoothstep(-0.1, 0.25, neb)) * glow * 0.055 * (0.4 + gStars);
   col += u_secondary * 0.006;
   float denser = 1.0 + 1.6 * band;
-  col += hzStars(d, 60.0, fp, 11.0, 0.32 * gStars, 0.7);
-  col += hzStars(d, 230.0, fp, 23.0, (0.05 + 0.2 * gStars) * min(1.0, 0.45 * denser), 0.25);
+  col += hzStars(d, 60.0, fp, 11.0, 0.32 * gStars, 0.45);
+  col += hzStars(d, 230.0, fp, 23.0, (0.05 + 0.2 * gStars) * min(1.0, 0.45 * denser), 0.16);
   return col;
 }
 
@@ -567,6 +568,8 @@ void main() {
   // and dives into one close pass per orbit in the Horizon state.
   float az, pass;
   float radius = hzCameraRadius(dev, az, pass);
+  // Finite luminous jet knots stay framed even on the closest pass.
+  gJetLen = min(gJetLen, radius * 0.38);
   float phrase = u_beat / 32.0;
   float pk = floor(phrase);
   float wob = mix(hz01(seedHash(uint(int(pk)) ^ 0x2545f491u)),
@@ -580,11 +583,12 @@ void main() {
   vec3 rt = normalize(cross(fw, vec3(0.0, 1.0, 0.0)));
   vec3 up = cross(rt, fw);
   float roll = 0.04 * sin(az * 2.0 + 0.5);
-  vec2 uv = rot2(roll) * (aspectUV() * 2.0);
+  float shortSide = min(u_resolution.x, u_resolution.y);
+  vec2 uv = rot2(roll) * (aspectUV() * (2.0 * u_resolution.y / shortSide));
   float kick = u_kick * smoothstep(0.15, 1.0, level);
   float focal = mix(mix(2.0, 1.75, gForm), 1.55, gBlaze) * (1.0 - 0.2 * pass) * (1.0 + 0.025 * kick);
   vec3 rd = normalize(fw * focal + rt * uv.x + up * uv.y);
-  gPixelAngle = 2.0 / (focal * u_resolution.y);
+  gPixelAngle = 2.0 / (focal * shortSide);
 
   // Ray in its orbit plane: e1 toward the camera position, e2 completes the
   // plane with the ray direction. Static-observer initial conditions:
@@ -715,7 +719,7 @@ void main() {
   float fwB = fwidth(b);
 
   vec3 sheathCol = mix(u_primary, u_secondary, 0.4);
-  vec3 coreCol = mix(u_accent, vec3(1.0), 0.35);
+  vec3 coreCol = mix(mix(u_primary, u_accent, 0.2 * u_rhythm.z), vec3(1.0), 0.35);
   float jetGain = gJetAmt * 1.4;
   #define HZ_JET(J) ((coreCol * (J).x * 0.7 + sheathCol * (J).y * 0.6) * jetGain)
 
@@ -744,7 +748,7 @@ void main() {
   float ring = exp(-sq((b - BC) / wr)) * (0.035 / wr + 0.15);
   float halo = exp(-max(b - BC, 0.0) / 0.5) * step(BC, b) * 0.12;
   float ringAmt = (0.3 + 0.9 * gMass + 0.3 * gBlaze) * (1.0 + 1.6 * u_rhythm.y);
-  col += T * (mix(u_accent, vec3(1.0), 0.2) * ring * 0.7 + mix(u_primary, u_accent, 0.3) * halo * gMass) * ringAmt;
+  col += T * (mix(u_secondary, u_primary, 0.65) * ring * 1.15 + mix(u_primary, u_secondary, 0.3) * halo * gMass) * ringAmt;
 
   outColor = vec4(max(col, vec3(0.0)), 1.0);
 }
