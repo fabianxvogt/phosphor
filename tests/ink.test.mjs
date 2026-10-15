@@ -355,25 +355,14 @@ test("guttered half-float density atlas has bijective nodes and bounded trilinea
   // This cache is far material only: the focused ring, wake and cloud
   // edges are evaluated at native output resolution, not sampled from it.
   assert.match(ink.fragment, /inkRingSkin/);
-  assert.match(ink.fragment, /float ph=d\*42\.0/);
-  // Cloud skin: one footprint-filtered noise ridge, no stacked isolines.
-  assert.match(ink.fragment, /boxFade/);
+  assert.match(ink.fragment, /float ph=d\*95\.0/);
+  assert.match(ink.fragment, /float surfaceDepth=\(0\.6076\+folded\*2\.4\)/);
   assert.match(ink.fragment, /for \(int j=0;j<7;\+\+j\)/);
   assert.match(ink.fragment, /float root=mix\(loT,hiT/);
 });
 
 const cloudField = (...args) => material(...args)[2];
-const filamentPhase = (p, phase, seed = 11201) => {
-  const n = noise(
-    p.map(
-      (v, i) =>
-        v * 22 + [Math.sin(phase), (seed % 991) * 0.013, Math.cos(phase)][i],
-    ),
-  );
-  return noise(p.map((v) => v * 7 + n * 0.6)) * 97 + n * 4;
-};
-
-test("native 3D billow crossings retain bright gaps, fine lamellae and continuous material identity", () => {
+test("native 3D billow crossings retain bright gaps and continuous material identity", () => {
   let gaps = 0,
     clouds = 0,
     crossings = 0;
@@ -382,9 +371,6 @@ test("native 3D billow crossings retain bright gaps, fine lamellae and continuou
       const p = [x / 4, y / 4, 0.3],
         a = cloudField(p, 2, 0.7);
       assert.ok(Math.abs(a - cloudField(p, 2, 0.7 + TAU)) < 1e-13);
-      assert.ok(
-        Math.abs(filamentPhase(p, 0.7) - filamentPhase(p, 0.7 + TAU)) < 1e-11,
-      );
       if (a < 0) gaps++;
       if (a > 0.3) clouds++;
       for (const dev of [0, 0.5, 1, 1.5, 2]) {
@@ -434,6 +420,42 @@ test("native 3D billow crossings retain bright gaps, fine lamellae and continuou
   assert.match(ink.fragment, /wakeR=R\+0\.22\*behind/);
   assert.match(ink.fragment, /u_secondary\*sideLamp\*0\.36/);
   assert.match(ink.fragment, /medium\.z\/max\(medium\.x/); // normalized moment
+});
+
+test("dense pigment has smooth bounded extinction, not warped interior isolines", () => {
+  const skin = ink.fragment.split("if (gCloud>0.0001) {").at(-1);
+  assert.doesNotMatch(skin, /abs\(sin|filament|fwidth|hitP\*22\.0|\*97\.0/);
+  assert.match(skin, /inkNoise\(hitP\*3\.0\)/);
+  // Replace the removed narrow-line signal by its DC optical depth. For
+  // |sin(phi)| < w, mean coverage = 2 asin(w) / pi, not zero density.
+  const meanCoverage = (2 * Math.asin(0.14)) / Math.PI;
+  assert.ok(Math.abs(0.6076 - (0.25 + meanCoverage * 4)) < 1e-4);
+  const depth = (p, cloud = 1, opacity = 1) =>
+    (0.6076 + (0.5 + 0.5 * noise(p.map((v) => v * 3))) ** 4 * 2.4) *
+    cloud *
+    opacity;
+  for (let i = 0; i < 200; i++) {
+    const p = [Math.sin(i) * 3, Math.cos(i * 3) * 2.5, Math.sin(i * 7) * 2];
+    assert.ok(depth(p) >= 0.6076 && depth(p) <= 3.0076);
+    assert.equal(depth(p, 0), 0);
+    assert.equal(depth(p, 0.5, 1.4), depth(p) * 0.5 * 1.4);
+    // Each component of grad(noise) is bounded by 0.68, so the chain
+    // rule bounds this extinction derivative by 2.4 * 4 * .5 * 3 * .68.
+    for (let axis = 0; axis < 3; axis++) {
+      const q = [...p];
+      q[axis] += 1e-5;
+      assert.ok(Math.abs(depth(p) - depth(q)) / 1e-5 < 9.793);
+    }
+  }
+  // The Drop retains all native lamellae; growth removes their regular
+  // interior engraving continuously. The separately filtered wake remains.
+  assert.match(ink.fragment, /fine\*0\.8\*\(1\.0-gGrow\)/);
+  for (let i = 0; i <= 200; i++) {
+    const d = i / 100;
+    assert.ok(1 - smooth(0, 1, d) >= 0);
+    if (i)
+      assert.ok(Math.abs(smooth(0, 1, d) - smooth(0, 1, d - 0.01)) < 0.016);
+  }
 });
 
 test("analytic noise gradient filters wake hairlines without derivatives in rejected branches", () => {
