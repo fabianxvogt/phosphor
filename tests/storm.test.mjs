@@ -11,6 +11,11 @@ import {
   lightningGraph,
   worldPoint,
   discharge,
+  channelGlow,
+  cellFeature,
+  billowLobe,
+  detailAddress,
+  detailWeight,
   SEGMENTS,
   BRANCH_PROBABILITY,
 } from "../storm-model.mjs";
@@ -163,6 +168,7 @@ test("conservative cached tile bounds include the whole AA lightning support", (
   assert.match(storm.precompute.fragment, /min\(p.xy,p.zw\) - 0\.06/);
   assert.deepEqual(storm.precompute.size, [1024, 515]);
   assert.equal(storm.precompute.filter, "linear");
+  assert.equal(storm.precompute.nearestFallback, true);
   assert.match(
     storm.fragment,
     /return stDatum\(i, row\)/,
@@ -173,17 +179,23 @@ test("conservative cached tile bounds include the whole AA lightning support", (
 });
 
 test("volume and local lighting are bounded and never bypass the shared flash limiter", () => {
-  assert.match(storm.fragment, /for \(int j = 0; j < 24;/);
-  assert.match(storm.fragment, /float ds = \(farT-nearT\)\/24\.0/);
-  assert.match(storm.fragment, /if \(trans < 0\.012\) break/);
-  assert.match(stormVolume, /exp\(-d0\*\(0\.38\+density\*0\.018\)\)/);
+  assert.match(storm.fragment, /for \(int j = 0; j < 16;/);
+  assert.match(storm.fragment, /float ds = \(farT-nearT\)\/16\.0/);
+  assert.match(storm.fragment, /opticalMoment \+= weight\*p/);
+  assert.doesNotMatch(storm.fragment, /optical.x > 0\.5|surfaceT < 0\.0/);
+  assert.match(storm.fragment, /if \(trans < 0\.0005\) break/);
+  assert.match(storm.fragment, /1\.0\/sq\(1\.0\+dot\(q,q\)\*0\.1\)/);
   assert.match(stormVolume, /stDensity\(p\+moonLight\*1\.5\)/);
-  assert.match(stormVolume, /smoothstep\(0\.12,0\.7,normal.y\)/);
-  assert.match(storm.fragment, /cloud \+= trans \* alpha \* light/);
+  assert.match(stormVolume, /smoothstep\(0\.05,0\.5,normal.y\)/);
+  assert.match(
+    storm.fragment,
+    /flashIntegral \+= weight\*vec2\(stChannelGlow\(p,0\),stChannelGlow\(p,1\)\)/,
+  );
+  assert.match(storm.fragment, /moonIntegral \+= weight \* optical.y/);
   assert.doesNotMatch(storm.fragment, /flashLimit|flashExempt|gl_FragDepth/);
   assert.match(storm.fragment, /1\.0 \+ 0\.02 \* u_kick/);
   assert.ok(
-    Math.exp(-1000 * 0.16) < 1e-18,
+    channelGlow([1000, 0, 0], [0, 0, 0], [0, 1, 0]) < 1e-9,
     "glow has negligible far-field support",
   );
   // Beer-Lambert compositing stays finite and energy conserving in opacity.
@@ -237,13 +249,11 @@ test("discharges persist across frames, restrike, decay and stay periodic/bounde
     );
   }
   assert.match(storm.fragment, /pow\(wave,40\.0\)/);
-  assert.match(storm.fragment, /core \* 12\.0 \+ glow \* 0\.8/);
+  assert.match(storm.fragment, /core\*12\.0\+glow\*1\.6/);
+  assert.match(storm.fragment, /width \* 7\.0\*taper/);
   assert.match(storm.fragment, /float taper/);
   assert.match(storm.fragment, /internalFlash = max\(vec2\(flash0,flash1\)/);
-  assert.match(
-    storm.fragment,
-    /internalFlash.x\*optical.z\+internalFlash.y\*optical.w/,
-  );
+  assert.match(storm.fragment, /dot\(internalFlash,flashIntegral\)/);
 });
 
 test("cloud-base crawlers remain horizontal while the original leaders turn to ground", () => {
@@ -314,7 +324,7 @@ test("3D atlas addresses are bijective and trilinear interpolation preserves aff
 
 test("Beer light transport falls with optical depth and internal distance", () => {
   const light = (d, density) =>
-    Math.exp(-d * (0.38 + density * 0.018)) / (1 + d * d * 0.18);
+    channelGlow([d, 0, 0], [0, 0, 0], [0, 1, 0]) * Math.exp(-density);
   for (const density of [0, 0.1, 1, 10]) {
     let previous = 1;
     for (let d = 0; d < 100; d += 0.25) {
@@ -326,6 +336,124 @@ test("Beer light transport falls with optical depth and internal distance", () =
   assert.ok(light(4, 2) < light(4, 0.2));
   assert.ok(Math.exp(-4) < Math.exp(-0.4));
   assert.match(stormVolume, /float moon = exp\(-tau\*0\.7\)/);
+});
+
+test("integer cloud features are seed-specific, uniform and exactly spatially periodic", () => {
+  const sum = [0, 0, 0];
+  for (let i = 0; i < 10000; i++) {
+    const c = [i - 5000, ((i * 37) % 53) - 26, ((i * 17) % 29) - 14];
+    const feature = cellFeature(10701, c);
+    feature.forEach((v, k) => {
+      assert.ok(v >= 0 && v < 1 && Number.isInteger(v * 1024));
+      sum[k] += v;
+    });
+    assert.deepEqual(
+      cellFeature(10701, c, 7),
+      cellFeature(
+        10701,
+        c.map((n) => n + 14),
+        7,
+      ),
+    );
+  }
+  for (const value of sum) assert.ok(Math.abs(value / 10000 - 0.5) < 0.015);
+  assert.notDeepEqual(
+    cellFeature(10701, [2, -3, 7]),
+    cellFeature(10702, [2, -3, 7]),
+  );
+  assert.match(stormVolume, /hcell>>10,hcell>>20/);
+});
+
+test("rounded billow gradients match independent central differences and the cache period", () => {
+  const eps = 1e-5;
+  for (let i = 1; i <= 150; i++) {
+    const p = [i * 0.143 + 0.21, i * 0.277 - 13.17, i * 0.063 + 0.55];
+    const a = billowLobe(10701, p, 7),
+      b = billowLobe(
+        10701,
+        p.map((n) => n + 7),
+        7,
+      );
+    assert.ok(Math.abs(a.value - b.value) < 1e-12);
+    assert.ok(distance(a.gradient, b.gradient) < 1e-11);
+    // The regularised finite core has a deliberately bounded gradient.
+    if (a.value > 0.93) continue;
+    for (let axis = 0; axis < 3; axis++) {
+      const lo = [...p],
+        hi = [...p];
+      lo[axis] -= eps;
+      hi[axis] += eps;
+      const numerical =
+        (billowLobe(10701, hi, 7).value - billowLobe(10701, lo, 7).value) /
+        (2 * eps);
+      assert.ok(
+        Math.abs(numerical - a.gradient[axis]) < 1e-6,
+        `${i}/${axis}: ${numerical} vs ${a.gradient[axis]}`,
+      );
+    }
+  }
+  assert.match(stormVolume, /best = mix\(best,d,h\)-0\.12\*h\*\(1\.0-h\)/);
+});
+
+test("buried line sources peak on the channel, decay radially and respect endpoints", () => {
+  for (const x of [-4, 0, 2, 8]) {
+    const a = [x, 0, 1],
+      b = [x, 4, 1];
+    for (const t of [0, 0.1, 0.5, 1])
+      assert.equal(channelGlow([x, t * 4, 1], a, b), 1);
+    assert.equal(channelGlow([x, 5, 1], a, b), 1 / 1.1 ** 2);
+    for (let d = 0; d < 20; d += 0.25) {
+      const p = [x + d, 2, 1];
+      assert.ok(
+        Math.abs(channelGlow(p, a, b) - 1 / (1 + d * d * 0.1) ** 2) < 1e-14,
+      );
+      assert.equal(channelGlow(p, a, b), channelGlow(p, b, a));
+    }
+  }
+  assert.match(storm.fragment, /stPhase\*8\.0\+1\.1/);
+  assert.match(storm.fragment, /u_accent,0\.12/);
+});
+
+test("periodic detail atlas is bijective, padded and separate from all optical/topology data", () => {
+  const seen = new Set();
+  for (let z = 0; z < 28; z++)
+    for (let y = 0; y < 28; y++)
+      for (let x = 0; x < 28; x++) {
+        const address = detailAddress([x, y, z]);
+        assert.ok(
+          address[0] >= 125 &&
+            address[0] < 964 &&
+            address[1] >= 4 &&
+            address[1] < 33,
+        );
+        const key = address.join(",");
+        assert.ok(!seen.has(key));
+        seen.add(key);
+        for (const shift of [-56, -28, 28, 56])
+          assert.deepEqual(
+            detailAddress([x + shift, y + shift, z + shift]),
+            address,
+          );
+      }
+  assert.equal(seen.size, 28 ** 3);
+  assert.match(stormVolume, /vec2\(125\.5,4\.5\)\+q.xy/);
+  assert.match(stormVolume, /stBillowCore\(vec3\(q\)\*0\.25,7\.0\)/);
+  assert.match(storm.precompute.fragment, /x >= 124 && x < 964 && row < 33/);
+  assert.match(stormVolume, /for \(int z = -1; z <= 1;/);
+});
+
+test("micro-billow octaves fade monotonically at the output pixel footprint", () => {
+  let previous = 1;
+  for (let x = 0; x < 2; x += 0.001) {
+    const value = detailWeight(x);
+    assert.ok(value >= 0 && value <= previous);
+    previous = value;
+  }
+  assert.equal(detailWeight(0.15), 1);
+  assert.equal(detailWeight(0.65), 0);
+  assert.match(storm.fragment, /pixel\*surfaceT\*2\.4/);
+  assert.match(storm.fragment, /footprint\*3\.81/);
+  assert.doesNotMatch(storm.fragment, /dFdx\(surface\)|dFdy\(surface\)/);
 });
 
 test("eight complete bounded presets register one continuous three-state world", () => {

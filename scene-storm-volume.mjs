@@ -17,6 +17,59 @@ vec4 stNoise(vec3 p) {
   vec3 grad = vec3(mix(c.y-c.x,c.w-c.z,f.y),mix(c.z-c.x,c.w-c.y,f.x),mix(mix(dz.x,dz.y,f.x),mix(dz.z,dz.w,f.x),f.y)) * df;
   return vec4(value,grad);
 }
+// A jittered 3D cellular lobe, with its analytic gradient. Neighbourhood
+// search retains all 27 cells; no axis-aligned eight-corner approximation.
+vec4 stBillowCore(vec3 p, float period) {
+  vec3 cell = floor(p), f = fract(p);
+  float best = 3.0;
+  vec3 delta = vec3(0);
+  for (int z = -1; z <= 1; ++z) for (int y = -1; y <= 1; ++y) for (int x = -1; x <= 1; ++x) {
+    vec3 corner = vec3(x,y,z);
+    vec3 c = cell+corner;
+    if (period > 0.0) c = mod(c,period);
+    ivec3 key = ivec3(c);
+    uint hcell = stHash(u_seedBits ^ uint(key.x)*0x9e3779b9u ^ uint(key.y)*0x85ebca6bu ^ uint(key.z)*0xc2b2ae35u);
+    vec3 feature = vec3(uvec3(hcell,hcell>>10,hcell>>20)&uvec3(1023u))/1024.0;
+    vec3 q = f-corner-feature;
+    float d = dot(q,q);
+    // A rounded union, not a hard Voronoi winner: continuous gradients
+    // prevent faceted cloud ridges and compiler-sensitive nearest-cell ties.
+    float h = clamp(0.5+0.5*(best-d)/0.12,0.0,1.0);
+    best = mix(best,d,h)-0.12*h*(1.0-h);
+    delta = mix(delta,q,h);
+  }
+  // Finite core radius regularises the distance gradient, including rare
+  // nearly coincident features; no near-zero derivative cutoff can pop.
+  float d = sqrt(max(best+0.03,0.005));
+  vec3 gradient = -delta/(1.1*d);
+  return vec4(1.0-d/1.1,gradient);
+}
+vec4 stBillow(vec3 p) { return stBillowCore(p,0.0); }
+// Periodic analytic microstructure occupies unused topology-atlas columns.
+// Each 28² slice has a one-node wrap gutter, so filtering cannot leak slices.
+vec4 stDetailNode(ivec3 q) {
+  q = ivec3(mod(vec3(q),28.0));
+#ifdef PRECOMPUTED
+  return texelFetch(u_precomputed,ivec2(125+q.z*30+q.x,4+q.y),0);
+#else
+  return stBillowCore(vec3(q)*0.25,7.0);
+#endif
+}
+vec4 stDetail(vec3 p) {
+  vec3 q = mod(p,7.0)*4.0;
+  ivec3 a = ivec3(floor(q)); vec3 f = fract(q);
+#ifdef PRECOMPUTED_LINEAR
+  vec2 xy = vec2(125.5,4.5)+q.xy;
+  vec2 uv0 = (xy+vec2(float(a.z)*30.0,0))/vec2(1024,515);
+  vec2 uv1 = (xy+vec2(float((a.z+1)%28)*30.0,0))/vec2(1024,515);
+  return mix(texture(u_precomputed,uv0),texture(u_precomputed,uv1),f.z);
+#else
+  return mix(mix(mix(stDetailNode(a),stDetailNode(a+ivec3(1,0,0)),f.x),
+                 mix(stDetailNode(a+ivec3(0,1,0)),stDetailNode(a+ivec3(1,1,0)),f.x),f.y),
+             mix(mix(stDetailNode(a+ivec3(0,0,1)),stDetailNode(a+ivec3(1,0,1)),f.x),
+                 mix(stDetailNode(a+ivec3(0,1,1)),stDetailNode(a+ivec3(1,1,1)),f.x),f.y),f.z);
+#endif
+}
 vec3 stCentres[5], stInverse[5];
 vec3 stPuffs[9], stPuffInverse[9];
 float stScale[5], stPuffScale[9];
@@ -24,11 +77,11 @@ mat2 stRotation;
 void stCloudSetup() {
   vec3 centres[5]; vec3 radii[5];
   centres[0] = vec3(0, mix(3.7,6.0,stRise), 5.8);
-  radii[0] = mix(vec3(8.5,2.5,3.7), mix(vec3(5.2,4.8,3.8),vec3(13.0,3.9,6.0),stSuper), stRise);
+  radii[0] = mix(vec3(8.5,2.5,3.7), mix(vec3(3.8,4.0,3.8),vec3(13.0,3.9,6.0),stSuper), stRise);
   centres[1] = vec3(mix(-12.5,-5.2,stRise), mix(4.1,6.6,stRise), 6.8);
-  radii[1] = mix(vec3(6.4,3.1,3.0), vec3(4.4,4.8,3.1), stRise);
+  radii[1] = mix(vec3(6.4,3.1,3.0), vec3(3.1,4.8,3.1), stRise);
   centres[2] = vec3(mix(11.5,4.8,stRise), mix(4.6,7.8,stRise), 7.0);
-  radii[2] = mix(vec3(7.2,3.6,3.1), vec3(4.0,5.0,3.4), stRise);
+  radii[2] = mix(vec3(7.2,3.6,3.1), vec3(3.0,5.0,3.4), stRise);
   centres[3] = vec3(-1.2, mix(3.8,11.1,stRise), 6.8);
   radii[3] = vec3(mix(3.0,22.0,stSuper), mix(0.75,1.8,stRise), mix(2.0,5.0,stSuper));
   centres[4] = vec3(0.0, mix(2.5,3.6,stSuper), 2.4);
@@ -41,7 +94,7 @@ void stCloudSetup() {
     int parent = j<6 ? j : (j-6)*2;
     float x = -6.6+float(parent)*2.65;
     float y = 8.7+1.1*stRand(2,parent+220)+1.2*sin(float(parent)*0.8);
-    float radius = mix(1.1,1.7+stRand(3,parent+240)*0.65,stRise);
+    float radius = mix(1.1,1.25+stRand(3,parent+240)*0.6,stRise);
     vec3 centre = vec3(x*mix(2.5,mix(1.0,2.0,stSuper),stRise),mix(5.0+stRand(1,parent+250)*1.8,y,stRise)-stSuper*0.5,4.7);
     if (j>=6) {
       centre += vec3((stRand(0,j+290)-0.5)*2.0,0.75,-1.1)*stRise;
@@ -89,22 +142,23 @@ float stDensity(vec3 p, out vec3 normal) {
   adv.xz = stRotation * vec2(adv.x + twist*adv.z,adv.z-twist*adv.x) * inversesqrt(1.0+twist*twist);
   // Broad rounded billows at the top, smaller crisp lobes around their crowns.
   vec4 coarse = stNoise(adv);
-  vec4 medium = stNoise(adv*2.45);
-  vec4 fine = stNoise(adv*5.8);
+  vec3 warp = coarse.yzw*0.32;
+  vec4 medium = stBillow(adv*1.45+warp);
+  vec4 fine = stNoise(adv*5.8+warp);
   float billow = coarse.x*0.5 + medium.x*0.36 + fine.x*0.14;
   float radius = length(p.xz - vec2(0,3.5));
   float angle = atan(p.z-3.5,p.x+0.00001);
   float shelf = sin(radius*0.8 + p.y*2.7 + 2.0*angle - stPhase*2.0);
   float base = 1.0-smoothstep(4.0,7.0,p.y/u_params[2]);
   billow += 0.3*stSuper*shelf*base;
-  float sculpt = mix(1.6,0.8,base);
-  vec3 bump = (coarse.yzw*0.5+medium.yzw*0.882+fine.yzw*0.812)*0.73*sculpt;
+  float sculpt = mix(1.9,1.1,base);
+  vec3 bump = (coarse.yzw*0.5+medium.yzw*0.522+fine.yzw*0.812)*0.73*sculpt;
   bump.xz = transpose(stRotation)*bump.xz;
-  normal = normalize(normal-bump*0.25+vec3(0,0.00001,0));
+  normal = normalize(normal-bump*0.8+vec3(0,0.00001,0));
   float floorHeight = mix(1.8,3.0,stRise)-stSuper*1.2*exp(-sq(radius/4.5));
   floorHeight += stSuper*0.16*sin(radius*3.0+angle*3.0-stPhase*2.0);
   float flatBase = smoothstep(floorHeight-0.18,floorHeight+0.35,p.y/u_params[2]);
-  return max(0.0,shape+(billow-0.52)*sculpt-0.08)*u_params[3]*5.0*flatBase;
+  return max(0.0,shape+(billow-0.46)*sculpt-0.08)*u_params[3]*5.0*flatBase;
 }
 float stDensity(vec3 p) { vec3 n; return stDensity(p,n); }
 vec4 stOptical(vec3 p) {
@@ -114,19 +168,10 @@ vec4 stOptical(vec3 p) {
   vec3 moonLight = normalize(vec3(-0.75,0.9,-0.45));
   // Bounded quadrature of optical depth, evaluated once per volume lattice.
   float tau = density*0.35 + stDensity(p+moonLight*1.5)*2.5;
-  float moon = exp(-tau*0.7)*pow(max(0.0,dot(normal,moonLight)),3.0)*smoothstep(0.12,0.7,normal.y);
-  moon += exp(-density*0.8)*0.009*max(0.0,-normal.z);
-  vec3 s0 = stWorld(vec3(0,0.28,0),0), s1 = stWorld(vec3(0,0.28,0),1);
-  s0.z -= 1.2; s1.z -= 1.2;
-  float d0 = length(p-s0), d1 = length(p-s1);
-  // Effective multiple scattering: long extinction paths would hide every
-  // buried source. Porous transport is broad but still local and monotone.
-  float internal0 = exp(-d0*(0.38+density*0.018))/(1.0+d0*d0*0.18);
-  float internal1 = exp(-d1*(0.38+density*0.018))/(1.0+d1*d1*0.18);
-  vec3 c0 = stWorld(vec3(0,0.4,0),2), c1 = stWorld(vec3(0,0.4,0),3);
-  internal0 += exp(-length(p-c0)*(0.35+density*0.025))*0.15;
-  internal1 += exp(-length(p-c1)*(0.35+density*0.025))*0.15;
-  return vec4(density,moon,internal0,internal1);
+  float moon = exp(-tau*0.7)*pow(max(0.0,dot(normal,moonLight)),1.5)*smoothstep(0.05,0.5,normal.y);
+  // Visible front hemisphere: storing x/y avoids octahedral seams when
+  // normals are trilinearly interpolated. The visual pass reconstructs -z.
+  return vec4(density,moon,normal.xy);
 }
 const vec3 stVolumeLo = vec3(-24.0,0.4,-3.0);
 const vec3 stVolumeSize = vec3(48.0,16.4,16.0);

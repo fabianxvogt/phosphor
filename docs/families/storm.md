@@ -1,77 +1,91 @@
 # Thunderhead / Gewitterzelle
 
-World `thunderhead`, scene `storm`, family **107**. **Haze / Dunst → Towers / Türme → Supercell / Superzelle**. World ID, all eight look names/IDs, seeds, schema keys, preset values and rhythm IDs/defaults are unchanged. World states share seed **10701** and identical non-development parameters. Tests find the world by ID, never registry position.
+World `thunderhead`, scene `storm`, family **107**. **Haze / Dunst → Towers / Türme → Supercell / Superzelle**. World ID, eight look names/IDs, seeds, schema keys, preset values and rhythm IDs/defaults remain unchanged. The three states share seed **10701** and identical non-development parameters. Tests find the world by ID, never registry position.
 
-## Composition
+## Composition and this revision
 
-Haze is a distant, wide front of separate cells, not a uniformly lit horizontal band. The camera starts farther away; different crowns, sparse settlement clusters, layered dark hills and buried heat-lightning pools give scale. Towers approaches six principal cauliflower crowns and three smaller turrets. Five smoothly joined ellipsoidal carriers and nine seeded lobes develop continuously; the three small turrets become scud beneath Supercell.
+Haze retains the long distant bank, with independently flashing charged cells, a third offset heat-lightning source, sparse palette-primary settlement lights and layered terrain. Towers now has narrower carriers and smaller crown lobes, leaving deeper gaps between turrets. Five smoothly joined ellipsoidal carriers and nine seeded lobes develop continuously; three small turrets become scud below Supercell.
 
-Supercell brings the camera close below the rotating base. The wall-cloud carrier rotates as geometry, not only as a noise texture. Depth-dependent material twist and helical shelves animate the surrounding sky. A flattened floor, central lowering and small scud lobes replace the rounded cotton-ball bottom. The camera's upward pitch leaves the strike footprints visible on the landscape. The optical atlas extends to z=-3 so the front of the lowering is not cut off at z=0.
+Supercell's closed camera path now pulls back to z≈−12 rather than flying underneath at z≈−4. This is a deliberate composition choice: retain the whole rotating storm, its silver crowns, dark gaps and ground strikes, rather than replacing the climax with a cropped, featureless underside. The top state remains much wider than Towers. The wall carrier rotates geometrically; the weather chart twists with height. A flat base, central lowering and small scud remain.
 
-Most of the cloud is near-black. A shadowed silver key is restricted to upward-facing surfaces; a small front fill retains dim shape. The palette primary is reserved mainly for sparse town lights and minor ground colour. Bolts and their internal light use a near-white mixture of palette secondary; accent remains a small ionisation event. No global exposure follows energy.
+Dark cloud bodies carry shadowed silver tops. Primary is mainly sparse settlements and ground colour. Internal discharges and bolt halos mix a small amount of palette accent into near-white secondary; accent is not a persistent full-frame wash. Energy never controls exposure.
 
-## Lightning mathematics
+## Cloud mathematics and full-resolution detail
 
-`storm-model.mjs` independently mirrors `scene-storm-data.mjs`. A uint avalanche hash supplies deterministic 24-bit random samples keyed by `(seed, network, sample)`. Four connected trees each contain eighteen trunk edges and three possible four-edge branches: **120 maximum graph edges**. Activation probability is **0.78**; handedness is unbiased. Each branch attaches at trunk steps 4, 8 or 12. Graph identity and connectivity never depend on development or clocks.
+The density combines an ellipsoidal carrier field with three spatial octaves: coarse value noise, rounded cellular billows and fine value noise. The cellular field evaluates **27 neighbouring cells**. Exact uint avalanche hashing supplies three 10-bit feature coordinates per cell, avoiding floating-point hash instability. A polynomial smooth minimum of squared distances (width 0.12) joins lobes; a finite core radius regularises the analytic gradient. This avoids both the rejected eight-corner lattice and hard Voronoi-gradient facets.
 
-Trunk longitudinal steps are `1/18`; lateral increments have variance `0.16²/6` and z increments are bounded by 0.12. Roots are exactly `(0,0,0)`. Two trees slope through Towers and terminate exactly on the ground at development 2. Two stay horizontal cloud-base crawlers. Increased lateral branch jitter, tapered branch cores and two bounded projected micro-kinks per graph edge add a finer broken-channel read without changing endpoint connectivity.
+The camera-independent **128×80×48** optical lattice covers `[-24,24] × [0.4,16.8] × [-3,13]`, packed into the existing **1024×515 RGBA32F atlas**. Its channels now hold density, moonlight transport and the x/y components of the cloud normal. The visible front hemisphere reconstructs negative z. These are optical/material coefficients, not a reduced-resolution colour image.
 
-Hot cores use **12.0** before event/branch weights, plus a four-width soft halo. Native float-framebuffer measurements reach **18.47–18.52**, confirming actual HDR input to bloom, not just a shader literal. The event envelope combines a narrow `wave^40` discharge with a bounded positive flicker floor, scheduled buried discharges and return strokes. It persists for multiple frames and decays; independent crawler selection avoids continuously exposing both long channels. This is a bounded statistical leader/display model, not an electric-field solver.
+Every output pixel integrates the 3D optical field with **16 fixed Beer–Lambert samples**. Moonlight and buried-channel emission use the same transmittance weights. An early-out below **0.0005** limits the omitted emissive tail; the previous 0.012 cutoff produced rare, visible cache/direct differences after brighter internal emission was added.
 
-Topology and conservative 16-bit tile masks occupy the first 35 atlas rows. Mask padding includes nine halo widths plus micro-kink displacement. Cheap box and squared-distance rejects run before detailed channel evaluation. Empty 16-edge groups are skipped; below a 280-pixel short side the exact all-candidate path is used.
+Continuous optical position/normal moments attach material detail to the visible volume. There is no binary first-density surface and no screen-derivative normal. A rejected binary-boundary trial caused thin foreground wisps to jump between layers; its replacement also restores close agreement between native and manually filtered cached rendering.
 
-## Volume and light
+A second **28³ periodic 3D lobe field**, with its analytic gradient, occupies formerly unused atlas columns **124–963**, rows **3–32**. Each 28² slice has a one-node wrap gutter. It reuses the same texture allocation and is independent of camera/palette. Two filtered slice reads supply rounded micro-billows; one finer analytic noise octave adds small erosion. Both detail amplitudes fade smoothly with `pixel × opticalDistance × frequency`, preventing unresolved fine texture at a distance. Moon shading blends integrated transport with the detailed material normal.
 
-The camera-independent **128×80×48** lattice covers `[-24,24] × [0.4,16.8] × [-3,13]`, packed in the existing **1024×515 RGBA32F atlas**. Its channels contain density, moonlight transport and two internal scattering coefficients — never a colour image. Every output pixel integrates the 3D data at full output resolution with **24 fixed Beer–Lambert samples**, front-to-back compositing and transmittance early-out below 0.012.
+Carrier ray bounds conservatively include interpolated optical support. Native verification scans all positive nodes plus their trilinear footprint across eight looks, intermediate developments, height extremes and two weather phases: **56 fields, zero overflow**. This revision expands intermediate x bounds and uses the full z=13 upper bound; the scan caught both required changes.
 
-Moonlight uses local extinction plus one forward optical-depth quadrature sample, a normal/key lobe and a top-surface gate. Internal light is a local, monotone distance/extinction field around charged channel regions, with weaker secondary crawler sources. Its effective porous scattering deliberately avoids the previous excessive attenuation that concealed buried discharges. It is not a full multiple-scattering solution. Large soft light pools show through the surrounding volume while neighbouring cloud bodies stay dark. The same discharges light rain, wet ground and a rippled reflection path.
+## Lightning and internal illumination
 
-Carrier ray bounds avoid marching large empty sky regions. The native verification scans all positive atlas nodes **including their trilinear support**, across eight looks, six intermediate developments, height extremes and two weather times: **56 fields, zero support outside the bounds**. This gate caught and fixed two intermediate-Supercell bounds errors before delivery.
+`storm-model.mjs` independently mirrors the seeded leader graph in `scene-storm-data.mjs`. Four connected trees each contain eighteen trunk edges and up to three four-edge branches: **120 maximum edges**. Branch activation probability is 0.78, handedness is unbiased, and roots/attachments never depend on development or time. Two trees turn from intra-cloud leaders into exact ground strikes; two remain horizontal crawlers.
 
-The previous commit's optional `precompute.filter: "linear"` engine contract is unchanged. `OES_texture_float_linear` enables two filtered slice reads; otherwise eight exact lattice-node fetches implement trilinear interpolation. Without float targets, the same nodes are evaluated directly. Topology always uses `texelFetch`. No new engine extension was added this round. The byte fallback renders safely but cannot preserve HDR or native-path performance.
+The display retains bounded flickering/restriking envelopes and stepped returns. Cores are **12.0** before event weights, with a four-width **1.6** inner glow and seven-width **0.35** accent-tinted halo. Branch width and both halos taper toward branch tips. Nine-width support plus bounded micro-kinks remains inside conservative tile masks. Native float framebuffer peaks are **20.06–20.41**, confirming real HDR bloom input.
+
+Buried lighting now follows a finite portion of each actual channel rather than a single dim point. For point p and closest channel point c, the effective multiple-scattering field is
+
+`G(p) = 1 / (1 + 0.1 |p − c|²)²`.
+
+It peaks on the channel, decays monotonically and remains local. Both channel fields are integrated **inside the cloud raymarch**, not painted onto the completed image. A separate phase-offset source flashes within a distant Haze cell. Discharges also illuminate rain, wet ground and the rippled strike reflection. This is a bounded porous-scattering approximation, not a full physical multiple-scattering solver. All flash output remains behind the engine's shared limiter.
+
+## Precompute compatibility — no engine edit
+
+The scene explicitly declares **`precompute.nearestFallback: true`** alongside `filter: "linear"`. This is required by the integration engine's new handling of float32 linear data.
+
+- With `OES_texture_float_linear`: two filtered slices for each 3D field.
+- Without float-linear support: exact node fetches plus manual trilinear interpolation for both fields; topology always uses `texelFetch`.
+- Without float targets: evaluate the same lattice nodes procedurally. Byte targets cannot preserve HDR or native-path speed.
+
+Native cached linear/manual images differ by at most **one byte level**, mean **0.01012** levels/channel. The independently compiled procedural fallback has sparse contour differences: max **8**, mean **0.01332**, fraction above two levels **0.00618%**. Its explicit gate is max 10, mean <0.02, outlier fraction <0.01%; the cached filtering gate remains max 2 / mean <0.02 / no >2-level outliers. The procedural tolerance was changed for this revision; bit identity is not claimed.
 
 ## Energy, rhythm and endlessness
 
-Energy changes storm/camera rate, branch detail and rain detail, not exposure. Rain has irregular advected filaments rather than uniform sine stripes. Existing gestures remain:
+Energy changes cloud/camera rate, branch and rain detail, not exposure. Existing four/eight/sixteen-beat gestures remain **Buried discharge**, **Branch corona**, **Stepped return**, with unchanged IDs/defaults. The focal kick punch stays at 2%.
 
-- **Buried discharge**, four beats: local alternating internal illumination.
-- **Branch corona**, eight beats: local ionisation glow and selected crawler accent.
-- **Stepped return**, sixteen beats: bright return window along connected leader ranks.
-
-The kick focal punch remains **2%**. Weather and camera use two integrated clocks with period 2π. All temporal multipliers are integer harmonics. Spatial twist, geometry rotation and development reversal never multiply the wrapped clock by a fractional development. The low lateral/dolly/crane path is closed, never cuts and stays outside the optical volume. All visual flash output remains behind the shared limiter.
+Weather and camera use two integrated clocks with period 2π; every temporal multiplier is an integer harmonic. Spatial cellular/detail periods do not introduce a time wrap. Geometry rotation, phase-offset heat flashes and reversals remain continuous at intermediate developments and late rate changes. Native long-show seam/rate checks report zero errors.
 
 ## Looks (unchanged)
 
-| EN | DE | Development / composition |
-| --- | --- | --- |
-| Haze | Dunst | 0 · distant cells, dark terrain, heat lightning |
-| Towers | Türme | 1 · rising crowns and branching intra-cloud channels |
-| Supercell | Superzelle | 2 · close rotating base, lowering, ground strikes |
-| Heat Lantern | Wetterlaterne | 0.25 · lower, thinner front and slow motion |
-| Anvil Choir | Ambosschor | 1.2 · tall dense crown, low camera, more branching |
-| Silent Shelf | Stille Wolkenbank | 0.8 · squat dense shelf, restrained rain |
-| Ground Current | Erdstrom | 2 · low viewpoint, clearer ground footprints |
-| Midnight Rotation | Mitternachtsrotation | 1.8 · developed rotation, rain and camera drift |
+| EN                | DE                   | Development / composition                            |
+| ----------------- | -------------------- | ---------------------------------------------------- |
+| Haze              | Dunst                | 0 · distant cells, heat lightning, settlement lights |
+| Towers            | Türme                | 1 · separated rising crowns and buried channels      |
+| Supercell         | Superzelle           | 2 · rotating full storm, lowering, ground strikes    |
+| Heat Lantern      | Wetterlaterne        | 0.25 · lower thin front, slow motion                 |
+| Anvil Choir       | Ambosschor           | 1.2 · tall dense crown, low camera                   |
+| Silent Shelf      | Stille Wolkenbank    | 0.8 · squat dense shelf, restrained rain             |
+| Ground Current    | Erdstrom             | 2 · low viewpoint, clearer ground footprints         |
+| Midnight Rotation | Mitternachtsrotation | 1.8 · rain, rotation, camera drift                   |
 
 ## Native cost
 
-Apple M3 Pro / Chrome / ANGLE Metal, `PHOSPHOR_HEADLESS_RIG=1`, port 48502. Standard `profile-families.mjs --types --families storm --frames 60`, plus 3840×2160. Baseline is the previous final commit **6f00e49**, routed through `--reference`. The following quiet paired qualification preceded the final uniform-only amendment that also couples corona-only crawlers to internal light. Synchronous whole-frame throughput includes post, excludes asynchronous flash approval.
+Apple M3 Pro / Chrome / ANGLE Metal; headless rig, port 48502. Sequential `profile-families.mjs --types --families storm --frames 90`, then 3840×2160. Reference source: previous final **e6325b40084f65416b9d771cdc61529c46ffb41c**; same harness/engine. Synchronous whole-frame throughput includes post, not asynchronous flash approval.
 
-| State | 1080p baseline → final p50 | Final p95 | 4K baseline → final p50 | Final p95 |
-| --- | --- | --- | --- | --- |
-| Haze | 3.7 → **2.9 ms** | 3.3 ms | 11.2 → **9.7 ms** | 10.4 ms |
-| Towers | 4.1 → **3.7 ms** | 4.0 ms | 12.6 → **12.8 ms** | 13.3 ms |
-| Supercell | 4.0 → **3.6 ms** | 3.9 ms | 11.7 → **11.2 ms** | 11.7 ms |
+| State     | 1080p previous → final p50 | Final p95 | 4K previous → final p50 | Final p95 |
+| --------- | -------------------------- | --------- | ----------------------- | --------- |
+| Haze      | 3.1 → **2.9 ms**           | 4.2       | 9.7 → **8.0 ms**        | 8.5       |
+| Towers    | 3.8 → **3.2 ms**           | 4.6       | 12.9 → **10.1 ms**      | 10.6      |
+| Supercell | 3.5 → **3.4 ms**           | 4.8       | 11.5 → **10.1 ms**      | 10.5      |
 
-Largest quiet paired increase: **1.6%**; that qualification satisfied **≤8 / ≤16 ms**. The separate all-eight-look qualification peaked at **3.9 ms / 14.5 ms p50**. Final-source loaded rechecks measured **3.6 / 5.4 / 5.4 ms** at 1080p versus the immediately preceding old-source **4.5 / 5.9 / 5.8 ms**. A loaded final 4K run measured **12.7 / 17.2 / 15.7 ms**; the old-source 4K recheck measured **18.3 / 20.0 / 18.5 ms**. Another contended final run reached 18.2 ms at 4K. Relative cost remains below the previous commit, but **the absolute 16 ms limit was not maintained in every loaded-machine probe**. All reports are retained. Quiet qualification is not a worst-case or venue-cadence guarantee; this limitation remains explicit.
+Every state improves relative to the previous final and satisfies the +5% restriction. A separate all-eight-look probe peaks at **3.6 ms / 13.0 ms p50**, below 8/16 ms. Initial baseline was 3.3/4.3/3.8 ms and 10.1/13.7/11.8 ms.
 
-## Verification and visual review
+Changing fleet contention is significant: a contended baseline recheck reached 9.0 ms at 1080p; a later sequential all-look candidate probe reached **25.7 ms at 4K**, failing the absolute limit. That loaded failure is retained, not presented as qualification. To avoid comparing opposite sides of a load spike, an additional probe alternates twelve-frame previous/candidate batches in the same native browser, eight batches / 96 measured frames per source, for every look at both resolutions. **All sixteen pairs stay within +5%**: the largest increase is Haze 1080p **4.6 → 4.7 ms (+2.2%)**; every 4K look is faster, with candidate p50 **8.2–10.6 ms**. The script, raw samples and standard reports are retained under `output/final-round/`. These are throughput qualifications, not a loaded-machine worst-case or dual-world venue cadence guarantee.
 
-- **23 CPU/time tests pass**: independent integer hash oracle; 6,000-seed branch statistics; graph connectivity; 401-point identity/reversal sweeps; exact ground endpoints; persistent crawlers; atlas bijection/interpolation; Beer attenuation; conservative halo bounds; multi-frame flicker/decay, periodicity and HDR core configuration; stable metadata/world lookup by ID.
-- **60 native late frames**, five developments, low/high energy, Glacier/Ember/Phosphor, 3600/43200 s: zero GL/non-finite errors, minimum lit fraction above 12/255 **6.33%**.
-- **600 GPU/CPU graph edges** agree within **9.53×10⁻⁷** world units. Five cached/direct float comparisons differ by at most **one byte level**, mean ≤0.0052 levels/channel. Native/manual filtered interpolation also differs by at most one level.
-- Native texture fallback, paused refresh, context restoration and accounting pass. Time-wrap/rate-step checks report zero seams/errors. Typecheck, build and native DE/EN i18n pass.
-- Root suite: **757 tests, 745 pass, nine opt-in skips, three expected integration-owned preview/curation failures**. No catalog or curation files/tests were edited.
-- Baseline and **Abyssal Bloom** reference films were reviewed. More than three improvement rounds were filmed; intermediate strips remain. A cellular-detail experiment was rejected for its visible lattice and cost. Adaptive stepping was rejected after full-size stills exposed flow-like contours. Final uses fixed steps, bounded carrier rays and exact candidate rejects. Portrait, 4K, extra Glacier look, Ember reversal and the eight-look energy ladder were checked.
+## Verification and honest review
 
-**Honest rating: 7.5/10, not 9.** Dark/silver clouds, localized flashes, thick HDR channels and the close storm base address the review directly. It still does not match the reference's finish: crown microstructure remains soft, overhead clouds can look smeared, the repeated four tree shapes are recognisable, and Haze/terrain are restrained. Crisp photographic cauliflower detail is not claimed. Evidence is in this worker's `output/round3/` directory.
+- **28 CPU/time tests pass**: independent hash oracle and leader statistics/connectivity/reversal; exact uint cell features and spatial periods; analytic billow gradients versus central differences; padded detail addresses; monotone footprint filtering and channel scattering; Beer compositing; stable presets/world lookup.
+- **60 native late frames** at low/high energy, five developments, Glacier/Ember/Phosphor, 3600/43200 s: zero GL/non-finite errors; minimum fraction above 12/255 is **12.02%**.
+- **600 GPU/CPU edges**, maximum error <9.53×10⁻⁷ world units; five cached/procedural image probes with the explicit budgets above.
+- **21,952 microstructure nodes**, zero non-finite values, exactly matching wrap gutters; **56 conservative bounds scans**, zero overflow.
+- Native linear/manual fallback, absent float targets, paused refresh, context restoration and texture accounting pass. Typecheck, build and native DE/EN i18n pass. Root suite: **762 tests; 750 pass, nine opt-in skips, three expected catalog preview/curation failures**.
+- Baseline plus **twelve filmed experiments and a final film** were reviewed. Rejected: screen-derivative normals, eight-corner cellular noise, overly hard surface lighting, binary boundary selection. Final/reference films, portrait/4K stills, a Glacier extra look, Ember reversal and eight-look energy ladder are in the worker's `output/final-round/`.
+
+**Rating: 7.5/10, not 9.** The silver billows, darker turret gaps, full-storm framing and visibly glowing cloud interiors improve the filmed baseline. Liquid Chrome's newly filmed reference still has substantially cleaner material finish. Close storm detail remains stylized and sometimes rocky/flow-like rather than photographic cauliflower; the lightning trees repeat and the ground is restrained. This revision does not claim that every close-up now meets the reference standard.
