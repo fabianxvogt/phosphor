@@ -12,7 +12,7 @@ Flows, steps, boxes, centres and view frames come from the tested Strange Attrac
 
 - **Wings (0):** the Lorenz butterfly from its broadest side (camera sways around yaw ≈ 0.7, never edge-on), 42 % of ribbons.
 - **Vortex (1):** Aizawa's sphere of spiralling bands and its axial tube, 68 %.
-- **Labyrinth (2):** Thomas's cyclically symmetric tangle with long excursions, all ribbons, a closer camera with a wider lens and stronger parallax.
+- **Labyrinth (2):** Thomas's cyclically symmetric tangle with long excursions, about 90 % of the ribbons (slightly thicker), a camera at 2.45 units with a wider lens, stronger parallax and stronger depth fog, so the front layers read against the back.
 - Between states every ribbon blends its own positions between two trajectories (smoothstep weight); the integration never depends on development, so the morph is continuous and reversible.
 - Colour follows speed along the flow (fast = lighter) shifted by each ribbon's rank; light pulses run along every ribbon; heads carry a small accent spark; tails fade into the dark.
 
@@ -23,7 +23,7 @@ Butterfly Wings, Aizawa Vortex, Thomas Labyrinth (world states, seed 9701) · Lo
 ## Energy, rhythm, camera
 
 - Energy: flow speed ×0.55→×1.5, ribbon length ±0.15, camera orbit ×0.6→×1.6, light pulses ±0.2. No brightness term.
-- Camera: integrated sway phase (24-bit), drift phase; development moves it from 3.0 to ~2.05 units with focal 2.1 → 1.55, a ±16 % in-and-out weave and ≤ 5° roll at the peak; kick ≤ 2.2 % focal. Tested: the eye stays ≥ 1.4 from the centre (outside every flow's 95th-percentile radius ≈ 1.05); ribbons closer than 0.45 to the eye thin to nothing, so rare excursions never fill the lens.
+- Camera: integrated sway phase (24-bit), drift phase; development moves it from 3.0 to ~2.45 units with focal 2.1 → 1.5, a ±10 % in-and-out weave and ≤ 5° roll at the peak; kick ≤ 2.2 % focal. Tested: the eye stays ≥ 1.4 from the centre (outside every flow's 95th-percentile radius ≈ 1.05); ribbons closer than 0.45 to the eye thin to nothing, so rare excursions never fill the lens.
 - Rhythm: **Ribbon cohort** (4 beats, one in four ribbons lit along its whole trajectory), **Flow run** (8, light runs down every ribbon), **Head sparks** (16, all heads flare).
 - Audio: flow ← low (0.04), pulses ← onset (0.08).
 
@@ -41,7 +41,11 @@ Chaotic flows never settle; the history is a sliding window, phases wrap, positi
 
 ## Tests (`tests/ribbons.test.mjs`)
 
-Flow constants match the shader tables; quantized trajectories stay in their boxes with radius < 1.45 and per-sample steps < 0.2; every flow has a positive finite-time Lyapunov exponent at its setting; development weights and ribbon presence are continuous and complete at the peak; camera clearance over a development × phase × parameter grid; deterministic per-seed identity; presets validate and the world is continuous.
+Flow constants match the shader tables; quantized trajectories stay in their boxes with radius < 1.45 and per-sample steps < 0.2; every flow has a positive finite-time Lyapunov exponent at its setting; development weights and ribbon presence are continuous, and 80–95 % of the ribbons are present at the peak; camera clearance over a development × phase × parameter grid; deterministic per-seed identity; presets validate and the world is continuous.
+
+## Labyrinth framing (polish 2026-10-15)
+
+At the peak the camera stood at 2.05 units (±16 %) with focal 1.55: the visible half-height at the centre was 1.1–1.5 units while Thomas excursions reach about 1.5, so loops touched the bottom edge, and all 192 ribbons made the core a uniform tangle. Now: distance 2.45 (±10 %), focal 1.5 (visible half-height 1.47–1.8), 90 % of the ribbons (`shown(2)` 1.08 → 0.88), width factor at the peak 0.7 → 0.88 and depth fog ×1.6. Ladder (480×270): loops stay inside the frame with a margin at all three energies for Thomas Labyrinth, Labyrinth Rush and Slow Labyrinth; the form fills about 55–65 % of the short side. Mean 8-bit level drops 10.2 → 7.9 (smaller on screen, fewer ribbons). Throughput unchanged (1080p 1.6 ms, 4K 3.7 ms, control 1.5 / 3.4–3.8 ms).
 
 ## Limits
 

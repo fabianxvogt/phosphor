@@ -98,7 +98,7 @@ test("every flow is chaotic at its setting (positive finite-time Lyapunov expone
   }
 });
 
-test("development blends continuously and reveals more ribbons, all of them at the peak", () => {
+test("development blends continuously and reveals more ribbons, about 90 % at the peak", () => {
   assert.deepEqual(blend(0), { a: 0, w: 0 });
   assert.deepEqual(blend(1), { a: 1, w: 0 });
   assert.deepEqual(blend(2), { a: 1, w: 1 });
@@ -117,9 +117,13 @@ test("development blends continuously and reveals more ribbons, all of them at t
     assert.ok(shown(d + 0.001) >= shown(d));
   }
   assert.ok(Math.abs(shown(0) - 0.42) < 1e-9);
-  assert.ok(shown(2) >= 1);
+  // The labyrinth shows about 90 % of the ribbons (all of them read as noise).
+  assert.ok(shown(2) > 0.85 && shown(2) < 0.95);
   const ranks = ribbonRanks(9701);
-  assert.equal(ranks.filter((r) => presence(r, 2) === 1).length, RIBBONS);
+  const full = ranks.filter((r) => presence(r, 2) === 1).length;
+  const any = ranks.filter((r) => presence(r, 2) > 0).length;
+  assert.ok(full > 0.8 * RIBBONS && any < 0.95 * RIBBONS, `${full} ${any}`);
+  assert.ok(full > ranks.filter((r) => presence(r, 1) > 0).length);
   const sparse = ranks.filter((r) => presence(r, 0) > 0).length;
   assert.ok(sparse > 60 && sparse < 100, `${sparse}`);
 });
