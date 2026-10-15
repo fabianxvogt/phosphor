@@ -84,6 +84,28 @@ Native GPU differential check: 24 cases spanning intermediate development, 19/36
 
 Evidence under `artifacts/films/laser-r2-*`: v1/v2/v3 and final world films/contact strips, Ember extra look, Glacier reverse look, all-look energy ladder, three-palette stills and portrait/late-time captures. Performance JSON lives under `artifacts/performance/laser-r2-*`.
 
+## Wave 5 rework · 15 October 2026
+
+Three filmed rounds, with all saved IDs/names/seeds/schema/preset values and world definition unchanged:
+
+1. Weakest: the skyline read as transparent wire boxes. Added a bounded palette-only directional face wash and height gradient, strengthened corners, lowered repetitive window rows. No new geometry or loops.
+2. Weakest: the light was mostly thin lines and Horizon was spare. Rebalanced core/sheath (0.58/0.27), raised the existing finite scanning sheet and cone fill. These use the same exact integrals and candidate bounds, not wider unbounded beams.
+3. Weakest: uniform grid density competed with the hero. Dimmed minor grid, strengthened four-cell ribs/hinges, increased distance extinction and the existing cone mouth fronts. The tunnel now reads as a hierarchy of light and structural ribs.
+
+Headless Chrome / ANGLE Metal / M3 Pro, synchronous throughput including post:
+
+| State | 1080p baseline → final p50 (30 samples) | 4K paired baseline → final p50 (60 samples) |
+| --- | --- | --- |
+| Horizon | 2.5 → 2.5 ms | 7.8 → 8.1 ms |
+| Towers | 3.4 → 3.3 ms | 11.6 → 12.0 ms |
+| Tunnel | 4.6 → 3.8 ms | 14.0 → 14.4 ms |
+
+Every paired median is within +5%. Original 30-sample 4K baseline was 8.4/11.7/14.8 ms; first final was 7.6/11.8/15.6 ms (Tunnel +5.4%, hence the longer paired check against `deaaae1`, not silently discarded). Paired final p95 9.4/12.9/15.5 ms. Shared GPU wall-time variation is not a venue cadence guarantee.
+
+Evidence root: `/Users/fabian/Development/phosphor/.fleet/phosphor-worlds-wave5-20261015162322/workers/rework-wave4/output/laser/`. Baseline `baseline/laser-grid.{mp4,png}`, final `final/laser-grid.{mp4,png}`. Also Ember Folded Chapel, Glacier reverse world, all-look ladder, full-size Tunnel still, three-palette low-energy states, portrait states and 4K still. `scripts/verify-wave4-reworks.mjs --families laser` passes 60 low/high-energy, intermediate-development and 12-hour native cases, zero GL/non-finite errors. Added CPU/source regression for bounded face lighting and the vector hierarchy; existing independent integral and geometry tests remain authoritative. Superseded films removed. Honest rating: **9/10** for its deliberately vector-graphic idiom; not photoreal architecture.
+
+No engine or existing shared registration files changed. The new optional verification script also supports the other wave-4 reworks.
+
 ## Limits
 
 - Deliberately graphic vector architecture, not photoreal buildings. Horizon retains a large dark sky for breakdowns.

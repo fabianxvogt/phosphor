@@ -226,9 +226,11 @@ float ferroBox(vec3 d, vec3 direction, float width, float height) {
   float z = dot(d, c);
   vec2 uv = vec2(dot(d, x), dot(d, y)) / max(z, 0.001);
   vec2 edge = abs(uv) - vec2(width, height);
-  float aa = max(gPixel * 3.0, 0.065);
+  float aa = max(gPixel * 3.0, 0.022);
   float panel = (1.0 - smoothstep(-aa, aa, max(edge.x, edge.y))) * step(0.0, z);
-  return panel * (0.7 + 0.3 * exp(-dot(uv, uv) * 0.8));
+  // A shaped strip, not a flat white rectangle. Filter angular edges but
+  // retain a dark gap even in broad-strip presets.
+  return panel * (0.32 + 0.68 * exp(-sq(uv.x / width) - sq(uv.y / height)));
 }
 vec3 ferroStudio(vec3 d) {
   // The studio keeps moving even when the fluid-motion fader is zero.
@@ -236,13 +238,15 @@ vec3 ferroStudio(vec3 d) {
   d.xy = rot2(0.16 * sin(gStudio)) * d.xy;
   vec3 primary = mix(u_primary, vec3(1.0), 0.42);
   vec3 silver = mix(u_secondary, vec3(1.0), 0.48);
-  vec3 col = silver * (0.018 + 0.04 * smoothstep(-0.6, 0.7, d.y));
+  vec3 col = silver * (0.008 + 0.018 * smoothstep(-0.6, 0.7, d.y));
   // Large reflected diffusion cards describe the curvature between strips.
-  col += silver * 0.22 * pow(max(dot(d, normalize(vec3(0.4, 0.8, 0.6))), 0.0), 7.0);
-  col += primary * 0.12 * pow(max(dot(d, normalize(vec3(-0.8, 0.4, -0.4))), 0.0), 4.0);
-  col += silver * ferroBox(d, vec3(-0.25, 1.0, 0.2), 1.2, 0.48) * 0.5;
-  col += primary * ferroBox(d, vec3(-0.65, 0.65, 0.6), 0.36 * gWidth, 1.15) * 1.3;
-  col += silver * ferroBox(d, vec3(0.8, 0.45, 0.1), 1.1, 0.25 * gWidth) * 1.5;
+  col += silver * 0.13 * pow(max(dot(d, normalize(vec3(0.4, 0.8, 0.6))), 0.0), 7.0);
+  col += primary * 0.045 * pow(max(dot(d, normalize(vec3(-0.8, 0.4, -0.4))), 0.0), 4.0);
+  // Negative space between narrow cards is essential: broad cards turn
+  // the shallow crown into a white diffuse-looking plastic sheet.
+  col += silver * ferroBox(d, vec3(-0.25, 1.0, 0.2), 0.72, 0.11) * 0.65;
+  col += primary * ferroBox(d, vec3(-0.65, 0.65, 0.6), 0.12 * gWidth, 1.15) * 1.6;
+  col += silver * ferroBox(d, vec3(0.8, 0.45, 0.1), 1.1, 0.075 * gWidth) * 1.8;
   col += primary * ferroBox(d, vec3(0.1, 0.25, -1.0), 0.045 * gWidth, 1.4) * 2.0;
   col += u_accent * ferroBox(d, vec3(-0.85, 0.1, -0.5), 0.018 * gWidth, 0.6) * 1.2;
   col += primary * 0.15 * exp(-sq((d.y - 0.06) / 0.09));
@@ -271,7 +275,7 @@ vec3 ferroMetal(vec3 p, vec3 n, vec3 rd, float cavity) {
   float fresnel = 0.88 + 0.12 * pow(1.0 - max(dot(n, -rd), 0.0), 5.0);
   vec3 col = ferroStudio(reflection) * fresnel * cavity;
   // A dark conductor: no coloured diffuse lobe. Only a grazing soft rim.
-  col += mix(u_secondary, vec3(1.0), 0.2) * 0.025 * pow(1.0 - abs(dot(n, rd)), 3.0);
+  col += mix(u_secondary, vec3(1.0), 0.2) * 0.065 * pow(1.0 - abs(dot(n, rd)), 3.0);
   return col;
 }
 void main() {
@@ -306,7 +310,8 @@ void main() {
   vec3 fw = normalize(target - ro), right = normalize(cross(fw, vec3(0.0, 1.0, 0.0)));
   vec3 up = cross(right, fw);
   vec2 uv = aspectUV() / min(u_resolution.x / u_resolution.y, 1.0);
-  float focal = mix(1.8, 2.05, gLift) * u_params[7] * (1.0 + 0.022 * u_kick);
+  float portraitFit = mix(0.72, 1.0, smoothstep(0.6, 1.2, u_resolution.x / u_resolution.y));
+  float focal = mix(1.8, 2.05, gLift) * u_params[7] * portraitFit * (1.0 + 0.022 * u_kick);
   // One full-resolution ray. Pixel-scaled normals and angularly filtered
   // studio cards resolve glints without duplicating the complete SDF path.
   vec3 rd = normalize(fw * focal + right * uv.x + up * uv.y);
@@ -330,7 +335,7 @@ void main() {
       float rt = ferroMarch(reflectionOrigin, reflection);
       if (rt < 90.0) {
         vec3 rp = reflectionOrigin + reflection * rt;
-        col += ferroMetal(rp, ferroNormal(rp, rt), reflection, 0.75) * 0.17 * pool * gLift;
+        col += ferroMetal(rp, ferroNormal(rp, rt), reflection, 0.75) * 0.23 * pool * gLift;
       }
     }
     float rim = exp(-sq((length(floorP.xz) - 2.3) / 0.024));

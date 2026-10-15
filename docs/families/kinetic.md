@@ -82,6 +82,38 @@ Earlier shared-machine runs were 2.5–3.1 ms at 1080p and 4.9–8.7 ms at 4K. A
 - Additional `test:i18n` browser smoke fails twice at the unrelated invalid-import toast assertion (`scripts/test-i18n.mjs:141`); no control/UI/i18n changes were made. Dictionary CPU tests pass in the full suite.
 - Reviewed default, Ember, Glacier and Silver films, full energy ladder, portrait and late-time stills. Final world film/strip: `artifacts/films/kinetic-final/kinetic-rain.{mp4,png}`. Full sculpture cycle: `artifacts/films/kinetic-morph-cycle/kinetic-floating-sculpture-silver.{mp4,png}`. Extra band look: `artifacts/films/kinetic-extra/kinetic-m-bius-drift-glacier.{mp4,png}`. Ladder: `artifacts/contact/kinetic-ladder/index.html`.
 
+## Wave 5 rework · 15 October 2026
+
+Saved identities are unchanged: every preset, seed, schema key, world/state/look ID and world definition is preserved. The CPU position law and all geometry buffers/indices are unchanged; only camera/light/zero-contribution work changed. No engine edits.
+
+Three filmed improvement rounds: (1) a bounded, choreography-aware lens fit gives narrower held forms and contracting blends more presence without enlarging the broad saddle; (2) aiming at the actual sculpture centre instead of below it makes the hero, not its reflection, own the composition, while cables fade fully before their zero triangles are culled; (3) stronger palette rim lighting separates the half-twist, and dimmer decorative twinkles stop competing with coherent surface highlights. A final performance polish passes focal length as a flat vertex varying instead of recomputing it per sphere fragment, and skips exactly zero-weight haze integrals at held states.
+
+### Framing mathematics and regression
+
+For the existing smooth partition `w`, the additional focal term is
+
+`fit = dot(w, (0.08, 0.03, 0.065, 0)) + 0.18 (1 − dot(w,w))`.
+
+It is continuous, 4-cycle-periodic, zero below development 1 and bounded below 0.18. The second term compensates contraction only while morphing. All three rendering paths share the same formula and **2%** kick limit. Sphere positions, topology and normals are not scaled to hide a framing error.
+
+The previous camera test sampled only holds. The expanded CPU projection sweep samples **the complete morph cycle**, independent camera and sculpture turns, with floor/portrait checks: approximately **55.2–82.5%** short-side extent, versus **52.4–82.7%** before (coarser diagnostic sweep). Every held/in-between tested case is now between 55% and 85%. Added lens periodicity/continuity/seed-offset and zero-thread-cull tests; original motor/implicit-surface/identity tests still pass.
+
+### Cost and evidence
+
+Standard 30-sample native probes: 1080p baseline **2.6/3.1/4.1** → final **2.3/2.4/2.4** ms; 4K baseline **6.5/8.6/11.8** → final **6.0/9.1/7.2** ms. Fleet contention caused the sequential Waves comparison to cross +5%, so the final 4K qualification uses the same optional ABBA interleaved baseline/final check as Magma (64 frames/candidate):
+
+| State | Interleaved 4K baseline → final p50 | Final p95 |
+| --- | --- | --- |
+| Ceiling | 7.2 → 6.7 ms | 8.0 ms |
+| Waves | 7.0 → 7.1 ms | 8.4 ms |
+| Sculpture | 9.8 → 7.2 ms | 9.9 ms |
+
+Every paired median is within +5%; Sculpture gains headroom despite its stronger framing. Synchronous throughput includes post; not venue cadence. The earlier 1080p paired check was 2.6→2.5, 2.6→2.6, 4.0→2.6 ms before the final zero-weight-haze optimization.
+
+Evidence root: `/Users/fabian/Development/phosphor/.fleet/phosphor-worlds-wave5-20261015162322/workers/rework-wave4/output/kinetic/`. Baseline `baseline/kinetic-rain.{mp4,png}` and baseline Möbius Drift; final `final/kinetic-rain.{mp4,png}`, Ember Möbius Drift, **70-second** Glacier full sculpture cycle, reverse portrait world, full-size band still and all-look ladder. Native verification covers 60 three-palette, low/high-energy, intermediate-development/12-hour cases plus portrait states and a 4K still, zero errors. Superseded rounds removed. Honest rating: **9/10** — a clear coherent mathematical installation; its point-lattice character remains intentional.
+
+Final wave-5 verification: `tests/kinetic.test.mjs tests/time.test.mjs` **24/24 pass**; root suite **737 pass, nine opt-in skips, zero failures** (746 total). Typecheck, build and headless native German/English UI i18n smoke pass. No catalog preview/curation files or tests were edited.
+
 ## Limits
 
 The floor mirror is a sharp mirrored population with soft sphere coverage, not physically integrated glossy reflection. Surface occlusion is a proxy, not inter-sphere ray tracing. A few morph midpoints remain narrower than the held forms; pearl rows remain visible rather than becoming a seamless solid shell. Haze is deliberately subtle against the dark room. External-projector contrast and multi-hour Stage cadence remain unmeasured.

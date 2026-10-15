@@ -160,8 +160,8 @@ float mrNoiseP(vec2 p, float period) {
 vec3 mrHeat(float T) {
   T = max(T, 0.0);
   vec3 c = mix(u_secondary * 0.75, u_primary, smoothstep(0.25, 0.68, T));
-  c = mix(c, u_accent, smoothstep(0.8, 1.0, T));
-  c = mix(c, vec3(1.0), 0.8 * smoothstep(1.02, 1.4, T));
+  c = mix(c, u_accent, smoothstep(0.98, 1.22, T));
+  c = mix(c, vec3(1.0), 0.8 * smoothstep(1.2, 1.55, T));
   return c * (2.2 * T * T * T + 0.04 * T);
 }
 
@@ -309,6 +309,7 @@ vec2 mrTilt(Plate P) { return (fract(P.hA * vec2(17.3, 11.9)) - 0.5) * 0.07; }
 // Slab top: 0.1 ± 0.025 by plate, tilted by at most ±0.05 (so every rock
 // and lava height stays below TOP_BOUND above the base).
 float mrRock(vec2 x, Plate P, float base, float mask, out vec2 grad) {
+  if (mask <= 0.0) { grad = vec2(0.0); return base; }
   float id = mrPlateId(P);
   vec2 tilt = mrTilt(P);
   vec2 rel = (x / gS - P.siteA);
@@ -552,8 +553,16 @@ void main() {
       for (int k = 0; k < DETAIL_CAP; ++k) {
         vec3 p = ro + rd * s;
         vec2 gh;
-        float g = p.y - mrHeightG(p.xz, b0 + dot(g0, p.xz - p0.xz), gh, marchP);
-        if (abs(g) < 0.0012 + 0.0005 * s) { haveP = true; break; }
+        // Fully sunk central plates cannot reach the molten surface:
+        // top <= .175 - .32 < .075. Include the maximum site offset
+        // before skipping the expensive plate search, never at the shore.
+        bool molten = gLakeAmt >= 1.0 && length(p.xz) + 1.6 * gS < gLakeR - 1.6;
+        float baseH = b0 + dot(g0, p.xz - p0.xz);
+        float height;
+        if (molten) { gh = vec2(0.0); height = baseH + 0.075; }
+        else height = mrHeightG(p.xz, baseH, gh, marchP);
+        float g = p.y - height;
+        if (abs(g) < 0.0012 + 0.0005 * s) { haveP = !molten; break; }
         if (g > 0.0) { lo = s; glo = g; } else { hi = s; ghi = g; }
         float slope = rd.y - dot(g0 + gh, rd.xz);
         float relaxed = g / (max(-rd.y, 0.0) + 0.12);
@@ -587,8 +596,12 @@ void main() {
     float r = length(x);
     float base = mrBase(x);
     float mask = mrPlateMask(r);
-    Plate Pl = marchP;
-    if (!haveP) Pl = mrPlates(x / gS, gSeamW);
+    // Outside the finite plate field the caldera is solid rock. A valid
+    // inert record avoids 9 site fetches + bisectors for every wall pixel.
+    Plate Pl = Plate(vec2(0.0), vec2(0.0), vec2(1.0, 0.0), 1.0, 1.0, 0.0, vec2(0.5));
+    if (mask > 0.0) {
+      if (haveP) Pl = marchP; else Pl = mrPlates(x / gS, gSeamW);
+    }
     vec2 rockGrad;
     float rock = mrRock(x, Pl, base, mask, rockGrad);
     float lavaY = base + mask * mrLavaLevel(r, Pl.width);
@@ -647,13 +660,19 @@ void main() {
         float la = TAU * gFlow / 16.0;
         vec2 xr = mat2(cos(la), sin(la), -sin(la), cos(la)) * x;
         xr += 0.32 * vec2(sin(xr.y * 2.3), sin(xr.x * 2.7 + 1.0));
-        float lb = mrBorder(xr * 1.1 + vec2(311.0, 173.0));
+        // The lake is molten, not another tiled Voronoi floor. Advected
+        // pahoehoe folds reveal dark floating skins between hot tears.
+        // This replaces an entire second 9-site nearest/bisector search.
+        float foldPhase = xr.x * 4.8 + 2.4 * sin(xr.y * 2.7) - TAU * gFlow;
+        float folds = 0.5 + 0.5 * sin(foldPhase + 0.9 * sin(xr.y * 3.1 + xr.x * 1.4));
+        float scum = mrNoise(xr * 2.4 + 0.6 * vec2(sin(TAU * gFlow), cos(TAU * gFlow)));
+        float lb = mix(folds, scum, 0.75);
         float lfp = fp * gS * 1.1;
-        float lcrack = 0.1 / max(0.1, lfp) * exp(-max(lb - 0.05, 0.0) / max(lfp, 0.07));
+        float lcrack = (1.0 - smoothstep(0.12, 0.38, lb)) * 0.38 / max(0.38, lfp * 3.8);
         float open = exp(-r * r / (3.0 + 3.5 * gErupt));
         float boil = sin(r * 4.0 - TAU * gFlow) * sin(xr.x * 3.1 + xr.y * 2.2);
-        float crust = (1.0 - lcrack) * (1.0 - open) * smoothstep(0.05, 0.22, lb);
-        float Tl = (0.76 + 0.1 * (gHeat - 0.5)) * (1.0 - 0.45 * crust) + 0.1 * lcrack + (0.1 + 0.12 * boil) * open * gErupt;
+        float crust = (1.0 - lcrack) * (1.0 - open) * smoothstep(0.28, 0.65, lb);
+        float Tl = (0.72 + 0.1 * (gHeat - 0.5)) * (1.0 - 0.22 * crust) + 0.08 * lcrack + (0.1 + 0.12 * boil) * open * gErupt;
         float nl = lb;
         // Sinking plates show as dark rafts just below the lake surface.
         float raft = smoothstep(-0.14, -0.02, rock - lavaY);
@@ -718,7 +737,7 @@ void main() {
     // Lighting: a dim cool key (sky), lava light from the nearest seam,
     // the lake/fountain light, field glow from below and a fresnel rim.
     vec3 keyDir = normalize(vec3(-0.45, 0.6, 0.35));
-    vec3 keyCol = mix(u_secondary, vec3(1.0), 0.5) * 0.2;
+    vec3 keyCol = mix(u_secondary, vec3(1.0), 0.35) * 0.24;
     float diff = max(dot(N, keyDir), 0.0);
     vec3 light = keyCol * (0.3 + diff);
     // Seam light: falls off away from the seam, brightest on faces turned to it.
@@ -812,9 +831,9 @@ void main() {
           // Lit from below: the fountain's light decays with height and
           // reaches deeper into the core.
           float under = exp(-hy / (5.0 + 2.0 * gForce)) * (0.5 + 0.5 * smoothstep(rad, rad * 0.3, dr));
-          vec3 lightC = glowCol * (0.85 * under * (0.6 + 0.4 * gForce) * (1.0 + 0.3 * u_rhythm.z)) + hazeCol * 1.5;
+          vec3 lightC = glowCol * (0.48 * under * (0.6 + 0.4 * gForce) * (1.0 + 0.3 * u_rhythm.z)) + hazeCol * 1.5;
           // Thin billow edges catch the light; dense cores stay dark ash.
-          lightC *= mix(1.3, 0.25, smoothstep(0.5, 0.95, nRaw));
+          lightC *= mix(1.3, 0.12, smoothstep(0.5, 0.95, nRaw));
           float a = 1.0 - exp(-dens * ds * 2.2);
           acc += trans * a * lightC;
           trans *= 1.0 - a;
@@ -840,14 +859,16 @@ void main() {
       float hy = cs.z;
       // Upper bound on the billow's core width: skip its turbulence and
       // thermal ramp entirely outside the compact-support jet kernel.
-      float maxSig = max(0.947, gPix * cs.y * 1.5);
+      float maxSig = max(0.50, gPix * cs.y * 1.5);
       if (cs.y >= t + 0.2 || cs.x >= 4.0 * maxSig) continue;
       vec3 q = ro + rd * cs.y;
       float billow = mrBillow(q * 2.1, TAU * gErPh);
-      float wcol = (0.28 + 0.3 * clamp(hy, 0.0, 1.0)) * (0.6 + billow);
+      // Dense liquid tapers on ascent; the separate ash volume billows.
+      // Widening flame-shaped tips made the old fountain read as a bonfire.
+      float wcol = (0.4 - 0.24 * clamp(hy, 0.0, 1.0)) * (0.8 + 0.4 * billow);
       float sig = max(wcol, gPix * cs.y * 1.5);
       float flick = 0.75 + 0.25 * sin(TAU * (gErPh * 8.0) - hy * 14.0 + fj) * sin(TAU * gErPh * 5.0 + hy * 7.0);
-      float T = 0.83 - 0.12 * hy + 0.42 * pow(max(billow, 0.0), 5.0);
+      float T = 1.05 - 0.18 * hy + 0.15 * billow * billow;
       float edge = 1.0 - smoothstep(3.4 * sig, 4.0 * sig, cs.x);
       add += mrHeat(T) * exp(-sq(cs.x / sig)) * (wcol / sig) * gErupt * flick * edge * 0.9;
       add += mrHeat(T - 0.24) * exp(-sq(cs.x / (2.0 * sig))) * gErupt * flick * edge * 0.12;

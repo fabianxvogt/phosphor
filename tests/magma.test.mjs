@@ -70,8 +70,7 @@ function plates(qx, qy, R = 1) {
     if (k === bi) return;
     const dx = s.x - a.x,
       dy = s.y - a.y;
-    const b =
-      (0.5 * (a.x + s.x) * dx + 0.5 * (a.y + s.y) * dy) / Math.hypot(dx, dy);
+    const b = (0.5 * (a.x + s.x) * dx + 0.5 * (a.y + s.y) * dy) / Math.hypot(dx, dy);
     if (b < border) {
       border = b;
       gi = k;
@@ -87,16 +86,14 @@ function plates(qx, qy, R = 1) {
 // Deterministic sample points.
 function* points(n, span = 120, seed = 7) {
   let s = seed >>> 0;
-  const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
-  for (let i = 0; i < n; i++)
-    yield [(rnd() - 0.5) * span, (rnd() - 0.5) * span];
+  const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let i = 0; i < n; i++) yield [(rnd() - 0.5) * span, (rnd() - 0.5) * span];
 }
 
 test("shader keeps the mirrored Voronoi search and seam distance", () => {
   for (const line of [
     `const float JIT = ${PLATE_JITTER.toFixed(2)};`,
-    "return mrH22(c + gSeedOff);",
-    "return texelFetch(u_precomputed, ivec2(c) + ivec2(64, 65), 0).xy;",
+    "return mrH22(c + gSeedOff);", "return texelFetch(u_precomputed, ivec2(c) + ivec2(64, 65), 0).xy;",
     "vec2 mrSite(vec2 h) { return 0.5 + JIT * (h - 0.5); }",
     "return fract((p3.xx + p3.yz) * p3.zy);",
     "if (d < best) { best = d; mr = r[k]; hA = h; oA = o; }",
@@ -131,8 +128,7 @@ test("the cached 3×3 search finds the exact nearest plate and exact seam distan
       L = Math.hypot(dx, dy);
     const q = plates(x + (0.01 * dx) / L, y + (0.01 * dy) / L);
     if (q.cell[0] !== p.cell[0] || q.cell[1] !== p.cell[1]) continue;
-    if (q.neighbour[0] !== p.neighbour[0] || q.neighbour[1] !== p.neighbour[1])
-      continue;
+    if (q.neighbour[0] !== p.neighbour[0] || q.neighbour[1] !== p.neighbour[1]) continue;
     assert.ok(Math.abs(p.border - q.border - 0.01) < 1e-9);
   }
 });
@@ -163,18 +159,10 @@ const dev01 = (dev) => ({
 test("plate identity never depends on development; only seams, lava and sinking do", () => {
   assert.match(src, /Plate mrPlates\(vec2 q, float wScale\)/);
   // wScale enters only the width; identity comes from the sites alone.
-  const body = src.slice(
-    src.indexOf("Plate mrPlates("),
-    src.indexOf(
-      "// ------------------------------------------------------------------ terrain",
-    ),
-  );
+  const body = src.slice(src.indexOf("Plate mrPlates("), src.indexOf("// ------------------------------------------------------------------ terrain"));
   assert.equal((body.match(/wScale/g) ?? []).length, 2);
   assert.doesNotMatch(body, /gDev|gSplit|gLakeAmt|gErupt|u_params/);
-  assert.match(
-    src,
-    /gSeamW = 0\.018 \+ 0\.068 \* gSplit \+ 0\.03 \* smoothstep\(1\.0, 2\.0, dev\);/,
-  );
+  assert.match(src, /gSeamW = 0\.018 \+ 0\.068 \* gSplit \+ 0\.03 \* smoothstep\(1\.0, 2\.0, dev\);/);
   // The same plate at every development value, forward and back.
   const probes = [...points(500, 40, 3)].map(([x, y]) => plates(x, y));
   for (let dev = 0; dev <= 2.0001; dev += 0.05)
@@ -191,10 +179,7 @@ test("plate identity never depends on development; only seams, lava and sinking 
   // Plates sink into the lake as whole plates (by their site), only once
   // the lake opens.
   assert.match(src, /float sr = length\(P\.siteA \* gS\);/);
-  assert.match(
-    src,
-    /float sink = smoothstep\(gLakeR \+ 0\.3, gLakeR - 1\.6, sr\) \* gLakeAmt;/,
-  );
+  assert.match(src, /float sink = smoothstep\(gLakeR \+ 0\.3, gLakeR - 1\.6, sr\) \* gLakeAmt;/);
   assert.equal(dev01(1.0).lake, 0);
   assert.equal(dev01(0).split, 0);
   assert.equal(dev01(2).erupt, 1);
@@ -291,16 +276,9 @@ test("the bound surface is above every slab and lava level", () => {
 });
 
 test("a bomb's trail lies inside its precomputed bounding sphere", () => {
-  assert.match(
-    src,
-    /return vec4\(0\.5 \* \(h0 \+ tail\), 0\.5 \* length\(h0 - tail\) \+ 0\.125 \* G_ACC \* span \* span\);/,
-  );
+  assert.match(src, /return vec4\(0\.5 \* \(h0 \+ tail\), 0\.5 \* length\(h0 - tail\) \+ 0\.125 \* G_ACC \* span \* span\);/);
   const p0 = [0, 0.7, 0];
-  for (const [hx, hy, big] of [
-    [0.3, 0.8, true],
-    [1, 1, true],
-    [0.5, 0.1, false],
-  ]) {
+  for (const [hx, hy, big] of [[0.3, 0.8, true], [1, 1, true], [0.5, 0.1, false]]) {
     const { vy, vh } = launch(hx, hy, 1.5, big);
     const v0 = [vh, vy, 0.3 * vh];
     const span = 3 * (big ? 0.22 : 0.1);
@@ -308,9 +286,7 @@ test("a bomb's trail lies inside its precomputed bounding sphere", () => {
       const h0 = bomb(p0, v0, tt),
         tail = bomb(p0, v0, Math.max(tt - span, 0));
       const mid = h0.map((x, j) => 0.5 * (x + tail[j]));
-      const radius =
-        0.5 * Math.hypot(...h0.map((x, j) => x - tail[j])) +
-        0.125 * GRAVITY * span * span;
+      const radius = 0.5 * Math.hypot(...h0.map((x, j) => x - tail[j])) + 0.125 * GRAVITY * span * span;
       for (let k = 0; k <= 20; k++) {
         const q = bomb(p0, v0, Math.max(tt - (span * k) / 20, 0));
         assert.ok(Math.hypot(...q.map((x, j) => x - mid[j])) <= radius + 1e-9);
@@ -323,14 +299,12 @@ test("a bomb's trail lies inside its precomputed bounding sphere", () => {
 function base(x, z) {
   const r2 = x * x + z * z;
   let h = 0.55 * Math.exp(-r2 / 70);
-  h +=
-    0.1 * Math.sin(0.37 * x + 1.3) * Math.sin(0.29 * z + 0.4) +
-    0.06 * Math.sin(0.21 * x - 0.53 * z + 2.1);
+  h += 0.1 * Math.sin(0.37 * x + 1.3) * Math.sin(0.29 * z + 0.4) + 0.06 * Math.sin(0.21 * x - 0.53 * z + 2.1);
   return h; // the caldera wall starts beyond r = 19
 }
 test("the camera orbit never enters the ground", () => {
   for (const line of [
-    "float peakR = 12.8 + 12.0 * max(gForce - 1.0, 0.0);",
+    "float peakR = 12.8 + 12.0 * max(gForce - 1.0, 0.0);", 
     "float R = mix(mix(7.6, 8.6, gSplit), peakR, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
     "ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) * mix(0.8, 1.0, gSplit) + 1.4 * gErupt + 0.15 * wob;",
     "const float TOP_BOUND = 0.18;",
@@ -343,20 +317,13 @@ test("the camera orbit never enters the ground", () => {
         for (let az = 0; az < 2 * Math.PI; az += 0.02) {
           const erupt = smooth(1.3, 2, dev),
             split = smooth(0.08, 1, dev);
-          const R =
-            mix(mix(7.6, 8.6, split), 12.8, erupt) * (1 + 0.05 * wob) +
-            1.2 * camH;
+          const R = mix(mix(7.6, 8.6, split), 12.8, erupt) * (1 + 0.05 * wob) + 1.2 * camH;
           // The camera cranes back continuously while the eruption forms.
-          if (erupt > 0)
-            assert.ok(R > 7.6, `camera radius ${R} during the eruption`);
+          if (erupt > 0) assert.ok(R > 7.6, `camera radius ${R} during the eruption`);
           assert.ok(R < 19, "inside the plate field, far from the wall");
           const x = R * Math.cos(az),
             z = R * Math.sin(az);
-          const y =
-            base(x, z) +
-            mix(2.2, 6.6, camH) * mix(0.8, 1, split) +
-            1.4 * erupt +
-            0.15 * wob;
+          const y = base(x, z) + mix(2.2, 6.6, camH) * mix(0.8, 1, split) + 1.4 * erupt + 0.15 * wob;
           least = Math.min(least, y - (base(x, z) + 0.18));
         }
   assert.ok(least > 1.3, `clearance ${least}`);
@@ -366,10 +333,7 @@ test("the camera orbit never enters the ground", () => {
 test("clocks are the authored products and every use is periodic", () => {
   assert.match(early, /gOrbit = u_time \* \(u_params\[5\] \* 0\.07\);/);
   assert.match(early, /gFlow = u_time \* \(u_params\[1\] \* 0\.18\);/);
-  assert.match(
-    early,
-    /gErPh = u_time \* \(\(0\.8 \+ 0\.45 \* clamp\(u_level, 0\.0, 1\.0\)\) \/ 4\.6\);/,
-  );
+  assert.match(early, /gErPh = u_time \* \(\(0\.8 \+ 0\.45 \* clamp\(u_level, 0\.0, 1\.0\)\) \/ 4\.6\);/);
   assert.match(late, /gOrbit = u_clock\[0\];/);
   const p = magma.schema.map((f) => f.default);
   p[5] = 0.7;
@@ -383,65 +347,69 @@ test("clocks are the authored products and every use is periodic", () => {
   );
   // Orbit (period 2π): only whole multiples of the azimuth.
   const azUses = [...src.matchAll(/(sin|cos)\(az[^)]*\)/g)].map((m) => m[0]);
-  for (const use of azUses)
-    assert.match(use, /^(sin|cos)\(az( \* 2\.0)?( \+ 0\.7)?\)$/, use);
+  for (const use of azUses) assert.match(use, /^(sin|cos)\(az( \* 2\.0)?( \+ 0\.7)?\)$/, use);
   // Flow (period 16): sin(TAU·φ), the lake turn TAU·φ/16, fract and floor mod 16.
-  for (const use of src
-    .match(/[^\n]*gFlow[^\n]*/g)
-    .filter((l) => !/gFlow = |float gDev/.test(l)))
-    assert.match(
-      use,
-      /sin\(TAU \* gFlow|TAU \* gFlow \/ 16\.0|gFlow \+ 0\.5 \* float\(k\)|sin\(r \* 4\.0 - TAU \* gFlow\)/,
-      use,
-    );
+  for (const use of src.match(/[^\n]*gFlow[^\n]*/g).filter((l) => !/gFlow = |float gDev/.test(l)))
+    assert.match(use, /sin\(TAU \* gFlow|TAU \* gFlow \/ 16\.0|gFlow \+ 0\.5 \* float\(k\)|sin\(r \* 4\.0 - TAU \* gFlow\)|float foldPhase = .* - TAU \* gFlow;/, use);
   assert.match(src, /float id = mod\(floor\(ph\), 16\.0\);/);
   // Eruption (period 64): integer fountain harmonics and ash ×0.5, embers ×0.5/0.75.
-  for (const use of src
-    .match(/[^\n]*gErPh[^\n]*/g)
-    .filter((l) => !/gErPh = |float gDev/.test(l)))
+  for (const use of src.match(/[^\n]*gErPh[^\n]*/g).filter((l) => !/gErPh = |float gDev/.test(l)))
     assert.match(
       use,
       /TAU \* gErPh|TAU \* \(gErPh \* 8\.0\)|gErPh \+ fract|gErPh \* \(0\.5 \+ floor\(h\.z \* 2\.0\) \* 0\.25\)/,
       use,
     );
-  assert.match(
-    src,
-    /mrBillow\(p \* 0\.95 \+ vec3\(gSeedOff, 0\.0\), TAU \* gErPh \* 0\.5\)/,
-  );
+  assert.match(src, /mrBillow\(p \* 0\.95 \+ vec3\(gSeedOff, 0\.0\), TAU \* gErPh \* 0\.5\)/);
   for (const m of [8, 5, 1, 0.5, 0.75]) assert.ok(Number.isInteger(64 * m));
+});
+
+test("the molten-centre shortcut excludes every plate and never reuses an unfilled Plate", () => {
+  assert.match(src, /gLakeAmt >= 1\.0 && length\(p\.xz\) \+ 1\.6 \* gS < gLakeR - 1\.6/);
+  assert.match(src, /height = baseH \+ 0\.075/);
+  assert.match(src, /haveP = !molten/);
+  assert.match(src, /if \(haveP\) Pl = marchP; else Pl = mrPlates/);
+  assert.match(src, /if \(mask > 0\.0\) \{/);
+  assert.match(src, /if \(mask <= 0\.0\) \{ grad = vec2\(0\.0\); return base; \}/);
+  // Any point has a candidate in its own cell at distance <= .9√2.
+  assert.ok(0.9 * Math.SQRT2 < 1.6);
+  for (const scale of [0.66, 1.1, 1.76])
+    for (const [x, y] of points(3000, 9)) {
+      const p = plates(x / scale, y / scale);
+      const r = Math.hypot(x, y), sr = Math.hypot(...p.site) * scale;
+      assert.ok(Math.hypot(x / scale - p.site[0], y / scale - p.site[1]) < 1.6);
+      if (r + 1.6 * scale < 6.2 - 1.6) {
+        assert.ok(sr < 6.2 - 1.6, "the whole nearest slab is fully sunk");
+        assert.ok(0.1 + 0.025 + 0.05 - 0.32 < 0.075);
+      }
+    }
+  // The lake no longer performs a second nearest/bisector lattice search.
+  const lake = src.slice(src.indexOf("float la = TAU"), src.indexOf("// Sinking plates"));
+  assert.doesNotMatch(lake, /mrBorder|mrPlates/);
+  assert.match(lake, /mix\(folds, scum, 0\.75\)/);
 });
 
 test("plate hash tile addresses are exact and contain every terrain site", () => {
   assert.deepEqual(magma.precompute.size, [128, 129]);
-  assert.match(
-    magma.precompute.fragment,
-    /floor\(gl_FragCoord\.xy\) - vec2\(64\.0, 65\.0\)/,
-  );
-  assert.match(
-    magma.precompute.fragment,
-    /outColor = vec4\(mrH22\(c \+ gSeedOff\), 0\.0, 1\.0\);/,
-  );
+  assert.match(magma.precompute.fragment, /floor\(gl_FragCoord\.xy\) - vec2\(64\.0, 65\.0\)/);
+  assert.match(magma.precompute.fragment, /outColor = vec4\(mrH22\(c \+ gSeedOff\), 0\.0, 1\.0\);/);
   for (let y = -64; y < 64; y++)
     for (let x = -64; x < 64; x++) {
       const texel = [x + 64, y + 65];
-      assert.ok(
-        texel[0] >= 0 && texel[0] < 128 && texel[1] >= 1 && texel[1] < 129,
-      );
+      assert.ok(texel[0] >= 0 && texel[0] < 128 && texel[1] >= 1 && texel[1] < 129);
       assert.deepEqual([texel[0] - 64, texel[1] - 65], [x, y]);
     }
   // At the smallest plate size, even the outermost detailed terrain and
   // its neighbouring cells fit. Lake material uses the checked fallback.
   assert.ok(Math.ceil(21 / (1.1 * 0.6)) + 1 < 64);
-  assert.match(
-    src,
-    /all\(greaterThanEqual\(c, vec2\(-64\.0\)\)\) && all\(lessThan\(c, vec2\(64\.0\)\)\)/,
-  );
+  assert.match(src, /all\(greaterThanEqual\(c, vec2\(-64\.0\)\)\) && all\(lessThan\(c, vec2\(64\.0\)\)\)/);
 });
 
 test("curtain bound contains every compact-support jet, including its AA width", () => {
   const maxBillow = 0.5 + 0.28 * (1 + 0.6 + 0.3);
-  const maxWidth = (0.28 + 0.3) * (0.6 + maxBillow);
-  assert.ok(maxWidth < 0.947);
+  const maxWidth = 0.4 * (0.8 + 0.4 * maxBillow);
+  assert.ok(maxWidth < 0.50);
+  assert.match(src, /float maxSig = max\(0\.50, gPix \* cs\.y \* 1\.5\)/);
+  assert.match(src, /float wcol = \(0\.4 - 0\.24 \* clamp\(hy, 0\.0, 1\.0\)\) \* \(0\.8 \+ 0\.4 \* billow\)/);
   assert.ok(3.3 + 4 * maxWidth < 7.2);
   assert.match(src, /max\(7\.2, 3\.3 \+ 6\.0 \* gPix \* 80\.0\)/);
   assert.match(src, /cs\.x >= 4\.0 \* maxSig/);
@@ -451,13 +419,8 @@ test("curtain bound contains every compact-support jet, including its AA width",
 
 test("rising ash is smooth and periodic at the 64-cycle clock boundary", () => {
   const billow = ([x, y, z], phase) => {
-    let n =
-      Math.sin(x * 1.7 + Math.sin(z * 1.3 + y * 0.9 - phase)) *
-      Math.sin(z * 1.5 + Math.sin(y * 1.4 + x * 0.7 - phase));
-    n +=
-      0.6 *
-      Math.sin(y * 1.9 - phase * 2 + Math.sin(x * 2.3 - z * 1.1) * 1.4) *
-      Math.sin(x * 2.1 + z * 1.7);
+    let n = Math.sin(x * 1.7 + Math.sin(z * 1.3 + y * 0.9 - phase)) * Math.sin(z * 1.5 + Math.sin(y * 1.4 + x * 0.7 - phase));
+    n += 0.6 * Math.sin(y * 1.9 - phase * 2 + Math.sin(x * 2.3 - z * 1.1) * 1.4) * Math.sin(x * 2.1 + z * 1.7);
     n += 0.3 * Math.sin(x * 4.1 + y * 3.3 - phase * 3 + Math.sin(z * 3.7));
     return 0.5 + 0.28 * n;
   };
@@ -465,11 +428,7 @@ test("rising ash is smooth and periodic at the 64-cycle clock boundary", () => {
     const p = [x, y, x * 0.3 - y * 0.8];
     for (const harmonic of [0.5, 1]) {
       const phase = x * harmonic;
-      assert.ok(
-        Math.abs(
-          billow(p, phase) - billow(p, phase + 2 * Math.PI * 64 * harmonic),
-        ) < 1e-12,
-      );
+      assert.ok(Math.abs(billow(p, phase) - billow(p, phase + 2 * Math.PI * 64 * harmonic)) < 1e-12);
       assert.ok(Math.abs(billow(p, phase + 1e-5) - billow(p, phase)) < 5e-5);
     }
   }
@@ -497,26 +456,17 @@ test("magma declares a continuous three-state world and strong extra looks", () 
   assert.equal(magma.development, "development");
   assert.deepEqual(magma.type, { key: "development", values: [0, 1, 2] });
   assert.ok(magma.presets.length >= 8);
-  assert.equal(
-    new Set(magma.presets.map((p) => p.name)).size,
-    magma.presets.length,
-  );
+  assert.equal(new Set(magma.presets.map((p) => p.name)).size, magma.presets.length);
   for (const preset of magma.presets)
     for (const field of magma.schema) {
       const v = preset.params[field.key];
-      assert.ok(
-        Number.isFinite(v) && v >= field.min && v <= field.max,
-        `${preset.name}.${field.key}`,
-      );
+      assert.ok(Number.isFinite(v) && v >= field.min && v <= field.max, `${preset.name}.${field.key}`);
     }
   const ids = catalogLooks(scenes).map((l) => l.id);
   const world = defaultWorlds(ids).find((w) => w.id === "magma-rift");
   assert.ok(world, "authored world is playable");
   assert.equal(world.name, "Magma Rift");
-  assert.deepEqual(
-    world.states.map((s) => s.name),
-    ["Crust", "Rivers", "Eruption"],
-  );
+  assert.deepEqual(world.states.map((s) => s.name), ["Crust", "Rivers", "Eruption"]);
   const clips = world.states.map((s) => {
     const index = magma.presets.findIndex((p) => `magma:${p.name}` === s.look);
     return { snapshot: presetSnapshot(magma, index) };
@@ -528,13 +478,10 @@ test("magma declares a continuous three-state world and strong extra looks", () 
 test("style limits: palette-only colour, kick punch, roll, speed range, gestures", () => {
   // Every literal colour is a grey: hue comes only from the palette.
   const colours = [
-    ...src.matchAll(
-      /(?:col|albedo|emit|sky|deck|keyCol|hazeCol|c)\s*[+*]?=[^;]*vec3\(([^)]*)\)/g,
-    ),
+    ...src.matchAll(/(?:col|albedo|emit|sky|deck|keyCol|hazeCol|c)\s*[+*]?=[^;]*vec3\(([^)]*)\)/g),
   ].map((m) => m[1].split(",").map(Number));
   for (const c of colours)
-    if (c.length === 3 && c.every(Number.isFinite))
-      assert.ok(c[0] === c[1] && c[1] === c[2], `colour ${c}`);
+    if (c.length === 3 && c.every(Number.isFinite)) assert.ok(c[0] === c[1] && c[1] === c[2], `colour ${c}`);
   assert.match(src, /float focal = 1\.55 \* \(1\.0 \+ 0\.02 \* kick\);/);
   assert.match(src, /rot2\(0\.03 \* sin\(az \* 2\.0\)\)/);
   const [a, b] = magma.energy.orbit.mul;

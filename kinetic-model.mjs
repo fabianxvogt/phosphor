@@ -25,8 +25,14 @@ export const RMAX = HALF * Math.SQRT2; // farthest sphere from the axis
 export const STAGGER = 0.85; // centre-first gathering into the sculpture
 export const FOCAL = 1.4; // short-side focal length (half FOV ≈ 35.5°)
 export const FOCAL_RISE = 0.22;
-export const focalLength = (dev, kick = 0) =>
-  (FOCAL + FOCAL_RISE * smoothstep(1, 2, dev)) * (1 + 0.02 * clamp(kick, 0, 1));
+export const FRAME_GAIN = [0.08, 0.03, 0.065, 0];
+export const MORPH_FIT = 0.18;
+export function focalLength(dev, kick = 0, M = 0, seed = 0) {
+  const w = chorus(M + (Number(seed) % 8192) % 4);
+  const fit = w.reduce((s, x, i) => s + x * FRAME_GAIN[i], 0) +
+    MORPH_FIT * (1 - w.reduce((s, x) => s + x * x, 0));
+  return (FOCAL + (FOCAL_RISE + fit) * smoothstep(1, 2, dev)) * (1 + 0.02 * clamp(kick, 0, 1));
+}
 export const RING = { reach: 13, width: 1.8, amp: 0.16, wave: 1.9, grow: 8 };
 export const FORM = {
   sphere: 1.8,
@@ -286,7 +292,7 @@ export function camera(dev, alpha) {
   const eye = [radius * Math.cos(alpha), height, radius * Math.sin(alpha)];
   const side = 0.9 * (1 - s2);
   const s01 = smoothstep(0, 1, clamp(dev, 0, 1));
-  const target = [-Math.sin(alpha) * side, 2.2 - 0.3 * s01 - 0.25 * s2, Math.cos(alpha) * side];
+  const target = [-Math.sin(alpha) * side, 2.2 - 0.3 * s01 + 0.05 * s2, Math.cos(alpha) * side];
   return { eye, target };
 }
 
