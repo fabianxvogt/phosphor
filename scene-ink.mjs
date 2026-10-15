@@ -300,7 +300,10 @@ vec3 inkRingSkin(vec3 ro, vec3 ray, float scale, float phase, vec3 bg) {
   float footprint=max(t*45.0/min(u_resolution.x,u_resolution.y),0.035);
   float fine=(1.0-smoothstep(0.14,0.14+footprint,abs(sin(phi))))*0.14/(0.14+footprint*0.5);
   float folds=pow(0.5+0.5*sin(roll*3.0+a*2.0+n*0.7-phase*2.0),4.0);
-  float alpha=hit*(0.22+0.65*folds+fine*0.8)*(1.0-gCloud)*u_params[4];
+  // Keep the Drop's rolled lamellae, but don't stamp those parallel
+  // contour lines over the growing Plumes' dense bodies. Wake hairlines
+  // remain independent geometry/sections, not an interior texture.
+  float alpha=hit*(0.22+0.65*folds+fine*0.8*(1.0-gGrow))*(1.0-gCloud)*u_params[4];
   vec3 tint=mix(u_primary,u_secondary,0.5+0.5*sin(a+roll));
   vec3 transmitted=bg*(0.2+tint*0.2)+tint*0.025;
   return mix(bg,transmitted,clamp(alpha,0.0,0.95));
@@ -434,17 +437,14 @@ void main() {
   float shafts=sq(0.5+0.5*sin(rayAngle*9.0+0.6*sin(rayAngle*17.0+orbit)));
   bg+=lampColor*shafts*gCloud*0.28*exp(-sq(uv.y-0.6)*0.4);
   col+=exp(-optical*absorption)*bg;
-  // Deferred native cloud skin: evaluate derivatives in a UNIFORM branch,
-  // not inside the divergent crossing loop. Grazing hits fade by footprint.
+  // The native crossing supplies the crisp silhouette; pigment INSIDE it
+  // must be smooth. A nested noise*97 -> abs(sin) isoline texture used to
+  // engrave the whole body (even where its fringes were pixel-resolved).
+  // Remove that term, not the silhouette, and retain its mean optical depth.
   if (gCloud>0.0001) {
-    float n=inkNoise(hitP*22.0+vec3(sin(gPhase),gSeed,cos(gPhase)));
-    float phi=inkNoise(hitP*7.0+n*0.6)*97.0+n*4.0;
-    float aa=max(fwidth(phi),0.025);
-    float filament=(1.0-smoothstep(0.14,0.14+aa,abs(sin(phi))))*0.14/(0.14+aa*0.5);
-    filament=mix(filament,0.0894,smoothstep(1.0,2.5,aa));
-    float folded=pow(0.5+0.5*inkNoise(hitP*3.0+n*0.35),4.0);
+    float folded=pow(0.5+0.5*inkNoise(hitP*3.0),4.0);
     float coverage=smoothstep(0.0,length(hitP-eye)*8.0/min(u_resolution.x,u_resolution.y),maximumField);
-    float surfaceDepth=(0.25+folded*2.4+filament*4.0)*gCloud*u_params[4]*coverage;
+    float surfaceDepth=(0.6076+folded*2.4)*gCloud*u_params[4]*coverage;
     float alpha=(1.0-exp(-surfaceDepth))*(cloudHit?1.0:0.0);
     vec3 tint=mix(u_primary,u_secondary,0.5+0.45*sin(hitP.y*1.8+gPhase));
     col=col*exp(-surfaceDepth*absorption*(cloudHit?1.0:0.0))+tint*0.012*alpha;
