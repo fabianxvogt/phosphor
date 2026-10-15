@@ -46,7 +46,24 @@ const spores = `
     }
   }
 `;
-const simulationFragment = grayScottSimulation(
+// Linear byte decoding allows hardware-filtered visual concentrations.
+// Preserve exact nearest reads for chemistry, sources and spore probes.
+const nearestStencil = `
+vec4 colonyTexel(vec2 uv) {
+  ivec2 size = textureSize(u_state, 0);
+  return texelFetch(u_state, ivec2(floor(fract(uv) * vec2(size))), 0);
+}
+vec2 colonyLaplacian(vec2 uv) {
+  vec2 t=1./vec2(textureSize(u_state,0));
+  vec4 sum=-colonyTexel(uv);
+  sum+=.2*(colonyTexel(uv+vec2(t.x,0.))+colonyTexel(uv-vec2(t.x,0.))
+          +colonyTexel(uv+vec2(0.,t.y))+colonyTexel(uv-vec2(0.,t.y)));
+  sum+=.05*(colonyTexel(uv+t)+colonyTexel(uv-t)
+          +colonyTexel(uv+vec2(t.x,-t.y))+colonyTexel(uv+vec2(-t.x,t.y)));
+  return unpack16(sum);
+}
+`;
+const simulationFragment = nearestStencil + grayScottSimulation(
   {
     family: "u_params[3]",
     audio: "u_params[7]",
@@ -58,7 +75,8 @@ const simulationFragment = grayScottSimulation(
   },
   chemistry,
   spores,
-);
+).replace("texture(u_state, uv)", "colonyTexel(uv)")
+ .replace("laplacian9(u_state, v_uv)", "colonyLaplacian(v_uv)");
 
 export const COLONY_RADII = [.54, .47];
 export function colonyEnvelope(x, y) {
@@ -70,7 +88,7 @@ export function colonyEnvelope(x, y) {
 const fragment = `${stateCodec}
 float tideW() { return smoothstep(0., 1., clamp(u_params[0], 0., 1.)); }
 float cityW() { return smoothstep(1., 2., clamp(u_params[0], 1., 2.)); }
-float activator(vec2 uv) { return stateBilinear16(uv).y; }
+float activator(vec2 uv) { return unpack16(texture(u_state, uv)).y; }
 float activatorFast(vec2 uv) { return unpack16(texture(u_state, uv)).y; }
 // Terrain height in [0,1] from the activator: a low swell in Understory, a
 // soft membrane in Tide, stepped plateaus (terraces) in City.
@@ -123,7 +141,7 @@ void main() {
 
   // March the heightfield from its top slab down to the ground plane.
   float tTop = (scale * 1.26 - ro.z) / rd.z, tGround = -ro.z / rd.z;
-  float samples = mix(mix(8., 12., tide), 22., city);
+  float samples = mix(mix(10., 16., tide), 40., city);
   float t = max(0., tTop), dt = (tGround - max(0., tTop)) / samples;
   vec3 hit = ro + rd * tGround;
   // Conservative slab/colony rejection: empty ground does no texture march.
@@ -132,14 +150,14 @@ void main() {
   vec2 closest = start + span * clamp(-dot(start, span) / max(dot(span, span), 1e-6), 0., 1.);
   bool inColony = dot(closest, closest) < .55 * .55;
   float prev = t;
-  for (int i = 0; i <= 22; i++) {
+  for (int i = 0; i <= 40; i++) {
     if (!inColony || float(i) > samples) break;
     vec3 q = ro + rd * t;
     float h = scale * terrain(q.xy, contrast, city);
     if (q.z <= h) {
       // Bisect between the last free sample and this one.
       float a = prev, b = t;
-      for (int k = 0; k < 6; k++) {
+      for (int k = 0; k < 8; k++) {
         float m = .5 * (a + b);
         vec3 r = ro + rd * m;
         if (r.z <= scale * terrain(r.xy, contrast, city)) b = m; else a = m;
@@ -203,7 +221,8 @@ void main() {
   // Two-tone bodies so every palette shows its range: tops lean toward
   // primary, flanks and low bodies toward secondary, and a slow regional
   // drift across the field shifts the mix (accent stays for edges/events).
-  float region = .5 + .5 * sin(dot(hit.xy, vec2(1.7, 2.3)) + 1.3 * sin(hit.x * .9 - hit.y * 1.4));
+  vec2 colonyXY = hit.xy - focus;
+  float region = .5 + .5 * sin(dot(colonyXY, vec2(1.7, 2.3)) + 1.3 * sin(colonyXY.x * .9 - colonyXY.y * 1.4));
   float top = smoothstep(.55, .95, normal.z) * smoothstep(.2, .8, height);
   vec3 inkTop = palette(clamp(.22 + .42 * region + .14 * crest, 0., .8));
   vec3 inkSide = mix(u_secondary, palette(.22 + .2 * region), .35);
@@ -232,7 +251,7 @@ void main() {
   float steep = smoothstep(.25, .6, 1. - normal.z);
   float storeys = level * 3.;
   float storeyLine = abs(fract(storeys) - .5) / max(fwidth(storeys), 1e-4);
-  vec2 block = floor(uv * vec2(textureSize(u_state, 0)) * .34) + floor(storeys) * 17.;
+  vec2 block = floor(fract(uv) * vec2(textureSize(u_state, 0)) * .34) + floor(storeys) * 17.;
   float windows = (1. - smoothstep(lineWidth * .5, lineWidth * 1.2, storeyLine))
                 * step(mix(.94, .86, u_level), hash(block)) * steep * (.35 + .65 * near);
   vec3 town = mix(ground, lit * mix(.48, .85, level), body)
@@ -420,5 +439,6 @@ export default {
     fragment: simulationFragment,
     size: [320, 192],
     steps: 8,
+    filter: "linear", // visual only; simulation uses the exact nearest stencil
   },
 };

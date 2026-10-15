@@ -86,7 +86,14 @@ test("finite colony is smooth, symmetric and inside the conservative march bound
     }
   }
   assert.match(mycelium.fragment, /if \(c <= 0\.\) return 0\./);
-  assert.match(mycelium.fragment, /float samples = mix\(mix\(8\., 12\., tide\), 22\., city\)/);
+  assert.match(mycelium.fragment, /float samples = mix\(mix\(10\., 16\., tide\), 40\., city\)/);
+  assert.equal(mycelium.simulation.filter, "linear");
+  assert.match(mycelium.simulation.fragment, /texelFetch\(u_state/);
+  assert.doesNotMatch(mycelium.simulation.fragment, /texture\(u_state/);
+  // Palette regions and hashed lantern cells cannot jump when the periodic
+  // camera focus wraps onto an equivalent chemical texel.
+  assert.match(mycelium.fragment, /vec2 colonyXY = hit.xy - focus/);
+  assert.match(mycelium.fragment, /floor\(fract\(uv\)/);
 });
 
 test("development chemistry stays inside acid's stability clamps", () => {
