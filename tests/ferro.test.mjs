@@ -281,6 +281,22 @@ test("carrier camera bounds, kick and persistent droplets stay bounded", () => {
     assert.ok(ferro.fragment.includes(`u_rhythm.${channel}`));
 });
 
+test("dark conductor uses separated shaped cards and fits the shallow crown in portrait", () => {
+  // Light-card angular area must stay sparse even with the widest preset.
+  // Rectangular solid angle on the unit sphere: 4 atan(wh/sqrt(1+w²+h²)).
+  const solidAngle = (w, h) => 4 * Math.atan(w * h / Math.sqrt(1 + w * w + h * h));
+  const widest = 1.5;
+  const coverage = [[0.72, 0.11], [0.12 * widest, 1.15], [1.1, 0.075 * widest],
+    [0.045 * widest, 1.4], [0.018 * widest, 0.6]]
+    .reduce((s, [w, h]) => s + solidAngle(w, h), 0) / (4 * Math.PI);
+  assert.ok(coverage > 0.05 && coverage < 0.12, `${coverage}`);
+  assert.match(ferro.fragment, /0\.008 \+ 0\.018 \* smoothstep/);
+  assert.match(ferro.fragment, /0\.32 \+ 0\.68 \* exp\(-sq\(uv\.x \/ width\) - sq\(uv\.y \/ height\)\)/);
+  assert.match(ferro.fragment, /float portraitFit = mix\(0\.72, 1\.0, smoothstep\(0\.6, 1\.2, u_resolution\.x \/ u_resolution\.y\)\);/);
+  assert.match(ferro.fragment, /u_params\[7\] \* portraitFit/);
+  assert.doesNotMatch(ferro.fragment, /Lambert|dot\(n, tipLight\)/);
+});
+
 test("rate clocks stay periodic and continuous at 3600 seconds and 12 hours", () => {
   assert.match(ferro.fragment, /uniform float u_clock\[4\];/);
   const params = ferro.schema.map((f) => f.default);

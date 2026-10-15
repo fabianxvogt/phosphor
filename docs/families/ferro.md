@@ -74,6 +74,26 @@ Both target budgets pass in the final 30-sample run. An earlier identical final-
 - Headless native `check-time-wrap --rig --families ferro --port 48333`: 3600, 4096 and 43200 s seams plus energy/fader rate steps pass, zero errors. Evidence: `artifacts/films/ferro-r2-time/`.
 - Baseline plus three improvement films and a fourth silhouette-polish review were opened as contact strips and full-size stills. Final world and Ember Needle Garden films/strips: `artifacts/films/ferro-r2-polished/`. Three-palette iteration evidence: `ferro-r2-round{1,2,3}/`. Eight-look energy ladder: `artifacts/films/ferro-r2-polished/ladder/`.
 
+## Wave 5 rework · 15 October 2026
+
+Saved identity is unchanged: all eight preset names, seeds, parameter values and schema keys, and the world definition are untouched. No engine/shared-file edits.
+
+Three filmed improvement rounds addressed (1) plastic-white Crown patches by narrowing the studio cards and reducing the white ambient field, (2) flat reflected cards by shaping their radiance and tightening angular AA, and (3) lost dark-surface readability by restoring a bounded grazing rim and strengthening the real basin reflection. An additional portrait review exposed horizontal clipping of shallow crowns; an aspect-only focal fit (0.72→1) now leaves breathing room. No geometry, lattice or temporal mathematics changed.
+
+The studio is now sparse negative-space lighting: the summed rectangular-card solid angle at maximum strip width is below 12% of the sphere. Broad cards are no longer a substitute for diffuse shading. Highlights still exceed 1; the body stays a dark conductor throughout the orbit. CPU regression covers the solid-angle budget, shaped-card source and portrait fit, alongside the existing wavelength/lattice/continuity tests.
+
+Native headless Chrome / M3 Pro, 30 samples, all states, same commands before/after (shared GPU; synchronous throughput, not venue cadence):
+
+| State | 1080p baseline → final p50 | 4K baseline → final p50 |
+| --- | --- | --- |
+| Pool | 2.2 → 2.3 ms | 7.4 → 7.7 ms |
+| Crown | 3.7 → 3.6 ms | 13.3 → 13.6 ms |
+| Sculpture | 4.6 → 4.3 ms | 16.6 → 17.2 ms |
+
+Every median is within baseline +5%. Final 4K p95: 8.7 / 14.7 / 22.6 ms; fleet contention remains real. The aspect-only correction does not affect these landscape measurements.
+
+Evidence root: `/Users/fabian/Development/phosphor/.fleet/phosphor-worlds-wave5-20261015162322/workers/rework-wave4/output/ferro/`. Baseline `baseline/liquid-chrome.{mp4,png}`, final `final/liquid-chrome.{mp4,png}`; additional Glacier world and Ember Needle Garden films, all-look ladder, portrait film and 108 late-time GPU cases under `final/`. Superseded intermediate films were removed to save disk. Honest rating: **8.7/10** — convincing dark chrome, but a few subpixel glints and deliberately quiet Pool lighting keep it shy of an unqualified 9.
+
 ## Limits
 
 Not a Navier–Stokes or magnetic-field solver. Wavelength is physical in the reference chart, not globally geodesic. The C1 equatorial fold removes the crease but retains mirrored hemispherical structure. Neighbour reflection is a cheap carrier-normal/environment approximation, not geometric multiple-bounce transport. Satellites have authored orbits, not mass-conserving shedding. Single-ray antialiasing leaves occasional subpixel tip glints, especially in the narrow-strip strong-field looks. Broad cards can look slightly satin-like at intermediate development. Pool is deliberately calm, although now much more legible; dark projectors still need sensible black levels. 4K has limited contention headroom and is not venue-cadence-qualified.
