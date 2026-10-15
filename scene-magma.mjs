@@ -16,7 +16,8 @@ import { lateClockGlsl } from "./scene-time.mjs";
 export const PLATE_JITTER = 0.8; // sites in [0.1, 0.9] of their cell: 3×3 search is exact
 export const GRAVITY = 7.0; // world units / s²
 export const CYCLE_SECONDS = 3.4; // physical seconds of one ejecta cycle
-export const BOMB_CAP = 24;
+export const BIG_CAP = 16;
+export const SPRAY_CAP = 32;
 
 const schema = [
   {
@@ -102,7 +103,9 @@ const eruptRate = (p, level) =>
 const fragment = `${lateClockGlsl}
 const int MARCH_CAP = 110;
 const int DETAIL_CAP = 14;
-const int BOMB_CAP = ${BOMB_CAP};
+const int BIG_CAP = ${BIG_CAP};
+const int SPRAY_CAP = ${SPRAY_CAP};
+const int BOMB_CAP = BIG_CAP + SPRAY_CAP;
 const int EMBER_CAP = 20;
 const int PLUME_STEPS = 14;
 const float JIT = ${PLATE_JITTER.toFixed(2)};
@@ -355,8 +358,8 @@ void main() {
   gRot = vec2(cos(rotA), sin(rotA));
   // Seams widen as the plates split; the lake opens around the vent.
   gSeamW = 0.018 + 0.068 * gSplit + 0.03 * smoothstep(1.0, 2.0, dev);
-  gLakeR = 4.4 * gLakeAmt;
-  gLavaT = mix(0.52, 0.74, gSplit) + 0.1 * gErupt + 0.12 * (gHeat - 0.5);
+  gLakeR = 5.2 * gLakeAmt;
+  gLavaT = mix(0.56, 0.74, gSplit) + 0.1 * gErupt + 0.12 * (gHeat - 0.5);
 
 #ifdef PHOSPHOR_LATE
   gOrbit = u_clock[0];
@@ -382,7 +385,7 @@ void main() {
                   float(seedHash(uint(int(pk) + 1) ^ 0x51ed27u) >> 8u) / 16777216.0,
                   smoothstep(0.55, 1.0, fract(phrase))) * 2.0 - 1.0;
   float camH = clamp(u_params[6], 0.0, 1.0);
-  float R = mix(8.6, 9.8, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;
+  float R = mix(8.6, 9.4, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;
   vec3 ro = vec3(R * cos(az), 0.0, R * sin(az));
   ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) + 0.9 * gErupt + 0.15 * wob;
   vec3 target = vec3(0.0, gVent.y - mix(0.9, 1.6, camH) + 2.2 * gErupt, 0.0);
@@ -625,14 +628,16 @@ void main() {
     // gives the caldera wall a silhouette. Near black in the crust state.
     vec3 sky = hazeCol;
     if (rd.y > 0.0) {
-      float tc = (24.0 - ro.y) / rd.y;
-      vec2 cp = (ro.xz + rd.xz * tc) * 0.055;
-      float cn = 0.6 * mrNoise(cp + 3.1) + 0.4 * mrNoise(cp * 2.3 + 7.7);
-      float dist = length(ro.xz + rd.xz * tc);
-      float below = fieldGlow * (0.35 + 0.65 * exp(-dist * dist / 900.0)) + 2.5 * gErupt * exp(-dist * dist / 160.0);
-      vec3 deck = mrHeat(0.6) * 0.06 * below * smoothstep(0.3, 0.75, cn);
-      float far = exp(-tc * 0.012);
-      sky = mix(hazeCol, deck + u_secondary * 0.003, far);
+      float tc = (15.0 - ro.y) / rd.y;
+      vec2 cw = ro.xz + rd.xz * tc;
+      vec2 cp = cw * 0.075;
+      float cn = 0.55 * mrNoise(cp + 3.1) + 0.3 * mrNoise(cp * 2.3 + 7.7) + 0.15 * mrNoise(cp * 5.1 + 1.3);
+      float dist = length(cw);
+      float below = fieldGlow * (0.25 + 0.75 * exp(-dist * dist / 700.0)) + 6.0 * gErupt * exp(-dist * dist / 150.0);
+      float billow = smoothstep(0.25, 0.8, cn);
+      vec3 deck = (mrHeat(0.6) * 0.07 * below + u_secondary * 0.004) * (0.25 + billow);
+      float far = exp(-tc * 0.016);
+      sky = mix(hazeCol, deck, far);
     }
     if (!hit) col = sky;
   }
@@ -677,15 +682,17 @@ void main() {
             float w = 1.0 - abs(2.0 * tau - 1.0);
             float id = mod(floor(ph), 32.0);
             vec3 o = vec3(mrH2(vec2(id, 4.0)), mrH2(vec2(7.0, id)), mrH2(vec2(id, id + 2.0))) * 30.0;
-            dens += w * mrBillow(p * 0.55 - vec3(0.0, tau * 2.4, 0.0) + o);
+            dens += w * mrBillow(p * 0.95 - vec3(0.0, tau * 2.4, 0.0) + o);
             wsum += w;
           }
-          dens = dens / max(wsum, 1e-3);
-          dens = max(dens - 0.32, 0.0) * shape * 1.6 * plumeAmt;
+          float nRaw = dens / max(wsum, 1e-3);
+          dens = smoothstep(0.38, 0.75, nRaw) * shape * 2.6 * plumeAmt;
           // Lit from below: the fountain's light decays with height and
           // reaches deeper into the core.
-          float under = exp(-hy / (2.2 + 1.2 * gForce)) * (0.6 + 0.4 * smoothstep(rad, 0.0, dr));
-          vec3 lightC = glowCol * (0.28 * under * under * (0.6 + 0.4 * gForce) * (1.0 + 0.3 * u_rhythm.z)) + hazeCol * 0.6;
+          float under = exp(-hy / (3.5 + 2.0 * gForce)) * (0.5 + 0.5 * smoothstep(rad, rad * 0.3, dr));
+          vec3 lightC = glowCol * (0.5 * under * (0.6 + 0.4 * gForce) * (1.0 + 0.3 * u_rhythm.z)) + hazeCol * 1.5;
+          // Thin billow edges catch the light; dense cores stay dark ash.
+          lightC *= mix(1.3, 0.25, smoothstep(0.5, 0.95, nRaw));
           float a = 1.0 - exp(-dens * ds * 2.2);
           acc += trans * a * lightC;
           trans *= 1.0 - a;
@@ -703,29 +710,35 @@ void main() {
     vec3 cs = mrRaySeg(ro, rd, a, b);
     if (cs.y < t + 0.2) {
       float hy = cs.z;
-      float wcol = 0.12 + 0.28 * hy;
+      float wcol = 0.16 + 0.42 * hy * hy;
       float sig = max(wcol, gPix * cs.y * 1.5);
-      float flick = 0.8 + 0.2 * sin(TAU * (gErPh * 8.0) - hy * 9.0) * sin(TAU * gErPh * 5.0 + hy * 4.0);
-      float T = 1.25 - 0.45 * hy;
-      add += mrHeat(T) * exp(-sq(cs.x / sig)) * (wcol / sig) * gErupt * flick * 0.55;
-      // Wide glow around the base of the fountain.
-      add += glowCol * exp(-cs.x / (0.6 + 0.6 * gForce)) * (1.0 - hy) * gErupt * 0.12;
+      float flick = 0.75 + 0.25 * sin(TAU * (gErPh * 8.0) - hy * 9.0) * sin(TAU * gErPh * 5.0 + hy * 4.0);
+      float T = 1.32 - 0.5 * hy;
+      // Incandescent core, a softer sheath and a wide glow at the base.
+      add += mrHeat(T) * exp(-sq(cs.x / sig)) * (wcol / sig) * gErupt * flick * 0.7;
+      add += mrHeat(T - 0.25) * exp(-sq(cs.x / (2.5 * sig))) * gErupt * flick * 0.25 * (1.0 - hy);
+      add += glowCol * exp(-cs.x / (0.8 + 0.8 * gForce)) * (1.0 - 0.7 * hy) * gErupt * 0.16;
     }
 
-    // Ejecta: BOMB_CAP bombs on staggered cycles; each launch draws new
-    // seeded direction and speed. Exact parabolas; head and a two-segment
-    // trail, cooling over the flight; hidden behind terrain.
-    float nActive = mix(9.0, float(BOMB_CAP), level) * smoothstep(0.0, 0.4, gForce);
+    // Ejecta: BIG_CAP bombs on wide arcs and SPRAY_CAP droplets in the
+    // fountain, on staggered cycles; each launch draws a new seeded
+    // direction and speed. Exact parabolas, drawn as a glowing head and a
+    // trail of chords along the arc, cooling over the flight and hidden
+    // behind the terrain. Energy raises their number (faded in by index).
+    float nBig = mix(6.0, float(BIG_CAP), level) * smoothstep(0.0, 0.4, gForce);
+    float nSpray = mix(14.0, float(SPRAY_CAP), level) * smoothstep(0.0, 0.4, gForce);
+    float kf = sqrt(max(gForce, 0.05));
     for (int i = 0; i < BOMB_CAP; ++i) {
       float fi = float(i);
-      float on = clamp(nActive - fi, 0.0, 1.0);
-      if (on <= 0.0) break;
+      bool big = i < BIG_CAP;
+      float on = clamp(big ? nBig - fi : nSpray - (fi - float(BIG_CAP)), 0.0, 1.0);
+      if (on <= 0.0) continue;
       float u = gErPh + fract(fi * 0.6180339887);
       float tau = fract(u);
       float id = mod(floor(u), 64.0);
       vec3 hb = mrH3(vec3(fi, id, 3.7) + vec3(gSeedOff, 0.0));
-      float vy = mix(5.0, 8.0, hb.x) * sqrt(max(gForce, 0.05));
-      float vh = mix(0.5, 1.9, hb.y) * sqrt(max(gForce, 0.05));
+      float vy = (big ? mix(5.0, 8.0, hb.x) : mix(3.5, 6.5, hb.x)) * kf;
+      float vh = (big ? mix(0.6, 2.0, hb.y) : mix(0.0, 0.6, hb.y)) * kf;
       float ang = TAU * hb.z;
       vec3 v0 = vec3(vh * cos(ang), vy, vh * sin(ang));
       vec3 p0 = gVent + vec3(0.25 * cos(ang), 0.05, 0.25 * sin(ang));
@@ -733,22 +746,29 @@ void main() {
       float tf = (vy + sqrt(vy * vy + 2.0 * G_ACC * 0.35)) / G_ACC;
       float tt = tau * CYCLE;
       if (tt >= tf) continue;
-      vec3 h0 = mrBomb(p0, v0, tt);
-      vec3 h1 = mrBomb(p0, v0, max(tt - 0.09, 0.0));
-      vec3 h2 = mrBomb(p0, v0, max(tt - 0.2, 0.0));
       float life = tt / tf;
-      float T = 1.18 - 0.5 * life;
-      float fade = smoothstep(0.0, 0.04, tt) * (1.0 - smoothstep(0.85, 1.0, life)) * on * gErupt;
-      vec3 s0 = mrRaySeg(ro, rd, h1, h0);
-      vec3 s1 = mrRaySeg(ro, rd, h2, h1);
-      float size = 0.045;
-      float sig0 = max(size, gPix * s0.y * 1.2);
-      float sig1 = max(size * 0.7, gPix * s1.y * 1.2);
-      float vis0 = step(s0.y, t + 0.05), vis1 = step(s1.y, t + 0.05);
-      float head = exp(-sq(length(ro + rd * s0.y - h0) / sig0)) * sq(size / sig0) * 2.2;
-      float tr0 = exp(-sq(s0.x / sig0)) * (size / sig0) * (0.35 + 0.65 * s0.z);
-      float tr1 = exp(-sq(s1.x / sig1)) * (size * 0.7 / sig1) * 0.35 * s1.z;
-      add += (mrHeat(T) * (head + tr0) * vis0 + mrHeat(T - 0.12) * tr1 * vis1) * fade * (1.0 + 0.6 * u_rhythm.z);
+      float T = (big ? 1.2 : 1.1) - 0.5 * life;
+      float fade = smoothstep(0.0, 0.05, tt) * (1.0 - smoothstep(0.82, 1.0, life)) * on * gErupt;
+      float size = big ? 0.085 : 0.04;
+      float trail = big ? 0.12 : 0.07;
+      vec3 h0 = mrBomb(p0, v0, tt);
+      // Head: distance from the ray to the bomb.
+      float tq = dot(h0 - ro, rd);
+      float sigH = max(size, gPix * tq * 1.2);
+      float head = exp(-sq(length(ro + rd * tq - h0) / sigH)) * sq(size / sigH) * 2.5 * step(tq, t + 0.05);
+      vec3 glow = mrHeat(T) * head;
+      // Trail: three chords of the parabola behind the head.
+      vec3 hp = h0;
+      for (int k = 1; k <= 3; ++k) {
+        vec3 hn = mrBomb(p0, v0, max(tt - trail * float(k * k), 0.0));
+        vec3 sg = mrRaySeg(ro, rd, hn, hp);
+        float sw = size * (1.0 - 0.22 * float(k));
+        float sig = max(sw, gPix * sg.y * 1.2);
+        float along = mix(1.0 - 0.3 * float(k), 1.0 - 0.3 * float(k - 1), sg.z);
+        glow += mrHeat(T - 0.08 * float(k)) * exp(-sq(sg.x / sig)) * (sw / sig) * along * 0.6 * step(sg.y, t + 0.05);
+        hp = hn;
+      }
+      add += glow * fade * (1.0 + 0.6 * u_rhythm.z);
     }
   }
 

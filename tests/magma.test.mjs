@@ -4,7 +4,8 @@ import magma, {
   PLATE_JITTER,
   GRAVITY,
   CYCLE_SECONDS,
-  BOMB_CAP,
+  BIG_CAP,
+  SPRAY_CAP,
 } from "../scene-magma.mjs";
 import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
@@ -185,9 +186,11 @@ test("plate identity never depends on development; only seams, lava and sinking 
 // ------------------------------------------------------------- ejecta
 // Mirror of the bomb launch: speeds from seeded hashes and fountain force,
 // exact parabola p(t) = p0 + v0 t − ½ g t² ŷ, flight until 0.35 below launch.
-const launch = (hx, hy, force) => {
+const launch = (hx, hy, force, big = true) => {
   const k = Math.sqrt(Math.max(force, 0.05));
-  return { vy: mix(5, 8, hx) * k, vh: mix(0.5, 1.9, hy) * k };
+  return big
+    ? { vy: mix(5, 8, hx) * k, vh: mix(0.6, 2, hy) * k }
+    : { vy: mix(3.5, 6.5, hx) * k, vh: mix(0, 0.6, hy) * k };
 };
 const flight = (vy) => (vy + Math.sqrt(vy * vy + 2 * GRAVITY * 0.35)) / GRAVITY;
 const bomb = (p0, v0, t) => [
@@ -201,27 +204,31 @@ test("shader keeps the mirrored ballistic ejecta", () => {
     `const float G_ACC = ${GRAVITY.toFixed(1)};`,
     `const float CYCLE = ${CYCLE_SECONDS.toFixed(1)};`,
     "return p0 + v0 * tt + vec3(0.0, -0.5 * G_ACC * tt * tt, 0.0);",
-    "float vy = mix(5.0, 8.0, hb.x) * sqrt(max(gForce, 0.05));",
-    "float vh = mix(0.5, 1.9, hb.y) * sqrt(max(gForce, 0.05));",
+    "float kf = sqrt(max(gForce, 0.05));",
+    "float vy = (big ? mix(5.0, 8.0, hb.x) : mix(3.5, 6.5, hb.x)) * kf;",
+    "float vh = (big ? mix(0.6, 2.0, hb.y) : mix(0.0, 0.6, hb.y)) * kf;",
     "float tf = (vy + sqrt(vy * vy + 2.0 * G_ACC * 0.35)) / G_ACC;",
     "float tt = tau * CYCLE;",
     "if (tt >= tf) continue;",
     "float id = mod(floor(u), 64.0);",
   ])
     assert.ok(src.includes(line), line);
-  assert.match(src, new RegExp(`const int BOMB_CAP = ${BOMB_CAP};`));
+  assert.match(src, new RegExp(`const int BIG_CAP = ${BIG_CAP};`));
+  assert.match(src, new RegExp(`const int SPRAY_CAP = ${SPRAY_CAP};`));
 });
 
 test("ejecta follow exact parabolas and land before their next launch", () => {
   // RK4 on dp/dt = v, dv/dt = −g ŷ reproduces the closed form.
   const p0 = [0.1, 0.72, -0.2];
-  for (const [hx, hy, force] of [
-    [0, 0, 0.3],
-    [0.5, 0.5, 1],
-    [1, 1, 1.5],
-    [0.2, 0.9, 1.2],
+  for (const [hx, hy, force, big] of [
+    [0, 0, 0.3, true],
+    [0.5, 0.5, 1, true],
+    [1, 1, 1.5, true],
+    [0.2, 0.9, 1.2, true],
+    [1, 1, 1.5, false],
+    [0, 0.3, 0.6, false],
   ]) {
-    const { vy, vh } = launch(hx, hy, force);
+    const { vy, vh } = launch(hx, hy, force, big);
     const v0 = [vh * 0.6, vy, vh * 0.8];
     const tf = flight(vy);
     let p = [...p0],
@@ -246,12 +253,13 @@ test("ejecta follow exact parabolas and land before their next launch", () => {
     // Every flight ends inside its cycle, so no bomb jumps to its next
     // launch mid-air; the landing stays well inside the camera orbit.
     assert.ok(tf < CYCLE_SECONDS, `flight ${tf}`);
-    assert.ok(vh * tf + 0.25 < 8.6 - 1.5, `landing radius ${vh * tf}`);
+    // Closest camera radius: 8.6 · (1 − 0.05) = 8.17.
+    assert.ok(vh * tf + 0.25 < 8.17 - 0.8, `landing radius ${vh * tf}`);
   }
   // Worst case over the whole hash and force range.
   const { vy, vh } = launch(1, 1, 1.5);
   assert.ok(flight(vy) < CYCLE_SECONDS);
-  assert.ok(vh * flight(vy) < 7);
+  assert.ok(vh * flight(vy) + 0.25 < 7.37);
 });
 
 // ------------------------------------------------------------- camera
@@ -263,7 +271,7 @@ function base(x, z) {
 }
 test("the camera orbit never enters the ground", () => {
   for (const line of [
-    "float R = mix(8.6, 9.8, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
+    "float R = mix(8.6, 9.4, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
     "ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) + 0.9 * gErupt + 0.15 * wob;",
     "const float TOP_BOUND = 0.2;",
   ])
@@ -274,7 +282,7 @@ test("the camera orbit never enters the ground", () => {
       for (const wob of [-1, 0, 1])
         for (let az = 0; az < 2 * Math.PI; az += 0.02) {
           const erupt = smooth(1.3, 2, dev);
-          const R = mix(8.6, 9.8, erupt) * (1 + 0.05 * wob) + 1.2 * camH;
+          const R = mix(8.6, 9.4, erupt) * (1 + 0.05 * wob) + 1.2 * camH;
           assert.ok(R < 19, "inside the plate field, far from the wall");
           const x = R * Math.cos(az),
             z = R * Math.sin(az);
