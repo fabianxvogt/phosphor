@@ -30,6 +30,7 @@ import {
   ringHeight,
   rippleHeight,
   seedAngles,
+  shimmerAt,
   waveHeight,
 } from "../kinetic-model.mjs";
 
@@ -87,10 +88,10 @@ test("the shaders are built from the model's constants", () => {
     assert.ok(vertex.includes(snippet), snippet);
   assert.equal(scene.geometry.additiveFrom, ADDITIVE_FROM);
   // Clock periods match every use: wave phase ×1/×2/×3 (2π), four forms (4),
-  // turn and camera angles (2π).
+  // turn ×1 and drift ×½ (4π), camera angle (2π).
   assert.deepEqual(
     scene.clocks.map((c) => c.period),
-    [TAU, 4, TAU, TAU],
+    [TAU, 4, 2 * TAU, TAU],
   );
   for (const source of [scene.fragment, vertex, scene.geometry.fragment])
     assert.doesNotMatch(source, /mod\(\s*u_time/);
@@ -210,10 +211,12 @@ test("states: level ceiling, wave heightfield, exact parametric surfaces", () =>
   let checked = 0;
   for (let j = 0; j < N; j += 3)
     for (let i = 0; i < N; i += 3) {
+      // Undo the turn, the tilt and the breathing scale of this sphere.
+      const k = shimmerAt((i + 0.5) / N, (j + 0.5) / N, base.W, base.detail);
       const at = (M) => {
         const b = ball(i, j, { ...base, dev: 2, M });
         assert.equal(b.sig, 1);
-        return unrotate(b.p, base.Phi);
+        return unrotate(b.p, base.Phi).map((x) => x / k);
       };
       const [sx, sy, sz] = at(0.3);
       close(Math.hypot(sx, sy, sz), FORM.sphere, 1e-9, "sphere");
@@ -239,6 +242,21 @@ test("states: level ceiling, wave heightfield, exact parametric surfaces", () =>
       checked++;
     }
   assert.ok(checked > 600);
+  // The seed shifts the cycle by whole forms only (holds stay holds): the
+  // Möbius Drift seed opens on the band.
+  const drift = scene.presets.find((p) => p.name === "Möbius Drift");
+  for (let s = 0; s < N * N; s += 101) {
+    const i = s % N,
+      j = Math.floor(s / N);
+    const k = shimmerAt((i + 0.5) / N, (j + 0.5) / N, base.W, 0);
+    const [mx, my, mz] = unrotate(
+      ball(i, j, { ...base, dev: 2, M: 0.3, seed: drift.seed }).p,
+      base.Phi,
+    ).map((x) => x / k);
+    const th = Math.atan2(mz, mx),
+      dr = Math.hypot(mx, mz) - FORM.mobiusR;
+    close(dr * Math.sin(th / 2) - my * Math.cos(th / 2), 0, 1e-9, "möbius drift");
+  }
 });
 
 test("clock phases wrap exactly: every position is periodic in its clock's period", () => {
@@ -247,7 +265,7 @@ test("clock phases wrap exactly: every position is periodic in its clock's perio
       const i = s % N,
         j = Math.floor(s / N);
       const p = ball(i, j, { ...base, dev, detail: 0.7 }).p;
-      for (const shift of [{ W: base.W + TAU }, { M: base.M + 4 }, { Phi: base.Phi + TAU }]) {
+      for (const shift of [{ W: base.W + TAU }, { M: base.M + 4 }, { Phi: base.Phi + 2 * TAU }]) {
         const q = ball(i, j, { ...base, dev, detail: 0.7, ...shift }).p;
         assert.ok(dist(p, q) < 1e-9, `${dev} ${JSON.stringify(shift)}`);
       }

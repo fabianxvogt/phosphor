@@ -55,7 +55,7 @@ void cameraRig(float dev,out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float radius=6.-1.4*s2+.4*sin(2.*a),height=.75+.5*s2+.1*sin(3.*a);
  eye=vec3(radius*cos(a),height,radius*sin(a));
  float side=.9*(1.-s2);
- vec3 target=vec3(-sin(a)*side,1.9+.3*s2,cos(a)*side);
+ vec3 target=vec3(-sin(a)*side,2.2-.3*sst(0.,1.,dev)+.3*s2,cos(a)*side);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
 float focal(){return FOCAL*(1.+.02*clamp(u_kick,0.,1.));}
@@ -82,7 +82,7 @@ flat out vec4 v_info;
 const float TAU=6.28318530718,PI=3.14159265359;
 float rippleH(vec2 p,float W){return .045*sin(.42*p.x+.27*p.y-W)+.03*sin(.31*p.y-.38*p.x-W+1.3);}
 float waveH(vec2 p,float W,vec4 w,float Phi,float detail,float base){
- float a=base+Phi,b=a+2.2;
+ float a=base+.5*Phi,b=a+2.2;
  vec2 d1=vec2(cos(a),sin(a)),d2=vec2(cos(b),sin(b));
  float rho=length(p),th=atan(p.y,p.x+1e-7);
  float h0=.17*sin(1.25*dot(d1,p)-2.*W)+.17*sin(1.05*dot(d2,p)-2.*W);
@@ -107,13 +107,14 @@ vec3 sculpt(vec2 uv,vec4 w,float W,float Phi,float detail){
  if(w.z>0.){float m=FMW*(1.-2.*uv.y),R=FMR+m*cos(th*.5);p+=w.z*vec3(R*cos(th),m*sin(th*.5),R*sin(th));}
  if(w.w>0.){float r=FSR*sqrt(.02+.98*uv.y);
   p+=w.w*vec3(r*cos(th),FSK*r*r*cos(2.*th)+FSW*r*sin(2.6*r-2.*W),r*sin(th));}
- float shimmer=1.+.018*detail*sin(TAU*(5.*uv.x+3.*uv.y)-2.*W);
+ float shimmer=1.+(.01+.02*detail)*sin(TAU*(5.*uv.x+3.*uv.y)-2.*W);
  p.yz=vec2(TC*p.y-TS*p.z,TS*p.y+TC*p.z);
  float c=cos(Phi),s=sin(Phi);
  return vec3(c*p.x-s*p.z,p.y,s*p.x+c*p.z)*shimmer;
 }
 void main(){
- float dev=DEV,W=u_clock[0],M=u_clock[1],Phi=u_clock[2];
+ // The seed picks the first form / choreography (whole steps: a hold).
+ float dev=DEV,W=u_clock[0],M=u_clock[1]+mod(u_seed,4.),Phi=u_clock[2];
  float amp=u_params[2],detail=clamp(u_params[3],0.,1.),size=u_params[7];
  float kick=clamp(u_kick,0.,1.);
  vec2 g=(a_cell-(N-1.)*.5)*SP;
@@ -132,7 +133,7 @@ void main(){
   for(int k=0;k<4;k++){vec2 q=vec2(hx[k],hz[k]);float r0=rippleH(q,W);hh[k]=r0+s01*(waveH(q,W,w,Phi,detail,base)*amp-r0);}
   pg=vec3(g.x,HANG+y+ring,g.y);
   ng=normalize(vec3(-(hh.x-hh.y)/(2.*e),1.,-(hh.z-hh.w)/(2.*e)));
-  hg=clamp(.5+(y+ring)*1.15,0.,1.);
+  hg=clamp(.5+(y+ring)*1.15+.22*(1.-s01)*y0/.075,0.,1.);
  }
  vec3 ps=vec3(0.),ns=vec3(0.,1.,0.);float rs=R0,hs=.5;
  if(sig>0.){
@@ -174,7 +175,10 @@ void main(){
  // Occlusion proxy for the sculpture: spheres near its axis (the torus
  // hole, the saddle's centre, the band's inner rim) sit deeper in the form.
  float ao=mix(1.,.3+.7*sst(.3,1.6,length(P-CENTER)),sig);
- vec3 emit=col*glow*(mix(.5,.14,sig)+mix(.55,1.2,sig)*pow(facing,1.4))*(.6+.4*max(s01,sig))*ao;
+ // The level ceiling's faint ripple also travels as light: slow bands of
+ // brightness drift across the lattice and fade as the waves take over.
+ float sheen=1.+.7*(1.-s01)*(1.-sig)*rippleH(g,W)/.075;
+ vec3 emit=col*glow*(mix(.5,.14,sig)+mix(.55,1.2,sig)*pow(facing,1.4))*(.6+.4*max(s01,sig))*ao*sheen;
  emit+=mix(col,vec3(1.),.55)*glow*(1.6*glint+.6*glint2)*mix(1.,1.8,sig)*ao;
  emit+=mix(u_secondary,vec3(1.),.35)*rim*.28*glow*(.4+.6*max(s01,sig));
  emit=mix(emit,u_accent*glow*1.6,crest*.7);
@@ -285,7 +289,7 @@ void main(){
   float fade=exp(-along*1.05)*sst(0.,.08,along);
   float dist=v_ray.z;
   float k=v_info.y/R0;
-  vec3 col=mix(v_col,vec3(1.),.2)*side*side*fade*mix(.075,.035,v_info.z)*min(k*k,1.4)*exp(-dist*FOGK);
+  vec3 col=mix(v_col,vec3(1.),.2)*side*side*fade*mix(.11,.035,v_info.z)*min(k*k,1.4)*exp(-dist*FOGK);
   outColor=vec4(max(col,vec3(0.)),1.);
   gl_FragDepth=gl_FragCoord.z;
  }
@@ -415,9 +419,9 @@ export default {
     look("Wave Choreography", 1216, 1),
     look("Floating Sculpture", 1216, 2),
     look("Slow Tide", 377, 0.7, { speed: 0.55, amplitude: 1.35, detail: 0.2, orbit: 0.6 }),
-    look("Rain Curtain", 2048, 1.4, { morph: 0.6, size: 0.85, orbit: 0.7 }),
+    look("Rain Curtain", 2048, 1.65, { morph: 0.6, size: 0.85, orbit: 0.7 }),
     look("Dense Swell", 909, 1, { speed: 1.35, detail: 0.85, size: 0.8, morph: 1.4 }),
-    look("Möbius Drift", 4711, 2, { morph: 0.45, orbit: 0.55, size: 0.9, detail: 0.6 }),
+    look("Möbius Drift", 6006, 2, { morph: 0.45, orbit: 0.55, size: 0.9, detail: 0.6 }),
     look("Night Mirror", 63, 0.35, { glow: 0.85, orbit: 0.4, amplitude: 1.2 }),
   ],
   stage: ["speed", "amplitude", "glow"],
@@ -458,11 +462,12 @@ export default {
   ],
   // Integrated phases (scene-time.mjs): every use is periodic in its period.
   // 0 wave phase (uses ×1, ×2, ×3 inside sin), 1 choreography / form phase
-  // (four forms), 2 direction drift and sculpture turn, 3 camera orbit.
+  // (four forms), 2 sculpture turn (×1) and wave direction drift (×½, so the
+  // period is 4π), 3 camera orbit.
   clocks: [
     { rate: (p) => 0.75 * p[1], period: 2 * Math.PI },
     { rate: (p) => p[5] / 14, period: 4 },
-    { rate: (p) => 0.035 * (0.5 + 0.5 * p[5]), period: 2 * Math.PI },
+    { rate: (p) => 0.12 * (0.5 + 0.5 * p[5]), period: 4 * Math.PI },
     { rate: (p) => 0.035 * p[6], period: 2 * Math.PI },
   ],
   fragment: background,

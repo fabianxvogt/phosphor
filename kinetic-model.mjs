@@ -8,8 +8,8 @@
 //               parametric surface morphing sphere → torus → Möbius → saddle
 // Development is a pure function input: reversal retraces the forward path.
 
-export const N = 80; // 6400 spheres
-export const SPACING = 0.3; // ceiling lattice spacing (world units ≈ m)
+export const N = 96; // 9216 spheres
+export const SPACING = 0.25; // ceiling lattice spacing (world units ≈ m)
 export const HANG = 2.8; // level hang height above the floor
 export const CEILING = 6.4; // motor ceiling
 export const CENTER = [0, 2.5, 0]; // sculpture centre
@@ -24,9 +24,9 @@ export const FORM = {
   torusR: 1.5,
   torusr: 0.66,
   mobiusR: 1.6,
-  mobiusW: 0.85,
-  saddleR: 2.4,
-  saddleK: 0.18,
+  mobiusW: 0.62,
+  saddleR: 2.15,
+  saddleK: 0.2,
   saddleWave: 0.07,
 };
 // Motor envelope (world units per second) the tests hold every state to.
@@ -71,9 +71,10 @@ export function rippleHeight(x, z, W) {
 export const RIPPLE_BOUND = 0.075;
 
 // Interfering travelling waves: four choreographies, weighted by chorus(M).
-// W: wave phase (clock 0), Phi: slow direction drift (clock 2).
+// W: wave phase (clock 0), Phi: sculpture turn (clock 2); the plane-wave
+// directions drift at half of it.
 export function waveHeight(x, z, W, w, Phi, detail, base) {
-  const a = base + Phi,
+  const a = base + 0.5 * Phi,
     b = a + 2.2;
   const d1x = Math.cos(a),
     d1z = Math.sin(a),
@@ -141,6 +142,11 @@ export function formSaddle(u, v, W) {
   return [r * Math.cos(th), y, r * Math.sin(th)];
 }
 
+// A travelling breathing wave over the sculpture (radial scale factor);
+// detail grows with energy.
+export const shimmerAt = (u, v, W, detail) =>
+  1 + (0.01 + 0.02 * detail) * Math.sin(TAU * (5 * u + 3 * v) - 2 * W);
+
 // Blended, rotated sculpture (local to CENTER).
 export function sculpture(u, v, w, W, Phi, detail) {
   const p = [0, 0, 0];
@@ -157,8 +163,7 @@ export function sculpture(u, v, w, W, Phi, detail) {
     p[1] += w[k] * f[1];
     p[2] += w[k] * f[2];
   }
-  // A gentle travelling shimmer along the radius; detail grows with energy.
-  const shimmer = 1 + 0.018 * detail * Math.sin(TAU * (5 * u + 3 * v) - 2 * W);
+  const shimmer = shimmerAt(u, v, W, detail);
   // Tilt about x, then turn about the vertical: the form wobbles like a
   // spinning coin, so the camera sees every side of it.
   const ct = Math.cos(TILT),
@@ -195,7 +200,8 @@ export function ball(i, j, state) {
   const s01 = smoothstep(0, 1, d),
     s12 = clamp(d - 1, 0, 1);
   const sig = smoothstep(0, 1, s12 * (1 + STAGGER) - (STAGGER * rho) / RMAX);
-  const w = chorus(M);
+  // The seed picks the first form / choreography (whole steps: a hold).
+  const w = chorus(M + (Number(seed) % 8192) % 4);
   const ring = ringHeight(rho, kick, level) * amp;
   let pg = [0, 0, 0],
     ng = [0, 1, 0],
@@ -205,12 +211,13 @@ export function ball(i, j, state) {
       rippleHeight(x, z, W) +
       s01 * (waveHeight(x, z, W, w, Phi, detail, base) * amp - rippleHeight(x, z, W));
     const y = h(gx, gz),
+      y0 = rippleHeight(gx, gz, W),
       e = SPACING * 0.5;
     const dx = (h(gx + e, gz) - h(gx - e, gz)) / (2 * e),
       dz = (h(gx, gz + e) - h(gx, gz - e)) / (2 * e);
     pg = [gx, HANG + y + ring, gz];
     ng = normalize([-dx, 1, -dz]);
-    hg = clamp(0.5 + (y + ring) * 1.15, 0, 1);
+    hg = clamp(0.5 + (y + ring) * 1.15 + 0.22 * (1 - s01) * (y0 / 0.075), 0, 1);
   }
   let ps = [0, 0, 0],
     ns = [0, 1, 0],
@@ -265,7 +272,8 @@ export function camera(dev, alpha) {
   const height = 0.75 + 0.5 * s2 + 0.1 * Math.sin(3 * alpha);
   const eye = [radius * Math.cos(alpha), height, radius * Math.sin(alpha)];
   const side = 0.9 * (1 - s2);
-  const target = [-Math.sin(alpha) * side, 1.9 + 0.3 * s2, Math.cos(alpha) * side];
+  const s01 = smoothstep(0, 1, clamp(dev, 0, 1));
+  const target = [-Math.sin(alpha) * side, 2.2 - 0.3 * s01 + 0.3 * s2, Math.cos(alpha) * side];
   return { eye, target };
 }
 
