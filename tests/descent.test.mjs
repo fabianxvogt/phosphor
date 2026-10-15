@@ -166,6 +166,36 @@ test("descent declares a continuous three-state world and strong extra looks", (
   );
 });
 
+test("constant-scale field preserves the full candidate order and suffix bound", () => {
+  const cross = (p, w) => {
+    const [x, y, z] = p.map(Math.abs);
+    return Math.min(Math.max(x, y), Math.max(y, z), Math.max(z, x)) - w;
+  };
+  const map = (p, dev, open, levels, stop) => {
+    const f = frame(dev, open), w = open / 3, w0 = w * mix(1, .6, smooth(1, 2, dev));
+    let holes = narrowHall(f, p), trap = -1;
+    for (let i = 0; i < 5 && i < levels; i++) {
+      const sc = 3 ** i;
+      const q = p.map((v) => ((v * sc + 1) % 2 + 2) % 2 - 1);
+      const c = cross(q, (i === 0 ? w0 : w) * Math.min(1, levels - i)) / sc;
+      if (c < holes) { holes = c; trap = i; }
+      if (stop && holes <= -w / (sc * 3)) break;
+    }
+    return [-holes, trap];
+  };
+  let rng = 9301;
+  const rand = () => ((rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+  for (let i = 0; i < 30000; i++) {
+    const p = [rand() * 24 - 12, rand() * 40 - 20, rand() * 24 - 12];
+    const dev = rand() * 2, open = .75 + rand() * .45, levels = 2 + rand() * 3;
+    assert.deepEqual(map(p, dev, open, levels, true), map(p, dev, open, levels, false));
+  }
+  for (const sc of [1, 3, 9, 27, 81]) assert.ok(descent.fragment.includes(`p * ${sc}. + 1.0`));
+  assert.match(descent.fragment, /d \* 0\.97/);
+  assert.match(descent.fragment, /gAoH = .*vec3\(0\.025, 0\.1, 0\.4\)/);
+  assert.match(descent.fragment, /2\.0 \* u_resolution\.y \/ shortSide/);
+});
+
 test("descent rhythm gestures use periods 4, 8 and 16", () => {
   assert.deepEqual(
     descent.rhythm.map((r) => [r.slot, r.defaults.length]),

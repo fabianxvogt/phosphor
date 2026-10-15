@@ -54,13 +54,13 @@ A one-texel RGBA8 state holds the travel phase (period six units) and a 16-bit w
 | Measure | Value |
 | --- | --- |
 | March cap | `min(96, u_raySteps)` |
-| Detail cap | per ray, at about 1.5 output pixels up to 1440 lines, growing to 2.25 px at 2160 |
+| Detail cap | per ray, at 1.6 output pixels up to 1080 short-side pixels, growing to 3.2 px at 2160 |
 | Surface tolerance | 0.6 px (same 1440-line rule) |
 | Sky probe | every second march step, cached block hash; skipped where the city has no shafts |
 | Normals | analytic, one evaluation (every face is axis-aligned) |
-| Shading at hits | 1 normal + 4 AO + 1 shadow evaluation; AO and shadow probes cap the recursion to their radius |
+| Shading at hits | 1 normal + 3 AO + 1 shadow evaluation; AO and shadow probes cap the recursion to their radius |
 
-The detail cap stops recursion with fractional fading; this also removes far shimmer. Above 1440 lines it grows with resolution, so 4K keeps the detail of a 1440p frame instead of paying for near-sub-pixel holes. 4K crops were inspected and show no visible loss.
+The detail cap stops recursion with fractional fading; this also removes far shimmer. Above 1080 short-side pixels it grows with resolution, so 4K avoids near-sub-pixel recursive slits. The fine-detail cutoff is an intentional wave-5 look change, not reduced render resolution. Full-size 4K stills and crops were inspected.
 
 The step bound against neighbouring blocks uses the narrowest block variant, which is a provable subset of free space. It is evaluated only when the block-face clamp binds.
 
@@ -104,4 +104,30 @@ In the city, about 20% goes to block-face stepping. A looser face margin would l
 - Shadows from finer sponge levels are short-range only (one SDF sample).
 - At 4K, the City is the most expensive state.
 - Wave 2 frames are darker by design (dark-ground rule); they rely on the shared post chain and bloom for highlight punch.
-- Owner art review of the films is outstanding.
+- Some fine distant window edges remain step-limited; the analytic bevel is a lighting cue, not bevelled geometry.
+
+## Wave 5 rework · 2026-10-15
+
+All IDs, state/look names, schemas, seeds and preset parameters are unchanged. No world-definition or engine changes.
+
+Four filmed/reviewed visual rounds:
+
+1. Separate the palette-primary sunlight from cool structural fill (the old multiplicative tint made floor light muddy blue); lift the bounded headlight so the opening corridor reads. Replace four AO probes with three geometrically spaced radius-aware probes, precompute their recursion caps, filter fine detail earlier at 4K.
+2. Add opposing cool rim/key light and depth uplight, reduce accent lamps from 12% to 3.5%, expand the five fixed-scale SDF candidates in original order (same suffix bound and first winner).
+3. Add a cheap analytic raking bevel cue to resolved aperture corners, strengthen existing shaft scattering, raise the peak gaze slightly so the towers, not the floor void, carry the climax. Raise conservative march progress from 0.90 to 0.97 of the same distance bound.
+4. Add stronger light from the city's depths, shade window light into the recursive tunnel instead of flat plaques, and correct projection/footprints to the short side in portrait.
+
+Native headless M3 Pro stock profiler p50 ms (whole synchronous frame including post):
+
+| Resolution | Corridor | Cavern | City |
+| --- | --- | --- | --- |
+| 1080p baseline → final | 4.7 → 4.1 | 6.7 → 5.4 | 5.4 → 5.0 |
+| 4K baseline → final | 17.4 → 13.7 | 22.7 → 18.5 | 20.8 → 18.4 |
+
+A heavily contended intermediate final probe reached 32–40 ms at 4K; it is retained rather than hidden (`descent-contended-*`). To distinguish the shader from fleet load drift, an AB/BA native comparison alternated reference `deaaae1` and current frames in one browser (72 samples per side/state). It corroborates the savings: 1080p **4.8→4.2 / 6.5→5.7 / 5.8→5.1**; 4K **17.0→14.5 / 26.1→22.0 / 24.2→20.8**. Every state passes the baseline+5% rule. This is throughput, not venue cadence; 4K open states remain above 16 ms.
+
+Added a 30,000-point CPU comparison of the pruned constant-scale map against the complete ordered candidate list (distance and material winner), plus source guards for the march factor, AO radii and short-side projection. Existing free-core clearance, fixed-point travel, preset/world identity and rhythm checks remain. All three space families pass the native 3600/4096/43200-second seam and rate-step audit; no GL or non-finite errors.
+
+Reviewed the energy ladder, Quiet Vault, Phosphor/Ember/Glacier, portrait, native 4K states and full-size crops. Honest rating: **8.5/10**. The spatial arc and light are stronger and cost is substantially lower; the hard recursive grid and a few step-limited distant edges still stop it short of a polished 9.
+
+Evidence in fleet `rework-space/output/`: `descent-baseline/descent.{mp4,png}`, `descent-final/descent.{mp4,png}`, `descent-extra/`, `descent-ember/`, `descent-glacier-portrait/`, `descent-ladder/`, `stills-4k/`, `paired-1080.json`, `paired-2160.json`. Superseded films removed.

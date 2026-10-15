@@ -98,4 +98,21 @@ Films: `PHOSPHOR_HEADLESS_RIG=1 node scripts/world-film.mjs --world horizon --ri
 - The camera is a static observer: orbital aberration is ignored.
 - Jets use straight chords between table samples (every 0.24 rad).
 - Near-critical rays are tabulated to 3.2π, and fourth and higher images are dropped (the photon ring glow stands in for them).
-- Owner art review of the films is outstanding.
+- The thin disk still reads as smooth sheared filaments, not a full turbulent volume.
+
+## Wave 5 rework · 2026-10-15
+
+All world/look names, seeds, schema and presets remain unchanged; no engine or world-definition change.
+
+Visual rounds (each filmed and reviewed): (1) widen/brighten the tidal star and stream and make the photon ring palette-primary rather than a dim accent; (2) lower the ringlet amplitude/frequency, strengthen the density waves and gas contrast, remove the fourth primary noise octave; (3) taper the luminous jets to finite camera-relative lengths, reject invisible chords early, reserve jet accent for knots and lower background-star competition; (4) portrait review exposed the old height-based camera crop, now corrected to short-side projection/footprints. The peak disk is about 80% of the short side; finite jets no longer end at the frame boundary. The geodesic integrator, table, seeded phases and development geometry are unchanged.
+
+Native headless M3 Pro synchronous throughput, all states, p50 ms (includes post). Initial 12-frame baseline: **2.3 / 2.3 / 2.8** at 1080p, **6.2 / 7.9 / 9.5** at 4K. Shared-machine load drifted; adjacent 60-frame reference/final runs give the more comparable acceptance pair:
+
+| Resolution | Tidal Star | Infall Spiral | Blazing Horizon |
+| --- | --- | --- | --- |
+| 1080p baseline → final | 2.4 → 2.3 | 2.6 → 2.5 | 3.2 → 3.3 |
+| 4K baseline → final | 8.1 → 7.1 | 8.7 → 8.3 | 10.7 → 11.0 |
+
+Every paired state is within +5%; timing noise/other fleet GPU users prevent a venue-cadence claim. Zero GL errors/non-finite values. Added regression coverage for portrait projection, bounded jet extent/early rejection and the reduced noise budget; existing CPU Schwarzschild tests retained. Reviewed the energy ladder, Edge of Night, Phosphor, Ember and Glacier (portrait). Honest rating: **9/10** (stylised, not Kerr/volumetric astrophysics).
+
+Evidence is in the fleet worker output `rework-space/output/`: `horizon-baseline/horizon.{mp4,png}`, `horizon-final/horizon.{mp4,png}`, `horizon-extra/`, `horizon-ember/`, `horizon-glacier-portrait/`, `horizon-ladder/`; superseded rounds deleted.

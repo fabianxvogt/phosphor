@@ -354,6 +354,18 @@ test("horizon declares a continuous three-state world and strong extra looks", (
   );
 });
 
+test("rework keeps a short-side camera, finite jets and footprint-filtered gas", () => {
+  assert.match(horizon.fragment, /2\.0 \* u_resolution\.y \/ shortSide/);
+  assert.match(horizon.fragment, /gPixelAngle = 2\.0 \/ \(focal \* shortSide\)/);
+  assert.match(horizon.fragment, /gJetLen = min\(gJetLen, radius \* 0\.38\)/);
+  assert.match(horizon.fragment, /y > 1\.4 \* gJetLen/);
+  assert.match(horizon.fragment, /1\.0 - smoothstep\(0\.85 \* gJetLen, 1\.4 \* gJetLen, y\)/);
+  assert.match(horizon.fragment, /order < 0\.5 \? 3 : 2/);
+  // Finite luminous jets project inside the short side even on close passes.
+  for (let r = 15; r <= 48; r += .1)
+    assert.ok(1.4 * Math.min(24, r * .38) / r * 1.55 < .83);
+});
+
 test("style limits: kick punch, roll, speed range and gesture periods", () => {
   assert.match(horizon.fragment, /\(1\.0 \+ 0\.025 \* kick\)/);
   assert.match(horizon.fragment, /float roll = 0\.04 \* sin/);

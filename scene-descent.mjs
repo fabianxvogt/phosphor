@@ -137,6 +137,7 @@ const int LEVEL_CAP = 5;
 
 // Per-frame constants, assigned once in main().
 float gCave, gCity, gVar, gCounter, gW0, gW, gLevels, gDetail, gLodScale;
+vec3 gAoH, gAoLevels;
 vec2 gXs, gZs, gYs;
 vec3 gL;
 
@@ -267,17 +268,16 @@ vec3 dsNormal(vec3 p) {
 float dsMap(vec3 p, out float trap, bool clampCells) {
   float holes = dsHall(p, clampCells);
   trap = -1.0;
-  float scale = 1.0;
-  for (int i = 0; i < LEVEL_CAP; ++i) {
-    if (float(i) >= gLevels) break;
-    vec3 q = mod(p * scale + 1.0, 2.0) - 1.0;
-    float w = (i == 0 ? gW0 : gW) * clamp(gLevels - float(i), 0.0, 1.0);
-    float c = dsCross(q, w) / scale;
-    if (c < holes) { holes = c; trap = float(i); }
-    scale *= 3.0;
-    // Later crosses are at least -gW / scale (gW >= gW0).
-    if (holes <= -gW / scale) break;
-  }
+  // Fixed scales remove the dynamic loop/scale dependency on tile GPUs.
+  // Same candidates, order, first winner and conservative suffix bound.
+  ${Array.from({ length: 5 }, (_, i) => `{
+    if (gLevels <= ${i}.) return -holes;
+    vec3 q = mod(p * ${3 ** i}. + 1.0, 2.0) - 1.0;
+    float w = ${i === 0 ? "gW0" : "gW"} * clamp(gLevels - ${i}., 0.0, 1.0);
+    float c = dsCross(q, w) / ${3 ** i}.;
+    if (c < holes) { holes = c; trap = ${i}.; }
+    if (holes <= -gW / ${3 ** (i + 1)}.) return -holes;
+  }`).join("\n")}
   return -holes;
 }
 
@@ -312,11 +312,11 @@ float dsSky(vec3 p, bool fine) {
 
 // Occlusion probes at radius h only need holes wider than about h / 2, so
 // each probe caps the recursion (the field only gains solid when capped).
-float dsOcclusion(vec3 p, vec3 n, float reach) {
+float dsOcclusion(vec3 p, vec3 n) {
   float blocked = 0.0, weight = 0.5, tmp, levels = gLevels;
-  for (int i = 0; i < 4; ++i) {
-    float h = reach * 0.018 * pow(3.0, float(i));
-    gLevels = min(levels, max(1.0, log(2.6 * gW / h) / log(3.0)));
+  for (int i = 0; i < 3; ++i) {
+    float h = gAoH[i];
+    gLevels = min(levels, gAoLevels[i]);
     blocked += weight * max(0.0, 1.0 - dsMap(p + n * h, tmp, false) / h);
     weight *= 0.5;
   }
@@ -349,6 +349,9 @@ void main() {
   gYs = vec2(mix(b, 0.9, gCave), mix(b, 0.9, gCave));
   gW = b;
   gW0 = b * mix(1.0, 0.6, gCity);
+  // Three radius-aware AO probes replace four per-hit logarithms.
+  gAoH = (1.0 + 1.5 * gCave) * vec3(0.025, 0.1, 0.4);
+  gAoLevels = max(vec3(1.0), log(vec3(2.6 * gW) / gAoH) / log(3.0));
   gDetail = clamp(u_params[2], 2.0, 5.0);
   gLevels = gDetail;
   gCacheCell[0] = gCacheCell[1] = vec2(1e9);
@@ -366,13 +369,14 @@ void main() {
   // block's avenue opens as a deep sideways vista (period 36 units).
   float route = mod(gCounter, 6.0) * 6.0 + s;
   float vista = 0.6 * gCity * cos(TAU * route / 36.0);
-  vec3 fw = normalize(vec3(1.0, 0.2 * velocity.y - 0.08 * gCity, 0.4 * velocity.z + vista));
+  vec3 fw = normalize(vec3(1.0, 0.2 * velocity.y + 0.06 * gCity, 0.4 * velocity.z + vista));
   vec3 up = vec3(0.0, 1.0, 0.0);
   vec3 rt = normalize(cross(up, fw));
   up = cross(fw, rt);
   // Bank into the lateral turn: at most 0.16 rad (about 9 degrees).
   float roll = bankAmount * 0.16 * smoothstep(0.0, 0.6, az) * sin(w);
-  vec2 uv = rot2(roll) * (aspectUV() * 2.0);
+  float shortSide = min(u_resolution.x, u_resolution.y);
+  vec2 uv = rot2(roll) * (aspectUV() * (2.0 * u_resolution.y / shortSide));
   float focal = 1.35 * (1.0 + kick * 0.025);
   vec3 rd = normalize(fw * focal + rt * uv.x + up * uv.y);
 
@@ -380,15 +384,14 @@ void main() {
   float tMax = 14.0 + 8.0 * gCave + 2.0 * gCity;
   float extinction = (0.035 + fog * 0.12) / (1.0 + 1.1 * gCave + 0.2 * gCity);
   // Level of detail: recursion stops where its holes would shrink below
-  // about 1.5 output pixels (fractional, so it fades rather than pops).
+  // about 1.6 output pixels (fractional, so it fades rather than pops).
   // This removes shimmer and work; the field only gains solid, never loses.
-  // Above 1440 lines the cutoff grows with resolution (2.25 px at 2160),
-  // so 4K keeps the detail of a 1440p frame instead of paying for
-  // near-sub-pixel holes.
-  float lodPixels = 1.5 * max(1.0, u_resolution.y / 1440.0);
-  gLodScale = 2.0 * gW * focal * u_resolution.y / (2.0 * lodPixels);
+  // Above 1080 short-side pixels the cutoff grows with resolution (3.2 px
+  // at 2160), so 4K does not pay for near-sub-pixel recursive slits.
+  float lodPixels = 1.6 * max(1.0, shortSide / 1080.0);
+  gLodScale = 2.0 * gW * focal * shortSide / (2.0 * lodPixels);
   // Surface tolerance of about 0.6 output pixels (same 1440-line rule).
-  float hitScale = 1.2 * max(1.0, u_resolution.y / 1440.0) / (focal * u_resolution.y);
+  float hitScale = 1.2 * max(1.0, shortSide / 1440.0) / (focal * shortSide);
   float t = 0.02, trap = 0.0, edge = 0.0, scattering = 0.0, d = 1.0;
   bool hit = false;
   float beamHeld = 0.0;
@@ -403,7 +406,7 @@ void main() {
     gLevels = min(gDetail, max(1.5, log(gLodScale / t) / log(3.0)));
     d = dsMap(p, trap, true);
     if (d < hitScale * t) { hit = true; break; }
-    float segment = min(d * 0.9, tMax - t);
+    float segment = min(d * 0.97, tMax - t);
     // Light reuses the governed march: sunlight through ceiling holes in the
     // corridor, shafts in the cavern and gaps between towers in the city.
     // Sampled on alternate steps and held: half the probes, same shafts.
@@ -431,14 +434,14 @@ void main() {
   vec3 atmCave = mix(u_secondary, u_primary, 0.25) * 0.06;
   // The city's haze glows from its lit depths: aerial perspective turns far
   // towers into layered silhouettes, darkest overhead.
-  vec3 atmCity = mix(u_secondary * 0.035, cityGlow * 0.26, smoothstep(0.35, -0.75, rd.y));
+  vec3 atmCity = mix(u_secondary * 0.035, cityGlow * 0.42, smoothstep(0.35, -0.75, rd.y));
   vec3 atmosphere = mix(atmCave, atmCity, gCity);
   vec3 col = vec3(0.0);
   if (hit) {
     vec3 hp = ro + rd * t;
     float tmp;
     vec3 n = dsNormal(hp);
-    float occlusion = dsOcclusion(hp, n, 1.0 + 1.5 * gCave);
+    float occlusion = dsOcclusion(hp, n);
     // One dark structural stone for every level, so cut sponge grooves read
     // as relief rather than as clutter in a second colour. Deeper levels are
     // only slightly lighter; accent stays reserved for lights.
@@ -462,14 +465,31 @@ void main() {
     // Dark ground: a dim headlight; the sun patches carry the corridor and
     // cavern, while the night city keeps the sun low against its windows.
     float sunGain = mix(mix(2.2, 1.9, gCave), 1.1, gCity);
-    float shade = 0.02 + light * (mix(0.18, 0.3, gCave) * head * head * att +
-      sunGain * sun + mix(0.05, 0.14, gCave) * (1.0 - 0.3 * gCity) * sky);
+    float shade = 0.04 + light * (mix(0.32, 0.4, gCave) * head * head * att +
+      mix(0.07, 0.16, gCave) * (1.0 - 0.3 * gCity) * sky);
     col = material * shade * occlusion;
+    // Warm key patches separate from the cool structural fill: multiplying
+    // two saturated palette colours made the old sunlight muddy blue.
+    col += mix(u_primary, vec3(1.0), 0.2) * sunGain * sun * light * 0.24 * occlusion;
     // Night city: faces turned downwards catch the glow of the depths.
-    col += material * cityGlow * 0.35 * gCity * max(-n.y, 0.0) * occlusion;
+    col += mix(u_secondary, u_primary, 0.18) * 0.1 * gCity *
+      (0.25 + max(-n.y, 0.0)) * occlusion;
+    // A cool opposing key catches vertical ribs without bleaching the stone.
+    float rimKey = max(dot(n, normalize(vec3(-0.4, 0.25, -0.8))), 0.0);
+    col += u_secondary * light * (0.025 + 0.09 * gCave) * rimKey * occlusion;
     // A level still fading in (by energy or distance) shows as dark grooves
     // rather than bright sub-pixel slits; it brightens as it opens.
     if (trap >= 0.0) col *= mix(0.25, 1.0, clamp(gLevels - trap, 0.0, 1.0));
+    // A narrow raking bevel cue on resolved recursive aperture corners.
+    // Analytic on the winning scale: no extra SDF or shadow samples.
+    if (trap >= 0.0 && trap < 2.5) {
+      float sc = pow(3.0, trap);
+      vec3 q = abs(mod(hp * sc + 1.0, 2.0) - 1.0);
+      float width = (trap < 0.5 ? gW0 : gW) * clamp(gLevels - trap, 0.0, 1.0);
+      float corner = max(0.0, min(width - min(q.x, min(q.y, q.z)), max(q.x, max(q.y, q.z)) - width)) / sc;
+      float bevel = 1.0 - smoothstep(0.008, 0.025 + hitScale * t, corner);
+      col += mix(u_secondary, u_primary, 0.45) * bevel * (0.055 + 0.09 * gCave) * occlusion;
+    }
     float rim = pow(max(1.0 - head, 0.0), 3.0);
     col += mix(u_secondary, u_primary, 0.65) * rim * glowAmount *
       (0.06 + level * 0.16 + bass * (0.14 + level * 0.5)) * occlusion;
@@ -497,8 +517,9 @@ void main() {
       float lit = step(r1, chance) * floorOn * allowed * tunnel;
       float band = mod(u_rhythmCount.x, 4.0);
       float cohort = step(abs(floor(r2 * 4.0) - band), 0.5) * u_rhythm.x * allowed * tunnel;
-      vec3 lamp = r2 < 0.12 ? u_accent : mix(u_primary, vec3(1.0), 0.3);
-      float depth = clamp(1.0 - head * 0.5, 0.5, 1.0);
+      vec3 lamp = r2 < 0.035 ? u_accent : mix(u_primary, vec3(1.0), 0.3);
+      float inset = 0.2 + 0.8 * (1.0 - smoothstep(0.4, 1.0, max(wq.x, wq.z)));
+      float depth = clamp(1.0 - head * 0.5, 0.5, 1.0) * inset;
       // On every beat one floor band of the city answers the kick; the band
       // climbs a floor per beat, so the towers carry the bar's rhythm.
       float storey = floor(hp.y * 1.5);
@@ -513,7 +534,7 @@ void main() {
   col += seamColour * glowAmount * edge * (1.0 - 0.85 * gCity) *
     (1.0 + bass * level + u_rhythm.z);
   col += mix(seamColour, beamColour, 0.6 + 0.4 * gCave) * min(scattering, 0.6) *
-    (0.5 + level * 0.1 + bass * level * 0.3);
+    (0.8 + level * 0.1 + bass * level * 0.3);
   outColor = vec4(max(col, vec3(0.0)), 1.0);
 }
 `;
