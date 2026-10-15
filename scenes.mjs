@@ -54,6 +54,7 @@ import ferro from "./scene-ferro.mjs";
 import tide from "./scene-tide.mjs";
 import laser from "./scene-laser.mjs";
 import magma from "./scene-magma.mjs";
+import aurora from "./scene-aurora.mjs";
 
 export default [
   acid,
@@ -112,6 +113,7 @@ export default [
   laser,
   magma,
   kinetic,
+  aurora,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

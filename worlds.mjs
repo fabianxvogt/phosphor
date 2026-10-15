@@ -241,6 +241,17 @@ const AUTHORED = [
       { name: "Sculpture", look: "kinetic:Floating Sculpture" },
     ],
   },
+  {
+    id: "aurora-veil",
+    name: "Aurora Veil",
+    description:
+      "Folded curtains of field-aligned light travel over a frozen lake, then gather into an overhead magnetic corona. The same rays throughout.",
+    states: [
+      { name: "Glow", look: "aurora:Glow" },
+      { name: "Curtains", look: "aurora:Curtains" },
+      { name: "Corona", look: "aurora:Corona" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
