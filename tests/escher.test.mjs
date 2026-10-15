@@ -45,7 +45,11 @@ const project = (p) => [dot(p, right), dot(p, up)];
 function frames(seed, development) {
   const rel = smooth(development);
   return [0, 1, 2].flatMap((frame) =>
-    stairIdentity(seed).map((tread) => {
+    (frame === 0
+      ? stairIdentity(seed)
+      : Array.from({ length: 12 }, (_, id) => ({
+          id, side: frame, centre: [(id - 5.5) * 0.25, (id - 5.5) * 0.13, 0],
+        }))).map((tread) => {
       let p = [...tread.centre];
       if (frame === 1) [p[0], p[1]] = rotate([p[0], p[1]], (Math.PI / 2) * rel);
       if (frame === 2)
@@ -53,11 +57,11 @@ function frames(seed, development) {
       if (frame)
         p = p.map(
           (v, i) =>
-            v * rel * 0.78 +
+            v * rel +
             [
               [0, 0, 0],
-              [-0.85, 0.9, -0.6],
-              [0.7, 0.85, -0.7],
+              [-1.45, 0, -0.8],
+              [1.2, 0.55, -1.3],
             ][frame][i] *
               rel,
         );
@@ -253,18 +257,25 @@ test("development preserves identity and has finite continuous geometry in both 
   );
 });
 
-test("shader is pinned to the tested covering chart, quotient and conservative flight bounds", () => {
+test("shader is pinned to the tested covering chart, exact intersections and courtyard", () => {
   for (const source of [
     "float h = id * 0.045 - 1.0575;",
     "return vec3(plan.x + 0.6 * h, h, plan.y + h);",
     "float logRadius = log(r) / 1.0986122886681098 + phase;",
     "float angle = atan(p.y, p.x) - 0.5235987755982988 * (logRadius - phase);",
     "float radius = exp(fract(logRadius) * 1.0986122886681098);",
-    "esDroste(uv / 0.09, 0.0)",
+    "esDroste(uv / 0.3, 0.0)",
     "if (bound > 0.08) return vec2(bound, 0.0);",
     "floor(esOtherAddress(chart) + 0.5)",
     "floor(esOtherAddress(pierChart) / 3.0) * 3.0",
-    "for (int i = 0; i < 88; ++i)",
+    "float esBoxHit(vec3 ro, vec3 rd, vec3 c, vec3 b)",
+    "vec2 treadChart = (ro + rd * ((-0.17 - ro.y) / rd.y)).xz;",
+    "for (int j = -1; j <= 1; ++j)",
+    "abs(perpendicular - edge) > 0.62 && abs(pierPerpendicular - edge) > 1.02",
+    "float flightAt = 5.5 - 5.5 * cos(id * 6.28318530718 / 48.0);",
+    "depth > -0.24 && depth < 0.0",
+    "vec3 ivory = mix(vec3(1.0), u_primary, 0.035);",
+    "uv *= exp(gInf * 0.14 * sin(gCamera));",
     "esShadow(p + n * 0.008, key)",
     "1.0 + 0.018 * u_kick",
   ])
@@ -309,6 +320,105 @@ test("integrated clocks survive rate changes and have exact shader periods for t
   }
 });
 
+// Independent exhaustive ray/box reference, versus the shader's finite
+// projected candidate set. Test camera and fader extrema, not just one view.
+function boxHit(ro, rd, c, b) {
+  let lo = 0, hi = Infinity;
+  for (let axis = 0; axis < 3; axis++) {
+    if (Math.abs(rd[axis]) < 1e-12) {
+      if (Math.abs(ro[axis] - c[axis]) > b[axis]) return Infinity;
+      continue;
+    }
+    const a = (c[axis] - b[axis] - ro[axis]) / rd[axis];
+    const z = (c[axis] + b[axis] - ro[axis]) / rd[axis];
+    lo = Math.max(lo, Math.min(a, z));
+    hi = Math.min(hi, Math.max(a, z));
+  }
+  return hi >= lo ? lo : Infinity;
+}
+
+test("projected tread/pier candidates equal exhaustive analytic visibility", () => {
+  const centres = stairIdentity(11001).map((t) => t.centre);
+  let rays = 0;
+  for (const width of [0.7, 1.4]) for (const depth of [0.3, 1.2])
+    for (const [sway, view] of [[-1, -1], [0, 0], [1, 1]]) {
+      const dir = normalize([direction[0] + 0.012 * sway + 0.009 * view, direction[1], direction[2] - 0.008 * sway]);
+      const rd = scale(dir, -1), R = normalize(cross(rd, [0, 1, 0])), U = cross(R, rd);
+      for (let y = -20; y <= 20; y++) for (let x = -26; x <= 26; x++) {
+        const ro = dir.map((v, axis) => v * 9 + R[axis] * x * 0.14 + U[axis] * y * 0.14);
+        const atPlane = (h) => [0, 2].map((axis) => ro[axis] + rd[axis] * ((h - ro[1]) / rd[1]));
+        const tc = atPlane(-0.17), pc = atPlane(-0.55 * depth);
+        const candidates = new Set();
+        for (let side = 0; side < 4; side++) {
+          const odd = side % 2;
+          const component = (p) => side === 0 ? p[0] : side === 1 ? p[1] : side === 2 ? -p[0] : -p[1];
+          const edge = [-1.5, 1.5, 1.5, -1.5][side];
+          if (Math.abs(tc[odd ? 0 : 1] - edge) > 0.62 && Math.abs(pc[odd ? 0 : 1] - edge) > 1.02) continue;
+          const address = Math.floor((component(tc) + 1.5) * 4);
+          const pier = Math.floor(((component(pc) + 1.5) * 4 - 0.5) / 3 + 0.5) * 3;
+          for (let j = -1; j <= 1; j++) {
+            candidates.add(side * 12 + Math.max(0, Math.min(11, address + j)));
+            candidates.add(144 + side * 12 + Math.max(0, Math.min(9, pier + j * 3)));
+          }
+        }
+        let exhaustive = Infinity, selected = Infinity;
+        for (let id = 0; id < 48; id++) for (const pier of [false, true]) {
+          if (pier && id % 3) continue;
+          const h = pier ? 0.55 * depth : 0.17;
+          let b = pier ? [0.065, h, 0.19 * width] : [0.139, h, 0.24 * width];
+          if (Math.floor(id / 12) % 2) b = [b[2], b[1], b[0]];
+          const c = centres[id].map((v, axis) => v - (axis === 1 ? h : 0));
+          const t = boxHit(ro, rd, c, b);
+          exhaustive = Math.min(exhaustive, t);
+          if (candidates.has(id + (pier ? 144 : 0))) selected = Math.min(selected, t);
+        }
+        assert.ok(selected === exhaustive || Math.abs(selected - exhaustive) < 1e-9,
+          `candidate miss ${width}/${depth}/${sway}/${view} at ${x},${y}: ${selected} vs ${exhaustive}`);
+        rays++;
+      }
+    }
+  assert.equal(rays, 26076);
+});
+
+test("gravity stair frames are clean orthogonal flights, not overlapping ring copies", () => {
+  const p = frames(11001, 1);
+  assert.equal(p.length, 72);
+  assert.equal(new Set(p.map((t) => t.id)).size, 72);
+  for (const frame of [1, 2]) {
+    const flight = p.filter((t) => Math.floor(t.id / 48) === frame);
+    assert.equal(flight.length, 12);
+    for (let i = 1; i < flight.length; i++)
+      near(Math.hypot(...subtract(flight[i].centre, flight[i - 1].centre)), Math.hypot(0.25, 0.13));
+  }
+  assert.match(escher.fragment, /esStraight\(esFrame\(p, float\(frame\)\)\)/);
+});
+
+test("one nearest column per wall is an exact conservative candidate", () => {
+  for (const sway of [-1, 0, 1]) for (const view of [-1, 1]) {
+    const rd = normalize([direction[0] + 0.012 * sway + 0.009 * view, direction[1], direction[2] - 0.008 * sway]);
+    for (const wallAxis of [0, 2]) {
+      // The column's projected half-width is smaller than half one bay;
+      // hence no farther column can beat the rounded nearest address.
+      const projectedRadius = 0.15 * Math.hypot(rd[0], rd[2]) / Math.abs(rd[wallAxis]);
+      assert.ok(projectedRadius < 0.8);
+    }
+  }
+  assert.match(escher.fragment, /float i = floor\(\(\(wall == 0 \? onPlane.x : onPlane.z\) - 0.8\) \/ 1.6 \+ 0.5\);/);
+  assert.match(escher.fragment, /framing \*= mix\(1.4, 1.0, smoothstep\(0.65, 1.2, u_resolution.x \/ u_resolution.y\)\);/);
+});
+
+test("recursive dolly and lantern traversals loop at the camera/procession clock wraps", () => {
+  const zoom = (a) => Math.exp(0.14 * Math.sin(a));
+  for (let i = 0; i < 100; i++) {
+    const a = i * 0.173;
+    near(zoom(a), zoom(a + TAU));
+    assert.ok(zoom(a) > 0.86 && zoom(a) < 1.16);
+    const walk = (phase) => 5.5 - 5.5 * Math.cos((i * 5.5 + phase * 3) * TAU / 48);
+    near(walk(a), walk(a + 48));
+    assert.ok(walk(a) >= 0 && walk(a) <= 11);
+  }
+});
+
 test("all eight presets validate and the appended world is one continuous development", () => {
   assert.equal(escher.number, 110);
   assert.equal(escher.development, "development");
@@ -341,9 +451,10 @@ test("all eight presets validate and the appended world is one continuous develo
     [0, 1, 2],
   );
   const worlds = defaultWorlds(catalogLooks(scenes).map((l) => l.id));
-  assert.equal(worlds.at(-1).id, "impossible-stairs");
+  const world = worlds.find((w) => w.id === "impossible-stairs");
+  assert.ok(world);
   assert.deepEqual(
-    worlds.at(-1).states.map((s) => s.name),
+    world.states.map((s) => s.name),
     ["Stair", "Relativity", "Infinity"],
   );
 });
