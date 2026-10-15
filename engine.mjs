@@ -671,6 +671,7 @@ export class Engine {
   destroySlot(s) {
     if (s.mesh) {
       this.gl.deleteBuffer(s.mesh.buffer);
+      if (s.mesh.instanceBuffer) this.gl.deleteBuffer(s.mesh.instanceBuffer);
       this.gl.deleteVertexArray(s.mesh.vao);
     }
     for (const t of s.visual) this.deleteTarget(t);
@@ -766,6 +767,31 @@ export class Engine {
         offset += size;
       });
       s.mesh.count = data.length / stride;
+      // Optional true instancing. Existing meshes retain their original path.
+      if (geometry.instances) {
+        const instances = geometry.instances;
+        const values = instances.create(snapshot.seed);
+        s.mesh.instanceBuffer ??= gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, s.mesh.instanceBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, values, gl.STATIC_DRAW);
+        const width = instances.attributes.reduce((a, b) => a + b, 0);
+        let start = 0;
+        instances.attributes.forEach((size, i) => {
+          const index = geometry.attributes.length + i;
+          gl.enableVertexAttribArray(index);
+          gl.vertexAttribPointer(
+            index,
+            size,
+            gl.FLOAT,
+            false,
+            width * 4,
+            start * 4,
+          );
+          gl.vertexAttribDivisor(index, 1);
+          start += size;
+        });
+        s.mesh.instances = values.length / width;
+      }
       gl.bindVertexArray(this.vao);
     }
     if (
@@ -1251,12 +1277,16 @@ export class Engine {
         s.mesh.count,
         s.scene.geometry.additiveFrom ?? s.mesh.count,
       );
-      gl.drawArrays(gl.TRIANGLES, 0, split);
+      const draw = (first, count) =>
+        s.mesh.instances === undefined
+          ? gl.drawArrays(gl.TRIANGLES, first, count)
+          : gl.drawArraysInstanced(gl.TRIANGLES, first, count, s.mesh.instances);
+      draw(0, split);
       if (split < s.mesh.count) {
         gl.depthMask(false);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE);
-        gl.drawArrays(gl.TRIANGLES, split, s.mesh.count - split);
+        draw(split, s.mesh.count - split);
         gl.disable(gl.BLEND);
         gl.depthMask(true);
       }

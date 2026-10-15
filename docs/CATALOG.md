@@ -96,6 +96,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Ink Bloom / Tintenblüte](families/ink.md) | ink | Kelvin vortex rings, analytic toroidal pigment transport and backlit marbled density layers | Drop / Plumes / Nebula | 8 |
 | [Soap Cathedral](families/soap.md) (Seifenkathedrale) | soap | Airy thin-film interference on clipped spherical cells and tetrahedral Plateau films | Bubble / Cluster / Foam | 8 |
 | [Dune Sea / Dünenmeer](families/dunes.md) | dunes | Moonlit barchan and star-dune heightfields, 34° slip faces, ballistic saltation and a depth-correct rolling haboob | Ripples / Dunes / Storm | 8 |
+| [Data Monolith](families/voxel.md) (Datenmonolith) | voxel | 1,296 persistent instanced cubes: GF(2) six-neighbour 3D CA, Morton-ordered assembly, recursive live-cell bridges and mirror floor | Rain / Assembly / Unfold | 8 |
 
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 

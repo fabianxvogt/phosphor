@@ -161,3 +161,7 @@ void main() {
 // attributes lists component sizes. Only seed changes rebuild it. Full GLSL
 // programs use the same performance/palette uniforms and native output resolution.
 // Visual targets gain a depth attachment; buffers are released with the slot.
+// Optional geometry.instances: {create(seed), attributes} supplies interleaved
+// instance data after the vertex attributes (divisor 1). Instance count is the
+// buffer length / stride; drawArraysInstanced preserves the depth/additive paths.
+// The instance buffer follows the same seed-only rebuild and slot lifetime.

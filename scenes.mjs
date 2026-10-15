@@ -63,6 +63,7 @@ import escher from "./scene-escher.mjs";
 import silk from "./scene-silk.mjs";
 import ink from "./scene-ink.mjs";
 import dunes from "./scene-dunes.mjs";
+import voxel from "./scene-voxel.mjs";
 
 export default [
   acid,
@@ -130,6 +131,7 @@ export default [
   ink,
   soap,
   dunes,
+  voxel,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
