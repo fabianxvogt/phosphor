@@ -28,14 +28,17 @@ function hex(p) {
   const b = p.map((x, i) => x - period[i] * (Math.floor(x / period[i]) + 0.5));
   return length(a) < length(b) ? a : b;
 }
-function profile(q, lift) {
+function profile(q, lift, level = 0.5) {
   const n = q.map((x) => x / Math.max(length(q), 0.00001));
-  const chart = [n[0], n[2]].map((x) => x / (1 + Math.abs(n[1])));
-  const cell = hex(
-    chart.map((x, i) => (x + [0.031, -0.017][i]) / FERRO_SPACING),
-  );
+  const chart = [n[0], n[2]].map((x) => x / (1 + Math.sqrt(n[1] * n[1] + 0.025)));
+  const grid = chart.map((x, i) => (x + [0.031, -0.017][i]) / FERRO_SPACING);
+  const cell = hex(grid);
+  const site = grid.map((x, i) => x - cell[i]);
+  const value = site[0] * 0.754877666 + site[1] * 0.569840296;
+  const cohort = value - Math.floor(value);
+  const population = smooth(cohort - 0.14, cohort + 0.14, 0.2 + 0.8 * level);
   const peak = Math.max(0, 1 - (length(cell) * FERRO_SPACING) / 0.139);
-  return peak * peak * mix(smooth(-0.1, 0.3, n[1]), 1, lift);
+  return peak * peak * mix(0.12, 1, population) * mix(smooth(-0.1, 0.3, n[1]), 1, lift);
 }
 // Mirror of the carrier and signed-distance estimate. Fixed time/seed,
 // no identity parameter ever depends on development.
@@ -49,8 +52,8 @@ function field(
 ) {
   const form = smooth(0, 1, dev),
     lift = smooth(1, 2, dev);
-  const radii = [1.65, 0.3 + 0.018 * Math.sin(phase), 1.65].map((x) =>
-    mix(x, 0.96, lift),
+  const radii = [1.9, 0.24 + 0.018 * Math.sin(phase), 1.9].map((x) =>
+    mix(x, 1, lift),
   );
   radii[1] *= 1 + 0.025 * level * Math.sin(phase * 2);
   const centre = [0, 0.23 + 1.25 * lift + 0.035 * Math.sin(phase) * lift, 0];
@@ -71,11 +74,13 @@ function field(
     smooth(0.15, 0.5, k0),
   );
   const shell = smooth(0.3, 0.8, k0);
-  return Math.max(
-    body -
-      form * (0.25 + 0.16 * lift) * fieldStrength * profile(v, lift) * shell,
-    -p[1] - 0.003,
-  );
+  const amp = form * (0.25 + 0.16 * lift) * fieldStrength;
+  const displacement = amp > 0.00001 ? amp * profile(v, lift, level) : 0;
+  const rippleAmp = (1 - form) * 0.006;
+  const r = Math.hypot(q[0], q[2]);
+  const ripple = rippleAmp > 0.00001 ? rippleAmp * Math.sin(17 * r - 2 * phase) *
+    Math.exp(-0.45 * r * r) * smooth(0, 0.22, r) * smooth(0, 0.35, v[1]) : 0;
+  return Math.max(body - (displacement + ripple) * shell, -p[1] - 0.003);
 }
 
 test("critical Rosensweig wavelength minimizes the capillary/gravity threshold", () => {
@@ -153,14 +158,19 @@ test("the shader remains pinned to the tested chart, lattice, profile and carrie
     "vec2 a = p - period * floor(p / period + 0.5);",
     "vec2 b = p - period * (floor(p / period) + 0.5);",
     "return dot(a, a) < dot(b, b) ? a : b;",
-    "vec2 chart = n.xz / (1.0 + abs(n.y));",
-    "ferroHex((chart + vec2(0.031, -0.017)) / 0.28) * 0.28",
-    "float peak = max(0.0, 1.0 - length(cell) / 0.139);",
-    "float spikes = peak * peak;",
+    "vec2 chart = n.xz / (1.0 + sqrt(n.y * n.y + 0.025));",
+    "vec2 grid = (chart + vec2(0.031, -0.017)) / 0.28;",
+    "vec2 site = grid - local;",
+    "float cohort = fract(dot(site, vec2(0.754877666, 0.569840296)));",
+    "float population = smoothstep(cohort - 0.14, cohort + 0.14, 0.2 + 0.8 * u_level);",
+    "float peak = max(0.0, 1.0 - length(local) * 0.28 / 0.139);",
+    "float spikes = peak * peak * mix(0.12, 1.0, population);",
     "float body = k0 * (k0 - 1.0) / max(k1, 0.0001);",
     "body = mix(-min(gRadii.x, gRadii.y), body, smoothstep(0.15, 0.5, k0));",
     "float shell = smoothstep(0.3, 0.8, k0);",
-    "return max(body - gAmp * ferroProfile(v) * shell, -p.y - 0.003);",
+    "float displacement = gAmp > 0.00001 ? gAmp * ferroProfile(v) : 0.0;",
+    "return max(body - (displacement + ripple) * shell, -p.y - 0.003);",
+    "ripple = gRipple * sin(17.0 * r - 2.0 * gPhase) *",
   ])
     assert.ok(ferro.fragment.includes(source), source);
   const chartSource = ferro.fragment.slice(
@@ -197,20 +207,66 @@ test("the exact field is finite and continuous through the entire development, i
         Math.abs(field(p, boundary + 1e-6) - field(p, boundary - 1e-6)) < 1e-8,
       );
   }
-  // Stereographic hemispheres meet continuously at the equator.
-  for (let a = 0; a < TAU; a += 0.1)
-    assert.ok(
-      Math.abs(
-        profile([Math.cos(a), 1e-8, Math.sin(a)], 1) -
-          profile([Math.cos(a), -1e-8, Math.sin(a)], 1),
-      ) < 1e-10,
-    );
+  // The equator is C1, not merely C0: mirrored hemispheres have zero
+  // chart slope at the join, so the conductor normal cannot flip there.
+  for (let a = 0; a < TAU; a += 0.1) {
+    const at = (y) => profile([Math.cos(a), y, Math.sin(a)], 1);
+    assert.ok(Math.abs(at(1e-8) - at(-1e-8)) < 1e-10);
+    const h = 1e-6;
+    assert.ok(Math.abs((at(h) - at(0)) / h - (at(0) - at(-h)) / h) < 0.001);
+  }
+});
+
+test("energy grows persistent lattice sites continuously without retiming the chart", () => {
+  let dormant = 0, active = 0;
+  for (let a = 0; a < TAU; a += 0.07)
+    for (let y = -0.9; y < 0.95; y += 0.09) {
+      const p = [Math.cos(a), y, Math.sin(a)];
+      const low = profile(p, 1, 0.1), high = profile(p, 1, 0.9);
+      assert.ok(high >= low - 1e-12);
+      dormant += Number(low > 0.03);
+      active += Number(high > 0.03);
+      assert.ok(Math.abs(profile(p, 1, 0.50001) - profile(p, 1, 0.5)) < 0.001);
+    }
+  assert.ok(active > dormant * 1.3, `${dormant} -> ${active}`);
+  assert.match(ferro.fragment, /ferroMap\(p \+ reflected \* 0\.075\)/);
+  assert.match(ferro.fragment, /vec3 bounceDirection = reflect\(reflected, carrierNormal\);/);
+});
+
+test("overshot estimator hits are bracketed before shading, including strong-field crowns", () => {
+  assert.match(ferro.fragment, /float lo = previous, hi = t;/);
+  assert.match(ferro.fragment, /for \(int j = 0; j < 7; \+\+j\)/);
+  assert.match(ferro.fragment, /if \(ferroMap\(ro \+ rd \* mid\) > 0\.0\) lo = mid; else hi = mid;/);
+  // CPU mirror of the exact refinement, using actual crown fields rather
+  // than a generic sphere. Bracket error contracts by 2^-7.
+  let hits = 0;
+  for (const x of [-1.6, -1, -0.4, 0.3, 0.9, 1.6]) {
+    let previous = 3, before = field([x, previous, 0.2], 1, 0.7, 10103, 0.9, 1.2);
+    for (let y = 2.95; y >= 0; y -= 0.05) {
+      const d = field([x, y, 0.2], 1, 0.7, 10103, 0.9, 1.2);
+      if (before > 0 && d < 0) {
+        let lo = y, hi = previous;
+        for (let j = 0; j < 7; j++) {
+          const mid = (lo + hi) / 2;
+          if (field([x, mid, 0.2], 1, 0.7, 10103, 0.9, 1.2) > 0) hi = mid;
+          else lo = mid;
+        }
+        assert.ok(hi - lo <= 0.05 / 128 + 1e-12);
+        assert.ok(field([x, hi, 0.2], 1, 0.7, 10103, 0.9, 1.2) >= 0);
+        hits++;
+        break;
+      }
+      previous = y;
+      before = d;
+    }
+  }
+  assert.ok(hits >= 4);
+  assert.match(ferro.fragment, /if \(rd\.y < -0\.0001 && !mainHit\)/);
 });
 
 test("carrier camera bounds, kick and persistent droplets stay bounded", () => {
-  // Any carrier is within 1.65 + max displacement 0.75 of its centre.
-  // The camera is 7.6 from its target, whose offset to the centre is < 0.4.
-  assert.ok(7.6 - 0.4 > 1.65 + 0.75 + 1.85 * 0.15);
+  // Bound includes maximum spikes, ripples and camera-target offset.
+  assert.ok(7.1 - 0.4 > 1.9 + 0.75 + 0.04 + 1.85 * 0.15);
   assert.match(ferro.fragment, /1\.0 \+ 0\.022 \* u_kick/);
   assert.match(
     ferro.fragment,
@@ -234,7 +290,7 @@ test("rate clocks stay periodic and continuous at 3600 seconds and 12 hours", ()
     const before = advanceClocks(state, ferro.clocks, t, params, 0.1).slice();
     const changed = params.map((p, i) => (i === 2 || i === 3 ? p * 1.5 : p));
     const after = advanceClocks(state, ferro.clocks, t + 1 / 60, changed, 0.9);
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       const delta = (after[i] - before[i] + TAU) % TAU;
       assert.ok(delta < 0.01 && Number.isFinite(delta));
     }

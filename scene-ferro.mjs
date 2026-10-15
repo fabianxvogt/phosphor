@@ -130,7 +130,7 @@ const presets = [
 ];
 
 const fragment = `${lateClockGlsl}
-float gForm, gLift, gPhase, gCam, gBreath, gAmp, gPixel, gWidth;
+float gForm, gLift, gPhase, gCam, gStudio, gBreath, gAmp, gPixel, gWidth, gRipple;
 vec3 gRadii, gCentre;
 mat2 gRotation;
 
@@ -145,11 +145,17 @@ vec2 ferroHex(vec2 p) {
 }
 float ferroProfile(vec3 q) {
   vec3 n = q / max(length(q), 0.00001);
-  vec2 chart = n.xz / (1.0 + abs(n.y));
-  vec2 cell = ferroHex((chart + vec2(0.031, -0.017)) / 0.28) * 0.28;
-  float peak = max(0.0, 1.0 - length(cell) / 0.139);
+  // C1 hemisphere join: no abs(y) derivative flip / equatorial crease.
+  vec2 chart = n.xz / (1.0 + sqrt(n.y * n.y + 0.025));
+  vec2 grid = (chart + vec2(0.031, -0.017)) / 0.28;
+  vec2 local = ferroHex(grid);
+  vec2 site = grid - local;
+  float cohort = fract(dot(site, vec2(0.754877666, 0.569840296)));
+  // Fixed maximal lattice: energy raises dormant sites, never slides them.
+  float population = smoothstep(cohort - 0.14, cohort + 0.14, 0.2 + 0.8 * u_level);
+  float peak = max(0.0, 1.0 - length(local) * 0.28 / 0.139);
   // Peaks have conical tips and rounded shoulders, not plastic bubbles.
-  float spikes = peak * peak;
+  float spikes = peak * peak * mix(0.12, 1.0, population);
   float upper = mix(smoothstep(-0.1, 0.3, n.y), 1.0, gLift);
   return spikes * upper;
 }
@@ -163,7 +169,14 @@ float ferroMap(vec3 p) {
   // exterior zero set, but keeps the entire field continuous on reversal.
   body = mix(-min(gRadii.x, gRadii.y), body, smoothstep(0.15, 0.5, k0));
   float shell = smoothstep(0.3, 0.8, k0);
-  return max(body - gAmp * ferroProfile(v) * shell, -p.y - 0.003);
+  float displacement = gAmp > 0.00001 ? gAmp * ferroProfile(v) : 0.0;
+  float ripple = 0.0;
+  if (gRipple > 0.00001) {
+    float r = length(q.xz);
+    ripple = gRipple * sin(17.0 * r - 2.0 * gPhase) *
+      exp(-0.45 * r * r) * smoothstep(0.0, 0.22, r) * smoothstep(0.0, 0.35, v.y);
+  }
+  return max(body - (displacement + ripple) * shell, -p.y - 0.003);
 }
 vec2 ferroBound(vec3 ro, vec3 rd, vec3 c, float r) {
   vec3 p = ro - c;
@@ -171,13 +184,33 @@ vec2 ferroBound(vec3 ro, vec3 rd, vec3 c, float r) {
   return h < 0.0 ? vec2(1.0, -1.0) : vec2(-b - sqrt(h), -b + sqrt(h));
 }
 float ferroMarch(vec3 ro, vec3 rd) {
-  vec2 bound = ferroBound(ro, rd, gCentre, max(gRadii.x, gRadii.y) + gAmp + 0.025);
-  float t = max(bound.x, 0.0);
-  for (int i = 0; i < 144; ++i) {
+  // The expanded ellipsoid contains its offset surface (sqrt(3) margin).
+  // In Pool this rejects the enormous empty volume of a sphere bound.
+  vec3 extent = gRadii + vec3(1.733 * (gAmp + gRipple) + 0.025);
+  vec3 p = (ro - gCentre) / extent, v = rd / extent;
+  float a = dot(v, v), b = dot(p, v), h = b * b - a * (dot(p, p) - 1.0);
+  if (h < 0.0) return 100.0;
+  vec2 bound = vec2(-b - sqrt(h), -b + sqrt(h)) / a;
+  float t = max(bound.x, 0.0), previous = t;
+  for (int i = 0; i < 128; ++i) {
     if (t > bound.y) break;
     float d = ferroMap(ro + rd * t);
-    if (d < max(0.00045, t * gPixel * 0.24)) return t;
-    t += max(d * mix(0.7, 0.32, gForm), 0.0002);
+    if (d < max(0.00045, t * gPixel * 0.24)) {
+      // The displaced ellipsoid is a distance estimator, not an exact SDF.
+      // Bracket an overshoot before taking normals: otherwise shallow,
+      // strong-field crowns show stair-stepped interior intersections.
+      if (d < -0.00045) {
+        float lo = previous, hi = t;
+        for (int j = 0; j < 7; ++j) {
+          float mid = 0.5 * (lo + hi);
+          if (ferroMap(ro + rd * mid) > 0.0) lo = mid; else hi = mid;
+        }
+        return 0.5 * (lo + hi);
+      }
+      return t;
+    }
+    previous = t;
+    t += max(d * mix(0.7, 0.4, gForm), 0.0002);
   }
   return 100.0;
 }
@@ -193,24 +226,45 @@ float ferroBox(vec3 d, vec3 direction, float width, float height) {
   float z = dot(d, c);
   vec2 uv = vec2(dot(d, x), dot(d, y)) / max(z, 0.001);
   vec2 edge = abs(uv) - vec2(width, height);
-  float aa = max(gPixel * 3.0, 0.035);
+  float aa = max(gPixel * 3.0, 0.065);
   float panel = (1.0 - smoothstep(-aa, aa, max(edge.x, edge.y))) * step(0.0, z);
   return panel * (0.7 + 0.3 * exp(-dot(uv, uv) * 0.8));
 }
 vec3 ferroStudio(vec3 d) {
-  vec3 primary = mix(u_primary, vec3(1.0), 0.82);
-  vec3 silver = mix(u_secondary, vec3(1.0), 0.76);
+  // The studio keeps moving even when the fluid-motion fader is zero.
+  d.xz = rot2(gStudio) * d.xz;
+  d.xy = rot2(0.16 * sin(gStudio)) * d.xy;
+  vec3 primary = mix(u_primary, vec3(1.0), 0.42);
+  vec3 silver = mix(u_secondary, vec3(1.0), 0.48);
   vec3 col = silver * (0.018 + 0.04 * smoothstep(-0.6, 0.7, d.y));
   // Large reflected diffusion cards describe the curvature between strips.
   col += silver * 0.22 * pow(max(dot(d, normalize(vec3(0.4, 0.8, 0.6))), 0.0), 7.0);
   col += primary * 0.12 * pow(max(dot(d, normalize(vec3(-0.8, 0.4, -0.4))), 0.0), 4.0);
-  col += silver * ferroBox(d, vec3(-0.25, 1.0, 0.2), 0.75, 0.4) * 0.28;
-  col += primary * ferroBox(d, vec3(-0.65, 0.65, 0.6), 0.31 * gWidth, 0.95) * 1.2;
-  col += mix(u_secondary, vec3(1.0), 0.6) * ferroBox(d, vec3(0.8, 0.45, 0.1), 0.65, 0.23 * gWidth) * 1.35;
-  col += primary * ferroBox(d, vec3(0.1, 0.25, -1.0), 0.075 * gWidth, 1.2) * 1.6;
-  col += u_accent * ferroBox(d, vec3(-0.85, 0.1, -0.5), 0.024 * gWidth, 0.6) * 1.2;
+  col += silver * ferroBox(d, vec3(-0.25, 1.0, 0.2), 1.2, 0.48) * 0.5;
+  col += primary * ferroBox(d, vec3(-0.65, 0.65, 0.6), 0.36 * gWidth, 1.15) * 1.3;
+  col += silver * ferroBox(d, vec3(0.8, 0.45, 0.1), 1.1, 0.25 * gWidth) * 1.5;
+  col += primary * ferroBox(d, vec3(0.1, 0.25, -1.0), 0.045 * gWidth, 1.4) * 2.0;
+  col += u_accent * ferroBox(d, vec3(-0.85, 0.1, -0.5), 0.018 * gWidth, 0.6) * 1.2;
   col += primary * 0.15 * exp(-sq((d.y - 0.06) / 0.09));
   return col;
+}
+vec3 ferroValley(vec3 p, vec3 n, vec3 rd) {
+  if (gForm < 0.001) return vec3(1.0);
+  vec3 reflected = reflect(rd, n);
+  float nearD = ferroMap(p + reflected * 0.075);
+  float farD = ferroMap(p + reflected * 0.19);
+  float visibility = clamp(min(nearD / 0.052, farD / 0.13), 0.0, 1.0);
+  // A single environment bounce about the carrier normal approximates
+  // neighbouring chrome walls; no recursive ray march / extra normal.
+  vec3 carrierNormal = normalize((p - gCentre) / (gRadii * gRadii));
+  vec3 bounceDirection = reflect(reflected, carrierNormal);
+  bounceDirection.xz = rot2(gStudio) * bounceDirection.xz;
+  // Only the low-frequency soft cards survive a rough neighbour bounce.
+  vec3 bounce = mix(u_secondary, vec3(1.0), 0.45) *
+    (0.08 + 0.55 * pow(max(dot(bounceDirection, normalize(vec3(0.4, 0.8, 0.6))), 0.0), 4.0));
+  bounce += mix(u_primary, vec3(1.0), 0.35) *
+    0.45 * pow(max(dot(bounceDirection, normalize(vec3(-0.8, 0.4, -0.4))), 0.0), 4.0);
+  return mix(vec3(0.35) + bounce * 0.22, vec3(1.0), visibility);
 }
 vec3 ferroMetal(vec3 p, vec3 n, vec3 rd, float cavity) {
   vec3 reflection = reflect(rd, n);
@@ -227,16 +281,19 @@ void main() {
 #ifdef PHOSPHOR_LATE
   gPhase = u_clock[0];
   gCam = u_clock[1];
+  gStudio = u_clock[2];
 #else
   gPhase = u_time * u_params[2] * 0.22;
   gCam = u_time * u_params[3] * 0.045;
+  gStudio = u_time * 0.065;
 #endif
   float seedAngle = float(u_seedBits % 997u) * 0.0063;
   gBreath = sin(gPhase);
   gRotation = rot2(0.15 * sin(gPhase) + seedAngle);
   float impulse = 1.0 + 0.11 * u_kick + 0.12 * u_rhythm.x;
   gAmp = gForm * (0.25 + 0.16 * gLift) * u_params[1] * impulse;
-  gRadii = mix(vec3(1.65, 0.30 + 0.018 * gBreath, 1.65), vec3(0.96), gLift);
+  gRipple = (1.0 - gForm) * (0.006 + 0.018 * u_kick + 0.012 * u_rhythm.x);
+  gRadii = mix(vec3(1.9, 0.24 + 0.018 * gBreath, 1.9), vec3(1.0), gLift);
   gRadii.y *= 1.0 + 0.035 * u_rhythm.y + 0.025 * u_level * sin(gPhase * 2.0);
   gCentre = vec3(0.0, 0.23 + 1.25 * gLift + 0.035 * sin(gPhase) * gLift, 0.0);
   gPixel = 1.0 / min(u_resolution.x, u_resolution.y);
@@ -245,24 +302,24 @@ void main() {
   float az = 0.55 + gCam + 0.08 * sin(gPhase);
   float el = 0.34 + 0.5 * u_params[4] + 0.02 * sin(gCam);
   vec3 target = vec3(0.0, 0.28 + 0.98 * gLift, 0.0);
-  vec3 ro = target + 7.6 * vec3(cos(el) * sin(az), sin(el), cos(el) * cos(az));
+  vec3 ro = target + 7.1 * vec3(cos(el) * sin(az), sin(el), cos(el) * cos(az));
   vec3 fw = normalize(target - ro), right = normalize(cross(fw, vec3(0.0, 1.0, 0.0)));
   vec3 up = cross(right, fw);
   vec2 uv = aspectUV() / min(u_resolution.x / u_resolution.y, 1.0);
-  float focal = 1.7 * u_params[7] * (1.0 + 0.022 * u_kick);
-  vec3 accumulated = vec3(0.0);
-  // Two deterministic subpixel rays resolve sharp conductor glints. There
-  // is no temporal noise, so nothing shimmers when paused or at late times.
-  for (int sampleIndex = 0; sampleIndex < 2; ++sampleIndex) {
-  vec2 jitter = vec2(0.24, 0.19) * (sampleIndex == 0 ? -1.0 : 1.0) * gPixel;
-  vec3 rd = normalize(fw * focal + right * (uv.x + jitter.x) + up * (uv.y + jitter.y));
+  float focal = mix(1.8, 2.05, gLift) * u_params[7] * (1.0 + 0.022 * u_kick);
+  // One full-resolution ray. Pixel-scaled normals and angularly filtered
+  // studio cards resolve glints without duplicating the complete SDF path.
+  vec3 rd = normalize(fw * focal + right * uv.x + up * uv.y);
   vec3 col = u_secondary * (0.003 + 0.003 * exp(-dot(uv, uv) * 3.0));
 
-  // Analytic black mirror pool. The basin has no hard frame boundary.
+  float hit = ferroMarch(ro, rd);
+  bool mainHit = hit < 90.0;
+  // Analytic black mirror pool. Never shade / reflect pixels hidden by the
+  // primary sculpture. The basin has no hard frame boundary.
   float floorT = -ro.y / min(rd.y, -0.00001);
   vec3 floorP = ro + rd * floorT;
   float pool = 1.0 - smoothstep(2.1, 2.55, length(floorP.xz));
-  if (rd.y < -0.0001) {
+  if (rd.y < -0.0001 && !mainHit) {
     vec3 reflection = reflect(rd, vec3(0.0, 1.0, 0.0));
     float shadow = 1.0 - 0.8 * exp(-dot(floorP.xz, floorP.xz) / (1.6 + gLift));
     col += mix(u_secondary, vec3(1.0), 0.4) * (0.008 + 0.012 * pool) * shadow;
@@ -276,19 +333,22 @@ void main() {
         col += ferroMetal(rp, ferroNormal(rp, rt), reflection, 0.75) * 0.17 * pool * gLift;
       }
     }
-    float rim = exp(-sq((length(floorP.xz) - 2.3) / 0.032));
-    col += mix(u_primary, vec3(1.0), 0.65) * rim * 0.04;
+    float rim = exp(-sq((length(floorP.xz) - 2.3) / 0.024));
+    col += mix(u_primary, vec3(1.0), 0.4) * rim * 0.1;
   }
-  float hit = ferroMarch(ro, rd);
-  bool mainHit = hit < 90.0;
   vec3 normal = vec3(0.0);
   if (mainHit) {
     vec3 p = ro + rd * hit;
     normal = ferroNormal(p, hit);
     vec3 q = p - gCentre; q.xz = gRotation * q.xz;
-    float cavity = 0.55 + 0.45 * ferroProfile(q / gRadii);
-    cavity = mix(1.0, cavity, gForm);
-    col = ferroMetal(p, normal, rd, cavity);
+    float profile = ferroProfile(q / gRadii);
+    float cavity = mix(1.0, 0.62 + 0.38 * profile, gForm);
+    col = ferroMetal(p, normal, rd, cavity) * ferroValley(p, normal, rd);
+    // A small hot reflection at the active tips, not an emissive paint coat.
+    vec3 tipLight = normalize(vec3(cos(gStudio), 0.65, sin(gStudio)));
+    float tip = smoothstep(0.38, 0.8, profile) *
+      pow(max(dot(reflect(rd, normal), tipLight), 0.0), 18.0);
+    col += mix(u_primary, u_accent, 0.8) * tip * 2.0 * gForm;
     col *= 0.7 + 0.3 * smoothstep(-0.05, 0.25, p.y);
   }
   // Persistent satellite indices; radius grows continuously out of the body.
@@ -308,9 +368,7 @@ void main() {
   }
   // Lens falloff is stable in portrait too; no output-aspect dependent crop.
   col *= 1.0 - 0.15 * smoothstep(0.6, 1.6, length(uv));
-  accumulated += col * 0.5;
-  }
-  outColor = vec4(max(accumulated, vec3(0.0)), 1.0);
+  outColor = vec4(max(col, vec3(0.0)), 1.0);
 }
 `;
 
@@ -331,6 +389,7 @@ export default {
   clocks: [
     { rate: (p) => p[2] * 0.22, period: 2 * Math.PI },
     { rate: (p) => p[3] * 0.045, period: 2 * Math.PI },
+    { rate: () => 0.065, period: 2 * Math.PI },
   ],
   rhythm: [
     familyEffect(

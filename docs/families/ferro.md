@@ -1,73 +1,79 @@
 # Liquid Chrome · Flüssiges Chrom
 
-World `liquid-chrome`, renderer `ferro`, family **101**. A continuous black liquid-metal studio sculpture, not a coloured diffuse/plastic surface. Eight authored looks; the first three share seed 10101 and identical non-development parameters.
+World `liquid-chrome`, renderer `ferro`, family **101**. One continuous black liquid-metal sculpture: mirror pool → magnetic crown → floating chrome body. Eight authored looks; the three world states share seed 10101 and identical non-development parameters.
 
-## Mathematics and material
+## Mathematics and identity
 
 The Rosensweig instability selects the gravity/capillarity wavelength
 
 `λc = 2π √(σ / (ρg))`.
 
-The reference ferrofluid constants are σ = 0.028 N/m, ρ = 1210 kg/m³ and g = 9.81 m/s², giving **λc = 9.650097 mm**. Minimizing `σk + ρg/k` gives `kc = √(ρg/σ)`. Material-chart spacing is 0.28 units, with 0.034464633 m/unit converting it to λc. This is a geometric instability model, not a magnetohydrodynamic simulation.
+Reference constants σ = 0.028 N/m, ρ = 1210 kg/m³ and g = 9.81 m/s² give **λc = 9.650097 mm**. Minimizing `σk + ρg/k` gives `kc = √(ρg/σ)`. Chart spacing is 0.28 units; 0.034464633 m/unit converts it to λc. This is a geometric instability model, not a magnetohydrodynamic simulation.
 
-The triangular lattice has basis `(a,0)`, `(a/2,√3a/2)`. The exact nearest site is the closer of two rectangular cosets with periods `(a,√3a)` and half-period offset. Each site has six equidistant neighbours at 60°. A fixed two-hemisphere stereographic chart `n.xz/(1+abs(n.y))` carries the same lattice on a deforming ellipsoid. The hemispheres meet continuously at the equator. The projection is not isometric: chart spacing is exact, physical spacing on the curved body varies. No fresh noise sites or spike identities appear during development.
+The triangular lattice has basis `(a,0)`, `(a/2,√3a/2)`. The exact nearest site is the closer of two rectangular cosets with periods `(a,√3a)` and half-period offset. Every site has six equidistant neighbours at 60°.
 
-A squared conical profile `max(0,1-d/0.139)²` displaces a signed ellipsoid distance estimate. Smoothstep carrier deformation opens a low dome into a lifted sphere; spike gain grows without replacing the chart. A regularized interior removes the ellipsoid estimator's central singularity without changing the exterior surface. The pool clips the carrier at y ≈ 0. Seven persistent satellite indices have continuous radii and closed orbits.
+The normalized carrier direction `n` maps through `n.xz / (1 + √(n.y² + 0.025))`. This softened stereographic fold has **zero chart derivative at the equator**, unlike the previous `abs(n.y)` join: the reflected studio no longer exposes a normal crease. The hemispheres still mirror one another; this is not a globally isometric/geodesic lattice.
 
-The conductor uses **F0 = 0.88**, Schlick grazing Fresnel and no coloured Lambertian lobe. Procedural reflected studio cards and palette-tinted light strips supply all colour (white/black mixes only). Broad diffusion cards describe curvature between sharp strips. Accent is confined to one narrow reflected strip. Valleys darken through a bounded cavity term; an analytic floor shadow anchors the object. The basin traces one real SDF reflection, not a second generic sphere. Tiny satellites use analytic sphere intersections.
+Each site's squared conical profile is `max(0,1-d/0.139)²`. A fixed site cohort `fract(dot(site,(0.754877666,0.569840296)))` controls its growth. Energy raises dormant sites continuously from 12% to full height with a smooth threshold; it never changes lattice spacing or moves/reseeds sites. Development deforms the carrier ellipsoid and grows spike amplitude. A regularized signed ellipsoid estimate removes its central singularity. The pool clips the carrier at y ≈ 0. Seven persistent analytic satellite spheres grow from zero radius on closed orbits.
+
+## Composition, light and material
+
+Pool is a larger, shallow mirror (radius 1.9), not an almost-black small dome. Radial surface waves `sin(17r − 2phase) exp(−0.45r²)` bend the reflected bars; their displacement is bounded at 0.036 units, with kick and spike-swell responses. A faint palette-lit basin rim frames it even at energy 0.1.
+
+The conductor uses **F0 = 0.88**, Schlick grazing Fresnel and no coloured Lambertian lobe. Broad soft palette diffusion cards and a thin bright strip orbit independently of the fluid-motion fader; reflections keep travelling when motion is zero. White/black mixes and palette uniforms are the only colour sources. Accent stays on a narrow reflected strip and small directional tip highlights, not a broad surface wash.
+
+Two short reflected-direction field probes estimate inter-spike visibility. An environment bounce about the carrier normal supplies low-frequency neighbouring-chrome light in occluded valleys; it is a bounded one-bounce approximation, not recursive ray tracing. The basin retains one real SDF reflection of the lifted body. Hidden floor pixels are never reflected/shaded. An analytic contact shadow anchors the sculpture.
 
 ## States and looks
 
 | English | German | Development / character |
 | --- | --- | --- |
-| Pool | Spiegel | 0 · breathing black mirror dome |
-| Crown | Krone | 1 · sharp hexagonal magnetic crown |
+| Pool | Spiegel | 0 · travelling studio bars and concentric magnetic ripples |
+| Crown | Krone | 1 · energy-populated hexagonal magnetic crown |
 | Sculpture | Skulptur | 2 · lifted spiked sphere and orbiting chrome drops |
 | Obsidian Lens | Obsidianlinse | 0.25 · high view, broad strips, quiet motion |
 | Needle Garden | Nadelgarten | 1 · strong field, high view, narrow strips |
-| Mercury Moon | Quecksilbermond | 2 · lower view, softer spikes, large satellite population |
+| Mercury Moon | Quecksilbermond | 2 · lower view, softer spikes, larger satellites |
 | Black Magnet | Schwarzer Magnet | 1.45 · half-lifted crown, low camera, narrow lighting |
 | Silver Orbit | Silberumlauf | 2 · stronger spikes, high view, broad lighting |
 
 ## Energy, rhythm and camera
 
-Energy changes fluid speed ×0.7–1.35, camera speed ×0.8–1.3, body-breath amplitude and satellite size, **not light gain**. The low-frequency audio mapping perturbs the magnetic field by at most 0.07 of its parameter range. These are independent of development, including Pool.
+Energy changes fluid speed ×0.7–1.35, camera speed ×0.8–1.3, active spike population, body-breath amplitude and satellite size, **not light gain**. The low-frequency audio mapping perturbs the field by at most 0.07 of its parameter range. Pool retains motion/ripple detail independently of development.
 
-- **Spike swell / Spitzenschwellung**, 4 beats: bounded +12% spike growth.
-- **Field breath / Feldatmung**, 8 beats: +3.5% stretch of the same body.
+- **Spike swell / Spitzenschwellung**, 4 beats: +12% spike growth and pool ripples.
+- **Field breath / Feldatmung**, 8 beats: +3.5% body stretch.
 - **Droplet orbit / Tropfenumlauf**, 16 beats: bounded outward satellite displacement.
-- Kick: +11% spike height and **2.2%** focal punch, never a full-frame flash.
+- Kick: +11% spike height, bounded ripple displacement, **2.2%** focal punch; no flash.
 
-The camera runs a slow, closed studio orbit at radius 7.6, with a continuous development-dependent target and slight elevation breathing. No roll, cuts or geometry entry. Portrait uses short-side composition; the same sculpture stays inside the frame. Depth comes from perspective/parallax, conductor key/rim reflections, cavity occlusion/contact shadow and the many-small/few-large satellite scale cue.
+The continuous camera orbit is radius 7.1, with development-dependent target and focal length 1.8→2.05. The lifted sculpture occupies approximately 70–80% of the short side at high energy. No roll, cuts or geometry entry. Portrait uses short-side composition. Perspective/parallax, changing key/rim reflections, cavity/contact occlusion, floor reflection and satellite scale cues establish depth.
 
 ## Endlessness and antialiasing
 
-Two engine clocks integrate fluid phase and camera azimuth. Both are 2π-periodic; every use is an integer harmonic or sin/cos of that phase. The authored branch uses time products; the clock branch declares `lateClockGlsl` and takes over on the first rate change or at 3600 s. Development never touches clocks, seed or indices. No time wrap, accumulating simulation, finite journey or restart.
+Three engine clocks integrate fluid phase, camera azimuth and independent studio orbit (0.065 rad/s). All are 2π-periodic; every use is an integer harmonic or sin/cos of that phase. The authored branch retains time products; `lateClockGlsl` selects integrated phases at the first rate change or at 3600 s. Development never changes clocks, seed or site indices.
 
-144 conservative distance-estimator steps maximum, bounded analytically by a sphere. Smooth reflection-card edges, pixel-scaled tetrahedral normals and two deterministic subpixel rays resolve glints; no temporal noise. One bounded reflected ray is traced only in visible pool pixels. No reduced-resolution colour pass, engine changes or external assets.
+128 bounded estimator steps maximum, enclosed by an expanded ellipsoid. One full-resolution primary ray replaces the previous duplicated full trace. Soft angular card edges and pixel-scaled tetrahedral normals filter glints without temporal noise. A negative estimator overshoot is bracketed for seven bisections **before normals are evaluated**, fixing stepped silhouettes on strong-field shallow crowns. No reduced-resolution colour pass, external assets or engine changes.
 
-## Measured cost
+## Measured cost · round 2
 
-Apple M3 Pro, Chrome/ANGLE Metal, `profile-families --types --families ferro`, 20 synchronous samples including post-processing. Shared fleet GPU; indicative throughput, not display-cadence qualification.
+Apple M3 Pro, Chrome/ANGLE Metal. `PHOSPHOR_HEADLESS_RIG=1 node scripts/profile-families.mjs --types --families ferro --port 48333 --frames 30`, plus `--width 3840 --height 2160`. Synchronous whole-frame throughput including post, not display-cadence qualification. Five lanes share the GPU.
 
 | State | 1080p p50 / p95 | 4K p50 / p95 |
 | --- | --- | --- |
-| Pool | 2.5 / 7.9 ms | 7.6 / 12.5 ms |
-| Crown | 3.3 / 3.5 ms | 12.5 / 13.3 ms |
-| Sculpture | 4.1 / 4.6 ms | 14.5 / 15.3 ms |
+| Pool | 1.9 / 2.5 ms | 6.8 / 7.6 ms |
+| Crown | 3.3 / 4.2 ms | 11.9 / 13.5 ms |
+| Sculpture | 4.1 / 4.8 ms | 14.3 / 15.8 ms |
 
-The actual profiler option is plural `--families`; `--family` from the lane brief is not accepted by this revision. Zero GL errors and non-finite uploads in the measured runs.
+Both target budgets pass in the final 30-sample run. An earlier identical final-shader 20-sample run had Sculpture 14.7 / 17.6 ms: **4K p95 is not guaranteed under fleet contention**. The rejected double-ray iteration cost 28.7 ms at 4K. Reports: `artifacts/performance/ferro-r2-delivery-{1080,4k}/profile.json`. All measured GL/non-finite/error counters were zero.
 
-## Verification
+## Verification and review evidence
 
-- `node --test tests/ferro.test.mjs`: physical wavelength/threshold, brute-force nearest-lattice comparison, six neighbours and 60° symmetry, translation invariance, exact shader-source pins, finite carrier field, 401-point forward/reverse development sweeps, boundary continuity, equator continuity, clock continuity, camera/kick bounds, rhythm channels and preset/world validation.
-- `node scripts/verify-ferro.mjs --port 48301`: **108** native frames (nine development values × two energies × three palettes × 3600/43200 s), checks actual late-program compilation, GL errors, non-finite uploads and nonempty signatures; all three portrait states plus a 3840×2160 still.
-- `PHOSPHOR_HEADLESS_RIG=1 node scripts/check-time-wrap.mjs --rig --families ferro --port 48301`: 3600, 4096 and 43200 s seams plus energy/fader rate steps pass.
-- `npm test`, `npm run typecheck`, `npm run test:i18n -- --port 48301 --native-gpu`.
-- Final films and viewed contact strips: `artifacts/films/ferro-final/` (Glacier and Phosphor worlds; Ember Needle Garden look), `energy-ladder.png`; portrait/4K/late evidence under `artifacts/films/ferro-verification/`.
-
-The brief forbids lane edits to `catalog-previews.mjs` and `catalog-curated.mjs`. Two shared catalog tests therefore allow only assigned wave-4 families 101–105 to await integration baking/curation. All existing preview hashes and editorial coverage stay exact; new entries become strict automatically when the generated data exists. No previews were generated or committed.
+- `node --test tests/ferro.test.mjs tests/time.test.mjs`: 19 passed. CPU wavelength/threshold, brute-force nearest lattice, six neighbours/60° symmetry, translation invariance, shader pins, finite carrier, 401-point forward/reverse development sweeps, boundary continuity, equatorial derivative continuity, energy-site monotonicity, overshoot bracketing, camera/kick bounds, clocks, rhythm and preset/world validation.
+- `node --test tests/*.test.mjs`: 674 tests, 665 passed, nine opt-in skips, zero failures. `npm test`, `npm run typecheck`, build and native-GPU `npm run test:i18n -- --port 48333 --native-gpu` pass. No catalog tests or generated preview/curation sources were edited in round 2.
+- `PHOSPHOR_HEADLESS_RIG=1 node scripts/verify-ferro.mjs --port 48333`: 108 native frames across nine developments, energies 0.1/0.9, Glacier/Ember/Phosphor palettes, 3600/43200 s; actual late-program compilation, nonempty signatures, zero GL/non-finite errors. All three portrait states and a 4K still. Evidence: `artifacts/films/ferro-r2-delivery-verification/`.
+- Headless native `check-time-wrap --rig --families ferro --port 48333`: 3600, 4096 and 43200 s seams plus energy/fader rate steps pass, zero errors. Evidence: `artifacts/films/ferro-r2-time/`.
+- Baseline plus three improvement films and a fourth silhouette-polish review were opened as contact strips and full-size stills. Final world and Ember Needle Garden films/strips: `artifacts/films/ferro-r2-polished/`. Three-palette iteration evidence: `ferro-r2-round{1,2,3}/`. Eight-look energy ladder: `artifacts/films/ferro-r2-polished/ladder/`.
 
 ## Limits
 
-Not a Navier–Stokes or magnetic-field solver; wavelength is physical in the reference material chart, not globally geodesic spacing. The lower hemisphere reuses the northern chart (an equatorial crease is possible). No recursive inter-spike reflections; the cavity term is approximate. Satellite drops have closed authored orbits, not mass-conserving shedding. Two-sample antialiasing cannot eliminate every subpixel tip glint. The intentionally dark Pool can be understated on a washed-out projector. 4K exceeds the 8 ms 1080p family budget, as reported above.
+Not a Navier–Stokes or magnetic-field solver. Wavelength is physical in the reference chart, not globally geodesic. The C1 equatorial fold removes the crease but retains mirrored hemispherical structure. Neighbour reflection is a cheap carrier-normal/environment approximation, not geometric multiple-bounce transport. Satellites have authored orbits, not mass-conserving shedding. Single-ray antialiasing leaves occasional subpixel tip glints, especially in the narrow-strip strong-field looks. Broad cards can look slightly satin-like at intermediate development. Pool is deliberately calm, although now much more legible; dark projectors still need sensible black levels. 4K has limited contention headroom and is not venue-cadence-qualified.
