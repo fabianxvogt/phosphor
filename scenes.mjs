@@ -56,6 +56,7 @@ import laser from "./scene-laser.mjs";
 import magma from "./scene-magma.mjs";
 import aurora from "./scene-aurora.mjs";
 import orrery from "./scene-orrery.mjs";
+import storm from "./scene-storm.mjs";
 
 export default [
   acid,
@@ -116,6 +117,7 @@ export default [
   kinetic,
   aurora,
   orrery,
+  storm,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

@@ -24,6 +24,12 @@ export const FAMILY_CATALOG = {
     styles: ["spatial", "geometric"],
     variants: ["Gears", "Orrery", "Clockwork"],
   },
+  storm: {
+    algorithm: "Seeded stepped-leader trees inside bounded analytic cloud volumes",
+    description: "A distant bank of heat lightning rises into towering cumulonimbus and a rotating supercell. Seeded branching leaders illuminate the clouds from within.",
+    styles: ["spatial", "organic"],
+    variants: ["Haze", "Towers", "Supercell"],
+  },
   ferro: {
     algorithm: "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
     description: "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",
