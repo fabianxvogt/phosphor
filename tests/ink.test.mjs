@@ -71,26 +71,26 @@ function material(p, dev, phase = 0.7, seed = 11201, level = 0.5) {
     const ring =
       (0.85 * Math.exp((-rho * rho) / 0.006) + sheet * 0.68) *
       Math.exp((-rho * rho) / 0.08);
-    const below = y0 - q[1],
-      lobes = 0.5 + 0.5 * Math.sin(a * 11 + 1.4 * Math.sin(a * 4) + ph);
-    const reach = (0.75 + 0.95 * lobes) * finger,
-      tip = clamp((below - reach + 0.42) / 0.42);
-    const skirtR =
-      R -
-      0.06 * below +
-      0.22 * Math.sin(below * 3.5 + a * 3 - ph) +
-      0.065 * Math.sin(a * 13 + below * 5) +
-      0.16 * Math.sin(tip * Math.PI * 1.5) * tip;
-    const w = 0.032 + 0.026 * lobes,
-      d = Math.hypot(q[0], q[2]) - skirtR;
+    const behind = q[1] - y0,
+      lobes = 0.5 + 0.5 * Math.sin(a * 7 + 1.4 * Math.sin(a * 3) + ph);
+    const reach = (0.7 + 0.8 * lobes) * finger,
+      tip = clamp((behind - reach + 0.48) / 0.48);
+    const wakeR =
+      R +
+      0.22 * behind +
+      0.22 * Math.sin(behind * 3.5 + a * 3 - ph) +
+      0.19 * Math.sin(tip * Math.PI * 1.7) * tip +
+      0.045 * Math.sin(a * 13 + behind * 6);
+    const w = mix(0.04, 0.008, tip),
+      d = Math.hypot(q[0], q[2]) - wakeR;
     let skirt =
-      Math.exp(-sq((d + 0.035 * n) / w)) +
-      0.48 * Math.exp(-sq((d - 0.16 * Math.sin(a * 15 + below * 4)) / 0.032));
+      Math.exp(-sq((d + 0.025 * n) / w)) +
+      0.3 * Math.exp(-sq((d - 0.1 * Math.sin(a * 15 + behind * 4)) / 0.018));
     skirt *=
-      smooth(-0.05, 0.15, below) * (1 - smooth(reach - 0.4, reach, below));
+      smooth(-0.02, 0.2, behind) * (1 - smooth(reach - 0.3, reach, behind));
     skirt *=
-      (0.12 + 0.88 * sq(lobes)) *
-      (0.65 + 0.35 * Math.sin(a * 5 + below * 5 + ph));
+      (0.08 + 0.92 * sq(lobes)) *
+      (0.65 + 0.35 * Math.sin(a * 5 + behind * 5 + ph));
     const above = q[1] - y0;
     const feed = [
       q[0] - 0.09 * Math.sin(above * 4 + ph),
@@ -104,6 +104,7 @@ function material(p, dev, phase = 0.7, seed = 11201, level = 0.5) {
     return [density, density * clamp(0.55 + 0.3 * f + 0.15 * n, 0.05, 1)];
   };
   const q = [...p];
+  [q[1], q[2]] = rot([q[1], q[2]], -0.64 - 0.08 * Math.sin(phase));
   [q[0], q[2]] = rot([q[0], q[2]], 0.12 * Math.sin(phase) + 0.08 * q[1]);
   const result = carrier(q, 1 + 0.4 * cloud, phase);
   if (grow > 0.0001)
@@ -119,6 +120,8 @@ function material(p, dev, phase = 0.7, seed = 11201, level = 0.5) {
       );
       result.forEach((_, i) => (result[i] += m[i] * grow));
     }
+  result.forEach((_, i) => (result[i] *= 1 - 0.92 * cloud));
+  let cloudEdge = -2;
   if (cloud > 0.0001) {
     const n = [
       noise(q.map((v) => v * 2.1 + phase)),
@@ -130,11 +133,17 @@ function material(p, dev, phase = 0.7, seed = 11201, level = 0.5) {
       warp.map((v, i) => v * 2.2 + [seedPhase, phase, -phase][i]),
     );
     const fine = noise(warp.map((v) => v * 7.5 + broad * 3));
+    const boundary = p.reduce(
+      (sum, v, i) => sum + sq(v / [3.0, 2.5, 1.8][i]),
+      0,
+    );
+    cloudEdge =
+      broad + fine * 0.27 - (1 - cloud) * 2 - 0.16 - 0.8 * boundary ** 3;
     const folds =
       (0.5 + 0.5 * Math.sin(broad * 7 + fine * 0.65 - q[1] * 1.5)) ** 3;
     const c =
-      smooth(-0.05, 0.3, broad + fine * 0.27 - (1 - cloud) * 2) *
-      (0.07 + folds * 0.65) *
+      smooth(-0.06, 0.09, cloudEdge) *
+      (0.015 + folds * 0.85) *
       Math.exp(-q.reduce((s, v, i) => s + sq(v / [3.2, 2.7, 2][i]), 0) * 0.65);
     result[0] += c;
     result[1] += c * (0.3 + 0.7 * folds);
@@ -144,12 +153,12 @@ function material(p, dev, phase = 0.7, seed = 11201, level = 0.5) {
     0.24,
     Math.min(3.2 - Math.abs(p[0]), 2.7 - Math.abs(p[1]), 2 - Math.abs(p[2])),
   );
-  return result.map((v) => v * edge);
+  return [...result.map((v) => v * edge), mix(-2, cloudEdge, edge)];
 }
 const density = (...args) => material(...args)[0];
-const grid = [128, 144, 64],
-  tile = [130, 146],
-  atlas = [1040, 1168];
+const grid = [80, 96, 40],
+  tile = [82, 98],
+  atlas = [656, 490];
 const extent = (dev) => {
   const a = smooth(0, 1, dev),
     b = smooth(1, 2, dev);
@@ -341,8 +350,126 @@ test("guttered half-float density atlas has bijective nodes and bounded trilinea
   assert.deepEqual(ink.precompute.size, atlas);
   assert.equal(ink.precompute.filter, "linear");
   assert.equal(ink.precompute.format, "rgba16f");
-  assert.match(ink.fragment, /return vec3\(m\.x,inkField/);
-  assert.match(ink.fragment, /for \(int i=0;i<40;\+\+i\)/);
+  assert.match(ink.fragment, /return vec4\(m\.x,inkField/);
+  assert.match(ink.fragment, /for \(int i=0;i<16;\+\+i\)/);
+  // This cache is far material only: the focused ring, wake and cloud
+  // edges are evaluated at native output resolution, not sampled from it.
+  assert.match(ink.fragment, /inkRingSkin/);
+  assert.match(ink.fragment, /float ph=d\*95\.0/);
+  assert.match(ink.fragment, /fwidth\(phi\)/);
+  assert.match(ink.fragment, /for \(int j=0;j<7;\+\+j\)/);
+  assert.match(ink.fragment, /float root=mix\(loT,hiT/);
+});
+
+const cloudField = (...args) => material(...args)[2];
+const filamentPhase = (p, phase, seed = 11201) => {
+  const n = noise(
+    p.map(
+      (v, i) =>
+        v * 22 + [Math.sin(phase), (seed % 991) * 0.013, Math.cos(phase)][i],
+    ),
+  );
+  return noise(p.map((v) => v * 7 + n * 0.6)) * 97 + n * 4;
+};
+
+test("native 3D billow crossings retain bright gaps, fine lamellae and continuous material identity", () => {
+  let gaps = 0,
+    clouds = 0,
+    crossings = 0;
+  for (let x = -10; x <= 10; x++)
+    for (let y = -10; y <= 10; y++) {
+      const p = [x / 4, y / 4, 0.3],
+        a = cloudField(p, 2, 0.7);
+      assert.ok(Math.abs(a - cloudField(p, 2, 0.7 + TAU)) < 1e-13);
+      assert.ok(
+        Math.abs(filamentPhase(p, 0.7) - filamentPhase(p, 0.7 + TAU)) < 1e-11,
+      );
+      if (a < 0) gaps++;
+      if (a > 0.3) clouds++;
+      for (const dev of [0, 0.5, 1, 1.5, 2]) {
+        const f = cloudField(p, dev, 0.7);
+        assert.ok(Number.isFinite(f));
+        // |d field / d development| <= 3; allow floating-point slack.
+        assert.ok(Math.abs(f - cloudField(p, dev + 1e-6, 0.7)) <= 3.01e-6);
+      }
+      // Independently bisect a real front-to-back 3D sign crossing. Seven
+      // refinements + the final interpolated root avoid quantized skin UVs.
+      let previous = 2,
+        previousField = -2;
+      for (let i = 0; i < 16; i++) {
+        const z = 2 - (i + 0.5) * 0.25;
+        const value = cloudField([p[0], p[1], z], 2, 0.7);
+        if (value > 0 && previousField < 0) {
+          let lo = previous,
+            hi = z;
+          for (let j = 0; j < 7; j++) {
+            const mid = (lo + hi) / 2;
+            if (cloudField([p[0], p[1], mid], 2, 0.7) > 0) hi = mid;
+            else lo = mid;
+          }
+          assert.ok(Math.abs(lo - hi) <= 0.25 / 128 + 1e-12);
+          const loField = cloudField([p[0], p[1], lo], 2, 0.7);
+          const hiField = cloudField([p[0], p[1], hi], 2, 0.7);
+          assert.ok(loField <= 0 && hiField > 0);
+          const root = mix(lo, hi, clamp(-loField / (hiField - loField)));
+          assert.ok(Math.abs(cloudField([p[0], p[1], root], 2, 0.7)) < 0.001);
+          crossings++;
+          break;
+        }
+        previous = z;
+        previousField = value;
+      }
+    }
+  assert.ok(
+    gaps > 100 && clouds > 20 && crossings > 100,
+    `${gaps} gaps / ${clouds} interiors / ${crossings} crossings`,
+  );
+  const skin = ink.fragment
+    .split("vec3 inkRingSkin")[1]
+    .split("vec3 inkFocus")[0];
+  assert.doesNotMatch(skin, /fwidth|dFdx|dFdy/);
+  assert.match(skin, /for \(int i=0;i<26;\+\+i\)/);
+  assert.match(ink.fragment, /float behind=q\.y-y0/);
+  assert.match(ink.fragment, /wakeR=R\+0\.22\*behind/);
+  assert.match(ink.fragment, /u_secondary\*sideLamp\*0\.36/);
+  assert.match(ink.fragment, /medium\.z\/max\(medium\.x/); // normalized moment
+});
+
+test("analytic noise gradient filters wake hairlines without derivatives in rejected branches", () => {
+  const gradient = (p) => {
+    const c = p.map(
+      (x, i) => [0.36, 0.32, 0.32][i] * Math.cos(x + Math.sin(p[(i + 1) % 3])),
+    );
+    return c.map((x, i) => x + c[(i + 2) % 3] * Math.cos(p[i]));
+  };
+  for (let i = 0; i < 100; i++) {
+    const p = [Math.sin(i) * 20, Math.cos(i * 3) * 20, i * 0.3];
+    const g = gradient(p),
+      h = 1e-5;
+    for (let axis = 0; axis < 3; axis++) {
+      const up = [...p],
+        down = [...p];
+      up[axis] += h;
+      down[axis] -= h;
+      assert.ok(Math.abs(g[axis] - (noise(up) - noise(down)) / (2 * h)) < 1e-8);
+    }
+  }
+  assert.ok(
+    ink.fragment.indexOf("vec2 dx=dFdx(q)") <
+      ink.fragment.indexOf("if (abs(d)>0.19"),
+  );
+  assert.ok(
+    0.82 + 0.19 + 0.022 < 1.06,
+    "sphere encloses corrugated ring plus AA margin",
+  );
+  // Even the maximum possible broad+fine field is negative before the box
+  // wall: portrait may see a curved billow silhouette, never a flat cap.
+  for (const [box, radius] of [
+    [3.2, 3],
+    [2.7, 2.5],
+    [2, 1.8],
+  ])
+    assert.ok(0.8 * (((box * 0.995) / radius) ** 2) ** 3 > 1 + 0.27 - 0.16);
 });
 
 test("eight stable looks, id-selected world, gestures and Kelvin clocks obey the contract", () => {
