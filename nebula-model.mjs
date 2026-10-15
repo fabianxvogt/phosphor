@@ -36,6 +36,12 @@ export const N = {
   wobble: 80, // dust turbulence 18 s
   jet: 240, // pulsar jet flow 6 s
 };
+export const CAMERA = {
+  distance: [3.95, 2.9, 3.7],
+  elevation: [.18, 1.18],
+  lift: .07,
+  focal: 1.85,
+};
 export const ORBIT_V = 0.22; // flat rotation curve speed
 export const ORBIT_CORE = 0.26; // solid-body core radius
 export const RELAX = 0.55; // ψ relaxation rate (1/s) when dispersing
@@ -303,7 +309,8 @@ export const SHELL = 1.45;
 // CPU reference for the unresolved radiance carrier (not a sampled volume).
 // The closest point in an ellipsoidal metric continuously flattens the
 // diffuse cloud into a thin emitting disk. The shell is a finite radial
-// carrier with periodic angular corrugation, bounded before noise is read.
+// carrier with spherical support and turbulent emitting thickness, bounded
+// before noise is read. No angular lobes or polygonal silhouette.
 export function radianceCloudPoint(eye, ray, dev) {
   const p = smooth(0, 1, dev), thickness = .65 + (.035 - .65) * p;
   const metric = [1, 1 / thickness, 1];
@@ -313,10 +320,27 @@ export function radianceCloudPoint(eye, ray, dev) {
   const t = Math.max(0, -dot(er, eo) / dot(er, er));
   return { point: eye.map((v, i) => v + ray[i] * t), t, thickness };
 }
-export function radianceShellRadius(dev, angle) {
-  const n = smooth(1, 2, dev);
-  return SHELL * (.25 + .75 * n) *
-    (1 + .055 * Math.sin(5 * angle) + .028 * Math.cos(11 * angle));
+export function radianceShellRadius(dev) {
+  return SHELL * (.25 + .75 * smooth(1, 2, dev));
+}
+export function radianceShellEnvelope(dev, impact, noise0 = .5, noise1 = .5) {
+  const R = radianceShellRadius(dev);
+  return {
+    cover: 1 - smooth(R * .94, R * 1.16, impact),
+    limb: Math.exp(-(((impact - R * (.87 + .07 * (noise0 - .5))) /
+      (R * (.085 + .07 * noise1) + .001)) ** 2)),
+  };
+}
+export function cameraFraming(dev, clock, { distance = 1, height = .66 } = {}) {
+  const p = smooth(0, 1, dev), n = smooth(1, 2, dev);
+  return {
+    distance: distance * (CAMERA.distance[0] + (CAMERA.distance[1] - CAMERA.distance[0]) * p +
+      (CAMERA.distance[2] - CAMERA.distance[1]) * n) *
+      (1 + .04 * Math.sin(2 * Math.PI * cycle(clock, N.dolly))),
+    elevation: CAMERA.elevation[0] + (CAMERA.elevation[1] - CAMERA.elevation[0]) *
+      Math.min(1, Math.max(0, height)) + CAMERA.lift * Math.sin(2 * Math.PI * cycle(clock, N.lift)),
+    focal: CAMERA.focal,
+  };
 }
 
 export function shockFront(R, clock, shock = 1) {

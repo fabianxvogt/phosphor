@@ -1,6 +1,7 @@
 import { familyEffect } from "./family-rhythm.mjs";
 import {
   CLOCK_PERIOD,
+  CAMERA,
   CLOUD,
   MODES,
   N,
@@ -90,14 +91,14 @@ NbCam nbCamera(uint clock, float dev) {
   NbCam c;
   uint key = nbKey();
   float yaw = NB_TAU * (nbCycle(clock, ${N.yaw}u) + nbRnd(key, 0u, 907u));
-  float el = mix(.16, 1.1, clamp(u_params[6], 0., 1.)) + .1 * sin(NB_TAU * nbCycle(clock, ${N.lift}u));
-  c.dist = u_params[5] * (mix(4.5, 3.5, nbSmooth(0., 1., dev)) + .2 * nbSmooth(1., 2., dev))
+  float el = mix(${f(CAMERA.elevation[0])}, ${f(CAMERA.elevation[1])}, clamp(u_params[6], 0., 1.)) + ${f(CAMERA.lift)} * sin(NB_TAU * nbCycle(clock, ${N.lift}u));
+  c.dist = u_params[5] * (mix(${f(CAMERA.distance[0])}, ${f(CAMERA.distance[1])}, nbSmooth(0., 1., dev)) + ${f(CAMERA.distance[2]-CAMERA.distance[1])} * nbSmooth(1., 2., dev))
     * (1. + .04 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u)));
   c.eye = c.dist * vec3(cos(el) * sin(yaw), sin(el), cos(el) * cos(yaw));
   c.fwd = normalize(vec3(0., -.06, 0.) - c.eye);
   c.right = normalize(cross(c.fwd, vec3(0., 1., 0.)));
   c.up = cross(c.right, c.fwd);
-  c.focal = 1.85 * (1. + .02 * clamp(u_kick, 0., 1.));
+  c.focal = ${f(CAMERA.focal)} * (1. + .02 * clamp(u_kick, 0., 1.));
   return c;
 }
 `;
@@ -144,7 +145,7 @@ void main() {
     uint id = uint(cell.y * textureSize(u_state, 0).x + cell.x);
     // Only the fixed tracer cohort consumes ψ. Sky stars never consume it;
     // the dormant identities retain their original state without extra work.
-    if (id >= ${ABSORBERS}u || (id & 3u) != 0u) { outColor = nbBytes(v); return; }
+    if (id >= ${ABSORBERS}u || (id & 7u) != 0u) { outColor = nbBytes(v); return; }
     NbStar s = nbStar(nbKey(), id);
     // ψ is a signed turn fraction; the relaxation takes the short way home.
     float psi = float(int(v)) * (NB_TAU / 4294967296.);
@@ -174,10 +175,11 @@ float nbTransmission(vec3 start, vec3 eye, uint key, uint clock, float arms) {
   vec3 q = start + ray * t;
   float r = length(q.xz);
   float beta = r * 1.35 * (2.2 + .9 * nbRnd(key, 0u, 905u)) * arms + NB_TAU * nbCycle(clock, ${N.pattern}u);
-  float w = atan(q.z, q.x) - beta + .7853981634 + .42;
+  float w = atan(q.z, q.x) - beta + .7853981634 - .22;
   float off = mod(w + 1.5707963, 3.1415926536) - 1.5707963;
-  float lane = exp(-off * off / .065) * nbSmooth(.12, .4, r) * (1. - nbSmooth(1.35, 1.7, r));
-  return exp(-2.4 * lane * min(nbDustColumn(start, eye), 12.));
+  float ragged = .65 + .35 * sin(21.*q.x + 13.*q.z) * sin(17.*q.z - 8.*q.x);
+  float lane = exp(-off * off / .095) * ragged * nbSmooth(.12, .4, r) * (1. - nbSmooth(1.35, 1.7, r));
+  return exp(-.85 * lane * min(nbDustColumn(start, eye), 5.));
 }
 vec3 nbRotY(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(c * p.x - s * p.z, p.y, s * p.x + c * p.z); }
 void main() {
@@ -187,11 +189,11 @@ void main() {
   v_soft = 0.;
   uint id = uint(gl_VertexID);
   // The continuous radiance layer carries unresolved gas. Keep a stable,
-  // seed-independent quarter of the existing tracers for resolved depth.
+  // seed-independent eighth of the existing tracers for resolved depth.
   if (id == 0u || id >= ${ABSORBERS}u) return;
   uint key = nbKey(), clock = nbClock();
   NbStar s = nbStar(key, id);
-  if (s.kind != 2 && (id & 3u) != 0u) return;
+  if (s.kind != 2 && (id & 7u) != 0u) return;
   float dev = clamp(u_params[0], 0., 2.);
   float growth = u_params[2], arms = u_params[3], light = u_params[4], shock = u_params[7];
   float level = clamp(u_level, 0., 1.);
@@ -318,8 +320,9 @@ void main() {
       }
       hue = mix(hue, novaHue, s2);
       bright = mix(bright, novaB, s2) + ignite * (s.kind == 1 ? .5 : .12);
-      size = mix(size, cloudlet ? 8. + 6. * s.tone : 1.6 + .7 * front, s2);
-      if (cloudlet) bright = mix(bright, (.015 + .006 * shellCompress * shellCompress) + .12 * front, s2);
+      size = mix(size, cloudlet ? 7. + 7. * s.tone : 1.6 + .7 * front, s2);
+      // Resolved ejecta glow at genuinely different depths from the limb.
+      if (cloudlet) bright = mix(bright, (.035 + .008 * shellCompress * shellCompress) + .12 * front, s2);
       else soft *= 1. - s2;
     }
     // Rhythm: arm/filament accent, core flare, outward ripple.
@@ -458,40 +461,44 @@ void main() {
   float t = max(0., -dot(er, eo) / dot(er, er));
   vec3 q = cam.eye + ray*t;
   float radius = length(q.xz);
-  // Outside this finite cloud the analytic tails are below 0.00002.
-  // Keep the shell branch alive in mixed developments.
-  if (radius < mix(3.,2.5,p) && abs(q.y) < 3.5*thick) {
+  // Bound the negligible outer gas before noise reads; the luminous
+  // structure is well inside. Keep the shell alive in mixed developments.
+  if (radius < mix(2.65,1.9,p) && abs(q.y) < 3.5*thick) {
   vec2 uv = mat2(turn.x,-turn.y,turn.y,turn.x)*q.xz;
   float a = nbNoise(uv*2.4+seed);
   float b = nbNoise(uv*8.5+seed+a);
   float c = nbNoise(uv*29.+seed+b);
-  float d = nbNoise(uv*94.+seed+c);
+  float d = p > 0. ? nbNoise(uv*94.+seed+c) : c;
   float texture = .5*a + .27*b + .15*c + .08*d;
   float edge = exp(-pow(radius / mix(1.65, 1.2, p), 4.)) * exp(-nbSq(q.y / thick));
   float theta = atan(q.z,q.x);
   float phase = theta - radius*data.z - data.w + .7853981634;
   float arm = exp(-nbSq(sin(phase + .14*(b-.5)))/.26);
   float feathers = exp(-nbSq(sin(phase + .24 + .22*(c-.5)))/.04);
-  float lane = exp(-nbSq(sin(phase+.32+.15*(b-.5)))/.012);
+  // The concave (smaller-radius) side: broken, broad optical depth,
+  // never a black contour drawn around the luminous arm.
+  float lane = exp(-nbSq(sin(phase-.22+.22*(b-.5)+.12*(c-.5)))/(.035+.045*c));
   float cloud = pow(max(0., texture-.23), 2.) * 5.;
   float disk = (.19 + 1.3*arm + .42*feathers) * (.3 + texture*texture*2.);
-  float extinction = exp(-p*lane*(1.1+2.4*c)*nbSmooth(.14,.32,radius));
+  float extinction = exp(-p*lane*(.5+2.*c*c)*(.25+.75*b)*nbSmooth(.14,.32,radius));
   float gas = mix(cloud, disk, p) * edge * extinction * (1.+.1*u_rhythm.x*arm);
   gas *= mix(1., .55+.45*nbSmooth(.15,.6,radius),p);
   vec3 gasHue = mix(u_secondary, mix(u_primary,vec3(1.),.25), .12 + .18*texture);
   col += gasHue * gas * mix(.95, 1.9, p) * (1.-n);
   // HII regions are sparse, saturated knots nested in the bright arms.
-  vec2 clusterGrid = uv*14.;
+  vec2 clusterGrid = uv*10.;
   vec4 cluster = nbLattice(ivec2(floor(clusterGrid)));
   vec2 clusterDelta = fract(clusterGrid) - (.35+.3*cluster.xy);
   float clusterR2 = dot(clusterDelta,clusterDelta);
-  float knotWidth = .003 + nbSq(14.*cam.dist/(cam.focal*min(u_resolution.x,u_resolution.y)));
-  float knots = exp(-clusterR2/knotWidth) + .12*exp(-clusterR2/.025);
+  float knotWidth = .007*(.7+.6*c) + nbSq(10.*cam.dist/(cam.focal*min(u_resolution.x,u_resolution.y)));
+  float knots = exp(-clusterR2/knotWidth) + .2*exp(-clusterR2/.055);
   vec2 cellFade = smoothstep(vec2(0.),vec2(.12),min(fract(clusterGrid),1.-fract(clusterGrid)));
-  knots *= cellFade.x*cellFade.y*nbSmooth(.78,.96,cluster.w)*arm*nbSmooth(.25,.5,radius);
-  col += mix(u_accent,vec3(1.),.35) * knots * edge * p*(1.-n) * 5.;
+  knots *= cellFade.x*cellFade.y*arm*arm*nbSmooth(.25,.5,radius);
+  float hii = nbSmooth(.76,.96,cluster.w);
+  float youngCluster = nbSmooth(.35,.55,cluster.w)*(1.-nbSmooth(.6,.74,cluster.w));
+  col += (u_accent*hii*4.5 + mix(u_primary,vec3(1.),.7)*youngCluster*2.) * knots * edge * p*(1.-n);
   col += mix(u_primary,vec3(1.),.6) * pow(d,12.) * arm * edge * p*(1.-n) * 1.4;
-  float core = exp(-nbSq(radius/.14)) + .32*exp(-nbSq(radius/.42));
+  float core = exp(-nbSq(radius/.14)) + .38*exp(-nbSq(radius/.42)) + .1*exp(-nbSq(radius/.65));
   core *= exp(-nbSq(q.y / mix(.35,.16,p)));
   col += mix(u_primary,vec3(1.),.65) * core * p*(1.-n) * (2.2+.2*u_rhythm.y);
   }
@@ -503,23 +510,27 @@ void main() {
   vec3 closest = cam.eye + ray*along;
   float impact = length(closest);
   if (impact < NB_SHELL * mix(.25,1.,n) * 1.16) {
-  float angle = atan(dot(closest,cam.up),dot(closest,cam.right));
-  float R = NB_SHELL * mix(.25,1.,n) * (1.+.055*sin(5.*angle)+.028*cos(11.*angle));
-  float chord = sqrt(max(0.,R*R-impact*impact));
+  // Spherical support, not a low-order angular polygon. Turbulence
+  // changes the emitting thickness/opacity; all outer tails fade to zero.
+  float R = NB_SHELL * mix(.25,1.,n);
+  float chord = sqrt(max(0.,nbSq(R*1.17)-impact*impact));
   vec3 shell = cam.eye + ray*(along-chord);
   vec2 sh = shell.xz + vec2(shell.y*.61, shell.y*.37);
   float s0 = nbNoise(sh*3.2+seed);
   float s1 = nbNoise(sh*14.+seed+s0);
   float s2 = nbNoise(sh*52.+seed+s1);
-  float s3 = nbNoise(sh*137.+seed+s2);
+  // A second surface projection breaks up stretched tangent contours.
+  float s3 = nbNoise((shell.xy-shell.z*vec2(.4,.7))*137.+seed+s2);
   float fil = exp(-nbSq((s1+.3*s2+.1*s3-.68)/(.025+.1*s2)));
-  float cover = 1.-nbSmooth(R*.9,R*1.06,impact);
-  float limb = exp(-nbSq((impact-R*(.81+.13*s0))/(R*.16+.001)));
+  float cover = 1.-nbSmooth(R*.94,R*1.16,impact);
+  float limb = exp(-nbSq((impact-R*(.87+.07*(s0-.5)))/(R*(.085+.07*s1)+.001)));
   float shock = exp(-nbSq((impact - 2.35*pow(nbCycle(clock,${N.shock}u),.4))/.045));
   vec3 litGas = mix(u_secondary, mix(u_primary,vec3(1.),.5), .16+.25*limb);
   float cloud = .3 + .7*nbSmooth(.12,.75,s0);
-  col += litGas * cover*n * (.19*cloud + .85*fil*(.2+.8*limb)*cloud + .9*limb*cloud*(.4+.9*s1)) * (.45+.45*s2+.1*s3);
-  col += mix(u_accent,vec3(1.),.15)*cover*n*fil*pow(s0,8.)*.8;
+  float cavity = (1.-nbSmooth(R*.3,R*1.02,impact)) * (.25+.75*s0);
+  col += litGas * cover*n * (.46*cavity + 1.1*fil*(.22+.78*limb)*cloud + 1.7*limb*cloud*(.4+.9*s1)) * (.35+.5*s2+.15*s3);
+  col += mix(u_secondary,u_primary,.2) * cavity*n * .12*(.3+s2);
+  col += mix(u_accent,vec3(1.),.15)*cover*n*(fil*pow(s0,8.) + 2.*pow(s2,12.)*limb);
   col += mix(u_secondary,vec3(1.),.5)*shock*cover*n*u_params[7]*.08*(.15+.85*s1)
     * (1.-nbCycle(clock,${N.shock}u));
   float d2 = dot(closest,closest);

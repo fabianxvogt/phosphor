@@ -4,6 +4,7 @@ import scenes from "../scenes.mjs";
 import nebula from "../scene-nebula.mjs";
 import {
   ABSORBERS,
+  CAMERA,
   CLOCK_PERIOD,
   N,
   SHELL,
@@ -11,6 +12,7 @@ import {
   TWO32,
   clockStep,
   cycle,
+  cameraFraming,
   dustColumn,
   ellipsePolar,
   identity,
@@ -24,6 +26,7 @@ import {
   psiRate,
   radianceCloudPoint,
   radianceShellRadius,
+  radianceShellEnvelope,
   sedovTaylor,
   shockFront,
   worldOf,
@@ -346,18 +349,60 @@ test("radiance carriers are continuous geometry with conservative finite bounds"
       const neighbour = eye.map((v,k) => v + ray[k] * (t+dt));
       assert.ok(metricLength(point) <= metricLength(neighbour) + 1e-12);
     }
-    const R = radianceShellRadius(dev,.731);
+    const R = radianceShellRadius(dev);
     if (previous) assert.ok(Math.abs(R-previous) < .01);
     previous = R;
     const n = dev <= 1 ? 0 : (dev-1)**2 * (3-2*(dev-1));
     for (let a = -Math.PI; a < Math.PI; a += .1) {
       const r = radianceShellRadius(dev,a);
       assert.ok(r > 0);
-      assert.ok(r * 1.06 < SHELL * (.25 + .75*n) * 1.16, "no clipped shell tails");
-      assert.ok(Math.abs(r-radianceShellRadius(dev,a+2*Math.PI)) < 1e-12, "atan seam");
+      assert.ok(r * 1.16 <= SHELL * (.25 + .75*n) * 1.16 + 1e-12, "no clipped shell tails");
+      assert.equal(r, R, "spherical support independent of viewing angle");
     }
   }
-  assert.match(nebula.fragment, /\.055\*sin\(5\.\*angle\)\+\.028\*cos\(11\.\*angle\)/);
+  assert.doesNotMatch(nebula.fragment, /sin\(5\.\*angle\)|cos\(11\.\*angle\)/);
+});
+
+test("spherical shock emission has a bright turbulent limb and a C1 outer fade", () => {
+  for (const dev of [1, 1.1, 1.5, 2]) {
+    const R = radianceShellRadius(dev);
+    for (const noise0 of [0, .5, 1]) for (const noise1 of [0, .5, 1]) {
+      const at = r => radianceShellEnvelope(dev, r*R, noise0, noise1);
+      assert.equal(at(.94).cover, 1);
+      assert.equal(at(1.16).cover, 0);
+      assert.equal(at(1.2).cover, 0);
+      assert.ok(at(.87).limb > .8 && at(.87).limb > 100*at(0).limb);
+      assert.ok(at(1.05).cover > 0 && at(1.05).cover < 1);
+      assert.ok(at(1.16-1e-5).cover < 1e-7, "no hard support edge");
+      let previous = 1;
+      for (let i=94; i<=120; i++) {
+        const {cover,limb} = at(i/100);
+        assert.ok(Number.isFinite(limb) && limb >= 0 && limb <= 1);
+        assert.ok(cover <= previous && cover >= 0);
+        previous = cover;
+      }
+    }
+  }
+  assert.match(nebula.fragment, /R\*1\.17/);
+  assert.match(nebula.fragment, /cavity\*n/);
+});
+
+test("closer tilted camera is continuous, bounded and never enters the hero", () => {
+  assert.deepEqual(CAMERA.distance, [3.95, 2.9, 3.7]);
+  for (const clock of [0, 1e9, 3e9, TWO32-1]) {
+    let previous = cameraFraming(0, clock);
+    for (let i=0; i<=400; i++) {
+      const dev = i/200, frame = cameraFraming(dev, clock);
+      assert.ok(Math.abs(frame.distance-previous.distance) < .02);
+      assert.ok(frame.elevation >= .77 && frame.elevation <= .91);
+      const near = cameraFraming(dev, clock, {distance:.7});
+      assert.ok(near.distance > (dev <= 1 ? 1.9 : SHELL*1.17) + .04);
+      previous = frame;
+    }
+    assert.ok(cameraFraming(0,clock).distance < 4.5);
+    assert.ok(cameraFraming(1,clock).distance < 3.5);
+  }
+  assert.match(nebula.fragment, /c\.focal = 1\.85 \* \(1\. \+ \.02/);
 });
 
 test("fixed particle budget and optional scalar data cache, never a colour-image cache", () => {
@@ -369,8 +414,8 @@ test("fixed particle budget and optional scalar data cache, never a colour-image
   assert.match(nebula.fragment,/#else\s+return nbCorners\(i\)/);
   assert.match(nebula.fragment,/exp\(-clusterR2\/knotWidth\)/, "HII cores are Gaussian knots, not thresholded noise plaques");
   assert.match(nebula.fragment,/cellFade.x\*cellFade.y/, "cluster tails vanish at cell boundaries");
-  assert.match(nebula.particles.vertex,/s.kind != 2 && \(id & 3u\) != 0u/);
-  assert.match(nebula.simulation.fragment,/id >= 118784u \|\| \(id & 3u\) != 0u/);
+  assert.match(nebula.particles.vertex,/s.kind != 2 && \(id & 7u\) != 0u/);
+  assert.match(nebula.simulation.fragment,/id >= 118784u \|\| \(id & 7u\) != 0u/);
   const skies = sample(1000,101).filter(s => s.kind === 2);
   const depths = skies.map(s => Math.hypot(...position(world,s,{clock:0,dev:0})));
   assert.ok(Math.min(...depths) >= 7 && Math.max(...depths) < 16);
