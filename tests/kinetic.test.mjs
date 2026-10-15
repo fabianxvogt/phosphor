@@ -8,6 +8,7 @@ import {
   ATTRIBUTES,
   CENTER,
   FORM,
+  FOCAL_RISE,
   HALF,
   HANG,
   HOLD,
@@ -18,16 +19,20 @@ import {
   SPACING,
   STRIDE,
   TILT,
+  SURFACE_COLS,
+  SURFACE_ROWS,
   VMAX,
   ball,
   camera,
   chorus,
   columnSpan,
   createGeometry,
+  focalLength,
   hazeLayer,
   KICK_STRENGTH,
   rhythmGain,
   ringHeight,
+  ringLight,
   rippleHeight,
   seedAngles,
   sculptureUV,
@@ -85,6 +90,10 @@ test("the shaders are built from the model's constants", () => {
     `FSK=${FORM.saddleK}`,
     `RREACH=${RING.reach}`,
     `TC=${Math.cos(TILT).toFixed(7)}`,
+    `vec2 dims=vec2(${SURFACE_COLS}.,${SURFACE_ROWS}.);`,
+    `FOCAL+${FOCAL_RISE}*sst(1.,2.,DEV)`,
+    `rs=clamp(.55*sqrt(length(du)*length(dv)),.014,.055)`,
+    `crest=max(rp,0.)*sst(0.,.06,kick/max(gain,1e-5))`,
   ])
     assert.ok(vertex.includes(snippet), snippet);
   assert.equal(scene.geometry.additiveFrom, ADDITIVE_FROM);
@@ -385,6 +394,55 @@ test("the camera stays clear of every sphere and never jumps", () => {
     assert.ok(dist(eye, prev) < 0.01);
     prev = eye;
   }
+});
+
+test("surface reindexing covers a complete balanced grid without changing identities", () => {
+  const seen = new Set();
+  assert.equal(SURFACE_COLS * SURFACE_ROWS, N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const [u, v] = sculptureUV(i, j);
+    assert.ok(u > 0 && u < 1 && v > 0 && v < 1);
+    seen.add(`${Math.floor(u * SURFACE_COLS)},${Math.floor(v * SURFACE_ROWS)}`);
+  }
+  assert.equal(seen.size, N * N);
+});
+
+test("ring light is bounded and equally legible at low and high energy", () => {
+  let peak = 0;
+  for (let kn = 0; kn <= 1; kn += 0.025) for (let rho = 0; rho <= RING.reach + 5; rho += 0.2) {
+    const low = ringLight(rho, kn * KICK_STRENGTH * rhythmGain(0.1), 0.1);
+    const high = ringLight(rho, kn * KICK_STRENGTH * rhythmGain(0.9), 0.9);
+    close(low, high, 1e-12);
+    assert.ok(low >= 0 && low <= 1);
+    peak = Math.max(peak, low);
+    close(ringLight(rho, 0, 0.1), 0, 0);
+    close(ringLight(rho, KICK_STRENGTH * rhythmGain(0.1), 0.1), 0, 0);
+  }
+  assert.ok(peak > 0.9);
+});
+
+test("all four peak forms fill the short side, stay above the mirror and fit portrait", () => {
+  const sub = (a, b) => a.map((v, k) => v - b[k]);
+  const dot = (a, b) => a.reduce((s, v, k) => s + v * b[k], 0);
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = (a) => a.map((v) => v / Math.hypot(...a));
+  for (let M = 0.3; M < 4; M++) for (let a = 0; a < TAU; a += 1.2) for (let Phi = 0; Phi < TAU; Phi += 1.2) {
+    const { eye, target } = camera(2, a);
+    const F = norm(sub(target, eye)), R = norm(cross(F, [0, 1, 0])), U = cross(R, F);
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (let index = 0; index < N * N; index += 17) {
+      const b = ball(index % N, Math.floor(index / N), { ...base, dev: 2, M, Phi, seed: 0, detail: 1 });
+      assert.ok(b.p[1] - b.r * 1.5 > 0, `floor clearance ${M}/${a}/${Phi}`);
+      const c = sub(b.p, eye), z = dot(c, F);
+      const x = dot(c, R) / z * focalLength(2), y = dot(c, U) / z * focalLength(2);
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    const extent = Math.max(x1 - x0, y1 - y0) / 2;
+    // Conservative allowance for the saddle's narrowest viewing angle.
+    assert.ok(extent > 0.57 && extent < 0.85, `short-side extent ${extent}`);
+    assert.ok(Math.max(Math.abs(y0), Math.abs(y1)) < 0.99, `portrait edge ${y0}/${y1}`);
+  }
+  for (const dev of [0, 0.4, 1, 1.4, 2]) close(focalLength(dev, 1) / focalLength(dev, 0), 1.02, 1e-12);
 });
 
 test("haze glow: the closed form equals numeric integration", () => {

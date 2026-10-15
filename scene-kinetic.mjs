@@ -5,6 +5,7 @@ import {
   CEILING,
   CENTER,
   FOCAL,
+  FOCAL_RISE,
   FORM,
   HALF,
   HANG,
@@ -54,13 +55,13 @@ vec4 chorus(float M){
 float seedAngle(float k){return K_TAU*fract(mod(u_seed,8192.)*k);}
 void cameraRig(float dev,out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float s2=sst(1.,2.,dev),a=u_clock[3]+seedAngle(.7548776662);
- float radius=6.-1.4*s2+(.4-.25*s2)*sin(2.*a),height=.75+.45*s2+.1*sin(3.*a);
+ float radius=6.-1.2*s2+(.4-.25*s2)*sin(2.*a),height=.75+.45*s2+.1*sin(3.*a);
  eye=vec3(radius*cos(a),height,radius*sin(a));
  float side=.9*(1.-s2);
  vec3 target=vec3(-sin(a)*side,2.2-.3*sst(0.,1.,dev)-.25*s2,cos(a)*side);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
-float focal(){return (FOCAL+.38*sst(1.,2.,DEV))*(1.+.02*clamp(u_kick,0.,1.));}
+float focal(){return (FOCAL+${f(FOCAL_RISE)}*sst(1.,2.,DEV))*(1.+.02*clamp(u_kick,0.,1.));}
 vec3 tone(float h){
  return mix(mix(u_secondary,u_primary,sst(.05,.72,h)),mix(u_primary,vec3(1.),.28),sst(.8,1.,h)*.6);
 }`;
@@ -185,9 +186,10 @@ void main(){
  // The level ceiling's faint ripple also travels as light: slow bands of
  // brightness drift across the lattice and fade as the waves take over.
  float sheen=1.+.7*(1.-s01)*(1.-sig)*rippleH(g,W)/.075;
- vec3 emit=col*glow*(mix(.5,.14,sig)+mix(.55,1.2,sig)*pow(facing,1.4))*(.6+.4*max(s01,sig))*ao*sheen;
+ float diffuse=max(dot(Nv,L),0.);
+ vec3 emit=col*glow*(mix(.5,.12,sig)+mix(.55,.7,sig)*pow(facing,1.4)+.5*sig*diffuse)*(.6+.4*max(s01,sig))*ao*sheen;
  emit+=mix(col,vec3(1.),.55)*glow*(1.6*glint+.6*glint2)*mix(1.,1.8,sig)*ao;
- emit+=mix(u_secondary,vec3(1.),.35)*rim*.28*glow*(.4+.6*max(s01,sig));
+ emit+=mix(u_secondary,vec3(1.),.35)*rim*mix(.28,.55,sig)*glow*(.4+.6*max(s01,sig));
  emit+=mix(u_primary,vec3(1.),.55)*glow*crest*2.4;
  emit=mix(emit,u_accent*glow*2.,crest*.35);
  emit+=u_accent*lattice*glow*1.2;
@@ -283,8 +285,10 @@ void main(){
   vec3 hit=d*t,n=(hit-v_c)/r;
   float mu=max(dot(n,-d),0.);
   // Frosted globe: bright diffuse core and a soft limb.
-  vec3 col=v_col*(.5+.5*pow(mu,.6));
-  col+=mix(v_col,vec3(1.),.6)*pow(1.-mu,2.5)*.25;
+  vec3 nn=normalize(n+vec3(0.,0.,1e-6));
+  float key=max(dot(nn,normalize(vec3(-.45,.65,-.6))),0.);
+  vec3 col=v_col*(.32+.38*pow(mu,.6)+.3*key);
+  col+=mix(v_col,vec3(1.),.6)*pow(1.-mu,2.5)*.2;
   col*=v_info.w;
   col=mix(fogC,col,exp(-t*FOGK));
   col=mix(fogC*.5,col,cover);

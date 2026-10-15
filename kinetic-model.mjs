@@ -24,6 +24,9 @@ export const HALF = ((N - 1) / 2) * SPACING; // lattice half extent
 export const RMAX = HALF * Math.SQRT2; // farthest sphere from the axis
 export const STAGGER = 0.85; // centre-first gathering into the sculpture
 export const FOCAL = 1.4; // short-side focal length (half FOV ≈ 35.5°)
+export const FOCAL_RISE = 0.22;
+export const focalLength = (dev, kick = 0) =>
+  (FOCAL + FOCAL_RISE * smoothstep(1, 2, dev)) * (1 + 0.02 * clamp(kick, 0, 1));
 export const RING = { reach: 13, width: 1.8, amp: 0.16, wave: 1.9, grow: 8 };
 export const FORM = {
   sphere: 1.8,
@@ -31,8 +34,8 @@ export const FORM = {
   torusr: 0.66,
   mobiusR: 1.6,
   mobiusW: 0.62,
-  saddleR: 2.15,
-  saddleK: 0.2,
+  saddleR: 2.22,
+  saddleK: 0.1,
   saddleWave: 0.07,
 };
 // Motor envelope (world units per second) the tests hold every state to.
@@ -119,6 +122,11 @@ export function ringProfile(rho, kick, level) {
 }
 export const ringHeight = (rho, kick, level) =>
   RING.amp * kick * ringProfile(rho, kick, level);
+// Emissive front uses normalised envelope rather than motor amplitude:
+// equally legible at low energy, still zero at launch and at rest.
+export const ringLight = (rho, kick, level) =>
+  Math.max(ringProfile(rho, kick, level), 0) *
+  smoothstep(0, 0.06, kick / (KICK_STRENGTH * rhythmGain(level)));
 
 // Parametric forms on (u, v) ∈ [0, 1]², local to CENTER.
 export function formSphere(u, v) {
@@ -273,7 +281,7 @@ export function ball(i, j, state) {
 // low to make the morph the hero. alpha is clock 3 plus the seed angle.
 export function camera(dev, alpha) {
   const s2 = smoothstep(1, 2, clamp(dev, 0, 2));
-  const radius = 6.0 - 1.4 * s2 + (0.4 - 0.25 * s2) * Math.sin(2 * alpha);
+  const radius = 6.0 - 1.2 * s2 + (0.4 - 0.25 * s2) * Math.sin(2 * alpha);
   const height = 0.75 + 0.45 * s2 + 0.1 * Math.sin(3 * alpha);
   const eye = [radius * Math.cos(alpha), height, radius * Math.sin(alpha)];
   const side = 0.9 * (1 - s2);
