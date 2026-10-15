@@ -46,29 +46,28 @@ export function sheetPoint(
   const rise = smooth(0, 1, development),
     crown = smooth(1, 2, development);
   const h = ((seed % 8192) * 0.61803398875) % 1;
-  const theta =
-    (u - 0.5) * (2.6 + (5.95 - 2.6) * crown) + sheet * 0.13 + (h - 0.5) * 0.35;
-  const w = theta * 5 + phase + sheet * 2.3;
+  const theta = (u - 0.5) * 6.18 + sheet * 0.24 + (h - 0.5) * 0.35;
+  const w = theta * 2.3 + phase + sheet * 2.3;
   const kink = Math.sin(w + 0.65 * Math.sin(2 * w - phase));
   const radius =
-    ((24 + sheet * 7) * (1 - crown) + (7 + sheet * 2) * crown) * spread;
+    ((32 + sheet * 20) * (1 - crown) + (26 + sheet * 18) * crown) * spread;
   const ripple =
-    (0.65 + 1.65 * rise) * fold * kink + 0.6 * Math.sin(9 * theta - 2 * phase);
+    (3 + 6 * rise) * fold * kink + 1.7 * Math.sin(9 * theta - 2 * phase);
   const r = radius + ripple;
-  const bend = theta + 0.11 * rise * fold * Math.sin(8 * theta - phase + sheet);
-  const z = (27 + sheet * 4) * (1 - crown) + r * Math.cos(bend);
+  const bend = theta + 0.17 * fold * Math.sin(5 * theta - phase + sheet);
+  const z = 8 * (1 - crown) + r * Math.cos(bend);
   const x = r * Math.sin(bend);
   const base =
-    (7.3 +
-      sheet * 0.6 +
-      3.5 * Math.cos(theta) +
-      rise * (3 + 2.5 * Math.sin(3 * theta + phase))) *
-      (1 - crown) +
-    (19 + sheet * 3.5 + 2 * Math.sin(3 * theta + phase)) * crown;
+    14 +
+    sheet * 3 +
+    6 * Math.sin(1.6 * theta + phase + sheet) +
+    3.5 * Math.sin(4.3 * theta - phase) +
+    0.55 * Math.sin(23 * theta - phase) +
+    10 * crown;
   const length =
-    (8.8 + 20 * rise + 31 * crown) *
+    (62 + 30 * rise + 180 * crown) *
     height *
-    (0.8 + 0.2 * Math.sin(4 * theta - phase + sheet));
+    (0.85 + 0.15 * Math.sin(4 * theta - phase + sheet));
   return [
     x + FIELD[0] * length * v,
     base + length * v,
@@ -78,12 +77,8 @@ export function sheetPoint(
 export const dot = (a, b) => a.reduce((sum, x, i) => sum + x * b[i], 0);
 export function camera(development, phase = 0, tilt = 0, spread = 1, kick = 0) {
   const crown = smooth(1, 2, development);
-  const yaw = 0.04 * Math.sin(phase);
-  const pitch =
-    0.12 +
-    0.1 * smooth(0, 1, development) +
-    1.29 * smooth(0, 0.82, crown) +
-    tilt;
+  const yaw = 0.055 * Math.sin(phase);
+  const pitch = 0.3 + 0.08 * smooth(0, 1, development) + 1.12 * crown + tilt;
   const forward = [
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
@@ -96,13 +91,12 @@ export function camera(development, phase = 0, tilt = 0, spread = 1, kick = 0) {
     -Math.cos(yaw) * Math.sin(pitch),
   ];
   const eye = [
-    0.8 * Math.sin(phase),
-    1.25 + 0.12 * Math.sin(2 * phase),
-    0.65 * Math.cos(phase),
+    1.4 * Math.sin(phase),
+    2.2 + 0.16 * Math.sin(2 * phase) + 0.8 * crown,
+    1.1 * Math.cos(phase),
   ];
   const focal =
-    (1.3 * (1 - 0.17 * Math.sin(Math.PI * crown)) * (1 + 0.018 * kick)) /
-    (1 + (Math.max(1, spread) - 1) * crown);
+    (1.22 * (1 + 0.018 * kick)) / (1 + (Math.max(1, spread) - 1) * crown);
   return { eye, right, up, forward, focal };
 }
 export function project(point, eye, right, up, forward, focal = 1.3) {
