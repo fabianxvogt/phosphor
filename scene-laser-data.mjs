@@ -32,6 +32,25 @@ void lgTower(int i, out vec3 origin, out vec3 size) {
   origin = vec3(side * 9.0, 0, 5.0 + bay * 5.3) + tx * u + ty * (h * 0.5);
   size = vec3(0.85 + 0.85 * lgHash(fi + 71.0), max(h * 0.5, 0.0001), 1.05 + 0.95 * lgHash(fi + 92.0));
 }
+void lgClipStrip(vec3 a, vec3 v, vec3 base, vec3 tangent, float span, inout float nearest) {
+  vec3 normal = vec3(-tangent.y, tangent.x, 0);
+  float den = dot(v, normal);
+  if (abs(den) < 1e-6) return;
+  float t = dot(base - a, normal) / den;
+  float u = dot(a + v * t - base, tangent);
+  if (t > 0.001 && t < nearest && u >= 0.0 && u <= span) nearest = t;
+}
+vec3 lgSurfaceEnd(vec3 a, vec3 b) {
+  vec3 v = b - a; float nearest = 1.0;
+  lgClipStrip(a, v, vec3(-9,0,0), vec3(1,0,0), 18.0, nearest);
+  for (int s = 0; s < 2; ++s) {
+    float side = s == 0 ? -1.0 : 1.0;
+    lgClipStrip(a, v, vec3(side*9.0,0,0), vec3(side*gCt,gSt,0), 11.0, nearest);
+    float angle = gFold * (PI - 0.42);
+    lgClipStrip(a, v, vec3(side*(9.0+11.0*gCt),11.0*gSt,0), vec3(side*cos(angle),sin(angle),0), 9.85665208, nearest);
+  }
+  return a + v * nearest;
+}
 void lgEndpoints(int i, out vec3 a, out vec3 b, out float weight, out float tint) {
   float fi = float(i), level = clamp(u_level, 0.0, 1.0);
   float aperture = u_params[4] * (1.0 + 0.12 * u_rhythm.y);
@@ -39,6 +58,14 @@ void lgEndpoints(int i, out vec3 a, out vec3 b, out float weight, out float tint
   if (i == 0) {
     a = vec3(0, 3.4, 65);
     b = vec3(15.0 * sin(gPhase), 0.0, 3.0 + 5.0 * (0.5 + 0.5 * sin(gPhase * 2.0)));
+  } else if (i >= 13) {
+    float spoke = fi - 13.0;
+    float angle = spoke * TAU / 8.0 + gPhase;
+    float slope = 0.19 + 0.025 * sin(gPhase * 2.0);
+    a = vec3(0, 5.7, 55);
+    b = a + vec3(cos(angle) * slope * 53.0, sin(angle) * slope * 53.0, -53.0);
+    weight = gFold * smoothstep(mod(spoke, 4.0) - 0.65, mod(spoke, 4.0) + 0.65, 0.7 + 2.6 * level + 0.6 * u_kick);
+    tint = 0.16 + 0.15 * mod(spoke, 2.0);
   } else {
     float bank = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
     float index = floor((fi - 1.0) / 2.0), k = (index - 3.5) / 3.5;
@@ -57,6 +84,7 @@ void lgEndpoints(int i, out vec3 a, out vec3 b, out float weight, out float tint
     b = mix(strike, crossEnd, gFold);
     tint = 0.35 + 0.4 * mod(fi, 2.0);
   }
+  b = lgSurfaceEnd(a, b);
 }
 // Exact perspective bounds of the eight box vertices. Perspective extrema
 // of a convex positive-z box occur at vertices. Include its antenna tip.

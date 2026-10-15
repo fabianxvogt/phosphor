@@ -381,6 +381,49 @@ test("perspective tube bounds conservatively include every six-sigma candidate",
   for (let i = 0; i <= 65535; i++) assert.equal(Math.fround(i), i);
 });
 
+test("surface-end clipping stops rays at the same hinged material, in either direction", () => {
+  function clip(a, b, dev) {
+    const v = sub(b, a), fold = smooth(1, 2, dev), theta = fold * Math.PI / 2;
+    let nearest = 1;
+    const strip = (base, tangent, span) => {
+      const n = [-tangent[1], tangent[0], 0], den = dot(v, n);
+      if (Math.abs(den) < 1e-6) return;
+      const t = dot(sub(base, a), n) / den, u = dot(sub(add(a, mul(v, t)), base), tangent);
+      if (t > 0.001 && t < nearest && u >= 0 && u <= span) nearest = t;
+    };
+    strip([-9,0,0], [1,0,0], 18);
+    for (const side of [-1,1]) {
+      strip([side * 9,0,0], [side * Math.cos(theta), Math.sin(theta),0], 11);
+      const angle = fold * (Math.PI - 0.42);
+      strip([side * (9 + 11 * Math.cos(theta)), 11 * Math.sin(theta),0], [side * Math.cos(angle), Math.sin(angle),0], 9.85665208);
+    }
+    return add(a, mul(v, nearest));
+  }
+  for (let d = 0; d <= 2; d += 0.01) {
+    assert.ok(Math.hypot(...sub(clip([0,5,55], [0,-10,2], d), [0,0,55 - 53 / 3])) < 1e-13);
+    for (const side of [-1,1]) {
+      const result = clip([0,5,55], [side * 50,5,2], d);
+      assert.ok(Math.abs(result[0]) <= 50 && result[1] === 5);
+      assert.deepEqual(result, clip([0,5,55], [side * 50,5,2], d), "no state or direction history");
+    }
+  }
+  assert.match(laser.fragment, /b = lgSurfaceEnd\(a, b\)/);
+  assert.match(laser.fragment, /i < 21/);
+  assert.match(laser.fragment, /0\.65 \* u_kick \* gFold/);
+  assert.match(laser.fragment, /core \* 0\.65/, "HDR core power is not a master-gain envelope");
+});
+
+test("camera stays inside the filled cone for every declared eye height and phase", () => {
+  for (let camera = 0; camera < 2 * Math.PI; camera += 0.02)
+    for (const eye of [1.5, 2.8, 5]) {
+      const z = -9 + 1.8 * Math.cos(camera), y = eye + 0.25 * Math.sin(camera * 2);
+      const transverse2 = 1.1 ** 2 + (y - 5.7) ** 2;
+      assert.ok(transverse2 < (0.165 * (z - 55)) ** 2, "valid inside-cone interval branch");
+    }
+  assert.match(laser.fragment, /float coneAA = max\(fwidth\(discr\)/);
+  assert.match(laser.fragment, /exp\(-nearT \* 0\.018\) - exp\(-farT \* 0\.018\)/);
+});
+
 test("rate-dependent phases stay continuous at 3600 s and 12 h without touching development", () => {
   for (const time of [3600, 43200]) {
     const state = {},

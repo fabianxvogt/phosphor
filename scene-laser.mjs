@@ -224,7 +224,7 @@ void main() {
   vec2 view = screen / focal;
   uvec4 candidates = uvec4(65535u);
 #ifdef PRECOMPUTED
-  // One tile fetch replaces 49 per-pixel geometry/bounds lookups.
+  // One tile fetch replaces 53 per-pixel geometry/bounds lookups.
   if (all(lessThan(abs(view), vec2(2.0))))
     candidates = uvec4(texelFetch(u_precomputed, ivec2(floor((view + 2.0) * 8.0)) + ivec2(0, 9), 0));
 #endif
@@ -263,7 +263,7 @@ void main() {
   }
   // Towers retain (side, bay, height seed) throughout. They rotate with the
   // side strip and retract into ribbed relief as the cathedral closes.
-  float towerDepth = depth; vec3 towerP = vec3(0), towerSize = vec3(1); float towerLight = 0.0;
+  float towerDepth = depth; vec3 towerP = vec3(0), towerSize = vec3(1); float towerLight = 0.0, towerId = 0.0;
   if (gRise > 0.001) for (int i = 0; i < 32; ++i) {
     uint mask = i < 16 ? candidates.x : candidates.y;
     if ((mask & (1u << uint(i % 16))) == 0u) continue;
@@ -285,7 +285,7 @@ void main() {
     vec2 hit = lgBox(o, d, size);
     if (hit.x > 0.0 && hit.x < hit.y && hit.x < towerDepth) {
       towerDepth = hit.x; towerP = o + d * hit.x; towerSize = size;
-      towerLight = 0.4 + 0.6 * abs(d.x);
+      towerLight = 0.4 + 0.6 * abs(d.x); towerId = float(i);
     }
   }
   vec3 edgeDistance = abs(abs(towerP) - towerSize);
@@ -293,19 +293,21 @@ void main() {
   vec3 edgeAA = vec3(max(0.008, gPixel * towerDepth * 0.8));
   vec3 edge = 1.0 - smoothstep(edgeAA * 0.55, edgeAA * 1.65, edgeDistance);
   float corners = max(max(min(edge.x, edge.y), min(edge.y, edge.z)), min(edge.z, edge.x));
-  float levels = lgLine((towerP.y + towerSize.y) / (gSpace * 0.6), max(edgeAA.y / (gSpace * 0.6), 0.0001));
+  float rowCoordinate = (towerP.y + towerSize.y) / (gSpace * 0.38);
+  float levels = lgLine(rowCoordinate, max(edgeAA.y / (gSpace * 0.38), 0.0001));
+  float occupied = 0.3 + 0.7 * lgHash(floor(rowCoordinate + 0.5) + towerId * 31.0);
   float uprights = max(lgLine(towerP.x / 0.9, edgeAA.x / 0.9) * edge.z,
                        lgLine(towerP.z, edgeAA.z) * edge.x);
   if (towerDepth < depth) {
     depth = towerDepth;
     col = u_secondary * 0.004 + mix(u_secondary, u_primary, 0.68) *
-      (corners * 1.15 + levels * 0.64 + uprights * 0.18) * exp(-depth * 0.025) * towerLight;
+      (corners * 1.15 + levels * occupied * 0.85 + uprights * 0.18) * exp(-depth * 0.025) * towerLight;
     col += u_secondary * 0.012 * towerLight * exp(-depth * 0.018);
   }
 
   float haze = u_params[3], limit = min(depth, 120.0);
   vec3 surface = gEye + gRay * depth;
-  for (int i = 0; i < 17; ++i) {
+  for (int i = 0; i < 21; ++i) {
     uint mask = i < 16 ? candidates.z : candidates.w;
     if ((mask & (1u << uint(i % 16))) == 0u) continue;
     vec4 endpoints = lgData(i, 5);
@@ -347,8 +349,9 @@ void main() {
   vec3 sheetP = gEye + gRay * sheetT - sheetOrigin;
   float sheetSpan = smoothstep(1.0, 10.0, -sheetP.z) * (1.0 - smoothstep(40.0, 64.0, -sheetP.z));
   float sheetWidth = 1.0 - smoothstep(0.25, 0.8, abs(sheetP.x) / max(-sheetP.z, 0.1));
+  float sheetRipples = 0.8 + 0.2 * sin(sheetP.z * 0.45 + 1.8 * sin(sheetP.x * 0.38 + gPhase));
   if (sheetT > 0.0 && sheetT < depth)
-    col += mix(u_secondary, u_primary, 0.28) * sheetSpan * sheetWidth * haze * mix(0.035, 0.14, gFold) * exp(-sheetT * 0.012) / max(abs(sheetDenom), 0.16);
+    col += mix(u_secondary, u_primary, 0.32) * sheetSpan * sheetWidth * sheetRipples * haze * mix(0.045, 0.24, gFold) * exp(-sheetT * 0.012) / max(abs(sheetDenom), 0.16);
   // A widening hollow cone reads as the classic laser tunnel in haze.
   vec3 coneV = gEye - vec3(0, 5.7, 55);
   float coneSlope = 0.19 + 0.025 * sin(gPhase * 2.0);
@@ -356,16 +359,44 @@ void main() {
   float coneB = dot(coneV.xy, gRay.xy) - sq(coneSlope) * coneV.z * gRay.z;
   float coneC = dot(coneV.xy, coneV.xy) - sq(coneSlope * coneV.z);
   float discr = coneB * coneB - coneA * coneC;
+  float coneAA = max(fwidth(discr) * 1.5, 0.00001);
+  float coneEdge = smoothstep(0.0, coneAA, discr);
   if (discr > 0.0 && abs(coneA) > 1e-5 && gFold > 0.0) {
     float root = sqrt(discr);
+    float t0 = (-coneB - root) / coneA, t1 = (-coneB + root) / coneA;
+    // Beer-integrated homogeneous fill inside the finite cone. The ray
+    // segment is additionally clipped to the mouth/apex z planes.
+    float nearT = max(0.0, min(t0, t1)), farT = min(depth, max(t0, t1));
+    if (coneC < 0.0) nearT = 0.0;
+    nearT = max(nearT, (2.0 - gEye.z) / max(gRay.z, 0.01));
+    farT = min(farT, (53.0 - gEye.z) / max(gRay.z, 0.01));
+    float fill = max(0.0, exp(-nearT * 0.018) - exp(-farT * 0.018));
+    col += mix(u_secondary, u_primary, 0.25) * fill * gFold * haze * 0.11;
     for (int side = 0; side < 2; ++side) {
       float t = (-coneB + (side == 0 ? -root : root)) / coneA;
       vec3 p = coneV + gRay * t;
       float env = smoothstep(0.0, 9.0, -p.z) * (1.0 - smoothstep(32.0, 55.0, -p.z));
       vec3 normal = normalize(vec3(p.xy, -sq(coneSlope) * p.z));
+      // Broad axial density waves reveal the cone's circular cross-section,
+      // like a scan tunnel in real haze, rather than a flat starburst.
+      float rings = exp(-sq((p.z + 36.0 + 4.0 * sin(gPhase)) / 1.15));
+      rings += 0.55 * exp(-sq((p.z + 20.0 + 3.0 * sin(gPhase * 2.0)) / 0.95));
       if (t > 0.0 && t < depth)
-        col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * 0.045 * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
+        col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * coneEdge * (0.065 + 0.3 * rings + 0.02 * sin(p.z * 0.45 + p.x * 0.4 + gPhase)) * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
     }
+  }
+  // Two finite scan fronts reveal the cone mouth at projector scale.
+  // These are Gaussian axial density bands, evaluated at their centre plane;
+  // the surrounding cone above supplies their continuous volumetric fill.
+  if (gFold > 0.0) for (int ring = 0; ring < 2; ++ring) {
+    float z = mix(12.0, 29.0, float(ring)) + 2.0 * sin(gPhase + float(ring) * PI);
+    float t = (z - gEye.z) / max(gRay.z, 0.01);
+    vec2 p = (gEye + gRay * t).xy - vec2(0, 5.7);
+    float off = length(p) - coneSlope * (55.0 - z);
+    float width = max(0.045, gPixel * t * 0.8);
+    float front = exp(-sq(off / width)) + 0.12 * exp(-sq(off / (width * 5.0)));
+    if (t > 0.0 && t < depth)
+      col += mix(u_primary, u_secondary, 0.38) * front * gFold * haze * exp(-t * 0.014) * mix(1.5, 0.9, float(ring));
   }
   // A sparse travelling grid rib, not a whole-frame beat flash.
   float rib = exp(-sq((gridUV.y - (52.0 - 58.0 * u_rhythm.z)) / 0.65));
@@ -400,7 +431,8 @@ void main() {
       if (i < 16) bits.x |= 1u << uint(i); else bits.y |= 1u << uint(i - 16);
     }
   }
-  for (int i = 0; i < 17; ++i) {
+  for (int i = 0; i < 21; ++i) {
+    if (lgDatum(i, 3).w < 0.001) continue;
     vec4 p = lgDatum(i, 5);
     float radius = lgDatum(i, 6).x + 0.03;
     vec2 b0 = min(p.xy, p.zw) - radius, b1 = max(p.xy, p.zw) + radius;
