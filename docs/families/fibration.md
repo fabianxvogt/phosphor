@@ -18,9 +18,9 @@ The fibre over the base point (θ, φ) is q(s) = (cos η·e^{i(s+φ)}, sin η·e
 
 | development | state  | content |
 | ----------- | ------ | ------- |
-| 0           | Torus  | One Clifford torus (θ = π/2) of 20 linked Villarceau circles, far camera, telephoto. |
-| 1           | Nest   | Five nested tori (θ = 0.90…2.00); inner shells warm and solid, outer shells glassier. |
-| 2           | Bundle | Eight tori plus the core circle (135 fibres), seen from higher up: the shells open around the axis like an eye with a glowing heart, framed inside the image. |
+| 0           | Torus  | One Clifford torus (θ = π/2) of 20 linked Villarceau circles, filling roughly 75–85% of the landscape frame height. |
+| 1           | Nest   | Five nested tori (θ = 0.90…2.00); inner shells warm and solid, outer shells glassier; wider lens contains the growing structure. |
+| 2           | Bundle | Eight tori plus the core circle (135 fibres). The camera enters the outer projection envelope from above: near fibres sweep out of frame around the linked heart. |
 
 Between states, each new torus emerges at its parent's latitude and moves out to its own, while its fibres grow as tapered arcs that close into rings in a seeded sweep. All values in [0, 2] are real geometry; reversal is the same function run backwards. Identity (φ, layer, growth order, arc start) is fixed per seed in the mesh.
 
@@ -32,7 +32,7 @@ Linked Torus, Nested Shells, Full Bundle (the world states) · Cyclide Swing (si
 
 - Energy (orthogonal to development): fibre flow ×0.5→×1.6, tumble ×0.7→×1.35, camera orbit ×0.6→×1.6, bead count +0.5 (the next bead fades in). No brightness term.
 - Speeds are **integrated** in a 4×1 RGBA8 simulation (24-bit phases: yaw, flow, tumble, drift), so energy or fader changes alter speed, never position; phases wrap, so late `u_time` cannot lose precision.
-- Camera: slow orbit around the axis, gentle pitch/distance drift, elevation per look; kick punches focal length ≤ 2.2%. The tumble is bounded by a pole margin (see Tests), so geometry stays within |p| ≤ cot(0.21) ≈ 4.70 while the camera stays ≥ 5.88 away: it never enters geometry.
+- Camera: slow orbit, gentle pitch/distance drift, elevation per look; kick punches focal length ≤ 2.2%. Base distance 6.0 → 6.3 → 4.2, focal length 2.7 → 1.45 → 1.35. The peak eye enters the projection ball but stays above the actual tubes. The CPU reference checks either radial exclusion or the exact swept vertical bound `sin(eta)/(cos(eta)−|sin(a)|)`, including maximum thickness, all elevations and the closest distance. A smooth minimum-pitch guard lifts low-elevation looks before the dolly. Drift harmonics complete whole turns across the integrated phase wrap.
 - Rhythm: **Fibre chase** (4 beats, every third fibre of every torus plus a comet), **Torus shell** (8 beats, one latitude torus rim-lit), **Meridian link** (16 beats, fibres over one meridian glow through all tori).
 - Audio: tumble ← low (0.05), beads ← onset (0.08). Shared punch/pulse 0.1/0.15.
 
@@ -42,7 +42,7 @@ Perspective with orbit parallax; distance fog to the palette ground; key light +
 
 ## Cost
 
-135 fibres × 112 segments × 8 sides = 725 760 vertices (2 floats each, 5.8 MB), built once per seed; no textures beyond a 4×1 phase state. Indicative M3 Pro whole-frame p50 (shared GPU): 1080p 2.7–3.5 ms, 4K see the report in `artifacts/performance/`.
+135 fibres × 96 segments × 8 sides = 622 080 vertices (2 floats each, 5.0 MB), built once per seed; no textures beyond a 4×1 phase state. Native M3 Pro whole-frame paired p50 against the previous wave-5 final: 1080p 2.775/3.025/3.125 → 2.700/2.925/3.075 ms; 4K 5.825/6.375/6.425 → 5.825/6.400/6.500 ms. These are medians of four-frame block means, not claims of 0.025 ms measurement accuracy. See the fleet report for raw standard probes and contention notes.
 
 ## Endless
 
@@ -61,6 +61,12 @@ Intentional visual change after owner review: the Bundle had been the busiest im
 Three filmed rounds: (1) reduce repeated circle vertices 144 → 112 while retaining eight tube sides; thicken the peak and reduce excessive rear fog; (2) narrower pearl glints, stronger secondary rim and inner-shell light, with less hollow outer-shell shading; (3) crane a further 0.18 radians into the peak, aim nearer the centre and increase the peak lens from 1.72 to 1.85. The linked circles remain the entire subject; no decorative overlay. All preset names, seeds, parameters and world definitions are unchanged.
 
 M3 Pro native headless synchronous whole-frame p50, states 0/1/2: 1080p **2.2/2.6/2.9 → 1.7/2.2/2.1 ms**; 4K **8.2/5.6/6.1 → 4.1/4.4/5.2 ms** (shared-machine measurements, not venue cadence). Baseline and final films, energy ladder, Glass Nest film, ember and glacier/portrait sweeps: fleet worker `rework-geometry/output/evidence/fibration/`. The rework test locks saved-look identity and bounds polygon sagitta below .002 scene units. Judged **9/10** for the continuous geometric read; the rear fibres remain intentionally subdued.
+
+## Final round (2026-10-15): scale and an immersive climax
+
+L0's independent film correctly rated the previous final around 7/10: distant fibres and similar framing throughout. Two filmed visual revisions enlarged the opening, added a low palette studio glow and subtle depth fog, and brought the peak camera into the outer envelope. A further filmed safety/cost correction lifts low-elevation looks early enough to avoid the tubes, bounds peak overscan, and cuts segments 112 → 96 without changing the exact Hopf curves, tube sides or seeded identities. Filtered bead windows and a cohort-only chase avoid unnecessary foreground shading; the shared post chain handles display transfer. Inherited non-integer camera-drift harmonics (1.7/2.3) are now whole turns (2/2), with a wrap-periodicity test.
+
+All IDs, look names, seeds, parameters and world definitions are unchanged. Final evidence is under fleet worker `rework-geometry/output/final-round/fibration/`: before/final films, revision strips, ember and glacier portrait films, three-palette native 1080p/4K stills. Paused development reverses exactly without rebuilding the mesh. **Honest revised rating: 8/10**, superseding the earlier self-rating of 9. The peak has real scale and parallax, but extreme foreground arcs still reveal tessellation.
 
 ## Limits
 

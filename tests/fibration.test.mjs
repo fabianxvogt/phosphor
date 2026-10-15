@@ -21,6 +21,8 @@ import {
   growth,
   safeTumble,
   layerGLSL,
+  cameraPose,
+  cameraGLSL,
 } from "../fibration-geometry.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
 import { defaultWorlds, continuousDevelopment } from "../worlds.mjs";
@@ -130,7 +132,7 @@ test("any two visible fibres are linked exactly once (Gauss integral)", () => {
   }
 });
 
-test("projected geometry stays bounded and outside the camera at every development and tumble", () => {
+test("projected geometry stays bounded at every development and tumble", () => {
   const bound = 1 / Math.tan(MARGIN / 2); // cot(margin/2) ≈ 4.70
   let max = 0;
   for (let dev = 0; dev <= 2.0001; dev += 0.05)
@@ -139,11 +141,38 @@ test("projected geometry stays bounded and outside the camera at every developme
         for (const p of curve(f, dev, sign * safeTumble(dev), 96))
           max = Math.max(max, Math.hypot(...p));
   assert.ok(max <= bound + 1e-9, `${max} > ${bound}`);
-  // Closest camera: distance × base 7.2 × (1 − 4% drift), minus the thickest tube.
-  const minCamera =
-    scene.schema.find((f) => f.key === "distance").min * 7.2 * 0.96;
-  const thickest = 0.036 * 1.6 * Math.pow(0.5 + 0.5 * bound * bound, 0.2);
-  assert.ok(minCamera - thickest > bound, `${minCamera} vs ${bound}`);
+});
+
+test("immersive camera enters the projection ball but clears every swept tube envelope", () => {
+  assert.ok(scene.geometry.vertex.includes(cameraGLSL()));
+  const bound = 1 / Math.tan(MARGIN / 2);
+  const tube = .036 * 1.6 * 1.14 * Math.pow(.5 + .5 * bound * bound, .2);
+  assert.ok(tube < .11);
+  // Exact vertical bound, maximizing over longitude and fibre phase:
+  // max |p.y| = sin(eta)/(cos(eta)-|sin(a)|). Either this slab or
+  // the projection ball excludes the eye (all elevations and distances).
+  for (let i = 0; i <= 200; i++) {
+    const dev = i / 100, a = safeTumble(dev);
+    const ymax = Math.max(...LAYERS.filter(l => dev > l.a).map(l => {
+      const eta = layerTheta(LAYERS.indexOf(l), dev) / 2;
+      return Math.sin(eta) / (Math.cos(eta) - Math.sin(a));
+    }));
+    for (let j = 0; j < 80; j++) for (const elevation of [0, .35, 1]) {
+      const pose = cameraPose(dev, .17, j / 80, { distance: .85, elevation });
+      assert.ok(Math.max(pose.distance - bound, Math.abs(pose.eye[1]) - ymax) > tube,
+        `camera intersects envelope at ${dev}/${j}/${elevation}`);
+      assert.ok(pose.focal > 0 && pose.eye.every(Number.isFinite));
+    }
+  }
+  const peak = cameraPose(2, .17, .2);
+  assert.ok(peak.distance < bound, "the climax must no longer be a distant overview");
+  const before = cameraPose(1.6 - 1e-6, .17, .2), after = cameraPose(1.6 + 1e-6, .17, .2);
+  assert.ok(Math.hypot(...before.eye.map((v, i) => v - after.eye[i])) < 1e-4);
+  for (const dev of [0, .8, 1.4, 2]) {
+    const a = cameraPose(dev, .17, .37), b = cameraPose(dev, 1.17, 1.37);
+    assert.ok(Math.hypot(...a.eye.map((v, i) => v - b.eye[i])) < 1e-12,
+      "all camera drift harmonics must complete whole turns at the phase wrap");
+  }
 });
 
 test("development blooms continuously and each integer state is complete", () => {
@@ -242,11 +271,11 @@ test("rework keeps saved look identities and a bounded circle tessellation", () 
     ["Half Bloom", 9605], ["Slow Core", 9606],
   ]);
   assert.equal(SIDES, 8);
-  assert.ok(FIBRES * PER_FIBRE < 750000, "reduce repeated vertex work");
-  // A projected circle is contained by the projection ball; its polygon's
-  // sagitta stays below .002 scene units, without changing the exact curve.
+  assert.ok(FIBRES * PER_FIBRE < 650000, "fund the immersive camera without raising cost");
+  // Reference uniform-circle sagitta (the S³ parameter is not arclength);
+  // close-range stereographic tessellation is also reviewed at native 4K.
   const sagitta = (1 / Math.tan(MARGIN / 2)) * (1 - Math.cos(Math.PI / SEGMENTS));
-  assert.ok(sagitta < .002);
+  assert.ok(sagitta < .0026);
 });
 
 test("stereographic projection sends the pole fibre through infinity only", () => {
