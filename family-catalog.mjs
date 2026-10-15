@@ -12,6 +12,12 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  voxel: {
+    algorithm: "Additive 3D cellular automaton over GF(2) with Morton-ordered assembly",
+    description: "Persistent digital matter falls through a dark grid hall, assembles into a scanned monolith and unfolds into a fractal parity architecture above a mirror floor.",
+    styles: ["spatial", "geometric", "fractal"],
+    variants: ["Rain", "Assembly", "Unfold"],
+  },
   ferro: {
     algorithm: "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
     description: "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",

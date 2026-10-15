@@ -241,6 +241,16 @@ const AUTHORED = [
       { name: "Sculpture", look: "kinetic:Floating Sculpture" },
     ],
   },
+  {
+    id: "data-monolith",
+    name: "Data Monolith",
+    description: "Falling digital matter assembles into a scanned monolith and unfolds into a deterministic cellular architecture. Every voxel keeps its address.",
+    states: [
+      { name: "Rain", look: "voxel:Rain" },
+      { name: "Assembly", look: "voxel:Assembly" },
+      { name: "Unfold", look: "voxel:Unfold" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
