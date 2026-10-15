@@ -2,6 +2,12 @@
 
 Append-only, newest first. Each entry records what was executed and observed, labelled `FORMAL`, `EMPIRICAL`, `REPORTED` or `SPECULATIVE`. Entries are bounded observations, not certifications. Reference and limits: [docs](README.md).
 
+## Rate-continuous clocks 2026-10-15
+
+**INCREMENTAL / EMPIRICAL.** Owner direction "fix alles" after the hourly-seam fix. Scene clocks now integrate rate·dt in double precision from load, and the engine switches to the clock variant as soon as any clock rate changes (or at 3600 s); while rates stay constant the authored program runs untouched. Phases are integrated in Beams, Pulse, Feedback, Interference (gated; identical at constant rates), Julia, Swarm, Hyperbolic, Colonization, Magnetic, Metamorphosis and Melt, plus the twelve families clocked earlier. Newton and Sandpile palette drifts ping-pong instead of wrapping (a look change after the first palette end). Beams pillar speeds round to 0.01 steps so every use is 200π-periodic. Details: [TIME.md](families/TIME.md).
+
+**Verification:** identity at constant rates against `a140f6f` on Metal: 1791 frames, 1671 identical; the 120 differences are the intended Beams/Newton/Sandpile changes. Rate-nudge test at 10 s vs 2 h: six families flagged before (Julia 6.0→41.8 mean levels, Interference 2.3→19.5), none after. Seam check passes for 51/51 families at 3600 s, 4096 s and 43200 s. 659 unit tests; time-wrap, abyss-layer, particle-absorb and precompute GPU tests; native-GPU Stage output and full browser suite (all 420 looks render, no GPU errors) pass.
+
 ## Seamless long-show time 2026-10-14
 
 **INCREMENTAL / EMPIRICAL.** Owner report: families jumped once per hour because they wrapped `mod(u_time, 3600)`. Twenty families now carry a `PHOSPHOR_LATE` shader variant whose first-hour branch is the authored source verbatim; the engine compiles it ten minutes before a slot's scene time reaches 3600 s (parallel compile where available) and switches at 3600 s, falling back to the authored program if it fails. Optional scene `clocks` integrate rate-varying phases in double precision after the first hour (`scene-time.mjs`). Per-scene choices and error bounds: [TIME.md](families/TIME.md). Remaining non-wrap limits (Beams' irrational sway, pre-existing Newton/Sandpile hue wraps, raw `u_time · rate` jumps on rate changes in some gated families) are listed there.
