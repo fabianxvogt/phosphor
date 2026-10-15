@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import nebula from "../scene-nebula.mjs";
 import {
+  ABSORBERS,
   CLOCK_PERIOD,
   N,
+  SHELL,
+  SIZE,
   TWO32,
   clockStep,
   cycle,
@@ -19,6 +22,8 @@ import {
   potential,
   progress,
   psiRate,
+  radianceCloudPoint,
+  radianceShellRadius,
   sedovTaylor,
   shockFront,
   worldOf,
@@ -324,6 +329,53 @@ test("dust extinction integrates only the finite emitter-to-eye column", () => {
   }
   // Reversal of the ray preserves its integrated column.
   assert.equal(dustColumn([0, -.1, 0], [1, .3, 0]), dustColumn([1, .3, 0], [0, -.1, 0]));
+});
+
+test("radiance carriers are continuous geometry with conservative finite bounds", () => {
+  const eye = [2.1, 3.2, -1.7];
+  const direction = [-.34, -.78, .23];
+  const ray = direction.map(v => v / Math.hypot(...direction));
+  let previous = null;
+  for (let i = 0; i <= 400; i++) {
+    const dev = i / 200;
+    const { point, t, thickness } = radianceCloudPoint(eye, ray, dev);
+    assert.ok(thickness >= .035 - 1e-10 && thickness <= .65);
+    assert.ok(t > 0 && point.every(Number.isFinite));
+    const metricLength = q => Math.hypot(q[0], q[1] / thickness, q[2]);
+    for (const dt of [-.1,.1]) {
+      const neighbour = eye.map((v,k) => v + ray[k] * (t+dt));
+      assert.ok(metricLength(point) <= metricLength(neighbour) + 1e-12);
+    }
+    const R = radianceShellRadius(dev,.731);
+    if (previous) assert.ok(Math.abs(R-previous) < .01);
+    previous = R;
+    const n = dev <= 1 ? 0 : (dev-1)**2 * (3-2*(dev-1));
+    for (let a = -Math.PI; a < Math.PI; a += .1) {
+      const r = radianceShellRadius(dev,a);
+      assert.ok(r > 0);
+      assert.ok(r * 1.06 < SHELL * (.25 + .75*n) * 1.16, "no clipped shell tails");
+      assert.ok(Math.abs(r-radianceShellRadius(dev,a+2*Math.PI)) < 1e-12, "atan seam");
+    }
+  }
+  assert.match(nebula.fragment, /\.055\*sin\(5\.\*angle\)\+\.028\*cos\(11\.\*angle\)/);
+});
+
+test("fixed particle budget and optional scalar data cache, never a colour-image cache", () => {
+  assert.deepEqual(SIZE,[512,256]);
+  assert.deepEqual(nebula.simulation.size,SIZE);
+  assert.deepEqual(nebula.precompute.size,[128,129]);
+  assert.match(nebula.precompute.fragment,/nbCorners\(cell\)/);
+  assert.match(nebula.fragment,/texelFetch\(u_precomputed, i & 127, 0\)/);
+  assert.match(nebula.fragment,/#else\s+return nbCorners\(i\)/);
+  assert.match(nebula.fragment,/exp\(-clusterR2\/knotWidth\)/, "HII cores are Gaussian knots, not thresholded noise plaques");
+  assert.match(nebula.fragment,/cellFade.x\*cellFade.y/, "cluster tails vanish at cell boundaries");
+  assert.match(nebula.particles.vertex,/s.kind != 2 && \(id & 3u\) != 0u/);
+  assert.match(nebula.simulation.fragment,/id >= 118784u \|\| \(id & 3u\) != 0u/);
+  const skies = sample(1000,101).filter(s => s.kind === 2);
+  const depths = skies.map(s => Math.hypot(...position(world,s,{clock:0,dev:0})));
+  assert.ok(Math.min(...depths) >= 7 && Math.max(...depths) < 16);
+  assert.ok(Math.max(...depths)-Math.min(...depths) > 5, "real star-field depth");
+  assert.equal(ABSORBERS,118784);
 });
 
 test("shader constants follow the CPU model", () => {

@@ -14,12 +14,12 @@ import {
 } from "./nebula-model.mjs";
 export { SIZE };
 
-// Density Waves (#87): one population of 65 535 stars is a Zel'dovich
+// Density Waves (#87): one fixed 512×256 population traces a Zel'dovich
 // cosmic-web cloud (Dust), a density-wave spiral galaxy (Spiral) and a
 // filamentary supernova remnant with Sedov–Taylor shock fronts (Nova).
 // nebula-model.mjs is the CPU reference; keep both in step.
 //
-// State texture (RGBA8, 256²): texel 0 is a 32-bit clock (fraction of
+// State texture (RGBA8, 512×256): texel 0 is a 32-bit clock (fraction of
 // CLOCK_PERIOD, integrated at the motion speed); every other texel holds the
 // star's extra azimuth ψ as a 32-bit turn fraction. Global cycles use integer
 // counts per period, so uint wrap keeps them exact for a whole night.
@@ -91,7 +91,7 @@ NbCam nbCamera(uint clock, float dev) {
   uint key = nbKey();
   float yaw = NB_TAU * (nbCycle(clock, ${N.yaw}u) + nbRnd(key, 0u, 907u));
   float el = mix(.16, 1.1, clamp(u_params[6], 0., 1.)) + .1 * sin(NB_TAU * nbCycle(clock, ${N.lift}u));
-  c.dist = u_params[5] * (mix(4.7, 2.45, nbSmooth(0., 1., dev)) + 1.1 * nbSmooth(1., 2., dev))
+  c.dist = u_params[5] * (mix(4.5, 3.5, nbSmooth(0., 1., dev)) + .2 * nbSmooth(1., 2., dev))
     * (1. + .04 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u)));
   c.eye = c.dist * vec3(cos(el) * sin(yaw), sin(el), cos(el) * cos(yaw));
   c.fwd = normalize(vec3(0., -.06, 0.) - c.eye);
@@ -142,6 +142,9 @@ void main() {
     v += uint(rate * (4294967296. / NB_P) + .5);
   } else {
     uint id = uint(cell.y * textureSize(u_state, 0).x + cell.x);
+    // Only the fixed tracer cohort consumes ψ. Sky stars never consume it;
+    // the dormant identities retain their original state without extra work.
+    if (id >= ${ABSORBERS}u || (id & 3u) != 0u) { outColor = nbBytes(v); return; }
     NbStar s = nbStar(nbKey(), id);
     // ψ is a signed turn fraction; the relaxation takes the short way home.
     float psi = float(int(v)) * (NB_TAU / 4294967296.);
@@ -170,7 +173,7 @@ float nbTransmission(vec3 start, vec3 eye, uint key, uint clock, float arms) {
   float t = abs(ray.y) > .0001 ? clamp(-start.y / ray.y, 0., 1.) : 0.;
   vec3 q = start + ray * t;
   float r = length(q.xz);
-  float beta = r * (2.2 + .9 * nbRnd(key, 0u, 905u)) * arms + NB_TAU * nbCycle(clock, ${N.pattern}u);
+  float beta = r * 1.35 * (2.2 + .9 * nbRnd(key, 0u, 905u)) * arms + NB_TAU * nbCycle(clock, ${N.pattern}u);
   float w = atan(q.z, q.x) - beta + .7853981634 + .42;
   float off = mod(w + 1.5707963, 3.1415926536) - 1.5707963;
   float lane = exp(-off * off / .065) * nbSmooth(.12, .4, r) * (1. - nbSmooth(1.35, 1.7, r));
@@ -183,9 +186,12 @@ void main() {
   v_color = vec3(0.);
   v_soft = 0.;
   uint id = uint(gl_VertexID);
+  // The continuous radiance layer carries unresolved gas. Keep a stable,
+  // seed-independent quarter of the existing tracers for resolved depth.
   if (id == 0u || id >= ${ABSORBERS}u) return;
   uint key = nbKey(), clock = nbClock();
   NbStar s = nbStar(key, id);
+  if (s.kind != 2 && (id & 3u) != 0u) return;
   float dev = clamp(u_params[0], 0., 2.);
   float growth = u_params[2], arms = u_params[3], light = u_params[4], shock = u_params[7];
   float level = clamp(u_level, 0., 1.);
@@ -204,10 +210,10 @@ void main() {
   float bright = 0., size = 1.6, soft = 0., shellStage = 0.;
   if (s.kind == 2) {
     // Distant stars: parallax and scale against the near form.
-    pos = s.shellDir * 9.;
-    bright = .05 + .5 * pow(s.tone, 14.);
-    hue = mix(u_secondary, vec3(1.), .55);
-    size = 1.25 + 1.1 * pow(s.tone, 20.);
+    pos = s.shellDir * mix(7., 16., s.layer);
+    bright = 1.5 + 4. * pow(s.tone, 14.);
+    hue = mix(mix(u_secondary, vec3(1.), .7), u_primary, .15 * s.tone);
+    size = 2.6 + 5. * pow(s.tone, 26.);
   } else {
     float rhoG, epsG = 0., yG;
     if (s.kind == 1) {
@@ -216,7 +222,7 @@ void main() {
     } else {
       // Density wave: an ellipse whose orientation turns with radius.
       float ell = 1. - .32 * nbSmooth(.08, .55, s.a);
-      float twist = (2.2 + .9 * nbRnd(key, 0u, 905u)) * arms;
+      float twist = 1.35 * (2.2 + .9 * nbRnd(key, 0u, 905u)) * arms;
       // Each orbit's orientation scatters a little: broad, clumpy arms.
       float beta = s.a * twist + NB_TAU * nbCycle(clock, ${N.pattern}u) + 1.1 * (s.tone - .5) * s.layer;
       float u = lambda - beta, cu = cos(u), su = sin(u), b = s.a * ell;
@@ -244,14 +250,14 @@ void main() {
     }
     // Dust: gas glows faintly; the web's caustics brighten by crowding.
     vec3 gas = mix(u_secondary, u_primary, clamp(.1 + .3 * s.tone + .18 * compress, 0., 1.));
-    float dustB = .016 * pow(compress, 1.35) + 1.1 * pow(s.tone, 60.);
+    float dustB = .0015 * pow(compress, 1.1) + 1.6 * pow(s.tone, 60.);
     float dustSize = 1.9 + 2.6 * s.layer;
     // Spiral: crest stars young and light, inter-arm stars old, lanes dark.
     vec3 young = mix(u_primary, vec3(1.), .18), old = mix(u_secondary, u_primary, .45);
     vec3 starHue = s.kind == 1 ? mix(mix(u_primary, u_accent, .3), vec3(1.), .3) : mix(old, young, crest);
     // The bulge's centre is dense already: dim its stars there (no white blob).
-    float starB = s.kind == 1 ? .24 * (.3 + .7 * nbSmooth(.03, .26, s.a)) : (.3 + 1.1 * crest) * (.25 + .75 * nbSmooth(.04, .4, s.a)) * (.45 + 2.2 * pow(s.tone, 10.));
-    if (s.kind == 0 && s.tone > .975 && crest > .55) { starHue = u_accent; starB = 1.1; }
+    float starB = s.kind == 1 ? .08 : (.15 + .7 * crest) * (.04 + 2.2 * pow(s.tone, 18.));
+    if (s.kind == 0 && s.tone > .994 && crest > .55) { starHue = u_accent; starB = 1.1; }
     hue = mix(gas, starHue, p);
     bright = mix(dustB, starB, p);
     size = mix(dustSize, s.kind == 1 ? 1.7 : 1.5 + .9 * crest, p);
@@ -260,7 +266,7 @@ void main() {
     if (cloudlet) {
       // Glowing gas: large soft sprites trace the web, then the arms.
       hue = mix(mix(u_secondary, u_primary, .3 + .2 * s.tone), mix(u_primary, u_accent, .12), p * crest);
-      bright = mix(.15 * pow(compress, 1.1), (.16 + .85 * crest) * nbSmooth(.05, .5, s.a), p);
+      bright = mix(.025 * pow(compress, 1.1), (.025 + .1 * crest) * nbSmooth(.05, .5, s.a), p);
       size = mix(20. + 12. * s.tone, 14. + 9. * s.tone, p);
       soft = 1.;
     }
@@ -303,25 +309,25 @@ void main() {
       float ignite = exp(-nbSq((n - .24) / .1));
       vec3 rim = mix(u_primary, vec3(1.), .22), ejecta = mix(u_secondary, u_primary, .3);
       vec3 novaHue = s.kind == 1 ? mix(u_accent, vec3(1.), .45) : (s.layer < .6 ? rim : ejecta);
-      float novaB = s.kind == 1 ? .045 : (s.layer < .6 ? .12 + .12 * shellCompress * shellCompress : .12);
+      float novaB = s.kind == 1 ? .025 : (s.layer < .6 ? .018 + .012 * shellCompress * shellCompress : .008);
       novaHue = mix(novaHue, u_accent, .7 * clamp(front, 0., 1.));
       novaB += 1.3 * front;
       if (jet >= 0.) {
         novaHue = mix(mix(u_accent, vec3(1.), .6), u_secondary, jet);
-        novaB = .7 * pow(1. - jet, 1.5) * nbSmooth(0., .06, jet);
+        novaB = .18 * pow(1. - jet, 1.5) * nbSmooth(0., .06, jet);
       }
       hue = mix(hue, novaHue, s2);
       bright = mix(bright, novaB, s2) + ignite * (s.kind == 1 ? .5 : .12);
       size = mix(size, cloudlet ? 8. + 6. * s.tone : 1.6 + .7 * front, s2);
-      if (cloudlet) bright = mix(bright, (.08 + .07 * shellCompress * shellCompress) + .45 * front, s2);
+      if (cloudlet) bright = mix(bright, (.015 + .006 * shellCompress * shellCompress) + .12 * front, s2);
       else soft *= 1. - s2;
     }
     // Rhythm: arm/filament accent, core flare, outward ripple.
     float r3 = length(pos);
-    bright += u_rhythm.x * .45 * (p * crest + (1. - p) * pow(s.tone, 6.) + n * float(s.layer < .6) * .5);
+    bright += u_rhythm.x * .08 * (p * crest + (1. - p) * pow(s.tone, 6.) + n * float(s.layer < .6) * .5);
     if (s.kind == 1) { bright += u_rhythm.y * .35; hue = mix(hue, u_accent, .5 * u_rhythm.y); }
     float ripple = 2.6 * (1. - u_rhythm.z);
-    bright += u_rhythm.z * .6 * exp(-nbSq((r3 - ripple) / .14));
+    bright += u_rhythm.z * .15 * exp(-nbSq((r3 - ripple) / .14));
   }
   NbCam cam = nbCamera(clock, dev);
   vec3 v = pos - cam.eye;
@@ -365,32 +371,164 @@ void main() {
 }
 `;
 
-// Background: near-black ground with the cloud's, bulge's or remnant's soft
-// light around the projected centre.
+// Exact periodic lattice data, not a cached or reduced-resolution image.
+// Packing the four corners in RGBA replaces four hashes with one data fetch.
+const noise = `
+float nbGrain(vec2 p) {
+  vec3 q = fract(vec3(p.xyx) * .1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y) * q.z);
+}
+vec4 nbCorners(ivec2 cell) {
+  vec2 i = vec2(cell & 127);
+  return vec4(nbGrain(i), nbGrain(vec2((cell+ivec2(1,0)) & 127)),
+    nbGrain(vec2((cell+ivec2(0,1)) & 127)), nbGrain(vec2((cell+1) & 127)));
+}
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+#endif
+vec4 nbLattice(ivec2 i) {
+#ifdef PRECOMPUTED
+  return texelFetch(u_precomputed, i & 127, 0);
+#else
+  return nbCorners(i);
+#endif
+}
+float nbNoise(vec2 p) {
+  ivec2 i = ivec2(floor(p));
+  vec2 f = fract(p); f = f*f*(3.-2.*f);
+  vec4 corners = nbLattice(i);
+  return mix(mix(corners.x,corners.y,f.x),mix(corners.z,corners.w,f.x),f.y);
+}
+`;
+const radianceData = `
+vec4 nbRadianceData(uint clock) {
+  uint key = nbKey();
+  return vec4(vec2(nbRnd(key,0u,910u),nbRnd(key,0u,911u))*30.,
+    1.35*(2.2+.9*nbRnd(key,0u,905u))*u_params[3],
+    NB_TAU*nbCycle(clock,${N.pattern}u));
+}
+`;
+// Unresolved gas radiance at full output resolution. A finite tilted cloud
+// condenses into a winding disk, then blows out into a hollow shock shell.
 const fragment = `
 ${common}
 ${camera}
+${noise}
+${radianceData}
+NbCam nbPictureCamera(uint clock, float dev) {
+#ifdef PRECOMPUTED
+  NbCam c;
+  vec4 eye = texelFetch(u_precomputed,ivec2(0,128),0);
+  vec4 fwd = texelFetch(u_precomputed,ivec2(1,128),0);
+  c.eye = eye.xyz; c.focal = eye.w;
+  c.fwd = fwd.xyz; c.dist = fwd.w;
+  c.right = texelFetch(u_precomputed,ivec2(2,128),0).xyz;
+  c.up = texelFetch(u_precomputed,ivec2(3,128),0).xyz;
+  return c;
+#else
+  return nbCamera(clock,dev);
+#endif
+}
 void main() {
   uint clock = nbClock();
   float dev = clamp(u_params[0], 0., 2.);
-  NbCam cam = nbCamera(clock, dev);
-  vec2 res = u_resolution / min(u_resolution.x, u_resolution.y);
-  vec2 p = (v_uv * 2. - 1.) * res;
-  vec3 v = -cam.eye;
-  float z = dot(v, cam.fwd);
-  vec2 c = vec2(dot(v, cam.right), dot(v, cam.up)) * cam.focal / z;
-  float k = cam.focal / z;
-  float d2 = dot(p - c, p - c) / (k * k);
-  float dust = 1. - nbSmooth(0., 1., dev), spiral = nbSmooth(0., 1., dev) * (1. - nbSmooth(1., 2., dev)), nova = nbSmooth(1., 2., dev);
-  vec3 col = u_secondary * .012 * (1. - .35 * length(p));
-  col += mix(u_secondary, u_primary, .3) * .025 * exp(-d2 / 1.8) * dust;
-  col += mix(u_primary, u_accent, .25) * (.07 * exp(-d2 / .05) + .04 * exp(-d2 / .6)) * spiral;
-  float ignite = exp(-nbSq((dev - 1.3) / .12));
-  col += mix(u_accent, vec3(1.), .4) * (.22 * exp(-d2 / .004) + .3 * ignite * exp(-d2 / .08)) * nova;
-  col += mix(u_secondary, u_primary, .4) * .03 * exp(-d2 / 1.6) * nova;
-  col += u_accent * .04 * u_rhythm.y * exp(-d2 / .05);
+  float p = nbSmooth(0., 1., dev), n = nbSmooth(1., 2., dev);
+  NbCam cam = nbPictureCamera(clock, dev);
+#ifdef PRECOMPUTED
+  vec4 data = texelFetch(u_precomputed,ivec2(4,128),0);
+  vec2 turn = texelFetch(u_precomputed,ivec2(5,128),0).xy;
+#else
+  vec4 data = nbRadianceData(clock);
+  float cloudPhase = NB_TAU*nbCycle(clock,${N.cloud}u);
+  vec2 turn = vec2(cos(cloudPhase),sin(cloudPhase));
+#endif
+  vec2 seed = data.xy;
+  vec2 screen = (v_uv*2.-1.) * u_resolution / min(u_resolution.x, u_resolution.y);
+  vec3 ray = normalize(cam.fwd * cam.focal + cam.right * screen.x + cam.up * screen.y);
+  vec3 col = u_secondary * .003;
+  vec3 centreRay = cam.eye - ray * dot(cam.eye,ray);
+  if (dot(centreRay,centreRay) > 9.) { emit(vec4(col,1.)); return; }
+  if (n < 1.) {
+  // Closest point in the cloud's ellipsoidal metric: continuous thickness,
+  // not a face-on screen texture. In Spiral the metric tends to the midplane.
+  float thick = mix(.65, .035, p);
+  vec3 metric = vec3(1., 1./thick, 1.);
+  vec3 er = ray * metric, eo = cam.eye * metric;
+  float t = max(0., -dot(er, eo) / dot(er, er));
+  vec3 q = cam.eye + ray*t;
+  float radius = length(q.xz);
+  // Outside this finite cloud the analytic tails are below 0.00002.
+  // Keep the shell branch alive in mixed developments.
+  if (radius < mix(3.,2.5,p) && abs(q.y) < 3.5*thick) {
+  vec2 uv = mat2(turn.x,-turn.y,turn.y,turn.x)*q.xz;
+  float a = nbNoise(uv*2.4+seed);
+  float b = nbNoise(uv*8.5+seed+a);
+  float c = nbNoise(uv*29.+seed+b);
+  float d = nbNoise(uv*94.+seed+c);
+  float texture = .5*a + .27*b + .15*c + .08*d;
+  float edge = exp(-pow(radius / mix(1.65, 1.2, p), 4.)) * exp(-nbSq(q.y / thick));
+  float theta = atan(q.z,q.x);
+  float phase = theta - radius*data.z - data.w + .7853981634;
+  float arm = exp(-nbSq(sin(phase + .14*(b-.5)))/.26);
+  float feathers = exp(-nbSq(sin(phase + .24 + .22*(c-.5)))/.04);
+  float lane = exp(-nbSq(sin(phase+.32+.15*(b-.5)))/.012);
+  float cloud = pow(max(0., texture-.23), 2.) * 5.;
+  float disk = (.19 + 1.3*arm + .42*feathers) * (.3 + texture*texture*2.);
+  float extinction = exp(-p*lane*(1.1+2.4*c)*nbSmooth(.14,.32,radius));
+  float gas = mix(cloud, disk, p) * edge * extinction * (1.+.1*u_rhythm.x*arm);
+  gas *= mix(1., .55+.45*nbSmooth(.15,.6,radius),p);
+  vec3 gasHue = mix(u_secondary, mix(u_primary,vec3(1.),.25), .12 + .18*texture);
+  col += gasHue * gas * mix(.95, 1.9, p) * (1.-n);
+  // HII regions are sparse, saturated knots nested in the bright arms.
+  vec2 clusterGrid = uv*14.;
+  vec4 cluster = nbLattice(ivec2(floor(clusterGrid)));
+  vec2 clusterDelta = fract(clusterGrid) - (.35+.3*cluster.xy);
+  float clusterR2 = dot(clusterDelta,clusterDelta);
+  float knotWidth = .003 + nbSq(14.*cam.dist/(cam.focal*min(u_resolution.x,u_resolution.y)));
+  float knots = exp(-clusterR2/knotWidth) + .12*exp(-clusterR2/.025);
+  vec2 cellFade = smoothstep(vec2(0.),vec2(.12),min(fract(clusterGrid),1.-fract(clusterGrid)));
+  knots *= cellFade.x*cellFade.y*nbSmooth(.78,.96,cluster.w)*arm*nbSmooth(.25,.5,radius);
+  col += mix(u_accent,vec3(1.),.35) * knots * edge * p*(1.-n) * 5.;
+  col += mix(u_primary,vec3(1.),.6) * pow(d,12.) * arm * edge * p*(1.-n) * 1.4;
+  float core = exp(-nbSq(radius/.14)) + .32*exp(-nbSq(radius/.42));
+  core *= exp(-nbSq(q.y / mix(.35,.16,p)));
+  col += mix(u_primary,vec3(1.),.65) * core * p*(1.-n) * (2.2+.2*u_rhythm.y);
+  }
+  }
+  if (n > 0.) {
+  // Analytic near-shell radiance with a bright limb and diffuse ionised
+  // cavity. The particle tracers supply the back-side depth cues.
+  float along = -dot(cam.eye,ray);
+  vec3 closest = cam.eye + ray*along;
+  float impact = length(closest);
+  if (impact < NB_SHELL * mix(.25,1.,n) * 1.16) {
+  float angle = atan(dot(closest,cam.up),dot(closest,cam.right));
+  float R = NB_SHELL * mix(.25,1.,n) * (1.+.055*sin(5.*angle)+.028*cos(11.*angle));
+  float chord = sqrt(max(0.,R*R-impact*impact));
+  vec3 shell = cam.eye + ray*(along-chord);
+  vec2 sh = shell.xz + vec2(shell.y*.61, shell.y*.37);
+  float s0 = nbNoise(sh*3.2+seed);
+  float s1 = nbNoise(sh*14.+seed+s0);
+  float s2 = nbNoise(sh*52.+seed+s1);
+  float s3 = nbNoise(sh*137.+seed+s2);
+  float fil = exp(-nbSq((s1+.3*s2+.1*s3-.68)/(.025+.1*s2)));
+  float cover = 1.-nbSmooth(R*.9,R*1.06,impact);
+  float limb = exp(-nbSq((impact-R*(.81+.13*s0))/(R*.16+.001)));
+  float shock = exp(-nbSq((impact - 2.35*pow(nbCycle(clock,${N.shock}u),.4))/.045));
+  vec3 litGas = mix(u_secondary, mix(u_primary,vec3(1.),.5), .16+.25*limb);
+  float cloud = .3 + .7*nbSmooth(.12,.75,s0);
+  col += litGas * cover*n * (.19*cloud + .85*fil*(.2+.8*limb)*cloud + .9*limb*cloud*(.4+.9*s1)) * (.45+.45*s2+.1*s3);
+  col += mix(u_accent,vec3(1.),.15)*cover*n*fil*pow(s0,8.)*.8;
+  col += mix(u_secondary,vec3(1.),.5)*shock*cover*n*u_params[7]*.08*(.15+.85*s1)
+    * (1.-nbCycle(clock,${N.shock}u));
+  float d2 = dot(closest,closest);
+  float ignite = exp(-nbSq((dev-1.3)/.12));
+  col += mix(u_primary,vec3(1.),.7)*exp(-d2/.004)*n*(.8+ignite);
+  }
+  }
   col *= u_params[4];
-  emit(vec4(col, 1.));
+  emit(vec4(col,1.));
 }
 `;
 
@@ -478,6 +616,28 @@ export default {
     ),
   ],
   fragment,
+  precompute: {
+    size: [128, 129],
+    fragment: `${common}
+${camera}
+${noise}
+${radianceData}
+void main() {
+  ivec2 cell = ivec2(gl_FragCoord.xy);
+  if (cell.y < 128) { outColor = nbCorners(cell); return; }
+  uint clock = nbClock();
+  NbCam c = nbCamera(clock,clamp(u_params[0],0.,2.));
+  if (cell.x == 0) outColor = vec4(c.eye,c.focal);
+  else if (cell.x == 1) outColor = vec4(c.fwd,c.dist);
+  else if (cell.x == 2) outColor = vec4(c.right,0.);
+  else if (cell.x == 3) outColor = vec4(c.up,0.);
+  else if (cell.x == 4) outColor = nbRadianceData(clock);
+  else {
+    float phase = NB_TAU*nbCycle(clock,${N.cloud}u);
+    outColor = vec4(cos(phase),sin(phase),0.,0.);
+  }
+}`,
+  },
   simulation: { fragment: simulation, size: SIZE, steps: 1 },
   particles: { vertex, fragment: particleFragment },
 };
