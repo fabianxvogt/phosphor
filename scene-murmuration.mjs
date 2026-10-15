@@ -682,6 +682,7 @@ export default {
   precompute: {
     size: [512, 129],
     filter: "linear",
+    nearestFallback: true,
     fragment: `${common}\n${view}\nvoid main() {
     if(gl_FragCoord.y<1.) {
       MuCam cam=muCamera(muClock(),clamp(u_params[0],0.,2.));

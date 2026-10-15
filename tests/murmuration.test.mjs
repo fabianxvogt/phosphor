@@ -327,6 +327,7 @@ test("cloud data uses a seam-free diamond chart, never a colour cache", () => {
   }
   assert.deepEqual(murmuration.precompute.size, [512, 129]);
   assert.equal(murmuration.precompute.filter, "linear");
+  assert.equal(murmuration.precompute.nearestFallback, true);
   assert.match(murmuration.precompute.fragment, /vec4\(muCloudExact/);
   assert.match(murmuration.fragment, /#ifdef PRECOMPUTED_LINEAR/);
   assert.match(murmuration.fragment, /horizonAA=max\(fwidth\(e\)/);

@@ -66,7 +66,7 @@ try {
   // Frozen-state subpixel camera dolly: this isolates raster/lighting
   // instability from real flock motion. Also retain ordinary moving scores.
   const flicker = [];
-  for (const label of ["baseline", "final"])
+  for (const label of args.families.split(",").includes("murmuration") ? ["baseline", "final"] : [])
     for (const index of [0, 1, 2, 6]) {
       const page = labs[label].page;
       await page.evaluate(renderLook, { sceneId: "murmuration", index, width: 1920, height: 1080, frames: 120, level: .5, capture: false, pollHealth: false });

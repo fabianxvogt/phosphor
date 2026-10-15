@@ -140,6 +140,17 @@ vec2 tdMaterial(vec2 x) {
   }
   return q;
 }
+// Low-pass material derivative: the foam front belongs to the waves, not
+// to a noise texture. Geometry retains all six dispersive modes.
+float tdExactCrest(vec2 x) {
+  vec2 q=tdMaterial(x);
+  float front=0.;
+  for(int i=0;i<4;i++) {
+    vec4 w=gW[i];
+    front+=w.z*dot(w.xy,gD[0])*cos(dot(w.xy,q)+w.w);
+  }
+  return front;
+}
 vec4 tdExactWaves(vec2 x) {
   vec2 q=tdMaterial(x), gradient=vec2(0.);
   float jxx=1., jxz=0., jzz=1., h=0., crest=0.;
@@ -236,7 +247,11 @@ void main() {
   for(int i=0;i<6;i++) {
     gW[i]=tdWave(i); gK[i]=length(gW[i].xy); gD[i]=gW[i].xy/gK[i];
   }
-  vec2 p=(vec2(cell.x,cell.y-1)/511.-.5)*256.;
+  vec2 p=(vec2(cell.x%512,cell.y-1)/511.-.5)*256.;
+  if(cell.x>=512) {
+    outColor=vec4(u_params[0]>0.?tdExactCrest(p):0.,0.,0.,0.);
+    return;
+  }
   vec3 bowl=tdBowlExact(p);
   outColor=tdExactWaves(p)+vec4(bowl,0.);
 }
@@ -248,17 +263,6 @@ uniform highp sampler2D u_precomputed;
 #endif
 float gSwell, gPixel, gWavePhase, gWaveHeight;
 vec3 gMoon;
-// Quintic gradient noise: zero value at lattice vertices, continuous first
-// AND second derivatives across the lattice. Foam never thresholds cell values.
-vec2 tdGradient(vec2 p) {
-  vec2 g=fract(tdHash(p)*vec2(1.,37.))*2.-1.;
-  return g*inversesqrt(max(dot(g,g),.01));
-}
-float tdLace(vec2 p) {
-  vec2 i=floor(p), f=fract(p), s=f*f*f*(f*(6.*f-15.)+10.);
-  return mix(mix(dot(tdGradient(i),f),dot(tdGradient(i+vec2(1,0)),f-vec2(1,0)),s.x),
-             mix(dot(tdGradient(i+vec2(0,1)),f-vec2(0,1)),dot(tdGradient(i+vec2(1)),f-vec2(1)),s.x),s.y);
-}
 // Sparse Gaussian droplets: the cell is only a candidate lookup, never a
 // shaded square. Each point vanishes well before its cell border; widen by
 // the pixel footprint and conserve its integrated flux when subpixel.
@@ -288,6 +292,26 @@ vec4 tdSurface(vec2 p) {
   }
 #endif
   return tdExactWaves(p)+vec4(tdBowlExact(p),0.);
+}
+float tdFoamFront(vec2 p) {
+  if(gSwell==0.) return 0.;
+#ifdef PRECOMPUTED
+  // Right bank stores only the signed material slope. The exact fallback
+  // and smooth table-edge blend match the geometry bank's footprint.
+  if(max(abs(p.x),abs(p.y))<127.5 && dot(p,p)>36.) {
+    vec2 grid=(p/256.+.5)*511.;
+    ivec2 cell=ivec2(floor(grid))+ivec2(512,1);
+    vec2 f=fract(grid);
+    float data=mix(mix(texelFetch(u_precomputed,cell,0).x,
+                       texelFetch(u_precomputed,cell+ivec2(1,0),0).x,f.x),
+                   mix(texelFetch(u_precomputed,cell+ivec2(0,1),0).x,
+                       texelFetch(u_precomputed,cell+ivec2(1),0).x,f.x),f.y);
+    float blend=smoothstep(36.,64.,dot(p,p))*(1.-smoothstep(126.,127.5,max(abs(p.x),abs(p.y))));
+    if(blend<1.) return mix(tdExactCrest(p),data,blend);
+    return data;
+  }
+#endif
+  return tdExactCrest(p);
 }
 vec2 tdSea(vec2 x) {
 #ifdef PRECOMPUTED
@@ -391,22 +415,19 @@ void main() {
   float footprint=max(max(length(dFdx(p.xz)),length(dFdy(p.xz))),.012);
   vec4 surface=tdSurface(p.xz);
   float crestAA=max(.008,1.5*fwidth(surface.w));
-  // These derivatives are outside the water branch, including horizon quads.
+  // The low-pass material slope vanishes along breaking wave crests.
+  // Excluding the two shortest modes keeps the front continuous;
+  // compression distinguishes the luminous crest from the dark trough.
+  float crestFront=tdFoamFront(p.xz);
+  float crestSide=smoothstep(.0,.13,surface.w);
+  float frontAA=max(.0015,1.25*fwidth(crestFront));
   vec2 windUV=vec2(.83*p.x+.56*p.z,-.56*p.x+.83*p.z)*vec2(.42,1.50);
-  // Smooth domain bending removes even the implicit gradient lattice from
-  // the lace; the separate wind filaments remain gently anisotropic.
-  windUV+=.9*vec2(sin(.16*p.x+.21*p.z+gFlow),cos(.23*p.x-.14*p.z-2.*gFlow));
   windUV+=vec2(cos(gFlow),sin(gFlow))*.65;
-  float lace=tdLace(windUV);
-  float fineLace=tdLace(windUV*2.7+vec2(17.,9.));
-  float laceField=lace+.22*fineLace-.035;
-  float laceAA=max(.025,max(1.5*fwidth(laceField),.32*footprint));
-  float streakPhase=(-p.x*.56+p.z*.83)*7.+5.*lace;
-  float streakAA=max(.02,fwidth(streakPhase));
   float armPhase=5.*atan(p.z,p.x)+.44*length(p.xz)-2.*gFlow
     +.28*sin(3.*atan(p.z,p.x)-.12*length(p.xz)+gFlow);
-  // Differentiate sin, not atan: no artificially broad line at the polar seam.
-  float armWave=sin(armPhase), armAA=max(.025,1.5*fwidth(armWave));
+  // Differentiate periodic sin/cos, not atan: no polar-seam AA flare.
+  float armWave=sin(armPhase), armAcross=cos(armPhase);
+  float armAA=max(.006,1.25*fwidth(armAcross));
   float h=surface.x;
   vec3 normal=normalize(vec3(-surface.y,1.,-surface.z));
   if(t>0.) {
@@ -430,24 +451,33 @@ void main() {
     col+=mix(u_primary,vec3(1.),.45)*glitter*(.2+.8*fresnel);
     float crest=surface.w;
     float crestMask=smoothstep(mix(.035,.14,gSwell)-crestAA,mix(.075,.29,gSwell)+crestAA,crest);
-    float laceKeep=1.-smoothstep(.3,1.2,footprint*1.50);
-    float ridge=abs(laceField);
-    float threads=1.-smoothstep(.035-laceAA,.11+laceAA,ridge);
-    float streak=.5+.5*sin(streakPhase)*exp(-.5*streakAA*streakAA);
-    float filamentKeep=1.-smoothstep(.25,.9,footprint*7.);
-    // Restore open gradient-noise lace, not filled camouflage islands.
-    // Calm is a glassy moon path: foam develops only with the swell.
-    float lacy=mix(.23,.025+.74*threads+.16*streak*filamentKeep,laceKeep);
-    float foam=crestMask*lacy*smoothstep(.08,.85,gSwell);
+    float develop=smoothstep(.08,.85,gSwell);
+    float outer=mix(1.,smoothstep(26.,40.,r),gVortex);
+    float breaking=(.12+.88*crestMask)*crestSide*develop*outer;
+    float frontWidth=.006+frontAA;
+    float foam=breaking*exp(-sq(crestFront/frontWidth))*(.006/frontWidth);
+    // A softer, one-sided wake fades behind the bright breaking front.
+    float wake=breaking*exp(-sq((crestFront-.045)/.07))*smoothstep(-.008,.012,crestFront);
+    float halo=breaking*exp(-sq(crestFront/.08));
     float inner=smoothstep(3.,8.,r);
-    float spiral=smoothstep(.76-armAA,.97+armAA,armWave)*exp(-sq((r-18.)/19.))*inner*gVortex;
+    float armWindow=exp(-sq((r-18.)/19.))*inner*gVortex*smoothstep(.1,.6,armWave);
+    float churn=.4+.6*tdNoise(p.xz*.10+vec2(cos(gFlow),sin(gFlow)));
+    float spiral=exp(-sq((armAcross+.22)/.44))*(1.-smoothstep(-armAA,.06+armAA,armAcross))*armWindow*churn;
     float lip=exp(-sq((r-22.5)/1.35))*gVortex;
-    float coreWidth=.018+.45*armAA;
-    float spiralCore=exp(-(1.-armWave)/coreWidth)*(.018/coreWidth)
-      *exp(-sq((r-17.)/17.))*inner*gVortex;
-    float spark=.5+.5*sin(.51*p.x-.37*p.z+3.*gWavePhase+4.*lace);
+    float coreWidth=.025+armAA;
+    float spiralCore=exp(-sq(armAcross/coreWidth))*(.025/coreWidth)*armWindow*(.65+.35*churn);
+    // Broad parallel streaks roll within the wake, not across its leading
+    // edge. Their wavelengths are metres, not per-pixel brush filaments.
+    float roll=.075*sin(.67*r+2.*gFlow)+.025*sin(1.4*r-3.*gFlow);
+    float trailAcross=armAcross+.29+roll;
+    float trailWidth=.075+armAA;
+    float armTrail=(exp(-sq(trailAcross/trailWidth))
+      +.6*exp(-sq((armAcross+.57+roll*.7)/trailWidth)))
+      *(.075/trailWidth)*armWindow*churn;
+    // Broad flares travel along the crest; they never corrugate its edge.
+    float spark=.5+.5*sin(.09*p.x-.07*p.z+3.*gWavePhase);
     float ignition=.46+.72*spark*spark+.45*u_kick*pow(spark,4.);
-    float living=(foam*2.2+spiral*(.32+1.3*threads*laceKeep)+lip*(.20+.45*threads))*u_params[3]*ignition;
+    float living=(foam*4.8+wake*.30+spiral*.42+spiralCore*2.4+armTrail*.8+lip*.12)*u_params[3]*ignition;
     // Local gestures: an advected foam crest, a luminous spiral ridge, and
     // one broad incoming ring. None changes time or seed identity.
     float packet=pow(.5+.5*sin(.17*p.x+.22*p.z-gWavePhase*2.),8.);
@@ -462,18 +492,16 @@ void main() {
     float bioDepth=mix(1.,.32+.68*depth,gVortex);
     vec3 bio=mix(u_secondary,u_primary,.20);
     col+=bio*living*bioDepth*1.75;
-    // A faint lunar contribution follows the filtered filaments themselves;
-    // never fill the noise lobes or trace their candidate-cell boundaries.
-    col+=mix(u_secondary,vec3(1.),.65)*foam*(.12+.26*key)*bioDepth;
+    col+=mix(u_secondary,vec3(1.),.65)*(foam+spiralCore)*(.18+.26*key)*bioDepth;
+    // Nearby water carries the same light as a broad, surface-weighted pool.
+    col+=mix(u_secondary,u_primary,.35)*(halo*.20+wake*.16+spiral*.22)*u_params[3]*bioDepth*(.6+.4*normal.y);
     float hot=pow(spark,16.)*smoothstep(.85,1.55,living);
-    col+=mix(u_accent,u_primary,.15)*hot*(foam+spiral)*5.;
-    col+=u_primary*threads*threads*(foam+spiral*.3)*.20;
-    col+=mix(u_secondary,u_accent,.24)*spiralCore*ignition*bioDepth*2.8*u_params[3];
-    col+=mix(u_secondary,u_accent,.15)*gVortex*exp(-r*r/55.)*.25;
+    col+=mix(u_accent,u_primary,.15)*hot*(foam+spiralCore)*2.;
+    col+=mix(u_secondary,u_accent,.15)*gVortex*exp(-r*r/55.)*.12;
     // Smooth subpixel-filtered wind-torn droplets, not thresholded cells.
     float spray=tdDroplets(windUV*1.8,footprint*2.7)*(crestMask*gSwell+spiral)*wind;
     col+=mix(u_accent,u_primary,.35)*spray*9.;
-    col+=u_secondary*lip*(.025+.035*lace)*wind;
+    col+=u_secondary*lip*.025*wind;
     float fog=1.-exp(-t*.0045);
     col=mix(col,tdSky(vec3(rd.x,.012,rd.z),false),fog);
   }
@@ -544,5 +572,5 @@ export default {
     ),
   ],
   fragment,
-  precompute: { fragment: precompute, size: [512, 513] },
+  precompute: { fragment: precompute, size: [1024, 513] },
 };

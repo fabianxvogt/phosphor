@@ -89,8 +89,25 @@ try {
                 960,
                 540,
               );
+            const near = document.createElement("canvas");
+            near.width = 960;
+            near.height = 540;
+            near
+              .getContext("2d")
+              .drawImage(
+                canvas,
+                0,
+                Math.min(height - 540, Math.floor(height * 0.57)),
+                960,
+                540,
+                0,
+                0,
+                960,
+                540,
+              );
             return {
               full,
+              near: near.toDataURL("image/png").split(",")[1],
               crop: crop.toDataURL("image/png").split(",")[1],
               glError: engine.gl.getError(),
               nonFinite: engine.counters.nonFinite,
@@ -100,12 +117,12 @@ try {
           { sceneId, index, width, height },
         );
         const name = `${sceneId}-${index}-${height}`;
-        for (const kind of ["full", "crop"])
+        for (const kind of ["full", "crop", "near"])
           await writeFile(
             resolve(out, `${name}-${kind}.png`),
             Buffer.from(result[kind], "base64"),
           );
-        const { full, crop, ...health } = result;
+        const { full, crop, near, ...health } = result;
         assert.equal(health.glError, 0);
         assert.equal(health.nonFinite, 0);
         assert.equal(health.gpuErrors, 0);

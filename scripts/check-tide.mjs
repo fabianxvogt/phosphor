@@ -11,7 +11,22 @@ import {
   openLab,
 } from "./browser-runtime.mjs";
 import { renderLook } from "../tests/browser/client.mjs";
-const args = options({ ladder: { type: "string", default: "artifacts/contact/tide-final/index.html" } });
+import {
+  EPOCHS,
+  STEP,
+  RATE_TIMES,
+  RATE_STEPS,
+  stepAcross,
+  rateStep,
+  judge,
+  judgeRate,
+} from "./check-time-wrap.mjs";
+const args = options({
+  ladder: {
+    type: "string",
+    default: "artifacts/contact/tide-final/index.html",
+  },
+});
 const out = await outputDirectory("films/tide-verification", args.out);
 const server = await serve(".", args.port);
 const runtime = await launch({ rig: args.rig, headless: true });
@@ -190,6 +205,42 @@ try {
   assert.equal(extra.glError, 0);
   assert.equal(extra.nonFinite, 0);
   assert.ok(extra.identities.every((x) => x.seed === 10301 && x.slotSame));
+  // The generic time runner checks only Calm, whose foam is intentionally
+  // zero. Exercise the living fronts/bands in Swell and Maelstrom as well.
+  const timeChecks = [];
+  for (const index of [0, 1, 2]) {
+    await page.evaluate(renderLook, {
+      sceneId: "tide",
+      index,
+      width: 640,
+      height: 360,
+      frames: 20,
+      level: 0.5,
+      capture: false,
+      pollHealth: false,
+    });
+    const measured = await page.evaluate(stepAcross, {
+      epochs: EPOCHS,
+      step: STEP,
+      width: 640,
+      height: 360,
+    });
+    const rate = await page.evaluate(rateStep, {
+      times: RATE_TIMES,
+      scenarios: RATE_STEPS,
+      step: STEP,
+      width: 640,
+      height: 360,
+    });
+    const verdicts = [...judge(measured.rows), ...judgeRate(rate)];
+    assert.equal(measured.glError, 0);
+    assert.equal(measured.nonFinite, 0);
+    assert.ok(
+      verdicts.every((v) => !v.seam),
+      `tide state ${index}: ${JSON.stringify(verdicts)}`,
+    );
+    timeChecks.push({ index, ...measured, rate, verdicts });
+  }
   // Readable contact grid, including all eight looks at all three energies.
   await page.goto(server.url + args.ladder);
   await page.setViewportSize({ width: 1560, height: 1000 });
@@ -200,9 +251,9 @@ try {
   assert.deepEqual(errors, []);
   await writeFile(
     resolve(out, "verification.json"),
-    JSON.stringify({ results, extra, errors }, null, 2),
+    JSON.stringify({ results, extra, timeChecks, errors }, null, 2),
   );
-  console.log(JSON.stringify({ results, extra, errors }, null, 2));
+  console.log(JSON.stringify({ results, extra, timeChecks, errors }, null, 2));
 } finally {
   await runtime.stop();
   await server.close();

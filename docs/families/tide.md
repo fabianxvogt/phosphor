@@ -15,7 +15,7 @@ H(q) = Σ Aᵢ sin(kᵢ dᵢ·q + φᵢ), Q = 0.65
 
 The six amplitudes `[0.8,0.4,0.24,0.16,0.085,0.035]` scale continuously from ×0.48 to ×2.35 with Calm → Swell and by the height fader (≤1.3). At the **entire schema maximum**, `Σ Q k A = 0.5530875468 < 1`; the symmetric horizontal Jacobian has minimum eigenvalue ≥0.4469124532. Thus the horizontal map cannot fold or self-intersect. Development never alters wave IDs, seeded directions or initial phases.
 
-Two Newton iterations invert `X(q)` for each exact world-space surface sample. Wave 5 extends the **data-only** precompute to 512×513 RGBA32F: row 0 holds six wave coefficients; the remaining 512² entries hold **combined wave + bowl height, two analytic gradient components, and crest compression**. Intersection candidates and final normals interpolate this geometry data, rather than repeating 18 wave evaluations at each solver step. Foam, lighting, spray and colour still run at full output resolution. The roughly 4 MiB table refreshes every frame, including paused edits. Without float targets the exact analytic path remains available.
+Two Newton iterations invert `X(q)` for each exact world-space surface sample. The final wave-5 **data-only** precompute is 1024×513 RGBA32F, with two 512-wide banks. Row 0 holds six wave coefficients. The left bank remains **combined wave + bowl height, two analytic gradient components, and crest compression**; the right bank stores the **signed low-pass material slope** used to locate foam fronts (remaining channels zero). Intersection candidates and final normals interpolate the left bank rather than repeating 18 wave evaluations per solver step. The right bank avoids another material inversion and four cosine evaluations per output pixel. Lighting, line coverage, wake structure, spray and colour still run at full output resolution. The roughly 8 MiB table refreshes every frame, including paused edits; no reduced-resolution colour image is cached. Without float targets the exact analytic path remains available.
 
 The table covers −128…128 world units with explicit bilinear interpolation (spacing 0.501 m). The polar core (r≤6) and exterior remain analytic, with smooth transition bands at r=6…8 and |x/z|=126…127.5. Intersection and normal queries use the same transition, avoiding a tiny height discontinuity. A 27,000-point CPU sweep over three seeds, all development states and maximum wave height measures **0.02485 m height error and 0.01586 unit-normal error**; a separate bowl sweep retains its <3 cm / <0.025 normal bounds. This is a geometry approximation, not a bit-identical cache or cached colour image. The previous wave-4 GPU image-error figures applied only to the bowl cache and do not qualify the new combined table.
 
@@ -37,9 +37,9 @@ and the ridge phase is `5θ + 0.44r - 2f + 0.28 sin(3θ - 0.12r + f)`. An inner 
 
 Fresnel sky reflection, a compact moon plus a rough moon-glitter path, faint lunar surface mottling, sparse stars, distant horizon haze, soft directional key, grazing rim and trough darkening. All colour comes from palette uniforms and white/black mixtures.
 
-**Round 2 foam:** actual Gerstner crest compression gates smoothly domain-warped **quintic gradient-noise ridges**, not thresholded value-noise cells. Two lacy scales and separate wind-aligned filaments break up the crests. `fwidth` softens ridge/crest thresholds and actual world-space pixel footprints fade unresolved detail; derivatives stay outside the divergent water branch. There are no shaded square foam candidates.
+**Final foam:** trace zeros of the directional material derivative of the four longest Gerstner modes, projected along the dominant swell direction. Actual six-mode crest compression suppresses troughs and flares the breaking sections. The two shortest modes remain in geometry/reflections but no longer corrugate foam edges. This replaces both gradient-noise lace and failed compression-isoline drafts (which outlined closed whitecap rings). Thin Gaussian crest lines carry bright continuous light; a broader one-sided Gaussian wake and a faint normal-weighted scattering pool soften the water behind/around them. Gaussian widening by `fwidth`, with inverse-width amplitude scaling, conserves integrated line flux. All coverage derivatives stay outside the divergent water branch. The signed-slope table's maximum CPU error is **0.00050431**, below one tenth of the intrinsic 0.006 line width.
 
-Living foam emits chiefly in secondary, with rare accent/primary hot knots. Local kick ignition flickers along existing crests, bounded to <1.4× its un-kicked value at a hot point; it does not flash the frame. The five inward spiral bands get thin luminous cores and a glowing funnel lip. Reflection falls exponentially down the throat, while a faint secondary/accent pool glows below. Native float-picture readback at 12 h measured **9.75 in Swell and 10.08 in Maelstrom**, with about 4–5% of pixels above 1: living light, not the moon, is the brightest feature.
+Living foam emits chiefly in secondary, with rare accent/primary hot knots. Broad flares travel along existing fronts; local kick ignition remains bounded to <1.4× its un-kicked value at a hot point, not a frame flash. Five inward spiral bands have crisp leading cores, soft one-sided tails and two broad rolling wake streaks. The streaks vary over metres, not per-pixel filaments. Low-frequency noise modulates only band intensity, never leading-edge position. Ordinary ocean foam fades out at r=26…40 so it cannot scribble across the funnel. Reflection falls exponentially down the throat; the tiny bottom pool is dimmer than before. Crest/core emission exceeds 1 before bloom. The previous 9.75/10.08 float maxima belonged to the earlier lace shader, not this final version.
 
 Sparse Gaussian spray points conserve integrated flux when widened by their pixel footprint and vanish before candidate-cell borders. Three water-occluded annular spindrift strata float 5.5 / 7.2 / 8.9 units above the vortex lip region, with independent periodic gusts and parallax. This is analytic suspended spray, not a particle or fluid simulation. The first wave-5 delivery filled the lace with aerated patches. L0 correctly identified that as a regression: the lobes read as camouflage near the camera. The follow-up below removes those filled lobes while preserving the combined surface-data speedup.
 
@@ -72,7 +72,52 @@ The camera follows a slow closed coastal sway (±5 units horizontally, ±3 units
 
 Three integrated engine clocks: base wave phase (period 2π), camera phase (2π), spiral flow (2π). Rate-dependent terms read `u_clock` behind `PHOSPHOR_LATE`, declared in both the picture and data-pass shader. Every use is periodic in those exact periods, including capillary normal detail. No cumulative coordinates or growing sine arguments. Energy/fader changes change velocity, not phase. Development does not reset clocks or seed.
 
-## Wave 5 rework and cost
+## Final round: coherent breaking fronts (supersedes the lace follow-up)
+
+Follow-up to `eb076589`, 2026-10-16. Moon Tide only; exact spectrum,
+geometry, clocks, camera, state/look/preset IDs, seeds and schema are unchanged.
+`engine.mjs` is **not edited**.
+
+Five filmed visual drafts plus a final film after the slope-cache optimization:
+
+1. Remove all gradient-noise lace, per-pixel wind filaments and fuzzy spiral
+   modulation. Directional-slope crests and smooth asymmetric funnel bands.
+2. Reject compression contours: smooth, but they outlined whitecaps as rings.
+3. Reject a single-mode carrier: cleaner, but read as sparse wires in perspective.
+4. Add broad rolling streaks inside the spiral wakes; keep leading edges clean.
+5. Final: exact four-mode directional derivative, compression flare, one-sided
+   wake and scattering halo. This follows actual crossing swells, not a texture.
+6. Performance polish: share the signed slope as data in a second table bank,
+   then re-film and re-check native 1080p/4K stills and native-pixel crops.
+
+The per-pixel derivative draft was **12.8% slower** in paired 4K Swell and was
+not accepted. The final data-bank version passes every state's +5% limit:
+
+| State | Paired 1080p previous → final | Paired 4K previous → final |
+| --- | ---: | ---: |
+| Calm | 3.20 → 3.10 ms | 9.50 → 9.15 ms |
+| Swell | 3.45 → 3.25 ms | 10.20 → 10.20 ms |
+| Maelstrom | 3.75 → 3.85 ms | 12.70 → 12.85 ms |
+
+Native M3 Pro / ANGLE Metal, whole-frame synchronous p50 including post,
+energy 0.95; four alternating baseline/current blocks, 30 measured frames
+per block. Worst increase **2.67%**. These adjacent comparisons reduce shared
+fleet contention; they do not qualify venue cadence. Separate-run baseline
+1080p: 3.0/2.9/3.6; final 3.6/3.7/4.2 ms. Baseline 4K: 8.7/9.2/11.5;
+final 9.2/10.0/12.4 ms. The slower separate 1080p probe is retained honestly;
+the interleaved comparison establishes the relative-cost gate.
+
+Evidence: fleet `rework-sea-sky/output/final-round/`, baseline/final world
+films and strips, full-size 1080p/4K stills and native-pixel `near`/`crop`
+views, round strips, all-eight-look ladder, Glacier breakers, Ember portrait,
+native-resolution motion films, fallback/late/reversal verification and
+3600/4096/43200-second checks. Rating **8/10**, not the previous over-lenient
+8.5: the hairy patch regression is removed, but the analytic funnel still
+looks authored rather than photographic churning whitewater. The scattering
+pool is a local lighting approximation, not ray-traced refraction or foam
+transport. Calm remains foam-free.
+
+## Historical wave-5 rework and cost
 
 All world/state/look IDs, names, seeds, schema keys and presets remain unchanged.
 No engine changes. Three filmed rounds: **surface-data reuse** (same silhouette,
@@ -103,7 +148,7 @@ identity checks. CPU tests and native 3600/4096/43200 s time checks pass;
 zero GL errors/non-finite values. `scripts/check-tide.mjs` now accepts `--ladder`
 instead of requiring one hard-coded evidence directory.
 
-## Wave-5 follow-up: restore filtered foam
+## Historical wave-5 follow-up: restore filtered foam
 
 Follow-up to `d634a4e`, 2026-10-15. The 512×513 combined geometry table,
 exact fallback, Gerstner identities, no-fold bound, vortex shape, clock
@@ -173,4 +218,4 @@ Round-2 delivery probe: 48 samples/state at energy 0.95, including post, on the 
 
 ## Limits
 
-This is a small analytic spectrum, not an FFT sea. The heightfield cannot overturn. The vortex and foam remain stylized: the lace is materially smoother and luminous but can read as a living-light network rather than photographic aerated foam. No refraction-through-water, multiple scattering, foam advection or airborne particle simulation. The mist consists of thin analytic strata. The sampled surface cache is not bit-identical to its analytic fallback, especially in narrow highlights. Regula-falsi is bounded and may not choose the very nearest root in steep overlapping silhouettes. Very distant foam becomes a band-limited average. Portrait crops the shoulder rather than shrinking the ocean. The moon leaves the frame during the peak crane. The wave-5 4K peak fits a single 60 Hz frame in the throughput probe, not necessarily a crossfade or display-cadence budget. No claim of venue qualification.
+This is a small analytic spectrum, not an FFT sea. The heightfield cannot overturn. The vortex and foam remain stylized: smooth crest fronts and broad rolling wake bands avoid the previous hairy lace but still do not simulate photographic aerated whitewater. No refraction-through-water, multiple scattering, foam advection or airborne particle simulation. The mist consists of thin analytic strata. The sampled surface cache is not bit-identical to its analytic fallback, especially in narrow highlights. Regula-falsi is bounded and may not choose the very nearest root in steep overlapping silhouettes. Very distant foam becomes a band-limited average. Portrait crops the shoulder rather than shrinking the ocean. The moon leaves the frame during the peak crane. The wave-5 4K peak fits a single 60 Hz frame in the throughput probe, not necessarily a crossfade or display-cadence budget. No claim of venue qualification.
