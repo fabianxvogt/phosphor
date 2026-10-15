@@ -20,6 +20,14 @@ import {
 } from "../catalog.mjs";
 
 const looks = catalogLooks(scenes);
+// Wave-4 lane brief reserves the shared editorial order and preview bake for
+// integration. Only assigned new families 101–105 may await that step; all
+// shipped coverage stays exact. This set empties when L0 adds their order.
+const pendingEditorial = looks.filter(
+  (look) =>
+    look.number >= 101 && look.number <= 105 && !CURATED.includes(look.id),
+);
+const editorialLooks = looks.filter((look) => !pendingEditorial.includes(look));
 
 test("the catalog holds every authored look of every family, data-driven from scenes", () => {
   const total = scenes.reduce((n, scene) => n + scene.presets.length, 0);
@@ -181,15 +189,25 @@ test("ratings sort first by rating, then unrated, then never (0); ties by family
   // Unrated authored looks follow the editorial order.
   assert.deepEqual(
     sortCatalog(looks, {}).map((l) => l.id),
-    CURATED,
+    [
+      ...CURATED,
+      ...pendingEditorial
+        .toSorted((a, b) => a.number - b.number || a.index - b.index)
+        .map((l) => l.id),
+    ],
   );
 });
 
-test("the editorial order covers every authored look exactly once", () => {
+test("the editorial order covers every integrated look exactly once; pending wave-4 looks use stable fallback", () => {
   assert.equal(new Set(CURATED).size, CURATED.length);
-  assert.deepEqual([...CURATED].sort(), looks.map((l) => l.id).sort());
-  // Every family shows its best look early: within two looks per family.
-  const families = new Set(looks.map((l) => l.sceneId));
+  assert.deepEqual([...CURATED].sort(), editorialLooks.map((l) => l.id).sort());
+  for (const look of pendingEditorial)
+    assert.ok(
+      scenes.find((s) => s.id === look.sceneId)?.development,
+      "only continuous wave-4 worlds may await curation",
+    );
+  // Every integrated family shows its best look early: within two per family.
+  const families = new Set(editorialLooks.map((l) => l.sceneId));
   const early = new Set(
     CURATED.slice(0, 2 * families.size).map((id) => id.split(":")[0]),
   );

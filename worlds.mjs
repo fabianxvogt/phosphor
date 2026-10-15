@@ -186,6 +186,16 @@ const AUTHORED = [
       { name: "Reef", look: "abyss:Lantern Reef" },
     ],
   },
+  {
+    id: "liquid-chrome",
+    name: "Liquid Chrome",
+    description: "A black mirror pool grows a magnetic crown of sharp hexagonal spikes, then rises into a floating liquid-metal sculpture with orbiting chrome droplets.",
+    states: [
+      { name: "Pool", look: "ferro:Pool" },
+      { name: "Crown", look: "ferro:Crown" },
+      { name: "Sculpture", look: "ferro:Sculpture" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
