@@ -8,6 +8,7 @@ import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { shaderVariant } from "../scene-time.mjs";
 import {
   MODULE,
+  GEAR_BEVEL,
   PRESSURE,
   TAU,
   ATTRIBUTES,
@@ -17,10 +18,15 @@ import {
   involute,
   involuteAngle,
   toothProfile,
+  bevelProfile,
   makeTrain,
   meshResidual,
   gearPose,
   orbitPosition,
+  planetPosition,
+  sunPosition,
+  sunIrradiance,
+  sphereVisibility,
   developmentPose,
   trainPose,
   camera,
@@ -116,6 +122,52 @@ test("integer teeth, common module, 20-degree pressure angle and correct pitch t
   }
 });
 
+test("shared tooth bevels never fold, tear or cross at involute tips", () => {
+  const cross = (a, b, p) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+  for (const n of [24, 40, 56]) for (const detail of [1, 3]) {
+    const p = toothProfile(n, detail), f = bevelProfile(p, GEAR_BEVEL);
+    assert.equal(f.length, p.length);
+    for (let i = 0; i < f.length; i++) {
+      assert.ok(f[i].every(Number.isFinite));
+      assert.ok(distance(f[i], p[i]) <= 0.0160001);
+      assert.ok(distance(f[i], f[(i + 1) % f.length]) > 0.0001);
+      for (let j = i + 2; j < f.length; j++) {
+        if (i === 0 && j === f.length - 1) continue;
+        const a = f[i], b = f[(i + 1) % f.length], c = f[j], d = f[(j + 1) % f.length];
+        assert.ok(!(cross(a, b, c) * cross(a, b, d) < -1e-18 && cross(c, d, a) * cross(c, d, b) < -1e-18), `crossed bevel: N=${n}, detail=${detail}`);
+      }
+    }
+  }
+});
+
+test("point sun: exact tilted planet centres, inverse-square falloff and finite soft eclipses", () => {
+  for (const dev of [0, 0.2, 0.7, 1, 1.5, 2]) {
+    const sun = sunPosition(dev);
+    for (let i = 0; i < 5; i++) for (const phase of [0, 0.7, 17, 43200 * 0.065]) {
+      const p = planetPosition(i, phase, dev);
+      const t = Math.max(0, Math.min(1, (dev - 0.06) / 0.79));
+      const growth = t * t * (3 - 2 * t);
+      close(distance(p, sun), Math.hypot(1.3 + i * 0.49, 0.14) * growth);
+      close(p[0], (1.3 + i * 0.49) * Math.cos(phase * ORBITS[i] + i * 1.73) * growth);
+      close(distance(planetPosition(i, phase + 30 * Math.PI, dev), p), 0, 1e-10);
+      assert.ok(p.every(Number.isFinite));
+    }
+  }
+  const p = [0, 0, 0], light = [0, 0, 10];
+  close(sphereVisibility(p, light, [0, 0, 5], 1), 0);
+  close(sphereVisibility(p, light, [3, 0, 5], 1), 1);
+  close(sphereVisibility(p, light, [0, 0, -1], 1), 1);
+  close(sphereVisibility(p, light, [0, 0, 11], 1), 1);
+  assert.ok(sphereVisibility(p, light, [1, 0, 5], 1) > 0 && sphereVisibility(p, light, [1, 0, 5], 1) < 1);
+  for (const r of [0, 0.2, 1, 10, 100]) {
+    assert.ok(Number.isFinite(sunIrradiance(r)));
+    assert.ok(sunIrradiance(r + 0.01) < sunIrradiance(r));
+  }
+  close(sunIrradiance(200) / sunIrradiance(100), 0.25, 0.00002);
+  assert.match(scene.geometry.fragment, /visibility\*5\.\/\(\.7\+sd\*sd\)/);
+  assert.match(scene.geometry.fragment, /planetPosition\(i\)-v_p/);
+});
+
 test("EVERY mesh in all 25 trains: exact pitch distance, no slip and tooth-to-gap phase", () => {
   let meshes = 0;
   for (const seed of [10901, 1776, 2401]) {
@@ -156,7 +208,7 @@ test("planets orbit on exact integer ratios and return on the common drive perio
       const p = orbitPosition(i, phase),
         q = orbitPosition(i, phase + period);
       close(distance(p, q), 0);
-      close(Math.hypot(p[0], p[1]), 0.9 + i * 0.5);
+      close(Math.hypot(p[0], p[1]), 1.3 + i * 0.49);
       const dt = 1e-5,
         b = orbitPosition(i, phase + dt);
       const angular =
@@ -194,11 +246,12 @@ test("development is reversible continuous geometry, never a reseed or reset", (
     let prev = camera(0, a);
     for (let dev = 0.002; dev <= 2; dev += 0.002) {
       const c = camera(dev, a);
-      assert.ok(distance(c.eye, prev.eye) < 0.02);
+      // max smoothstep derivative 1.5 × |(1.2,1.9,9.5)| × Δdev
+      assert.ok(distance(c.eye, prev.eye) < 0.03);
       prev = c;
       assert.ok(
-        c.eye[2] > 2.5,
-        "camera stays in the open nave before the first mechanism plane",
+        c.eye[2] >= -0.301 && distance(c.eye, sunPosition(dev)) > 3,
+        "flight stays in the clear nave, away from the sun and its shaft",
       );
     }
     close(distance(camera(2, a).eye, camera(2, a + TAU).eye), 0);
@@ -218,7 +271,7 @@ test("geometry identity is seed-only, finite, deterministic and includes 225 act
   };
   let a = createGeometry(10901);
   assert.equal(a.length % STRIDE, 0);
-  assert.ok(a.length / STRIDE < 1800000, "bounded vertex budget");
+  assert.ok(a.length / STRIDE < 1970000, "bounded vertex budget");
   const objects = new Map();
   for (let i = 0; i < a.length; i += STRIDE) {
     for (let j = 0; j < STRIDE; j++) assert.ok(Number.isFinite(a[i + j]));
@@ -243,7 +296,7 @@ test(
     const { renderLook } = await import("./browser/client.mjs");
     const { PALETTES } = await import("../palettes.mjs");
     const { mkdir, writeFile } = await import("node:fs/promises");
-    const out = new URL("../artifacts/orrery/gpu/", import.meta.url);
+    const out = new URL("../artifacts/orrery/round2-gpu/", import.meta.url);
     await mkdir(out, { recursive: true });
     const server = await serve(".", 48504),
       runtime = await launch({ rig: true, headless: true });
@@ -385,8 +438,9 @@ test("rhythm acts locally on the signature; parameter-dependent phases use integ
   assert.equal(scene.rhythm.length, 3);
   const shader = scene.geometry.vertex;
   assert.match(shader, /a_motion.x\*drive\(\)\+a_motion.y/);
-  assert.match(shader, /kind>2.5/);
+  assert.match(shader, /kind>2.5&&kind<3.5/);
   assert.match(shader, /\.10\*clamp\(u_kick\+u_rhythm.x/);
+  assert.match(shader, /group==51\.\?\.25/);
   assert.match(scene.geometry.fragment, /tooth\*clamp\(u_rhythm.x/);
   assert.match(scene.geometry.fragment, /v_tag.z\*clamp\(u_rhythm.y/);
   assert.match(scene.geometry.fragment, /u_rhythm.z/);
