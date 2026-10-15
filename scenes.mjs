@@ -62,6 +62,7 @@ import storm from "./scene-storm.mjs";
 import escher from "./scene-escher.mjs";
 import silk from "./scene-silk.mjs";
 import ink from "./scene-ink.mjs";
+import dunes from "./scene-dunes.mjs";
 
 export default [
   acid,
@@ -128,6 +129,7 @@ export default [
   silk,
   ink,
   soap,
+  dunes,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).

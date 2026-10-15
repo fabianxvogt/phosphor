@@ -324,6 +324,16 @@ const AUTHORED = [
       { name: "Foam", look: "soap:Foam" },
     ],
   },
+  {
+    id: "dune-sea",
+    name: "Dune Sea",
+    description: "A low moon grazes wind ripples, a sea of crescent dunes and a towering dust front that reveals dark monoliths. The same desert throughout.",
+    states: [
+      { name: "Ripples", look: "dunes:Ripples" },
+      { name: "Dunes", look: "dunes:Dunes" },
+      { name: "Storm", look: "dunes:Storm" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
