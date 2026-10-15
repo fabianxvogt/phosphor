@@ -7,7 +7,7 @@ import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { initialShowSet, validateShowSet } from "../show-set.mjs";
 import { catalogLooks } from "../catalog.mjs";
 import acid, { grayScottSimulation } from "../scene-acid.mjs";
-import mycelium, { CHEMISTRY } from "../scene-mycelium.mjs";
+import mycelium, { CHEMISTRY, COLONY_RADII, colonyEnvelope } from "../scene-mycelium.mjs";
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 const clips = (ids) =>
@@ -66,6 +66,34 @@ test("the Living Mycelium world is one continuous development of one field", () 
         `${preset.name} ${field.key}`,
       );
     }
+});
+
+test("finite colony is smooth, symmetric and inside the conservative march bound", () => {
+  assert.equal(colonyEnvelope(0, 0), 1);
+  assert.equal(colonyEnvelope(COLONY_RADII[0], 0), 0);
+  assert.equal(colonyEnvelope(0, COLONY_RADII[1]), 0);
+  let previous = 1;
+  for (let i = 0; i <= 1000; i++) {
+    const x = i / 1000 * .6;
+    const mask = colonyEnvelope(x, 0);
+    assert.ok(mask <= previous && mask >= 0);
+    assert.equal(mask, colonyEnvelope(-x, 0));
+    previous = mask;
+    for (let j = 0; j < 32; j++) {
+      const a = j / 32 * 2 * Math.PI;
+      if (colonyEnvelope(x * Math.cos(a), x * Math.sin(a)) > 0)
+        assert.ok(x < .55, "march rejection cannot remove visible terrain");
+    }
+  }
+  assert.match(mycelium.fragment, /if \(c <= 0\.\) return 0\./);
+  assert.match(mycelium.fragment, /float samples = mix\(mix\(10\., 16\., tide\), 40\., city\)/);
+  assert.equal(mycelium.simulation.filter, "linear");
+  assert.match(mycelium.simulation.fragment, /texelFetch\(u_state/);
+  assert.doesNotMatch(mycelium.simulation.fragment, /texture\(u_state/);
+  // Palette regions and hashed lantern cells cannot jump when the periodic
+  // camera focus wraps onto an equivalent chemical texel.
+  assert.match(mycelium.fragment, /vec2 colonyXY = hit.xy - focus/);
+  assert.match(mycelium.fragment, /floor\(fract\(uv\)/);
 });
 
 test("development chemistry stays inside acid's stability clamps", () => {

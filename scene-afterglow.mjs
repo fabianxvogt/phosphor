@@ -49,6 +49,24 @@ const spores = `
     }
   }
 `;
+// Hardware bilinear filtering is safe for the visual concentration: decode
+// is linear in RG/BA bytes. The simulation must still read exact nearest
+// texels (including spore probes), so explicitly preserve that stencil.
+const nearestStencil = `
+vec4 gardenTexel(vec2 uv) {
+  ivec2 size = textureSize(u_state, 0);
+  return texelFetch(u_state, ivec2(floor(fract(uv) * vec2(size))), 0);
+}
+vec2 gardenLaplacian(vec2 uv) {
+  vec2 t=1./vec2(textureSize(u_state,0));
+  vec4 sum=-gardenTexel(uv);
+  sum+=.2*(gardenTexel(uv+vec2(t.x,0.))+gardenTexel(uv-vec2(t.x,0.))
+          +gardenTexel(uv+vec2(0.,t.y))+gardenTexel(uv-vec2(0.,t.y)));
+  sum+=.05*(gardenTexel(uv+t)+gardenTexel(uv-t)
+          +gardenTexel(uv+vec2(t.x,-t.y))+gardenTexel(uv+vec2(-t.x,t.y)));
+  return unpack16(sum);
+}
+`;
 const simulationFragment = morphogenSimulation(
   {
     planting: "u_params[1]",
@@ -57,35 +75,72 @@ const simulationFragment = morphogenSimulation(
     spread: "gardenChemistry().z",
     growth: "u_params[2]",
   },
-  steering,
+  nearestStencil + steering,
   spores,
-);
+).replace("texture(u_state, uv)", "gardenTexel(uv)")
+ .replace("laplacian9(u_state, v_uv)", "gardenLaplacian(v_uv)");
+
+// CPU reference for the six-fold calyx silhouette (also tested algebraically).
+export function crownEnvelope(x, y, bloom) {
+  if (bloom <= 0) return 1;
+  const r = Math.hypot(x, y), nx = x / Math.max(r, 1e-5), ny = y / Math.max(r, 1e-5);
+  const c3 = nx * (nx * nx - 3 * ny * ny);
+  const radius = .46 + .09 * (2 * c3 * c3 - 1);
+  const t = Math.max(0, Math.min(1, (r * Math.max(bloom, .01) / radius - .82) / .18));
+  return 1 - t * t * (3 - 2 * t);
+}
 
 const fragment = `${chemistry}
 float petalW() { return smoothstep(0., 1., clamp(u_params[0], 0., 1.)); }
 float bloomW() { return smoothstep(1., 2., clamp(u_params[0], 1., 2.)); }
-float bloomAt(vec2 uv) { return stateBilinear16(uv).y; }
+float bloomAt(vec2 uv) { return unpackMorphogens(texture(u_state, uv)).y; }
 float bloomFast(vec2 uv) { return unpackMorphogens(texture(u_state, uv)).y; }
 float body(float v) { return smoothstep(.035, .26, v); }
 const float WORLD = 1.6;
 vec2 worldToUv(vec2 xy) { return xy / WORLD; }
+vec2 gardenFocus;
+float crownMask(vec2 xy, float bloom) {
+  if (bloom <= 0.) return 1.;
+  vec2 q = xy - gardenFocus;
+  float r = length(q);
+  vec2 n = q / max(r, 1e-5);
+  // cos(6 theta), algebraic so every march sample avoids atan/trigonometry.
+  float c3 = n.x * (n.x*n.x - 3.*n.y*n.y);
+  float radius = .46 + .09 * (2.*c3*c3 - 1.);
+  return 1. - smoothstep(.82, 1., r * max(bloom, .01) / radius);
+}
+float gardenHeight(float v, vec2 xy, float bloom) {
+  if (bloom <= 0.) return body(v);
+  float r = min(1., length(xy-gardenFocus) / .55);
+  float mask = crownMask(xy, bloom);
+  // The same field grows onto a six-lobed calyx: continuous petal tissue,
+  // a low central well, and elevated tips, rather than another city wall.
+  float calyx = .18 + .65*r*r;
+  return mask * mix(body(v), calyx + body(v)*.06, bloom);
+}
+float terrain(vec2 xy, vec2 wobble, float bloom) {
+  if (bloom <= 0.) return body(bloomAt(worldToUv(xy) + wobble));
+  if (crownMask(xy, bloom) <= 0.) return 0.;
+  return gardenHeight(bloomAt(worldToUv(xy) + wobble), xy, bloom);
+}
 
 void main() {
   float aspect = u_resolution.x / u_resolution.y;
-  vec2 p = (v_uv - .5) * vec2(aspect, 1.);
+  vec2 p = (v_uv - .5) * vec2(max(aspect, 1.), max(1., 1. / aspect));
   float petal = petalW(), bloom = bloomW();
   float petalRelief = clamp(u_params[3], 0., 1.);
   float glow = clamp(u_params[4], .35, 1.65);
   float relief = clamp(u_params[6], .3, 1.6);
   float sway = clamp(u_params[7], 0., 1.);
-  float scale = mix(mix(.022, .045, petal), .055, bloom) * relief;
+  float scale = mix(mix(.025, .065, petal), .24, bloom) * relief;
 
   // Camera: a forward tracking flight. Roots skims low toward a glowing
   // horizon; Bloom cranes up to look down on the crowns.
-  float pitch = mix(mix(1.30, .86, petal), .50, bloom);
-  float distanceToFocus = mix(mix(.62, .95, petal), 1.45, bloom) * clamp(u_params[5], .7, 1.4);
+  float pitch = mix(mix(1.25, .86, petal), .65, bloom);
+  float distanceToFocus = mix(mix(.68, .95, petal), 1.90, bloom) * clamp(u_params[5], .7, 1.4);
   float yaw = mix(.22, .55, bloom) * sin(TAU * fract(u_time / 180.));
   vec2 focus = WORLD * (.5 + vec2(.035 * sin(TAU * fract(u_time / 120.)), fract(u_time / 260.)));
+  gardenFocus = focus;
   vec2 heading = vec2(sin(yaw), cos(yaw));
   vec3 forward = vec3(heading * sin(pitch), -cos(pitch));
   vec3 right = vec3(heading.y, -heading.x, 0.);
@@ -94,31 +149,38 @@ void main() {
   float lens = 1.5 * (1. + .015 * clamp(u_kick, 0., 1.));
   vec3 rd = normalize(p.x * right + p.y * up + lens * forward);
 
-  vec3 night = u_secondary * .016 + vec3(.003, .004, .008);
+  vec3 night = u_secondary * .009;
   // Afterglow sky: a low band of light above the horizon (Roots only).
-  vec3 sky = night + mix(u_secondary, u_accent, .35) * .10 * exp(-max(rd.z, 0.) * 12.)
-           + mix(u_accent, u_primary, .4) * .10 * exp(-max(rd.z, 0.) * 40.);
+  vec3 sky = night + u_secondary * .035 * exp(-abs(rd.z) * 12.)
+           + mix(u_secondary, u_primary, .35) * .025 * exp(-abs(rd.z) * 40.);
   // Rays at or above the horizon see only the sky (no early return, so
   // screen-space derivatives stay defined along the horizon).
   bool skyward = rd.z > -.004;
-  // March the heightfield slab (16 bilinear samples, 5 bisections).
+  // Hardware bilinear concentration permits 20 intervals / 7 bisections.
   float rz = min(rd.z, -.004);
   float tTop = (scale * 1.2 - ro.z) / rz, tGround = -ro.z / rz;
   float tEnd = min(tGround, 7.);
-  float t = max(tTop, 0.), dt = (tEnd - t) / 16.;
+  float samples = mix(20., 10., bloom);
+  float t = max(tTop, 0.), dt = (tEnd - t) / samples;
   vec3 hit = ro + rd * tGround;
+  vec2 slabStart = (ro + rd * t).xy - focus;
+  vec2 slabSpan = (ro + rd * tEnd).xy - focus - slabStart;
+  vec2 closest = slabStart + slabSpan * clamp(-dot(slabStart, slabSpan)/max(dot(slabSpan,slabSpan),1e-6),0.,1.);
+  float bound = .551 / max(bloom, .01);
+  bool inCrown = dot(closest,closest) < bound*bound;
   bool found = tGround < 7.;
   float prev = t;
   vec2 wobble = .004 * sway * vec2(sin(u_time * .23), cos(u_time * .19));
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i <= 20; i++) {
+    if (skyward || !inCrown || float(i) > samples) break;
     vec3 q = ro + rd * t;
-    float h = scale * body(bloomAt(worldToUv(q.xy) + wobble));
+    float h = scale * terrain(q.xy, wobble, bloom);
     if (q.z <= h) {
       float a = prev, b = t;
-      for (int k = 0; k < 5; k++) {
+      for (int k = 0; k < 7; k++) {
         float m = .5 * (a + b);
         vec3 r = ro + rd * m;
-        if (r.z <= scale * body(bloomAt(worldToUv(r.xy) + wobble))) b = m; else a = m;
+        if (r.z <= scale * terrain(r.xy, wobble, bloom)) b = m; else a = m;
       }
       hit = ro + rd * b;
       found = true;
@@ -134,16 +196,21 @@ void main() {
   vec2 uv = worldToUv(hit.xy) + wobble;
   vec2 texel = 1. / vec2(textureSize(u_state, 0));
   vec2 e = 1.5 * texel;
-  float v = bloomAt(uv);
-  float vx1 = bloomAt(uv + vec2(e.x, 0.)), vx0 = bloomAt(uv - vec2(e.x, 0.));
-  float vy1 = bloomAt(uv + vec2(0., e.y)), vy0 = bloomAt(uv - vec2(0., e.y));
+  float crown = crownMask(hit.xy, bloom);
+  float v = crown <= 0. ? 0. : bloomAt(uv);
+  float vx1 = 0., vx0 = 0., vy1 = 0., vy0 = 0.;
+  if (crown > 0.) {
+    vx1 = bloomAt(uv + vec2(e.x, 0.)); vx0 = bloomAt(uv - vec2(e.x, 0.));
+    vy1 = bloomAt(uv + vec2(0., e.y)); vy0 = bloomAt(uv - vec2(0., e.y));
+  }
   vec2 gradient = vec2(vx1 - vx0, vy1 - vy0);
-  float b0 = body(v);
+  float b0 = mix(body(v), max(body(v), .85) * crown, bloom);
   // Petal relief: ridges around each island follow the gradient direction.
   float angle = atan(gradient.y + 1e-5, gradient.x + 1e-5);
   float petals = .5 + .5 * cos(angle * 6. + v * 22.);
   float ridge = petalRelief * mix(.15, 1., petal) * petals * b0 * (1. - b0) * 4.;
-  vec2 slope = vec2(body(vx1) - body(vx0), body(vy1) - body(vy0)) * scale / (2. * e * WORLD);
+  vec2 slope = vec2(gardenHeight(vx1, hit.xy+vec2(e.x*WORLD,0.), bloom) - gardenHeight(vx0, hit.xy-vec2(e.x*WORLD,0.), bloom),
+                     gardenHeight(vy1, hit.xy+vec2(0.,e.y*WORLD), bloom) - gardenHeight(vy0, hit.xy-vec2(0.,e.y*WORLD), bloom)) * scale / (2. * e * WORLD);
   slope += vec2(cos(angle), sin(angle)) * ridge * .25;
   vec3 normal = normalize(vec3(-slope, 1.));
 
@@ -152,9 +219,10 @@ void main() {
   float diffuse = max(0., dot(normal, key));
   float fresnel = pow(1. - max(0., dot(normal, view)), 3.);
   float shadow = 1.;
-  for (int i = 1; i <= 3; i++) {
-    vec3 s = vec3(hit.xy, scale * b0) + key * float(i) * scale;
-    float ground = scale * body(bloomFast(worldToUv(s.xy) + wobble));
+  for (int i = 1; i <= 2; i++) {
+    if (crown <= 0.) break;
+    vec3 s = hit + key * float(i) * scale;
+    float ground = scale * gardenHeight(bloomFast(worldToUv(s.xy) + wobble), s.xy, bloom);
     shadow = min(shadow, 1. - .6 * smoothstep(0., scale * .3, ground - s.z));
   }
 
@@ -162,10 +230,11 @@ void main() {
   // margins glow as if backlit), and the rims shift hue with view angle.
   float margin = (1. - b0) * smoothstep(.03, .11, v);
   float core = smoothstep(.24, .32, v) * pow(petals, 4.);
-  // Tissue leans on secondary and accent; primary is kept for the light.
-  vec3 tissue = mix(u_secondary, u_accent, clamp(.25 + .35 * petals * petal + .2 * b0, 0., 1.));
+  // Palette-coloured petal tissue; accent is reserved for the central well.
+  float radial = clamp(length(hit.xy-focus)/.55, 0., 1.);
+  vec3 tissue = mix(mix(u_secondary, u_primary, .35), palette(.18 + .50 * radial), bloom * .65);
   vec3 iris = palette(fract(.30 + .40 * fresnel + .12 * petals) * .7);
-  float tissueLight = (.02 + .30 * diffuse * shadow) * mix(.45, 1., petal) * (1. - .55 * bloom);
+  float tissueLight = (.04 + .75 * diffuse * shadow + .16 * fresnel) * mix(.45, 1., petal);
   vec3 color = mix(night, tissue * tissueLight, b0);
   color += mix(tissue, u_primary, .35) * margin * (.22 + .30 * petal * (1. - bloom)) * (1. - .6 * bloom) * glow;
   color += iris * fresnel * b0 * (.10 + .40 * petal * (1. - .5 * bloom)) * glow;
@@ -184,19 +253,24 @@ void main() {
   float g = length(gradient);
   float neon = crestMask * exp(-sq(g / .04)) * bloom;
   float halo = crestMask * exp(-sq(g / .11)) * bloom;
-  color += mix(u_primary, u_accent, .35) * halo * .45 * glow;
-  color += mix(u_primary, vec3(1.), .35) * neon * (.7 + .5 * petals) * 1.4 * glow;
-  color += mix(u_accent, vec3(1.), .2) * core * bloom * 1.4 * glow;
+  color += u_primary * halo * .18 * glow;
+  color += mix(u_primary, vec3(1.), .12) * neon * (.45 + .25 * petals) * 1.2 * glow;
+  color += mix(u_accent, vec3(1.), .2) * core * bloom * .45 * (1. - radial) * glow;
+  float centre = exp(-dot(hit.xy-focus, hit.xy-focus) * 200.);
+  color += mix(u_accent, vec3(1.), .2) * centre * bloom * 2.2 * glow;
+  color = mix(night, color, smoothstep(0., .12, crown));
   // Wet soil mirrors the crowns. A crown of height h reflects at horizontal
   // offset h·|r.xy|/r.z along the reflected ray; three taps around that
   // offset blur it, and a slow ripple breaks it up.
   vec3 reflected = reflect(rd, vec3(0., 0., 1.));
   vec2 toward = reflected.xy / max(reflected.z, .15);
-  vec2 ripple = .0025 * vec2(sin(hit.y * 70. + u_time * 1.1), cos(hit.x * 60. - u_time * .9));
+  vec2 localXY = hit.xy - focus;
+  vec2 ripple = .0025 * vec2(sin(localXY.y * 70. + u_time * 1.1), cos(localXY.x * 60. - u_time * .9));
   float mirror = 0.;
   for (int i = 0; i < 3; i++) {
+    if (bloom <= 0.) break;
     vec2 at = worldToUv(hit.xy + toward * scale * (.75 + .25 * float(i))) + ripple;
-    mirror += smoothstep(.22, .34, bloomFast(at)) / 3.;
+    mirror += smoothstep(.22, .34, bloomFast(at)) * crownMask(at * WORLD, bloom) / 3.;
   }
   color += mix(u_accent, u_primary, .4) * mirror * (1. - b0) * bloom * .45 * glow;
 
@@ -206,6 +280,7 @@ void main() {
   color += iris * b0 * cohort * u_rhythm.y * .45;
 
   color = mix(color, sky, fog);
+  color += u_secondary * .012 * exp(-dot(hit.xy-focus, hit.xy-focus) * 5.);
   outColor = vec4(max(color, 0.), 1.);
 }
 `;
@@ -361,5 +436,6 @@ export default {
     fragment: simulationFragment,
     size: [384, 384],
     steps: 2,
+    filter: "linear", // visual only; exact nearest simulation stencil above
   },
 };

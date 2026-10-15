@@ -11,7 +11,7 @@ import {
 import { initialShowSet, validateShowSet } from "../show-set.mjs";
 import { catalogLooks } from "../catalog.mjs";
 import evolution, { morphogenSimulation } from "../scene-evolution.mjs";
-import afterglow, { CHEMISTRY } from "../scene-afterglow.mjs";
+import afterglow, { CHEMISTRY, crownEnvelope } from "../scene-afterglow.mjs";
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 
@@ -67,6 +67,49 @@ test("Afterglow Garden is one continuous development of one field", () => {
         `${preset.name} ${field.key}`,
       );
     }
+});
+
+test("linear visual filtering decodes exactly; simulation retains explicit nearest stencils", () => {
+  assert.equal(afterglow.simulation.filter, "linear");
+  assert.match(afterglow.simulation.fragment, /texelFetch\(u_state/);
+  assert.doesNotMatch(afterglow.simulation.fragment, /texture\(u_state/);
+  assert.match(afterglow.simulation.fragment, /gardenLaplacian\(v_uv\)/);
+  const encode = x => [Math.floor(x/256)/255, (x%256)/255];
+  const decode = a => (256*a[0]+a[1])*255/65535;
+  for (let i=0;i<1000;i++) {
+    const a=(i*7919)%65536,b=(i*15401+255)%65536,t=(i%97)/97;
+    const aa=encode(a),bb=encode(b);
+    const filtered=decode(aa.map((x,j)=>x+(bb[j]-x)*t));
+    assert.ok(Math.abs(filtered-((1-t)*a+t*b)/65535)<1e-15);
+  }
+});
+
+test("calyx envelope has exact six-fold symmetry and continuous bounded development", () => {
+  for (let i = 0; i < 200; i++) {
+    const angle = i * .17, r = i / 200 * .7;
+    const x = r * Math.cos(angle), y = r * Math.sin(angle);
+    for (let k = 0; k < 6; k++) {
+      const a = angle + k * Math.PI / 3;
+      assert.ok(Math.abs(crownEnvelope(x,y,1) - crownEnvelope(r*Math.cos(a),r*Math.sin(a),1)) < 1e-12);
+    }
+    let previous = 1;
+    for (let k = 0; k <= 200; k++) {
+      const mask = crownEnvelope(x,y,k/200);
+      assert.ok(mask >= 0 && mask <= previous + 1e-12);
+      previous = mask;
+    }
+  }
+  assert.equal(crownEnvelope(0,0,1),1);
+  assert.equal(crownEnvelope(.551,0,1),0);
+  // Algebraic cos(6 theta) avoids trigonometry in every march sample.
+  for (let i = 0; i < 100; i++) {
+    const a = i*.2, x = Math.cos(a), y = Math.sin(a);
+    const c3 = x*(x*x-3*y*y);
+    assert.ok(Math.abs(2*c3*c3-1-Math.cos(6*a)) < 1e-13);
+  }
+  assert.match(afterglow.fragment, /if \(bloom <= 0\.\) break/);
+  assert.match(afterglow.fragment, /gardenHeight\(bloomAt/);
+  assert.match(afterglow.fragment, /vec2 localXY = hit.xy - focus/);
 });
 
 test("saved sets with the earlier evolution-based Afterglow Garden upgrade; edited ones stay", () => {
