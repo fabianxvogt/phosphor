@@ -82,6 +82,8 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Afterglow Garden](families/afterglow.md) | afterglow | Gray–Scott morphogens as a night garden | Roots / Petals / Bloom | 8 |
 | [Bioluminescent Abyss](families/abyss.md) (world Abyssal Bloom) | abyss | Pulsing parametric medusae, sea-pen light waves and disturbance-lit plankton | Sparks / Swarms / Reef | 8 |
 
+| [Liquid Chrome](families/ferro.md) | ferro | Raymarched ferrofluid with a Rosensweig hexagonal spike lattice and procedural studio reflections | Pool / Crown / Sculpture | 8 |
+
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 
 ## Preserved historical looks
