@@ -81,7 +81,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Attractor Ribbons](families/ribbons.md) (world Attractor Ribbons) | ribbons | Fixed-step RK4 trajectories in three flows, drawn as lit ribbons | Wings / Vortex / Labyrinth | 8 |
 | [Afterglow Garden](families/afterglow.md) | afterglow | Gray–Scott morphogens as a night garden | Roots / Petals / Bloom | 8 |
 | [Bioluminescent Abyss](families/abyss.md) (world Abyssal Bloom) | abyss | Pulsing parametric medusae, sea-pen light waves and disturbance-lit plankton | Sparks / Swarms / Reef | 8 |
-| [Moon Tide](families/tide.md) (world Moon Tide / Mondflut) | tide | Deep-water Gerstner dispersion and a continuous spiral heightfield | Calm / Swell / Maelstrom | 8 |
+| [Moon Tide](families/tide.md) (world Moon Tide / Mondflut) | tide | Dispersive Gerstner sea, filtered luminous crest lace and a deep glowing spiral funnel | Calm / Swell / Maelstrom | 8 |
 
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 

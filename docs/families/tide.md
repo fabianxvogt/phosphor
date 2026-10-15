@@ -15,14 +15,18 @@ H(q) = Σ Aᵢ sin(kᵢ dᵢ·q + φᵢ), Q = 0.65
 
 The six amplitudes `[0.8,0.4,0.24,0.16,0.085,0.035]` scale continuously from ×0.48 to ×2.35 with Calm → Swell and by the height fader (≤1.3). At the **entire schema maximum**, `Σ Q k A = 0.5530875468 < 1`; the symmetric horizontal Jacobian has minimum eigenvalue ≥0.4469124532. Thus the horizontal map cannot fold or self-intersect. Development never alters wave IDs, seeded directions or initial phases.
 
-Two Newton iterations invert `X(q)` for a world-space heightfield query. A six-texel RGBA32F **data-only** precompute stores wavevectors, amplitudes and phases each frame; the fallback computes the identical coefficients directly. A capped 15-step safeguarded regula-falsi intersection solves the water height. Normals pull the material height gradient through the inverse horizontal Jacobian, rather than repeating four height queries per pixel.
+Two Newton iterations invert `X(q)` for every world-space heightfield query, including intersection candidates. A **data-only**, per-frame 256×257 RGBA32F precompute stores the six wave coefficients in row 0 and a 256² world-space bowl height/analytic-gradient table in the other rows. This is not a reduced-resolution colour buffer: waves, inversion, crest compression, foam, lighting and spray all remain full-resolution. Without float targets the exact analytic bowl and wave-coefficient paths remain available.
+
+The table covers −64…64 world units with explicit bilinear interpolation. The polar core (r≤6) and exterior remain analytic, with smooth transition bands at r=6…8 and the outer border. A 30,000-point CPU sweep across five flow phases checks <3 cm height error and <0.025 unit-normal error. Native GPU comparison against the analytic bowl at 12 h gives mean maximum-channel error 0.00169 in linear HDR; 0.275% of pixels differ by >0.1, concentrated in sensitive highlights. It is an approximation, not a bit-identical cache.
+
+A capped 15-step safeguarded **Illinois regula-falsi** intersection solves the water height. Conservative ray-specific slabs include the closest projected distance to the throat and the table cell diagonal; they avoid solving all outer-ocean rays against the deepest possible sea floor. Normals pull the material height gradient through the inverse horizontal Jacobian rather than repeating four height queries per pixel.
 
 ### The peak: Maelstrom
 
-The ocean's vertical coordinate develops into a 27-unit depression with a raised shoulder and five meandering, rotating spiral ridges. Its base is
+The ocean's vertical coordinate develops into a **42-unit depression**, with a raised shoulder and five meandering, rotating spiral ridges. Its base is
 
 ```
--27 exp(-r²/245) + 3.8 exp(-((r-23)/7)²)
+-42 exp(-r²/190) + 3.8 exp(-((r-23)/7)²)
 ```
 
 and the ridge phase is `5θ + 0.44r - 2f + 0.28 sin(3θ - 0.12r + f)`. An inner smooth window removes the angular singularity. All angular and clock harmonics are integers, so neither the atan seam nor phase wrapping jumps. Analytic radial/angular derivatives shade the bowl. Since this only adds height, it does not invalidate the Gerstner no-fold bound.
@@ -31,7 +35,13 @@ and the ridge phase is `5θ + 0.44r - 2f + 0.28 sin(3θ - 0.12r + f)`. An inner 
 
 ## Light and depth
 
-Fresnel sky reflection, a compact moon plus a rough moon-glitter path, faint lunar surface mottling, sparse stars, distant horizon haze, soft directional key, grazing rim and trough darkening. All colour comes from palette uniforms and white/black mixtures. Living foam follows actual Gerstner crest compression; rare accent pinpoints mark the hottest foam and spiral ridges. Fine wind ripples, foam filaments and surface spindrift fade before becoming subpixel. Spray is a surface-linked analytic sparkle treatment, not simulated airborne droplets.
+Fresnel sky reflection, a compact moon plus a rough moon-glitter path, faint lunar surface mottling, sparse stars, distant horizon haze, soft directional key, grazing rim and trough darkening. All colour comes from palette uniforms and white/black mixtures.
+
+**Round 2 foam:** actual Gerstner crest compression gates smoothly domain-warped **quintic gradient-noise ridges**, not thresholded value-noise cells. Two lacy scales and separate wind-aligned filaments break up the crests. `fwidth` softens ridge/crest thresholds and actual world-space pixel footprints fade unresolved detail; derivatives stay outside the divergent water branch. There are no shaded square foam candidates.
+
+Living foam emits chiefly in secondary, with rare accent/primary hot knots. Local kick ignition flickers along existing crests, bounded to <1.4× its un-kicked value at a hot point; it does not flash the frame. The five inward spiral bands get thin luminous cores and a glowing funnel lip. Reflection falls exponentially down the throat, while a faint secondary/accent pool glows below. Native float-picture readback at 12 h measured **9.75 in Swell and 10.08 in Maelstrom**, with about 4–5% of pixels above 1: living light, not the moon, is the brightest feature.
+
+Sparse Gaussian spray points conserve integrated flux when widened by their pixel footprint and vanish before candidate-cell borders. A shallow, water-occluded annular mist/sparkle layer floats above the vortex lip. This is analytic suspended spray, not a particle or fluid simulation.
 
 ## States and looks
 
@@ -56,7 +66,7 @@ Energy is orthogonal: motion speed ×0.7–1.3 (1.86× range), wind-normal/foam 
 - **Spiral ridge / Spiralgrat**, 8 beats: accents the existing spiral ridge locally.
 - **Incoming tide / Ankommende Flut**, 16 beats: a broad ring crosses the vortex shoulder.
 
-The camera follows a slow closed coastal sway (±5 units horizontally, ±3 units in distance) and cranes continuously with development. No roll. The minimum eye height starts at 4.8, rises to 6.4 in Swell (before the viewing-height fader), and reaches 33–46 at the peak. A CPU envelope test proves clearance at every development value and maximum wave height. Kick FOV modulation is bounded to **2.2%**.
+The camera follows a slow closed coastal sway (±5 units horizontally, ±3 units in distance), then cranes continuously into a **full slow orbit** of the vortex at radius 43–47, closer than before. No roll. Minimum eye height starts at 4.8 and rises to 6.4 in Swell; the peak is 35 + 12×eye ±2 units high. Cartesian interpolation of the coastal and orbital paths stays periodic even at fractional development. CPU tests check the conservative clearance envelope, radius and intermediate-development wrap. The vortex fills roughly two-thirds of the short side in the review film. Kick FOV modulation remains bounded to **2.2%**.
 
 ## Endless time
 
@@ -68,19 +78,20 @@ Synchronous whole-frame throughput, **including post**, not display cadence. Sha
 
 | Resolution | Calm p50 / p95 | Swell p50 / p95 | Maelstrom p50 / p95 |
 | --- | --- | --- | --- |
-| 1920×1080 | 3.8 / 4.1 ms | 4.8 / 5.2 ms | 7.0 / 7.4 ms |
-| 3840×2160 | 14.5 / 17.2 ms | 16.9 / 17.2 ms | 25.9 / 26.7 ms |
+| 1920×1080 | 3.1 / 3.9 ms | 4.5 / 5.0 ms | 6.9 / 7.2 ms |
+| 3840×2160 | 14.0 / 16.3 ms | 16.3 / 16.8 ms | 24.9 / 25.9 ms |
 
-1080p meets the ≤8 ms family budget. **4K Maelstrom is not a 60 Hz two-world-crossfade budget**; the 4K probe exceeds its default 16.67 ms threshold. No resolution cap, engine downgrade or cached colour image is used.
+Round-2 delivery probe: 48 samples/state at energy 0.95, including post, on the shared M3 Pro. 1080p meets the ≤8 ms family budget, including measured p95. Earlier un-cached peak probes were 8.0 / 8.8 ms at 1080p. **4K Maelstrom is not a 60 Hz two-world-crossfade budget**; the 4K probe deliberately exits 1 against its default 16.67 ms threshold. No resolution cap, engine downgrade or cached colour image is used. JSON: `artifacts/performance/tide-r2-final-{1080,4k}/profile.json`.
 
 ## Verification
 
-- `node --test tests/tide.test.mjs`: exact dispersion and group velocity; full-schema steepness/Jacobian bound; two-step inverse versus a converged solution (<2.5 cm horizontal residual, <1.2 cm height error); analytic normals versus numeric derivatives; bowl center/atan seam; identity and C1 state boundaries; camera envelope, energy/rhythm limits, 12-hour clocks; all eight presets and continuous-world registration.
-- `PHOSPHOR_HEADLESS_RIG=1 node scripts/check-tide.mjs --rig --port 48303`: explicit early/late and no-precompute shader compilation, 1080p/4K/portrait, low-energy coverage, 3600 s and 43200 s, reverse sweep with unchanged seed/slot; zero GL errors/non-finite uniforms. Evidence under `artifacts/films/tide-verification/`.
-- `PHOSPHOR_HEADLESS_RIG=1 node scripts/check-time-wrap.mjs --rig --families tide --port 48303`: no seams at 3600/4096/43200 s, no excessive energy or fader-rate departure at 2 h; actual late variant verified.
-- Final 30-second world film (Glacier) and extra-look film (Living Breakers / Ember), plus Phosphor palette film, under `artifacts/films/tide-final/`; all opened as contact strips and selected stills.
-- Eight-look energy ladder: `artifacts/contact/tide-final/index.html`; PNG overview under `artifacts/films/tide-verification/energy-ladder.png`.
+- `node --test tests/tide.test.mjs tests/time.test.mjs`: 21 passing tests. Preserved exact dispersion/group velocity, full-schema Gerstner no-fold bound, two-step inverse and analytic normal checks; added gradient-lace C1/C2 seams, resolution filtering, HDR/local kick bounds, Gaussian flux, bowl-cache error, ray slabs, deeper bowl and orbital continuity. All eight presets still validate and retain continuous-world identity.
+- `PHOSPHOR_HEADLESS_RIG=1 node scripts/check-tide.mjs --rig --port 48331 --out artifacts/films/tide-r2-verification`: explicit early/late and no-precompute shader compilation, 1080p/4K/portrait, low energy, 3600 s and 43200 s, reverse sweep with unchanged seed/slot; zero GL errors/non-finite uniforms.
+- `PHOSPHOR_HEADLESS_RIG=1 node scripts/check-time-wrap.mjs --rig --families tide --port 48331`: no seams at 3600/4096/43200 s, no excessive energy or fader-rate departure at 2 h; actual late variant verified.
+- Final 30-second, 960×540 world film (Glacier) and extra-look film (Living Breakers / Ember), plus Phosphor world film: `artifacts/films/tide-r2-final/`. Contact strips, full-frame Swell/Maelstrom stills and the native 4K still were opened and reviewed. Earlier filmed revisions remain in `tide-r2-round1` through `tide-r2-round4`.
+- Eight-look energy ladder: `artifacts/contact/tide-final/index.html`; opened overview: `artifacts/films/tide-r2-verification/energy-ladder.png`.
+- `node --test tests/*.test.mjs`: 667 pass, 9 skip, 0 fail. `npm test`: 673 pass, 15 skip, 0 fail. `npm run typecheck` and DE/EN native browser i18n checks pass. No catalog preview/curation tests were edited.
 
 ## Limits
 
-This is a small analytic spectrum, not an FFT sea. The heightfield cannot overturn. The vortex and foam are deliberately stylized; no refraction-through-water, multiple scattering, foam advection simulation or airborne spray simulation. Regula-falsi is a bounded approximation and may not choose the very nearest root in steep overlapping silhouettes. Very distant foam becomes a band-limited average. Portrait crops the shoulder of the peak rather than shrinking the ocean to fit. The moon intentionally leaves the frame during the peak crane. No claim of venue qualification.
+This is a small analytic spectrum, not an FFT sea. The heightfield cannot overturn. The vortex and foam remain stylized: the lace is materially smoother and luminous but can read as a living-light network rather than photographic aerated foam. No refraction-through-water, multiple scattering, foam advection or airborne particle simulation. The mist is a shallow analytic layer. The sampled bowl cache is not bit-identical to its analytic fallback, especially in narrow highlights. Regula-falsi is bounded and may not choose the very nearest root in steep overlapping silhouettes. Very distant foam becomes a band-limited average. Portrait crops the shoulder rather than shrinking the ocean. The moon leaves the frame during the peak crane. 4K peak remains over a 60 Hz frame budget. No claim of venue qualification.
