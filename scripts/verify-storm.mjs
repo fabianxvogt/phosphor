@@ -22,6 +22,7 @@ const rows = [],
   comparisons = [],
   bounds = [],
   hdr = [];
+let microstructure;
 try {
   const lab = await openLab(runtime.browser, server.url);
   for (const paletteId of ["glacier", "ember", "phosphor"])
@@ -139,6 +140,52 @@ try {
           rows.push({ paletteId, development, energy, ...row });
         }
       }
+  microstructure = await lab.page.evaluate(() => {
+    const { engine } = window.__phosphorLab,
+      gl = engine.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, engine.slots.at(-1).precompute.fbo);
+    const data = new Float32Array(840 * 30 * 4);
+    gl.readPixels(124, 3, 840, 30, gl.RGBA, gl.FLOAT, data);
+    const at = (z, x, y, c) => data[(y * 840 + z * 30 + x) * 4 + c];
+    let gutterError = 0,
+      nonFinite = 0,
+      gradientPeak = 0,
+      valueMin = 1,
+      valueMax = 0;
+    for (let z = 0; z < 28; z++) {
+      for (let n = 0; n < 30; n++)
+        for (let c = 0; c < 4; c++)
+          gutterError = Math.max(
+            gutterError,
+            Math.abs(at(z, 0, n, c) - at(z, 28, n, c)),
+            Math.abs(at(z, 29, n, c) - at(z, 1, n, c)),
+            Math.abs(at(z, n, 0, c) - at(z, n, 28, c)),
+            Math.abs(at(z, n, 29, c) - at(z, n, 1, c)),
+          );
+      for (let y = 1; y <= 28; y++)
+        for (let x = 1; x <= 28; x++) {
+          const v = Array.from({ length: 4 }, (_, c) => at(z, x, y, c));
+          nonFinite += v.filter((n) => !Number.isFinite(n)).length;
+          valueMin = Math.min(valueMin, v[0]);
+          valueMax = Math.max(valueMax, v[0]);
+          gradientPeak = Math.max(gradientPeak, Math.hypot(...v.slice(1)));
+        }
+    }
+    return {
+      nodes: 28 ** 3,
+      gutterError,
+      nonFinite,
+      valueMin,
+      valueMax,
+      gradientPeak,
+      glError: gl.getError(),
+    };
+  });
+  assert.equal(microstructure.glError, 0);
+  assert.equal(microstructure.nonFinite, 0);
+  assert.ok(microstructure.gutterError < 1e-6, JSON.stringify(microstructure));
+  assert.ok(microstructure.gradientPeak < 5, JSON.stringify(microstructure));
+  assert.ok(microstructure.valueMin > -0.6 && microstructure.valueMax <= 1);
   // Check support of every positive atlas node, including its trilinear
   // interpolation halo, against the tighter carrier ray bounds.
   const cases = await lab.page.evaluate(() => {
@@ -196,12 +243,12 @@ try {
             const mix = (a, b, t) => a + (b - a) * t;
             const rise = smooth(0, 1, slot.params[0]),
               supercell = smooth(1, 2, slot.params[0]);
-            const bx = Math.min(24, mix(24, mix(12, 26, supercell), rise));
+            const bx = Math.min(24, mix(24, mix(12, 28, supercell), rise));
             const lo = [-bx, 0.4, mix(1, -3, smooth(0, 0.5, supercell))];
             const hi = [
               bx,
               Math.min(16.8, mix(9.2, 14.4, rise) * slot.params[2]),
-              mix(11.2, 13, supercell),
+              13,
             ];
             const origin = [-24, 0.4, -3],
               size = [48, 16.4, 16],
@@ -354,10 +401,13 @@ try {
       };
     });
     assert.equal(diff.glError, 0);
-    // Float texture hardware has subtexel precision limits. Compare against
-    // the manual, uncached interpolation with a sparse-contour error budget.
+    // The procedural path is independently compiled, including rounded
+    // cellular gradients and a multi-octave material chart. Bound its sparse
+    // contour outliers explicitly, rather than claiming bit identity. The
+    // native cached linear/manual path retains its stricter <=2-level gate.
+    console.log(JSON.stringify({ development, ...diff }));
     assert.ok(
-      diff.max <= 2 && diff.mean < 0.01 && diff.outlierFraction === 0,
+      diff.max <= 10 && diff.mean < 0.02 && diff.outlierFraction < 0.0001,
       JSON.stringify(diff),
     );
     comparisons.push({ development, graphMaxError: error, fallback: diff });
@@ -366,6 +416,8 @@ try {
     ["haze-portrait", 0, 540, 960],
     ["towers-portrait", 1, 540, 960],
     ["supercell-portrait", 2, 540, 960],
+    ["towers-1080", 1, 1920, 1080],
+    ["supercell-1080", 2, 1920, 1080],
     ["supercell-4k", 2, 3840, 2160],
   ]) {
     const shot = await lab.page.evaluate(renderLook, {
@@ -421,7 +473,11 @@ try {
   assert.deepEqual(lab.errors, []);
   await writeFile(
     resolve(out, "gpu-checks.json"),
-    JSON.stringify({ rows, comparisons, bounds, hdr }, null, 2) + "\n",
+    JSON.stringify(
+      { rows, comparisons, bounds, hdr, microstructure },
+      null,
+      2,
+    ) + "\n",
   );
   console.log(
     `PASS: ${rows.length} late frames, 600 GPU/CPU segments, five cache differentials; stills in ${out}`,

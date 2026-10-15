@@ -110,6 +110,58 @@ export function discharge(
     flicker
   );
 }
+export function cellFeature(seed, cell, period = 0) {
+  const c = cell.map((n) =>
+    period > 0 ? ((n % period) + period) % period : n,
+  );
+  const h = hash(
+    (seed ^
+      Math.imul(c[0], 0x9e3779b9) ^
+      Math.imul(c[1], 0x85ebca6b) ^
+      Math.imul(c[2], 0xc2b2ae35)) >>>
+      0,
+  );
+  return [h & 1023, (h >>> 10) & 1023, (h >>> 20) & 1023].map((n) => n / 1024);
+}
+export function billowLobe(seed, p, period = 0) {
+  const cell = p.map(Math.floor),
+    f = p.map((x, i) => x - cell[i]);
+  let best = 3,
+    delta = [0, 0, 0];
+  for (let z = -1; z <= 1; z++)
+    for (let y = -1; y <= 1; y++)
+      for (let x = -1; x <= 1; x++) {
+        const corner = [x, y, z];
+        const feature = cellFeature(
+          seed,
+          cell.map((c, i) => c + corner[i]),
+          period,
+        );
+        const q = f.map((v, i) => v - corner[i] - feature[i]);
+        const d = q.reduce((sum, v) => sum + v * v, 0);
+        const h = Math.max(0, Math.min(1, 0.5 + (0.5 * (best - d)) / 0.12));
+        best = mix(best, d, h) - 0.12 * h * (1 - h);
+        delta = delta.map((v, i) => mix(v, q[i], h));
+      }
+  const d = Math.sqrt(Math.max(best + 0.03, 0.005));
+  return { value: 1 - d / 1.1, gradient: delta.map((v) => -v / (1.1 * d)) };
+}
+// Effective multiple-scattering field for a finite buried channel.
+export function channelGlow(point, a, b) {
+  const v = b.map((x, i) => x - a[i]);
+  const q = point.map((x, i) => x - a[i]);
+  const dot = (a, b) => a.reduce((sum, x, i) => sum + x * b[i], 0);
+  const t = Math.max(0, Math.min(1, dot(q, v) / dot(v, v)));
+  const d2 = q.reduce((sum, x, i) => sum + (x - t * v[i]) ** 2, 0);
+  return 1 / (1 + d2 * 0.1) ** 2;
+}
+export function detailAddress(voxel) {
+  const [x, y, z] = voxel.map((n) => ((n % 28) + 28) % 28);
+  return [125 + z * 30 + x, 4 + y];
+}
+export function detailWeight(pixelFootprint) {
+  return 1 - smooth(0.15, 0.65, pixelFootprint);
+}
 export function lightningGraph(seed, development = 0, height = 1) {
   return Array.from({ length: SEGMENTS }, (_, i) => {
     const s = leaderSegment(seed, i);

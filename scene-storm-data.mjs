@@ -19,8 +19,8 @@ void stSetup() {
   stPhase = u_time * u_params[1] * 0.16;
   stCamera = u_time * u_params[6] * 0.035;
 #endif
-  stEye = vec3(1.2 * sin(stCamera), 1.15 + u_params[5] * 0.9 + 0.12 * sin(2.0 * stCamera), mix(mix(-15.5,-9.4,stRise),-4.0,stSuper) + 0.5 * cos(stCamera));
-  vec3 target = vec3(0, mix(3.1, mix(6.6,4.6,stSuper), stRise) * u_params[2], 5.5);
+  stEye = vec3(1.2 * sin(stCamera), 1.15 + u_params[5] * 0.9 + 0.12 * sin(2.0 * stCamera), mix(mix(-15.5,-9.4,stRise),-12.0,stSuper) + 0.5 * cos(stCamera));
+  vec3 target = vec3(0, mix(3.1, mix(6.6,5.8,stSuper), stRise) * u_params[2], 5.5);
   stF = normalize(target - stEye);
   stR = normalize(cross(stF, vec3(0,1,0))); stU = cross(stR, stF);
 }

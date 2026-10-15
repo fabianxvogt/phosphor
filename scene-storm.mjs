@@ -154,6 +154,13 @@ float stDischarge(int network) {
   float flicker = 0.55+0.45*sq(sin(stPhase*144.0+float(network)*4.0));
   return (pow(wave,40.0)*0.9+selected*(0.22*u_kick+0.9*u_rhythm.x)+0.18*u_rhythm.z)*flicker;
 }
+float stChannelGlow(vec3 p, int network) {
+  vec3 a = stWorld(vec3(0,mix(0.55,0.0,stRise),0),network);
+  vec3 b = stWorld(vec3(0,mix(0.95,0.5,stRise),0),network);
+  vec3 v = b-a;
+  vec3 q = p-a-v*clamp(dot(p-a,v)/dot(v,v),0.0,1.0);
+  return 1.0/sq(1.0+dot(q,q)*0.1);
+}
 void main() {
   stSetup(); stCloudSetup();
   float shortSide = min(u_resolution.x, u_resolution.y);
@@ -200,7 +207,7 @@ void main() {
     float townFootprint = max(0.012,dot(fwidth(townGrid),fwidth(townGrid))*0.3);
     float settlements = 0.5+0.5*sin(townCell.x*0.17+sin(townCell.y*0.14)*2.0);
     float towns = exp(-dot(townDelta,townDelta)/townFootprint) * 0.012/townFootprint * step(0.97,townHash)*smoothstep(0.5,0.9,settlements);
-    col += mix(u_primary,vec3(1),0.5) * towns * basin * 3.0 * (1.0-foreground);
+    col += mix(u_primary,vec3(1),0.5) * towns * basin * 8.0 * (1.0-foreground);
     for (int net = 0; net < 2; ++net) {
       vec3 impact = stWorld(stLeader(net,18),net);
       vec2 q = ground.xz - impact.xz;
@@ -210,35 +217,72 @@ void main() {
   }
   // Full-resolution rays integrate a camera-independent 3D optical field.
   // Conservative carrier bounds avoid marching empty sky. The atlas remains
-  // camera-independent and unchanged; every retained ray uses full-size data.
-  float boundX = min(24.0,mix(24.0,mix(12.0,26.0,stSuper),stRise));
+  // camera-independent; every retained ray uses full-size data.
+  float boundX = min(24.0,mix(24.0,mix(12.0,28.0,stSuper),stRise));
   vec3 lo = vec3(-boundX,stVolumeLo.y,mix(1.0,-3.0,smoothstep(0.0,0.5,stSuper)));
-  vec3 hi = vec3(boundX,min(16.8,mix(9.2,14.4,stRise)*u_params[2]),mix(11.2,13.0,stSuper));
+  vec3 hi = vec3(boundX,min(16.8,mix(9.2,14.4,stRise)*u_params[2]),13.0);
   vec3 inv = sign(rd + vec3(1e-8)) / max(abs(rd),vec3(1e-6));
   vec3 nearP = (lo - stEye) * inv, farP = (hi - stEye) * inv;
   vec3 n = min(nearP,farP), f = max(nearP,farP);
   float nearT = max(0.0,max(n.x,max(n.y,n.z))), farT = min(f.x,min(f.y,f.z));
-  float trans = 1.0; vec3 cloud = vec3(0);
+  float trans = 1.0, moonIntegral = 0.0;
+  vec2 flashIntegral = vec2(0);
+  vec3 opticalMoment = vec3(0);
+  vec2 normalIntegral = vec2(0);
   float flash0 = stDischarge(0), flash1 = stDischarge(1);
   float crawlerSelection = mod(u_rhythmCount.y,2.0)<0.5 ? 1.0 : 0.0;
   vec2 internalFlash = max(vec2(flash0,flash1),vec2(crawlerSelection,1.0-crawlerSelection)*u_rhythm.y*0.35);
-  vec3 source0 = stWorld(vec3(0,0.15,0),0);
   if (farT > nearT) {
-    float ds = (farT-nearT)/24.0;
-    for (int j = 0; j < 24; ++j) {
-      vec3 p = stEye+rd*(nearT+(float(j)+0.5)*ds);
+    float ds = (farT-nearT)/16.0;
+    for (int j = 0; j < 16; ++j) {
+      float t = nearT+(float(j)+0.5)*ds;
+      vec3 p = stEye+rd*t;
       vec4 optical = stVolume(p);
       if (optical.x <= 0.0) continue;
       float alpha = 1.0 - exp(-optical.x * ds);
-      vec3 light = mix(u_secondary,vec3(1),0.8) * (0.005 + 1.7*optical.y);
-      light += mix(u_secondary,vec3(1),0.85) * (internalFlash.x*optical.z+internalFlash.y*optical.w) * 3.0;
-      float halo = exp(-sq((length(p-source0) - (0.4 + 2.4 * u_rhythm.y)) / 0.5));
-      light += u_accent * halo * u_rhythm.y * 0.14;
-      cloud += trans * alpha * light;
+      float weight = trans * alpha;
+      moonIntegral += weight * optical.y;
+      opticalMoment += weight*p;
+      normalIntegral += weight*optical.zw;
+      flashIntegral += weight*vec2(stChannelGlow(p,0),stChannelGlow(p,1));
       trans *= 1.0 - alpha;
-      if (trans < 0.012) break;
+      if (trans < 0.0005) break;
     }
   }
+  float opacity = 1.0-trans;
+  vec3 cloud = vec3(0);
+  if (opacity > 0.001) {
+    // Continuous optical moments, not a binary first-density isosurface:
+    // thin foreground wisps hand off smoothly to the next cloud layer.
+    vec3 surface = opticalMoment/opacity;
+    float surfaceT = length(surface-stEye);
+    vec4 boundary = vec4(0,moonIntegral/opacity,normalIntegral/opacity);
+    vec3 normal = vec3(boundary.zw,-sqrt(max(0.001,1.0-dot(boundary.zw,boundary.zw))));
+    vec3 keyDirection = normalize(vec3(-0.75,0.9,-0.45));
+    float macroKey = pow(max(0.0,dot(normal,keyDirection)),1.5)*smoothstep(0.05,0.5,normal.y);
+    float visibility = clamp(boundary.y/max(macroKey,0.03),0.0,1.0);
+    // The optical lattice supplies macro-billows. A periodic 3D lobe cache
+    // and one analytic octave add boundary detail at the output footprint.
+    vec3 chart = surface*2.4+vec3(sin(stPhase)*0.3,cos(stPhase)*0.2,0);
+    chart.xz = stRotation*chart.xz;
+    vec4 fine = stDetail(chart), finer = stNoise(chart*3.81);
+    float footprint = pixel*surfaceT*2.4;
+    float a0 = 1.0-smoothstep(0.15,0.65,footprint);
+    float a1 = 1.0-smoothstep(0.15,0.65,footprint*3.81);
+    vec3 bump = fine.yzw*a0*0.75+finer.yzw*a1*0.3;
+    bump.xz = transpose(stRotation)*bump.xz;
+    normal = normalize(normal-bump);
+    float crevice = mix(0.65,1.0,smoothstep(0.1,0.65,fine.x));
+    float detail = pow(max(0.0,dot(normal,keyDirection)),1.5)*smoothstep(0.05,0.5,normal.y)*crevice;
+    cloud = mix(u_secondary,vec3(1),0.8)*(opacity*0.004+moonIntegral*0.8+opacity*visibility*detail*0.6);
+    float heat = pow(0.5+0.5*sin(stPhase*8.0+1.1),32.0)*(1.0-stRise);
+    float heatDistance = length(surface-vec3(-12.5,4.2*u_params[2],5.5));
+    cloud += mix(u_secondary,u_accent,0.12)*heat*exp(-heatDistance*0.4)*opacity*2.0;
+  }
+  // Integrate buried-channel emission through the same Beer volume. Broad
+  // multiple-scattering halos remain local; the surrounding cells stay dark.
+  vec3 flashTint = mix(mix(u_secondary,vec3(1),0.85),u_accent,0.12);
+  cloud += flashTint*dot(internalFlash,flashIntegral)*mix(2.8,6.0,stSuper);
   col = col * trans + cloud;
   // Finite rain curtains below the carrier: smooth filaments, advected with
   // integer-period harmonics. Energy increases filament detail, not exposure.
@@ -294,10 +338,12 @@ void main() {
     float leader = 1.0 + 2.0 * returnStroke;
     float taper = local<18.0 ? 1.0 : mix(0.72,0.3,mod(local-18.0,4.0)/3.0);
     float core = exp(-sq(d / (width*taper)));
-    float glow = exp(-sq(d / (width * 4.0)));
+    float glow = exp(-sq(d / (width * 4.0*taper)));
+    float halo = exp(-sq(d / (width * 7.0*taper)));
     float buried = i<60 ? mix(0.35,1.0,stSuper)*stRise : mix(0.04,0.65,stRise);
     vec3 ink = mix(u_secondary,vec3(1),0.93);
-    col += ink * (core * 12.0 + glow * 0.8) * a.w * branch * flash * buried * leader;
+    vec3 boltLight = ink*(core*12.0+glow*1.6)+mix(ink,u_accent,0.22)*halo*0.35;
+    col += boltLight * a.w * branch * flash * buried * leader;
     }
   }
   if (rd.y < -0.001 && stSuper > 0.0) {
@@ -327,6 +373,7 @@ export default {
   precompute: {
     size: [1024, 515],
     filter: "linear",
+    nearestFallback: true,
     fragment: `${common}
 ${stormVolume}
 void main() {
@@ -338,6 +385,11 @@ void main() {
     return;
   }
   if (row < 3) { outColor = stDatum(x,row); return; }
+  if (x >= 124 && x < 964 && row < 33) {
+    ivec3 q = ivec3((x-124)%30-1,row-4,(x-124)/30);
+    outColor = stBillowCore(mod(vec3(q),28.0)*0.25,7.0);
+    return;
+  }
   if (x >= 64) { outColor = vec4(0); return; }
   vec2 lo = vec2(float(x%32),float(row - 3)) / 8.0 - 2.0, hi = lo + 0.125;
   uvec4 bits = uvec4(0u);
