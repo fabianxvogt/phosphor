@@ -188,6 +188,17 @@ float tdLace(vec2 p) {
   return mix(mix(dot(tdGradient(i),f),dot(tdGradient(i+vec2(1,0)),f-vec2(1,0)),s.x),
              mix(dot(tdGradient(i+vec2(0,1)),f-vec2(0,1)),dot(tdGradient(i+vec2(1)),f-vec2(1)),s.x),s.y);
 }
+// Sparse Gaussian droplets: the cell is only a candidate lookup, never a
+// shaded square. Each point vanishes well before its cell border; widen by
+// the pixel footprint and conserve its integrated flux when subpixel.
+float tdDroplets(vec2 p, float fp) {
+  vec2 cell=floor(p), f=fract(p);
+  float rnd=tdHash(cell+43.);
+  vec2 center=.25+.5*vec2(tdHash(cell+11.),tdHash(cell+29.));
+  float variance=.0012+min(.012,fp*fp*.7);
+  return exp(-dot(f-center,f-center)/variance)*(.0012/variance)
+    *smoothstep(.91,.96,rnd)*(1.-smoothstep(.15,.45,fp));
+}
 // Newton inversion of Gerstner's horizontal map. Its Jacobian has
 // lambda_min >= 1 - sum(Q*k*A) >= .446 over the ENTIRE schema range.
 vec2 tdMaterial(vec2 x) {
@@ -326,7 +337,10 @@ void main() {
   vec4 surface=tdSurface(p.xz);
   float crestAA=max(.008,1.5*fwidth(surface.w));
   // These derivatives are outside the water branch, including horizon quads.
-  vec2 windUV=vec2(.83*p.x+.56*p.z,-.56*p.x+.83*p.z)*vec2(.20,1.25);
+  vec2 windUV=vec2(.83*p.x+.56*p.z,-.56*p.x+.83*p.z)*vec2(.85,1.50);
+  // Smooth domain bending removes even the implicit gradient lattice from
+  // the lace; the separate wind filaments remain gently anisotropic.
+  windUV+=.9*vec2(sin(.16*p.x+.21*p.z+gFlow),cos(.23*p.x-.14*p.z-2.*gFlow));
   windUV+=vec2(cos(gFlow),sin(gFlow))*.65;
   float lace=tdLace(windUV);
   float fineLace=tdLace(windUV*2.7+vec2(17.,9.));
@@ -358,18 +372,22 @@ void main() {
     col+=mix(u_primary,vec3(1.),.45)*glitter*(.2+.8*fresnel);
     float crest=surface.w;
     float crestMask=smoothstep(mix(.035,.14,gSwell)-crestAA,mix(.075,.29,gSwell)+crestAA,crest);
-    float laceKeep=1.-smoothstep(.3,1.2,footprint*1.25);
-    float threads=1.-smoothstep(.075-laceAA,.17+laceAA,abs(lace+.10*fineLace));
-    float streak=.5+.5*sin(windUV.y*4.5+5.*lace);
-    float filamentKeep=1.-smoothstep(.25,.9,footprint*5.6);
-    float lacy=mix(.32,.18+.67*threads+.15*streak*filamentKeep,laceKeep);
+    float laceKeep=1.-smoothstep(.3,1.2,footprint*1.50);
+    float ridge=abs(lace+.22*fineLace-.035);
+    float threads=1.-smoothstep(.035-laceAA,.11+laceAA,ridge);
+    float streak=.5+.5*sin((-p.x*.56+p.z*.83)*7.+5.*lace);
+    float filamentKeep=1.-smoothstep(.25,.9,footprint*7.);
+    float lacy=mix(.27,.07+.84*threads+.09*streak*filamentKeep,laceKeep);
     float foam=crestMask*lacy*mix(.10,1.,gSwell);
     float inner=smoothstep(3.,8.,r);
     float spiral=smoothstep(.76-armAA,.97+armAA,armWave)*exp(-sq((r-18.)/19.))*inner*gVortex;
     float lip=exp(-sq((r-22.5)/1.35))*gVortex;
+    float coreWidth=.018+.45*armAA;
+    float spiralCore=exp(-(1.-armWave)/coreWidth)*(.018/coreWidth)
+      *exp(-sq((r-17.)/17.))*inner*gVortex;
     float spark=.5+.5*sin(.51*p.x-.37*p.z+3.*gWavePhase+4.*lace);
-    float ignition=.78+.22*spark+.32*u_kick*pow(spark,4.);
-    float living=(foam*2.7+spiral*(1.4+1.3*threads*laceKeep)+lip*(.35+.65*threads))*u_params[3]*ignition;
+    float ignition=.46+.72*spark*spark+.45*u_kick*pow(spark,4.);
+    float living=(foam*4.+spiral*(.50+2.6*threads*laceKeep)+lip*(.30+.6*threads))*u_params[3]*ignition;
     // Local gestures: an advected foam crest, a luminous spiral ridge, and
     // one broad incoming ring. None changes time or seed identity.
     float packet=pow(.5+.5*sin(.17*p.x+.22*p.z-gWavePhase*2.),8.);
@@ -382,19 +400,30 @@ void main() {
     float depth=exp(min(0.,h)*.072*gVortex);
     col*=mix(1.,depth,gVortex);
     float bioDepth=mix(1.,.32+.68*depth,gVortex);
-    vec3 bio=mix(u_secondary,u_primary,.24);
+    vec3 bio=mix(u_secondary,u_primary,.20);
     col+=bio*living*bioDepth*1.75;
-    float hot=pow(spark,10.)*smoothstep(.65,1.35,living);
-    col+=u_accent*hot*(foam+spiral)*1.7;
-    col+=u_secondary*gVortex*exp(-r*r/55.)*.13;
+    float hot=pow(spark,12.)*smoothstep(.85,1.55,living);
+    col+=mix(u_accent,u_primary,.12)*hot*(foam+spiral)*3.2;
+    col+=u_primary*threads*threads*(foam+spiral*.3)*.20;
+    col+=mix(u_secondary,u_accent,.24)*spiralCore*ignition*bioDepth*2.8*u_params[3];
+    col+=mix(u_secondary,u_accent,.15)*gVortex*exp(-r*r/55.)*.25;
     // Smooth subpixel-filtered wind-torn droplets, not thresholded cells.
-    float spray=pow(max(0.,fineLace*1.8),8.)*(foam+spiral*.4)*wind
-      *(1.-smoothstep(.25,.8,footprint*3.4));
-    col+=mix(u_accent,u_primary,.35)*spray*5.;
+    float spray=tdDroplets(windUV*1.8,footprint*2.7)*(crestMask+spiral)*wind;
+    col+=mix(u_accent,u_primary,.35)*spray*9.;
     col+=u_secondary*lip*(.025+.035*lace)*wind;
     float fog=1.-exp(-t*.0045);
     col=mix(col,tdSky(vec3(rd.x,.012,rd.z),false),fog);
   }
+  // A shallow mist/spray layer above the funnel lip. The water hit masks it
+  // correctly; it is analytic suspended spray, not an airborne simulation.
+  float mistT=(6.-ro.y)/min(rd.y,-.001);
+  vec3 mistP=ro+rd*max(0.,mistT);
+  float mistFP=max(length(dFdx(mistP.xz)),length(dFdy(mistP.xz)));
+  float mistRadius=length(mistP.xz);
+  float mistRing=exp(-sq((mistRadius-22.5)/3.2))*gVortex;
+  float mistVisible=mistT>0. && (t<0. || mistT<t)?1.:0.;
+  float mistSpark=tdDroplets(mistP.xz*.65+vec2(cos(gFlow),sin(gFlow)),mistFP*.65);
+  col+=mistVisible*mistRing*(u_secondary*.022+mix(u_primary,u_accent,.2)*mistSpark*7.)*u_params[3];
   outColor=vec4(max(col,vec3(0.)),1.);
 }
 `;
