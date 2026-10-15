@@ -3,7 +3,7 @@ import { createGeometry } from "./metamorphosis-geometry.mjs";
 // The same connected mesh develops continuously: spokes fill into membranes,
 // then separate and curl into petals. This is authored geometry, not biology.
 const camera = `
-const float GARDEN_LENS=2.75;
+float gardenLens(float aspect){return mix(2.75,3.03,smoothstep(1.,1.5,aspect));}
 void gardenCamera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float yaw=.26*sin(u_time*.025)+.08*sin(u_time*.017);
  eye=vec3(2.55*sin(yaw),-2.55*cos(yaw),3.65);
@@ -83,7 +83,7 @@ void main(){
  vec3 q=p-eye;
  float depth=dot(q,F);
  vec2 fit=vec2(max(1.,u_aspect),max(1.,1./u_aspect));
- gl_Position=vec4(vec2(dot(q,R),dot(q,U))*GARDEN_LENS*(1.+.015*clamp(u_kick,0.,1.))/fit,depth*1.0168067-.20168067,depth);
+ gl_Position=vec4(vec2(dot(q,R),dot(q,U))*gardenLens(u_aspect)*(1.+.015*clamp(u_kick,0.,1.))/fit,depth*1.0168067-.20168067,depth);
 }`;
 const surface = `#version 300 es
 precision highp float;
@@ -107,6 +107,18 @@ void main(){
  vec3 view=normalize(eye-v_position);
  vec3 L=normalize(vec3(-.65,-.35,.85));
  float light=max(0.,dot(N,L)),side=max(0.,dot(N,normalize(vec3(.8,.5,.35))));
+ // Secondary blossoms are scale cues, not extra hero materials. Their
+ // low-frequency light avoids paying for subpixel veins/specular lobes.
+ if(v_id!=1.){
+  float grazing=1.-abs(dot(N,view));
+  vec3 small=mix(u_secondary,u_primary,.30+.25*v_uv.x)*(.045+.50*light+.08*side);
+  small+=mix(u_secondary,u_primary,.35)*grazing*grazing*.22;
+  if(v_kind<.5)small+=mix(u_primary,vec3(1.),.15)*.35*(1.-smoothstep(0.,1.,u_params[0]));
+  if(v_kind>1.5)small=u_accent*(.65+.35*light+u_rhythm.z*.8);
+  small*=u_params[3];
+  float haze=exp(-max(0.,length(eye-v_position)-3.3)*.48);
+  outColor=vec4(mix(mix(u_secondary,u_primary,.15)*.022,small,haze),1.);return;
+ }
  float fresnel=pow(1.-abs(dot(N,view)),3.);
  float spec=pow(max(0.,dot(N,normalize(L+view))),80.);
  float membrane=smoothstep(0.,.5,u_morph),flower=smoothstep(.5,1.,u_morph);
@@ -114,17 +126,15 @@ void main(){
  vec3 base=mix(u_secondary,u_primary,.22+.40*v_uv.x);
  base=mix(base,pearl,flower*.25);
  float rib=pow(abs(cos(v_uv.y*PI*3.)),20.);
- float phase=v_uv.x*82.+abs(v_uv.y)*14.;
- float crossVein=1.-smoothstep(.10,.10+max(fwidth(phase)*1.5,.1),abs(sin(phase)));
 #ifdef PHOSPHOR_LATE
  float pulse=pow(.5+.5*sin(v_uv.x*13.-u_clock[0]*.8+v_id),12.);
 #else
  float pulse=pow(.5+.5*sin(v_uv.x*13.-u_time*u_params[2]*.8+v_id),12.);
 #endif
  float contact=.40+.60*smoothstep(.02,.42,v_uv.x);
- float transmission=pow(max(0.,dot(-N,L)),2.)*.20;
+ float transmission=pow(max(0.,dot(-N,L)),2.)*.32;
  vec3 color=base*(.035+light*.64+side*.12+transmission)*contact;
- color*=1.-membrane*(.08*rib+.10*crossVein);
+ color*=1.-membrane*.12*rib;
  color+=pearl*spec*1.45*contact;
  color+=mix(u_secondary,vec3(1.),.20)*fresnel*.55;
  color+=u_primary*pulse*.10*(1.-membrane*.4);
@@ -139,8 +149,8 @@ void main(){
  color+=pearl*u_rhythm.x*.38*pow(1.-v_uv.x,2.);
  color+=pearl*u_rhythm.y*.40*edge*membrane;
  if(v_kind>1.5)color+=gold*u_rhythm.z*1.3;
- float atmosphere=exp(-max(0.,length(eye-v_position)-3.3)*.24);
- color=mix(u_secondary*.006,color,atmosphere);
+ float atmosphere=exp(-max(0.,length(eye-v_position)-3.3)*.48);
+ color=mix(mix(u_secondary,u_primary,.15)*.022,color,atmosphere);
  outColor=vec4(max(vec3(0.),color),1.);
 }`;
 const schema = [
@@ -225,17 +235,21 @@ export default {
   fragment: `${camera}void main(){
  float aspect=u_resolution.x/u_resolution.y;
  vec2 fit=vec2(max(1.,aspect),max(1.,1./aspect));
- vec2 p=(v_uv-.5)*2.*fit/(GARDEN_LENS*(1.+.015*clamp(u_kick,0.,1.)));
+ vec2 p=(v_uv-.5)*2.*fit/(gardenLens(aspect)*(1.+.015*clamp(u_kick,0.,1.)));
  vec3 eye,R,U,F;gardenCamera(eye,R,U,F);
  vec3 rd=normalize(F+p.x*R+p.y*U);
  float t=(-.23-eye.z)/min(rd.z,-.001);
  vec2 q=(eye+rd*t).xy;
- float pool=exp(-dot(q,q)*.65);
+ float pool=exp(-dot(q,q)*.45);
  float contact=exp(-dot(q/vec2(1.1,.9),q/vec2(1.1,.9))*2.);
- vec3 color=u_secondary*(.004+.016*pool)*(1.-.65*contact);
- color+=u_accent*exp(-dot(q-vec2(.06,-.05),q-vec2(.06,-.05))*18.)*.025;
+ float mist=smoothstep(-1.,3.,q.y);
+ float farMist=1.-smoothstep(.4,3.,abs(q.y-1.8));
+ vec3 color=u_secondary*(.030+.045*pool+.028*mist+.018*farMist)*(1.-.55*contact);
+ float beam=q.x+q.y*.32+.10*sin(u_time*.014);
+ float shaft=exp(-pow(beam*beam-1.5,2.)*1.2);
+ color+=mix(u_secondary,vec3(1.),.08)*shaft*.080*(.4+.6*pool);
  outColor=vec4(color,1.);
-}`, 
+}`,
   // t · speed integrated (clock 0, 50π: uses ×.4, ×.52, ×.8).
   clocks: [{ rate: (p) => p[2], period: 50 * Math.PI }],
   geometry: {
