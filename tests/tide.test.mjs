@@ -308,9 +308,13 @@ test("foam is quintic gradient lace, continuous across lattice edges and pixel f
     tide.fragment,
     /g=fract\(tdHash\(p\)\*vec2\(1\.,37\.\)\)\*2\.-1\./,
   );
-  assert.match(tide.fragment, /laceAA=max\(\.025,1\.5\*fwidth\(lace\)\)/);
+  assert.match(
+    tide.fragment,
+    /laceAA=max\(\.025,max\(1\.5\*fwidth\(laceField\),\.32\*footprint\)\)/,
+  );
   assert.match(tide.fragment, /length\(dFdx\(p.xz\)\)/);
-  assert.match(tide.fragment, /ridge=abs\(lace\+\.22\*fineLace-\.035\)/);
+  assert.match(tide.fragment, /laceField=lace\+\.22\*fineLace-\.035/);
+  assert.match(tide.fragment, /ridge=abs\(laceField\)/);
   assert.ok(
     !tide.fragment.includes("tdNoise(p.xz"),
     "no thresholded world-space value-noise foam",
@@ -374,7 +378,8 @@ test("living light is HDR, locally kick-modulated; droplets conserve subpixel fl
 });
 
 function cachedData(p, exactAt) {
-  if (Math.hypot(...p) <= 6 || Math.max(...p.map(Math.abs)) >= 127.5) return exactAt(p);
+  if (Math.hypot(...p) <= 6 || Math.max(...p.map(Math.abs)) >= 127.5)
+    return exactAt(p);
   const grid = p.map((v) => (v / 256 + 0.5) * 511);
   const cell = grid.map(Math.floor),
     f = grid.map((v, i) => v - cell[i]);
@@ -403,7 +408,10 @@ function cachedData(p, exactAt) {
 test("world-space bowl data cache preserves height and normal without caching colour", () => {
   assert.deepEqual(tide.precompute.size, [512, 513]);
   assert.match(tide.precompute.fragment, /tdExactWaves\(p\)\+vec4\(bowl,0\.\)/);
-  assert.match(tide.fragment, /return tdExactWaves\(p\)\+vec4\(tdBowlExact\(p\),0\.\)/);
+  assert.match(
+    tide.fragment,
+    /return tdExactWaves\(p\)\+vec4\(tdBowlExact\(p\),0\.\)/,
+  );
   assert.match(tide.fragment, /nearRadius=max\(0\.,length\(nearAxis\)-\.72\)/);
   let heightError = 0,
     normalError = 0;
@@ -411,7 +419,10 @@ test("world-space bowl data cache preserves height and normal without caching co
     for (let i = 0; i < 6000; i++) {
       const p = [63.4 * Math.sin(i * 1.71), 63.4 * Math.cos(i * 0.37)];
       const b = bowl(p, 2, flow),
-        c = cachedData(p, (p) => { const b = bowl(p, 2, flow); return [b.h, ...b.gradient]; });
+        c = cachedData(p, (p) => {
+          const b = bowl(p, 2, flow);
+          return [b.h, ...b.gradient];
+        });
       heightError = Math.max(heightError, Math.abs(b.h - c[0]));
       const a = [-b.gradient[0], 1, -b.gradient[1]],
         d = [-c[1], 1, -c[2]];
@@ -430,25 +441,45 @@ test("world-space bowl data cache preserves height and normal without caching co
 });
 
 test("combined surface cache bounds wave height/normal error over the whole schema", (t) => {
-  let heightError = 0, normalError = 0;
+  let heightError = 0,
+    normalError = 0;
   for (const seed of [10301, 10303, 10306])
-    for (const dev of [0, .5, 1, 1.5, 2]) {
+    for (const dev of [0, 0.5, 1, 1.5, 2]) {
       const w = waves(seed, dev, 1.3, 1.7);
-      const exactAt = (p) => { const s = sea(p, w, dev, .9); return [s.h, ...s.gradient]; };
+      const exactAt = (p) => {
+        const s = sea(p, w, dev, 0.9);
+        return [s.h, ...s.gradient];
+      };
       for (let i = 0; i < 1800; i++) {
-        const p = [127.6 * Math.sin(i * 1.71), 127.6 * Math.cos(i * .37)];
-        const exact = exactAt(p), cached = cachedData(p, exactAt);
+        const p = [127.6 * Math.sin(i * 1.71), 127.6 * Math.cos(i * 0.37)];
+        const exact = exactAt(p),
+          cached = cachedData(p, exactAt);
         heightError = Math.max(heightError, Math.abs(exact[0] - cached[0]));
-        const a = [-exact[1], 1, -exact[2]], b = [-cached[1], 1, -cached[2]];
-        const al = Math.hypot(...a), bl = Math.hypot(...b);
-        normalError = Math.max(normalError, Math.hypot(...a.map((v, k) => v / al - b[k] / bl)));
+        const a = [-exact[1], 1, -exact[2]],
+          b = [-cached[1], 1, -cached[2]];
+        const al = Math.hypot(...a),
+          bl = Math.hypot(...b);
+        normalError = Math.max(
+          normalError,
+          Math.hypot(...a.map((v, k) => v / al - b[k] / bl)),
+        );
       }
     }
-  t.diagnostic(`combined height error ${heightError} m; unit-normal error ${normalError}`);
-  assert.ok(heightError < .06, `combined height error ${heightError} m`);
-  assert.ok(normalError < .06, `combined normal error ${normalError}`);
+  t.diagnostic(
+    `combined height error ${heightError} m; unit-normal error ${normalError}`,
+  );
+  assert.ok(heightError < 0.06, `combined height error ${heightError} m`);
+  assert.ok(normalError < 0.06, `combined normal error ${normalError}`);
   assert.match(tide.fragment, /layer<3/);
-  assert.match(tide.fragment, /float aeration=smoothstep/);
+  assert.ok(
+    !tide.fragment.includes("float aeration="),
+    "no filled thresholded noise lobes",
+  );
+  assert.match(
+    tide.fragment,
+    /foam=crestMask\*lacy\*smoothstep\(\.08,\.85,gSwell\)/,
+  );
+  assert.match(tide.fragment, /crestMask\*gSwell\+spiral/);
 });
 
 test("ray-specific slabs bound the exact ocean, including the deep throat", () => {
@@ -609,4 +640,24 @@ test("presets validate and register a continuous eight-look spatial world", () =
   assert.deepEqual(continuousDevelopment(clips, tide)?.positions, [0, 1, 2]);
   assert.ok(FAMILY_CATALOG.tide.styles.includes("spatial"));
   assert.equal(new Set(tide.presets.map((p) => p.seed)).size, 6);
+});
+
+test("Calm has no foam or spray at every energy; filament filtering is bounded", () => {
+  for (const dev of [0, 0.1, 0.3, 0.5, 1, 2]) {
+    const swell = smooth(0, 1, dev),
+      develop = smooth(0.08, 0.85, swell);
+    assert.ok(develop >= 0 && develop <= 1);
+    if (dev === 0) assert.equal(develop, 0);
+  }
+  for (const fp of [0.001, 0.01, 0.1, 0.5, 1, 10]) {
+    const aa = Math.max(0.025, 0.32 * fp);
+    const coverage = 1 - smooth(0.035 - aa, 0.11 + aa, 0.06);
+    assert.ok(Number.isFinite(coverage) && coverage >= 0 && coverage <= 1);
+  }
+  assert.ok(
+    tide.fragment.indexOf("streakAA=max") <
+      tide.fragment.lastIndexOf("if(t>0.)"),
+  );
+  assert.match(tide.fragment, /exp\(-\.5\*streakAA\*streakAA\)/);
+  assert.match(tide.fragment, /vec2\(\.42,1\.50\)/);
 });

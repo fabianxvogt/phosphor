@@ -10,26 +10,29 @@ test(
     timeout: 120000,
   },
   async () => {
-    const server = await serve(".", 48139);
+    const server = await serve(".", process.env.PHOSPHOR_TEST_PORT ?? 48139);
     const runtime = await launch({ rig: true, headless: true });
     try {
-      for (const fallback of [false, true]) {
+      for (const fallback of ["none", "linear", "float"]) {
         const { page, context, errors } = await openLab(
           {
             newContext: async (options) => {
               const context = await runtime.browser.newContext(options);
-              if (fallback)
-                await context.addInitScript(() => {
+              if (fallback !== "none")
+                await context.addInitScript((fallback) => {
                   const original =
                     WebGL2RenderingContext.prototype.getExtension;
                   WebGL2RenderingContext.prototype.getExtension = function (
                     name,
                   ) {
-                    return name === "EXT_color_buffer_float"
+                    return name ===
+                      (fallback === "float"
+                        ? "EXT_color_buffer_float"
+                        : "OES_texture_float_linear")
                       ? null
                       : original.call(this, name);
                   };
-                });
+                }, fallback);
               return context;
             },
           },
@@ -43,6 +46,7 @@ test(
           "fourspace",
           "wallpaper",
           "domain",
+          "murmuration",
         ]) {
           const health = await page.evaluate(renderLook, {
             sceneId,
@@ -60,15 +64,37 @@ test(
           const result = await page.evaluate(() => {
             const { engine } = window.__phosphorLab;
             const slot = engine.slots.at(-1);
+            let linear = false;
+            if (slot.precompute) {
+              const gl = engine.gl;
+              gl.bindTexture(gl.TEXTURE_2D, slot.precompute.texture);
+              linear =
+                gl.getTexParameter(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER) ===
+                gl.LINEAR;
+            }
             return {
               cached: !!slot.precompute,
+              meshData:
+                engine.programsFor(slot).geometry?.uniforms.u_precomputed !=
+                null,
+              linear,
+              linearSupported: !!engine.gl.getExtension(
+                "OES_texture_float_linear",
+              ),
               accounted: engine.liveTextures === engine.stats().textures,
             };
           });
-          assert.equal(result.cached, !fallback);
+          assert.equal(result.cached, fallback !== "float");
+          if (sceneId === "murmuration") {
+            assert.equal(result.meshData, fallback !== "float");
+            assert.equal(
+              result.linear,
+              fallback === "none" && result.linearSupported,
+            );
+          }
           assert.equal(result.accounted, true);
         }
-        if (!fallback) {
+        if (fallback === "none") {
           const result = await page.evaluate(async () => {
             const { engine, scenes, presetSnapshot } = window.__phosphorLab;
             const gl = engine.gl;

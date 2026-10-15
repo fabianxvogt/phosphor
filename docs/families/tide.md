@@ -41,7 +41,7 @@ Fresnel sky reflection, a compact moon plus a rough moon-glitter path, faint lun
 
 Living foam emits chiefly in secondary, with rare accent/primary hot knots. Local kick ignition flickers along existing crests, bounded to <1.4× its un-kicked value at a hot point; it does not flash the frame. The five inward spiral bands get thin luminous cores and a glowing funnel lip. Reflection falls exponentially down the throat, while a faint secondary/accent pool glows below. Native float-picture readback at 12 h measured **9.75 in Swell and 10.08 in Maelstrom**, with about 4–5% of pixels above 1: living light, not the moon, is the brightest feature.
 
-Sparse Gaussian spray points conserve integrated flux when widened by their pixel footprint and vanish before candidate-cell borders. Three water-occluded annular spindrift strata float 5.5 / 7.2 / 8.9 units above the vortex lip region, with independent periodic gusts and parallax. This is analytic suspended spray, not a particle or fluid simulation. Wave 5 fills the former hollow neon lace with aerated patches and darker bubble pockets, adds lunar body scattering, and reduces the broad living-light contribution so its fine edges remain the emissive detail.
+Sparse Gaussian spray points conserve integrated flux when widened by their pixel footprint and vanish before candidate-cell borders. Three water-occluded annular spindrift strata float 5.5 / 7.2 / 8.9 units above the vortex lip region, with independent periodic gusts and parallax. This is analytic suspended spray, not a particle or fluid simulation. The first wave-5 delivery filled the lace with aerated patches. L0 correctly identified that as a regression: the lobes read as camouflage near the camera. The follow-up below removes those filled lobes while preserving the combined surface-data speedup.
 
 ## States and looks
 
@@ -49,7 +49,7 @@ States share **seed 10301 and all non-development parameters**.
 
 | EN | DE | Development | Character |
 | --- | --- | --- | --- |
-| Calm | Stille | 0 | Low glassy swell, moon path, faint living foam |
+| Calm | Stille | 0 | Glassy low swell and moon path; no foam or spray |
 | Swell | Dünung | 1 | Tall crossing swells, wind detail, igniting crests |
 | Maelstrom | Mahlstrom | 2 | Vast luminous funnel; camera cranes above the shoulder |
 | Silver Passage | Silberpassage | 0.2 | Low moon, low viewpoint, long gentle waves |
@@ -102,6 +102,54 @@ Living Breakers, Ember portrait, early/late/fallback compilation and reverse
 identity checks. CPU tests and native 3600/4096/43200 s time checks pass;
 zero GL errors/non-finite values. `scripts/check-tide.mjs` now accepts `--ladder`
 instead of requiring one hard-coded evidence directory.
+
+## Wave-5 follow-up: restore filtered foam
+
+Follow-up to `d634a4e`, 2026-10-15. The 512×513 combined geometry table,
+exact fallback, Gerstner identities, no-fold bound, vortex shape, clock
+identities and every saved world/look/preset remain unchanged.
+
+Three filmed improvements plus a final verification film:
+
+1. Remove filled aeration lobes; restore **open gradient-noise lace**.
+   Calm foam is exactly zero, and its crest spray is gated by swell too.
+   Filter the combined two-octave signed lace field, rather than only the
+   first octave. Filter wind-streak phase before the divergent water branch.
+2. Stretch lace along the wind (`0.42×1.50` coordinates), emphasize long
+   filaments and impose a conservative world-pixel-footprint threshold floor.
+   Unresolved streak contrast decays analytically; no candidate-cell outlines.
+3. Calm capillary normal detail is reduced to a quarter, preserving a glassy
+   moon path. Faint lunar scattering follows the lace, never fills noise lobes.
+
+Full-resolution 1080p and 4K stills **and native-pixel crops were opened** for
+all three states, before and after. Swell's foreground now has soft,
+wind-stretched, open filaments rather than filled hard-edged patches. Calm
+has no visible foam at energy 0.1. Peak remains a stylized luminous vortex,
+not photographic breaking whitewater.
+
+Native M3 Pro whole-frame p50, four alternating previous-final/current blocks:
+
+| State | 1080p previous → current | 4K previous → current |
+| --- | ---: | ---: |
+| Calm | 2.80 → 2.80 ms | 8.40 → 8.35 ms |
+| Swell | 2.90 → 2.90 ms | 8.75 → 8.70 ms |
+| Maelstrom | 3.60 → 3.55 ms | 11.10 → 11.20 ms |
+
+Worst increase **0.90%**; the previous surface-table speedup is retained.
+Separate-run baseline 1080p 2.9/2.8/3.4 and 4K 8.3/8.7/11.0 ms;
+final 1080p 2.7/2.8/3.4 and 4K 9.0/9.4/11.8 (later contended replay
+9.3/10.2/13.1). Adjacent paired comparisons are the +5% acceptance measure,
+not a claim that shared-GPU absolute timings are invariant.
+
+Evidence under fleet `rework-sea-sky/output/next/`:
+`baseline/tide/moon-tide.{mp4,png}` → `final/tide/moon-tide.{mp4,png}`;
+`{baseline,final}/stills/tide-{0,1,2}-{1080,2160}-{full,crop}.png`;
+`final/paired/comparison.json`; final all-look ladder, Glacier Living Breakers
+and Ember portrait films. Superseded round strips are retained; superseded
+movies were deleted after final review to save disk. Native early/late/
+no-precompute compilation, reversal and time checks pass. Honest rating
+**8.5/10** against the filmed Liquid Chrome/Event Horizon references: the
+regression is fixed, but bright peak filaments remain deliberately authored.
 
 ## Historical wave-4 cost (native Apple M3 Pro, ANGLE Metal)
 

@@ -13,6 +13,7 @@ import {
   anchor,
   cloud,
   cycle,
+  formationAt,
   neighbours,
   rnd,
   seedKey,
@@ -112,7 +113,7 @@ test("startle waves cross the lattice one neighbour per step, then rest", () => 
   assert.equal(firedAt.size, 24 * 12 - 1);
 });
 
-test("Surge holds a folded cloud and Formation converges to its slots", () => {
+test("Surge holds a folded sheet and Formation converges to its slots", () => {
   const size = [32, 16];
   const plan = (dev) => () => ({ dev, formation: 0, cycle: 0 });
   const surge = simulate(11, 60 * 25, plan(1), size);
@@ -123,7 +124,7 @@ test("Surge holds a folded cloud and Formation converges to its slots", () => {
     spread += dist(b.p, A);
   }
   spread /= surge.birds.length - 1;
-  // A volume, not a collapsed strand.
+  // A spatially extended folded sheet, not a collapse to the anchor.
   assert.ok(spread > 1.2 && spread < 6, `spread ${spread}`);
   const form = simulate(11, 60 * 25, plan(2), size, surge.birds);
   // Every bird flies close to its own persistent slot (the spring target).
@@ -151,7 +152,7 @@ test("Surge holds a folded cloud and Formation converges to its slots", () => {
   assert.ok(miss < 0.5, `mean slot error ${miss}`);
 });
 
-test("formation slots: the vortex is a torus; the tilt is a rotation", () => {
+test("formation slots: folded scroll stays bounded; the tilt is a rotation", () => {
   assert.ok(Math.abs(0.9 * 0.9 + TILT * TILT - 1) < 1e-5);
   const key = seedKey(1207);
   const clock = 123456789;
@@ -162,10 +163,10 @@ test("formation slots: the vortex is a torus; the tilt is a rotation", () => {
       h = (k % 10) / 10;
     const p = slot(key, u, v, h, clock, 0);
     const r = dist(p, A);
-    // On the torus: distance to the centre lies in [3.1 − 1.15, 3.1 + 1.15].
-    assert.ok(r > 3.1 - 1.16 && r < 3.1 + 1.16, `r ${r}`);
+    // Scroll center ±3.8 / ±2.4 / ±1.4, cross-sheet width <= .95.
+    assert.ok(r < 6 && Number.isFinite(r), `r ${r}`);
   }
-  // The surge cloud is a finite blob around home.
+  // The surging sheet remains finitely bounded around home.
   for (let k = 0; k < 100; k++) {
     const c = cloud(key, k / 100, ((k * 7) % 100) / 100, (k % 9) / 9, clock);
     assert.ok(Math.hypot(...c) < 9);
@@ -173,48 +174,82 @@ test("formation slots: the vortex is a torus; the tilt is a rotation", () => {
 });
 
 test("distant bird LOD has stable image-plane area and smooth energy reveal", () => {
-  const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const smooth = (a, b, x) => {
+    const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
   for (const resolution of [540, 1080, 2160])
-    for (const px1080 of [.01, .5, 1, 3, 4, 7, 20]) {
-      const px = px1080 * resolution / 1080;
-      const lod = 1 - smooth(3, 7, px * 1080 / resolution);
+    for (const px1080 of [0.01, 0.5, 1, 3, 4, 7, 20]) {
+      const px = (px1080 * resolution) / 1080;
+      const lod = 1 - smooth(3, 7, (px * 1080) / resolution);
       assert.ok(lod >= 0 && lod <= 1);
       assert.equal(lod, 1 - smooth(3, 7, px1080));
-      const grow = Math.max(1, 3 * resolution / 1080 / px);
-      const fat = Math.max(1, Math.min(3, 9 * resolution / 1080 / (px * grow)));
+      const grow = Math.max(1, (3 * resolution) / 1080 / px);
+      const fat = Math.max(
+        1,
+        Math.min(2.5, (7.5 * resolution) / 1080 / (px * grow)),
+      );
       assert.ok(Number.isFinite(1 / (grow * fat)));
       // In the far LOD, orientation is in the image plane, so a wing
       // cannot vanish merely because a physical normal turned edge-on.
       if (px1080 <= 3) assert.equal(lod, 1);
     }
-  for (const keep of [.55, .8, 1]) {
-    const scale = (r) => Math.sqrt(1 - smooth(keep - .05, keep, r));
+  for (const keep of [0.55, 0.8, 1]) {
+    const scale = (r) => Math.sqrt(1 - smooth(keep - 0.05, keep, r));
     assert.equal(scale(keep), 0);
     assert.ok(scale(keep - 1e-7) < 1e-5);
   }
-  assert.match(murmuration.geometry.vertex, /cam.right \* plane.x \+ cam.up \* plane.y/);
+  assert.match(
+    murmuration.geometry.vertex,
+    /cam.right \* plane.x \+ cam.up \* plane.y/,
+  );
   assert.match(murmuration.geometry.vertex, /sqrt\(reveal\)/);
-  assert.match(murmuration.geometry.fragment, /key = mix\(\.28,/);
+  assert.match(murmuration.geometry.fragment, /vec3 col=u_secondary\*\(\.004/);
+  assert.match(
+    murmuration.geometry.vertex,
+    /wingArea=\.32\+\.68\*abs\(cos\(bank\)\)/,
+  );
 });
 
 test("bounded formation dolly, polynomial skyline and identifiers stay continuous", () => {
-  for (let dive = 0; dive <= 1; dive += .01) {
-    const distance = 8 * (1 - .18 * dive);
+  for (let dive = 0; dive <= 1; dive += 0.01) {
+    const distance = 8 * (1 - 0.18 * dive);
     assert.ok(distance >= 6.55 && distance <= 8);
     const focal = 1.65 + (1.45 - 1.65) * dive;
     assert.ok(focal >= 1.45 && focal <= 1.65);
   }
   const mul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
-  for (let a = -Math.PI; a <= Math.PI; a += .013) {
-    const h = [Math.cos(a), Math.sin(a)], h2 = mul(h, h), h3 = mul(h2, h), h4 = mul(h2, h2), h7 = mul(h3, h4);
-    for (const [n, h] of [[3, h3], [4, h4], [7, h7]])
-      assert.ok(Math.hypot(h[0] - Math.cos(n * a), h[1] - Math.sin(n * a)) < 1e-14);
+  for (let a = -Math.PI; a <= Math.PI; a += 0.013) {
+    const h = [Math.cos(a), Math.sin(a)],
+      h2 = mul(h, h),
+      h3 = mul(h2, h),
+      h4 = mul(h2, h2),
+      h7 = mul(h3, h4);
+    for (const [n, h] of [
+      [3, h3],
+      [4, h4],
+      [7, h7],
+    ])
+      assert.ok(
+        Math.hypot(h[0] - Math.cos(n * a), h[1] - Math.sin(n * a)) < 1e-14,
+      );
   }
-  assert.deepEqual(murmuration.presets.map((p) => [p.name, p.seed]), [
-    ["Evening Roost", 1207], ["Surging Cloud", 1207], ["Vortex Mill", 1207],
-    ["Falcon Hour", 3301], ["Knotted Ribbon", 2207], ["Twister", 4409], ["High Cloud", 5113],
-  ]);
-  assert.match(murmuration.geometry.vertex, /mix\(dist, \.82 \* dist, m.dive\)/);
+  assert.deepEqual(
+    murmuration.presets.map((p) => [p.name, p.seed]),
+    [
+      ["Evening Roost", 1207],
+      ["Surging Cloud", 1207],
+      ["Vortex Mill", 1207],
+      ["Falcon Hour", 3301],
+      ["Knotted Ribbon", 2207],
+      ["Twister", 4409],
+      ["High Cloud", 5113],
+    ],
+  );
+  assert.match(
+    murmuration.geometry.vertex,
+    /mix\(dist, \.82 \* dist, m.dive\)/,
+  );
 });
 
 test("exact clock: integer cycles, and shader constants follow the model", () => {
@@ -232,4 +267,67 @@ test("exact clock: integer cycles, and shader constants follow the model", () =>
     assert.ok(sources.includes(`${n}u`), `N ${n}`);
   assert.ok(!/\$\{/.test(sources));
   assert.deepEqual(murmuration.simulation.size, [4 * LATTICE[0], LATTICE[1]]);
+});
+
+test("ribbons have a dense cubic core, periodic slots and persistent rate phase", () => {
+  const key = seedKey(1207),
+    c = 1234567;
+  for (const u of [0.12, 0.31, 0.59, 0.87]) {
+    const center = cloud(key, u, 0.5, 0.5, c);
+    const edge = dist(center, cloud(key, u, 1, 0.5, c));
+    const core = dist(center, cloud(key, u, 0.75, 0.5, c));
+    assert.ok(
+      Math.abs(core / edge - 0.125) < 1e-12,
+      "half the birds occupy one eighth of the ribbon half-width",
+    );
+  }
+  // The closed scroll and knot agree at the lattice seam, including twist.
+  // The twister is deliberately an open vertical strand, not a closed loop.
+  for (const form of [0, 1])
+    for (const v of [0.1, 0.5, 0.9])
+      assert.ok(
+        dist(slot(key, 0, v, 0.4, c, form), slot(key, 1, v, 0.4, c, form)) <
+          1e-10,
+      );
+  // Fractional cycle rates accumulate in their own uint state, rather than
+  // multiplying an already wrapped 240 s phase. Editing speed holds phase.
+  let phase = 0;
+  for (let i = 0; i < 43200 * 60; i++) {
+    const rate = i < 14400 * 60 ? 0.15 : 0.5;
+    const before = formationAt(0, 0, rate, phase);
+    const next = (phase + Math.round((rate * TWO32) / 240 / 60)) >>> 0;
+    const after = formationAt(0, 0, rate, next);
+    const delta = (after - before + 3) % 3;
+    assert.ok(delta < 0.00011);
+    phase = next;
+  }
+  assert.match(murmuration.simulation.fragment, /ivec2\(1,0\)/);
+  assert.ok(
+    !murmuration.simulation.fragment.includes("1.7 * ph"),
+    "no nonperiodic loose wander phase",
+  );
+});
+
+test("cloud data uses a seam-free diamond chart, never a colour cache", () => {
+  for (let a = -Math.PI; a < Math.PI; a += 0.007) {
+    const x = Math.cos(a),
+      z = Math.sin(a),
+      hx = x / (Math.abs(x) + Math.abs(z));
+    const az = z >= 0 ? 1 - hx : 3 + hx;
+    const h =
+      az < 1
+        ? [1 - az, az]
+        : az < 2
+          ? [1 - az, 2 - az]
+          : az < 3
+            ? [az - 3, 2 - az]
+            : [az - 3, az - 4];
+    const l = Math.hypot(...h);
+    assert.ok(Math.hypot(h[0] / l - x, h[1] / l - z) < 1e-14);
+  }
+  assert.deepEqual(murmuration.precompute.size, [512, 129]);
+  assert.equal(murmuration.precompute.filter, "linear");
+  assert.match(murmuration.precompute.fragment, /vec4\(muCloudExact/);
+  assert.match(murmuration.fragment, /#ifdef PRECOMPUTED_LINEAR/);
+  assert.match(murmuration.fragment, /horizonAA=max\(fwidth\(e\)/);
 });

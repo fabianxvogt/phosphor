@@ -331,12 +331,22 @@ export class Engine {
         true,
         variant(particleHeader + scene.particles.vertex),
       );
-    if (scene.geometry)
+    if (scene.geometry) {
+      // Optional data reuse also applies to meshes. Inject after #version;
+      // unsupported float targets compile the unchanged analytic fallback.
+      const meshData = (source) =>
+        precompute
+          ? source.replace(
+              /^(#version[^\n]*\n)/,
+              (version) => version + dataDefines,
+            )
+          : source;
       programs.geometry = this.program(
-        variant(scene.geometry.fragment),
+        variant(meshData(scene.geometry.fragment)),
         true,
-        variant(scene.geometry.vertex),
+        variant(meshData(scene.geometry.vertex)),
       );
+    }
     if (scene.field) {
       programs.field = this.program(
         variant(shaderHeader + scene.field.fragment),
