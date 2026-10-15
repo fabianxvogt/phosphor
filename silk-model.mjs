@@ -75,7 +75,7 @@ export function point(u, v, id, rnd, state = {}) {
     0.035 * Math.sin(3 * q + g * 14) + 0.016 * Math.sin(7 * q - g * 22);
   const x = fl[0] - Math.sin(angleW) * wrinkle,
     z = fl[1] + Math.cos(angleW) * wrinkle;
-  const s0 = [x - LENGTH * 0.47, (g - 0.5) * 8.4, z + 0.28 * Math.cos(g * TAU)];
+  const s0 = [x - LENGTH * 0.47, (g - 0.5) * 8.4, z];
   const yy = (v - 0.5) * (0.38 + 0.48 * rnd[1]) * width;
   const torsion = 0.62 * Math.sin(2 * q + rnd[2] * TAU);
   const wy = yy * Math.cos(torsion),
@@ -92,7 +92,8 @@ export function point(u, v, id, rnd, state = {}) {
   const r = 0.45 + 0.235 * u * LENGTH;
   const theta = angle + (0.72 / 0.235) * Math.log(r / 0.45);
   const taper = Math.sqrt(r / 3.27);
-  const dr = (z * 0.55 + wz) * taper,
+  const ruffle = 0.04 * Math.sin(4 * q + v * TAU) * Math.sin(v * Math.PI);
+  const dr = (z * 0.55 + wz + ruffle) * taper,
     hy = Math.sqrt(1 - 0.235 ** 2 - 0.72 ** 2),
     w = wy * taper;
   const loose = id % 7 === 0 ? 1 + 3.0 * smooth(u) : 1;
@@ -115,7 +116,11 @@ export function camera(development, phase = 0) {
   const inside = [0.06 * Math.cos(phase), -5.7, 0.06 * Math.sin(phase)];
   const eye = outside.map((q, k) => q + approach * (inside[k] - q));
   eye[1] += 2.6 * rise;
-  return { eye, target: [0, 0.1 + 2.1 * t, 0] };
+  return {
+    eye,
+    target: [0, 0.1 + 2.1 * t, 0],
+    up: [0, 1 - approach, -approach],
+  };
 }
 export function createGeometry(seed) {
   const data = new Float32Array(STRIPS * ALONG * ACROSS * 6 * STRIDE);
@@ -161,13 +166,14 @@ vec3 ssPoint(vec2 uv,float id,vec3 rnd){
  float q=SS_TAU*1.5*uv.x-phi,ang=a*sin(q);
  float wrinkle=.035*sin(3.*q+g*14.)+.016*sin(7.*q-g*22.);
  fl+=vec2(-sin(ang),cos(ang))*wrinkle;
- vec3 p0=vec3(fl.x-SS_L*.47,(g-.5)*8.4,fl.y+.28*cos(g*SS_TAU));
+ vec3 p0=vec3(fl.x-SS_L*.47,(g-.5)*8.4,fl.y);
  float yy=(uv.y-.5)*(.38+.48*rnd.y)*u_params[7];
  float torsion=.62*sin(2.*q+rnd.z*SS_TAU),wy=yy*cos(torsion),wz=yy*sin(torsion);
  float tilt=(rnd.z-.5)*1.4,xx=fl.x-SS_L*.47;
  vec3 p1=vec3(xx*cos(tilt)-wy*sin(tilt)+(rnd.z-.5)*2.,(rnd.x-.5)*6.8*u_params[3]+xx*sin(tilt)+wy*cos(tilt),(rnd.y-.5)*5.2*u_params[3]+fl.y+wz);
  float r=.45+.235*uv.x*SS_L,theta=id*2.3999632297+u_clock[1]+.72/.235*log(r/.45);
- float taper=sqrt(r/3.27),dr=(fl.y*.55+wz)*taper,hy=sqrt(1.-.235*.235-.72*.72),w=wy*taper;
+ float ruffle=.04*sin(4.*q+uv.y*SS_TAU)*sin(uv.y*3.14159265359);
+ float taper=sqrt(r/3.27),dr=(fl.y*.55+wz+ruffle)*taper,hy=sqrt(1.-.235*.235-.72*.72),w=wy*taper;
  float loose=mod(id,7.)<.5?1.+3.*ssSmooth(uv.x):1.;
  vec3 p2=vec3((r*loose+dr)*cos(theta)-w*hy*sin(theta),hy*(uv.x*SS_L-SS_L*.5)-w*.72,(r*loose+dr)*sin(theta)+w*hy*cos(theta));
  return mix(mix(p0,p1,b),p2,t);
@@ -179,7 +185,8 @@ void ssCamera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  eye=mix(outside,vec3(.06*cos(a),-5.7,.06*sin(a)),approach);
  eye.y+=2.6*rise;
  vec3 target=vec3(0.,.1+2.1*t,0.);
- F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
+ vec3 up=mix(vec3(0.,1.,0.),vec3(0.,0.,-1.),approach);
+ F=normalize(target-eye);R=normalize(cross(F,up));U=cross(R,F);
 }
 float ssFocal(){return u_params[6]*mix(1.,.72,ssSmooth(u_params[0]-1.))*(1.+.018*clamp(u_kick,0.,1.));}
 `;

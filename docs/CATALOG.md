@@ -86,6 +86,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Liquid Chrome](families/ferro.md) | ferro | Rippling chrome mirror grows an energy-populated Rosensweig crown and seamless floating sculpture; orbiting studio cards and valley reflections | Pool / Crown / Sculpture | 8 |
 | [Kinetic Rain](families/kinetic.md) (world Kinetic Rain) | kinetic | 9,216 persistent lit spheres: travelling-wave ceiling, kick rings and morphing sphere / torus / Möbius / saddle above a mirror floor | Ceiling / Waves / Sculpture | 8 |
 | [Magma Rift](families/magma.md) | magma | Raymarched Voronoi basalt seams, advected lava skins and ballistic ejecta under an underlit ash plume | Crust / Rivers / Eruption | 8 |
+| [Silk Storm](families/silk.md) (Seidensturm) | silk | Strouhal travelling-wave silk, near-inextensible tangent integration and persistent conical ribbon helices | Veil / Banners / Tornado | 8 |
 
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 

@@ -211,7 +211,7 @@ export default {
       width: 1.25,
       amplitude: 1.3,
     }),
-    look("Woven Night", 8128, 1.45, {
+    look("Woven Night", 8128, 1.28, {
       spread: 0.65,
       width: 1.35,
       wind: 5,

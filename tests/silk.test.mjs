@@ -87,7 +87,8 @@ test("Strouhal frequency: measured positive zero crossings agree with St U/L", (
 test("inextensible tangent integral and bounded rendered veil strain", () => {
   let integralError = 0,
     renderedError = 0,
-    transverseError = 0;
+    transverseError = 0,
+    principalError = 0;
   const ds = 1e-5;
   for (const a of [0.192, 0.48, 0.72])
     for (let phase = 0; phase < TAU; phase += 0.31)
@@ -108,6 +109,22 @@ test("inextensible tangent integral and bounded rendered veil strain", () => {
           rnd = identity(1811, id),
           state = { amplitude, phase: i * 0.13 };
         const p = point(u, v, id, rnd, state);
+        const du = point(u + ds, v, id, rnd, state).map(
+          (x, k) => (x - p[k]) / (ds * LENGTH),
+        );
+        const dv = point(u, v + ds, id, rnd, state).map(
+          (x, k) => (x - p[k]) / ((ds * 8.4) / STRIPS),
+        );
+        const dot = (a, b) => a.reduce((sum, x, k) => sum + x * b[k], 0);
+        const E = dot(du, du),
+          F = dot(du, dv),
+          G = dot(dv, dv);
+        const disc = Math.sqrt((E - G) ** 2 + 4 * F * F);
+        for (const lambda of [(E + G + disc) / 2, (E + G - disc) / 2])
+          principalError = Math.max(
+            principalError,
+            Math.abs(Math.sqrt(lambda) - 1),
+          );
         renderedError = Math.max(
           renderedError,
           Math.abs(
@@ -127,7 +144,11 @@ test("inextensible tangent integral and bounded rendered veil strain", () => {
     renderedError < 0.031,
     `longitudinal strain with fine folds ${renderedError}`,
   );
-  assert.ok(transverseError < 0.06, `transverse strain ${transverseError}`);
+  assert.ok(transverseError < 0.012, `transverse strain ${transverseError}`);
+  assert.ok(
+    principalError < 0.034,
+    `principal stretch including shear ${principalError}`,
+  );
 });
 
 test("conical helix is unit-speed and grows into a tower", () => {
@@ -207,7 +228,17 @@ test("camera cranes below the formed vortex, then rises into its hollow axis", (
   let nearest = Infinity;
   for (const d of [0, 0.5, 1, 1.25, 1.5, 1.65, 1.75, 1.8, 1.85, 1.9, 2])
     for (let a = 0; a < TAU; a += 0.6) {
-      const eye = camera(d, a).eye;
+      const { eye, target, up } = camera(d, a);
+      const forward = target.map((x, k) => x - eye[k]);
+      const cross = [
+        forward[1] * up[2] - forward[2] * up[1],
+        forward[2] * up[0] - forward[0] * up[2],
+        forward[0] * up[1] - forward[1] * up[0],
+      ];
+      assert.ok(
+        Math.hypot(...cross) / Math.hypot(...forward) > 0.3,
+        "camera frame stays nonsingular when looking up",
+      );
       for (let id = 0; id < STRIPS; id++)
         for (let u = 0; u <= 1; u += 0.04)
           for (const v of [0, 0.5, 1]) {
