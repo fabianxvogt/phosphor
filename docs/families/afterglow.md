@@ -31,6 +31,14 @@ Native M3 Pro probe on a GPU shared with other lanes (indicative only): whole-fr
 
 The horizon state shows the periodic field repeating toward the far distance; fog hides most of it. Glowing Roots measures mean luminance 0.08 at energy 0.1 because of the sky band, which is borderline for the dark-ground rule. The brush and feed land in simulation space.
 
+## Wave 5 rework (2026-10-15)
+
+IDs, all eight presets/seeds, schema and the chemistry/simulation are unchanged. No `worlds.mjs` migration is needed. Roots keeps its horizon flight, but its sky is much darker and entirely palette-derived. The top state now gathers the inherited chemical field onto **one six-lobed calyx** with raised petal tips and a central emissive well, rather than ending as an edge-to-edge noisy carpet. The support contracts geometrically with development (not an opacity dissolve). The polynomial `2[x(x²−3y²)]²−1 = cos(6θ)` supplies the petal silhouette without per-sample atan/cos; the morphogen crests still supply the luminous veins. A short-side camera fit also preserves the complete hero in portrait.
+
+Rounds: (1) add the raised calyx and isolate Bloom; (2) replace an unsatisfactory late dissolve with a continuously contracting support, restore wet reflections and reserve accent for the well; (3) soften chemical micro-relief to keep broad petals distinct from Mycelium's walls, add palette tissue gradients and reduce white/accent coverage; (4) remove redundant tracing and unobservable reflection work to recover the baseline cost. Twenty → ten march intervals with development/seven bisections, two self-shadow taps, and three mirror taps only when Bloom contributes. A fifth round replaced four-fetch manual bilinear decoding with hardware linear filtering: byte decoding is linear, while an explicit nearest `texelFetch` stencil preserves the simulation exactly. GPU readback against `deaaae1` compared all 589,824 state bytes at all three states and both resolutions: **zero differences**. No engine changes. This is full-resolution rendering, not a reduced-resolution colour cache.
+
+Original native p50: 1080p **2.2/2.1/2.1 ms**, 4K **6.8/7.2/6.7 ms**. Under the shared fleet GPU, alternating-order same-engine baseline/final pairs (median of 3×40 frames) measured 1080p **2.8/2.6/2.6 → 2.6/2.4/2.0 ms**, 4K **8.6/12.6/8.4 → 7.9/11.3/6.7 ms**. Every state is faster. The Petals 4K run shows external contention clearly (individual baseline/final pairs 8.5→7.9, 12.6→11.7, 12.9→11.3); all pairs improve. All raw measurements, baseline/final films and palette/portrait/ladder evidence are in the fleet `rework-organic/output/afterglow/` directory. Remaining limit: near-horizon roots still resolve a periodic 384² field, not individual volumetric plants; wet reflections are three-tap approximations.
+
 ## Verification
 
 `tests/afterglow.test.mjs` checks:
