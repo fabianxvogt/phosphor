@@ -1,66 +1,68 @@
 # Dune Sea · Dünenmeer (#114)
 
-One persistent night desert, `scene-dunes.mjs`, world `dune-sea`. The development fader is real relief/camera/front geometry, not a dissolve. The three world snapshots share seed **11401** and every non-development parameter. No engine changes.
+One persistent night desert, `scene-dunes.mjs`, world `dune-sea`. Development is real terrain/camera/front geometry, not a dissolve. Ripples / Sandrippeln → Dunes / Dünen → Storm / Sturm keep seed **11401** and identical non-development parameters. No engine changes. All eight preset names, seeds, look IDs, schema keys and world state definitions remain unchanged in this revision.
 
 ## Mathematics and signature
 
-The hero is wind-written sand: close ripples, crescent barchans with leeward horns, a persistent subset of crossed star-dune arms, then the same landscape beneath a rolling haboob and five dark monoliths.
+The hero is wind-written sand: a low ripple field leading to distant dunes, sharp crescent brinks with downwind horns, persistent crossed star-dune arms, then the same landscape under a towering internally lit haboob and five rim-lit monoliths.
 
-In a dune's wind-aligned chart, `v = x/11`, crest `c = -2 + 7v²`, crest height `H = h·max(0,1−v²)`, and `d = z−c`. The windward profile is `H·max(0,1−(d/14)²)²`; the lee is `max(0,H−tan(34°)·d)`. This gives a broad windward shoulder, a sharp crest and downwind horns rather than a sinusoidal mountain field. Site rotation and size are seeded once in the fixed staggered 28×32 m chart. Mature slip slopes compensate for site scale and the height fader; development deliberately flattens them towards ripples. Secondary arms and a compact, differentiable cell-edge support make star dunes. Normals use the exact transformed analytic derivatives of the winning arm, including the support envelope.
+In the wind-aligned chart, `v = x/11`, crest `c = −3 + 13v²`, crest height `H = h·max(0,(1−v²)(1+.6v²))`, and `d = z−c`. The windward shoulder length is `L = 14−8v²`, height `H·max(0,1−(d/L)²)²`; the lee is `max(0,H−repose·d)`. Unlike a rounded hill, the horns extend beyond the empty centre of the lee, and their shoulders narrow independently. Site rotation and scale are seeded in the fixed staggered 28×32 m chart. The prevailing orientation is oblique to both the eye and key, exposing lit slip planes and cast shadows. Mature repose compensates for site scale, height and the 1.2× mature relief, retaining **34°**. Exact derivatives include the varying shoulder length, transformed star arms and compact cell support. The fourth surface component carries distance to the winning brink for antialiased crest light and wind streamers.
 
-Ripples use `p = 8z + 2sin(.55x+.23z) + .6sin(1.1x−.18z) − phase`, height `.028·(sin(p)+.22sin(2p))`. The second harmonic gives an asymmetric wind profile, while domain bending avoids ruler-straight water waves. These are actual raymarched geometry at low development and band-limited material-normal detail at the mature scale.
+Ripples use `p = 8(.55x+.84z) + 3sin(.5x−.21z) + 1.2sin(.13x+.45z) − phase`, height `.042·(sin(p)+.22sin(2p))`. These are actual intersected geometry at low development and footprint-faded normal detail at the mature scale. They curve obliquely through the close foreground rather than being parallel screen-space lines.
 
-Saltation uses launch velocity `v₀ = .7…1.3 m/s`, gravity **9.81 m/s²**, flight duration `T = 2v₀/g`, downwind distance `U·T·a` and height `v₀·T·a(1−a)` for age `a∈[0,1)`. Identity persists over landings. Two shallow view-ray samples integrate nearby Gaussian grains; unresolved grains fade with the pixel footprint. Their carrier uses the local surface height, an approximation rather than a collision simulation. Broad noise-modulated crest streamers remain visible at distance.
+Saltation uses launch velocity `v₀ = .7…1.3 m/s`, gravity **9.81 m/s²**, flight duration `T = 2v₀/g`, distance `U·T·a` and height `v₀·T·a(1−a)` for age `a∈[0,1)`. Grain identity survives landings. Two shallow view-ray samples integrate resolved near grains; three additional depth-correct samples integrate the thin windblown veil over existing brinks. This is analytic saltation, not a collision simulation.
 
-## States and eight looks
+## States and looks
 
-| Look                               | Development | Composition                                                                 |
-| ---------------------------------- | ----------: | --------------------------------------------------------------------------- |
-| Ripples / Sandrippeln              |           0 | Low, grazing moonlight across curved ripples and airborne grains            |
-| Dunes / Dünen                      |           1 | Continuous crane reveals barchan and star-dune fields with long shadows     |
-| Storm / Sturm                      |           2 | Towering, internally lit dust front behind the emerging dark monolith group |
-| Silver Silt / Silbersand           |         .15 | Low vantage, strong ripple relief, quiet wind                               |
-| Crescent Caravan / Sichelkarawane  |           1 | Elevated view, taller dunes, reverse lateral drift                          |
-| Star Sands / Sternensand           |        1.15 | Higher moon, crossed dune arms, stronger saltation                          |
-| Buried Temple / Versunkener Tempel |        1.85 | Low viewpoint and low dune relief below the monoliths                       |
-| Night Front / Nachtfront           |           2 | High viewpoint, dense suspended sand and fast wind                          |
+| Look                               | Development | Composition                                                                            |
+| ---------------------------------- | ----------: | -------------------------------------------------------------------------------------- |
+| Ripples / Sandrippeln              |           0 | Close, low camera across bent ripple geometry towards distant dunes                    |
+| Dunes / Dünen                      |           1 | Continuous crane opens a sweeping crescent field with sharp lee edges and crest plumes |
+| Storm / Sturm                      |           2 | Internally lit rolling dust wall fills the horizon behind a rim-lit stone group        |
+| Silver Silt / Silbersand           |         .15 | Low vantage, stronger ripple relief, quiet wind                                        |
+| Crescent Caravan / Sichelkarawane  |           1 | Elevated view, tall dunes, reverse drift                                               |
+| Star Sands / Sternensand           |        1.15 | Higher moon, crossed arms and stronger saltation                                       |
+| Buried Temple / Versunkener Tempel |        1.85 | Low viewpoint and low relief beneath the stones                                        |
+| Night Front / Nachtfront           |           2 | Higher viewpoint, dense dust and faster wind                                           |
 
-## Rendering, light and camera
+## Light, sky and volume
 
-A capped 64-step heightfield march, four local refinements and eight soft-shadow samples. Sky rays skip the field. Mature macro normals are analytic, not four additional field evaluations. Distance haze hides the finite 170 m terrain solve. The dust front uses eight depth-correct slabs through a rolling domain-warped density field; foreground dunes and analytic ray-box monoliths occlude the volume. The narrow internal glow can exceed 1.0; it never flashes the whole image. The shared limiter remains untouched.
+Stronger grazing palette moonlight, restrained camera-side fill, rough diffuse sand, long crisp shadows, antialiased brink light and footprint-limited sparkle make the relief legible. Specular sheen is deliberately small. The moon is a shaded spherical/gibbous surface with maria and fine crater variation, not a uniform disc. A dense resolution-aware star field and a diagonal mottled Milky Way with dark lanes establish the night sky. All colours derive from palette primary/secondary/accent and white/black mixes.
 
-Rough sand carries palette secondary/primary moonlight, restrained grazing sheen, contact darkening and long shadows. Accent is confined to the small internal storm glow. No fixed RGB colours. The camera slowly drifts laterally with parallax and cranes continuously with development; no roll, cuts or geometry resets. The central 32 m monolith occupies about 60% of the landscape short side; the smaller stones and dune ridges establish scale. Portrait retains the central group (the off-axis moon may lie outside a narrow portrait view).
+The haboob is an eight-slab Beer–Lambert volume, depth-tested against terrain and analytic ray-box stones. A wall smoothly unions with three-dimensional seeded rolling billows; curled multiscale noise perturbs density and normals. Rounded shoulder normals avoid planar shading seams visible at 4K. Local extinction darkens the volume interior; one irregular internal glow exceeds 1.0 without flashing the frame. Nearest-base angular dust vortices curl around the stones. Stone faces have palette fill, texture, seams and bright bevel/rim light rather than uniformly black fills.
 
-## Energy and rhythm
+The camera drifts laterally, cranes with development and never rolls or cuts. The central 32 m stone is the top-state scale cue. Portrait keeps that hero intact; the off-axis moon can leave narrow framing.
 
-Energy is orthogonal to development. It raises integrated wind speed and the visible saltation population/crest packets, not a master brightness multiplier. The small kick FOV nudge is below 2%; the internal cloud kick is local and bounded.
+## Energy, rhythm and endlessness
 
-- **4 beats — Crest saltation:** grain packets and existing crest streamers.
-- **8 beats — Slipface stream:** a second independent stream on the same slopes.
-- **16 beats — Haboob roll:** an 8% launch-velocity gust plus one bounded internal rolling-fold glow.
+Energy changes integrated wind speed and visible grain/streamer activity, not master brightness. The kick FOV nudge is below 2%; internal storm illumination remains local and bounded.
 
-The live faders are dune relief, saltation wind and suspended sand.
+- **4 beats — Crest saltation:** packets on the persistent brinks.
+- **8 beats — Slipface stream:** an independent stream on those same slopes.
+- **16 beats — Haboob roll:** bounded grain lift and internal rolling-fold illumination.
 
-## Cost and data cache
+Three integrated 2π clocks own wind/ripple/grain age, camera drift and dust folding. Uses are periodic sin/cos, integer harmonics or grain landings. No hourly raw-time wrap, palette sawtooth or exhausted simulation; development never changes clocks or material identity. Forward and reverse use the same field.
 
-The optional **128×136 RGBA32F data prepass** holds integer noise-cell corner hashes and fixed seeded dune-site transforms. It is not a heightfield approximation or a cached colour picture: terrain intersection, normals, shadows, grains and the cloud integrate at full output resolution. Analytic fallbacks remain for hosts without float targets. CPU packing tests cover all 1,024 dune-site indices; native cached/fallback comparisons cover three energies × three states (maximum RGB difference 3/255; maximum mean .473/255, from GPU float/code-path rounding).
+## Cost
 
-Measured with `scripts/profile-families.mjs --types --families dunes`, ANGLE Metal / Apple M3 Pro, 12 measured frames, full post path, energy .95:
+A capped **48-step** terrain solve, four refinements and **six** long-range shadow samples. The exact upper envelope `4.4·relief + .052·ripple` rejects sky only after it is above all possible terrain, including upward rays from the opening eye. A two-scale solve uses conservative macro clearance outside the bounded microrelief envelope and evaluates full ripples near the surface. It does not replace the ripple geometry with shading. Mature normals are analytic. Empty/occluded dust intervals, density-free support and negligible transmittance skip further work.
 
-| State   | 1920×1080 p50 | 3840×2160 p50 |
-| ------- | ------------: | ------------: |
-| Ripples |        4.6 ms |       14.8 ms |
-| Dunes   |        3.4 ms |       11.2 ms |
-| Storm   |        4.2 ms |       15.0 ms |
+The optional **128×136 RGBA32F data prepass** contains integer noise-cell corners and fixed seeded dune transforms, never a reduced-resolution image or terrain approximation. The analytic fallback remains. Native comparisons at three energies × three states have maximum mean departure **.681/255**, maximum RGB departure **3/255**, from GPU float/code-path rounding.
 
-The early uncached 4K prototype cost 19.9 / 21.0 / 27.3 ms. No render-resolution cap or engine extension was used to meet the budget. Timings are synchronous throughput, not a venue cadence qualification; parallel fleet GPU load adds some variation.
+ANGLE Metal / Apple M3 Pro, required `profile-families.mjs --types --families dunes`, energy .95, 12 measured frames, full output and post path:
 
-## Endlessness and verification
+| State   | Baseline 1080p → final | Baseline 4K → final |
+| ------- | ---------------------: | ------------------: |
+| Ripples |       5.0 → **4.4 ms** |  16.6 → **14.3 ms** |
+| Dunes   |       3.4 → **4.4 ms** |  12.8 → **12.1 ms** |
+| Storm   |       5.5 → **4.4 ms** |  16.8 → **15.4 ms** |
 
-Three integrated 2π clocks own wind/ripple/ballistic age, camera drift and slow dust folding. Every use is periodic (sin/cos, integer harmonics or grain landings); no modulo of raw `u_time`, palette sawtooth, simulation exhaustion or unbounded camera translation. Development changes neither the clocks nor seeded site/particle identities. Reversal is the same field sampled backwards.
+Every final state meets the new-world limits of 8 / 16 ms p50. These are synchronous throughput measurements, not venue cadence certification. Concurrent fleet GPU activity caused substantial variation in intermediate probes; the raw final and baseline JSON files are retained with the worker evidence.
 
-`tests/dunes.test.mjs` covers crescent geometry, repose under scaling, 5,000 analytic-normal comparisons, tile joins, identity and reversible continuous development, ripple bounds/periodicity, ballistic acceleration/apex/range/landing, data packing, all eight validated presets, world registration, rhythm and bounded shader paths. `tests/time.test.mjs` covers the integrated clocks. Native GPU verification covers every state at 3600 / 4096 / 43,200 s, all three energies, cached/fallback output, zero GL errors/non-finite uploads and full-size 4K stills.
+## Verification and visual review
 
-Visual review: baseline plus four substantial improvement rounds and a final moonlight/performance polish; forward and reverse 30 s films, Silver Silt, portrait, energy ladder for all eight looks, and Copper / Glacier / Symbiosis palette films. **Authored rating: 9/10** for the intended restrained, cinematic night-desert style. Remaining limits: analytic eight-slab dust rather than fluid simulation, repeated finite site topology, and intentionally subtle saltation in the distant view. The landscape remains dark by design; a poor black-level projector will lose some lee-face detail.
+`tests/dunes.test.mjs` covers horn/lee geometry, physical repose, 5,000 exact-normal comparisons, tile joins and identity/reversal, ripple bounds/periodicity, ballistic acceleration/apex/range/landing, 2,000 exact noise-gradient comparisons, continuous dust shoulder normals, 10,000 terrain-envelope checks and conservative microrelief clearance, data packing, all eight presets and stable world lookup **by ID, never registry position**. `tests/time.test.mjs` covers clocks. Native verification covers all states at 3600 / 4096 / 43,200 s, cached/fallback rendering, zero GL/non-finite errors and full-size 4K stills. All-look energy ladder, reverse, extra look, portrait and Copper / Glacier / Symbiosis films are reviewed.
 
-Evidence is delivered with the fleet worker's `output/report.md`; regenerating previews/curation is left to integration.
+This revision followed the independent 5/10 review, with a new baseline, a side-by-side **Liquid Chrome** reference and **seven filmed improvement rounds**. The previous 9/10 self-rating was too generous. **Current honest rating: 7.5/10.** Relief and sky read immediately and the storm now has scale and depth, but the analytic dust is still softer and more repetitive than a high-end fluid volume, some sand planes are too smooth/silvered, and low-energy lee faces remain dark. It does not yet match the reference's 9/10 material finish.
+
+Detailed evidence and test status are in the fleet worker's `output/report.md`. Preview baking/curation remains integration work.
