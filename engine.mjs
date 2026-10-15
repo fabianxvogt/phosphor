@@ -291,14 +291,22 @@ export class Engine {
       : this.pictureHeader;
     // Optional exact per-frame data cache; unsupported float targets keep
     // the original visual path, including on context restoration.
-    const precompute = scene.precompute && this.floatPicture;
+    // A linear-filtered cache needs half floats or OES_texture_float_linear;
+    // otherwise it falls back to nearest sampling only when the scene reads
+    // PRECOMPUTED_LINEAR itself (`nearestFallback`), else to the direct path.
+    const linearCache =
+      scene.precompute?.format === "rgba16f" || this.floatDataLinear;
+    const precompute =
+      scene.precompute &&
+      this.floatPicture &&
+      (scene.precompute.filter !== "linear" ||
+        linearCache ||
+        scene.precompute.nearestFallback === true);
     programs.visual = this.program(
       variant(
         header +
           (precompute ? "#define PRECOMPUTED\n" : "") +
-          (precompute &&
-          scene.precompute.filter === "linear" &&
-          this.floatDataLinear
+          (precompute && scene.precompute.filter === "linear" && linearCache
             ? "#define PRECOMPUTED_LINEAR\n"
             : "") +
           scene.fragment,
@@ -600,12 +608,13 @@ export class Engine {
       filter = "nearest",
       bytes = false,
       floatData = false,
+      halfData = false,
       depth = false,
     } = {},
   ) {
     const gl = this.gl;
     const floating =
-      this.floatPicture && (floatData || (!simulation && !bytes));
+      this.floatPicture && (floatData || halfData || (!simulation && !bytes));
     const texture = gl.createTexture();
     this.liveTextures++;
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -900,8 +909,14 @@ export class Engine {
     if (this.programs.get(scene.id).precompute)
       slot.precompute = this.target(...scene.precompute.size, {
         simulation: true,
-        floatData: true,
-        filter: this.floatDataLinear ? scene.precompute.filter : "nearest",
+        floatData: scene.precompute.format !== "rgba16f",
+        halfData: scene.precompute.format === "rgba16f",
+        // Half floats always filter; float32 needs OES_texture_float_linear.
+        filter:
+          scene.precompute.filter === "linear" &&
+          (scene.precompute.format === "rgba16f" || this.floatDataLinear)
+            ? "linear"
+            : "nearest",
       });
     if (scene.id === "melt") {
       const gl = this.gl;
@@ -1289,7 +1304,12 @@ export class Engine {
       const draw = (first, count) =>
         s.mesh.instances === undefined
           ? gl.drawArrays(gl.TRIANGLES, first, count)
-          : gl.drawArraysInstanced(gl.TRIANGLES, first, count, s.mesh.instances);
+          : gl.drawArraysInstanced(
+              gl.TRIANGLES,
+              first,
+              count,
+              s.mesh.instances,
+            );
       draw(0, split);
       if (split < s.mesh.count) {
         gl.depthMask(false);

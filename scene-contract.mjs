@@ -105,8 +105,13 @@ vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t
 // scaling. u_time is accumulated fixed-tick scene time (float32 on the GPU;
 // long-show wraps and optional integrated clocks: scene-time.mjs). u_tick advances on
 // each simulation write (or visual frame), independent of floating-point time.
-// precompute {fragment,size:[w,h]} optionally prepares an RGBA32F data texture
-// once per visual draw. The visual body receives PRECOMPUTED and may declare
+// precompute {fragment,size:[w,h],filter?,format?} prepares a data texture.
+// Default: nearest RGBA32F, preserving existing exact integer maps.
+// Optional format:"rgba16f" halves storage and supports core linear filtering.
+// filter:"linear" on RGBA32F requires OES_texture_float_linear; without that
+// extension (or without float targets) the scene uses its analytic fallback.
+// The optional pass runs once per visual draw. The visual body receives
+// PRECOMPUTED and may declare
 // uniform highp sampler2D u_precomputed. Keep an equivalent fallback path:
 // without EXT_color_buffer_float no cache is created and no macro is defined.
 // precompute.filter:'linear' optionally enables float32 interpolation when

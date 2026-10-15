@@ -297,6 +297,7 @@ export default {
   precompute: {
     size: [1024, 515],
     filter: "linear",
+    nearestFallback: true, // the shader filters itself without PRECOMPUTED_LINEAR
     fragment: `${common}
 ${stormVolume}
 void main() {

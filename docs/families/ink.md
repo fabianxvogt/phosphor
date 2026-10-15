@@ -1,6 +1,8 @@
 # Ink Bloom / Tintenblüte
 
-Family **112**, renderer `ink`, world `ink-bloom`. One feeding drop rolls into a descending ring, branches into colliding plumes and opens into a backlit, marbled pigment cloud. The eight looks are one analytic material volume, not three image crossfades. No engine changes.
+Family **112**, scene `ink`, world `ink-bloom`. The existing eight preset names, seeds, parameter keys, state looks and world definition are unchanged. This revision replaces the solid cap/heart-shaped volume with wound pigment sheets against a bright, localized tank backlight.
+
+**Engine addition:** optional half-float / linear-filtered physical-data caches, documented below. Existing caches retain their exact nearest-filtered RGBA32F path.
 
 ## Signature mathematics
 
@@ -8,89 +10,110 @@ The thin-core Kelvin self-induced speed is
 
 `U = Gamma / (4 pi R) [ln(8 R / a) - 1/4]`.
 
-The authored reference uses `Gamma = 0.75`, `R = 0.82`, `a = 0.12` in consistent scene units. `kelvinVelocity()` supplies the **actual transport-clock rate**; flow scales that integrated rate. Its CPU tests check the constant, circulation reversal, dimensional scaling, core dependence and invalid thin-ring inputs.
+`Gamma = 0.75`, `R = 0.82`, `a = 0.12`. `kelvinVelocity()` supplies the actual integrated transport-clock rate. CPU tests check its constant, sign, dimensional scaling, core dependence and invalid inputs.
 
-A regular toroidal streamfunction supplies the analytic circulation field:
+A regular axisymmetric streamfunction supplies the analytic circulation:
 
-`psi(r,y) = Gamma/(2 pi) r^2 exp(-[(r-R)^2+y^2]/b^2)`, with `b = 0.32`.
+`psi(r,y) = Gamma/(2 pi) r² exp(-[(r-R)²+y²]/b²)`, `b = 0.32`.
 
 `v_r = -(1/r) dpsi/dy`, `v_y = (1/r) dpsi/dr - U`.
 
-`inkVelocity()` exports this field. Independent finite-difference derivatives of psi and Cartesian divergence checks verify it, including a finite axis limit. The shader uses its rotational part as a **bounded backward-characteristic deformation**; a closed vertical carrier excursion supplies the recurring descent. This is deterministic analytic transport, not a Navier–Stokes or full Biot–Savart solver. Kelvin's thin core and the wider, regularized material-circulation core deliberately have different roles.
+`inkVelocity()` is independently checked by finite-difference derivatives of psi and Cartesian divergence, including the finite axis limit. The shader uses the rotational component as a bounded backward-characteristic deformation. This is an authored analytic flow, **not a Navier–Stokes solver**.
 
-The primary carrier has wound toroidal material coordinates. Corrugated annular skirts split into daughter strands and Rayleigh–Taylor-like fingers. Two persistent oblique carriers grow geometrically into the same field during development 0→1; 1→2 swells their cores and a scalloped skirt into one dense cloud. Smooth distance unions and Fourier material layers make every intermediate development reversible. The fingers are an authored instability analogue, not a numerical RT simulation.
+The material cross-section is now a spiral: its phase combines toroidal angle, distance from the vortex core and two smooth Fourier scales. Thin sheets surround a dense core; the water between turns remains transparent. There is no filled hemisphere or dome. Corrugated trailing sheets split into daughters, with uneven lengths and curling tips. These are Rayleigh–Taylor-like fingers, not a numerical instability simulation.
 
-## Rendering and depth
+Three persistent carriers retain their identities. Development 0→1 grows the two side carriers from zero scale, at different depths and oblique angles. Development 1→2 expands the existing carriers and moves a threshold through a domain-warped pigment field: cloud contours grow through the tank rather than crossfading finished pictures. Reversal retains material phase, seed, camera and carrier identity.
 
-- A perspective macro camera follows a slow closed tank orbit with lateral parallax and a small crane. No cuts, roll or seed-dependent camera reset.
-- The finite tank uses an analytic ray/box interval. A **56-step** full-resolution front-to-back Beer integral resolves translucent ink sheets. Soft extinction at the volume boundary prevents wide extra looks from being cut sharply.
-- A nearby directional density sample supplies local optical occlusion and a backlit fold gradient. Dark pigment uses the palette secondary; thin lit folds use the primary. Accent is restricted to the travelling rhythm band. Fold radiance can exceed 1.0 before integration and feeds the float bloom path.
-- Light shafts lie behind the ink and are attenuated by its accumulated transmittance. The dark field, layered self-occlusion, varied curl scales and near/far overlap supply depth.
-- Portrait reduces focal length by 18%, preserving the complete hero rather than cover-cropping it. The kick's focal emphasis stays at **2%**.
+## Composition and optics
 
-### Physical-density lattice
+- The camera is closer and lower than before. The first ring spans approximately half the short screen side, with a long feeding wisp and unequal trailing filaments. Plumes separates three rings in depth; Nebula extends marbling through the frame.
+- Slow closed orbit, perspective parallax, small crane and a maximum 2% kick emphasis. Portrait reduces focal length rather than cover-cropping the first ring.
+- A localized, palette-derived diffusion lamp replaces the nearly black backdrop. The outer water remains dark. This deliberately prioritizes the requested **bright backlit tank** over the previous mostly-black composition.
+- Full-resolution 40-step front-to-back quadrature over a conservative finite tank interval. Spectral Beer extinction produces dark pigment cores and coloured transmission. Single scattering is approximate.
+- A displaced analytic density sample is cached alongside density. Its continuous interpolated difference supplies rim light and local optical occlusion, without differentiating a piecewise-trilinear grid. The earlier derivative-based lighting produced artificial ribbing and was removed.
+- Broad, irregular, diverging light fans come from one off-axis lamp. There is no periodic screen-X stripe pattern. Shafts are behind, and attenuated by, the ink.
+- All colour derives from primary, secondary, accent and white/black. Accent is confined to the narrow pigment-wave gesture. The backlight, rather than the pigment, supplies most HDR radiance.
 
-The existing optional precompute path stores **80×96×64 physical density nodes**, packed into a **640×768 RGBA32F** atlas (~7.5 MiB). Each texel contains four XY-corner densities at one Z plane. Two exact fetches reconstruct a trilinear sample. This is an approximate reconstruction of an analytic density field, **not a reduced-resolution colour image**: rays, lighting, absorption, palette application and post remain at native output resolution. It refreshes on every visual draw, including paused changes. Unsupported float targets retain the direct analytic field.
+## Physical-data atlas and optional engine support
 
-The CPU reference checks bijective addresses, bounded interpolation and sampled density reconstruction error. Native cache/direct comparisons at 320×180, development 0/0.7/1.4/2 and 19/3600/43200 seconds had **0.27–0.61 mean 8-bit level difference**, with isolated maxima **46–66** on thin moving filaments. The approximation is explicitly not pixel-identical. Interpolation avoids stochastic noise and the coarse ray-step contours of the first versions.
+The atlas contains **128×144×64** world-space material nodes, packed as eight by eight Z slices. Each slice has a duplicated one-node gutter. Dimensions: **1040×1168**, **RGBA16F**, approximately **9.3 MiB**. Channels store density, displaced light-side density and an illumination moment, not a rendered colour image.
 
-## States and looks
+Two bilinear slice fetches plus a Z interpolation reconstruct the physical fields. Lighting, absorption, ray integration and post-processing remain at native display resolution. The lattice extent changes smoothly with development, conserving resolution around the small first ring. The analytic material itself does not change identity with that extent.
 
-The three states share seed **11201** and identical non-development parameters. Geometry, carrier identity, clocks and material phase never reset on development changes.
+`precompute.format: "rgba16f"` opts into half-float storage; `precompute.filter: "linear"` opts into filtering. WebGL2 supports linear half-float filtering without a separate extension. Existing unspecified formats remain RGBA32F / nearest. Linear RGBA32F requires `OES_texture_float_linear`; without it, or without renderable float targets, the analytic fallback is compiled. No other family opts into the new options.
 
-| EN                 | DE                  | Composition                                                               |
-| ------------------ | ------------------- | ------------------------------------------------------------------------- |
-| Drop               | Tropfen             | One feeding drop, a rolled cap and a fine branching skirt                 |
-| Plumes             | Fahnen              | Three oblique vortex carriers meet, overlap and curl                      |
-| Nebula             | Nebel               | Thick, marbled cloud with long trailing fingers and occluded light shafts |
-| Quiet Infusion     | Stille Infusion     | Closer, slower and more translucent first ring                            |
-| Twin Currents      | Zwillingsströmungen | Widely spaced, strongly curled colliding carriers                         |
-| Silken Tributaries | Seidene Nebenarme   | Long branches and thin translucent pigment                                |
-| Velvet Chamber     | Samtkammer          | Compact, deep pigment cloud with tighter curls                            |
-| Marbled Lantern    | Marmorierte Laterne | Broad cloud, finer fingers and a more mobile view                         |
+The CPU atlas test checks node-address bijection, gutter isolation, half precision and reconstruction error. Native cache/fallback comparisons at four development/time combinations differ by **0.28–1.27 mean 8-bit levels**, with isolated maxima **21–45** on filaments. This is an approximation, not pixel identity. The direct analytic fallback is slower and is not the budgeted M3 Pro path.
 
-## Energy and rhythm
+## Stable states and looks
 
-Energy changes flow speed (×0.65→1.3), camera speed (×0.8→1.25) and branching reach/detail. It does not multiply image brightness, and development remains independent of energy.
+The three state presets retain seed **11201** and identical non-development parameters.
 
-- **Ring roll / Ringrollung**, 4 beats: ≤8% tighter existing curl.
+| EN | DE | Composition |
+| --- | --- | --- |
+| Drop | Tropfen | Dark rolled ring, transparent sheets and uneven trailing wisps |
+| Plumes | Fahnen | Three oblique, depth-separated carriers and branching fingers |
+| Nebula | Nebel | Frame-filling marbled pigment and occluded broad light fans |
+| Quiet Infusion | Stille Infusion | Closer, slower and more translucent |
+| Twin Currents | Zwillingsströmungen | Wider, more strongly curled carriers |
+| Silken Tributaries | Seidene Nebenarme | Longer branches and thin pigment |
+| Velvet Chamber | Samtkammer | Compact, dense marbling |
+| Marbled Lantern | Marmorierte Laterne | Wider spread and a more mobile camera |
+
+## Energy, rhythm and endlessness
+
+Energy changes transport speed ×0.65→1.3, orbit speed ×0.8→1.25 and finger reach. It does not multiply image brightness.
+
+- **Ring roll / Ringrollung**, 4 beats: ≤8% extra curl on existing material.
 - **Finger reach / Fingerausgriff**, 8 beats: ≤12% extra reach on the same fingers.
-- **Pigment wave / Pigmentwelle**, 16 beats: a narrow accent-lit band travels down existing pigment; no full-screen flash.
+- **Pigment wave / Pigmentwelle**, 16 beats: a narrow compact cubic accent band crosses the existing volume. Polynomial support avoids a per-sample exponential; no full-screen flash.
 
-## Endlessness
+Kelvin transport and camera orbit use two integrated engine clocks with 2π periods. All material uses are integer harmonics, reduced before adding spatial coordinates. No development change resets time or seed. The finite analytic field cannot saturate or die. This is a recurring authored flow, not an indefinitely filling simulated tank.
 
-Two engine clocks integrate Kelvin-scaled transport and tank orbit. All uses are integer harmonics of their 2π periods, reduced **before** adding spatial coordinates. A CPU periodicity test caught and removed a non-integral inner noise harmonic during authoring. No parameter or energy change multiplies accumulated time in the late variant. The authored constant-rate branch matches the clocks; rate changes alter speed, not phase.
+## Nine filmed revision rounds
 
-The finite analytic field cannot saturate or die. A feeding drop and a closed transport excursion sustain the subject indefinitely. This is a periodic authored flow, not an indefinitely growing tank of simulated fluid.
+The committed baseline was independently rated about 5/10; the earlier self-rating of 9/10 was too generous.
 
-## Visual iteration and verification
+1. Remove the solid dome; author spiral sheets, spectral extinction and a bright diffusion lamp. Initial cloud cost fails budget.
+2. Increase the density grid and tighten bounds; remove redundant per-pixel light lookup. More legible, but ribbed lighting remains.
+3. Curl finger tips, separate spectral absorption and make cloud contours grow spatially. Dark cores improve; atlas-gradient artifacts persist.
+4. Remove discontinuous density-grid normals. Smooth silhouettes return, but material becomes too soft.
+5. Separate all three carrier centres; prototype a finer linear float atlas and illumination moment. RGBA32F bandwidth is too expensive.
+6. Opt into half-float data and guttered interpolation. Performance recovers; refine cloud billows.
+7. Cache the analytic light-side density before interpolation. Fine folds return, but the first rim-light strength is too white.
+8. Reduce rim light and deepen pigment extinction. Review Phosphor, Glacier and reverse Ember films.
+9. Replace the gesture exponential with compact cubic support; settle at 40 quadrature samples after all-look profiling exposes the wide Marbled Lantern as the costly case. Re-film all final films.
 
-Seven improvement rounds followed the first working film: (1) replace straight stem/doughnut with cap and branching skirt; (2) density lattice and smoother native integration; (3) optical occlusion and separated pigment/backlight; (4) asymmetric carrier hierarchy and continuous sampling; (5) remove overly smooth/plastic shading and retain dark pigment; (6) richer material marbling, daughter fingers, periodic noise repair and soft tank bounds; (7) portrait fit after the 12-hour portrait probe exposed a clipped right curl. Superseded films were removed; baseline and final evidence remain.
-
-Final reviewed evidence is in the lane output directory:
+Superseded films are deleted. The baseline, final films and independently filmed Liquid Chrome comparison remain in the lane output directory:
 
 `/Users/fabian/Development/phosphor/.fleet/phosphor-worlds-wave5-20261015162322/workers/ink-bloom/output/`
 
-- `baseline/ink-bloom.mp4`, `.png`
-- `final/ink-bloom.mp4`, `.png`; Glacier world film; Ember reverse **Marbled Lantern** film
-- `final/drop-still.png`, `final/nebula-still.png`
-- `ladder/strip.png`: all eight looks at energy 0.1/0.5/0.9
-- `native/`: three library palettes × three states, portrait states at 12 h, native cache/fallback and seam measurements
+- `next-baseline/ink-bloom.mp4`, `.png`
+- `reference/liquid-chrome.mp4`, `.png`
+- `next-final/ink-bloom.mp4`, `.png`
+- `next-final/ink-bloom-glacier.mp4`, `.png`
+- `next-final/ink-marbled-lantern-ember.mp4`, `.png` (reverse)
+- `next-ladder/strip.png`: all eight looks at 0.1 / 0.5 / 0.9 energy
+- `next-native/`: three palettes × three states, portrait at 12 h, 4K still, late seams and analytic-cache comparison
 
-### Native GPU cost
+## Native cost and verification
 
-Chrome / ANGLE Metal / Apple M3 Pro, 12 synchronous whole-frame samples per state, including post. Headless rig, assigned port 48507.
+Headless Chrome, ANGLE Metal / Apple M3 Pro, port 48507. 24 synchronous whole-frame samples per state, including post, excluding asynchronous flash approval. Medians meet 8 ms / 16 ms limits.
 
-| State  | 1080p p50 / p95 | 4K p50 / p95   |
-| ------ | --------------- | -------------- |
-| Drop   | 3.4 / 5.6 ms    | 11.9 / 12.5 ms |
-| Plumes | 3.8 / 5.3 ms    | 11.8 / 13.0 ms |
-| Nebula | 3.9 / 5.6 ms    | 13.1 / 14.4 ms |
+| State | 1080p p50 / p95 | 4K p50 / p95 |
+| --- | --- | --- |
+| Drop | 3.0 / 3.5 ms | 8.8 / 9.1 ms |
+| Plumes | 4.5 / 5.0 ms | 12.6 / 13.1 ms |
+| Nebula | 5.5 / 5.9 ms | 13.7 / 14.3 ms |
 
-All state medians meet the new-world 8/16 ms limits. The final 4K all-eight-look run peaked at 13.9 ms p50 / 15.3 ms p95. Native float-picture readbacks reached 1.24 (Phosphor), 1.42 (Glacier) and 1.38 (Ember), confirming actual HDR fold light rather than only shader constants above one. Shared-machine wall time is not a worst-frame or dual-world venue-cadence guarantee. The direct analytic fallback is slower; the measured path uses the existing float-data cache.
+The separate all-eight-look 4K run peaks at **14.0 ms p50 / 14.6 ms p95**. A same-harness remeasure of `8c56473` gave baseline p50 values of 3.9 / 4.0 / 4.7 ms at 1080p and 11.1 / 11.0 / 12.7 ms at 4K. Drop is cheaper; Plumes and Nebula cost more than that baseline, but all remain below the explicit 8/16 ms new-world limits. These are shared-machine throughput measurements, not venue cadence guarantees.
 
-`tests/ink.test.mjs` covers Kelvin mathematics, independently differentiated incompressible flow, actual material-field continuity/reversal/periodicity, density reconstruction, identity, all presets, appended-world continuity, rhythm and late clocks. `tests/time.test.mjs`, typecheck and native DE/EN UI i18n pass. The complete CPU suite has only the three expected preview/curation failures for the eight new looks; preview generation and editorial order remain the integrator's responsibility.
+- `tests/ink.test.mjs`: Kelvin mathematics, independently differentiated incompressible flow, actual wound-sheet material continuity/reversal/periodicity, half-float lattice reconstruction, persistent identity, preset validation, rhythm, clocks and world lookup **by id**.
+- `tests/time.test.mjs`: passes.
+- `PHOSPHOR_INK_GPU=1 node --test tests/browser/ink-precompute.test.mjs`: passes. Covers half/linear allocation, absent float-linear extension, missing float targets, RGBA32F-linear fallback, unchanged nearest RGBA32F caches, paused refresh, context restoration and texture cleanup.
+- Native palette / late-time probes: zero GL errors and non-finite uploads; 15 seam probes at 3600 / 4096 / 43200 seconds pass.
+- Typecheck, build and native DE/EN UI i18n: pass.
+- Full root CPU suite: 736 pass, 9 skipped, only the three expected catalogue preview/curation failures. Preview assets and editorial ordering are intentionally untouched.
 
-## Limits and rating
+## Honest rating and remaining limits
 
-**9/10** for the intended restrained macro ink world: the sparse ring stays legible, the colliding plumes retain identity and the top state becomes a large, richly layered cloud without introducing unrelated geometry. The strongest palette reads are Glacier and Ember. Phosphor is more deliberately two-tone. Remaining limits: approximate single-neighbour optical shading, bounded characteristic rather than a fluid solver, repeated carrier excursion, softened sub-grid filaments, and a less explosive climax than the mechanical/laser worlds. No claim of measured 12-hour runtime soak is made; continuity is covered by clocks, CPU periodicity and native late-time probes.
+**7/10**, not 9. The bright tank, dark cores, scale progression and missing stripes are substantial improvements over the old small blue-grey blob. The reference photography informed sheet overlap, transmission and rolling edges. However, Liquid Chrome still has markedly crisper local detail and more convincing material depth. This ink remains soft at 4K, its toroidal carriers are too regular, the climax retains recognizable ring shapes, and fine physical turbulence is under-resolved by the density lattice. Local shadowing is approximate; no actual 12-hour runtime soak is claimed. A future revision should improve those weaknesses rather than restore a generous self-rating.
