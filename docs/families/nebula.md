@@ -1,62 +1,68 @@
-# Density Waves (Spiral Nebula)
+# Density Waves · Spiral Nebula / Spiralnebel
 
-**INCREMENTAL / EMPIRICAL**, 2026-10-14. Family #87 and the continuous world **Spiral Nebula** (Dust → Spiral → Nova). Authored astrophysical choreography on one persistent particle population, not an N-body or hydrodynamics simulation.
+Family **87**, renderer/world ID `nebula`. Continuous **Dust → Spiral → Nova**. A persistent, seed-derived particle population supplies the resolved stars and 3D motion; full-resolution analytic radiance supplies the unresolved gas. This is authored astronomical choreography, not an N-body or hydrodynamics solver.
 
-## Algorithm and signature detail
+## Identity, mathematics and state
 
-131 071 stars (one per texel of a 512×256 state texture; texel 0 is the clock). Every star's identity (population, radius rank, azimuth, cloud coordinate, shell direction, tone) comes from its index and the seed only; [nebula-model.mjs](../../nebula-model.mjs) is the CPU reference, [scene-nebula.mjs](../../scene-nebula.mjs) the GLSL.
+`nebula-model.mjs` is the CPU reference for the trajectories and radiance carriers.
 
-- **Dust — Zel'dovich cosmic web.** Each star has a Lagrangian coordinate q in a flattened cloud and sits at x = q + D·S(q), S = −∇Φ for eight seeded plane-wave potential modes. Where det(I + D·∂S/∂q) → 0 the map folds into caustics; stars there are lit by the exact Zel'dovich density 1/|det J|, so sheets and filaments glow. The modes drift slowly.
-- **Spiral — kinematic density waves.** Each disk star moves on its own ellipse; the ellipse orientation turns with radius (Kalnajs/Lin–Shu kinematic picture). Nothing places stars on arms: two trailing arms appear where neighbouring orbits crowd (orbit phase u ≈ −π/4 mod π) and stars stream through them, because orbital speed (flat rotation curve) differs from the pattern speed. Young, light stars and glowing gas mark the crests; inter-arm stars are old and dim; a narrow dimmed lane sits on the concave side.
-- **Nova — collapse, ignition, remnant.** The core collapses and flares; then the same stars ride out on a shell whose directions keep the arms' imprint. The same potential modes, sampled on the sphere, gather the shell into filaments (tangential Zel'dovich caustics, lit by their compression) and Rayleigh–Taylor fingers (radial). Sedov–Taylor fronts F = 2.35·c^(2/5) sweep outward every 12 s at speed 1 and light what they cross in the accent. Bulge stars become the compact remnant; a quarter of them stream out along two precessing pulsar jets (6 s flow, re-entering at the core only while unlit).
+- **Dust:** Zel'dovich displacement `x = q + D S(q)`, `S = −∇Φ`, with eight seeded plane-wave potential modes. Particle caustic light follows `1 / |det(I + D ∂S/∂q)|`. The unresolved emitting cloud uses four octaves of smooth, domain-warped scalar noise, with a finite radial falloff.
+- **Spiral:** each star moves on an ellipse whose orientation winds with radius. The two trailing arms emerge from neighbouring-orbit crowding; orbital speed differs from pattern speed. The winding is 1.35× the earlier revision, keeping a substantial outer curl. Gas light follows the same seeded winding/pattern phase, with broad arms, fine feathering, dark concave lanes and a dense white/palette-primary bulge. Sparse **Gaussian HII knots with halos**, not hard thresholded noise patches, use the accent. Their tails fade to zero at cell boundaries; core width includes the projected pixel footprint.
+- **Nova:** the core collapses and ignites; the same tracers advect into a shell with tangential Zel'dovich gathering, radial fingers and precessing pulsar jets. Sedov–Taylor fronts `F = 2.35 c^(2/5)` sweep outward. The unresolved shell expands continuously, with corrugated radius, fine variable-width filaments, bright limb and diffuse lit cavity. Jets and the old over-bright green caustic clumps are subdued.
 
-**State.** The only per-star state is ψ, an extra azimuth integrated by the simulation: dψ/dt = p·(1 − n)·(Ω(a) − Ω_cloud) − (1 − p)·k·ψ. Condensation spins the cloud up to its orbital speeds (an angular-momentum picture); Nova freezes the record; dispersal relaxes ψ the short way home so the cosmic web reassembles exactly. ψ and the clock are 32-bit fixed-point words in RGBA8 (uint wrap); every global cycle (camera, pattern speed, cloud turn, shock period, drift) is an integer count per 1440 s period, so phases stay exact over a night.
+The radiance cloud samples the closest point to the eye ray in the ellipsoidal metric `diag(1, 1/h, 1)`, with thickness `h = mix(.65, .035, smoothstep(0,1,development))`. It therefore **flattens geometrically**, rather than dissolving between screen pictures. The emitting shell grows from radius `.25 × 1.45` to `1.45`, with periodic angular corrugation `1 + .055 sin(5θ) + .028 cos(11θ)`. Its support and the cloud's negligible tails are bounded before the noise reads. During the explosion, remaining disk emission sits behind the growing shell while resolved tracers carry the collapse/expansion.
 
-## World states and looks
+The RGBA8 state is still **512×256 = 131,072 texels**, with the first texel a 32-bit clock. Other texels store an extra azimuth ψ as a signed fixed-point turn. `dψ/dt = p(1−n)(Ω(a)−Ωcloud) − (1−p)kψ`. Nova freezes the record; dispersal relaxes it home. All global phases use integer cycle counts per 1,440 seconds, so the uint wrap is exact over 12 hours. There is no raw `u_time` product.
 
-Spiral Nebula uses seed 3141 with identical parameters at development 0 / 1 / 2: **Drifting Dust**, **Grand Spiral**, **Supernova Shell**. Each star's progress is staggered by its radius rank (inner stars condense first; the shock reaches inner stars first), so in-between values are real geometry: a core igniting inside the web, arms half wound, a galaxy blowing out from its centre. Reversal unwinds the galaxy back into the web.
+A fixed quarter of the original non-sky emitters is now the resolved tracer cohort. Only this cohort needs ψ integration; dormant identities retain their state. **All original sky identities remain visible**, distributed at radii 7–16 for real perspective depth, with a brightness/size hierarchy. No particles were added. The final 12,288 legacy absorber identities remain dormant, as in the preceding rework.
 
-Extra looks: **Cosmic Web** (seed 1618, strong growth, low camera), **Edge-on Lanes** (seed 2718, near edge-on, tighter arms), **Open Whirlpool** (seed 577, face-on, open arms), **Remnant Bloom** (seed 4669, close remnant with stronger fronts).
+## Dust extinction and colour
 
-## Wave 2 polish (2026-10-14)
+No all-stars-last absorption overlay. Each particle emitter uses finite emitter-to-eye transmission through a normalized `sech²` vertical slab weighted by the spiral dust lanes. The integral has an exact tanh antiderivative and finite parallel-ray limit, so foreground stars exclude dust behind them. Gas has its own resolved dark lane modulation.
 
-- **Framing:** the camera sits about 14 % closer and higher by default, so the galaxy and the shell fill roughly 70–85 % of the short side.
-- **Core:** bulge stars dim toward the dense centre, and the background core glow is halved, so the core stays warm instead of a white blob at high energy.
-- **Absorbing dust:** the last 24 texel rows (12 288 particles) are absorbers drawn after every star with the new optional `particles.blend = "absorb"`. They darken the arms' concave lanes in Spiral, give the densest web filaments dark cores in Dust, and thin out as the nova blows.
-- **Low energy:** Dust and every state keep 74 % of stars at energy 0.1, up from 52 %.
+All colours derive from `u_primary`, `u_secondary`, `u_accent`, white or black. Secondary carries the cool gas, white/primary the bulge and hot stars, and accent is reserved for HII knots and rare remnant emission. Core/knots can exceed 1.0 on the float path for bloom. Energy changes tracer density, turbulence and integrated motion, with existing density/light compensation; it does not turn the entire sky into a flash.
 
-## Energy, camera, rhythm
+## Camera, development and rhythm
 
-- Energy: visible density 74 % → 100 % (threshold per star, faded, never popping), dust turbulence, motion speed (×0.6–1.5 via the integrated clock, so changes never jump), web growth (×0.85–1.15) and shock strength. Not brightness: a mild compensation keeps overall light similar while density changes.
-- Camera: perspective orbit (96 s), slow height swing (160 s) and dolly (240 s), framing per state; depth fades far stars toward the secondary colour, near stars grow. Kick widens the focal length by ≤ 2 %. Distant background stars give parallax and scale.
-- Gestures: **Arm light** (4 beats; arm crests, web knots, shell filaments), **Core flare** (8; bulge or remnant in the accent), **Shock ripple** (16; a light shell running outward through the same stars).
-- Faders: Motion speed, Cosmic web, Shock fronts. Audio: low → web growth, onset → shock, high → starlight (small).
+A gentle **288-second** perspective orbit replaces the earlier 96-second orbit. Height swings over 160 seconds, dolly over 240. Default distance develops 4.5 → 3.5 → 3.7 world units; framing uses the **short side**, including portrait. The bright subject fills approximately 70–85% of that side, with softer gas outskirts. Kick changes focal length by at most 2%.
 
-## Cost and endlessness
+The existing three gestures remain: **Arm light** (4 beats: arm gas/stars and cloud knots), **Core flare** (8: bulge/remnant), **Shock ripple** (16: outward light through the stars). Faders and audio mappings are unchanged.
 
-Indicative native-GPU throughput (`profile-families.mjs --types`, M3 Pro, whole synchronous frame incl. post; the GPU was shared with four other agent lanes, so treat numbers as relative to the control family Living Forms measured in the same run): 1920×1080 p50 1.8–2.0 ms, p95 ≤ 2.7 ms (control 1.6–1.8 / ≤ 2.5); 3840×2160 p50 5.1–6.7 ms, p95 ≤ 9.0 ms (control 4.8–5.4 / ≤ 7.2). Dust (state 0) is the most expensive at 4K: soft gas sprites are fill-bound, so their share (10 %) and size are capped. Earlier 65 535-point builds were ≈ 20 % cheaper at 4K; doubling the population removed visible graininess. Zero GL errors and no non-finite values in profile and ladder runs. No loops beyond eight potential modes; no `u_time` dependency, so nothing degrades late: the clock wraps exactly and ψ is bounded.
+All world/look IDs, names, seeds, schema keys and authored preset parameters are stable. World states still share seed **3141** and differ only in development: **Drifting Dust**, **Grand Spiral**, **Supernova Shell**. Extra looks remain **Cosmic Web**, **Edge-on Lanes**, **Open Whirlpool**, **Remnant Bloom**. The world definition did not change; no HISTORY migration is required.
 
-## Verification
+## Data cache and cost
 
-`tests/nebula.test.mjs`: preset/world validity and continuous-world detection; identity is seed-only and positions are Lipschitz-continuous in development (0 → 2 in 0.005 steps) and in time at every development including the clock wrap; exact clock arithmetic; S = −∇Φ; wrap-free ellipse polar offset; a trailing two-armed m = 2 pattern emerges from orbit crowding and winds with radius; condensation spins up, Nova freezes ψ, and a 16-bar excursion to Nova and back reassembles the web (worst star < 0.01); Sedov–Taylor t^(2/5) scaling and outward fronts; shader constants follow the model. Films: `node scripts/world-film.mjs --world nebula --rig`, reverse sweep `--look "nebula:Supernova Shell" --to 0`, extra look `--look "nebula:Edge-on Lanes"`. Ladder: `node scripts/contact.mjs --dist . --sheet ladder --family nebula --rig`.
+No engine change. The existing optional `precompute` API owns a **128×129 RGBA32F data table** (~258 KiB). Rows 0–127 contain the exact four scalar lattice corners packed in RGBA; row 128 contains camera basis and uniform seeded phase data. The image, dust edges, knots and filaments are still shaded **at full output resolution**. This is not a cached low-resolution colour image. Without float data targets, the shader evaluates the same scalar functions directly. The engine refreshes the data on every visual draw, including paused edits.
 
-## Limits
+Native headless Chrome 155 / ANGLE Metal / Apple M3 Pro, synchronous whole-frame p50 including post, not venue cadence. Baseline is previous final commit `8c59e33863210d81df1182ea193cedc219aba70b`.
 
-Kinematic, not dynamical: no self-gravity or gas hydrodynamics. Dust now uses line-of-sight extinction, not draw-order absorption (see below). Its lane density is sampled once near the mid-plane along each emitter ray, so it approximates a thin disk rather than solving full spatial radiative transfer; the web has no cold opaque cores. Gas remains finite soft sprites, and fine stellar grain is visible in the small review film. The GLSL is a hand port of the CPU model; the tests exercise the model, the films and ladder exercise the shader. External-display cadence and multi-hour endurance are not claimed.
+| Resolution, state order | Baseline → final p50 ms |
+| --- | --- |
+| 1080p Dust / Spiral / Nova | 1.8 / 1.7 / 1.8 → **1.8 / 1.7 / 1.8** |
+| 4K Dust / Spiral / Nova | 4.9 / 4.8 / 4.6 → **5.0 / 4.6 / 4.5** |
 
-## Wave 5 rework · 2026-10-15
+Final p95: 1080p **2.4 / 2.1 / 2.5 ms**, 4K **5.7 / 5.4 / 5.6 ms**. Every state passes the previous cost +5% ceiling. Since fleet load varies, a second comparison alternated reference/current draws AB/BA in the same browser, 96 samples per side/state: 1080p **2.3/1.9/1.9 → 2.2/1.9/1.8**, 4K **5.5/5.3/5.0 → 5.4/5.1/4.8**. Zero GL/non-finite/errors.
 
-No engine change. All world/state/look IDs, names, seeds, preset parameters and schema are unchanged. The last 24 rows retain their legacy particle identities and state but stop drawing a screen overlay. Each emitter is attenuated by `exp(-tau)`, where tau is the exact finite-segment column of a normalised **sech²** vertical dust slab, weighted by the seeded two-arm lane field. Foreground emitters therefore exclude dust behind them, including the distant sky stars. Near-parallel rays have a finite analytic limit. This avoids sorting/readback/new renderer passes and removes 12,288 absorber sprites.
+## Visual iteration and evidence
 
-Visual rounds, each filmed/reviewed: (1) replace global dust compositing and intrinsic lane dimming with emitter-to-eye transmission; (2) shift light from tiny grains into broader gas sprites (the first 4%-large-sprite trial looked too puffy); (3) restore a denser lower-intensity gas population, add shell limb shading and palette-coloured front/back separation; (4) make the compressed shell filaments superlinear emissive highlights, dim the uncompressed interior, and move the starting cloud camera back so portrait has breathing room. The same Zel'dovich modes, ellipse trajectories, Sedov–Taylor fronts, fixed-point phases and shell geometry survive every round.
+Seven filmed improvement rounds after the previous final baseline:
 
-Native headless M3 Pro p50 ms, whole synchronous frame including post, same all-state command before/after:
+1. Full-resolution gas, core, lanes and initial shell. Rejected the procedural sky: too busy and about 2× baseline 4K cost.
+2. Existing sky stars instead; bounded/state-conditional gas evaluation; broader arms. Shell still too wire-like.
+3. Scalar lattice cache; more luminous gas and irregular shell support. Spiral still read as a broad S.
+4. Integrate only the fixed tracer cohort; quieter jets, reduced dust opacity, diffuse remnant light.
+5. Cache uniform camera data as well; tighter winding and deeper/brighter sky. Alternating performance comparison passed.
+6. Softer HII treatment and varying filament widths. 4K review still exposed flat pink threshold patches.
+7. Explicit round Gaussian HII knots/halos with footprint filtering; another fine shell octave. Final films and all performance checks repeated.
 
-| Resolution | Dust | Spiral | Nova |
-| --- | --- | --- | --- |
-| 1080p baseline → final | 1.9 → 1.6 | 1.8 → 1.7 | 2.0 → 1.6 |
-| 4K baseline → final | 5.2 → 4.4 | 5.0 → 4.2 | 5.0 → 4.7 |
+Evidence root: fleet `rework-space/output/`. Baseline/final films and contact strips: `nebula-next-baseline/nebula.{mp4,png}` and `nebula-next-final/nebula.{mp4,png}`. Combined strip: `nebula-next-before-after.png`. Liquid Chrome comparison: `reference-chrome/liquid-chrome.{mp4,png}`. Extra look, three palettes, portrait, reverse film, seven-look energy ladder, 4K stills/crops, stock profiles, raw alternating samples and cache-fallback comparison are retained there. Superseded intermediate films are removed to save disk space.
 
-Zero GL/non-finite errors. New CPU tests compare the dust column to numerical integration, its parallel limit, ray reversal and foreground/background extinction; existing identity, continuity, potential gradient, spiral crowding and shock tests retained. Reviewed ladder, Edge-on Lanes, Phosphor/Ember/Glacier and portrait. Honest rating: **8.5/10** — stronger cloud light and shell climax, fixed foreground absorption, but the resolved stars still read too grainy in 540p to honestly claim 9. The cost ceiling took priority over a denser particle volume.
+## Verification and limits
 
-Evidence in fleet `rework-space/output/`: `nebula-baseline/nebula.{mp4,png}`, `nebula-final/nebula.{mp4,png}`, `nebula-extra/`, `nebula-ember/`, `nebula-glacier-portrait/`, `nebula-ladder/` and baseline/final profile JSONs. Superseded films removed.
+`tests/nebula.test.mjs` retains potential-gradient, ellipse polar map, emergent trailing m=2 density-wave, fixed-point phase, development/time continuity, reversal, Sedov–Taylor, jet-wrap and finite dust-column tests. New checks cover cloud-metric minimization, continuous/bounded periodic shell support, unchanged particle budget, scalar-cache fallback source path, Gaussian knot support and sky depth. Tests find the world by ID, not registry position.
+
+`node --test tests/nebula.test.mjs tests/time.test.mjs`: **22/22 pass**. Full main suite: **738 pass, 9 opt-in skips, 0 failures** (747 total). Typecheck, build and native-GPU German/English i18n browser smoke pass. Catalog assets were not regenerated.
+
+Native checks cover all states and half-states at energy .1/.9, Phosphor/Ember/Glacier, portrait and 4K. Cached/direct frames differ by at most **1/255** per channel in the sampled five developments (mean < .00016/255), with zero GL errors. Native time-wrap/rate-step audit passes at 3,600, 4,096 and 43,200 seconds. External-display cadence and multi-hour endurance are not claimed.
+
+**Honest rating: 8.5/10**, compared with the filmed Liquid Chrome reference and the retained Event Horizon film. The opening, spiral and light hierarchy are substantially stronger than the preceding particle-only rework. Still not a fully photographic 9: the nova is visibly a procedural emitting shell rather than turbulent volumetric gas, its angular corrugation can read as a regular lobed outline, the HII distribution is stylized, and the low-camera extra look is intentionally thin. The cheap ellipsoidal cloud/near-shell radiance is an approximation, not full radiative transfer or hydrodynamics.

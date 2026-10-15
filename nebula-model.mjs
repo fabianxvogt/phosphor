@@ -30,7 +30,7 @@ export const N = {
   pattern: 9, // spiral pattern speed: 160 s per revolution
   drift: 2, // potential phase drift
   shock: 120, // shock fronts every 12 s at speed 1
-  yaw: 15, // camera orbit 96 s
+  yaw: 5, // gentle camera orbit 288 s
   lift: 9, // camera height swing 160 s
   dolly: 6, // camera distance 240 s
   wobble: 80, // dust turbulence 18 s
@@ -124,7 +124,7 @@ export function worldOf(seed) {
   return {
     key,
     modes,
-    twist: 2.2 + 0.9 * rnd(key, 0, 905), // orientation radians per unit radius
+    twist: 1.35 * (2.2 + 0.9 * rnd(key, 0, 905)), // orientation radians per unit radius
     scale: 0.72 + 0.12 * rnd(key, 0, 906), // exponential disk length
     yaw0: rnd(key, 0, 907),
   };
@@ -242,7 +242,7 @@ export function position(world, ident, env) {
     level = 0.5,
     shock = 1,
   } = env;
-  if (ident.kind === 2) return ident.shellDir.map((v) => v * 9);
+  if (ident.kind === 2) return ident.shellDir.map((v) => v * (7 + 9 * ident.layer));
   const { p, n } = progress(dev, ident.rank);
   const cloud = 2 * Math.PI * cycle(clock, N.cloud);
   const lambda = ident.ang0 + cloud + psi;
@@ -299,6 +299,26 @@ export function position(world, ident, env) {
 // Zel'dovich caustics) and Rayleigh–Taylor fingers (radial). Sedov–Taylor
 // fronts F = 2.35·c^(2/5) run through it every cycle c.
 export const SHELL = 1.45;
+
+// CPU reference for the unresolved radiance carrier (not a sampled volume).
+// The closest point in an ellipsoidal metric continuously flattens the
+// diffuse cloud into a thin emitting disk. The shell is a finite radial
+// carrier with periodic angular corrugation, bounded before noise is read.
+export function radianceCloudPoint(eye, ray, dev) {
+  const p = smooth(0, 1, dev), thickness = .65 + (.035 - .65) * p;
+  const metric = [1, 1 / thickness, 1];
+  const er = ray.map((v, i) => v * metric[i]);
+  const eo = eye.map((v, i) => v * metric[i]);
+  const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0);
+  const t = Math.max(0, -dot(er, eo) / dot(er, er));
+  return { point: eye.map((v, i) => v + ray[i] * t), t, thickness };
+}
+export function radianceShellRadius(dev, angle) {
+  const n = smooth(1, 2, dev);
+  return SHELL * (.25 + .75 * n) *
+    (1 + .055 * Math.sin(5 * angle) + .028 * Math.cos(11 * angle));
+}
+
 export function shockFront(R, clock, shock = 1) {
   const c = cycle(clock, N.shock);
   const F = 2.35 * sedovTaylor(c);
