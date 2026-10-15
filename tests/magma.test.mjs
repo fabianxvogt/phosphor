@@ -93,7 +93,7 @@ function* points(n, span = 120, seed = 7) {
 test("shader keeps the mirrored Voronoi search and seam distance", () => {
   for (const line of [
     `const float JIT = ${PLATE_JITTER.toFixed(2)};`,
-    "vec2 mrSiteHash(vec2 c) { return mrH22(c + gSeedOff); }",
+    "return mrH22(c + gSeedOff);", "return texelFetch(u_precomputed, ivec2(c) + ivec2(64, 65), 0).xy;",
     "vec2 mrSite(vec2 h) { return 0.5 + JIT * (h - 0.5); }",
     "return fract((p3.xx + p3.yz) * p3.zy);",
     "if (d < best) { best = d; mr = r[k]; hA = h; oA = o; }",
@@ -191,8 +191,8 @@ test("plate identity never depends on development; only seams, lava and sinking 
 const launch = (hx, hy, force, big = true) => {
   const k = Math.sqrt(Math.max(force, 0.05));
   return big
-    ? { vy: mix(5, 8, hx) * k, vh: mix(0.6, 2, hy) * k }
-    : { vy: mix(3.5, 6.5, hx) * k, vh: mix(0, 0.6, hy) * k };
+    ? { vy: mix(8.5, 11, hx) * k, vh: mix(0.9, 2.1, hy) * k }
+    : { vy: mix(5.5, 9.5, hx) * k, vh: mix(0.1, 1.1, hy) * k };
 };
 const flight = (vy) => (vy + Math.sqrt(vy * vy + 2 * GRAVITY * 0.35)) / GRAVITY;
 const bomb = (p0, v0, t) => [
@@ -207,8 +207,8 @@ test("shader keeps the mirrored ballistic ejecta", () => {
     `const float CYCLE = ${CYCLE_SECONDS.toFixed(1)};`,
     "return p0 + v0 * tt + vec3(0.0, -0.5 * G_ACC * tt * tt, 0.0);",
     "float kf = sqrt(max(gForce, 0.05));",
-    "float vy = (big ? mix(5.0, 8.0, hb.x) : mix(3.5, 6.5, hb.x)) * kf;",
-    "float vh = (big ? mix(0.6, 2.0, hb.y) : mix(0.0, 0.6, hb.y)) * kf;",
+    "float vy = (big ? mix(8.5, 11.0, hb.x) : mix(5.5, 9.5, hb.x)) * kf;",
+    "float vh = (big ? mix(0.9, 2.1, hb.y) : mix(0.1, 1.1, hb.y)) * kf;",
     "tf = (vy + sqrt(vy * vy + 2.0 * G_ACC * 0.35)) / G_ACC;",
     "tt = tau * CYCLE;",
     "return on > 0.0 && tt < tf;",
@@ -255,13 +255,13 @@ test("ejecta follow exact parabolas and land before their next launch", () => {
     // Every flight ends inside its cycle, so no bomb jumps to its next
     // launch mid-air; the landing stays well inside the camera orbit.
     assert.ok(tf < CYCLE_SECONDS, `flight ${tf}`);
-    // Closest camera radius: 8.6 · (1 − 0.05) = 8.17.
-    assert.ok(vh * tf + 0.25 < 8.17 - 0.8, `landing radius ${vh * tf}`);
+    // Peak camera radius is at least 12.8 · 0.95 = 12.16.
+    assert.ok(vh * tf + 0.25 < 12.16 - 0.8, `landing radius ${vh * tf}`);
   }
   // Worst case over the whole hash and force range.
   const { vy, vh } = launch(1, 1, 1.5);
   assert.ok(flight(vy) < CYCLE_SECONDS);
-  assert.ok(vh * flight(vy) + 0.25 < 7.37);
+  assert.ok(vh * flight(vy) + 0.25 < 11.36);
 });
 
 test("the bound surface is above every slab and lava level", () => {
@@ -281,7 +281,7 @@ test("a bomb's trail lies inside its precomputed bounding sphere", () => {
   for (const [hx, hy, big] of [[0.3, 0.8, true], [1, 1, true], [0.5, 0.1, false]]) {
     const { vy, vh } = launch(hx, hy, 1.5, big);
     const v0 = [vh, vy, 0.3 * vh];
-    const span = 3 * (big ? 0.12 : 0.07);
+    const span = 3 * (big ? 0.22 : 0.1);
     for (let tt = 0; tt < flight(vy); tt += 0.05) {
       const h0 = bomb(p0, v0, tt),
         tail = bomb(p0, v0, Math.max(tt - span, 0));
@@ -304,8 +304,9 @@ function base(x, z) {
 }
 test("the camera orbit never enters the ground", () => {
   for (const line of [
-    "float R = mix(mix(7.6, 8.6, gSplit), 9.4, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
-    "ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) * mix(0.8, 1.0, gSplit) + 0.9 * gErupt + 0.15 * wob;",
+    "float peakR = 12.8 + 12.0 * max(gForce - 1.0, 0.0);", 
+    "float R = mix(mix(7.6, 8.6, gSplit), peakR, gErupt) * (1.0 + 0.05 * wob) + 1.2 * camH;",
+    "ro.y = mrBase(ro.xz) + mix(2.2, 6.6, camH) * mix(0.8, 1.0, gSplit) + 1.4 * gErupt + 0.15 * wob;",
     "const float TOP_BOUND = 0.18;",
   ])
     assert.ok(src.includes(line), line);
@@ -316,13 +317,13 @@ test("the camera orbit never enters the ground", () => {
         for (let az = 0; az < 2 * Math.PI; az += 0.02) {
           const erupt = smooth(1.3, 2, dev),
             split = smooth(0.08, 1, dev);
-          const R = mix(mix(7.6, 8.6, split), 9.4, erupt) * (1 + 0.05 * wob) + 1.2 * camH;
-          // Ejecta (which land within 7.37) fly only once the camera is back.
+          const R = mix(mix(7.6, 8.6, split), 12.8, erupt) * (1 + 0.05 * wob) + 1.2 * camH;
+          // The camera cranes back continuously while the eruption forms.
           if (erupt > 0) assert.ok(R > 7.6, `camera radius ${R} during the eruption`);
           assert.ok(R < 19, "inside the plate field, far from the wall");
           const x = R * Math.cos(az),
             z = R * Math.sin(az);
-          const y = base(x, z) + mix(2.2, 6.6, camH) * mix(0.8, 1, split) + 0.9 * erupt + 0.15 * wob;
+          const y = base(x, z) + mix(2.2, 6.6, camH) * mix(0.8, 1, split) + 1.4 * erupt + 0.15 * wob;
           least = Math.min(least, y - (base(x, z) + 0.18));
         }
   assert.ok(least > 1.3, `clearance ${least}`);
@@ -332,14 +333,14 @@ test("the camera orbit never enters the ground", () => {
 test("clocks are the authored products and every use is periodic", () => {
   assert.match(early, /gOrbit = u_time \* \(u_params\[5\] \* 0\.07\);/);
   assert.match(early, /gFlow = u_time \* \(u_params\[1\] \* 0\.18\);/);
-  assert.match(early, /gErPh = u_time \* \(\(0\.8 \+ 0\.45 \* clamp\(u_level, 0\.0, 1\.0\)\) \/ 3\.4\);/);
+  assert.match(early, /gErPh = u_time \* \(\(0\.8 \+ 0\.45 \* clamp\(u_level, 0\.0, 1\.0\)\) \/ 4\.6\);/);
   assert.match(late, /gOrbit = u_clock\[0\];/);
   const p = magma.schema.map((f) => f.default);
   p[5] = 0.7;
   p[1] = 1.3;
   assert.equal(magma.clocks[0].rate(p, 0.5), 0.7 * 0.07);
   assert.equal(magma.clocks[1].rate(p, 0.5), 1.3 * 0.18);
-  assert.equal(magma.clocks[2].rate(p, 0.4), (0.8 + 0.45 * 0.4) / 3.4);
+  assert.equal(magma.clocks[2].rate(p, 0.4), (0.8 + 0.45 * 0.4) / 4.6);
   assert.deepEqual(
     magma.clocks.map((c) => c.period),
     [2 * Math.PI, 16, 64],
@@ -349,17 +350,76 @@ test("clocks are the authored products and every use is periodic", () => {
   for (const use of azUses) assert.match(use, /^(sin|cos)\(az( \* 2\.0)?( \+ 0\.7)?\)$/, use);
   // Flow (period 16): sin(TAU·φ), the lake turn TAU·φ/16, fract and floor mod 16.
   for (const use of src.match(/[^\n]*gFlow[^\n]*/g).filter((l) => !/gFlow = |float gDev/.test(l)))
-    assert.match(use, /sin\(TAU \* gFlow|TAU \* gFlow \/ 16\.0|gFlow \+ 0\.5 \* float\(k\)/, use);
+    assert.match(use, /sin\(TAU \* gFlow|TAU \* gFlow \/ 16\.0|gFlow \+ 0\.5 \* float\(k\)|sin\(r \* 4\.0 - TAU \* gFlow\)/, use);
   assert.match(src, /float id = mod\(floor\(ph\), 16\.0\);/);
-  // Eruption (period 64): integer frequencies, ×0.5 with mod 32, ×0.5/0.75.
+  // Eruption (period 64): integer fountain harmonics and ash ×0.5, embers ×0.5/0.75.
   for (const use of src.match(/[^\n]*gErPh[^\n]*/g).filter((l) => !/gErPh = |float gDev/.test(l)))
     assert.match(
       use,
-      /gErPh \* 0\.5 \+ 0\.5|TAU \* \(gErPh \* 8\.0\)|TAU \* gErPh \* 5\.0|gErPh \+ fract|gErPh \* \(0\.5 \+ floor\(h\.z \* 2\.0\) \* 0\.25\)/,
+      /TAU \* gErPh|TAU \* \(gErPh \* 8\.0\)|gErPh \+ fract|gErPh \* \(0\.5 \+ floor\(h\.z \* 2\.0\) \* 0\.25\)/,
       use,
     );
-  assert.match(src, /float id = mod\(floor\(ph\), 32\.0\);/);
+  assert.match(src, /mrBillow\(p \* 0\.95 \+ vec3\(gSeedOff, 0\.0\), TAU \* gErPh \* 0\.5\)/);
   for (const m of [8, 5, 1, 0.5, 0.75]) assert.ok(Number.isInteger(64 * m));
+});
+
+test("plate hash tile addresses are exact and contain every terrain site", () => {
+  assert.deepEqual(magma.precompute.size, [128, 129]);
+  assert.match(magma.precompute.fragment, /floor\(gl_FragCoord\.xy\) - vec2\(64\.0, 65\.0\)/);
+  assert.match(magma.precompute.fragment, /outColor = vec4\(mrH22\(c \+ gSeedOff\), 0\.0, 1\.0\);/);
+  for (let y = -64; y < 64; y++)
+    for (let x = -64; x < 64; x++) {
+      const texel = [x + 64, y + 65];
+      assert.ok(texel[0] >= 0 && texel[0] < 128 && texel[1] >= 1 && texel[1] < 129);
+      assert.deepEqual([texel[0] - 64, texel[1] - 65], [x, y]);
+    }
+  // At the smallest plate size, even the outermost detailed terrain and
+  // its neighbouring cells fit. Lake material uses the checked fallback.
+  assert.ok(Math.ceil(21 / (1.1 * 0.6)) + 1 < 64);
+  assert.match(src, /all\(greaterThanEqual\(c, vec2\(-64\.0\)\)\) && all\(lessThan\(c, vec2\(64\.0\)\)\)/);
+});
+
+test("curtain bound contains every compact-support jet, including its AA width", () => {
+  const maxBillow = 0.5 + 0.28 * (1 + 0.6 + 0.3);
+  const maxWidth = (0.28 + 0.3) * (0.6 + maxBillow);
+  assert.ok(maxWidth < 0.947);
+  assert.ok(3.3 + 4 * maxWidth < 7.2);
+  assert.match(src, /max\(7\.2, 3\.3 \+ 6\.0 \* gPix \* 80\.0\)/);
+  assert.match(src, /cs\.x >= 4\.0 \* maxSig/);
+  assert.match(src, /1\.0 - smoothstep\(3\.4 \* sig, 4\.0 \* sig, cs\.x\)/);
+  assert.match(src, /dir\.x \* 3\.3, h, dir\.y \* 3\.3/);
+});
+
+test("rising ash is smooth and periodic at the 64-cycle clock boundary", () => {
+  const billow = ([x, y, z], phase) => {
+    let n = Math.sin(x * 1.7 + Math.sin(z * 1.3 + y * 0.9 - phase)) * Math.sin(z * 1.5 + Math.sin(y * 1.4 + x * 0.7 - phase));
+    n += 0.6 * Math.sin(y * 1.9 - phase * 2 + Math.sin(x * 2.3 - z * 1.1) * 1.4) * Math.sin(x * 2.1 + z * 1.7);
+    n += 0.3 * Math.sin(x * 4.1 + y * 3.3 - phase * 3 + Math.sin(z * 3.7));
+    return 0.5 + 0.28 * n;
+  };
+  for (const [x, y] of points(1000, 30)) {
+    const p = [x, y, x * 0.3 - y * 0.8];
+    for (const harmonic of [0.5, 1]) {
+      const phase = x * harmonic;
+      assert.ok(Math.abs(billow(p, phase) - billow(p, phase + 2 * Math.PI * 64 * harmonic)) < 1e-12);
+      assert.ok(Math.abs(billow(p, phase + 1e-5) - billow(p, phase)) < 5e-5);
+    }
+  }
+  assert.match(src, /p\.y \* 1\.9 - phase \* 2\.0/);
+  assert.match(src, /p\.y \* 3\.3 - phase \* 3\.0/);
+});
+
+test("high-force extra looks crane back instead of cropping the taller curtain", () => {
+  for (let force = 1; force <= 1.5001; force += 0.05) {
+    const R = 12.8 + 12 * (force - 1);
+    const height = 1 + 8 * force;
+    // Apparent height does not grow with the fountain-force fader.
+    assert.ok(height / R <= 9 / 12.8 + 1e-12);
+    assert.ok(R * 1.05 + 1.2 < 21);
+    const { vy, vh } = launch(1, 1, force);
+    assert.ok(vh * flight(vy) + 0.25 < R * 0.95 - 0.8);
+  }
+  assert.match(src, /4\.8 \+ 3\.5 \* max\(gForce - 1\.0, 0\.0\)/);
 });
 
 // ------------------------------------------------------------- looks
