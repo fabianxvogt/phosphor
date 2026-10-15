@@ -302,15 +302,14 @@ export class Engine {
       (scene.precompute.filter !== "linear" ||
         linearCache ||
         scene.precompute.nearestFallback === true);
+    const dataDefines = precompute
+      ? "#define PRECOMPUTED\n" +
+        (scene.precompute.filter === "linear" && linearCache
+          ? "#define PRECOMPUTED_LINEAR\n"
+          : "")
+      : "";
     programs.visual = this.program(
-      variant(
-        header +
-          (precompute ? "#define PRECOMPUTED\n" : "") +
-          (precompute && scene.precompute.filter === "linear" && linearCache
-            ? "#define PRECOMPUTED_LINEAR\n"
-            : "") +
-          scene.fragment,
-      ),
+      variant(header + dataDefines + scene.fragment),
       true,
     );
     if (precompute)
