@@ -11,7 +11,7 @@ import {
   openLab,
 } from "./browser-runtime.mjs";
 import { renderLook } from "../tests/browser/client.mjs";
-const args = options();
+const args = options({ ladder: { type: "string", default: "artifacts/contact/tide-final/index.html" } });
 const out = await outputDirectory("films/tide-verification", args.out);
 const server = await serve(".", args.port);
 const runtime = await launch({ rig: args.rig, headless: true });
@@ -191,7 +191,7 @@ try {
   assert.equal(extra.nonFinite, 0);
   assert.ok(extra.identities.every((x) => x.seed === 10301 && x.slotSame));
   // Readable contact grid, including all eight looks at all three energies.
-  await page.goto(server.url + "artifacts/contact/tide-final/index.html");
+  await page.goto(server.url + args.ladder);
   await page.setViewportSize({ width: 1560, height: 1000 });
   await page.screenshot({
     path: resolve(out, "energy-ladder.png"),

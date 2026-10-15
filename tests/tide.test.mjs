@@ -354,10 +354,10 @@ test("living light is HDR, locally kick-modulated; droplets conserve subpixel fl
   const crest = 0.6,
     glow = 0.85,
     spark = 1;
-  const base = crest * 4 * glow * (0.46 + 0.72 * spark ** 2) * 1.75;
-  const kick = crest * 4 * glow * (0.46 + 0.72 + 0.45) * 1.75;
+  const base = crest * 2.2 * glow * (0.46 + 0.72 * spark ** 2) * 1.75;
+  const kick = crest * 2.2 * glow * (0.46 + 0.72 + 0.45) * 1.75;
   assert.ok(
-    base > 4 && kick / base < 1.4,
+    base > 2 && kick / base < 1.4,
     "living cores exceed 1 without a global flash",
   );
   for (const fp of [0, 0.02, 0.1, 0.2, 0.4]) {
@@ -373,18 +373,12 @@ test("living light is HDR, locally kick-modulated; droplets conserve subpixel fl
   }
 });
 
-function cachedBowl(p, dev, flow) {
-  if (Math.hypot(...p) <= 6 || Math.max(...p.map(Math.abs)) >= 63.5) {
-    const b = bowl(p, dev, flow);
-    return [b.h, ...b.gradient];
-  }
-  const grid = p.map((v) => (v / 128 + 0.5) * 255);
+function cachedData(p, exactAt) {
+  if (Math.hypot(...p) <= 6 || Math.max(...p.map(Math.abs)) >= 127.5) return exactAt(p);
+  const grid = p.map((v) => (v / 256 + 0.5) * 511);
   const cell = grid.map(Math.floor),
     f = grid.map((v, i) => v - cell[i]);
-  const at = (x, y) => {
-    const b = bowl([(x / 255 - 0.5) * 128, (y / 255 - 0.5) * 128], dev, flow);
-    return [b.h, ...b.gradient];
-  };
+  const at = (x, y) => exactAt([(x / 511 - 0.5) * 256, (y / 511 - 0.5) * 256]);
   const corners = [
     at(cell[0], cell[1]),
     at(cell[0] + 1, cell[1]),
@@ -398,19 +392,18 @@ function cachedBowl(p, dev, flow) {
   );
   const blend =
     smooth(36, 64, p[0] ** 2 + p[1] ** 2) *
-    (1 - smooth(62, 63.5, Math.max(...p.map(Math.abs))));
+    (1 - smooth(126, 127.5, Math.max(...p.map(Math.abs))));
   if (blend < 1) {
-    const b = bowl(p, dev, flow),
-      exact = [b.h, ...b.gradient];
+    const exact = exactAt(p);
     return data.map((v, k) => exact[k] + (v - exact[k]) * blend);
   }
   return data;
 }
 
 test("world-space bowl data cache preserves height and normal without caching colour", () => {
-  assert.deepEqual(tide.precompute.size, [256, 257]);
-  assert.match(tide.precompute.fragment, /vec4\(tdBowlExact\(p\),0\.\)/);
-  assert.match(tide.fragment, /return tdBowlExact\(p\)/);
+  assert.deepEqual(tide.precompute.size, [512, 513]);
+  assert.match(tide.precompute.fragment, /tdExactWaves\(p\)\+vec4\(bowl,0\.\)/);
+  assert.match(tide.fragment, /return tdExactWaves\(p\)\+vec4\(tdBowlExact\(p\),0\.\)/);
   assert.match(tide.fragment, /nearRadius=max\(0\.,length\(nearAxis\)-\.72\)/);
   let heightError = 0,
     normalError = 0;
@@ -418,7 +411,7 @@ test("world-space bowl data cache preserves height and normal without caching co
     for (let i = 0; i < 6000; i++) {
       const p = [63.4 * Math.sin(i * 1.71), 63.4 * Math.cos(i * 0.37)];
       const b = bowl(p, 2, flow),
-        c = cachedBowl(p, 2, flow);
+        c = cachedData(p, (p) => { const b = bowl(p, 2, flow); return [b.h, ...b.gradient]; });
       heightError = Math.max(heightError, Math.abs(b.h - c[0]));
       const a = [-b.gradient[0], 1, -b.gradient[1]],
         d = [-c[1], 1, -c[2]];
@@ -434,6 +427,28 @@ test("world-space bowl data cache preserves height and normal without caching co
     normalError < 0.025,
     `cached bowl unit-normal error ${normalError}`,
   );
+});
+
+test("combined surface cache bounds wave height/normal error over the whole schema", (t) => {
+  let heightError = 0, normalError = 0;
+  for (const seed of [10301, 10303, 10306])
+    for (const dev of [0, .5, 1, 1.5, 2]) {
+      const w = waves(seed, dev, 1.3, 1.7);
+      const exactAt = (p) => { const s = sea(p, w, dev, .9); return [s.h, ...s.gradient]; };
+      for (let i = 0; i < 1800; i++) {
+        const p = [127.6 * Math.sin(i * 1.71), 127.6 * Math.cos(i * .37)];
+        const exact = exactAt(p), cached = cachedData(p, exactAt);
+        heightError = Math.max(heightError, Math.abs(exact[0] - cached[0]));
+        const a = [-exact[1], 1, -exact[2]], b = [-cached[1], 1, -cached[2]];
+        const al = Math.hypot(...a), bl = Math.hypot(...b);
+        normalError = Math.max(normalError, Math.hypot(...a.map((v, k) => v / al - b[k] / bl)));
+      }
+    }
+  t.diagnostic(`combined height error ${heightError} m; unit-normal error ${normalError}`);
+  assert.ok(heightError < .06, `combined height error ${heightError} m`);
+  assert.ok(normalError < .06, `combined normal error ${normalError}`);
+  assert.match(tide.fragment, /layer<3/);
+  assert.match(tide.fragment, /float aeration=smoothstep/);
 });
 
 test("ray-specific slabs bound the exact ocean, including the deep throat", () => {
