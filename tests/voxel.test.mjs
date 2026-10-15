@@ -20,6 +20,8 @@ import {
   GENERATIONS,
   MONOLITH,
   SPACING,
+  ASSEMBLY_PITCH,
+  RAIN_HEIGHT,
   NEIGHBOURS,
   caStep,
   caGeneration,
@@ -29,8 +31,11 @@ import {
   assemblyOrder,
   identities,
   position,
+  smooth,
   bridges,
   createCube,
+  createGeometry,
+  cameraFrame,
   createInstances,
 } from "../voxel-model.mjs";
 const scene = scenes.find((s) => s.id === "voxel");
@@ -166,6 +171,14 @@ test("Morton assembly is a deterministic bottom-up permutation, independent of d
       for (let z = 0; z < 8; z++) assert.equal(morton3(x, y, z) & 1, x & 1);
   assert.equal(createInstances.length, 1);
   assert.equal(createCube().length, 36 * 6);
+  assert.equal(createGeometry().length, 42 * 6);
+  assert.deepEqual(createGeometry().slice(0, 36 * 6), createCube());
+  assert.ok(
+    createGeometry()
+      .slice(36 * 6)
+      .every((x, i) => i % 6 < 3 || x === 0),
+  );
+  assert.equal(scene.geometry.additiveFrom, 36);
   assert.ok(createCube().every(Number.isFinite));
   assert.deepEqual(createInstances(1151), createInstances(1151));
   assert.notDeepEqual(createInstances(1151), createInstances(1152));
@@ -207,9 +220,61 @@ test("persistent identities cover exactly the CA and move continuously in both d
       for (const phase of [0, 0.25, 0.5, 0.75])
         assert.ok(position(v, d, phase).every(Number.isFinite));
     }
-    assert.ok(v.target[1] >= 0.5 && v.target[1] <= 6.2);
+    assert.ok(v.target[1] >= 0.26 && v.target[1] <= 30.26);
   }
-  assert.ok(worst < 30, `development Lipschitz bound: ${worst}`);
+  assert.ok(worst < 120, `development Lipschitz bound: ${worst}`);
+});
+
+test("monumental framing keeps the low camera outside cubes and causal bridges", () => {
+  const voxels = identities(1151),
+    links = bridges(voxels);
+  assert.deepEqual(ASSEMBLY_PITCH, [0.46, 0.44, 0.46]);
+  assert.equal(RAIN_HEIGHT, 14);
+  assert.ok(Math.max(...voxels.map((v) => v.monolith[1])) > 11.5);
+  assert.equal(Math.min(...voxels.map((v) => v.monolith[1])), 0.22);
+  const boxDistance = (eye, center, extent) =>
+    Math.hypot(
+      ...eye.map((x, i) => Math.max(0, Math.abs(x - center[i]) - extent[i])),
+    );
+  let clearance = Infinity;
+  for (const cameraDistance of [0.85, 1, 1.3])
+    for (let d = 1; d <= 2.00001; d += 0.05)
+      for (let phase = 0; phase < 2 * Math.PI; phase += 0.3) {
+        const { eye, target } = cameraFrame(d, phase, cameraDistance);
+        assert.ok(target[1] > eye[1], "a low, upward-looking camera");
+        assert.deepEqual(
+          cameraFrame(d, phase + 2 * Math.PI, cameraDistance).eye.map(
+            (x, i) => Math.abs(x - eye[i]) < 1e-12,
+          ),
+          [true, true, true],
+        );
+        for (const v of voxels) {
+          // circumscribed extent also covers the bounded kick rotation.
+          const p = position(v, d, 0),
+            extent = [0.4, 0.32, 0.4];
+          clearance = Math.min(clearance, boxDistance(eye, p, extent));
+        }
+        for (const { from, to } of links) {
+          const center = from.target.map((x, i) => (x + to.target[i]) / 2);
+          const p = position({ ...from, target: center }, d, 0);
+          const unfold = smooth(
+            0,
+            1,
+            Math.max(0, d - 1) * 1.45 - 0.45 * from.rank,
+          );
+          const extent = from.target.map(
+            (x, i) => (Math.abs(x - to.target[i]) / 2 + 0.035) * unfold,
+          );
+          clearance = Math.min(clearance, boxDistance(eye, p, extent));
+        }
+      }
+  assert.ok(clearance > 0.1, `camera clearance: ${clearance}`);
+  const peak = cameraFrame(2, 0);
+  assert.ok(
+    Math.hypot(peak.eye[0], peak.eye[2]) < 6,
+    "camera is inside the 30-unit architecture",
+  );
+  assert.ok(peak.eye[1] > 12);
 });
 
 test("recursive bridges join real cells, are axis-aligned, unique and never skip live cells", () => {
@@ -277,7 +342,7 @@ test("optional engine instancing uploads divisors, persists across development a
     slot = { scene };
   const snapshot = presetSnapshot(scene, 0);
   engine.prepareSnapshot(slot, snapshot);
-  assert.equal(slot.mesh.count, 36);
+  assert.equal(slot.mesh.count, 42);
   assert.equal(slot.mesh.instances, 3042);
   assert.deepEqual(
     calls.filter((c) => c[0] === "vertexAttribDivisor").map((c) => c.slice(1)),
@@ -433,6 +498,31 @@ test(
           engine.gl.getError()
         )
           throw Error("instance restore");
+        const stills = [];
+        for (const development of [0, 1, 2]) {
+          const health = await renderLook({
+            sceneId: "voxel",
+            snapshot: {
+              ...snapshot,
+              params: { ...snapshot.params, development },
+            },
+            frames: 120,
+            width: 3840,
+            height: 2160,
+            capture: false,
+            pollHealth: false,
+          });
+          if (health.glError || health.nonFinite || health.peak < 30)
+            throw Error(`4K state ${development}: ${JSON.stringify(health)}`);
+          const canvas = document.createElement("canvas");
+          canvas.width = 3840;
+          canvas.height = 2160;
+          canvas.getContext("2d").drawImage(engine.canvas, 0, 0);
+          stills.push({
+            development,
+            png: canvas.toDataURL("image/png").split(",")[1],
+          });
+        }
         const unexpected = errors.filter(
           (m) => !/Graphics|context|restored|Grafik|wiederhergestellt/i.test(m),
         );
@@ -441,14 +531,21 @@ test(
           rows,
           instances: restored.instances,
           restored: true,
+          stills,
           engineMessages: errors,
         };
       });
       assert.equal(evidence.restored, true);
       assert.deepEqual(lab.errors, []);
+      const { stills, ...summary } = evidence;
+      for (const { development, png } of stills)
+        await writeFile(
+          resolve(out, `4k-${["rain", "assembly", "unfold"][development]}.png`),
+          Buffer.from(png, "base64"),
+        );
       await writeFile(
         resolve(out, "native.json"),
-        JSON.stringify(evidence, null, 2),
+        JSON.stringify(summary, null, 2),
       );
     } finally {
       await runtime.stop();
