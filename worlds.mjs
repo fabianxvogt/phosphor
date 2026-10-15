@@ -219,6 +219,17 @@ const AUTHORED = [
       { name: "Tunnel", look: "laser:Tunnel" },
     ],
   },
+  {
+    id: "magma-rift",
+    name: "Magma Rift",
+    description:
+      "Cooling basalt plates breathe through glowing cracks, split into rivers of lava and open into an erupting lake that throws glowing ejecta under an ash plume. The same plates throughout.",
+    states: [
+      { name: "Crust", look: "magma:Breathing Crust" },
+      { name: "Rivers", look: "magma:Seam Rivers" },
+      { name: "Eruption", look: "magma:Lava Fountain" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
