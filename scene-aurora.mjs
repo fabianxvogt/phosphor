@@ -11,34 +11,41 @@ float avDev(){return clamp(u_params[0],0.,2.);}
 float avSeed(){return fract(mod(u_seed,8192.)*.61803398875);}
 float avFocal(){
  float c=smoothstep(1.,2.,avDev());
- return 1.3*(1.-.17*sin(AV_PI*c))*(1.+.018*u_kick)/mix(1.,max(1.,u_params[5]),c);
+ return 1.22*(1.+.018*u_kick)/mix(1.,max(1.,u_params[5]),c);
 }
 void avCamera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float a=u_clock[1],c=smoothstep(1.,2.,avDev());
- eye=vec3(.8*sin(a),1.25+.12*sin(2.*a),.65*cos(a));
- float yaw=.04*sin(a),pitch=.12+.1*smoothstep(0.,1.,avDev())+1.29*smoothstep(0.,.82,c)+u_params[6];
+ eye=vec3(1.4*sin(a),2.2+.16*sin(2.*a)+.8*c,1.1*cos(a));
+ float yaw=.055*sin(a),pitch=.30+.08*smoothstep(0.,1.,avDev())+1.12*c+u_params[6];
  F=vec3(sin(yaw)*cos(pitch),sin(pitch),cos(yaw)*cos(pitch));
- R=normalize(cross(vec3(0.,1.,0.),F));U=cross(F,R);
+ // Yaw-defined right stays continuous even when an extra look passes zenith.
+ R=vec3(cos(yaw),0.,-sin(yaw));U=cross(F,R);
 }
 vec3 avPoint(vec2 uv,float sheet){
  float rise=smoothstep(0.,1.,avDev()),crown=smoothstep(1.,2.,avDev()),phase=u_clock[0];
- float theta=(uv.x-.5)*mix(2.6,5.95,crown)+sheet*.13+(avSeed()-.5)*.35;
- float w=theta*5.+phase+sheet*2.3;
+ float theta=(uv.x-.5)*6.18+sheet*.24+(avSeed()-.5)*.35;
+ float w=theta*2.3+phase+sheet*2.3;
  float kink=sin(w+.65*sin(2.*w-phase));
- float radius=mix(24.+sheet*7.,7.+sheet*2.,crown)*u_params[5];
- float ripple=(.65+1.65*rise)*u_params[2]*kink+.6*sin(9.*theta-2.*phase);
+ float radius=mix(32.+sheet*20.,26.+sheet*18.,crown)*u_params[5];
+ float ripple=(3.+6.*rise)*u_params[2]*kink+1.7*sin(9.*theta-2.*phase);
  float r=radius+ripple;
- float bend=theta+.11*rise*u_params[2]*sin(8.*theta-phase+sheet);
- float bottom=mix(7.3+sheet*.6+3.5*cos(theta)+rise*(3.+2.5*sin(3.*theta+phase)),19.+sheet*3.5+2.*sin(3.*theta+phase),crown);
- vec3 base=vec3(r*sin(bend),bottom,mix(27.+sheet*4.,0.,crown)+r*cos(bend));
- float len=(8.8+20.*rise+31.*crown)*u_params[3]*(.8+.2*sin(4.*theta-phase+sheet));
+ float bend=theta+.17*u_params[2]*sin(5.*theta-phase+sheet);
+ float bottom=14.+sheet*3.+6.*sin(1.6*theta+phase+sheet)+3.5*sin(4.3*theta-phase)+.55*sin(23.*theta-phase)+10.*crown;
+ vec3 base=vec3(r*sin(bend),bottom,mix(8.,0.,crown)+r*cos(bend));
+ float len=(62.+30.*rise+180.*crown)*u_params[3]*(.85+.15*sin(4.*theta-phase+sheet));
  return base+AV_B*len*uv.y;
 }
-// A winding snow shore leaves the central ice dark and open.
-float avIce(vec2 p){
- float shore=17.+3.*sin(p.y*.065)+2.*sin(p.y*.14+.6);
- return smoothstep(-1.5,1.5,shore-abs(p.x));
+float avHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7))+u_seed*.17)*43758.5453);}
+float avNoise(vec2 p){
+ vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+ return mix(mix(avHash(i),avHash(i+vec2(1.,0.)),f.x),mix(avHash(i+vec2(0.,1.)),avHash(i+1.),f.x),f.y);
 }
+float avRidge(float az){
+ return .045+.035*sin(az*3.+avSeed()*6.)+.033*abs(sin(az*9.+.4))+.018*sin(az*23.)+.008*sin(az*61.);
+}
+float avShore(vec2 p){return 3.5+abs(p.y)*.24+2.*sin(p.y*.12)+sin(p.y*.39);}
+// Snow drifts on both sides of a widening frozen inlet.
+float avIce(vec2 p){return smoothstep(-.65,.65,avShore(p)-abs(p.x));}
 `;
 const vertex = `#version 300 es
 precision highp float;
@@ -60,7 +67,7 @@ void main(){
  v_uv=a_uv;v_sheet=a_sheet;v_mirror=a_mirror;
  if(a_mirror>.5)p.y=-p.y;
  vec3 eye,R,U,F;avCamera(eye,R,U,F);vec3 q=p-eye;
- float z=dot(q,F),nearZ=.05,farZ=250.;
+ float z=dot(q,F),nearZ=.05,farZ=600.;
  vec2 extent=u_resolution/min(u_resolution.x,u_resolution.y);
  gl_Position=vec4(vec2(dot(q,R),dot(q,U))*avFocal()/extent,(farZ+nearZ)/(farZ-nearZ)*z-2.*farZ*nearZ/(farZ-nearZ),z);
 }
@@ -81,51 +88,61 @@ ${common}
 void main(){
  vec3 eye,R,U,F;avCamera(eye,R,U,F);
  float u=v_uv.x*AV_TAU, h=v_uv.y,phase=u_clock[0],rise=smoothstep(0.,1.,avDev());
+ vec3 floorP=vec3(0.);float frost=1.;
+ if(v_mirror>.5){
+  vec3 mp=vec3(v_world.x,-v_world.y,v_world.z);
+  float t=eye.y/(eye.y-mp.y);floorP=mix(eye,mp,t);
+  float rough=avNoise(floorP.xz*.7);
+  u+=(rough-.5)*.065;h+=.025*(rough-.5);
+  frost=.08+.52*smoothstep(.24,.85,rough);
+ }
  // Field-aligned ray density. Footprint filters the finest rays, not a
  // pixel-sized random texture: stable at 4K and during the overhead tilt.
- float q=u*48.+2.3*sin(u*13.+phase)+.8*sin(u*31.-phase)+v_sheet*4.;
+ float q=u*310.+7.*sin(u*13.+phase)+2.7*sin(u*31.-phase)+v_sheet*4.;
  float fw=max(fwidth(q),.001);
  float fine=.5+.5*cos(q*3.);
  fine=mix(fine,.5,smoothstep(.35,1.5,fw*3.));
  float rayPhase=q+1.7*sin(q*.37)+.6*sin(q*1.73);
  float rayFoot=max(fwidth(rayPhase),.001);
  float rayDistance=abs(mod(rayPhase-AV_PI*.5+AV_PI,AV_TAU)-AV_PI);
- float rayWidth=max(.42,rayFoot*.8);
- float rayCore=exp(-pow(rayDistance/rayWidth,2.))*.42/rayWidth;
+ float rayWidth=max(.55,rayFoot*.8);
+ float rayCore=exp(-pow(rayDistance/rayWidth,2.))*.55/rayWidth;
  rayCore=mix(rayCore,.1185,smoothstep(1.,3.,rayFoot));
+ rayCore=mix(rayCore,.1185,v_mirror*.8);
  float rays=rayCore*(.25+.75*fine);
- float gaps=.28+.72*pow(.5+.5*sin(u*17.+1.8*sin(u*5.-phase)+v_sheet),2.);
+ float gaps=.48+.52*pow(.5+.5*sin(u*17.+1.8*sin(u*5.-phase)+v_sheet),2.);
  float folds=.35+.65*pow(.5+.5*sin(u*9.+phase+v_sheet),2.);
  float detail=mix(.23,.76,clamp(u_params[4]+u_level*.25,0.,1.));
- float density=mix(.16+folds*.16,.055+rays*1.9+folds*.11,detail)*gaps;
+ float density=mix(.20+folds*.18,.13+rays*.70+folds*.22,detail)*gaps;
+ density*=.8+.2*sin(u*27.+.7*sin(h*9.+u*6.)-phase);
  float tip=.48+.25*sin(u*7.-phase)+.15*sin(u*19.+phase);
- float heightFade=exp(-h*2.8)*(1.-smoothstep(tip,1.,h));
- float edge=exp(-h*65.);
+ float reach=.72+.28*sin(u*11.+1.7*sin(u*3.-phase)+v_sheet);
+ float heightFade=exp(-h*(3.8+1.8*(1.-reach)))*(1.-smoothstep(tip*reach,1.,h));
+ float edge=exp(-h*95.);
  float baseFade=smoothstep(0.,.018,h);
  float facing=abs(dot(normalize(v_normal),normalize(eye-v_world)));
  float optical=min(1.9,1./max(facing,.52));
  float cohort=exp(-pow((sin(u-u_rhythmCount.x*.73-v_sheet)*4.),2.))*u_rhythm.x;
  float sweep=exp(-pow((h-(1.-u_rhythm.y))/.12,2.))*u_rhythm.y;
  float foldPulse=exp(-pow(sin(u*2.-u_rhythmCount.z*.41)*5.,2.))*u_rhythm.z;
- vec3 ink=mix(u_primary,mix(u_secondary,vec3(1.),.12),smoothstep(.025,.48,h)*.95);
+ vec3 ink=mix(u_primary,mix(u_secondary,vec3(1.),.10),smoothstep(.015,.19,h));
  float endFade=smoothstep(0.,.08,v_uv.x)*(1.-smoothstep(.92,1.,v_uv.x));
  vec3 col=ink*(density*heightFade*(1.4-rise*.2)+edge*.2)*baseFade*optical*endFade*.8;
- col+=mix(u_primary,vec3(1.),.18)*rays*heightFade*cohort*.3*endFade;
+ col+=ink*rays*heightFade*cohort*.25*endFade;
  // A broad emission layer under the filaments reads as ionised air,
  // not just a set of electric wires. Its lower edge remains the hero.
- float veil=exp(-pow((h-.075)/.17,2.))*(.08+.18*folds)*gaps;
- col+=u_primary*veil*baseFade*endFade*(1.-.25*rise);
+ float veil=exp(-pow((h-.055)/.20,2.))*(.08+.18*folds)*gaps;
+ col+=ink*veil*baseFade*endFade*(1.-.25*rise);
  col+=u_secondary*sweep*rays*.3;
  col+=u_accent*edge*foldPulse*.35*endFade;
- col+=mix(u_primary,vec3(1.),.12)*rays*edge*.18*(1.+.25*u_kick)*endFade;
+ col+=u_accent*edge*.025*endFade*baseFade;
+ col+=mix(u_primary,vec3(1.),.12)*rays*edge*.55*(1.+.25*u_kick)*endFade;
  // An almost edge-on triangle is an unresolved slice of the sheet.
  // Fade only that vanishing footprint rather than sparkling at its edge.
  float coverage=1.-smoothstep(.006,.035,fwidth(v_uv.x));
  col*=exp(-length(v_world-eye)*.006)*coverage;
  if(v_mirror>.5){
   vec3 mp=vec3(v_world.x,-v_world.y,v_world.z);
-  float t=eye.y/(eye.y-mp.y);vec3 floorP=mix(eye,mp,t);
-  float frost=.86+.14*sin(floorP.x*1.7+floorP.z*.4)*sin(floorP.z*.81);
   float fres=.18+.5*pow(1.-abs(normalize(mp-eye).y),3.);
   col*=avIce(floorP.xz)*frost*fres*u_params[7]*exp(-length(floorP.xz)*.003);
  }
@@ -135,7 +152,6 @@ void main(){
 const fragment = `
 uniform float u_clock[4];
 ${common}
-float avHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7))+u_seed*.17)*43758.5453);}
 float avStars(vec3 rd,float scale){
  // Spherical coordinates, pole-safe for the overhead camera.
  vec2 p=rd.xz/(1.+abs(rd.y))*scale;
@@ -151,41 +167,55 @@ void main(){
  vec2 screen=(v_uv-.5)*2.*u_resolution/min(u_resolution.x,u_resolution.y);
  vec3 rd=normalize(F+R*screen.x/avFocal()+U*screen.y/avFocal());
  vec3 skyInk=mix(u_secondary,u_primary,.28);
- vec3 col=skyInk*(.003+.023*exp(-pow((rd.y-.015)/.12,2.)));
+ vec3 col=skyInk*(.006+.035*exp(-pow((rd.y-.015)/.19,2.)));
  vec3 sr=rd;
  bool ground=rd.y<0.;
  if(ground)sr.y=-sr.y;
- float stars=avStars(sr,120.)+avStars(sr,59.)*.8;
- col+=mix(u_secondary,vec3(1.),.7)*stars*.55*smoothstep(0.,.07,sr.y)*(ground?.2:1.);
- // Distant snow ridges and a raking palette rim, against a stable horizon.
+ float stars=avStars(sr,150.)*.45+avStars(sr,59.)*.7+avStars(sr,27.);
+ float galaxy=exp(-pow(dot(sr,normalize(vec3(.5,.32,-.7)))/.16,2.));
+ float dust=avNoise(sr.xz*13.+sr.y*5.)*.65+avNoise(sr.xz*31.)*.35;
+ col+=skyInk*galaxy*(.012+.026*dust)*smoothstep(0.,.12,sr.y);
+ col+=mix(u_secondary,vec3(1.),.7)*stars*.45*smoothstep(0.,.07,sr.y)*(ground?.1:1.);
+ // Two mountain ranges: distant atmospheric teeth and snow-lit foreground.
  float az=atan(rd.x,rd.z);
- float ridge=.012+.014*sin(az*11.+avSeed()*6.)+.009*sin(az*27.)+.004*sin(az*71.);
+ float ridge=avRidge(az);
  float aa=max(fwidth(rd.y-ridge),.0002);
  float land=1.-smoothstep(ridge-aa,ridge+aa,rd.y);
  if(!ground){
-  float rim=exp(-pow((rd.y-ridge)/.0025,2.));
-  col=mix(col,skyInk*.008,land)+u_secondary*rim*.065;
+  float rim=exp(-pow((rd.y-ridge)/.0035,2.));
+  float farRidge=ridge*.65+.065+.008*sin(az*37.);
+  float farLand=1.-smoothstep(farRidge-aa,farRidge+aa,rd.y);
+  col=mix(col,skyInk*.045,farLand);
+  float snowCap=smoothstep(ridge-.026,ridge-.006,rd.y)*(.4+.6*pow(.5+.5*sin(az*81.+rd.y*270.),2.));
+  vec3 mountain=skyInk*(.016+.13*snowCap);
+  col=mix(col,mountain,land)+u_secondary*rim*.025;
  }else{
   float t=-eye.y/rd.y;vec3 p=eye+rd*t;
   float ice=avIce(p.xz),fog=exp(-t*.009);
-  float ridgeLight=.35+.65*(.5+.5*sin(p.z*.075+p.x*.17));
-  vec3 snow=mix(mix(u_secondary,u_primary,.15),vec3(1.),.13)*(.11+.2*ridgeLight);
-  // Wind-cut snow ridges: resolved striations with a near-bank shadow.
-  float bands=.5+.5*sin(p.x*.9+p.z*.12+2.*sin(p.z*.11));
-  vec3 normal=normalize(vec3(-.4*cos(p.x*.9+p.z*.12),1.,-.17*cos(p.z*.11)));
-  float key=max(dot(normal,normalize(vec3(-.6,.4,.5))),0.);
-  snow*=(.5+.5*bands)*(.45+.9*key);
-  float bank=exp(-pow((abs(p.x)-(17.+3.*sin(p.z*.065)+2.*sin(p.z*.14+.6)))/1.1,2.));
-  snow+=mix(u_secondary,vec3(1.),.2)*bank*.09;
-  col=mix(col*.5+skyInk*.009,snow,(1.-ice)*fog);
+  float grain=avNoise(p.xz*7.),drift=avNoise(p.xz*vec2(.55,1.3));
+  float resolved=1.-smoothstep(.2,2.,length(fwidth(p.xz)));
+  float ripples=.5+.5*sin(p.z*11.+p.x*2.+drift*8.);
+  float snowH=.5*drift*drift+.035*ripples;
+  vec3 snowP=vec3(p.x,snowH,p.z);
+  vec3 normal=normalize(cross(dFdx(snowP),dFdy(snowP)));
+  normal*=sign(normal.y);
+  float key=max(dot(normal,normalize(vec3(-.6,.7,.5))),0.);
+  vec3 snow=mix(mix(u_secondary,u_primary,.18),vec3(1.),.26)*(.11+.28*key);
+  snow*=.58+.30*drift+.12*grain*resolved;
+  float bank=exp(-pow((abs(p.x)-avShore(p.xz))/.75,2.));
+  snow+=mix(u_secondary,vec3(1.),.2)*bank*.12;
+  col=mix(col*.3+skyInk*(.018+.026*drift),snow,(1.-ice)*fog);
   // Sparse, branching stresses beneath the glass; derivative AA and
   // distance fade avoid a grid or moiré on the frozen lake.
-  float crackP=p.x*.18+sin(p.z*.09)+.22*sin(p.z*.31);
-  float crackD=abs(sin(crackP));
-  float width=max(fwidth(crackP)*.8,.001);
-  float crack=(1.-smoothstep(width,width*2.,crackD))*exp(-t*.025)*ice;
-  col+=u_secondary*crack*.034;
-  col+=u_primary*.012*ice*exp(-pow(p.x/16.,2.))*fog;
+  vec2 warped=p.xz+vec2(sin(p.z*.7),sin(p.x*.8))*1.1;
+  vec3 cp=vec3(dot(warped,vec2(.53,.18)),dot(warped,vec2(-.24,.61)),dot(warped,vec2(.41,-.39)));
+  vec3 cd=abs(sin(cp)),width=max(fwidth(cp)*.8,vec3(.006));
+  vec3 lines=1.-smoothstep(width,width*2.,cd);
+  float crack=max(lines.x,max(lines.y,lines.z))*(.3+.7*drift)*exp(-t*.035)*ice;
+  col+=mix(u_secondary,u_primary,.35)*crack*.085;
+  col+=u_primary*(.012+.028*grain*resolved)*ice*exp(-pow(p.x/16.,2.))*fog;
+  float frost=pow(avNoise(p.xz*1.8),4.)*resolved;
+  col+=mix(u_secondary,vec3(1.),.3)*frost*.09*ice*fog;
  }
  outColor=vec4(max(col,vec3(0.)),1.);
 }

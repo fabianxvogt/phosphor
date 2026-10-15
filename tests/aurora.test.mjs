@@ -139,7 +139,7 @@ test("fold/kink dynamics are periodic, non-rigid and reversible without material
   assert.match(shaders, /sin\(w\+\.65\*sin\(2\.\*w-phase\)\)/);
   assert.match(
     shaders,
-    /theta\+\.11\*rise\*u_params\[2\]\*sin\(8\.\*theta-phase\+sheet\)/,
+    /theta\+\.17\*u_params\[2\]\*sin\(5\.\*theta-phase\+sheet\)/,
   );
   for (let sheet = 0; sheet < SHEETS; sheet++)
     for (let u = 0; u <= 1; u += 0.025) {
@@ -179,13 +179,17 @@ test("fold/kink dynamics are periodic, non-rigid and reversible without material
 
 test("CPU mirror is pinned to the shader geometry coefficients", () => {
   for (const line of [
-    "(uv.x-.5)*mix(2.6,5.95,crown)+sheet*.13+(avSeed()-.5)*.35",
-    "mix(24.+sheet*7.,7.+sheet*2.,crown)*u_params[5]",
-    "(.65+1.65*rise)*u_params[2]*kink+.6*sin(9.*theta-2.*phase)",
-    "7.3+sheet*.6+3.5*cos(theta)+rise*(3.+2.5*sin(3.*theta+phase))",
-    "19.+sheet*3.5+2.*sin(3.*theta+phase)",
-    "mix(27.+sheet*4.,0.,crown)+r*cos(bend)",
-    "(8.8+20.*rise+31.*crown)*u_params[3]*(.8+.2*sin(4.*theta-phase+sheet))",
+    "(uv.x-.5)*6.18+sheet*.24+(avSeed()-.5)*.35",
+    "theta*2.3+phase+sheet*2.3",
+    "mix(32.+sheet*20.,26.+sheet*18.,crown)*u_params[5]",
+    "(3.+6.*rise)*u_params[2]*kink+1.7*sin(9.*theta-2.*phase)",
+    "14.+sheet*3.+6.*sin(1.6*theta+phase+sheet)+3.5*sin(4.3*theta-phase)+.55*sin(23.*theta-phase)+10.*crown",
+    "mix(8.,0.,crown)+r*cos(bend)",
+    "(62.+30.*rise+180.*crown)*u_params[3]*(.85+.15*sin(4.*theta-phase+sheet))",
+    "eye=vec3(1.4*sin(a),2.2+.16*sin(2.*a)+.8*c,1.1*cos(a))",
+    "pitch=.30+.08*smoothstep(0.,1.,avDev())+1.12*c+u_params[6]",
+    "R=vec3(cos(yaw),0.,-sin(yaw))",
+    "1.22*(1.+.018*u_kick)/mix(1.,max(1.,u_params[5]),c)",
   ])
     assert.ok(shaders.includes(line), line);
 });
@@ -216,23 +220,114 @@ test("the lake mirror obeys reflection geometry; camera has no roll and never en
   assert.match(shaders, /1\.\+\.018\*u_kick/);
 });
 
-test("top-state corona is framed on the short side across the complete camera / fold cycle", () => {
-  let maximum = 0,
-    minimum = Infinity;
+test("overhead corona crosses every frame edge instead of fitting inside a flower silhouette", () => {
   for (let phase = 0; phase < 2 * Math.PI; phase += 0.2) {
     const c = camera(2, phase);
-    let extent = 0;
+    const edges = [false, false, false, false];
+    const quadrants = new Set();
     for (let sheet = 0; sheet < SHEETS; sheet++)
-      for (let u = 0.08; u <= 0.92; u += 0.01) {
-        const p = sheetPoint(u, 0.03, sheet, 2, phase);
-        const q = project(p, c.eye, c.right, c.up, c.forward, c.focal);
-        extent = Math.max(extent, Math.abs(q[0]), Math.abs(q[1]));
+      for (let u = 0.02; u <= 0.98; u += 0.005) {
+        const low = project(
+          sheetPoint(u, 0.02, sheet, 2, phase),
+          c.eye,
+          c.right,
+          c.up,
+          c.forward,
+          c.focal,
+        );
+        const high = project(
+          sheetPoint(u, 0.8, sheet, 2, phase),
+          c.eye,
+          c.right,
+          c.up,
+          c.forward,
+          c.focal,
+        );
+        assert.ok([...low, ...high].every(Number.isFinite));
+        edges[0] ||= low[0] < -16 / 9 && high[0] > -16 / 9;
+        edges[1] ||= low[0] > 16 / 9 && high[0] < 16 / 9;
+        edges[2] ||= low[1] < -1 && high[1] > -1;
+        edges[3] ||= low[1] > 1 && high[1] < 1;
+        if (Math.hypot(...high) < 0.55)
+          quadrants.add(`${high[0] > 0}:${high[1] > 0}`);
       }
-    maximum = Math.max(maximum, extent);
-    minimum = Math.min(minimum, extent);
+    assert.ok(
+      edges.every(Boolean),
+      `all sky edges at phase ${phase}: ${edges}`,
+    );
+    assert.equal(quadrants.size, 4, "rays converge from all directions");
+    // Even the bottom edge looks above the horizon once the crane settles.
+    assert.ok(c.forward[1] - c.up[1] / c.focal > 0);
   }
-  assert.ok(maximum < 0.95, `no cropped hero: ${maximum}`);
-  assert.ok(minimum > 0.55, `no small climax: ${minimum}`);
+});
+
+test("Glow and Curtains have tall rays and a full-width horizon, not a central strip", () => {
+  for (const dev of [0, 0.5, 1])
+    for (const phase of [0, 1.5, 3, 4.5, 6]) {
+      const c = camera(dev, phase);
+      let left = Infinity,
+        right = -Infinity,
+        tall = 0;
+      for (let sheet = 0; sheet < SHEETS; sheet++)
+        for (let u = 0.02; u < 0.98; u += 0.005) {
+          const base = sheetPoint(u, 0.02, sheet, dev, phase);
+          if (dot(sub(base, c.eye), c.forward) < 2) continue;
+          const a = project(base, c.eye, c.right, c.up, c.forward, c.focal);
+          const b = project(
+            sheetPoint(u, 0.55, sheet, dev, phase),
+            c.eye,
+            c.right,
+            c.up,
+            c.forward,
+            c.focal,
+          );
+          left = Math.min(left, a[0]);
+          right = Math.max(right, a[0]);
+          if (Math.abs(a[0]) < 1.5 && b[1] - a[1] > 0.8) tall++;
+        }
+      assert.ok(left < -16 / 9 && right > 16 / 9);
+      assert.ok(
+        tall >= 15,
+        `near-sheet rays span >40% of frame: ${dev}/${phase}`,
+      );
+      assert.ok(c.forward[1] - c.up[1] / c.focal < 0, "ground remains in view");
+    }
+});
+
+test("the camera basis stays continuous through zenith for every saved extra look", () => {
+  for (const tilt of [-0.15, 0, 0.1, 0.15]) {
+    let previous = camera(1, 0.7, tilt);
+    for (let dev = 1.001; dev <= 2; dev += 0.001) {
+      const c = camera(dev, 0.7, tilt);
+      assert.ok(dot(previous.right, c.right) > 0.999999);
+      assert.ok(dot(previous.up, c.up) > 0.9999);
+      assert.ok(Math.abs(dot(c.right, c.up)) < 1e-14);
+      previous = c;
+    }
+  }
+  assert.doesNotMatch(shaders, /normalize\(cross\(vec3\(0\.,1\.,0\.\),F\)\)/);
+});
+
+test("landscape and reflection use resolved frost, cracks, snow normals, mountain layers and a galactic band", () => {
+  for (const token of [
+    "avRidge(az)",
+    "farRidge",
+    "snowCap",
+    "snowH",
+    "dFdx(snowP)",
+    "galaxy",
+    "float crack=",
+    "float frost=",
+    "fwidth(cp)",
+  ])
+    assert.ok(aurora.fragment.includes(token), token);
+  assert.match(aurora.geometry.fragment, /u\+=\(rough-\.5\)\*\.065/);
+  assert.match(
+    aurora.geometry.fragment,
+    /rayCore=mix\(rayCore,\.1185,v_mirror\*\.8\)/,
+  );
+  assert.match(aurora.geometry.fragment, /smoothstep\(\.015,\.19,h\)/);
+  assert.match(aurora.geometry.fragment, /u_accent\*edge\*\.025/);
 });
 
 test("three bounded family gestures act on the signature, and energy never multiplies exposure", () => {
