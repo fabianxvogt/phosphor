@@ -246,16 +246,8 @@ body[data-catalog-mode="worlds"] .chassis-catalog-footer > * {
   opacity: 0.65;
 }
 
-.world-tour {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
-}
-.world-tour-toggle {
+.world-development-title .world-tour-toggle {
   padding: 4px 12px;
-  font-size: 11px;
 }
 .world-tour-toggle[aria-pressed="true"] {
   background: var(--accent);

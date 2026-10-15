@@ -100,6 +100,16 @@ export class WorldPanel {
       if (ws.prepared && previous !== ws.prepared.id)
         this.worldView.scrollTop = 0;
       this.renderedPrepared = ws.prepared?.id;
+      // Keep the live world in sight when the tour moves on.
+      // Only the world list scrolls, never the page.
+      const card = this.list.querySelector(".world-card.active");
+      if (card && ws.active.id !== this.renderedActive && !ws.prepared) {
+        const view = this.worldView.getBoundingClientRect(),
+          box = card.getBoundingClientRect();
+        if (box.top < view.top || box.bottom > view.bottom)
+          this.worldView.scrollTop += box.top - view.top - 8;
+      }
+      this.renderedActive = ws.active?.id;
     }
     this.developmentButtons?.forEach((b, i) => {
       const selected = ws.active.development
@@ -113,6 +123,8 @@ export class WorldPanel {
     if (this.developmentDuration)
       this.developmentDuration.value = String(ws.bars);
     if (this.tourNote) this.tourNote.textContent = this.tourText(ws);
+    if (this.tourToggle)
+      this.tourToggle.ariaPressed = String(ws.tour?.on !== false);
     if (this.developmentRange && ws.active?.development) {
       const d = ws.active.development;
       if (document.activeElement !== this.developmentRange || !this.dragging)
@@ -167,17 +179,32 @@ export class WorldPanel {
     this.developmentDuration = null;
     this.developmentButtons = [];
     this.dragging = false;
+    this.tourToggle = this.tourNote = null;
     if (!active) return;
     const busy = ws.queued || !!ws.transition;
     const leave = button(tr("Free play"), () =>
       this.act({ type: "world-leave" }),
     );
+    // The tour toggle reads the latest status, not the one at render time.
+    this.tourToggle = button(tr("World tour"), () =>
+      this.act({
+        type: "world-tour",
+        on: this.status?.tour?.on === false,
+      }),
+    );
+    this.tourToggle.className = "world-tour-toggle";
+    this.tourToggle.title = tr(
+      "Autopilot plays every development of this world, then the next world.",
+    );
+    this.tourNote = node("span", { className: "world-tour-note" });
     this.developments.append(
       node(
         "div",
         { className: "world-development-title" },
         node("span", { textContent: active.name }),
         leave,
+        this.tourToggle,
+        this.tourNote,
       ),
     );
     const choices = node("div", {
@@ -331,25 +358,6 @@ export class WorldPanel {
     this.developments.hidden = !active;
     this.progress = null;
     this.liveLabel = null;
-    this.tourNote = null;
-    if (active) {
-      const on = ws.tour?.on !== false;
-      const toggle = button(tr("World tour"), () =>
-        this.act({ type: "world-tour", on: !on }),
-      );
-      toggle.className = "world-tour-toggle";
-      toggle.ariaPressed = String(on);
-      toggle.title = tr(
-        "Autopilot plays every development of this world, then the next world.",
-      );
-      this.tourNote = node("span", {
-        className: "world-tour-note",
-        textContent: this.tourText(ws),
-      });
-      this.dock.append(
-        node("div", { className: "world-tour" }, toggle, this.tourNote),
-      );
-    }
     if (active) {
       const state = active.states[ws.active.state];
       this.live.append(

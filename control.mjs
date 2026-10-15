@@ -2098,8 +2098,8 @@ selectLook(
   false,
 );
 if (opening) {
-  act({ type: "world-play", id: opening.id, manual: false });
   worldPanel.setView(true);
+  act({ type: "world-play", id: opening.id, manual: false });
 }
 render();
 send({ type: "hello" });
