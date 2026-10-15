@@ -158,6 +158,51 @@ test("formation slots: the vortex is a torus; the tilt is a rotation", () => {
   }
 });
 
+test("distant bird LOD has stable image-plane area and smooth energy reveal", () => {
+  const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  for (const resolution of [540, 1080, 2160])
+    for (const px1080 of [.01, .5, 1, 3, 4, 7, 20]) {
+      const px = px1080 * resolution / 1080;
+      const lod = 1 - smooth(3, 7, px * 1080 / resolution);
+      assert.ok(lod >= 0 && lod <= 1);
+      assert.equal(lod, 1 - smooth(3, 7, px1080));
+      const grow = Math.max(1, 3 * resolution / 1080 / px);
+      const fat = Math.max(1, Math.min(3, 9 * resolution / 1080 / (px * grow)));
+      assert.ok(Number.isFinite(1 / (grow * fat)));
+      // In the far LOD, orientation is in the image plane, so a wing
+      // cannot vanish merely because a physical normal turned edge-on.
+      if (px1080 <= 3) assert.equal(lod, 1);
+    }
+  for (const keep of [.55, .8, 1]) {
+    const scale = (r) => Math.sqrt(1 - smooth(keep - .05, keep, r));
+    assert.equal(scale(keep), 0);
+    assert.ok(scale(keep - 1e-7) < 1e-5);
+  }
+  assert.match(murmuration.geometry.vertex, /cam.right \* plane.x \+ cam.up \* plane.y/);
+  assert.match(murmuration.geometry.vertex, /sqrt\(reveal\)/);
+  assert.match(murmuration.geometry.fragment, /key = mix\(\.28,/);
+});
+
+test("bounded formation dolly, polynomial skyline and identifiers stay continuous", () => {
+  for (let dive = 0; dive <= 1; dive += .01) {
+    const distance = 8 * (1 - .18 * dive);
+    assert.ok(distance >= 6.55 && distance <= 8);
+    const focal = 1.65 + (1.45 - 1.65) * dive;
+    assert.ok(focal >= 1.45 && focal <= 1.65);
+  }
+  const mul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+  for (let a = -Math.PI; a <= Math.PI; a += .013) {
+    const h = [Math.cos(a), Math.sin(a)], h2 = mul(h, h), h3 = mul(h2, h), h4 = mul(h2, h2), h7 = mul(h3, h4);
+    for (const [n, h] of [[3, h3], [4, h4], [7, h7]])
+      assert.ok(Math.hypot(h[0] - Math.cos(n * a), h[1] - Math.sin(n * a)) < 1e-14);
+  }
+  assert.deepEqual(murmuration.presets.map((p) => [p.name, p.seed]), [
+    ["Evening Roost", 1207], ["Surging Cloud", 1207], ["Vortex Mill", 1207],
+    ["Falcon Hour", 3301], ["Knotted Ribbon", 2207], ["Twister", 4409], ["High Cloud", 5113],
+  ]);
+  assert.match(murmuration.geometry.vertex, /mix\(dist, \.82 \* dist, m.dive\)/);
+});
+
 test("exact clock: integer cycles, and shader constants follow the model", () => {
   for (const n of Object.values(N)) assert.ok(Number.isInteger(n) && n > 0);
   const c = 3e9;

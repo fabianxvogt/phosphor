@@ -133,15 +133,17 @@ MuCam muCamera(uint c, float dev) {
   float yaw = muYaw(c);
   float wave = .5 - .5 * cos(MU_TAU * muCycle(c, ${N.dive}u));
   m.dive = muSmooth(1.35, 1.9, dev) * muSmooth(.2, .8, wave);
-  float dist = u_params[6] * (mix(11.5, 7.6, w.x) - .1 * w.z);
-  float r = mix(dist, 1.5, m.dive);
+  float dist = u_params[6] * (mix(11.5, 9.2, w.x) - 1.2 * w.z);
+  // A bounded dolly breath keeps the whole formation readable rather than
+  // putting the camera inside a cropped wall of subpixel wings.
+  float r = mix(dist, .82 * dist, m.dive);
   // Eye height is absolute so the horizon stays put; the flock flies above.
   float h = mix(mix(.45, 4.5, clamp(u_params[7], 0., 1.)) + .3 * sin(MU_TAU * muCycle(c, ${N.anchorY * 3}u)), a.y, m.dive);
   m.eye = vec3(a.x + r * sin(yaw), h, a.z + r * cos(yaw));
-  m.fwd = normalize(a + vec3(0., .5 * (1. - m.dive), 0.) - m.eye);
+  m.fwd = normalize(a + vec3(0., .5 + .7 * w.z, 0.) - m.eye);
   m.right = normalize(cross(m.fwd, vec3(0., 1., 0.)));
   m.up = cross(m.right, m.fwd);
-  m.focal = mix(1.8, 1.2, m.dive) * (1. + .02 * clamp(u_kick, 0., 1.));
+  m.focal = mix(1.8 - .15 * w.z, 1.45, m.dive) * (1. + .02 * clamp(u_kick, 0., 1.));
   return m;
 }
 vec3 muSun() {
@@ -163,7 +165,18 @@ vec3 muSky(vec3 dir) {
   col += mix(u_primary, vec3(1.), .35) * glow * .55;
   col *= .5 + .7 * pow(az, 2.);
   col += u_secondary * .012 * (1. - abs(e));
-  if (e < 0.) col *= .35;
+  // Two very low distant silhouettes break the laser-straight horizon.
+  // Fixed angular harmonics give stable geographic scale cues on the orbit.
+  // Integer angular harmonics via complex products: no per-pixel atan or
+  // trigonometric calls, and the azimuth seam stays exactly continuous.
+  vec2 h2 = vec2(h.x*h.x-h.y*h.y, 2.*h.x*h.y);
+  vec2 h3 = vec2(h2.x*h.x-h2.y*h.y, h2.x*h.y+h2.y*h.x);
+  vec2 h4 = vec2(h2.x*h2.x-h2.y*h2.y, 2.*h2.x*h2.y);
+  vec2 h7 = vec2(h3.x*h4.x-h3.y*h4.y, h3.x*h4.y+h3.y*h4.x);
+  float farRidge = .004 + .007 * h3.y + .003 * h7.x;
+  float nearRidge = -.012 + .006 * h4.y + .003 * h7.y;
+  col *= mix(.24, 1., muSmooth(farRidge - .0015, farRidge + .0015, e));
+  col *= mix(.12, 1., muSmooth(nearRidge - .0015, nearRidge + .0015, e));
   return col;
 }
 `;
@@ -324,7 +337,7 @@ void main() {
   float dev = clamp(u_params[0], 0., 2.), level = clamp(u_level, 0., 1.);
   int id = int(a_bird);
   vec3 p, v;
-  float T = 0., bank = 0., kind = 0., density = 0.;
+  float T = 0., bank = 0., kind = 0., density = 0., reveal = 1.;
   if (id < 0) {
     // The falcon: only while it hunts the surging cloud.
     float hunt = muWeights(dev).y * clamp(u_params[4], 0., 2.);
@@ -336,15 +349,14 @@ void main() {
     // Energy density: birds fade in by size, never popping.
     float keep = mix(.55, 1., level), r = muRnd(key, uint(id), 20u);
     if (r > keep) return;
+    reveal = 1. - muSmooth(keep - .05, keep, r);
     Bird b = muBird(id);
     p = b.p; v = b.v; T = b.T; bank = b.bank;
-    int x = id % MU_W, y = id / MU_W;
-    float md = 0.;
-    for (int i = 0; i < 4; i++) {
-      ivec2 o = i == 0 ? ivec2(1, 0) : i == 1 ? ivec2(-1, 0) : i == 2 ? ivec2(0, 1) : ivec2(0, -1);
-      md += length(muPos(((y + o.y + MU_H) % MU_H) * MU_W + (x + o.x + MU_W) % MU_W) - p);
-    }
-    density = clamp(.11 / max(md * .25, 1e-3), 0., 4.) * (1. - muSmooth(keep - .05, keep, r));
+    // A broad interior fill is only a lighting cue, not a simulated force.
+    // Avoid fetching four neighbours for each of twelve mesh vertices.
+    // The actual flock dynamics still use all eight topological neighbours.
+    vec3 fromHome = p - muAnchor(clock);
+    density = .8 / (1. + .08 * dot(fromHome, fromHome)) * reveal;
   }
   MuCam cam = muCamera(clock, dev);
   vec3 fw = normalize(v + vec3(1e-4, 0., 0.));
@@ -363,7 +375,7 @@ void main() {
   // At least about 3 px wide at 1080p; birds by the lens shrink away.
   float px = span * cam.focal / z * res * .5;
   float grow = max(1., 3. * res / 1080. / px);
-  float scale = grow * muSmooth(.3, 1.1, z);
+  float scale = grow * muSmooth(.3, 1.1, z) * sqrt(reveal);
   // Small birds: body width and wing chord (0.2 and 0.28 template units)
   // would be sub-pixel slivers that flicker in and out of pixels, so they
   // thicken to about 2 px and their light spreads over the larger footprint
@@ -379,7 +391,17 @@ void main() {
   if (tri < 2) v_bary.x = 1.;
   else if (tri == 2) v_bary.z = 1.;
   else v_bary.y = 1.;
-  vec3 world = p + (fw * local.x + nrm * local.y + side * local.z) * span * scale;
+  // Below a resolved wing chord, rotate the same template into the image
+  // plane. Edge-on triangles can otherwise disappear despite thickness AA.
+  // Orientation still follows projected flight; no identity or state reset.
+  float lod = (1. - muSmooth(3., 7., px * 1080. / res)) * (1. - kind);
+  vec2 heading = vec2(dot(fw, cam.right), dot(fw, cam.up));
+  heading = dot(heading, heading) > 1e-6 ? normalize(heading) : vec2(1., 0.);
+  vec2 across = vec2(-heading.y, heading.x);
+  vec2 plane = heading * local.x + across * local.z * (1. + .03 * flap);
+  vec3 offset = mix(fw * local.x + nrm * local.y + side * local.z,
+    cam.right * plane.x + cam.up * plane.y, lod);
+  vec3 world = p + offset * span * scale;
   vec3 rel = world - cam.eye;
   float vz = dot(rel, cam.fwd);
   vec2 xy = vec2(dot(rel, cam.right), dot(rel, cam.up)) * cam.focal * res / u_resolution;
@@ -418,11 +440,11 @@ void main() {
   // Birds high above still catch the set sun (alpenglow): a raised key.
   vec3 K = normalize(L + vec3(0., .35, 0.));
   // N faces the viewer: front-lit birds sparkle, backlit birds silhouette.
-  float key = max(0., dot(N, K));
-  float trans = pow(max(0., dot(-V, K)), 4.);
+  float detail = muSmooth(.3, .8, v_cover);
+  float key = mix(.28, max(0., dot(N, K)), detail);
+  float trans = mix(.10, pow(max(0., dot(-V, K)), 4.), detail);
   // Sub-pixel birds lose the glints that would twinkle from frame to frame:
   // sheen and fresnel fade to their mean, iridescence to its mid tone.
-  float detail = muSmooth(.3, .8, v_cover);
   float spec = mix(.03, pow(max(0., dot(reflect(-K, N), V)), 18.), detail);
   float fres = mix(.15, pow(1. - abs(dot(N, V)), 3.), detail);
   vec3 irid = mix(mix(u_secondary, u_primary, .55), mix(u_secondary, u_primary, fract(.2 + .7 * dot(N, V) + .25 * v_tip)), detail);
@@ -430,7 +452,7 @@ void main() {
   vec3 col = u_secondary * .015;
   col += warm * key * .9 * light;
   // Sky fill from above keeps the flock legible facing away from the sun.
-  col += mix(u_secondary, irid, .5) * (.1 + .12 * max(0., N.y)) * light;
+  col += mix(u_secondary, irid, .5) * (.1 + .12 * mix(.35, max(0., N.y), detail)) * light;
   col += irid * (.08 + 2. * spec + .3 * fres) * light;
   col += warm * trans * .9 * light;
   col += mix(u_primary, irid, .5) * .09 * v_density * light;
@@ -440,7 +462,7 @@ void main() {
   if (v_kind > .5) col = mix(u_accent, vec3(1.), .2) * (.5 + .9 * fres + spec);
   // Aerial perspective: distance takes the sky's colour.
   vec3 sky = muSky(-V);
-  col = mix(col, sky, 1. - exp(-v_depth * .018));
+  col = mix(col, sky, 1. - exp(-v_depth * .032));
   // Coverage: a bird drawn larger than it is shows its light spread thinly,
   // and outer edges fade into the sky over about a pixel.
   float e = min(v_bary.x, min(v_bary.y, v_bary.z));

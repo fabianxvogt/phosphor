@@ -17,8 +17,8 @@
 
 - **Sky:** a dusk sky with a black zenith, a palette afterglow band on a stable horizon and a sun just below it. The band brightens toward the sun's azimuth and deepens toward the top state.
 - **Birds:** lit by a raised key from the set sun (the alpenglow on birds high above). Front-lit birds sparkle with palette sheen; backlit birds silhouette with translucent rims. A sky fill keeps the flock legible facing away from the sun.
-- **Depth:** density glow, and aerial-perspective fog toward the sky colour.
-- **Camera:** it orbits the flock's moving home from a low eye (120 s), with the horizon in the lower third. At Formation it dives every 48 s through the vortex wall to the inside of the ring, with a wider lens. Birds near the lens shrink rather than fill the screen. The kick widens the lens by at most 2 %.
+- **Depth:** broad interior sky fill, and aerial-perspective fog toward the sky colour (falloff 0.032). Two very low ridge silhouettes provide geographic scale cues; exact angular polynomials avoid an atan seam or costly extra trigonometry.
+- **Camera:** it orbits the flock's moving home from a low eye (120 s), with the horizon in the lower third. At Formation a 48 s **bounded dolly breath** approaches only 18% closer, with a wider lens, rather than diving inside and cropping the vortex. Its target rises continuously to the formation's centre. Birds near the lens shrink rather than fill the screen. The kick widens the lens by at most 2 %.
 - **Energy:** visible birds 55 % → 100 % (fading by size), motion speed through the integrated clock, falcon strength, fold depth.
 - **Faders:** Motion speed, Falcon, Formation.
 
@@ -32,6 +32,53 @@ Distant birds were 3-px templates whose body (0.2 units wide) and wing chords (0
 - **No glints on sub-pixel birds:** sheen, fresnel and iridescence fade to their means as coverage drops.
 
 Measured at 1920×1080 on the GPU, 8 frames 2 ms apart (temporal second difference |d²Y| in 8-bit): Surging Cloud 1.39 → 1.27, High Cloud 1.08 → 0.97, Evening Roost 0.96 → 0.83, Vortex Mill 3.06 → 2.86 (−6 to −14 %, the rest is real motion); isolated bright single-pixel glints are gone in close-ups. Mean brightness drops 1–8 %. Throughput unchanged within noise (1080p 1.8–2.3 ms, 4K 4.1–4.3 ms against 3.8–4.1 ms before; control 1.5 / 3.4–3.8 ms).
+
+## Wave 5 rework — 2026-10-15
+
+All seven preset names/seeds, the three state looks, world ID and schema keys
+are unchanged. No engine changes. Three filmed visual rounds plus cost polish:
+
+1. Replace the cropped inside-ring camera with a centred, bounded dolly. The
+   default final formation now reads as a complete 55–65%-short-side hero.
+2. Blend distant templates into the image plane, oriented along projected
+   flight, over a resolution-scaled 3–7 px interval. The same twelve vertices
+   and persistent bird identity remain. This prevents edge-on disappearance;
+   far key/transmission/sky-fill shading also converges to stable means.
+   Energy-revealed birds now actually shrink continuously to zero at the
+   seeded population threshold instead of appearing at full size.
+3. Add subtle two-layer terrain silhouettes and stronger aerial perspective;
+   tune the Surge/Formation camera separately. Polynomial angular harmonics
+   avoid new per-pixel atan/sin work. Replace per-vertex neighbour-density
+   fetches (lighting only) with a broad interior fill; **all eight simulated
+   topological neighbours and startle propagation remain unchanged**.
+
+Native headless M3 Pro p50 ms, state order Loose / Surge / Formation:
+
+| Output | Initial baseline | Standard final | Alternating baseline → final |
+| --- | --- | --- | --- |
+| 1080p | 1.8 / 2.1 / 2.1 | 2.3 / 2.8 / 2.8 | 2.10→2.20 / 2.50→2.15 / 2.50→2.30 |
+| 4K | 4.5 / 4.8 / 4.7 | 5.6 / 5.5 / 5.6 | 5.30→5.30 / 5.60→5.35 / 5.55→5.20 |
+
+Fleet GPU contention makes separate-run absolute timings misleading. Four
+alternating baseline/final blocks, median of block p50s, put every state within
++5% (worst +4.76%, 1080p Loose). Reproduce with
+`PHOSPHOR_HEADLESS_RIG=1 node scripts/check-sea-sky.mjs --rig --families murmuration --port 48522`.
+
+A frozen-state subpixel camera dolly isolates raster instability from real
+flock motion. Mean absolute temporal second difference (8-bit luminance,
+1080p; Loose / Surge / Formation / High Cloud):
+**0.848→0.644 / 1.278→0.698 / 3.476→2.096 / 1.658→0.750** (−24–55%).
+Ordinary moving scores also improve 17–46%; these are evidence of reduced
+shimmer, **not** a claim of zero flicker, and changed framing/brightness also
+contribute. Raw scores include mean luminance for that reason.
+
+Evidence: `output/murmuration/{baseline,final}/murmuration.{mp4,png}`; final
+includes every-look energy ladder, Glacier Knotted Ribbon and Ember portrait.
+CPU tests add continuous reveal, aspect-independent LOD thresholds, exact
+skyline harmonic identities, bounded dolly and explicit saved preset identity.
+Honest rating **8.5/10**: readable full formation, calmer distant birds, but
+Loose remains a point-cloud-like sky and occasional overlap shimmer remains;
+portrait may crop peripheral birds during Surge.
 
 ## Looks
 
