@@ -19,7 +19,9 @@ const out = await outputDirectory("films/storm-verification", args.out);
 const server = await serve(".", args.port);
 const runtime = await launch({ rig: true, headless: true });
 const rows = [],
-  comparisons = [];
+  comparisons = [],
+  bounds = [],
+  hdr = [];
 try {
   const lab = await openLab(runtime.browser, server.url);
   for (const paletteId of ["glacier", "ember", "phosphor"])
@@ -137,6 +139,109 @@ try {
           rows.push({ paletteId, development, energy, ...row });
         }
       }
+  // Check support of every positive atlas node, including its trilinear
+  // interpolation halo, against the tighter carrier ray bounds.
+  const cases = await lab.page.evaluate(() => {
+    const s = window.__phosphorLab.scenes.find((s) => s.id === "storm");
+    return s.presets
+      .map((_, index) => ({ index }))
+      .concat(
+        [0.25, 0.5, 0.75, 1.25, 1.5, 1.75].map((development) => ({
+          index: 0,
+          development,
+        })),
+      );
+  });
+  for (const item of cases)
+    for (const height of [0.7, 1.2]) {
+      const snapshot = await lab.page.evaluate(
+        ({ item, height }) => {
+          const { scenes, presetSnapshot } = window.__phosphorLab;
+          const s = presetSnapshot(
+            scenes.find((s) => s.id === "storm"),
+            item.index,
+          );
+          if (item.development !== undefined)
+            s.params.development = item.development;
+          s.params.height = height;
+          return s;
+        },
+        { item, height },
+      );
+      await lab.page.evaluate(renderLook, {
+        sceneId: "storm",
+        snapshot,
+        width: 320,
+        height: 180,
+        frames: 1,
+        capture: false,
+        pollHealth: false,
+      });
+      for (const time of [0, 11]) {
+        const row = await lab.page.evaluate(
+          ({ time }) => {
+            const { engine } = window.__phosphorLab,
+              gl = engine.gl,
+              slot = engine.slots.at(-1);
+            slot.time = time;
+            engine.uniformFrame++;
+            engine.drawSlot(slot, 0);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, slot.precompute.fbo);
+            const data = new Float32Array(1024 * 480 * 4);
+            gl.readPixels(0, 35, 1024, 480, gl.RGBA, gl.FLOAT, data);
+            const smooth = (a, b, x) => {
+              const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+              return t * t * (3 - 2 * t);
+            };
+            const mix = (a, b, t) => a + (b - a) * t;
+            const rise = smooth(0, 1, slot.params[0]),
+              supercell = smooth(1, 2, slot.params[0]);
+            const bx = Math.min(24, mix(24, mix(12, 26, supercell), rise));
+            const lo = [-bx, 0.4, mix(1, -3, smooth(0, 0.5, supercell))];
+            const hi = [
+              bx,
+              Math.min(16.8, mix(9.2, 14.4, rise) * slot.params[2]),
+              mix(11.2, 13, supercell),
+            ];
+            const origin = [-24, 0.4, -3],
+              size = [48, 16.4, 16],
+              grid = [128, 80, 48];
+            let overflow = 0,
+              occupied = 0;
+            for (let z = 0; z < 48; z++)
+              for (let y = 0; y < 80; y++)
+                for (let x = 0; x < 128; x++) {
+                  const address =
+                    ((((z / 8) | 0) * 80 + y) * 1024 + (z % 8) * 128 + x) * 4;
+                  if (data[address] <= 0) continue;
+                  occupied++;
+                  const q = [x, y, z];
+                  for (let axis = 0; axis < 3; axis++) {
+                    const start =
+                      origin[axis] +
+                      Math.max(0, (q[axis] - 0.5) / grid[axis]) * size[axis];
+                    const end =
+                      origin[axis] +
+                      Math.min(1, (q[axis] + 1.5) / grid[axis]) * size[axis];
+                    overflow = Math.max(
+                      overflow,
+                      lo[axis] - start,
+                      end - hi[axis],
+                    );
+                  }
+                }
+            return { time, overflow, occupied, lo, hi, glError: gl.getError() };
+          },
+          { time },
+        );
+        assert.equal(row.glError, 0);
+        assert.ok(
+          row.overflow < 1e-5,
+          JSON.stringify({ item, height, ...row }),
+        );
+        bounds.push({ item, height, ...row });
+      }
+    }
   for (const development of [0, 0.5, 1, 1.5, 2]) {
     const snapshot = await lab.page.evaluate(
       ({ development }) => {
@@ -274,6 +379,35 @@ try {
     });
     assert.equal(shot.glError, 0);
     assert.equal(shot.nonFinite, 0);
+    if (index === 2) {
+      const row = await lab.page.evaluate(() => {
+        const { engine } = window.__phosphorLab,
+          gl = engine.gl,
+          slot = engine.slots.at(-1);
+        const data = new Float32Array(engine.width * engine.height * 4);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, slot.visual[slot.vi].fbo);
+        gl.readPixels(
+          0,
+          0,
+          engine.width,
+          engine.height,
+          gl.RGBA,
+          gl.FLOAT,
+          data,
+        );
+        let peak = 0,
+          hot = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const p = Math.max(data[i], data[i + 1], data[i + 2]);
+          peak = Math.max(peak, p);
+          hot += Number(p > 1);
+        }
+        return { peak, hot, glError: gl.getError() };
+      });
+      assert.equal(row.glError, 0);
+      assert.ok(row.peak > 1 && row.hot > 10, JSON.stringify(row));
+      hdr.push({ name, ...row });
+    }
     const png = await lab.page.evaluate(() => {
       const { engine } = window.__phosphorLab;
       const c = document.createElement("canvas");
@@ -287,7 +421,7 @@ try {
   assert.deepEqual(lab.errors, []);
   await writeFile(
     resolve(out, "gpu-checks.json"),
-    JSON.stringify({ rows, comparisons }, null, 2) + "\n",
+    JSON.stringify({ rows, comparisons, bounds, hdr }, null, 2) + "\n",
   );
   console.log(
     `PASS: ${rows.length} late frames, 600 GPU/CPU segments, five cache differentials; stills in ${out}`,

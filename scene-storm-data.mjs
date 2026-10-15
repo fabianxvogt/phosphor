@@ -19,8 +19,8 @@ void stSetup() {
   stPhase = u_time * u_params[1] * 0.16;
   stCamera = u_time * u_params[6] * 0.035;
 #endif
-  stEye = vec3(1.2 * sin(stCamera), 1.15 + u_params[5] * 0.9 + 0.12 * sin(2.0 * stCamera), mix(-10.5,-6.7,stSuper) + 0.5 * cos(stCamera));
-  vec3 target = vec3(0, mix(3.1, 6.6, stRise) * u_params[2], 5.5);
+  stEye = vec3(1.2 * sin(stCamera), 1.15 + u_params[5] * 0.9 + 0.12 * sin(2.0 * stCamera), mix(mix(-15.5,-9.4,stRise),-4.0,stSuper) + 0.5 * cos(stCamera));
+  vec3 target = vec3(0, mix(3.1, mix(6.6,4.6,stSuper), stRise) * u_params[2], 5.5);
   stF = normalize(target - stEye);
   stR = normalize(cross(stF, vec3(0,1,0))); stU = cross(stR, stF);
 }
@@ -35,7 +35,7 @@ vec3 stLeader(int network, int n) {
 vec3 stBranch(int network, int branch, int n) {
   vec3 p = stLeader(network, 4 + branch * 4);
   float side = stRand(network, 90 + branch) < 0.5 ? -1.0 : 1.0;
-  return p + vec3(side * float(n)*0.12 + (stRand(network,110+branch*8+n)-stRand(network,110+branch*8))*0.055,
+  return p + vec3(side * float(n)*0.12 + (stRand(network,110+branch*8+n)-stRand(network,110+branch*8))*0.13,
     float(n)*0.045 + (stRand(network,150+branch*8+n)-stRand(network,150+branch*8))*0.05,
     (stRand(network,190+branch*8+n)-stRand(network,190+branch*8))*0.1);
 }
@@ -46,7 +46,7 @@ vec3 stWorld(vec3 p, int network) {
     4.2+float(network-2)*0.8+p.z*4.0);
   float offset = float(network) * 0.65;
   return vec3(side * (0.8 + p.x * 5.0 + p.y * mix(8.0, 2.0 + offset, stSuper)),
-    (mix(3.1, 8.6 + offset, stRise) - p.y * mix(0.6, 8.6 + offset, stSuper)) * u_params[2],
+    (mix(3.1, 8.6 + offset, stRise) - p.y * mix(0.6,mix(3.1,8.6+offset,stSuper),stRise)) * u_params[2],
     5.1 + float(network) * 0.8 + p.z * 3.2);
 }
 void stSegment(int i, out vec3 a, out vec3 b, out float weight) {

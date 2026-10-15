@@ -10,6 +10,7 @@ import {
   leaderSegment,
   lightningGraph,
   worldPoint,
+  discharge,
   SEGMENTS,
   BRANCH_PROBABILITY,
 } from "../storm-model.mjs";
@@ -152,14 +153,14 @@ test("the same field-biased leaders become cloud-to-cloud and terminate exactly 
 });
 
 test("conservative cached tile bounds include the whole AA lightning support", () => {
-  // At >=280 px even the widest portrait AA support fits the data bound.
+  // Include nine halo widths AND the 0.0018 micro-leader kink.
   for (const shortSide of [280, 540, 1080, 2160])
-    for (const framing of [0.74, 1, 1.05]) {
-      const width = Math.max((2 / (shortSide * 1.65 * framing)) * 0.8, 0.00085);
-      assert.ok(width * 7 < 0.035);
+    for (const framing of [1, 1.05]) {
+      const width = Math.max((2 / (shortSide * 1.65 * framing)) * 1.45, 0.0014);
+      assert.ok(width * 9 + 0.0018 < 0.06);
     }
   assert.match(storm.fragment, /shortSide >= 280\.0/);
-  assert.match(storm.precompute.fragment, /min\(p.xy,p.zw\) - 0\.035/);
+  assert.match(storm.precompute.fragment, /min\(p.xy,p.zw\) - 0\.06/);
   assert.deepEqual(storm.precompute.size, [1024, 515]);
   assert.equal(storm.precompute.filter, "linear");
   assert.match(
@@ -172,12 +173,12 @@ test("conservative cached tile bounds include the whole AA lightning support", (
 });
 
 test("volume and local lighting are bounded and never bypass the shared flash limiter", () => {
-  assert.match(storm.fragment, /for \(int j = 0; j < 28;/);
-  assert.match(storm.fragment, /float ds = \(farT - nearT\) \/ 28\.0/);
+  assert.match(storm.fragment, /for \(int j = 0; j < 24;/);
+  assert.match(storm.fragment, /float ds = \(farT-nearT\)\/24\.0/);
   assert.match(storm.fragment, /if \(trans < 0\.012\) break/);
-  assert.match(stormVolume, /exp\(-d0\*\(0\.16\+depth0\*0\.16\)\)/);
-  assert.match(stormVolume, /stDensity\(p\+moonLight\*0\.8\)/);
-  assert.match(stormVolume, /stDensity\(mix\(p,s0,0\.5\)\)/);
+  assert.match(stormVolume, /exp\(-d0\*\(0\.38\+density\*0\.018\)\)/);
+  assert.match(stormVolume, /stDensity\(p\+moonLight\*1\.5\)/);
+  assert.match(stormVolume, /smoothstep\(0\.12,0\.7,normal.y\)/);
   assert.match(storm.fragment, /cloud \+= trans \* alpha \* light/);
   assert.doesNotMatch(storm.fragment, /flashLimit|flashExempt|gl_FragDepth/);
   assert.match(storm.fragment, /1\.0 \+ 0\.02 \* u_kick/);
@@ -189,15 +190,60 @@ test("volume and local lighting are bounded and never bypass the shared flash li
   for (const density of [0, 0.1, 1, 5, 100]) {
     let trans = 1,
       integral = 0;
-    const ds = 9 / 28,
+    const ds = 9 / 24,
       alpha = 1 - Math.exp(-density * ds);
-    for (let i = 0; i < 28; i++) {
+    for (let i = 0; i < 24; i++) {
       integral += trans * alpha;
       trans *= 1 - alpha;
     }
     assert.ok(Math.abs(integral + trans - 1) < 1e-12);
     assert.ok(trans >= 0 && trans <= 1);
   }
+});
+
+test("discharges persist across frames, restrike, decay and stay periodic/bounded", () => {
+  for (const network of [0, 1]) {
+    let visible = 0,
+      peak = 0,
+      previous = 0,
+      reversals = 0,
+      direction = 1;
+    for (let frame = 0; frame < 600; frame++) {
+      const phase = (frame / 60) * 0.7 * 0.16;
+      const value = discharge(phase, network);
+      const nextDirection = Math.sign(value - previous);
+      if (value > 0.1 && nextDirection && nextDirection !== direction)
+        reversals++;
+      direction = nextDirection || direction;
+      previous = value;
+      visible += Number(value > 0.3);
+      peak = Math.max(peak, value);
+      assert.ok(value >= 0 && value <= 0.9);
+      assert.ok(
+        Math.abs(value - discharge(phase + 2 * Math.PI, network)) < 2e-13,
+      );
+      const driven = discharge(phase, network, {
+        count: network,
+        kick: 1,
+        buried: 1,
+        returned: 1,
+      });
+      assert.ok(driven >= value && driven <= 2.2);
+    }
+    assert.ok(visible >= 6 && visible < 100, `${network}: ${visible} frames`);
+    assert.ok(
+      peak > 0.6 && reversals > 2,
+      "multi-frame local flicker, not one hairline frame",
+    );
+  }
+  assert.match(storm.fragment, /pow\(wave,40\.0\)/);
+  assert.match(storm.fragment, /core \* 12\.0 \+ glow \* 0\.8/);
+  assert.match(storm.fragment, /float taper/);
+  assert.match(storm.fragment, /internalFlash = max\(vec2\(flash0,flash1\)/);
+  assert.match(
+    storm.fragment,
+    /internalFlash.x\*optical.z\+internalFlash.y\*optical.w/,
+  );
 });
 
 test("cloud-base crawlers remain horizontal while the original leaders turn to ground", () => {
@@ -217,8 +263,8 @@ test("cloud-base crawlers remain horizontal while the original leaders turn to g
 
 test("3D atlas addresses are bijective and trilinear interpolation preserves affine fields", () => {
   const grid = [128, 80, 48],
-    size = [48, 16.4, 13],
-    lo = [-24, 0.4, 0];
+    size = [48, 16.4, 16],
+    lo = [-24, 0.4, -3];
   const address = ([x, y, z]) => [
     (z % 8) * 128 + x,
     35 + Math.floor(z / 8) * 80 + y,
@@ -268,7 +314,7 @@ test("3D atlas addresses are bijective and trilinear interpolation preserves aff
 
 test("Beer light transport falls with optical depth and internal distance", () => {
   const light = (d, density) =>
-    Math.exp(-d * (0.16 + density * 0.16)) / (1 + d * d * 0.08);
+    Math.exp(-d * (0.38 + density * 0.018)) / (1 + d * d * 0.18);
   for (const density of [0, 0.1, 1, 10]) {
     let previous = 1;
     for (let d = 0; d < 100; d += 0.25) {
@@ -279,7 +325,7 @@ test("Beer light transport falls with optical depth and internal distance", () =
   }
   assert.ok(light(4, 2) < light(4, 0.2));
   assert.ok(Math.exp(-4) < Math.exp(-0.4));
-  assert.match(stormVolume, /float moon = exp\(-tau\*0\.55\)/);
+  assert.match(stormVolume, /float moon = exp\(-tau\*0\.7\)/);
 });
 
 test("eight complete bounded presets register one continuous three-state world", () => {
