@@ -18,6 +18,12 @@ export const FAMILY_CATALOG = {
     styles: ["spatial", "waves"],
     variants: ["Glow", "Curtains", "Corona"],
   },
+  orrery: {
+    algorithm: "Beveled involute gears with exact integer-tooth meshing and orbital ratios",
+    description: "Involute gears open into an exact-ratio planetary machine and a vast clockwork cathedral.",
+    styles: ["spatial", "geometric"],
+    variants: ["Gears", "Orrery", "Clockwork"],
+  },
   ferro: {
     algorithm: "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
     description: "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",

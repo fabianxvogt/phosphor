@@ -252,6 +252,16 @@ const AUTHORED = [
       { name: "Corona", look: "aurora:Corona" },
     ],
   },
+  {
+    id: "brass-orrery",
+    name: "Brass Orrery",
+    description: "Involute gears open into an exact-ratio planetary machine and a vast clockwork cathedral.",
+    states: [
+      { name: "Gears", look: "orrery:Gears" },
+      { name: "Orrery", look: "orrery:Orrery" },
+      { name: "Clockwork", look: "orrery:Clockwork" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
