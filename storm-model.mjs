@@ -56,7 +56,7 @@ export function leaderSegment(seed, index) {
       random(seed, network, offset + branch * 8 + n) -
       random(seed, network, offset + branch * 8);
     return [
-      origin[0] + side * n * 0.12 + jitter(110) * 0.055,
+      origin[0] + side * n * 0.12 + jitter(110) * 0.13,
       origin[1] + n * 0.045 + jitter(150) * 0.05,
       origin[2] + jitter(190) * 0.1,
     ];
@@ -87,10 +87,28 @@ export function worldPoint(p, network, development, height = 1) {
   const offset = network * 0.65;
   return [
     side * (0.8 + p[0] * 5 + p[1] * mix(8, 2 + offset, supercell)),
-    (mix(3.1, 8.6 + offset, rise) - p[1] * mix(0.6, 8.6 + offset, supercell)) *
+    (mix(3.1, 8.6 + offset, rise) -
+      p[1] * mix(0.6, mix(3.1, 8.6 + offset, supercell), rise)) *
       height,
     5.1 + network * 0.8 + p[2] * 3.2,
   ];
+}
+// Display envelope, not graph identity. Integer harmonics keep both clocks
+// exactly 2π-periodic, including the short local restrikes within a discharge.
+export function discharge(
+  phase,
+  network,
+  { count = 0, kick = 0, buried = 0, returned = 0 } = {},
+) {
+  const wave = 0.5 + 0.5 * Math.sin(phase * 6 + network * 2.9);
+  const selected = Math.abs((((count % 2) + 2) % 2) - network) < 0.5 ? 1 : 0;
+  const flicker = 0.55 + 0.45 * Math.sin(phase * 144 + network * 4) ** 2;
+  return (
+    (wave ** 40 * 0.9 +
+      selected * (0.22 * kick + 0.9 * buried) +
+      0.18 * returned) *
+    flicker
+  );
 }
 export function lightningGraph(seed, development = 0, height = 1) {
   return Array.from({ length: SEGMENTS }, (_, i) => {
