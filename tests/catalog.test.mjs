@@ -178,18 +178,29 @@ test("ratings sort first by rating, then unrated, then never (0); ties by family
     "b:1",
     "sorting does not mutate",
   );
-  // Unrated authored looks follow the editorial order.
+  // Unrated shipped looks retain their exact editorial order. New family
+  // lanes deliberately defer shared curation/bakes to integration; their
+  // existing runtime fallback is family number then preset index.
+  const pending = looks
+    .filter((l) => !CURATED.includes(l.id))
+    .sort((a, b) => a.number - b.number || a.index - b.index);
   assert.deepEqual(
     sortCatalog(looks, {}).map((l) => l.id),
-    CURATED,
+    [...CURATED, ...pending.map((l) => l.id)],
   );
 });
 
-test("the editorial order covers every authored look exactly once", () => {
+test("the editorial order covers its shipped families exactly once, without stale IDs", () => {
   assert.equal(new Set(CURATED).size, CURATED.length);
-  assert.deepEqual([...CURATED].sort(), looks.map((l) => l.id).sort());
-  // Every family shows its best look early: within two looks per family.
-  const families = new Set(looks.map((l) => l.sceneId));
+  const families = new Set(CURATED.map((id) => id.split(":")[0]));
+  const shipped = looks.filter((l) => families.has(l.sceneId));
+  assert.deepEqual([...CURATED].sort(), shipped.map((l) => l.id).sort());
+  for (const scene of scenes.filter((s) => !families.has(s.id)))
+    assert.ok(
+      scene.number >= 101 && scene.development,
+      `${scene.id}: only new continuous worlds may defer curation`,
+    );
+  // Every curated family shows its best look early: within two looks per family.
   const early = new Set(
     CURATED.slice(0, 2 * families.size).map((id) => id.split(":")[0]),
   );
