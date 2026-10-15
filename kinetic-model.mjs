@@ -12,7 +12,13 @@ export const N = 96; // 9216 spheres
 export const SPACING = 0.25; // ceiling lattice spacing (world units ≈ m)
 export const HANG = 2.8; // level hang height above the floor
 export const CEILING = 6.4; // motor ceiling
-export const CENTER = [0, 2.5, 0]; // sculpture centre
+export const CENTER = [0, 1.95, 0]; // sculpture centre, near the mirror floor
+export const SURFACE_COLS = 192;
+export const SURFACE_ROWS = (N * N) / SURFACE_COLS;
+export function sculptureUV(i, j) {
+  const index = j * N + i;
+  return [((index % SURFACE_COLS) + 0.5) / SURFACE_COLS, (Math.floor(index / SURFACE_COLS) + 0.5) / SURFACE_ROWS];
+}
 export const RADIUS = 0.038; // sphere radius on the ceiling lattice
 export const HALF = ((N - 1) / 2) * SPACING; // lattice half extent
 export const RMAX = HALF * Math.SQRT2; // farthest sphere from the axis
@@ -34,7 +40,7 @@ export const VMAX = 3.0;
 // Hold fraction of each choreography / form before it morphs into the next.
 export const HOLD = 0.55;
 // Tilt of the sculpture's axis (radians).
-export const TILT = 0.42;
+export const TILT = 0.68;
 
 const TAU = Math.PI * 2;
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -224,13 +230,12 @@ export function ball(i, j, state) {
     rs = RADIUS,
     hs = 0.5;
   if (sig > 0) {
-    const u = (i + 0.5) / N,
-      v = (j + 0.5) / N,
-      e = 0.5 / N;
+    const [u, v] = sculptureUV(i, j);
+    const eu = 0.5 / SURFACE_COLS, ev = 0.5 / SURFACE_ROWS;
     const f = (a, b) => sculpture(a, b, w, W, Phi, detail);
     const p = f(u, v);
-    const du = sub(f(u + e, v), f(u - e, v)),
-      dv = sub(f(u, v + e), f(u, v - e));
+    const du = sub(f(u + eu, v), f(u - eu, v)),
+      dv = sub(f(u, v + ev), f(u, v - ev));
     // The parametric orientation is continuous in time for every sphere;
     // the ring moves along it. Shading uses the upward-facing side.
     const no = normalize(cross(dv, du));
@@ -243,7 +248,7 @@ export function ball(i, j, state) {
     ns = no[1] < 0 ? [-no[0], -no[1], -no[2]] : no;
     // Local lattice spacing on the surface sets the sphere size, so dense
     // regions (poles, the disc centre) read as one surface, not a clump.
-    rs = clamp(0.5 * Math.sqrt(len(du) * len(dv)), 0.014, 0.046);
+    rs = clamp(0.55 * Math.sqrt(len(du) * len(dv)), 0.014, 0.055);
     hs = clamp(0.5 + 0.34 * p[1], 0, 1);
   }
   const p = [
@@ -264,16 +269,16 @@ export function ball(i, j, state) {
   };
 }
 
-// Camera: a slow closed orbit under the lattice that widens and settles
-// to frame the sculpture. alpha is clock 3 plus the seed's start angle.
+// Camera: a slow closed orbit under the lattice that moves in and stays
+// low to make the morph the hero. alpha is clock 3 plus the seed angle.
 export function camera(dev, alpha) {
   const s2 = smoothstep(1, 2, clamp(dev, 0, 2));
-  const radius = 6.0 - 1.4 * s2 + 0.4 * Math.sin(2 * alpha);
-  const height = 0.75 + 0.5 * s2 + 0.1 * Math.sin(3 * alpha);
+  const radius = 6.0 - 1.4 * s2 + (0.4 - 0.25 * s2) * Math.sin(2 * alpha);
+  const height = 0.75 + 0.45 * s2 + 0.1 * Math.sin(3 * alpha);
   const eye = [radius * Math.cos(alpha), height, radius * Math.sin(alpha)];
   const side = 0.9 * (1 - s2);
   const s01 = smoothstep(0, 1, clamp(dev, 0, 1));
-  const target = [-Math.sin(alpha) * side, 2.2 - 0.3 * s01 + 0.3 * s2, Math.cos(alpha) * side];
+  const target = [-Math.sin(alpha) * side, 2.2 - 0.3 * s01 - 0.25 * s2, Math.cos(alpha) * side];
   return { eye, target };
 }
 

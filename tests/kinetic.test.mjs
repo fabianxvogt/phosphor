@@ -30,6 +30,7 @@ import {
   ringHeight,
   rippleHeight,
   seedAngles,
+  sculptureUV,
   shimmerAt,
   waveHeight,
 } from "../kinetic-model.mjs";
@@ -212,7 +213,7 @@ test("states: level ceiling, wave heightfield, exact parametric surfaces", () =>
   for (let j = 0; j < N; j += 3)
     for (let i = 0; i < N; i += 3) {
       // Undo the turn, the tilt and the breathing scale of this sphere.
-      const k = shimmerAt((i + 0.5) / N, (j + 0.5) / N, base.W, base.detail);
+      const k = shimmerAt(...sculptureUV(i, j), base.W, base.detail);
       const at = (M) => {
         const b = ball(i, j, { ...base, dev: 2, M });
         assert.equal(b.sig, 1);
@@ -248,7 +249,7 @@ test("states: level ceiling, wave heightfield, exact parametric surfaces", () =>
   for (let s = 0; s < N * N; s += 101) {
     const i = s % N,
       j = Math.floor(s / N);
-    const k = shimmerAt((i + 0.5) / N, (j + 0.5) / N, base.W, 0);
+    const k = shimmerAt(...sculptureUV(i, j), base.W, 0);
     const [mx, my, mz] = unrotate(
       ball(i, j, { ...base, dev: 2, M: 0.3, seed: drift.seed }).p,
       base.Phi,
