@@ -283,6 +283,16 @@ const AUTHORED = [
       { name: "Kaleidoscope", look: "prism:Kaleidoscope" },
     ],
   },
+  {
+    id: "impossible-stairs",
+    name: "Impossible Stairs",
+    description: "A white plaster staircase climbs into its own beginning, opens to three gravities and spirals into an endless recursive atrium.",
+    states: [
+      { name: "Stair", look: "escher:Stair" },
+      { name: "Relativity", look: "escher:Relativity" },
+      { name: "Infinity", look: "escher:Infinity" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and
