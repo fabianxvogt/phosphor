@@ -252,6 +252,20 @@ test("camera clearance: the glide never enters the reef, a medusa or a chain", (
   }
 });
 
+test("foreground sentinel is seeded ahead and axial broad phase cannot reject a disturbance", () => {
+  for (const seed of [61, 1709, 433, 2203, 877, 3301]) {
+    const initialZ = hash32(seed) / 4294967296 * PERIOD;
+    assert.ok(Math.abs((jelly(seed, 0).anchor[2] - initialZ + PERIOD) % PERIOD - 12) < 1e-10);
+    for (let i = 0; i < NJ; i++) {
+      const j = jelly(seed, i), bound = (i < 5 ? 1.45 : .75) * 3 + DRIFT[2];
+      // A glowing point is at most 3R from the drifted centre. Triangle
+      // inequality bounds its axial distance to the un-drifted anchor.
+      assert.ok(j.R * 3 + DRIFT[2] <= bound);
+    }
+  }
+  assert.ok(scene.simulation.fragment.includes("if (dz > (i < 5 ? 1.45 : .75) * 3. + .7) continue;"));
+});
+
 test("shader and CPU agree on the reserved state layout and counts", () => {
   const src =
     scene.simulation.fragment + scene.particles.vertex + scene.geometry.vertex;

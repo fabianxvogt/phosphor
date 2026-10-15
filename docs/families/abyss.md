@@ -59,7 +59,7 @@ Whole-frame throughput (`profile-families.mjs --types --frames 30`, M3 Pro, cont
 
 ## Safety and endlessness
 
-`tests/abyss.test.mjs` checks for six seeds that the tallest reef vertex stays more than 0.5 units below the lowest camera height and that every medusa (bell, tentacle spread and sway at maximum sway, current trail and drift) and every chain stays more than 0.5 units sideways from the camera path over its whole z range. Nothing dies out: form is a function of development, plankton glow is re-excited continuously, clocks wrap exactly; the only `u_time` use (blink slots) is wrapped at 4096 s.
+`tests/abyss.test.mjs` checks for six seeds that the tallest reef vertex stays more than 0.5 units below the lowest camera height and that every medusa (bell, tentacle spread and sway at maximum sway, current trail and drift) and every chain stays more than 0.5 units sideways from the camera path over its whole z range. Nothing dies out: form is a function of development, plankton glow is re-excited continuously, clocks wrap exactly; the only `u_time` use (blink slots) uses raw time in the long-show variant (the authored pre-hour source retains its 4096 s wrap).
 
 ## Verification
 
@@ -67,6 +67,38 @@ Whole-frame throughput (`profile-families.mjs --types --frames 30`, M3 Pro, cont
 - GPU probe (native headless rig, 480×270): zero GL errors and non-finite values; a paused 0.5 → 1.7 → 0.5 redraw is pixel-identical (0 differing values; 1.7 differs); frames after 8 h of scene time render normally. Energy 0.1 (mean / peak / pixels above 25, 8-bit): First Sparks 2.1 / 255 / 1.1 % (before the 2026-10-15 polish 1.5 / 254 / 0.5 %; still a dark breakdown, now with distant medusae, a far swarm, brighter marine snow and more plankton blinks), Medusa Bloom 7.9 / 255 / 6.4 %, Lantern Reef 22.7 / 255 / 26.8 %, Ghost Bells 4.6 / 255 / 3.1 %.
 - Engine options: `PHOSPHOR_HEADLESS_RIG=1 PHOSPHOR_ABYSS_GPU=1 node --test tests/browser/abyss-layers.test.mjs`.
 - Energy ladder: `node scripts/contact.mjs --dist . --sheet ladder --family abyss --rig`. Films: `node scripts/world-film.mjs --world deep-sea --rig` and `--look "abyss:Abyssal Storm" --from 2 --to 2`.
+
+## Wave 5 rework — 2026-10-15
+
+No world, state, look, schema, preset or seed identifiers changed; no engine changes.
+Three visual rounds: (1) enlarge the five lone bells from radius 0.9–1.05 to
+1.25–1.45 and lower their anchors, (2) replace the broad plastic-white bell
+fill with a restrained raking key, darker mesoglea and brighter radial canals;
+reduce the fan membrane and seabed/caustic fill, (3) place the first seeded
+sentinel 12 units ahead of the initial camera, so the breakdown opens on a
+complete animal rather than a distant speck. Clearance was re-tested after
+moving the larger animals slightly farther sideways. A fourth cost pass adds
+a conservative axial broad phase before the plankton simulation evaluates a
+bell (3 × maximum radius + 0.7 drift); CPU tests prove the rejection bound.
+
+Native M3 Pro p50 ms, state order Sparks / Swarms / Reef:
+
+| Output | Initial baseline | Final | Adjacent baseline replay (`deaaae1`) |
+| --- | --- | --- | --- |
+| 1080p | 2.1 / 2.5 / 3.1 | 2.5 / 2.7 / 3.1 | 2.4 / 2.9 / 3.4 |
+| 4K | 4.7 / 5.7 / 7.3 | 5.4 / 6.0 / 7.0 | 6.0 / 8.7 / 7.9 |
+
+The five-lane shared GPU varied substantially; adjacent replay is the fairer
+comparison, not a claim that the first baseline became intrinsically slower.
+A final **four-block alternating** baseline/final probe gives 1080p
+2.70→2.65 / 3.20→3.05 / 3.40→3.45 ms and 4K
+6.05→5.75 / 6.45→6.50 / 7.60→7.15 ms (worst +1.47%).
+Raw runs are retained in the lane output, including `comparison/comparison.json`. Films: `output/abyss/{baseline,final}/deep-sea.{mp4,png}`;
+final includes the all-look energy ladder, Glacier Abyssal Storm and an Ember
+portrait sweep. Reviewed strips and full-size ladder stills. Honest rating:
+**8.5/10** — much stronger living glass and first read, but the landscape
+breakdown remains intentionally sparse and the reef still has illustrative
+branching fans. No claim of collision simulation or venue cadence.
 
 ## Limits
 

@@ -108,11 +108,12 @@ export function jelly(seed, i) {
   if (i < NJ) {
     const h = (k) => rnd(seed, i, k);
     const lone = i < 5;
-    const z = (((i * 0.618034 + 0.37 + 0.05 * h(1)) % 1) + 1) % 1 * PERIOD;
-    const R = lone ? 0.9 + 0.15 * h(5) : 0.3 + 0.45 * h(5) * h(5);
+    const z = i === 0 ? (hash32(seed) / 4294967296 * PERIOD + 12) % PERIOD
+      : (((i * 0.618034 + 0.37 + 0.05 * h(1)) % 1) + 1) % 1 * PERIOD;
+    const R = lone ? 1.25 + 0.2 * h(5) : 0.3 + 0.45 * h(5) * h(5);
     const side = h(2) < 0.5 ? -1 : 1;
-    const gap = 1.9 + R + (lone ? 0.3 + 1.2 * h(3) : 4.5 * h(3) ** 1.5);
-    const y = lone ? 0.8 + 1.4 * h(4) : -1.3 + 4 * h(4);
+    const gap = 1.9 + R + (lone ? 0.55 + 1.2 * h(3) : 4.5 * h(3) ** 1.5);
+    const y = lone ? 0.6 + 0.9 * h(4) : -1.3 + 4 * h(4);
     return {
       anchor: [cameraPath(z).at(0) + side * gap, y, z],
       R,
