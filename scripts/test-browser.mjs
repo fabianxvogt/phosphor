@@ -336,6 +336,8 @@ try {
   assert.equal(await control.locator("#setup-audio").isVisible(), false);
   await control.locator("#tab-audio").click();
   await control.locator("#closeSetup").click();
+  // A fresh window opens on the featured world; search lives in Looks.
+  await control.locator(".world-tabs button").first().click();
   await control.locator("#catalogSearch").fill("no-such-look-ui-check");
   assert.equal(await control.locator(".catalog-empty").isVisible(), true);
   await control.getByRole("button", { name: "Explore all looks" }).click();

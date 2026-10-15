@@ -893,7 +893,11 @@ worldPanel = new WorldPanel({
   preview: (id) => PREVIEWS[id]?.url,
 });
 // Harness hooks (tests/browser): the catalog and its thumbnail renderer.
-Object.assign(window.__phosphorControl, { catalog, thumbnails });
+Object.assign(window.__phosphorControl, {
+  catalog,
+  thumbnails,
+  localShow: () => localPerformance?.show,
+});
 
 function rhythmEditKey(action) {
   return action.scope === "global"

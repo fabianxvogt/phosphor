@@ -70,6 +70,9 @@ try {
   );
   const target = await stage.evaluate(() => {
     const { show } = window.__phosphorStage;
+    // The transferred performance is the featured world's tour; this check
+    // is about catalog Autopilot, so leave the world first.
+    show.command({ type: "world-leave" }, show.clock.last);
     const look = show.catalog.find(
       (item) => item.snapshot.scene !== show.live.clip.snapshot.scene,
     );
@@ -188,16 +191,27 @@ try {
   await page.waitForFunction(() => !!window.__phosphorControl?.catalog.live);
   assert.equal(
     await page.locator("body").getAttribute("data-catalog-mode"),
-    "looks",
+    "worlds",
   );
   assert.equal(
     await page.locator("#autopilot").getAttribute("aria-pressed"),
     "true",
   );
-  assert.equal(await page.locator(".world-live").isVisible(), false);
-  console.log(
-    "PASS Fresh session starts with Looks and Autopilot despite saved Off",
+  assert.equal(await page.locator(".world-live").isVisible(), true);
+  assert.equal(
+    await page.locator(".world-tour-toggle").getAttribute("aria-pressed"),
+    "true",
   );
+  console.log(
+    "PASS Fresh session opens the featured world on tour with Autopilot despite saved Off",
+  );
+  // Catalog Autopilot outside worlds: leave the world without a takeover.
+  await page.evaluate(() => {
+    const show = window.__phosphorControl.localShow();
+    show.command({ type: "world-leave" }, show.clock.last);
+    show.autopilot.manualUntil = -Infinity;
+    show.autopilot.nextChange = 0;
+  });
   const initial = await page.evaluate(
     () => window.__phosphorControl.catalog.live,
   );

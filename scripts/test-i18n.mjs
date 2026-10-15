@@ -78,6 +78,8 @@ try {
       dictionary["Switch to dark mode"],
     );
     await page.locator("#themeToggle").click();
+    // A fresh window opens on the featured world; search lives in Looks.
+    await page.locator(".world-tabs button").first().click();
     for (const query of ["Quiet Herbarium", dictionary["Quiet Herbarium"]]) {
       await page.locator("#catalogSearch").fill(query);
       assert.equal(await page.locator("#catalogList .look").count(), 1);
@@ -138,10 +140,11 @@ try {
       mimeType: "application/json",
       buffer: Buffer.from('{"bad":'),
     });
-    assert.ok(
-      (await page.locator("#toast").innerText()).includes(
-        dictionary["error.json"],
-      ),
+    // The import error arrives asynchronously after the file is read.
+    await page.waitForFunction(
+      (text) => document.querySelector("#toast")?.innerText.includes(text),
+      dictionary["error.json"],
+      { timeout: 10000 },
     );
     await page.locator("#closeSetup").click();
     // All static declarations, including hidden dialogs and accessibility text, resolve.
