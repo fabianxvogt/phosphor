@@ -241,6 +241,16 @@ const AUTHORED = [
       { name: "Sculpture", look: "kinetic:Floating Sculpture" },
     ],
   },
+  {
+    id: "silk-storm",
+    name: "Silk Storm",
+    description: "One billowing silk veil separates into wind-tossed banners and winds into a towering ribbon vortex. The same fabric throughout.",
+    states: [
+      { name: "Veil", look: "silk:Veil" },
+      { name: "Banners", look: "silk:Banners" },
+      { name: "Tornado", look: "silk:Tornado" },
+    ],
+  },
 ];
 // Earlier shipped definitions of authored worlds. A saved world identical to
 // one of them (or to its current definition) is untouched authored data and

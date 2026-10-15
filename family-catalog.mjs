@@ -12,6 +12,12 @@ export const VISUAL_STYLES = [
 // Names describe what the implementation draws. Seed density, brightness,
 // speed and other continuous controls do not create additional variants.
 export const FAMILY_CATALOG = {
+  silk: {
+    algorithm: "Strouhal travelling-wave cloth and unit-speed conical ribbon helices",
+    description: "One billowing silk veil separates into wind-tossed banners and winds into a towering ribbon vortex. The same fabric throughout.",
+    styles: ["spatial", "waves", "organic"],
+    variants: ["Veil", "Banners", "Tornado"],
+  },
   ferro: {
     algorithm: "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
     description: "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",
