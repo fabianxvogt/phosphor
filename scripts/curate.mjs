@@ -14,6 +14,7 @@ const families = {
   abyss: [8.9, ["Lantern Reef", "Medusa Bloom", "Abyssal Storm", "Sea Pen Meadow", "Midnight Swarm", "First Sparks", "Siphonophore Drift", "Ghost Bells"]],
   crystal: [8.7,["Geode Hall","Quartz Lattice","Cathedral Geode","Amethyst Vault","Dormant Seeds","Glacier Druse","Needle Grotto","Ember Sprouts"]],
   horizon: [9.6, ["Blazing Horizon", "Relativistic Gale", "Edge of Night", "Infall Spiral", "Polar Crown", "Ember Ring", "Tidal Star", "Quiet Lens"]],
+  magma: [9.2, ["Lava Fountain", "Seam Rivers", "Night Fountain", "Ember Delta", "Ash Column", "Rift Lattice", "Breathing Crust", "Black Glass"]],
   descent: [9.4, ["Endless City", "Pillared Cavern", "Sponge Corridor", "Skyfall Streets", "Lantern Arcology", "Ember Gallery", "Quiet Vault", "Narrow Lattice"]],
   metamorphosis: [8.2,["Open Blossom","Pearl Membranes","First Filaments","Evening Blossom","Silver Canopy","Wandering Threads"]],
   murmuration: [8.5, ["Vortex Mill", "Surging Cloud", "Falcon Hour", "Knotted Ribbon", "Twister", "High Cloud", "Evening Roost"]],

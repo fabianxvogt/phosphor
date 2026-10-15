@@ -456,6 +456,14 @@ export const FAMILY_CATALOG = {
     styles: ["geometric", "waves"],
     variants: ["Rational", "Riemann Zeta", "Möbius Net", "Iterated z² + c"],
   },
+  magma: {
+    algorithm:
+      "Raymarched Voronoi basalt crust with exact seams, flow-layer lava and ballistic ejecta",
+    description:
+      "A volcanic field whose basalt plates breathe heat through their seams, split into lava rivers with drifting crust and embers, and open into a lava lake whose fountain throws glowing ejecta under an ash plume.",
+    styles: ["spatial", "organic"],
+    variants: ["Crust", "Rivers", "Eruption"],
+  },
 };
 
 export function familyMetadata(scene) {

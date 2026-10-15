@@ -49,6 +49,7 @@ import descent from "./scene-descent.mjs";
 import horizon from "./scene-horizon.mjs";
 import mycelium from "./scene-mycelium.mjs";
 import afterglow from "./scene-afterglow.mjs";
+import magma from "./scene-magma.mjs";
 
 export default [
   acid,
@@ -102,6 +103,7 @@ export default [
   afterglow,
   horizon,
   abyss,
+  magma,
 ];
 
 // Families that passed the family gate (roadmap "Family gate status", D51).
