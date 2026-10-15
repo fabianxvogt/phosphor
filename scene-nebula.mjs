@@ -330,8 +330,12 @@ void main() {
   float spread = max(1., gl_PointSize / (1.6 * res));
   spread = mix(spread * spread, spread, soft);
   v_soft = soft;
-  // Dust absorbers (the last rows, drawn last) darken what lies beneath.
-  v_alpha = absorb * shown * clamp(fog, .4, 1.);
+  // Dust absorbers (the last rows, drawn last) darken what lies beneath,
+  // including stars that are really in front of them. Depth-weighted: dust
+  // behind the galaxy's centre (seen from the eye) has the bright bulge and
+  // near side in front of it, so it absorbs less; dust in front keeps it all.
+  float behind = nbSmooth(-.1, .9, z - dot(-cam.eye, cam.fwd));
+  v_alpha = absorb * shown * clamp(fog, .4, 1.) * (1. - .7 * behind);
   hue = mix(hue * .8 + u_secondary * .2, hue, clamp(fog, 0., 1.));
   v_color = hue * bright * fog * light * shown * (1.3 - .35 * level) / spread * ${f(4.2 * 65536 / (SIZE[0] * SIZE[1]))};
 }
