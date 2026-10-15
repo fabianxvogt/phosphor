@@ -291,10 +291,16 @@ export class Engine {
     // Optional exact per-frame data cache; unsupported float targets keep
     // the original visual path, including on context restoration.
     const precompute = scene.precompute && this.floatPicture;
+    const linearData =
+      precompute &&
+      scene.precompute.filter === "linear" &&
+      this.gl.getExtension("OES_texture_float_linear");
+    const dataDefines = precompute
+      ? "#define PRECOMPUTED\n" +
+        (linearData ? "#define PRECOMPUTED_LINEAR\n" : "")
+      : "";
     programs.visual = this.program(
-      variant(
-        header + (precompute ? "#define PRECOMPUTED\n" : "") + scene.fragment,
-      ),
+      variant(header + dataDefines + scene.fragment),
       true,
     );
     if (precompute)
@@ -315,12 +321,22 @@ export class Engine {
         true,
         variant(particleHeader + scene.particles.vertex),
       );
-    if (scene.geometry)
+    if (scene.geometry) {
+      // Optional data reuse also applies to meshes. Inject after #version;
+      // unsupported float targets compile the unchanged analytic fallback.
+      const meshData = (source) =>
+        precompute
+          ? source.replace(
+              /^(#version[^\n]*\n)/,
+              (version) => version + dataDefines,
+            )
+          : source;
       programs.geometry = this.program(
-        variant(scene.geometry.fragment),
+        variant(meshData(scene.geometry.fragment)),
         true,
-        variant(scene.geometry.vertex),
+        variant(meshData(scene.geometry.vertex)),
       );
+    }
     if (scene.field) {
       programs.field = this.program(
         variant(shaderHeader + scene.field.fragment),
@@ -867,6 +883,11 @@ export class Engine {
       slot.precompute = this.target(...scene.precompute.size, {
         simulation: true,
         floatData: true,
+        filter:
+          scene.precompute.filter === "linear" &&
+          this.gl.getExtension("OES_texture_float_linear")
+            ? "linear"
+            : "nearest",
       });
     if (scene.id === "melt") {
       const gl = this.gl;

@@ -1,108 +1,151 @@
-# Starling Flock (Dusk Murmuration)
+# Starling Flock · Dusk Murmuration / Abendschwarm
 
-**INCREMENTAL / EMPIRICAL**, 2026-10-14. Family #88 and the continuous world **Dusk Murmuration** (Loose → Surge → Formation). A stylised flock: forces are authored to look like a murmuration. It is not a calibrated model of starling behaviour.
+**INCREMENTAL / EMPIRICAL**, 2026-10-15. Family **88**, scene/world id
+`murmuration`, states **Loose → Surge → Formation**. Authored flock dynamics,
+not a calibrated biological simulation. All seven preset names, seeds, schema
+keys, look ids and the world definition remain unchanged.
 
-## Algorithm and signature detail
+## Signature and mathematics
 
-32 767 birds simulated on the GPU. Each bird has four RGBA8 texels holding 16-bit position, velocity, startle timer T and bank angle, written with unbiased stochastic rounding; texel 0 is an exact 32-bit clock. The birds are drawn as banking, flapping bird meshes through the existing geometry path: twelve vertices per bird, read from the state texture, with a minimum projected size of about 3 px at 1080p and cheap antialiasing for small birds (below). [murmuration-model.mjs](../../murmuration-model.mjs) is the CPU mirror of the per-bird step; [scene-murmuration.mjs](../../scene-murmuration.mjs) is the shader.
+32,767 persistent birds; four RGBA8 texels per bird contain 16-bit position,
+velocity, startle timer and bank angle. The clock bird reserves two uint32
+phases. One advances motion; the second integrates the formation-cycle fader
+independently. Fractional cycle rates no longer multiply an already wrapped
+240-second phase. Rate edits change velocity, not phase.
 
-- **Topological neighbours.** Every bird keeps the same eight neighbours for ever: its neighbours on a 256×128 torus lattice. Starlings are reported to track about seven topological neighbours (Ballerini et al. 2008). Alignment, rest-length springs and short-range separation act only between lattice neighbours, so the flock is one crumpled sheet that fills space without collapsing.
-- **Startle waves (signature).** The lattice is an excitable medium. A resting bird fires when a neighbour fired on the previous step, then stays refractory for 1 s. A wave therefore crosses the flock one neighbour per step, about 60 lattice cells per second. Firing birds roll and catch the light, so a bright band races across the cloud or round the vortex. Waves are triggered by the falcon, by an automatic seeded startle every 4.5 s in Surge and Formation, and by the Startle-wave and Falcon-strike rhythm tracks.
-- **Development blends forces, never positions.**
-  - **Loose:** weak coupling; small lattice groups share a wandering heading over a wide sky.
-  - **Surge:** each bird is sprung to its home in a circulating, breathing blob. A drifting plane-wave displacement field folds the blob, as in the Zel'dovich picture; the folds are the dense bands. A falcon (the only accent) dives through every 9 s and punches a hole that closes again.
-  - **Formation:** springs to persistent slots taken from the lattice coordinate. The slots form a vortex torus (birds circulate and roll), a trefoil ribbon and a two-strand twister. Formations cross-fade on a 240 s cycle that the `cycle` parameter sets.
+Every bird retains eight symmetric neighbors on the 256×128 toroidal lattice.
+Alignment, rest-length springs and separation act on these neighbors, not a
+spatial collision search. A resting bird fires when a neighbor fired on the
+previous tick, then remains refractory for one second. Startle waves cross
+one lattice cell per tick. Falcon strikes and 8/16-beat gestures seed them.
 
-## Light, camera, energy
+Development blends **forces**, never positions, identities or simulation state:
 
-- **Sky:** a dusk sky with a black zenith, a palette afterglow band on a stable horizon and a sun just below it. The band brightens toward the sun's azimuth and deepens toward the top state.
-- **Birds:** lit by a raised key from the set sun (the alpenglow on birds high above). Front-lit birds sparkle with palette sheen; backlit birds silhouette with translucent rims. A sky fill keeps the flock legible facing away from the sun.
-- **Depth:** broad interior sky fill, and aerial-perspective fog toward the sky colour (falloff 0.032). Two very low ridge silhouettes provide geographic scale cues; exact angular polynomials avoid an atan seam or costly extra trigonometry.
-- **Camera:** it orbits the flock's moving home from a low eye (120 s), with the horizon in the lower third. At Formation a 48 s **bounded dolly breath** approaches only 18% closer, with a wider lens, rather than diving inside and cropping the vortex. Its target rises continuously to the formation's centre. Birds near the lens shrink rather than fill the screen. The kick widens the lens by at most 2 %.
-- **Energy:** visible birds 55 % → 100 % (fading by size), motion speed through the integrated clock, falcon strength, fold depth.
-- **Faders:** Motion speed, Falcon, Formation.
+- **Loose:** weak attraction to a folded sheet, with cruise and neighbor
+  forces providing free flight. The initial frame already belongs to the
+  flock rather than starting as a uniformly scattered dust sphere.
+- **Surge:** springs follow a circulating, folded Lagrangian sheet. For
+  longitude `t=2π(u+swirl)`, its center is approximately
+  `(4.6 cos(t), 1.25 sin(2t+flow)+0.4 fold sin(3t-flow), 1.6 sin(t))`.
+  Cross-sheet displacement is proportional to `(2v−1)^3`: half the birds
+  occupy one eighth of the half-width, giving a dense core and sparse skirts.
+  The falcon locally scatters the sheet; alignment closes the opening again.
+- **Formation:** the original vortex slot now describes a rolling, folded
+  **scroll**, not a uniformly filled torus. A travelling longitude modulation
+  `0.55 sin(t−roll)+0.19 sin(3t+roll)` moves strong density gradients along it.
+  Other slots retain a trefoil ribbon and a two-strand vertical twister.
+  Closed ribbon twist uses an integer harmonic, avoiding its former half-rate
+  wrap discontinuity. Top-state target springs are stronger to follow these
+  faster folds (CPU mean slot error still <0.5).
 
-## Small birds (polish 2026-10-15)
+`murmuration-model.mjs` mirrors the GPU step. The actual eight-neighbor
+startle propagation, bounded velocities, population and twelve-vertex bird
+mesh are retained. No extra particles or simulation passes.
 
-Distant birds were 3-px templates whose body (0.2 units wide) and wing chords (0.06–0.28) were sub-pixel slivers flickering in and out of pixels, with specular and iridescent glints twinkling on single pixels. Now:
+## Light, landscape and motion
 
-- **Thickness floor:** below about 9 px per template unit (1080p) body width and wing chord thicken by up to 3×, so every part stays about 2 px thick.
-- **Coverage:** a bird drawn larger or thicker than it is spreads its light (`v_cover` = 1/(grow · fat)) and fades toward the sky colour behind it (to 45–100 %).
-- **Edge antialiasing:** barycentrics from `gl_VertexID` fade outer edges over about a pixel; inner edges (body centre line, wing roots) are held at 1, so large birds show no seams. Dense clouds have birds rather than sky behind those edges, so edges fade only halfway.
-- **No glints on sub-pixel birds:** sheen, fresnel and iridescence fade to their means as coverage drops.
+A broad palette dusk gradient lights the sky **behind** near-black bird
+silhouettes. Three noise scales modulate layered cloud banks, with restrained
+lit edges and a bright horizon afterglow. No fixed RGB sunset colors. The
+only accent belongs to the falcon; startles bank and compress silhouettes
+instead of turning the flock into bright dots.
 
-Measured at 1920×1080 on the GPU, 8 frames 2 ms apart (temporal second difference |d²Y| in 8-bit): Surging Cloud 1.39 → 1.27, High Cloud 1.08 → 0.97, Evening Roost 0.96 → 0.83, Vortex Mill 3.06 → 2.86 (−6 to −14 %, the rest is real motion); isolated bright single-pixel glints are gone in close-ups. Mean brightness drops 1–8 %. Throughput unchanged within noise (1080p 1.8–2.3 ms, 4K 4.1–4.3 ms against 3.8–4.1 ms before; control 1.5 / 3.4–3.8 ms).
+A wooded shoreline, darker foreground reeds/cattails, lake sky reflection
+and subdued ripples give geographic scale. These are analytic angular/plane
+silhouettes, not a new terrain mesh or a volumetric cloud renderer. The
+shoreline/reed edges are output-resolution filtered. The sky is deliberately
+brighter than the generic dark-zenith style so backlit birds remain legible.
 
-## Wave 5 rework — 2026-10-15
+The low orbit and bounded 18% dolly remain. Target and camera move continuously
+with the flock; kick lens movement stays <=2%. Energy reveals 55–100% of the
+same seeded birds by continuous size, changes speed, fold and falcon strength,
+not light intensity. State reversal preserves simulation and phases.
 
-All seven preset names/seeds, the three state looks, world ID and schema keys
-are unchanged. No engine changes. Three filmed visual rounds plus cost polish:
+Small birds retain image-plane LOD aligned to projected flight, with bank
+compression visible even there. Minimum projected span is about 3 px at 1080p;
+body/wing thickness floor is now about 1.5 px, capped at 2.5×. Barycentric
+outer-edge AA blends into the sky; background sky is evaluated at each bird
+center, not repeatedly for every feather fragment. Residual overlap shimmer
+and deliberate distant-bird thickening remain.
 
-1. Replace the cropped inside-ring camera with a centred, bounded dolly. The
-   default final formation now reads as a complete 55–65%-short-side hero.
-2. Blend distant templates into the image plane, oriented along projected
-   flight, over a resolution-scaled 3–7 px interval. The same twelve vertices
-   and persistent bird identity remain. This prevents edge-on disappearance;
-   far key/transmission/sky-fill shading also converges to stable means.
-   Energy-revealed birds now actually shrink continuously to zero at the
-   seeded population threshold instead of appearing at full size.
-3. Add subtle two-layer terrain silhouettes and stronger aerial perspective;
-   tune the Surge/Formation camera separately. Polynomial angular harmonics
-   avoid new per-pixel atan/sin work. Replace per-vertex neighbour-density
-   fetches (lighting only) with a broad interior fill; **all eight simulated
-   topological neighbours and startle propagation remain unchanged**.
+## Reusable data and engine extension
 
-Native headless M3 Pro p50 ms, state order Loose / Surge / Formation:
+Optional **512×129 RGBA32F data**, about 1 MiB, refreshed every picture draw:
 
-| Output | Initial baseline | Standard final | Alternating baseline → final |
-| --- | --- | --- | --- |
-| 1080p | 1.8 / 2.1 / 2.1 | 2.3 / 2.8 / 2.8 | 2.10→2.20 / 2.50→2.15 / 2.50→2.30 |
-| 4K | 4.5 / 4.8 / 4.7 | 5.6 / 5.5 / 5.6 | 5.30→5.30 / 5.60→5.35 / 5.55→5.20 |
+- row 0: exact camera basis, eye, lens and sun direction;
+- other rows: cloud density, silver-edge weight and two geographic ridge
+  heights. A periodic diamond chart avoids per-pixel angular trigonometry.
 
-Fleet GPU contention makes separate-run absolute timings misleading. Four
-alternating baseline/final blocks, median of block p50s, put every state within
-+5% (worst +4.76%, 1080p Loose). Reproduce with
-`PHOSPHOR_HEADLESS_RIG=1 node scripts/check-sea-sky.mjs --rig --families murmuration --port 48522`.
+There is **no cached color image**. Palette, scattering, terrain edges,
+reflection and bird silhouettes shade at full output resolution. Cloud
+fields interpolate a finite data grid (an approximation, not bit identity).
 
-A frozen-state subpixel camera dolly isolates raster instability from real
-flock motion. Mean absolute temporal second difference (8-bit luminance,
-1080p; Loose / Surge / Formation / High Cloud):
-**0.848→0.644 / 1.278→0.698 / 3.476→2.096 / 1.658→0.750** (−24–55%).
-Ordinary moving scores also improve 17–46%; these are evidence of reduced
-shimmer, **not** a claim of zero flicker, and changed framing/brightness also
-contribute. Raw scores include mean luminance for that reason.
+Small backward-compatible `engine.mjs` addition: optional data caches are
+available to geometry shaders too (`PRECOMPUTED`). A scene may request
+`precompute.filter: "linear"`; only devices exposing
+`OES_texture_float_linear` receive `PRECOMPUTED_LINEAR` and linear filtering.
+Without that extension, the shader uses explicit four-fetch interpolation;
+without float targets, it uses analytic cloud/camera fallback. Other scenes
+keep their existing nearest-data path. Native regression covers all three
+modes, texture accounting and context recovery.
 
-Evidence: `output/murmuration/{baseline,final}/murmuration.{mp4,png}`; final
-includes every-look energy ladder, Glacier Knotted Ribbon and Ember portrait.
-CPU tests add continuous reveal, aspect-independent LOD thresholds, exact
-skyline harmonic identities, bounded dolly and explicit saved preset identity.
-Honest rating **8.5/10**: readable full formation, calmer distant birds, but
-Loose remains a point-cloud-like sky and occasional overlap shimmer remains;
-portrait may crop peripheral birds during Surge.
+## Filmed rounds and performance
 
-## Looks
+Wave-5 follow-up after `d634a4e`:
 
-The world uses seed 1207 at development 0/1/2: **Evening Roost**, **Surging Cloud**, **Vortex Mill**. The extra looks are **Falcon Hour**, **Knotted Ribbon**, **Twister** and **High Cloud**.
+1. Replace luminous haze with dark silhouettes and a glowing sky; replace
+   volumetric cloud targets with a concentrated folded sheet. Weakness:
+   sky bands too graphic; final formation still a torus.
+2. Soften cloud thresholds, replace torus with scroll, add lake/reeds/trees.
+   Weakness: terrain repetition and water stripes, weak distant turning.
+3. Add fine cloud structure, irregular treeline, restrained reflection,
+   distant banking and travelling density compression.
+4. Final cost polish: reusable density/camera data, shared mesh access,
+   hardware-linear/manual/analytic fallbacks, thinner distant templates and
+   remove the unrelated loose group-orbit field. Final film reviewed again.
 
-## Cost and endlessness
+Native Apple M3 Pro, headless ANGLE Metal, whole-frame p50 including post.
+Four alternating previous-final/current blocks, median of block p50s:
 
-The simulation is one full-texture pass over 1024×128 texels per tick. Each texel computes its whole bird: 36 texel fetches, a 6-mode fold field and 3 formation shapes. The mesh is 393 k vertices. All cycles are integer counts per 1440 s; a bird that leaves the sky or turns non-finite returns home. See the report for the indicative timings: GPU contention from parallel lanes made the absolute numbers unreliable.
+| State | 1080p previous → current | 4K previous → current |
+| --- | ---: | ---: |
+| Loose | 2.40 → 2.50 ms | 4.80 → 4.95 ms |
+| Surge | 2.30 → 2.35 ms | 5.10 → 5.15 ms |
+| Formation | 2.45 → 2.40 ms | 5.40 → 5.50 ms |
+
+Worst increase **4.17%**. Separate baseline 1080p 2.4/2.3/2.5 ms and
+4K 5.1/5.0/5.2; final 1080p 2.4/2.6/2.4 and quiet 4K replay
+5.5/5.5/5.5. One heavily contended final 4K run reached 16.8/12.8/5.9;
+that raw run is retained, not presented as an intrinsic improvement.
+These throughput probes are not venue cadence qualification.
+
+Evidence root: fleet worker `rework-sea-sky/output/next/`.
+`baseline/murmuration/murmuration.{mp4,png}` →
+`final/murmuration/murmuration.{mp4,png}`; native full-resolution and
+960×540 native-pixel crops in `{baseline,final}/stills/`; paired cost in
+`final/paired/comparison.json`. Final includes all-look ladder, Glacier
+Knotted Ribbon film and Ember portrait. Liquid Chrome and Event Horizon
+reference films were reviewed alongside it. Honest rating **8.5/10**, not 9:
+this reads as a murmuration now, but top-state loops can still look authored,
+the landscape is illustrative, and peripheral birds may crop in portrait.
 
 ## Verification
 
-`tests/murmuration.test.mjs` covers:
-- preset and world validity;
-- fixed, symmetric topological neighbours;
-- development jumps never move a bird faster than its speed limit;
-- startle waves fire at exactly the lattice distance plus one step and every bird fires once;
-- Surge keeps a volume (no collapsed strand), and Formation converges to slots (mean error < 0.5);
-- the torus slot geometry and the tilt is a rotation;
-- the clock arithmetic, and that the shader constants follow the model.
+- `tests/murmuration.test.mjs`: stable presets/world lookup by id, fixed
+  symmetric neighbors, bounded reversible development, exact startle travel,
+  finite cloud spread, slot convergence, cubic density concentration, closed
+  scroll/knot seams, LOD/energy reveal, diamond chart inversion and 12-hour
+  fractional-rate phase integration.
+- `tests/browser/precompute.test.mjs`: native linear-data mode, simulated
+  missing float-linear extension, missing float targets, mesh sampler usage,
+  cache accounting, refresh and context recovery.
+- Native time-wrap/rate-step probes pass at 3600, 4096 and 43200 seconds.
+  Zero GL errors/non-finite uploads in the reviewed evidence.
 
-The films are from `node scripts/world-film.mjs --world murmuration --rig` and `--look "murmuration:Knotted Ribbon" --from 1 --to 2`; the ladder is from `node scripts/contact.mjs --dist . --sheet ladder --family murmuration --rig`.
+## Remaining limits
 
-## Limits
-
-- No spatial neighbour search: birds that are not lattice neighbours can overlap.
-- The GLSL is a hand port of the CPU step; the tests exercise the model, while the films and ladder exercise the shader.
-- Edge antialiasing blends toward the sky colour, not toward birds behind; overlapping birds in dense bands therefore get slightly darker edges. Distant birds are thicker than real starlings by design.
+No non-neighbor collision search; silhouettes may overlap. Edge AA blends
+against sky, not the bird behind. Clouds and landscape are analytic layers,
+not full volumetrics. The cloud-density grid and background-at-bird-center
+approximate very fine differences. In a long set the formation remains an
+authored scroll/knot/twister cycle, not unconstrained emergent fluid motion.

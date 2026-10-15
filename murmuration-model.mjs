@@ -6,13 +6,12 @@
 // topological neighbours, Ballerini et al. 2008). Development blends forces,
 // never positions:
 //   Loose     — weak neighbour coupling, each bird wanders on its own;
-//   Surge     — alignment + cohesion to neighbours, an ABC flow (Arnold–
-//               Beltrami–Childress, divergence-free, chaotic streamlines)
-//               that stretches and folds the cloud, a falcon that dives
+//   Surge     — alignment + cohesion to neighbours, a folded Lagrangian
+//               sheet with a dense centre and sparse skirts, a falcon that dives
 //               through it, and startle waves: an excitable medium on the
 //               lattice (fire → refractory) that rolls birds as it passes;
 //   Formation — the same coupling plus springs to persistent formation
-//               slots: a vortex torus, a trefoil ribbon and a twister.
+//               slots: a rolling vortex scroll, a trefoil ribbon and a twister.
 // State per bird (four RGBA8 texels, 16-bit fixed point): position,
 // velocity, startle timer T and bank angle.
 
@@ -88,12 +87,13 @@ export const OFFSETS = [
 export function neighbours(id, [w, h] = LATTICE) {
   const x = id % w,
     y = Math.floor(id / w);
-  return OFFSETS.map(([dx, dy]) => ((y + dy + h) % h) * w + ((x + dx + w) % w))
-    .filter((n) => n !== 0);
+  return OFFSETS.map(
+    ([dx, dy]) => ((y + dy + h) % h) * w + ((x + dx + w) % w),
+  ).filter((n) => n !== 0);
 }
 
-// Development weights: flocking rises to Surge and stays; the ABC flow and
-// falcon belong to Surge; slot springs to Formation.
+// Development weights: flocking rises to Surge and stays; the folded sheet
+// and falcon belong to Surge; slot springs to Formation.
 export function weights(dev) {
   const d = Math.min(2, Math.max(0, dev));
   const flock = 0.06 + 0.94 * smooth(0, 1, d);
@@ -121,32 +121,26 @@ export function falcon(clock) {
     a[2] + Math.sin(side) * s * 9,
   ];
 }
-export const yaw = (key, clock) => TAU * (cycle(clock, N.yaw) + rnd(key, 0, 907));
+export const yaw = (key, clock) =>
+  TAU * (cycle(clock, N.yaw) + rnd(key, 0, 907));
 
-// Surge: a circulating, breathing blob folded by drifting plane-wave
-// displacement modes (a Lagrangian fold map, as in the Zel'dovich picture).
+// Folded Lagrangian sheet: cubic transverse sampling concentrates birds in
+// a dense ribbon while preserving a sparse skirt and persistent lattice IDs.
 export function cloud(key, u, v, h, clock, fold = 1) {
-  const lon = TAU * u + TAU * cycle(clock, N.swirl);
-  const lat = 1.45 * Math.sin(TAU * v);
-  const r = 2.7 * (0.3 + 0.7 * Math.pow(h, 0.33));
-  const q = [
-    r * Math.cos(lat) * Math.cos(lon),
-    0.62 * r * Math.sin(lat),
-    r * Math.cos(lat) * Math.sin(lon),
+  const t = TAU * (u + cycle(clock, N.swirl));
+  const flow = TAU * cycle(clock, N.flow),
+    br = TAU * cycle(clock, N.breath);
+  const s = 2 * v - 1,
+    width = 0.65 * s ** 3,
+    wave = 2 * t + flow;
+  return [
+    4.6 * Math.cos(t) + 0.35 * width * Math.sin(t),
+    1.25 * Math.sin(wave) +
+      0.4 * Math.min(2, Math.max(0, fold)) * Math.sin(3 * t - flow) +
+      width * (0.6 + 0.3 * Math.sin(br + t)) +
+      0.8,
+    1.6 * Math.sin(t) + (h - 0.5) * 0.32 + width * Math.cos(wave),
   ];
-  let d = [0, 0, 0];
-  for (let m = 0; m < 6; m++) {
-    const z = rnd(key, m, 900) * 2 - 1,
-      az = TAU * rnd(key, m, 901),
-      rr = Math.sqrt(1 - z * z);
-    const k = mul(norm([rr * Math.cos(az), z * 0.7, rr * Math.sin(az)]), 0.7 + 0.8 * rnd(key, m, 902));
-    const ph = TAU * rnd(key, m, 904) + TAU * cycle(clock, N.flow + 7 * m);
-    d = add(d, mul(norm(k), Math.sin(dot(k, q) + ph) * (0.55 + 0.35 * rnd(key, m, 903))));
-  }
-  const br = TAU * cycle(clock, N.breath);
-  const stretch = [1.25 + 0.3 * Math.sin(br), 0.9 + 0.35 * Math.sin(br * 2 + 1), 1.05 + 0.25 * Math.cos(br)];
-  const g = 1.25 * Math.min(2, Math.max(0, fold));
-  return [0, 1, 2].map((i) => (q[i] + g * d[i]) * stretch[i] + (i === 1 ? 0.6 : 0));
 }
 
 // Formation slots, from the bird's lattice coordinate (u, v) only.
@@ -158,22 +152,26 @@ const knot = (t) => [
 export function slot(key, u, v, h, clock, formation) {
   const circ = TAU * cycle(clock, N.circ),
     roll = TAU * cycle(clock, N.roll);
-  // Vortex torus: birds circulate round the ring and roll round its tube.
-  const th = TAU * u + circ,
-    ph = TAU * v + roll,
-    r = 1.15 * Math.sqrt(0.15 + 0.85 * h);
+  // Vortex scroll: a rolling, folded ribbon, with travelling compression.
+  let th = TAU * u + circ;
+  th += 0.55 * Math.sin(th - roll) + 0.19 * Math.sin(3 * th + roll);
+  const sheet = 2 * v - 1,
+    width = 0.95 * sheet ** 3,
+    curl = 2 * th + roll;
   const torus = [
-    (3.1 + r * Math.cos(ph)) * Math.cos(th),
-    r * Math.sin(ph),
-    (3.1 + r * Math.cos(ph)) * Math.sin(th),
+    3.8 * Math.cos(th) + 0.2 * width * Math.cos(th),
+    2.05 * Math.sin(curl) +
+      0.35 * Math.sin(3 * th - roll) +
+      width * Math.cos(th + roll),
+    1.4 * Math.sin(th) + width * Math.sin(th + roll) + (h - 0.5) * 0.22,
   ];
   // Trefoil ribbon: birds flow along a twisted, knotted band.
-  const s = TAU * u + circ * 0.5;
+  const s = TAU * (u + cycle(clock, N.circ / 2));
   const k0 = knot(s),
     tan = norm(sub(knot(s + 0.01), k0));
   const nrm = norm(cross(tan, [0, 1, 0]));
   const bin = cross(tan, nrm);
-  const tw = 1.5 * s + roll,
+  const tw = 2 * s + roll,
     w = (v - 0.5) * 1.3,
     d = (h - 0.5) * 0.25;
   const ribbon = add(
@@ -203,8 +201,9 @@ export function slot(key, u, v, h, clock, formation) {
   q = [q[0], 0.9 * q[1] + TILT * q[2], -TILT * q[1] + 0.9 * q[2]];
   return [cy * q[0] + sy * q[2], q[1] + 1.2, -sy * q[0] + cy * q[2]];
 }
-export const formationAt = (clock, formation, cycleRate) =>
-  formation + 3 * cycleRate * cycle(clock, N.cycle);
+export const formationAt = (clock, formation, cycleRate, phase = null) =>
+  formation +
+  3 * (phase === null ? cycleRate * cycle(clock, N.cycle) : cycle(phase, 1));
 
 const LOOK = Math.round((0.05 * TWO32) / CLOCK_PERIOD); // 50 ms ahead
 // Spring force toward a moving target and its velocity.
@@ -244,15 +243,9 @@ export function birdStep(bird, nb, env, [w, h] = LATTICE) {
     vv = y / h,
     hh = rnd(key, id, 6);
   if (W.loose > 0) {
-    // Loose birds travel in small groups (8×8 lattice blocks).
-    const g = Math.floor(y / 8) * Math.floor(w / 8) + Math.floor(x / 8) + 77777;
-    const ph = TAU * cycle(clock, 7 + (g % 5)) + TAU * rnd(key, g, 3) + 0.35 * rnd(key, id, 3);
-    const wander = [
-      1.4 * Math.cos(ph + rnd(key, g, 4) * TAU),
-      0.8 * Math.sin(1.7 * ph + TAU * rnd(key, g, 7)),
-      1.4 * Math.sin(ph + rnd(key, g, 5) * TAU),
-    ];
-    a = add(a, mul(sub(wander, v), 0.9 * W.loose));
+    const jit = [8, 9, 10].map((k) => (rnd(key, id, k) - 0.5) * 0.16);
+    const home = add(add(A, jit), cloud(key, u, vv, hh, clock, env.fold ?? 1));
+    a = add(a, mul(sub(mul(sub(home, p), 0.8), mul(v, 0.35)), W.loose));
   }
   const strike = Math.min(2, Math.max(0, env.falcon ?? 1));
   // A fixed per-bird offset hides the lattice's rows up close.
@@ -266,16 +259,27 @@ export function birdStep(bird, nb, env, [w, h] = LATTICE) {
     a = add(a, follow(p, v, at, 2.4 * W.surge, 1.8 * W.surge));
     const f = sub(p, falcon(clock)),
       fl = len(f);
-    a = add(a, mul(f, (W.surge * strike * 14 * Math.exp(-fl * fl * 1.6)) / Math.max(fl, 0.05)));
+    a = add(
+      a,
+      mul(
+        f,
+        (W.surge * strike * 14 * Math.exp(-fl * fl * 1.6)) / Math.max(fl, 0.05),
+      ),
+    );
     if (fl < 0.75 * W.surge * strike) fired = true;
   }
   if (W.form > 0) {
-    const form = formationAt(clock, env.formation ?? 0, env.cycle ?? 0.5);
+    const form = formationAt(
+      clock,
+      env.formation ?? 0,
+      env.cycle ?? 0.5,
+      env.formationClock ?? null,
+    );
     const at = [
       add(add(A, jit), slot(key, u, vv, hh, clock, form)),
       add(add(anchor(c1), jit), slot(key, u, vv, hh, c1, form)),
     ];
-    a = add(a, follow(p, v, at, 3.4 * W.form, 2.2 * W.form));
+    a = add(a, follow(p, v, at, 5.2 * W.form, 3.0 * W.form));
   }
   // Automatic startles in Surge and Formation from a seeded lattice point.
   const back = (clock - clockStep(1 / 60, env.rate ?? 1)) >>> 0;
@@ -295,7 +299,9 @@ export function birdStep(bird, nb, env, [w, h] = LATTICE) {
   v = add(v, mul(a, dt));
   const vl = len(v);
   if (vl > VEL_RANGE * 0.9) v = mul(v, (VEL_RANGE * 0.9) / vl);
-  p = add(p, mul(v, dt)).map((c) => Math.max(-POS_RANGE * 0.98, Math.min(POS_RANGE * 0.98, c)));
+  p = add(p, mul(v, dt)).map((c) =>
+    Math.max(-POS_RANGE * 0.98, Math.min(POS_RANGE * 0.98, c)),
+  );
   // Startle: an excitable lattice. A resting bird fires when a neighbour
   // fired on the previous step; then it stays refractory for TAU_STARTLE.
   if (T < 0.002 && fired) T = 1;
@@ -303,20 +309,27 @@ export function birdStep(bird, nb, env, [w, h] = LATTICE) {
   const side = norm(cross(norm(add(v, [0, 0, 1e-4])), [0, 1, 0]));
   const roll = T > 0.55 ? 1.25 * Math.sin((Math.PI * (1 - T)) / 0.45) : 0;
   const target = Math.max(-1, Math.min(1, dot(a, side) * 0.12)) + roll;
-  bank += (Math.max(-BANK_RANGE, Math.min(BANK_RANGE, target)) - bank) * Math.min(1, 8 * dt);
+  bank +=
+    (Math.max(-BANK_RANGE, Math.min(BANK_RANGE, target)) - bank) *
+    Math.min(1, 8 * dt);
   return { p, v, T, bank };
 }
 
-// Initial state: birds scattered around home, heading round it.
-export function initialBird(key, id, clock = 0) {
+// Initial state already belongs to the folded flock, never a dust sphere.
+export function initialBird(key, id, clock = 0, size = LATTICE) {
   const A = anchor(clock);
-  const z = rnd(key, id, 0) * 2 - 1,
-    az = TAU * rnd(key, id, 1),
-    r = 5.5 * Math.cbrt(rnd(key, id, 2));
-  const s = Math.sqrt(1 - z * z);
   return {
-    p: add(A, [r * s * Math.cos(az), r * z * 0.5, r * s * Math.sin(az)]),
-    v: mul(norm([-Math.sin(az), 0, Math.cos(az)]), 1.2),
+    p: add(
+      A,
+      cloud(
+        key,
+        (id % size[0]) / size[0],
+        Math.floor(id / size[0]) / size[1],
+        rnd(key, id, 6),
+        clock,
+      ),
+    ),
+    v: [1.2, 0, 0],
     T: 0,
     bank: 0,
   };
@@ -327,24 +340,37 @@ export function simulate(seed, steps, plan, size = [32, 16], start = null) {
   const key = seedKey(seed);
   const count = size[0] * size[1];
   const nbs = Array.from({ length: count }, (_, id) => neighbours(id, size));
-  let birds = start ?? Array.from({ length: count }, (_, id) => initialBird(key, id));
-  let clock = 0;
+  let birds =
+    start ??
+    Array.from({ length: count }, (_, id) => initialBird(key, id, 0, size));
+  let clock = 0,
+    formationClock = 0;
   for (let s = 0; s < steps; s++) {
     const env = plan(s, birds);
     const rate = env.speed ?? 1;
     const step = { ...env, rate, dt: (1 / 60) * rate, key };
     clock = (clock + clockStep(1 / 60, rate)) >>> 0;
+    formationClock =
+      (formationClock +
+        Math.round(((1 / 60) * rate * (env.cycle ?? 0.5) * TWO32) / 240)) >>>
+      0;
     const prev = birds;
     birds = prev.map((b, id) =>
       id === 0
         ? b
-        : birdStep(b, nbs[id].map((n) => prev[n]), {
-            ...step,
-            clock,
-            id,
-            startle: env.startle?.(id) ? 1 : 0,
-          }, size),
+        : birdStep(
+            b,
+            nbs[id].map((n) => prev[n]),
+            {
+              ...step,
+              clock,
+              formationClock,
+              id,
+              startle: env.startle?.(id) ? 1 : 0,
+            },
+            size,
+          ),
     );
   }
-  return { birds, clock, key };
+  return { birds, clock, formationClock, key };
 }

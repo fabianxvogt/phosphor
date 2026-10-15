@@ -75,35 +75,33 @@ vec3 muFalcon(uint c) {
   return a + vec3(cos(side) * s * 9., 2.5 - 2.5 * (1. - s * s) + .5, sin(side) * s * 9.);
 }
 float muYaw(uint c) { return MU_TAU * (muCycle(c, ${N.yaw}u) + muRnd(muKey(), 0u, 907u)); }
-// Surge: a circulating, breathing blob folded by drifting plane-wave
-// displacement modes (a Lagrangian fold map, as in the Zel'dovich picture).
+// A folded sheet, not a uniformly filled volume. Cross-sheet compression
+// creates dense ribbons with sparse skirts; integer clock modes are endless.
 vec3 muCloud(float u, float v, float h, uint c) {
-  float lon = MU_TAU * u + MU_TAU * muCycle(c, ${N.swirl}u);
-  float lat = 1.45 * sin(MU_TAU * v);
-  float r = 2.7 * (.3 + .7 * pow(h, .33));
-  vec3 q = r * vec3(cos(lat) * cos(lon), .62 * sin(lat), cos(lat) * sin(lon));
-  vec3 d = vec3(0.);
-  uint key = muKey();
-  for (int m = 0; m < 6; m++) {
-    uint um = uint(m);
-    float z = muRnd(key, um, 900u) * 2. - 1., az = MU_TAU * muRnd(key, um, 901u), rr = sqrt(1. - z * z);
-    vec3 k = normalize(vec3(rr * cos(az), z * .7, rr * sin(az))) * (.7 + .8 * muRnd(key, um, 902u));
-    float ph = MU_TAU * muRnd(key, um, 904u) + MU_TAU * muCycle(c, uint(${N.flow} + 7 * m));
-    d += normalize(k) * sin(dot(k, q) + ph) * (.55 + .35 * muRnd(key, um, 903u));
-  }
+  float t = MU_TAU * (u + muCycle(c, ${N.swirl}u));
+  float flow = MU_TAU * muCycle(c, ${N.flow}u);
   float br = MU_TAU * muCycle(c, ${N.breath}u);
-  vec3 stretch = vec3(1.25 + .3 * sin(br), .9 + .35 * sin(br * 2. + 1.), 1.05 + .25 * cos(br));
-  return (q + 1.25 * clamp(u_params[5], 0., 2.) * d) * stretch + vec3(0., .6, 0.);
+  float fold = clamp(u_params[5], 0., 2.);
+  float s = 2.*v-1., width = .65*s*s*s;
+  float wave = 2.*t + flow;
+  vec3 q = vec3(4.6*cos(t), 1.25*sin(wave)+.4*fold*sin(3.*t-flow), 1.6*sin(t));
+  q += vec3(.35*width*sin(t), width*(.6+.3*sin(br+t)), (h-.5)*.32 + width*cos(wave));
+  return q + vec3(0., .8, 0.);
 }
 vec3 muKnot(float t) { return 1.25 * vec3(sin(t) + 2. * sin(2. * t), -sin(3. * t), cos(t) - 2. * cos(2. * t)); }
 vec3 muSlot(float u, float v, float h, uint c, float formation) {
   float circ = MU_TAU * muCycle(c, ${N.circ}u), roll = MU_TAU * muCycle(c, ${N.roll}u);
-  float th = MU_TAU * u + circ, ph = MU_TAU * v + roll, r = 1.15 * sqrt(.15 + .85 * h);
-  vec3 torus = vec3((3.1 + r * cos(ph)) * cos(th), r * sin(ph), (3.1 + r * cos(ph)) * sin(th));
-  float s = MU_TAU * u + circ * .5;
+  float th = MU_TAU * u + circ;
+  // A travelling compression changes density sharply along the ribbon.
+  th += .55*sin(th-roll)+.19*sin(3.*th+roll);
+  float sheet = 2.*v-1., width = .95*sheet*sheet*sheet;
+  float curl = 2.*th+roll;
+  vec3 torus = vec3(3.8*cos(th), 2.05*sin(curl)+.35*sin(3.*th-roll), 1.4*sin(th));
+  torus += vec3(.2*width*cos(th), width*cos(th+roll), width*sin(th+roll)+(h-.5)*.22);
+  float s = MU_TAU * (u + muCycle(c, ${N.circ / 2}u));
   vec3 k0 = muKnot(s), tan = normalize(muKnot(s + .01) - k0);
   vec3 nrm = normalize(cross(tan, vec3(0., 1., 0.))), bin = cross(tan, nrm);
-  float tw = 1.5 * s + roll, w = (v - .5) * 1.3, d = (h - .5) * .25;
+  float tw = 2. * s + roll, w = (v - .5) * 1.3, d = (h - .5) * .25;
   vec3 ribbon = k0 + (nrm * cos(tw) + bin * sin(tw)) * w + (bin * cos(tw) - nrm * sin(tw)) * d;
   float strand = v < .5 ? 0. : 3.141592653589793;
   float y = (u - .5) * 6.4, fr = .7 + .32 * (y + 3.2) + .45 * sqrt(h);
@@ -119,14 +117,27 @@ vec3 muSlot(float u, float v, float h, uint c, float formation) {
   q = vec3(q.x, .9 * q.y + .43589 * q.z, -.43589 * q.y + .9 * q.z);
   return vec3(cy * q.x + sy * q.z, q.y, -sy * q.x + cy * q.z) + vec3(0., 1.2, 0.);
 }
-float muFormation(uint c) { return u_params[2] + 3. * u_params[3] * muCycle(c, ${N.cycle}u); }
+// A second persistent uint phase integrates the formation-rate fader. It
+// cannot jump at a fractional-rate cycle wrap or when the rate is edited.
+float muFormation(uint c) { return u_params[2] + 3. * muCycle(muWord(texelFetch(u_state,ivec2(1,0),0)),1u); }
 `;
 
 // Camera and sky, shared by the sky pass and the birds.
 const view = `
+#ifdef PRECOMPUTED
+uniform highp sampler2D u_precomputed;
+#endif
 struct MuCam { vec3 eye, right, up, fwd; float focal, dive; };
 MuCam muCamera(uint c, float dev) {
   MuCam m;
+#ifdef PRECOMPUTED
+  m.eye=texelFetch(u_precomputed,ivec2(0,0),0).xyz;
+  m.right=texelFetch(u_precomputed,ivec2(1,0),0).xyz;
+  m.up=texelFetch(u_precomputed,ivec2(2,0),0).xyz;
+  m.fwd=texelFetch(u_precomputed,ivec2(3,0),0).xyz;
+  vec2 lens=texelFetch(u_precomputed,ivec2(4,0),0).xy;
+  m.focal=lens.x; m.dive=lens.y;
+#else
   uint key = muKey();
   vec4 w = muWeights(dev);
   vec3 a = muAnchor(c);
@@ -144,37 +155,78 @@ MuCam muCamera(uint c, float dev) {
   m.right = normalize(cross(m.fwd, vec3(0., 1., 0.)));
   m.up = cross(m.right, m.fwd);
   m.focal = mix(1.8 - .15 * w.z, 1.45, m.dive) * (1. + .02 * clamp(u_kick, 0., 1.));
+#endif
   return m;
 }
 vec3 muSun() {
+#ifdef PRECOMPUTED
+  return texelFetch(u_precomputed,ivec2(5,0),0).xyz;
+#else
   float az = MU_TAU * muRnd(muKey(), 0u, 908u);
   return normalize(vec3(cos(az), -.012, sin(az)));
+#endif
 }
-// Dusk sky: black zenith, a palette glow band on the horizon, a low sun.
+float muNoise(vec2 p) {
+  vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+  vec4 a=fract(sin(vec4(dot(i,vec2(127.1,311.7)),dot(i+vec2(1,0),vec2(127.1,311.7)),
+    dot(i+vec2(0,1),vec2(127.1,311.7)),dot(i+vec2(1),vec2(127.1,311.7))))*43758.5453);
+  return mix(mix(a.x,a.y,f.x),mix(a.z,a.w,f.x),f.y);
+}
+vec2 muCloudExact(vec3 dir) {
+  float e=dir.y;
+  vec2 h=normalize(dir.xz+vec2(1e-5));
+  vec2 q=h*4.+vec2(e*2., e*9.);
+  float n=muNoise(q)+.4*muNoise(q*3.1+19.);
+  float detail=muNoise(q*9.3+7.)-.5;
+  n+=.12*detail;
+  float bands=sin(e*26.+n*2.+dot(h,vec2(1.,2.)));
+  float cloud=muSmooth(-.65,.9,bands+n*.45)*muSmooth(.03,.13,e)*(1.-muSmooth(.5,.85,e));
+  return vec2(clamp(cloud*.68+detail*.09,0.,.82),exp(-abs(bands+.25)*8.)*cloud*.045);
+}
+vec2 muRidges(vec2 h) {
+  vec2 h2=vec2(h.x*h.x-h.y*h.y,2.*h.x*h.y);
+  vec2 h3=vec2(h2.x*h.x-h2.y*h.y,h2.x*h.y+h2.y*h.x);
+  vec2 h4=vec2(h2.x*h2.x-h2.y*h2.y,2.*h2.x*h2.y);
+  vec2 h7=vec2(h3.x*h4.x-h3.y*h4.y,h3.x*h4.y+h3.y*h4.x);
+  return vec2(.004+.007*h3.y+.003*h7.x,-.012+.006*h4.y+.003*h7.y);
+}
+vec4 muCloudData(vec3 dir) {
+#ifdef PRECOMPUTED
+  // Periodic angular density data, not cached sky colour. Final palette,
+  // scattering, silhouettes and reflections still shade at output resolution.
+  vec2 h=dir.xz/max(abs(dir.x)+abs(dir.z),1e-6);
+  float az=dir.z>=0.?1.-h.x:3.+h.x;
+#ifdef PRECOMPUTED_LINEAR
+  return texture(u_precomputed,vec2(az*.25,(1.+clamp(dir.y*128.,.5,127.5))/129.));
+#else
+  vec2 grid=vec2(az*.25,clamp(dir.y,0.,1.))*vec2(512.,128.)-.5;
+  ivec2 c=ivec2(floor(grid)); vec2 f=fract(grid);
+  ivec2 a=ivec2((c.x+512)%512,1+clamp(c.y,0,127)), b=ivec2((c.x+513)%512,1+clamp(c.y+1,0,127));
+  return mix(mix(texelFetch(u_precomputed,a,0),texelFetch(u_precomputed,ivec2(b.x,a.y),0),f.x),
+    mix(texelFetch(u_precomputed,ivec2(a.x,b.y),0),texelFetch(u_precomputed,b,0),f.x),f.y);
+#endif
+#else
+  return vec4(muCloudExact(dir),muRidges(normalize(dir.xz+vec2(1e-5))));
+#endif
+}
+// Palette dusk lights the whole sky behind the birds, not a thin neon line.
 vec3 muSky(vec3 dir) {
   vec3 L = muSun();
   float e = dir.y;
-  float band = e > 0. ? exp(-e / .085) : .5 * exp(e / .05);
-  // The afterglow deepens toward the top state.
-  float peak = 1. + .5 * muWeights(clamp(u_params[0], 0., 2.)).z;
-  vec3 col = mix(u_secondary, u_primary, .25 + .45 * exp(-max(e, 0.) / .025)) * .16 * band * peak;
-  // Afterglow: the band brightens toward the set sun's azimuth.
   vec2 h = normalize(dir.xz + vec2(1e-5)), s = normalize(L.xz);
   float az = .5 + .5 * dot(h, s);
-  float glow = pow(az, 6.) * exp(-max(e, 0.) / .06) * muSmooth(-.02, .01, e);
-  col += mix(u_primary, vec3(1.), .35) * glow * .55;
-  col *= .5 + .7 * pow(az, 2.);
-  col += u_secondary * .012 * (1. - abs(e));
+  float band = exp(-max(e,0.)*2.8);
+  vec3 warm = mix(u_primary,vec3(1.),.32);
+  vec3 col = mix(u_secondary*.14, mix(u_secondary,warm,.72)*.75, band);
+  col += warm * pow(az,4.) * exp(-max(e,0.)*5.)*.38;
+  vec4 clouds=muCloudData(dir);
+  col=mix(col,col*.38+u_secondary*.025,clouds.x);
+  col+=warm*clouds.y;
   // Two very low distant silhouettes break the laser-straight horizon.
   // Fixed angular harmonics give stable geographic scale cues on the orbit.
   // Integer angular harmonics via complex products: no per-pixel atan or
   // trigonometric calls, and the azimuth seam stays exactly continuous.
-  vec2 h2 = vec2(h.x*h.x-h.y*h.y, 2.*h.x*h.y);
-  vec2 h3 = vec2(h2.x*h.x-h2.y*h.y, h2.x*h.y+h2.y*h.x);
-  vec2 h4 = vec2(h2.x*h2.x-h2.y*h2.y, 2.*h2.x*h2.y);
-  vec2 h7 = vec2(h3.x*h4.x-h3.y*h4.y, h3.x*h4.y+h3.y*h4.x);
-  float farRidge = .004 + .007 * h3.y + .003 * h7.x;
-  float nearRidge = -.012 + .006 * h4.y + .003 * h7.y;
+  float farRidge=clouds.z, nearRidge=clouds.w;
   col *= mix(.24, 1., muSmooth(farRidge - .0015, farRidge + .0015, e));
   col *= mix(.12, 1., muSmooth(nearRidge - .0015, nearRidge + .0015, e));
   return col;
@@ -193,9 +245,10 @@ void main() {
   int k = cell.x % 4, id = cell.y * MU_W + cell.x / 4;
   float rate = clamp(u_params[1], 0., 2.);
   if (id == 0) {
-    uint c = u_reset ? 0u : muWord(texelFetch(u_state, ivec2(0), 0));
+    uint c = u_reset ? 0u : muWord(texelFetch(u_state, ivec2(k,0), 0));
     if (k == 0) c += uint(u_dt * rate * (4294967296. / MU_P) + .5);
-    outColor = k == 0 ? muBytes(c) : vec4(0.);
+    if (k == 1) c += uint(u_dt * rate * u_params[3] * (4294967296. / 240.) + .5);
+    outColor = k < 2 ? muBytes(c) : vec4(0.);
     return;
   }
   uint key = muKey(), clock = muClock(), uid = uint(id);
@@ -203,10 +256,8 @@ void main() {
   Bird b;
   if (u_reset) {
     vec3 A = muAnchor(clock);
-    float z = muRnd(key, uid, 0u) * 2. - 1., az = MU_TAU * muRnd(key, uid, 1u), r = 5.5 * pow(muRnd(key, uid, 2u), 1. / 3.);
-    float s = sqrt(1. - z * z);
-    b.p = A + vec3(r * s * cos(az), r * z * .5, r * s * sin(az));
-    b.v = normalize(vec3(-sin(az), 0., cos(az))) * 1.2;
+    b.p = A + muCloud(float(id%MU_W)/float(MU_W),float(id/MU_W)/float(MU_H),muRnd(key,uid,6u),clock);
+    b.v = vec3(1.2,0.,0.);
     b.T = 0.; b.bank = 0.;
   } else {
     b = muBird(id);
@@ -238,12 +289,10 @@ void main() {
     // A fixed per-bird offset hides the lattice's rows up close.
     vec3 jit = (vec3(muRnd(key, uid, 8u), muRnd(key, uid, 9u), muRnd(key, uid, 10u)) - .5) * .16;
     if (w.w > 0.) {
-      // Loose birds travel in small groups (8×8 lattice blocks) that share
-      // a heading, with a little individual scatter.
-      uint g = uint((y / 8) * (MU_W / 8) + x / 8) + 77777u;
-      float ph = MU_TAU * muCycle(clock, 7u + g % 5u) + MU_TAU * muRnd(key, g, 3u) + .35 * muRnd(key, uid, 3u);
-      vec3 wander = vec3(1.4 * cos(ph + muRnd(key, g, 4u) * MU_TAU), .8 * sin(1.7 * ph + MU_TAU * muRnd(key, g, 7u)), 1.4 * sin(ph + muRnd(key, g, 5u) * MU_TAU));
-      a += (wander - b.v) * .9 * w.w;
+      // Weak sheet-following leaves room to wander under the existing
+      // cruise/neighbor forces, without an unrelated per-group orbit field.
+      vec3 home = A + jit + muCloud(float(x)/float(MU_W),float(y)/float(MU_H),muRnd(key,uid,6u),clock);
+      a += ((home-b.p)*.8 - b.v*.35) * w.w;
     }
     float strike = clamp(u_params[4], 0., 2.) * (1. + 1.5 * u_rhythm.z);
     if (w.y > 0.) {
@@ -265,8 +314,8 @@ void main() {
       uint c1 = clock + ${Math.round((0.05 * 2 ** 32) / CLOCK_PERIOD)}u;
       vec3 s0 = A + jit + muSlot(u, v, h, clock, form);
       vec3 s1 = muAnchor(c1) + jit + muSlot(u, v, h, c1, form);
-      a += (s0 - b.p) * 3.4 * w.z;
-      a += ((s1 - s0) / .05 - b.v) * 2.2 * w.z;
+      a += (s0 - b.p) * 5.2 * w.z;
+      a += ((s1 - s0) / .05 - b.v) * 3.0 * w.z;
     }
     // Rhythm: a startle wave from a seeded point; a falcon strike.
     if (u_rhythmHit.y > 0.) {
@@ -328,7 +377,7 @@ uniform float u_kick, u_level;
 uniform vec3 u_primary, u_secondary, u_accent;
 ${common}
 ${view}
-out vec3 v_normal, v_view;
+out vec3 v_normal, v_view, v_sky;
 out float v_startle, v_density, v_kind, v_tip, v_depth, v_cover;
 out vec3 v_bary;
 void main() {
@@ -359,6 +408,9 @@ void main() {
     density = .8 / (1. + .08 * dot(fromHome, fromHome)) * reveal;
   }
   MuCam cam = muCamera(clock, dev);
+  // The background varies only on cloud scales, not feather scales. Evaluate
+  // its exact density at the bird centre once per vertex, never per fragment.
+  v_sky=muSky(normalize(p-cam.eye));
   vec3 fw = normalize(v + vec3(1e-4, 0., 0.));
   vec3 rt = normalize(cross(fw, vec3(0., 1., 0.)));
   vec3 up = cross(rt, fw);
@@ -380,7 +432,7 @@ void main() {
   // would be sub-pixel slivers that flicker in and out of pixels, so they
   // thicken to about 2 px and their light spreads over the larger footprint
   // (v_cover, a cheap coverage antialiasing).
-  float fat = clamp(9. * res / 1080. / (px * grow), 1., 3.);
+  float fat = clamp(7.5 * res / 1080. / (px * grow), 1., 2.5);
   if (gl_VertexID % 12 < 6) local.z *= fat;
   else local.x = -.05 + (local.x + .05) * fat;
   v_cover = 1. / (grow * fat);
@@ -398,7 +450,11 @@ void main() {
   vec2 heading = vec2(dot(fw, cam.right), dot(fw, cam.up));
   heading = dot(heading, heading) > 1e-6 ? normalize(heading) : vec2(1., 0.);
   vec2 across = vec2(-heading.y, heading.x);
-  vec2 plane = heading * local.x + across * local.z * (1. + .03 * flap);
+  // Even the distant LOD retains the banking compression. A startle wave
+  // sweeps a dark/light density edge rather than lighting a band of dots.
+  float wingArea=.32+.68*abs(cos(bank));
+  vec2 plane = heading * (local.x + local.z*.18*sin(bank))
+    + across * local.z * wingArea * (1. + .12 * flap);
   vec3 offset = mix(fw * local.x + nrm * local.y + side * local.z,
     cam.right * plane.x + cam.up * plane.y, lod);
   vec3 world = p + offset * span * scale;
@@ -419,7 +475,7 @@ void main() {
 const surface = `#version 300 es
 precision highp float;
 precision highp int;
-in vec3 v_normal, v_view;
+in vec3 v_normal, v_view, v_sky;
 in float v_startle, v_density, v_kind, v_tip, v_depth, v_cover;
 in vec3 v_bary;
 uniform highp sampler2D u_state;
@@ -433,42 +489,21 @@ ${common}
 ${view}
 void main() {
   vec3 V = normalize(v_view), N = normalize(v_normal);
-  if (dot(N, V) < 0.) N = -N;
-  vec3 L = muSun();
-  float light = .85 + .55 * muWeights(clamp(u_params[0], 0., 2.)).z;
-  // Backlit feathers glow; banking wings catch the sun as iridescent glints.
-  // Birds high above still catch the set sun (alpenglow): a raised key.
-  vec3 K = normalize(L + vec3(0., .35, 0.));
-  // N faces the viewer: front-lit birds sparkle, backlit birds silhouette.
-  float detail = muSmooth(.3, .8, v_cover);
-  float key = mix(.28, max(0., dot(N, K)), detail);
-  float trans = mix(.10, pow(max(0., dot(-V, K)), 4.), detail);
-  // Sub-pixel birds lose the glints that would twinkle from frame to frame:
-  // sheen and fresnel fade to their mean, iridescence to its mid tone.
-  float spec = mix(.03, pow(max(0., dot(reflect(-K, N), V)), 18.), detail);
-  float fres = mix(.15, pow(1. - abs(dot(N, V)), 3.), detail);
-  vec3 irid = mix(mix(u_secondary, u_primary, .55), mix(u_secondary, u_primary, fract(.2 + .7 * dot(N, V) + .25 * v_tip)), detail);
-  vec3 warm = mix(u_primary, vec3(1.), .3);
-  vec3 col = u_secondary * .015;
-  col += warm * key * .9 * light;
-  // Sky fill from above keeps the flock legible facing away from the sun.
-  col += mix(u_secondary, irid, .5) * (.1 + .12 * mix(.35, max(0., N.y), detail)) * light;
-  col += irid * (.08 + 2. * spec + .3 * fres) * light;
-  col += warm * trans * .9 * light;
-  col += mix(u_primary, irid, .5) * .09 * v_density * light;
-  // Startle waves read as bright bands racing through the flock.
-  col += mix(warm, vec3(1.), .3) * .8 * muSmooth(.6, 1., v_startle) * light;
-  col += irid * (spec + .2) * u_rhythm.x * .6;
-  if (v_kind > .5) col = mix(u_accent, vec3(1.), .2) * (.5 + .9 * fres + spec);
-  // Aerial perspective: distance takes the sky's colour.
-  vec3 sky = muSky(-V);
-  col = mix(col, sky, 1. - exp(-v_depth * .032));
+  // Backlit starlings are nearly black. A turning wave changes the banking
+  // silhouette, with only a restrained feather rim, never a bright dot.
+  float turn=muSmooth(.55,1.,v_startle);
+  vec3 warm=mix(u_primary,vec3(1.),.32);
+  vec3 sky=v_sky;
+  float rim=pow(1.-abs(dot(N,V)),3.);
+  vec3 col=u_secondary*(.004+.008*rim)+warm*.018*turn*rim;
+  if(v_kind>.5) col+=u_accent*.045;
+  col=mix(col,sky,1.-exp(-v_depth*.003));
   // Coverage: a bird drawn larger than it is shows its light spread thinly,
   // and outer edges fade into the sky over about a pixel.
   float e = min(v_bary.x, min(v_bary.y, v_bary.z));
   float edge = clamp(e / max(fwidth(e), 1e-6) + .5, 0., 1.);
   // (Dense clouds have birds, not sky, behind those edges: fade only half.)
-  col = mix(sky, col, (.45 + .55 * v_cover) * mix(.5, 1., edge));
+  col = mix(sky, col, (.82 + .18 * v_cover) * edge);
   outColor = vec4(col, 1.);
 }
 `;
@@ -482,7 +517,43 @@ void main() {
   vec2 res = u_resolution / min(u_resolution.x, u_resolution.y);
   vec2 p = (v_uv * 2. - 1.) * res;
   vec3 dir = normalize(cam.fwd * cam.focal + cam.right * p.x + cam.up * p.y);
-  emit(vec4(muSky(dir), 1.));
+  vec3 col=muSky(dir);
+  // The lake repeats the dusk below a layered, wooded shoreline. Geographic
+  // azimuth and camera-relative reeds supply scale without extra geometry.
+  float e=dir.y;
+  float horizonAA=max(fwidth(e)*1.3,.0003);
+  if(e<.07) {
+    vec2 h=normalize(dir.xz+vec2(1e-5));
+    float az=atan(h.y,h.x);
+    float ridge=.003+.007*sin(az*3.)+.003*cos(az*7.);
+    float treeX=az*23., cell=floor(treeX), local=fract(treeX)-.5;
+    float rnd=fract(sin(cell*127.1)*43758.5453);
+    float crown=sqrt(max(0.,1.-4.*local*local));
+    float twig=.0015*sin(treeX*51.)+.001*sin(treeX*113.);
+    float trees=ridge+.003+(.005+.014*rnd)*crown+twig*crown;
+    float aa=horizonAA;
+    float land=1.-smoothstep(trees-aa,trees+aa,e);
+    vec3 reflected=muSky(normalize(vec3(dir.x,abs(e)*.7,dir.z)));
+    float ripple=.96+.04*sin(e*650.+sin(az*91.+e*220.)*3.);
+    vec3 lake=reflected*.18*ripple*exp(min(0.,e)*2.)+u_secondary*.006;
+    float shore=-.022+.007*sin(az*4.);
+    col=mix(col,u_secondary*.003,land);
+    col=mix(col,lake,1.-smoothstep(shore-aa,shore+aa,e));
+  }
+  if(p.y<-.65) {
+    float x=p.x*22.+cam.eye.x*.32;
+    float id=floor(x), local=fract(x)-.5;
+    float rnd=fract(sin(id*73.13)*43758.5453);
+    float tip=-1.04+.41*rnd*rnd;
+    float bend=(p.y+1.)*(p.y+1.)*2.*sin(id);
+    float stem=abs(local-bend);
+    float aa=22./min(u_resolution.x,u_resolution.y);
+    float reed=(1.-smoothstep(.018,.018+aa,stem))*(1.-smoothstep(tip-.02,tip,p.y));
+    float head=exp(-pow((p.y-tip+.025)/.035,2.)-pow(stem/.055,2.));
+    float leaf=exp(-pow((p.y-tip+.16)/.11,2.)-pow((local-bend+(p.y-tip+.13)*2.)/.035,2.));
+    col=mix(col,u_secondary*.002,clamp(reed+head+leaf,0.,1.));
+  }
+  emit(vec4(col, 1.));
 }
 `;
 
@@ -495,13 +566,48 @@ const schema = [
     step: 0.01,
     default: 0,
   },
-  { key: "speed", label: "Motion speed", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "formation", label: "Formation · vortex / ribbon / twister", min: 0, max: 3, step: 0.01, default: 0 },
-  { key: "cycle", label: "Formation cycle", min: 0, max: 1, step: 0.01, default: 0.5 },
+  {
+    key: "speed",
+    label: "Motion speed",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "formation",
+    label: "Formation · vortex / ribbon / twister",
+    min: 0,
+    max: 3,
+    step: 0.01,
+    default: 0,
+  },
+  {
+    key: "cycle",
+    label: "Formation cycle",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.5,
+  },
   { key: "falcon", label: "Falcon", min: 0, max: 1.6, step: 0.01, default: 1 },
   { key: "fold", label: "Folding", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "distance", label: "Camera distance", min: 0.7, max: 1.4, step: 0.01, default: 1 },
-  { key: "height", label: "Camera height", min: 0, max: 1, step: 0.01, default: 0.12 },
+  {
+    key: "distance",
+    label: "Camera distance",
+    min: 0.7,
+    max: 1.4,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "height",
+    label: "Camera height",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.12,
+  },
 ];
 
 const look = (name, seed, development, overrides = {}) => ({
@@ -539,18 +645,61 @@ export default {
   ],
   stage: ["speed", "falcon", "formation"],
   type: { key: "development", values: [0, 1, 2] },
-  energy: { speed: { mul: [0.65, 1.45] }, falcon: { mul: [0.6, 1.4] }, fold: { mul: [0.75, 1.25] } },
+  energy: {
+    speed: { mul: [0.65, 1.45] },
+    falcon: { mul: [0.6, 1.4] },
+    fold: { mul: [0.75, 1.25] },
+  },
   beat: { punch: 0.05, pulse: 0.08 },
   audio: [
     { param: "falcon", feature: "onset", amount: 0.06 },
     { param: "fold", feature: "low", amount: 0.05 },
   ],
   rhythm: [
-    familyEffect("sun-glint", 0, "Sun glint", "The flock's wings catch the low sun together.", { period: 4, strength: 0.55, duration: 1 }),
-    familyEffect("startle-wave", 1, "Startle wave", "A startle runs across the flock from neighbour to neighbour.", { period: 8, strength: 0.7, duration: 1 }),
-    familyEffect("falcon-strike", 2, "Falcon strike", "The falcon strikes; the birds around it scatter and startle.", { period: 16, strength: 0.7, duration: 2 }),
+    familyEffect(
+      "sun-glint",
+      0,
+      "Sun glint",
+      "The flock's wings catch the low sun together.",
+      { period: 4, strength: 0.55, duration: 1 },
+    ),
+    familyEffect(
+      "startle-wave",
+      1,
+      "Startle wave",
+      "A startle runs across the flock from neighbour to neighbour.",
+      { period: 8, strength: 0.7, duration: 1 },
+    ),
+    familyEffect(
+      "falcon-strike",
+      2,
+      "Falcon strike",
+      "The falcon strikes; the birds around it scatter and startle.",
+      { period: 16, strength: 0.7, duration: 2 },
+    ),
   ],
   fragment,
+  precompute: {
+    size: [512, 129],
+    filter: "linear",
+    fragment: `${common}\n${view}\nvoid main() {
+    if(gl_FragCoord.y<1.) {
+      MuCam cam=muCamera(muClock(),clamp(u_params[0],0.,2.));
+      int x=int(gl_FragCoord.x);
+      outColor=x==0?vec4(cam.eye,0.):x==1?vec4(cam.right,0.):x==2?vec4(cam.up,0.):x==3?vec4(cam.fwd,0.):x==5?vec4(muSun(),0.):vec4(cam.focal,cam.dive,0.,0.);
+      return;
+    }
+    float az=gl_FragCoord.x/512.*4., e=(gl_FragCoord.y-1.)/128.;
+    vec2 h=az<1.?vec2(1.-az,az):az<2.?vec2(1.-az,2.-az):az<3.?vec2(az-3.,2.-az):vec2(az-3.,az-4.);
+    h=normalize(h);
+    outColor=vec4(muCloudExact(vec3(h.x,e,h.y)),muRidges(h));
+  }`,
+  },
   simulation: { fragment: simulation, size: [4 * W, H], steps: 1 },
-  geometry: { create: createGeometry, attributes: ATTRIBUTES, vertex, fragment: surface },
+  geometry: {
+    create: createGeometry,
+    attributes: ATTRIBUTES,
+    vertex,
+    fragment: surface,
+  },
 };
