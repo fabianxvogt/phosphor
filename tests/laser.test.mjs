@@ -123,6 +123,25 @@ test("source pins the exact Gaussian/Beer integral, with no volume march", () =>
   );
 });
 
+test("vector hierarchy and directional opaque-face lighting remain palette-only and bounded", () => {
+  assert.match(laser.fragment, /float faceKey = edgeDistance\.z < edgeDistance\.x \? 0\.45 : 1\.0;/);
+  assert.match(laser.fragment, /0\.35 \+ 0\.65 \* smoothstep\(-towerSize\.y, towerSize\.y, towerP\.y\)/);
+  assert.match(laser.fragment, /float fog = exp\(-depth \* 0\.032\);/);
+  assert.match(laser.fragment, /major \* fog \* mix\(0\.35, 0\.85, gFold\)/);
+  assert.match(laser.fragment, /core \* 0\.58 \+ volume \* haze \* phase \* 0\.27/);
+  // Shading is bounded independently of energy and retains black at depth.
+  for (let h = -1; h <= 1; h += 0.01) {
+    const gradient = 0.35 + 0.65 * smooth(-1, 1, h);
+    for (const face of [0.45, 1]) {
+      const wash = 0.085 * face * gradient;
+      assert.ok(wash >= 0 && wash <= 0.085);
+      assert.ok(wash * Math.exp(-120 * 0.025) < 0.005);
+    }
+  }
+  assert.equal(laser.precompute.size[0], 32);
+  assert.equal(laser.precompute.size[1], 41, "no extra geometry/data work for the relight");
+});
+
 test("erf approximation is odd, monotone and agrees with its numeric definition", () => {
   const numericErf = (x) => {
     const n = 4000,
@@ -477,7 +496,7 @@ test("surface-end clipping stops rays at the same hinged material, in either dir
   assert.match(laser.fragment, /0\.65 \* u_kick \* gFold/);
   assert.match(
     laser.fragment,
-    /core \* 0\.65/,
+    /core \* 0\.58/,
     "HDR core power is not a master-gain envelope",
   );
 });

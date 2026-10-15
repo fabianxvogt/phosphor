@@ -252,14 +252,14 @@ void main() {
   float seamDistance = min(abs(abs(gridUV.x) - 9.0), abs(abs(gridUV.x) - 20.0));
   float seamAA = max(footprint.x * gSpace, 0.001);
   float seam = 1.0 - smoothstep(seamAA * 0.55, seamAA * 1.65, seamDistance);
-  float fog = exp(-depth * 0.026);
+  float fog = exp(-depth * 0.032);
   float outerFade = mix(1.0 - smoothstep(26.5, 29.85, abs(gridUV.x)), 1.0, gFold);
   fog *= outerFade;
   vec3 col = mix(u_secondary, u_primary, 0.15) * (0.0015 + 0.035 * exp(-sq((gRay.y + 0.015) / 0.065)));
   if (depth < 129.0) {
-    col += mix(u_secondary, u_primary, 0.13) * grid * fog * key * 0.32;
-    col += mix(u_primary, u_secondary, 0.3) * major * fog * mix(0.18, 0.46, gFold);
-    col += u_primary * seam * fog * gRise * 0.42;
+    col += mix(u_secondary, u_primary, 0.13) * grid * fog * key * 0.24;
+    col += mix(u_primary, u_secondary, 0.3) * major * fog * mix(0.35, 0.85, gFold);
+    col += u_primary * seam * fog * gRise * 0.7;
     col += u_secondary * 0.009 * fog * key;
   }
   // Towers retain (side, bay, height seed) throughout. They rotate with the
@@ -301,8 +301,13 @@ void main() {
     float uprights = max(lgLine(towerP.x / 0.9, edgeAA.x / 0.9) * edge.z,
                          lgLine(towerP.z, edgeAA.z) * edge.x);
     depth = towerDepth;
-    col = u_secondary * 0.004 + mix(u_secondary, u_primary, 0.68) *
-      (corners * 1.15 + levels * occupied * 0.85 + uprights * 0.18) * exp(-depth * 0.025) * towerLight;
+    // The opaque faces need a low, directional wash behind the vector
+    // skeleton. Otherwise foreground towers look like transparent boxes.
+    float faceKey = edgeDistance.z < edgeDistance.x ? 0.45 : 1.0;
+    float faceGradient = 0.35 + 0.65 * smoothstep(-towerSize.y, towerSize.y, towerP.y);
+    col = mix(u_secondary, u_primary, 0.18) * 0.085 * faceKey * faceGradient * exp(-depth * 0.025);
+    col += mix(u_secondary, u_primary, 0.68) *
+      (corners * 1.35 + levels * occupied * 0.7 + uprights * 0.16) * exp(-depth * 0.025) * towerLight;
     col += u_secondary * 0.012 * towerLight * exp(-depth * 0.018);
   }
 
@@ -334,7 +339,7 @@ void main() {
     float cosine = dot(axis.xyz, -gRay);
     float phaseBase = inversesqrt(1.09 - 0.6 * cosine);
     float phase = 0.91 * phaseBase * phaseBase * phaseBase;
-    col += ink * weight * (core * 0.65 + volume * haze * phase * 0.16);
+    col += ink * weight * (core * 0.58 + volume * haze * phase * 0.27);
     // Opaque-surface scattering: the beam leaves a hot, AA impact dot.
     float along = clamp(dot(surface - a, axis.xyz), 0.0, axis.w);
     vec3 off = surface - a - axis.xyz * along;
@@ -354,7 +359,7 @@ void main() {
   float sheetWidth = 1.0 - smoothstep(0.25, 0.8, abs(sheetP.x) / max(-sheetP.z, 0.1));
   float sheetRipples = 0.8 + 0.2 * sin(sheetP.z * 0.45 + 1.8 * sin(sheetP.x * 0.38 + gPhase));
   if (sheetT > 0.0 && sheetT < depth)
-    col += mix(u_secondary, u_primary, 0.32) * sheetSpan * sheetWidth * sheetRipples * haze * mix(0.045, 0.24, gFold) * exp(-sheetT * 0.012) / max(abs(sheetDenom), 0.16);
+    col += mix(u_secondary, u_primary, 0.32) * sheetSpan * sheetWidth * sheetRipples * haze * mix(0.13, 0.24, gFold) * exp(-sheetT * 0.012) / max(abs(sheetDenom), 0.16);
   // A widening hollow cone reads as the classic laser tunnel in haze.
   vec3 coneV = gEye - vec3(0, 5.7, 55);
   float coneSlope = 0.19 + 0.025 * sin(gPhase * 2.0);
@@ -376,7 +381,7 @@ void main() {
     float farT = min(depth, exitT);
     farT = min(farT, (53.0 - gEye.z) / max(gRay.z, 0.01));
     float fill = max(0.0, exp(-nearT * 0.018) - exp(-farT * 0.018));
-    col += mix(u_secondary, u_primary, 0.25) * fill * gFold * haze * 0.11;
+    col += mix(u_secondary, u_primary, 0.25) * fill * gFold * haze * 0.17;
     for (int side = 0; side < 2; ++side) {
       float t = (-coneB + (side == 0 ? -root : root)) / coneA;
       if (t <= 0.0 || t >= depth) continue;
@@ -388,7 +393,7 @@ void main() {
       // like a scan tunnel in real haze, rather than a flat starburst.
       float rings = exp(-sq((p.z + 36.0 + 4.0 * sin(gPhase)) / 1.15));
       rings += 0.55 * exp(-sq((p.z + 20.0 + 3.0 * sin(gPhase * 2.0)) / 0.95));
-      col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * coneEdge * (0.065 + 0.3 * rings + 0.02 * sin(p.z * 0.45 + p.x * 0.4 + gPhase)) * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
+      col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * coneEdge * (0.09 + 0.44 * rings + 0.02 * sin(p.z * 0.45 + p.x * 0.4 + gPhase)) * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
     }
   }
   // Two finite scan fronts reveal the cone mouth at projector scale.
@@ -402,7 +407,7 @@ void main() {
     float width = max(0.045, gPixel * t * 0.8);
     if (t <= 0.0 || t >= depth || abs(off) > width * 20.0) continue;
     float front = exp(-sq(off / width)) + 0.12 * exp(-sq(off / (width * 5.0)));
-    col += mix(u_primary, u_secondary, 0.38) * front * gFold * haze * exp(-t * 0.014) * mix(1.5, 0.9, float(ring));
+    col += mix(u_primary, u_secondary, 0.38) * front * gFold * haze * exp(-t * 0.014) * mix(2.2, 1.3, float(ring));
   }
   // A sparse travelling grid rib, not a whole-frame beat flash.
   float rib = exp(-sq((gridUV.y - (52.0 - 58.0 * u_rhythm.z)) / 0.65));
