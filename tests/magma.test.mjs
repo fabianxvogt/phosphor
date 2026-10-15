@@ -191,7 +191,7 @@ test("plate identity never depends on development; only seams, lava and sinking 
 const launch = (hx, hy, force, big = true) => {
   const k = Math.sqrt(Math.max(force, 0.05));
   return big
-    ? { vy: mix(8.5, 11, hx) * k, vh: mix(0.9, 2.1, hy) * k }
+    ? { vy: mix(8.5, 11, hx) * k, vh: mix(1.8, 2.8, hy) * k }
     : { vy: mix(5.5, 9.5, hx) * k, vh: mix(0.1, 1.1, hy) * k };
 };
 const flight = (vy) => (vy + Math.sqrt(vy * vy + 2 * GRAVITY * 0.35)) / GRAVITY;
@@ -208,7 +208,7 @@ test("shader keeps the mirrored ballistic ejecta", () => {
     "return p0 + v0 * tt + vec3(0.0, -0.5 * G_ACC * tt * tt, 0.0);",
     "float kf = sqrt(max(gForce, 0.05));",
     "float vy = (big ? mix(8.5, 11.0, hb.x) : mix(5.5, 9.5, hb.x)) * kf;",
-    "float vh = (big ? mix(0.9, 2.1, hb.y) : mix(0.1, 1.1, hb.y)) * kf;",
+    "float vh = (big ? mix(1.8, 2.8, hb.y) : mix(0.1, 1.1, hb.y)) * kf;",
     "tf = (vy + sqrt(vy * vy + 2.0 * G_ACC * 0.35)) / G_ACC;",
     "tt = tau * CYCLE;",
     "return on > 0.0 && tt < tf;",
@@ -256,12 +256,12 @@ test("ejecta follow exact parabolas and land before their next launch", () => {
     // launch mid-air; the landing stays well inside the camera orbit.
     assert.ok(tf < CYCLE_SECONDS, `flight ${tf}`);
     // Peak camera radius is at least 12.8 · 0.95 = 12.16.
-    assert.ok(vh * tf + 0.25 < 12.16 - 0.8, `landing radius ${vh * tf}`);
+    assert.ok(vh * tf + 0.25 < (12.8 + 12 * Math.max(force - 1, 0)) * 0.95 - 0.8, `landing radius ${vh * tf}`);
   }
   // Worst case over the whole hash and force range.
   const { vy, vh } = launch(1, 1, 1.5);
   assert.ok(flight(vy) < CYCLE_SECONDS);
-  assert.ok(vh * flight(vy) + 0.25 < 11.36);
+  assert.ok(vh * flight(vy) + 0.25 < 18.8 * 0.95 - 0.8);
 });
 
 test("the bound surface is above every slab and lava level", () => {
@@ -281,7 +281,7 @@ test("a bomb's trail lies inside its precomputed bounding sphere", () => {
   for (const [hx, hy, big] of [[0.3, 0.8, true], [1, 1, true], [0.5, 0.1, false]]) {
     const { vy, vh } = launch(hx, hy, 1.5, big);
     const v0 = [vh, vy, 0.3 * vh];
-    const span = 3 * (big ? 0.22 : 0.1);
+    const span = 3 * (big ? 0.42 : 0.1);
     for (let tt = 0; tt < flight(vy); tt += 0.05) {
       const h0 = bomb(p0, v0, tt),
         tail = bomb(p0, v0, Math.max(tt - span, 0));
@@ -293,6 +293,55 @@ test("a bomb's trail lies inside its precomputed bounding sphere", () => {
       }
     }
   }
+});
+
+test("curved tails find both sides of the apex, not one Newton basin", () => {
+  const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+  const sub = (a, b) => a.map((x, i) => x - b[i]);
+  const mul = (a, x) => a.map((v) => v * x);
+  const clamp = (x) => Math.min(1, Math.max(0, x));
+  const closest = (ro, rd, p0, v0, lo, hi) => {
+    const span = hi - lo, perp = (x) => sub(x, mul(rd, dot(x, rd)));
+    const a = perp([0, -0.5 * GRAVITY * span ** 2, 0]);
+    const b = perp(mul([v0[0], v0[1] - GRAVITY * lo, v0[2]], span));
+    const c = perp(sub(bomb(p0, v0, lo), ro)), aa = 2 * dot(a, a);
+    let roots;
+    if (aa < 1e-8) roots = [-dot(b, c) / Math.max(dot(b, b), 1e-8)];
+    else {
+      const B = 3 * dot(a, b) / aa, C = (dot(b, b) + 2 * dot(a, c)) / aa, D = dot(b, c) / aa;
+      const p = C - B * B / 3, q = 2 * B ** 3 / 27 - B * C / 3 + D;
+      const disc = q * q / 4 + p ** 3 / 27;
+      if (disc >= 0) roots = [Math.cbrt(-q / 2 + Math.sqrt(disc)) + Math.cbrt(-q / 2 - Math.sqrt(disc)) - B / 3];
+      else {
+        const radius = 2 * Math.sqrt(-p / 3);
+        const angle = Math.acos(Math.max(-1, Math.min(1, 1.5 * q / p * Math.sqrt(-3 / p)))) / 3;
+        roots = [0, 1, 2].map((k) => radius * Math.cos(angle - k * 2 * Math.PI / 3) - B / 3);
+      }
+    }
+    return Math.min(...[0, 1, ...roots].map((v) => {
+      const q = sub(bomb(p0, v0, lo + span * clamp(v)), ro);
+      return Math.hypot(...perp(q));
+    }));
+  };
+  for (let i = 0; i < 160; i++) {
+    const theta = i * 2.39996, vy = 8.5 + 2.5 * (i % 11) / 10, vh = 1.8 + (i % 7) / 6;
+    const v = [vh * Math.cos(theta), vy, vh * Math.sin(theta)], p0 = [0, 0.7, 0];
+    const hi = 0.15 + 2.9 * (i % 31) / 30, lo = Math.max(hi - 1.26, 0);
+    const ro = [13 * Math.cos(i * 0.71), 5, 13 * Math.sin(i * 0.71)];
+    const target = bomb(p0, v, lo + (hi - lo) * (i % 17) / 16);
+    target[0] += 0.05 * Math.sin(i); target[1] += 0.05 * Math.cos(i);
+    const ray = sub(target, ro), rd = mul(ray, 1 / Math.hypot(...ray));
+    let numeric = Infinity;
+    for (let k = 0; k <= 4000; k++) {
+      const q = sub(bomb(p0, v, lo + (hi - lo) * k / 4000), ro);
+      numeric = Math.min(numeric, Math.hypot(...sub(q, mul(rd, dot(q, rd)))));
+    }
+    assert.ok(Math.abs(closest(ro, rd, p0, v, lo, hi) - numeric) < 0.002, `arc ${i}`);
+  }
+  assert.match(src, /float aa = 2\.0 \* dot\(a, a\)/);
+  assert.match(src, /float p = C - B \* B \/ 3\.0/);
+  assert.match(src, /angle - 2\.0 \* TAU \/ 3\.0/);
+  assert.match(src, /float dd = dot\(e, e\)/);
 });
 
 // ------------------------------------------------------------- camera
@@ -404,17 +453,21 @@ test("plate hash tile addresses are exact and contain every terrain site", () =>
   assert.match(src, /all\(greaterThanEqual\(c, vec2\(-64\.0\)\)\) && all\(lessThan\(c, vec2\(64\.0\)\)\)/);
 });
 
-test("curtain bound contains every compact-support jet, including its AA width", () => {
+test("dense column has a turbulent liquid edge and a conservatively bounded soft halo", () => {
   const maxBillow = 0.5 + 0.28 * (1 + 0.6 + 0.3);
-  const maxWidth = 0.4 * (0.8 + 0.4 * maxBillow);
-  assert.ok(maxWidth < 0.50);
-  assert.match(src, /float maxSig = max\(0\.50, gPix \* cs\.y \* 1\.5\)/);
-  assert.match(src, /float wcol = \(0\.4 - 0\.24 \* clamp\(hy, 0\.0, 1\.0\)\) \* \(0\.8 \+ 0\.4 \* billow\)/);
-  assert.ok(3.3 + 4 * maxWidth < 7.2);
+  const maxWidth = 1.05 * (0.55 + 0.85 * maxBillow) * 1.13;
+  assert.ok(maxWidth < 1.7 && 2.5 < 7.2);
+  assert.match(src, /float width = \(1\.05 - 0\.38 \* hy\) \* \(0\.55 \+ 0\.85 \* billow\)/);
+  assert.match(src, /smoothstep\(width - aa, width \+ aa, cs\.x\)/);
+  assert.match(src, /mrHeat\(1\.68 - 0\.1 \* hy\) \* core/);
+  assert.match(src, /1\.0 - smoothstep\(2\.1, 2\.5, cs\.x\)/);
   assert.match(src, /max\(7\.2, 3\.3 \+ 6\.0 \* gPix \* 80\.0\)/);
-  assert.match(src, /cs\.x >= 4\.0 \* maxSig/);
-  assert.match(src, /1\.0 - smoothstep\(3\.4 \* sig, 4\.0 \* sig, cs\.x\)/);
-  assert.match(src, /dir\.x \* 3\.3, h, dir\.y \* 3\.3/);
+  assert.doesNotMatch(src, /j < 7/);
+  // Maximum radial plume extent includes the drifting axis and is inside
+  // the ray-cylinder bound; no new samples or march/population caps.
+  assert.ok(1.3 + 0.5 * 12.75 + Math.hypot(0.16, 0.07) * 12.75 + 0.36 < 10.5);
+  assert.match(src, /const int PLUME_STEPS = 10/);
+  assert.match(src, /const int MARCH_CAP = 110/);
 });
 
 test("rising ash is smooth and periodic at the 64-cycle clock boundary", () => {
