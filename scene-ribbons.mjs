@@ -181,12 +181,13 @@ void main() {
   float dist = u_params[7] * mix(mix(3., 2.9, mid), 2.45, peak) * (1. + .1 * peak * sin(2. * yaw + drift));
   float pitch = clamp(.12 + .2 * mid + (u_params[6] - .35) + (.1 + .12 * peak) * sin(drift), -.4, 1.3);
   vec3 eye = dist * vec3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw));
-  vec3 target = vec3(.15 * peak * sin(1.3 * yaw + .5), -.14 * (1. - mid) - .15 * peak + .08 * peak * sin(drift), .15 * peak * cos(1.3 * yaw + .5));
+  vec3 target = vec3(.15 * peak * sin(1.3 * yaw + .5), -.14 * (1. - mid) - .04 * peak + .08 * peak * sin(drift), .15 * peak * cos(1.3 * yaw + .5));
   float roll = .09 * peak * sin(1.7 * drift + 1.);
   vec3 fwd = normalize(target - eye);
   vec3 right = normalize(cross(fwd, vec3(sin(roll), cos(roll), 0.)));
   vec3 up = cross(right, fwd);
-  float focal = mix(mix(2.1, 1.75, mid), 1.5, peak) * (1. + .022 * u_kick);
+  float focal = mix(mix(2.1, 1.75, mid), 1.72, peak) * (1. + .022 * u_kick);
+  focal *= mix(.88, 1., smoothstep(.7, 1.2, u_resolution.x / u_resolution.y));
   float minSide = min(u_resolution.x, u_resolution.y);
 
   // A camera-facing band, shaded as a tube (see the surface pass).
@@ -195,7 +196,10 @@ void main() {
   vec3 W = cross(T, toCam);
   W = length(W) > 1e-6 ? normalize(W) : right;
   float head = 1. - smoothstep(0., .035, s);
-  float width = .015 * u_params[4] * (1. - .12 * peak) * mix(1., .3, s) * (1. - .75 * head * head) * presence * p0.w;
+  // A few broad foreground trajectories against many fine tracers give
+  // scale without changing seeded ranks, population or integration.
+  float weight = mix(.6, 1.65, pow(1. - a_rank, 2.));
+  float width = .018 * u_params[4] * (1. + .18 * peak) * weight * mix(1., .3, s) * (1. - .75 * head * head) * presence * p0.w;
   width *= smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, depth);
   float minWidth = 1.2 * depth / (focal * .5 * minSide);
   v_cover = clamp(width / minWidth, 0., 1.);
@@ -208,7 +212,9 @@ void main() {
                      (view.z * (far + near) + 2. * far * near) / (near - far), -view.z);
   // Ribbons on one surface (Aizawa's sphere) get a stable order, not z-fighting.
   gl_Position.z += a_rank * 2e-4 * gl_Position.w;
-  v_side = vec3(dot(W, right), dot(W, up), -dot(W, fwd)) * side;
+  // Keep W unsigned: v_across supplies the sign exactly once. Multiplying
+  // both here and in the surface folded both halves onto the same normal.
+  v_side = vec3(dot(W, right), dot(W, up), -dot(W, fwd));
   vec3 c = normalize(toCam);
   v_toCam = vec3(dot(c, right), dot(c, up), -dot(c, fwd));
   v_across = side;
@@ -252,11 +258,11 @@ void main() {
   vec3 base = v_color;
   // Tails fade into the dark; heads carry the light.
   float life = pow(1. - v_s, 1.1);
-  vec3 color = base * (.1 + 1.15 * diffuse + .3 * wrap) * (.42 + .58 * life);
+  vec3 color = base * (.06 + 1.2 * diffuse + .22 * wrap) * (.35 + .65 * life);
   // A little self-light: ribbons are light, not paint.
   color += base * .22 * life;
   color += mix(mix(u_secondary, vec3(1.), .35), u_accent, .2) * fresnel * .45 * life;
-  color += mix(base, vec3(1.), .6) * spec * .5 * life;
+  color += mix(base, vec3(1.), .6) * spec * .9 * life;
   // Flowing light: pulses run from tail to head along every ribbon.
   float pulse = rbUnpack24(texelFetch(u_state, ivec2(3, ${RIBBONS * 6}), 0));
   float wave = pow(.5 + .5 * cos(TAU * (v_s * (2. + 4. * u_params[5]) + pulse * 3. + v_rank * 7.)), 18.);
