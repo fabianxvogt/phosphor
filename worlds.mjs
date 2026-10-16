@@ -307,7 +307,7 @@ const AUTHORED = [
     id: "ink-bloom",
     name: "Ink Bloom",
     description:
-      "A falling drop rolls into a descending vortex ring, branches into colliding plumes and fills a backlit tank with marbled ink clouds.",
+      "A falling drop rolls into a vortex ring whose Widnall lobes pinch off into a crown of daughter rings, each shedding silk bells in a dark tank.",
     states: [
       { name: "Drop", look: "ink:Drop" },
       { name: "Plumes", look: "ink:Plumes" },
@@ -353,11 +353,24 @@ const withoutParams = (w) => ({
   ...w,
   states: w.states.map(({ params, ...state }) => state),
 });
+// Ink Bloom before the 2026-10-16 dark-tank rework (same ids and looks).
+const INK_BLOOM_BACKLIT = {
+  id: "ink-bloom",
+  name: "Ink Bloom",
+  description:
+    "A falling drop rolls into a descending vortex ring, branches into colliding plumes and fills a backlit tank with marbled ink clouds.",
+  states: [
+    { name: "Drop", look: "ink:Drop" },
+    { name: "Plumes", look: "ink:Plumes" },
+    { name: "Nebula", look: "ink:Nebula" },
+  ],
+};
 const HISTORY = [
   MYCELIUM_ACID,
   withoutParams(MYCELIUM_ACID),
   GARDEN_EVOLUTION,
   withoutParams(GARDEN_EVOLUTION),
+  INK_BLOOM_BACKLIT,
 ];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const untouched = (w) =>
