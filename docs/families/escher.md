@@ -1,68 +1,74 @@
 # Impossible Stairs · Unmögliche Treppen (#110)
 
-World `impossible-stairs`, family `escher`, development 0–2. Round 3 preserves all eight look names, seeds, schema keys, three state definitions and existing rhythm IDs. No engine, flash-limiter or preview changes.
+World `impossible-stairs`, family `escher`, development 0–2. Round 4 retains all eight look names/seeds, schema keys, three state definitions and four rhythm IDs. No engine, flash-limiter, preview or saved-world-definition changes.
 
 ## Mathematics and persistent identity
 
-The 48-tread **Penrose covering space** rises locally by 0.045 per tread, gaining 2.16 units per circuit. A plan point `(x,z)` lifts to `(x+0.6h,h,z+h)`. Successive sheets differ along the privileged direction `(0.6,1,1)` and close exactly under orthographic projection. Small cyclic camera excursions introduce bounded parallax without exposing the projective join. This is not a claim of a globally Euclidean ascending loop.
+The 48-tread **Penrose covering space** rises locally by 0.045 per tread, gaining 2.16 units per circuit. A plan point `(x,z)` lifts to `(x+0.6h,h,z+h)`. Successive sheets differ along the privileged direction `(0.6,1,1)` and close exactly under orthographic projection. Small cyclic camera excursions introduce bounded parallax without exposing the projective join. This is not a globally Euclidean ascending loop.
 
-Two additional twelve-tread flights rotate continuously into perpendicular gravity frames; identities never reseed on development or reversal. The analytic visibility path uses ray/box slabs with conservative projected tread/pier candidates. Exhaustive CPU comparison covers 26,076 rays at camera and fader extrema. Shadows use exact boxes; two AO samples retain contact detail. The surrounding two-depth courtyard uses planes and cylinders, open arches, real 0.24-unit soffits/jambs, columns and a dark grouted floor.
+The two additional twelve-tread flights now **grow from actual outer-loop landings**, IDs 30 and 6. Their first tread remains exactly fixed to that landing at every development value; subsequent treads scale by `0.65*smoothstep(0,1,development)` and rotate into perpendicular gravities. The same forward/inverse frame transforms position analytic hits, normals, AO, shadows, walkers and signature lanterns. This replaces detached intermediate strips and keeps both complete flights within the principal Relativity composition. Outer Penrose identity is unchanged.
 
-Infinity uses the **scale-three / thirty-degree Droste quotient**. For `w=ln(r)/ln(3)+phase`, radius becomes `exp(fract(w)*ln(3))` and angle becomes `angle−π/6*(w−phase)`. Thus `F(3 R(π/6)p)=F(p)`. Whole-cell turns include the authored twist and integrated camera phase. This deforms rays, not two rendered images. A slow `exp(0.14 sin(cameraPhase))` dolly is cyclic, not an unbounded flight. Unresolved recursions converge to dark atmosphere.
+Visibility remains analytic ray/box slabs with conservative projected tread/pier candidates. Exhaustive CPU comparison covers 26,076 rays at camera and fader extrema. Shadows use exact boxes and two AO samples retain contact detail. A back-facing key-light region skips the shadow search, since its directional irradiance is already zero. No ray marcher, new texture, reduced-resolution colour cache or output cap is introduced.
+
+Infinity uses the **scale-three / thirty-degree Droste quotient**. For `w=ln(r)/ln(3)+phase`, radius becomes `exp(fract(w)*ln(3))` and angle becomes `angle−π/6*(w−phase)`. Thus `F(3 R(π/6)p)=F(p)`. Whole-cell turns include authored twist and integrated camera phase. This deforms rays, not rendered-image crossfades. The cyclic `exp(0.14 sin(cameraPhase))` dolly remains unchanged. Recursive depth now controls continuous contrast attenuation and the effective detail footprint: distant repeats become dimmer and softer; unresolved levels converge to dark atmosphere.
 
 ## States and looks
 
-| Development | EN / DE                  | Composition                                                         |
-| ----------- | ------------------------ | ------------------------------------------------------------------- |
-| 0           | Stair / Treppe           | One impossible loop in a midnight arcaded courtyard.                |
-| 1           | Relativity / Relativität | Persistent side flights grow and turn into three gravities.         |
-| 2           | Infinity / Unendlichkeit | The same stairs and architecture curl into an architectural vortex. |
+| Development | EN / DE                  | Composition                                                        |
+| ----------- | ------------------------ | ------------------------------------------------------------------ |
+| 0           | Stair / Treppe           | One impossible loop in a midnight masonry courtyard.               |
+| 1           | Relativity / Relativität | Landing-rooted flights unfold into three gravities.                |
+| 2           | Infinity / Unendlichkeit | The same stairs and enclosing arcade curl into a recursive atrium. |
 
-State presets share seed 11001 and identical non-development parameters. Extra looks remain **Chalk Procession**, **Three Gravities**, **Ivory Labyrinth**, **Endless Atrium**, **Night Loggia**.
+State presets retain seed 11001 and identical non-development parameters. Extra looks remain **Chalk Procession**, **Three Gravities**, **Ivory Labyrinth**, **Endless Atrium**, **Night Loggia**. Names and saved state/look references did not change.
 
-## Round-3 lighting and energy grammar
+## Masonry, light and energy
 
-The baseline's white/olive CAD rendering is replaced by secondary-palette-tinted pale plaster, coloured fill, darker enclosing masonry and distance atmosphere. Static world-space material modulation never changes grain per frame. Recessed door lights establish inhabited scale; tread-edge lantern insets and physical lantern heads provide small HDR accents. Light widths use the output pixel footprint. No new image texture, low-resolution colour cache, geometry rebuild or rendering cap is used.
+The r3 review identified flat lavender CAD blocks and unreadable dark arch bands. Round 4 uses palette-tinted limestone, restrained 0.007-unit bevel normals, broad bounced key illumination, stationary interpolated mineral variation, footprint-filtered fine grain, worn tread-centre gradients, darker rear joints and subtle pier courses. Analytic silhouettes remain exact boxes; the bevel is a shading treatment, not rounded intersection geometry.
 
-Energy changes procession speed, the smoothly appearing walker cohorts, and the population of door/tread lights, not plaster brightness. Geometry and readable architectural coverage remain present at 0.1. Primary/accent/secondary are always library palette colours; glacier, ember and acid-yellow were checked. Kick framing remains bounded at 1.8%.
+The enclosing two-depth courtyard now has **two storeys of real open arches**, each with cylindrical soffits and straight jambs of 0.24-unit depth. Directionally selected voussoir rims, carved seams and sparse door sconces reveal the mass of the arcade. Apertures are actual missing masonry, not painted black decals. The dark grouted floor is not lifted to reveal the walls.
+
+All colour derives from primary/secondary/accent mixed with black/white. Pink in the authored film belongs to inhabited detail and local events, not every edge. Glacier, ember and acid-yellow remain legible. Energy changes procession speed and smoothly appearing walker/door/tread populations, not the stone's base brightness. Kick framing remains bounded at 1.8%.
 
 ## Four authored rhythm gestures
 
-- Slot 0 **tread-procession**: a stronger local light packet climbs persistent addresses. Structural addressing stays at at most two hits/bar.
-- Slot 1 **gravity-light**: stronger directional face illumination reveals stair orientation, not the whole frame.
-- Slot 2 **recursive-lantern**: walking lantern heads and bodies breathe together with more visible range.
-- Slot 3 **lantern-ascent / Lantern ascent / Laternenaufstieg**: each scheduled count advances the leading lantern **three actual treads**. Its head, inset lantern panels and decaying surface-light wake repeat in each gravity and recursion. Reads `u_rhythm.w`, `u_rhythmHit.w` and `u_rhythmCount.w`; muted tracks contribute no signature emission. Only one extra analytic head per gravity is retained after profiling.
+- Slot 0 **tread-procession**: broad count-addressed tread packet, reduced relative to slot 3 so pale tiles no longer compete with the leading lantern.
+- Slot 1 **gravity-light**: directional face illumination reveals orientation.
+- Slot 2 **recursive-lantern**: walking lantern heads/bodies breathe through recursive levels.
+- Slot 3 **lantern-ascent / Lantern ascent / Laternenaufstieg**: every scheduled count advances **three actual treads**. A larger rectangular luminous lantern window, dark cap and surface-reaching stem lead a short exponentially fading riser wake (`exp(-behind*0.72)`). The outer-loop head also casts normal-dependent local spill across adjacent tread, pier and courtyard material boundaries. Smaller gravity flights have their own heads and surface wakes. Hot patches remain local and are distinct from the broader slot-0 packet.
 
-The signature's one-based active steps are: restrained 1/12/23/29 at division 2; driving 1/3/5/7/9/12/14/16 at division 2; accented 1/4/7/9/13/19/21/23/26/29/31 at division 4. The four-bar restrained loop gives isolated arrivals; the eight-beat driving loop climbs steadily; the accented two-bar figure adds offbeat flourishes.
+The signature reads `u_rhythm.w`, `u_rhythmHit.w` and `u_rhythmCount.w`; muted tracks contribute no signature light. One leading analytic head per gravity is retained. This is discrete counted advancement, not a claim of a simulated lantern walking smoothly between all three addresses.
 
-| Style      | Preset         | All four family tracks, hits/bar |
-| ---------- | -------------- | -------------------------------: |
-| restrained | Empty landings |                              3.3 |
-| driving    | Lantern steps  |                              8.4 |
-| accented   | Endless ascent |                             14.0 |
+One-based signature steps: restrained **1/12/23/29**, division 2; driving **1/3/5/7/9/12/14/16**, division 2; accented **1/4/7/9/13/19/21/23/26/29/31**, division 4. All placement, duration and strength metadata is preserved from r3.
 
-These are family-only densities, not inflated by the shared global tracks. All four gestures have independent restrained/driving/accented loops. Events stay local; no full-screen white and no changes to the shared limiter.
+| Style      | Preset         | Family-track hits/bar |
+| ---------- | -------------- | --------------------: |
+| restrained | Empty landings |                   3.3 |
+| driving    | Lantern steps  |                   8.4 |
+| accented   | Endless ascent |                  14.0 |
 
-The integrated procession clock has period 48; ×3 walkers and ×5 packets complete integer laps. Camera period is 2π and all uses respect that wrap. Late/rate-change variants retain the original clock contract for twelve-hour operation.
+Unequal loops, syncopation and fills remain intact. No full-screen white or live-limiter changes. Deterministic film captures do not establish venue photosensitivity compliance.
 
-## Native verification and measured cost
+## Endlessness and verification
 
-Apple M3 Pro / Chrome ANGLE Metal. Synchronous full-resolution throughput including post, not a display-cadence qualification. Ports 48840–48843 only. Profiling scripts accept `--families escher` (not the brief's singular `--family`).
+The integrated procession clock has period 48; ×3 walkers and ×5 packets complete integer laps. Camera period is 2π and all uses respect that wrap. Late/rate-change variants preserve the twelve-hour clock contract.
 
-| State      | 1080p p50 / p95 ms | 4K p50 / p95 ms | ABBA p50 delta 1080p / 4K vs main |
-| ---------- | -----------------: | --------------: | --------------------------------: |
-| Stair      |          3.0 / 3.2 |     11.0 / 11.5 |                      0.0% / +4.9% |
-| Relativity |          4.1 / 4.3 |     17.3 / 17.7 |                      0.0% / +4.2% |
-| Infinity   |          4.6 / 5.2 |     17.8 / 18.2 |                     +2.3% / +5.4% |
+Native limiter-on `scripts/verify-escher.mjs --rig --port 48842 --out artifacts/escher-verification-r4` passed 34 cases: all eight looks at energy 0.1/0.5/0.9, three palettes, portrait states and 43,200 s. Six forward/backward development comparisons returned byte-identically; zero GL/non-finite errors. This is bounded health evidence, not venue qualification.
 
-1080p meets the 8 ms budget. Standalone 4K Relativity/Infinity miss 16 ms during fleet contention; interleaved final 4K p50 values were 10.8/14.9/15.7 ms. Do not claim an unconditional 4K pass. The pair tool exits 1 for the +5.4% Infinity regression against its 5% relative threshold. No GL errors, non-finite uploads or black frames were observed.
+Tests cover persistent identity, exact cover/Droste mathematics, projected candidate visibility, landing-rooted growth over 201 development values, clock continuity, preset validity, slot 3 and density targets. Full `npm test`: **1017 passed, 22 opt-in skipped, zero failures**. Typecheck, build, DE/EN native-browser i18n and touched-file Prettier checks pass. World-rhythm and pipeline-flash gates pass.
 
-`npm test`: 986 passed, 21 opt-in skipped, zero failures. Typecheck, build, DE/EN native-browser i18n and touched-file formatting pass. The first i18n attempt lacked dist, then the software-GPU stage timed out; build plus `--native-gpu` passed both languages. Family tests cover slot 3, signature timing and all density targets, in addition to unchanged mathematics, presets and continuity. World-rhythm and pipeline-flash tests pass.
+## Native cost and evidence
 
-`scripts/verify-escher.mjs --rig --port 48842` keeps the live limiter enabled: 34 cases cover all eight looks at 0.1/0.5/0.9, three palettes, portrait states and 43,200 s. Six forward/backward development comparisons are byte-identical on return; zero GL/non-finite errors. This is bounded health evidence, not venue photosensitivity certification.
+Apple M3 Pro / Chrome ANGLE Metal, synchronous full-resolution throughput including post, not display cadence. Final standalone measurements:
 
-## Evidence and remaining limits
+| State      | 1080p p50 / p95 ms | 4K p50 / p95 ms | ABBA p50 delta vs main: 1080p / 4K |
+| ---------- | -----------------: | --------------: | ---------------------------------: |
+| Stair      |          3.2 / 3.3 |     11.6 / 12.3 |                      +6.2% / +3.9% |
+| Relativity |          4.1 / 4.2 |     17.8 / 18.7 |                     +2.4% / +11.1% |
+| Infinity   |          4.6 / 4.7 |     19.2 / 20.0 |                       0.0% / +6.5% |
 
-Worktree-relative canonical evidence: `artifacts/look-review/impossible-stairs-r3/` contains the 30-second MP4, 12-still sheet, 24-frame rhythm sheet and `grids.md`. Before and three intermediate film rounds were inspected. Additional palette, reversal and Night Loggia films are in `artifacts/look-review/escher-{validation,reversal,extra}/`; native stills and health JSON in `artifacts/escher-verification/`; profiles in `artifacts/performance/escher-final-*`; test logs in `artifacts/verification/`.
+1080p passes 8 ms. **4K Relativity/Infinity miss 16 ms**, including interleaved final p50 17.0/17.9 ms. The pair tool's 5% regression gate also fails for the noted rows; contention does not justify claiming a pass. Arithmetic-only mineral hashing, cheaper fine grain, zero-irradiance shadow rejection and one cross-material point light recovered much of the initial r4 cost.
 
-Self-assessed look **6.5/10**, not an independent pass claim. Improved contrast, cool materials and visible local rhythm do not eliminate the regular block/CAD character. Relativity remains a staged sculpture, not an interconnected inhabited building. Lantern heads are tiny at review-sheet scale; the surface-light wake is more legible. Infinity still has finite annular joins and the 12-hour camera phase can produce a compressed composition. No claim of reaching L≥8.
+Canonical evidence: `artifacts/look-review/impossible-stairs-r4/` contains film, 12-still sheet, 24-frame rhythm sheet, grids and large Stair/growth/Infinity stills. Four intermediate capture directories (`impossible-stairs-r4-round1` through `round4`) plus the optimized final fifth round were inspected as sheets and individual stills. Test logs: `artifacts/verification/escher-r4-*`; final profiles: `artifacts/performance/escher-r4-final*`.
+
+Self-assessment: **L7.5**, not an independent pass claim. The material/architecture hierarchy and lantern event are clearer, but the repeated slab vocabulary remains deliberately regular; portrait has less stair coverage and late camera phases can compress the vortex. Live timing and 4K cost remain limitations.

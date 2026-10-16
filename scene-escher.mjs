@@ -146,7 +146,17 @@ const fragment = `${lateClockGlsl}
 float gDev, gRel, gInf, gPhase, gCamera, gWidth, gDepth, gPixel;
 vec3 gDirection;
 mat2 gGravity;
-float gHalfHeight;
+float gHalfHeight, gFlightScale;
+float esGrain(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  vec4 x = fract(vec4(i.x, i.x + 1.0, i.x, i.x + 1.0) * 0.1031);
+  vec4 y = fract(vec4(i.y, i.y, i.y + 1.0, i.y + 1.0) * 0.1031);
+  vec4 z = x;
+  vec4 d = x * (y + 33.33) + y * (z + 33.33) + z * (x + 33.33);
+  vec4 h = fract((x + y + 2.0 * d) * (z + d));
+  return mix(mix(h.x, h.y, f.x), mix(h.z, h.w, f.x), f.y);
+}
 // Conservative Chebyshev box distance: the exact same zero set, no square
 // root in the hot loop. A lower bound remains safe for sphere tracing.
 float esBox(vec3 p, vec3 b) { vec3 q = abs(p) - b; return max(q.x, max(q.y, q.z)); }
@@ -232,10 +242,19 @@ vec2 esRing(vec3 p) {
 vec3 esFlightCentre(float id) {
   return vec3((id - 5.5) * 0.25, (id - 5.5) * 0.13, 0.0);
 }
+// Fixed outer-loop landings are the hinges, never detached assembly parts.
+vec3 esLanding(float frame) { return esCentre(frame < 1.5 ? 30.0 : 6.0); }
 vec3 esFrame(vec3 p, float frame) {
-  if (frame < 1.5) { p -= vec3(-1.45, 0.0, -0.8) * gRel; p.xy = gGravity * p.xy; }
-  else { p -= vec3(1.2, 0.55, -1.3) * gRel; p.yz = transpose(gGravity) * p.yz; }
-  return p / max(gRel, 0.001);
+  p -= esLanding(frame);
+  if (frame < 1.5) p.xy = gGravity * p.xy;
+  else p.yz = transpose(gGravity) * p.yz;
+  return p / max(gFlightScale, 0.001) + esFlightCentre(0.0);
+}
+vec3 esWorld(vec3 p, float frame) {
+  p = (p - esFlightCentre(0.0)) * gFlightScale;
+  if (frame < 1.5) p.xy = transpose(gGravity) * p.xy;
+  else p.yz = gGravity * p.yz;
+  return p + esLanding(frame);
 }
 vec2 esStraight(vec3 p) {
   float id = clamp(floor(p.x * 4.0 + 6.0), 0.0, 11.0);
@@ -249,7 +268,7 @@ vec2 esMap(vec3 p) {
   if (gRel > 0.001) {
     for (int frame = 1; frame <= 2; ++frame) {
       vec2 a = esStraight(esFrame(p, float(frame)));
-      a.x *= gRel; a.y += float(frame) * 48.0;
+      a.x *= gFlightScale; a.y += float(frame) * 48.0;
       if (a.x < best.x) best = a;
     }
   }
@@ -258,13 +277,13 @@ vec2 esMap(vec3 p) {
 vec3 esNormal(vec3 p, float t, float material) {
   bool pier = material >= 144.0;
   float id = mod(material, 48.0), frame = floor(mod(material, 144.0) / 48.0);
-  float sc = frame < 0.5 ? 1.0 : gRel * 0.78;
+  float sc = frame < 0.5 ? 1.0 : gFlightScale;
   if (frame > 0.5) {
     vec3 q = esFrame(p, frame);
     vec3 b = id > 30.0 ? vec3(1.55, 0.075, 0.31 * gWidth) : vec3(0.128, 0.15, 0.29 * gWidth);
     if (id > 30.0) q.y = (q.y - 0.52 * q.x + 0.24) / 1.127;
     else q -= esFlightCentre(id) - vec3(0.0, 0.15, 0.0);
-    vec3 n = normalize(sign(q) * exp(clamp((abs(q) - b) / 0.002, -60.0, 0.0)));
+    vec3 n = normalize(sign(q) * exp(clamp((abs(q) - b) / 0.007, -60.0, 0.0)));
     if (id > 30.0) n = normalize(vec3(n.x - 0.52 * n.y, n.y, n.z));
     if (frame < 1.5) n.xy = transpose(gGravity) * n.xy;
     else n.yz = gGravity * n.yz;
@@ -275,7 +294,7 @@ vec3 esNormal(vec3 p, float t, float material) {
   if (odd) q.xz = q.zx;
   vec3 b = pier ? vec3(0.065, 0.55 * gDepth, 0.19 * gWidth) : vec3(0.139, 0.17, 0.24 * gWidth);
   q.y += b.y;
-  float e = max(0.002, t * gPixel * 0.3) / sc;
+  float e = max(0.007, t * gPixel * 0.3) / sc;
   vec3 n = normalize(sign(q) * exp(clamp((abs(q) - b) / e, -60.0, 0.0)));
   if (odd) n.xz = n.zx;
   if (frame > 0.5 && frame < 1.5) n.xy = rot2(-1.57079632679 * gRel) * n.xy;
@@ -384,17 +403,18 @@ vec4 esHall(vec3 ro, vec3 rd) {
       float h = p.y + 2.15;
       float across = wall == 0 ? p.x : p.z;
       float bay = mod(across + 0.8, 1.6) - 0.8;
-      bool opening = abs(bay) < 0.51 && (h < 1.35 || length(vec2(bay, h - 1.35)) < 0.51);
-      if (h > 2.8 && h < 3.04) opening = false;
+      float storey = floor(h / 2.7), localH = h - storey * 2.7;
+      bool opening = abs(bay) < 0.51 && (localH < 1.35 || length(vec2(bay, localH - 1.35)) < 0.51);
+      if (localH > 2.48) opening = false;
       if (h >= 0.0 && h < 5.4 && abs(across) < 8.0 && !opening && t > 0.0 && t < hit.x)
         hit = vec4(t, wall == 0 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0));
       // Inner cylindrical soffit and straight jambs give each arch 0.24 m
       // of visible masonry depth, including proper silhouette occlusion.
       float centre = across - bay;
-      vec2 o = vec2((wall == 0 ? ro.x : ro.z) - centre, ro.y + 0.8);
+      vec2 o = vec2((wall == 0 ? ro.x : ro.z) - centre, ro.y + 0.8 - storey * 2.7);
       vec2 d2 = vec2(wall == 0 ? rd.x : rd.z, rd.y);
       float aa = dot(d2, d2), bb = dot(o, d2), disc = bb * bb - aa * (dot(o, o) - 0.2601);
-      if (disc > 0.0) {
+      if (disc > 0.0 && storey >= 0.0 && storey < 2.0 && abs(centre) < 8.0) {
         float at = (-bb + sqrt(disc)) / aa;
         vec3 q = ro + rd * at;
         float depth = (wall == 0 ? q.z : q.x) - plane;
@@ -408,7 +428,7 @@ vec4 esHall(vec3 ro, vec3 rd) {
         float at = (centre + float(jamb) * 0.51 - (wall == 0 ? ro.x : ro.z)) / (wall == 0 ? rd.x : rd.z);
         vec3 q = ro + rd * at;
         float depth = (wall == 0 ? q.z : q.x) - plane;
-        if (q.y > -2.15 && q.y < -0.8 && depth > -0.24 && depth < 0.0 && at > 0.0 && at < hit.x)
+        if (storey >= 0.0 && storey < 2.0 && abs(centre) < 8.0 && q.y > -2.15 + storey * 2.7 && q.y < -0.8 + storey * 2.7 && depth > -0.24 && depth < 0.0 && at > 0.0 && at < hit.x)
           hit = vec4(at, wall == 0 ? vec3(-float(jamb), 0.0, 0.0) : vec3(0.0, 0.0, -float(jamb)));
       }
     }
@@ -432,18 +452,39 @@ vec4 esHall(vec3 ro, vec3 rd) {
 vec3 esPlaster(vec3 p, vec3 n, vec3 rd, float shadow, float ao, float t) {
   vec3 key = normalize(vec3(-0.45, 1.0, 0.65));
   float diffuse = max(dot(n, key), 0.0);
-  vec3 ivory = mix(u_secondary, vec3(1.0), 0.56);
-  float stone = 0.94 + 0.04 * sin(p.x * 37.0 + p.z * 19.0) * sin(p.y * 29.0);
-  vec3 col = ivory * (0.035 + 1.06 * diffuse * shadow) * ao * stone;
-  col += u_secondary * 0.30 * max(dot(n, normalize(vec3(1.0, 0.2, -0.5))), 0.0) * ao;
-  col += u_primary * pow(1.0 - abs(dot(n, rd)), 4.0) * 0.09;
+  vec3 ivory = mix(u_secondary, vec3(1.0), 0.52);
+  vec2 stoneUV = abs(n.y) > 0.5 ? p.xz : abs(n.x) > 0.5 ? p.zy : p.xy;
+  float broad = esGrain(stoneUV * 14.0);
+  float grain = sin(stoneUV.x * 73.0 + stoneUV.y * 41.0) * sin(stoneUV.y * 67.0 - stoneUV.x * 29.0) * 0.5 + 0.5;
+  float stone = 0.73 + 0.30 * broad + 0.09 * (grain - 0.5) * exp(-gPixel * t * 150.0);
+  // Broad bounced key and bevel normals, not chalk faces and black shadows.
+  vec3 col = ivory * (0.075 + 0.92 * diffuse * mix(0.25, 1.0, shadow)) * ao * stone;
+  col += u_secondary * 0.18 * max(dot(n, normalize(vec3(1.0, 0.4, -0.5))), 0.0) * ao;
+  col += mix(u_secondary, vec3(1.0), 0.35) * pow(1.0 - abs(dot(n, rd)), 4.0) * 0.055;
   col += u_primary * 0.12 * exp(-length(p - vec3(-2.2, -1.8, -2.5)) * 0.65);
   col += u_secondary * 0.12 * exp(-length(p - vec3(2.0, -1.8, 0.0)) * 0.7);
+  // The leading lantern is a point light as well as a visible object. Its
+  // spill crosses tread/material boundaries and lights adjacent jambs.
+  // Outer-loop source crosses material boundaries; the smaller gravity
+  // flights use their own compact surface wakes below, avoiding three
+  // expensive point-light evaluations on every distant wall fragment.
+  if (u_rhythm.w > 0.001) {
+    float head = mod(u_rhythmCount.w * 3.0, 48.0);
+    vec3 source = esCentre(head);
+    source.y += 0.20;
+    if (mod(floor(head / 12.0), 2.0) > 0.5) source.x += 0.12 * gWidth;
+    else source.z += 0.12 * gWidth;
+    vec3 delta = source - p;
+    float r2 = dot(delta, delta);
+    float spill = max(0.0, 1.0 - r2 / 0.9) / (0.10 + r2);
+    col += mix(u_primary, u_accent, 0.85) * u_rhythm.w * spill * 0.22 * (0.12 + 0.88 * max(dot(n, delta * inversesqrt(max(r2, 0.00001))), 0.0)) * ao;
+  }
   return mix(col, u_secondary * 0.012, 1.0 - exp(-max(0.0, t - 6.0) * 0.075));
 }
 void main() {
   gDev = clamp(u_params[0], 0.0, 2.0);
   gRel = smoothstep(0.0, 1.0, gDev);
+  gFlightScale = gRel * 0.65;
   gInf = smoothstep(1.0, 2.0, gDev);
 #ifdef PHOSPHOR_LATE
   gPhase = u_clock[0]; gCamera = u_clock[1];
@@ -457,17 +498,20 @@ void main() {
   vec2 uv = aspectUV() / min(u_resolution.x / u_resolution.y, 1.0);
   uv *= exp(gInf * 0.14 * sin(gCamera));
   vec2 screen = uv;
+  float recursiveDepth = 0.0;
   // A continuous ray-space deformation; no rendered-image crossfade.
   if (gInf > 0.001) {
     float r = max(length(uv), 0.00001);
     float cell = min(0.0, floor(log(r / 0.3) / 1.0986122886681098));
     if (cell < 0.0) {
+      recursiveDepth = max(0.0, -log(r / 0.3) / 1.0986122886681098) * gInf;
       vec2 recursive = esDroste(uv / 0.3, 0.0) * 0.3;
       recursive = rot2(cell * (u_params[7] * 1.0471975511965976 - 0.5235987755982988 + gCamera)) * recursive;
       screen = mix(uv, recursive, gInf);
     }
     screen = rot2(gInf * u_params[7] * 0.8 * log(max(length(screen), 0.025) / 0.3)) * screen;
   }
+  gPixel *= mix(1.0, pow(3.0, recursiveDepth), gInf);
   gDirection = normalize(vec3(0.6, 1.0, 1.0));
   vec3 direction = normalize(gDirection + vec3(0.012 * sin(gCamera) + 0.009 * u_params[2], 0.0, -0.008 * sin(gCamera)));
   vec3 fw = -direction, right = normalize(cross(fw, vec3(0.0, 1.0, 0.0))), up = cross(right, fw);
@@ -496,15 +540,19 @@ void main() {
       col *= (0.12 + 0.055 * (1.0 - grout));
       col += u_secondary * 0.08 * exp(-dot(p.xz, p.xz) * 0.12);
     } else {
-      float h = p.y + 2.15, bay = mod((n.z > 0.5 ? p.x : p.z) + 0.8, 1.6) - 0.8;
+      float h = mod(p.y + 2.15, 2.7), bay = mod((n.z > 0.5 ? p.x : p.z) + 0.8, 1.6) - 0.8;
       float radius = length(vec2(bay, h - 1.35));
       float arch = abs(radius - 0.58);
       float band = (1.0 - smoothstep(0.07, 0.09, arch)) * step(1.35, h);
       float angle = atan(bay, max(0.001, h - 1.35));
       float seam = 1.0 - smoothstep(0.015, 0.035, abs(fract(angle * 4.0) - 0.5));
       col *= 0.92 + 0.17 * band - 0.24 * band * seam;
+      float grazing = 0.25 + 0.75 * max(0.0, cos(angle - 0.65));
+      float rim = exp(-sq((radius - 0.55) / 0.065)) * step(1.35, h);
+      col += mix(u_secondary, vec3(1.0), 0.18) * rim * grazing * (0.15 - 0.07 * seam);
+      col += u_secondary * 0.04 * exp(-sq((h - 1.8) / 1.3)) * (0.5 + 0.5 * cos(bay * 3.0));
       // Restrained string courses and carved stone joints, resolution-safe.
-      float course = exp(-sq((h - 2.9) / 0.055));
+      float course = exp(-sq((h - 2.55) / 0.055));
       col *= 1.0 - 0.32 * course;
       // Recessed door lanterns are sparse scale cues, not glowing outlines.
       float sconce = length(vec2(abs(bay) - 0.65, h - 0.96));
@@ -521,7 +569,9 @@ void main() {
   if (hit) {
     vec3 p = ro + rd * t, n = esNormal(p, t, field.y);
     vec3 key = normalize(vec3(-0.45, 1.0, 0.65));
-    float shadow = esShadow(p + n * 0.008, key);
+    // Directional visibility cannot affect a face whose key irradiance is
+    // zero; skip the exhaustive box search on those coherent face regions.
+    float shadow = dot(n, key) > 0.0 ? esShadow(p + n * 0.008, key) : 1.0;
     float ao = 1.0;
     for (int i = 1; i <= 2; ++i) {
       float d = 0.06 * float(i);
@@ -531,7 +581,7 @@ void main() {
     col = esPlaster(p, n, rd, shadow, ao, t);
     float tread = mod(field.y, 48.0);
     float packet = exp(-sq((tread - mod(gPhase * 5.0 + u_rhythmCount.x * 3.0, 48.0)) / 2.1));
-    col += u_primary * packet * u_rhythm.x * 1.8 * max(n.y, 0.0);
+    col += u_primary * packet * u_rhythm.x * 0.55 * max(n.y, 0.0);
     col += u_secondary * u_rhythm.y * 0.65 * pow(max(0.0, dot(n, -rd)), 3.0);
     // Counted lanterns climb actual tread addresses, including both gravity
     // flights. No time-driven impostor pulse and no development-locked event.
@@ -539,22 +589,32 @@ void main() {
     float span = frame < 0.5 ? 48.0 : 12.0;
     float head = mod(u_rhythmCount.w * 3.0 + frame * 4.0, span);
     float behind = mod(head - tread + span, span);
-    float ascent = exp(-behind * 0.48) * u_rhythm.w;
+    float ascent = exp(-behind * 0.72) * u_rhythm.w;
     vec3 local = frame < 0.5 ? p - esCentre(tread) : esFrame(p, frame) - esFlightCentre(tread);
     if (frame < 0.5 && mod(floor(tread / 12.0), 2.0) > 0.5) local.xz = local.zx;
     float inset = 1.0 - smoothstep(0.10, 0.125, abs(local.x));
     float lamp = exp(-sq((abs(local.z) - 0.19 * gWidth) / 0.035)) * inset;
+    // Worn upper slab and recessed joints, with compact riser spill.
+    float contact = smoothstep(-0.13, -0.08, local.x);
+    float wear = 0.87 + 0.13 * exp(-sq(local.z / max(0.01, 0.21 * gWidth)));
+    col *= mix(0.62, wear, contact);
+    float riser = exp(-sq((local.y + 0.07) / 0.12));
+    float spill = exp(-sq((local.z - 0.12 * gWidth) / 0.17)) * (0.28 + 0.72 * riser);
     float enabled = field.y < 144.0 && tread < (frame < 0.5 ? 48.0 : 12.0) ? 1.0 : 0.0;
     float permanent = smoothstep(0.86 - 0.40 * u_level, 0.91 - 0.40 * u_level, fract(tread * 0.381966)) * 0.32;
     vec3 fire = mix(u_primary, u_accent, 0.85);
-    col += fire * enabled * (lamp * (permanent + ascent * 4.2) + ascent * 0.24);
+    col += fire * enabled * (lamp * permanent + ascent * (spill * 0.9 + lamp * 0.4));
+    if (field.y >= 144.0) {
+      float joint = 1.0 - smoothstep(0.018, 0.05, abs(fract(local.y * 6.0) - 0.5));
+      col *= 1.0 - 0.18 * joint;
+    }
     col += fire * enabled * lamp * min(u_rhythmHit.w, 1.0) * 0.08;
     col *= exp(-max(0.0, t - 7.0) * 0.055);
   }
   // Small persistent lights walk the lifted stair chart under each gravity.
   for (int frame = 0; frame < 3; ++frame) {
     if (frame > 0 && gRel < 0.001) break;
-    float sc = frame == 0 ? 1.0 : gRel;
+    float sc = frame == 0 ? 1.0 : gFlightScale;
     for (int i = 0; i < 4; ++i) {
       float id = float(i) * (frame == 0 ? 12.0 : 5.5) + float(u_seedBits % 11u) * 0.31 + gPhase * 3.0;
       float at = mod(id, 48.0), lo = floor(at);
@@ -563,8 +623,9 @@ void main() {
       vec3 c = frame == 0 ? mix(esCentre(lo), esCentre(mod(lo + 1.0, 48.0)), fract(at)) : esFlightCentre(flightAt);
       c.y += 0.24;
       vec3 gravity = vec3(0.0, 1.0, 0.0);
-      if (frame == 1) { c.xy = rot2(-1.57079632679 * gRel) * c.xy; gravity.xy = rot2(-1.57079632679 * gRel) * gravity.xy; c *= sc; c += vec3(-1.45, 0.0, -0.8) * gRel; }
-      if (frame == 2) { c.yz = rot2(1.57079632679 * gRel) * c.yz; gravity.yz = rot2(1.57079632679 * gRel) * gravity.yz; c *= sc; c += vec3(1.2, 0.55, -1.3) * gRel; }
+      if (frame > 0) c = esWorld(c, float(frame));
+      if (frame == 1) gravity.xy = transpose(gGravity) * gravity.xy;
+      if (frame == 2) gravity.yz = gGravity * gravity.yz;
       vec3 delta = c - ro;
       float along = dot(delta, rd), dist = length(delta - along * rd);
       if (dist > 0.24 * sc) continue;
@@ -587,36 +648,46 @@ void main() {
   // Keep only the leading head analytic: the four-tread tail is shaded above.
   if (u_rhythm.w > 0.001) for (int frame = 0; frame < 3; ++frame) {
     if (frame > 0 && gRel < 0.001) break;
-    float sc = frame == 0 ? 1.0 : gRel;
+    float sc = frame == 0 ? 1.0 : gFlightScale;
     float span = frame == 0 ? 48.0 : 12.0;
     float head = mod(u_rhythmCount.w * 3.0 + float(frame) * 4.0, span);
     {
       float id = head;
       vec3 c = frame == 0 ? esCentre(id) : esFlightCentre(id);
-      c.y += 0.11;
+      c.y += 0.20;
+      if (frame == 0 && mod(floor(id / 12.0), 2.0) > 0.5) c.x += 0.12 * gWidth;
+      else c.z += 0.12 * gWidth;
       vec3 gravity = vec3(0.0, 1.0, 0.0);
-      if (frame == 1) { c.xy = rot2(-1.57079632679 * gRel) * c.xy; gravity.xy = rot2(-1.57079632679 * gRel) * gravity.xy; c *= sc; c += vec3(-1.45, 0.0, -0.8) * gRel; }
-      if (frame == 2) { c.yz = rot2(1.57079632679 * gRel) * c.yz; gravity.yz = rot2(1.57079632679 * gRel) * gravity.yz; c *= sc; c += vec3(1.2, 0.55, -1.3) * gRel; }
+      if (frame > 0) c = esWorld(c, float(frame));
+      if (frame == 1) gravity.xy = transpose(gGravity) * gravity.xy;
+      if (frame == 2) gravity.yz = gGravity * gravity.yz;
       vec3 delta = c - ro;
       float along = dot(delta, rd);
       vec3 projected = delta - along * rd;
       float dist = length(projected);
-      if (dist > 0.20 * sc || along > t + 0.025) continue;
+      if (dist > 0.32 * sc || along > t + 0.025) continue;
       float aa = gPixel * framing * 1.5;
-      float core = 1.0 - smoothstep(0.025 * sc, 0.025 * sc + aa, dist);
-      float halo = exp(-sq(dist / max(0.001, 0.075 * sc)));
-      vec3 stem = -gravity * 0.09 * sc;
+      vec3 upright = gravity - rd * dot(gravity, rd);
+      upright /= max(length(upright), 0.001);
+      float vertical = dot(projected, upright);
+      float horizontal = length(projected - upright * vertical);
+      float window = max(horizontal / max(sc, 0.001) - 0.035, abs(vertical) / max(sc, 0.001) - 0.052);
+      float core = 1.0 - smoothstep(0.0, aa / max(sc, 0.001), window);
+      float roof = 1.0 - smoothstep(0.0, aa / max(sc, 0.001), max(horizontal / max(sc, 0.001) - 0.055, abs(vertical / max(sc, 0.001) - 0.07) - 0.012));
+      col *= 1.0 - roof * 0.75;
+      float halo = exp(-sq(dist / max(0.001, 0.12 * sc)));
+      vec3 stem = -gravity * 0.19 * sc;
       stem -= rd * dot(stem, rd);
       float at = clamp(-dot(projected, stem) / max(dot(stem, stem), 0.000001), 0.0, 1.0);
       float body = 1.0 - smoothstep(0.007 * sc, 0.007 * sc + aa, length(projected + stem * at));
       float flame = u_rhythm.w;
-      col += mix(u_accent, u_primary, 0.12) * flame * (core * 4.0 + halo * 0.65 + body * 1.2);
+      col += mix(u_primary, u_accent, 0.85) * flame * (core * 7.0 + halo * 1.4 + body * 0.8);
     }
   }
   // The infinitely small levels converge below the pixel footprint, rather
   // than aliasing into a bright moving pinhole at the logarithmic centre.
   float resolved = mix(1.0, smoothstep(gPixel * 1.5, gPixel * 4.0, length(uv)), gInf);
-  col = mix(u_secondary * 0.015, col, resolved);
+  col = mix(u_secondary * 0.008, col * exp(-recursiveDepth * 0.36), resolved);
   col *= 1.0 - 0.15 * smoothstep(0.4, 1.4, length(uv));
   outColor = vec4(max(col, vec3(0.0)), 1.0);
 }
