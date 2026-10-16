@@ -44,6 +44,8 @@ const v3 = (a) => `vec3(${a.map(f).join(", ")})`;
 const SLICES = [8 * (WEB_GRID[0] + 2), (WEB_GRID[1] / 8) * (WEB_GRID[2] + 2)];
 // Atlas: web slices | disk map to their right; the remnant direction map
 // reuses the slice region while the web is not shown.
+// Filament line sprites per web edge (dormant rows not used by motes).
+const PER = 150;
 const ATLAS = [SLICES[0] + DISK_MAP, Math.max(SLICES[1], DISK_MAP, OCTA)];
 const common = `
 const float NB_TAU = 6.283185307179586;
@@ -329,7 +331,57 @@ void main() {
     // Near-field motes: wisps and stars around the camera's orbit give
     // parallax against the distant form. Eight points form one wisp.
     uint m = id - ${ABSORBERS}u;
-    if ((m & 7u) != 0u) return;
+    if ((m & 7u) != 0u) {
+      // Filament web: the other dormant rows are soft line sprites along
+      // each Bézier edge (core + gas sheath), spaced closer than their size.
+      float p = nbSmooth(0., 1., dev);
+      float fade = 1. - nbSmooth(.35, 1., p);
+      if (fade <= 0.) return;
+      int f = int(m - (m >> 3) - 1u);
+      int e = f / ${PER}, k = f - e * ${PER};
+      vec3 P;
+      float I, w, along = 0., len = 1.;
+      if (e < ${EDGES}) {
+        vec3 E[4];
+        if (!nbEdgeEval(key, e, p, E)) return;
+        along = (float(k) + .5) / ${PER}.;
+        float r1 = 1. - along;
+        P = r1 * r1 * r1 * E[0] + 3. * r1 * r1 * along * E[1] + 3. * r1 * along * along * E[2] + along * along * along * E[3];
+        len = length(E[1] - E[0]) + length(E[2] - E[1]) + length(E[3] - E[2]);
+        float loops = nbSmooth(.15, .6, level);
+        I = ((e & 1) == 1 ? .55 * loops : 1.) * (.35 + .65 * nbRnd(key, uint(e), 935u));
+        w = ((e & 1) == 1 ? .009 : .014) * (.55 + .6 * along) * (.75 + .5 * sin(along * len * 6. + float(e) * 1.7) * sin(along * len * 2.3 + float(e)));
+        // Pulses run along the filament into its node.
+        float pulse = .3 + .7 * nbSq(.5 + .5 * sin(NB_TAU * (along * len * 1.3 - 2. * nbCycle(clock, ${N.stream}u)) + float(e)));
+        I *= pulse;
+      } else {
+        int i = 1 + f - ${EDGES * PER};
+        if (i >= ${NODES}) return;
+        P = nbMorph(nbNodePos(key, i), p);
+        float mass = nbNodeMass(key, i);
+        I = 1.2 + 2. * mass; w = .015 + .03 * mass; along = 1.;
+      }
+      vec3 pos = nbRotY(P, NB_TAU * nbCycle(clock, ${N.cloud}u));
+      vec3 v = pos - cam.eye;
+      float z = dot(v, cam.fwd);
+      if (z < .15) return;
+      vec2 screen = vec2(dot(v, cam.right), dot(v, cam.up)) * cam.focal / z;
+      gl_Position = vec4(screen * minSide / u_resolution, 0., 1.);
+      float scale = cam.focal / z * minSide * .5;
+      // Sprite covers the gas sheath (8 core widths); its core is 1/8 of it.
+      float spacing = len / ${PER}. * scale;
+      // The core never gets narrower than the sprite spacing: no beads.
+      float corePx = max(max(w * scale, 1.2 * res), .8 * spacing);
+      float size = clamp(8. * corePx, 3. * res, 160. * res);
+      gl_PointSize = size;
+      float fog = exp(-max(z - 1.6, 0.) / 2.4) * nbSmooth(.15, .7, z) * (1. - nbSmooth(150., 160., size / res));
+      // Line intensity independent of sprite spacing and pixel floor.
+      float lineGain = min(w * scale / corePx, 1.) * clamp(spacing / size, .02, 1.) * 9.;
+      vec3 hue = mix(mix(cGas, cArm, p), cHot, (e < ${EDGES} ? .3 * along : .8));
+      v_soft = e < ${EDGES} ? 2. + clamp(corePx / size, .02, 1.) : .5;
+      v_color = hue * I * fade * fog * lineGain * light * (1. + .6 * u_rhythm.x);
+      return;
+    }
     uint g = m >> 6;
     float member = float((m >> 3) & 7u) / 7. - .5;
     // A shell of motes between the camera's orbit and the form.
@@ -529,11 +581,13 @@ precision highp float;
 in vec3 v_color;
 in float v_soft;
 out vec4 outColor;
+float nbSq2(float x) { return x * x; }
 void main() {
   vec2 d = gl_PointCoord * 2. - 1.;
   float r2 = dot(d, d);
   if (r2 > 1.) discard;
-  float m = mix(exp(-r2 * 4.), exp(-r2 * 2.2) * (1. - r2), v_soft);
+  float m = v_soft > 1.5 ? (exp(-r2 / nbSq2(v_soft - 2.)) + .16 * exp(-r2 * 3.)) * (1. - r2)
+    : mix(exp(-r2 * 4.), exp(-r2 * 2.2) * (1. - r2), v_soft);
   outColor = vec4(v_color * m, 0.);
 }
 `;
@@ -700,18 +754,6 @@ vec4 nbShellAt(vec3 dn) {
   return nbShellData(dn, clamp(u_level, 0., 1.), nbClock());
 #endif
 }
-#ifdef PRECOMPUTED
-// Morphed edges (row 512: four polyline points per edge, w = 1 when
-// present) and nodes (row 513) in the cloud frame.
-bool nbEdgeAt(int e, float p, out vec3 P[4]) {
-  vec4 a = texelFetch(u_precomputed, ivec2(${SLICES[0]} + 4 * e, 512), 0);
-  P[0] = a.xyz;
-  for (int k = 1; k < 4; k++) P[k] = texelFetch(u_precomputed, ivec2(${SLICES[0]} + 4 * e + k, 512), 0).xyz;
-  return a.w > .5;
-}
-#else
-bool nbEdgeAt(int e, float p, out vec3 P[4]) { return nbEdgeEval(nbKey(), e, p, P); }
-#endif
 vec4 nbDiskAt(vec2 xz, float twist, float pattern, float gasPhase) {
 #ifdef PRECOMPUTED
   vec2 c = clamp((xz / ${f(DISK_EXTENT)} * .5 + .5) * ${f(DISK_MAP)}, .5, ${f(DISK_MAP - 0.5)});
@@ -924,73 +966,6 @@ void main() {
     float front = u_params[7] * nbSmooth(0., .05, shockC) * (1. - shockC) * sphere * nbSmooth(.05, .3, F);
     col += Tcore * n * (mix(cGas, cHot, .2) * haze * .32 + cHot * front * .45);
   }
-  if (p < 1.) {
-    // Analytic filaments: distance from the ray to each bent node-to-node
-    // segment, a soft cross-section with a pixel-footprint floor, streaming
-    // pulses toward the node and depth fog. The web winds into the disk.
-    float cloudPhase = NB_TAU * nbCycle(clock, ${N.cloud}u);
-    mat2 toCloud = mat2(cos(cloudPhase), -sin(cloudPhase), sin(cloudPhase), cos(cloudPhase));
-    vec3 O = vec3(toCloud * cam.eye.xz, cam.eye.y).xzy, D = vec3(toCloud * ray.xz, ray.y).xzy;
-    float fp = 2.4 / (cam.focal * min(u_resolution.x, u_resolution.y));
-    float flow = nbCycle(clock, ${N.stream}u);
-    float fade = 1. - nbSmooth(.35, 1., p), loops = nbSmooth(.15, .6, level);
-    vec3 fil = vec3(0.);
-    for (int e = 0; e < ${EDGES}; e++) {
-      vec3 E[4];
-      if (!nbEdgeAt(e, p, E)) continue;
-      float wgt = ((e & 1) == 1 ? .55 * loops : 1.) * (.35 + .65 * nbRnd(key, uint(e), 935u));
-      if (wgt <= 0.) continue;
-      float w = (e & 1) == 1 ? .009 : .014;
-      // Cull by the control hull's bounding sphere (sheath included).
-      vec3 cen = .5 * (E[0] + E[3]);
-      float rad = sqrt(max(max(dot(E[0] - cen, E[0] - cen), dot(E[1] - cen, E[1] - cen)), dot(E[2] - cen, E[2] - cen)));
-      vec3 vc = cen - O;
-      float tc = dot(vc, D);
-      if (dot(vc, vc) - tc * tc > nbSq(rad + 8. * w + 3. * fp * max(tc, 0.) + .02)) continue;
-      vec3 Pb[5];
-      for (int k = 0; k < 5; k++) {
-        float q = float(k) * .25, r1 = 1. - q;
-        Pb[k] = r1 * r1 * r1 * E[0] + 3. * r1 * r1 * q * E[1] + 3. * r1 * q * q * E[2] + q * q * q * E[3];
-      }
-      for (int h = 0; h < 4; h++) {
-        vec3 P = Pb[h], Q = Pb[h + 1];
-        vec3 u = Q - P, w0 = O - P;
-        float L2 = max(dot(u, u), 1e-6), bb = dot(D, u), dd = dot(D, w0), ee = dot(u, w0);
-        float sg = clamp((ee - dd * bb) / max(L2 - bb * bb, 1e-6), 0., 1.);
-        float tt = sg * bb - dd;
-        if (tt < .15) continue;
-        vec3 c = w0 + tt * D - sg * u;
-        float d2 = dot(c, c);
-        float along = (float(h) + sg) * .25, len = sqrt(L2) * 4.;
-        // Clumped, wavering cross-section (thicker toward the node) and
-        // pulses running into the node.
-        float wid = w * (.55 + .6 * along) * (.75 + .5 * sin(along * len * 6. + float(e) * 1.7) * sin(along * len * 2.3 + float(e)));
-        float ww = max(wid, fp * tt);
-        float pulse = .3 + .7 * nbSq(.5 + .5 * sin(NB_TAU * (along * len * 1.3 - 2. * flow) + float(e)));
-        float core = wid / ww * exp(-d2 / (ww * ww));
-        // A broad gas sheath around the bright core.
-        float hw = 6. * w + 2. * fp * tt;
-        float sheath = .22 * exp(-d2 / (hw * hw));
-        float fog = exp(-max(tt - 1.6, 0.) / 2.4) * nbSmooth(.15, .7, tt);
-        // As the web winds up its filaments take on the arms' colour.
-        fil += fog * wgt * (core * pulse * mix(mix(cGas, cArm, p), cHot, .3 * pulse * along) + sheath * mix(cGas, cArm, .25 + .75 * p));
-      }
-    }
-    // Nodes: knotted junctions, bigger for heavier nodes.
-    for (int i = 1; i < ${NODES}; i++) {
-#ifdef PRECOMPUTED
-      vec4 nd = texelFetch(u_precomputed, ivec2(${SLICES[0]} + i, 513), 0);
-#else
-      vec4 nd = vec4(nbMorph(nbNodePos(key, i), p), nbNodeMass(key, i));
-#endif
-      vec3 v = nd.xyz - O;
-      float tt = dot(v, D);
-      if (tt < .15) continue;
-      float d2 = dot(v, v) - tt * tt, rr = max(.015 + .03 * nd.w, fp * tt);
-      fil += cHot * (.35 + .6 * nd.w) * (.015 + .03 * nd.w) / rr * exp(-d2 / (rr * rr)) * exp(-max(tt - 1.6, 0.) / 2.4) * nbSmooth(.15, .7, tt);
-    }
-    col += fil * fade * 1.1 * (1. + .6 * u_rhythm.x);
-  }
   // The densest web node, the future nucleus: a compact hot knot
   // (path-integrated Gaussian, analytic).
   col += Tcore * cHot * (1. - p) * (.19 * exp(-impact * impact / .012) * 3. + .5 * exp(-impact * impact / .0015)) * (1. + u_rhythm.y);
@@ -1029,18 +1004,6 @@ void main() {
   float dev = clamp(u_params[0], 0., 2.), level = clamp(u_level, 0., 1.);
   uint clock = nbClock(), key = nbKey();
   outColor = vec4(0.);
-  if (px.x >= ${SLICES[0]} && (px.y == 512 || px.y == 513)) {
-    // Filament edges and nodes while the web is shown.
-    int k = px.x - ${SLICES[0]};
-    float p = nbSmooth(0., 1., dev);
-    if (dev >= 1.) return;
-    if (px.y == 512 && k < ${4 * EDGES}) {
-      vec3 E[4];
-      bool on = nbEdgeEval(key, k / 4, p, E);
-      outColor = vec4(E[k & 3], on ? 1. : 0.);
-    } else if (px.y == 513 && k < ${NODES}) outColor = vec4(nbMorph(nbNodePos(key, k), p), nbNodeMass(key, k));
-    return;
-  }
   if (px.x >= ${SLICES[0]}) {
     // Disk map, only while the disk is shown.
     if (dev > 0. && dev < 2. && px.y < ${DISK_MAP}) {
