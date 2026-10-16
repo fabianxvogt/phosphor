@@ -72,10 +72,13 @@ function waves(seed, dev, height = 1, clock = 0) {
       amplitude:
         WAVE_AMPLITUDES[i] *
         height *
-        (0.48 + (2.35 - 0.48) * smooth(0, 1, dev)) *
+        ((i === 0 ? 1.35 : 0.48) +
+          (2.35 - (i === 0 ? 1.35 : 0.48)) * smooth(0, 1, dev)) *
         (1 - 0.45 * smooth(1.2, 2, dev)),
       phase:
-        -((clock * n) % (2 * Math.PI)) + 2 * Math.PI * hash(i + 71, seed % 991),
+        -((clock * n) % (2 * Math.PI)) +
+        2 * Math.PI * hash(i + 71, seed % 991) -
+        (i === 0 ? 2 : 0),
     };
   });
 }
@@ -168,7 +171,7 @@ test("six exact directional identities obey deep-water dispersion and group velo
   assert.match(tide.fragment, /float k = omega \* omega \/ 9\.81;/);
   assert.match(
     tide.fragment,
-    /float amp=amplitude\*u_params\[2\]\*mix\(\.48,2\.35,swell\);/,
+    /float amp=amplitude\*u_params\[2\]\*mix\(quiet,2\.35,swell\);/,
   );
   for (const v of waves(10301, 1)) {
     assert.ok(Math.abs(v.omega ** 2 - GRAVITY * v.k) < 1e-14);
@@ -1135,8 +1138,8 @@ test("r4 water material, horizon composition and irregular roller remain continu
   );
   assert.match(tide.fragment, /float spiral=\.3\*sin\(phase\)\*envelope/);
   assert.match(tide.fragment, /float seaBend=7\.\*sin/);
-  assert.match(tide.fragment, /rollGain\*=\.15\+\.85\*smoothstep/);
-  assert.match(tide.fragment, /whitewater=pow\(smoothstep/);
+  assert.match(tide.fragment, /rollGain\*=crestCatch\*wetGaps/);
+  assert.match(tide.fragment, /whitewater=smoothstep/);
   assert.match(tide.fragment, /normal=normalize\(mix\(normal,farNormal/);
   assert.match(tide.fragment, /moonForward=normalize\(target.xz-ro.xz/);
   assert.ok(!tide.fragment.includes("float moonTurn=orbit*crane"));
@@ -1171,6 +1174,47 @@ test("r4 water material, horizon composition and irregular roller remain continu
   peak.forEach((w, i) =>
     assert.ok(Math.abs(w.amplitude / swell[i].amplitude - 0.55) < 1e-12),
   );
+});
+
+test("r5 foam rafts and both rollers are attached to water, not repeated dashes", () => {
+  assert.match(tide.fragment, /vec2 foamAt=q\*\.065/);
+  assert.match(tide.fragment, /foamAt\+=vec2\(foamWarp,-foamWarp\)\*1\.8/);
+  assert.match(tide.fragment, /foamBranches=foamChannels\*gVortex/);
+  assert.match(tide.fragment, /churn=gVortex\*exp\(-sq\(\(r-23\.\)\/7\.\)\)/);
+  assert.match(
+    tide.fragment,
+    /tdFoamStreaks\(q,foamFill,footprint\)\*\(1\.-gVortex\)/,
+  );
+  assert.ok(!tide.fragment.includes("sin(3.7*r+2.*sin(armPhase)"));
+  assert.match(tide.fragment, /tideRing\*tideCatch\*glow/);
+  assert.match(
+    tide.fragment,
+    /crestCatch=\.1\+\.9\*smoothstep\(-\.025,\.17,surface.w\)/,
+  );
+  assert.match(
+    tide.fragment,
+    /tipWidth=\(\.65\+\.018\*gRollScale\)\*\(\.5\+1\.4\*wetGrain\)/,
+  );
+  // Material advection is periodic even at intermediate vortex weights;
+  // no fractional clock turn or event count is added to a noise lattice.
+  const at = (flow) => [Math.cos(flow) * 0.6, Math.sin(flow) * 0.6];
+  for (const t of [0, 0.7, 2.9, 6.1])
+    assert.ok(
+      Math.hypot(...at(t).map((v, i) => v - at(t + 2 * Math.PI)[i])) < 1e-14,
+    );
+});
+
+test("r5 quiet swell remains below Swell bounds and shares identity through reversal", () => {
+  assert.match(tide.fragment, /quiet=i==0\?1\.35:\.48/);
+  assert.match(tide.fragment, /quietShoulder=exp/);
+  const quiet = waves(10301, 0),
+    full = waves(10301, 1);
+  assert.equal(quiet[0].amplitude, 0.8 * 1.35);
+  for (let i = 0; i < quiet.length; i++) {
+    assert.ok(quiet[i].amplitude <= full[i].amplitude);
+    assert.equal(quiet[i].phase, full[i].phase);
+    if (i > 0) assert.equal(quiet[i].amplitude, WAVE_AMPLITUDES[i] * 0.48);
+  }
 });
 
 test("camera spring: a one-bar drop cranes over seconds and settles", () => {
