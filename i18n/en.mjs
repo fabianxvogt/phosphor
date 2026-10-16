@@ -354,6 +354,8 @@ export default {
   "The laser fan opens by a bounded twelve percent.": "The laser fan opens by a bounded twelve percent.",
   "Vault rib": "Vault rib",
   "A narrow light rib travels along the same folded material grid.": "A narrow light rib travels along the same folded material grid.",
+  "Tunnel chase": "Tunnel chase",
+  "The eight tunnel lasers fire one after another in a sixteenth chase, each shot hot in the accent colour.": "The eight tunnel lasers fire one after another in a sixteenth chase, each shot hot in the accent colour.",
   "Dark aperture": "Dark aperture",
   "Beam relay": "Beam relay",
   "Vault chase": "Vault chase",

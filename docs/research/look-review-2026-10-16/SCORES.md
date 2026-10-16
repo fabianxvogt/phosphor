@@ -22,12 +22,12 @@ One row per world; updated after every independent re-score. "Signature effect" 
 | Abyssal Bloom | deep-sea | 4.5 | — | baseline | — | — | — | no | — | — |
 | Liquid Chrome | liquid-chrome | 3.0 | 6.0 | r3 | 6 | 7.5 | 6 | no | Magnetic strike (partly visible) | d7bdc67 |
 | Moon Tide | moon-tide | 3.5 | — | baseline | — | — | — | no | — | — |
-| Laser Grid | laser-grid | 4.0 | — | baseline | — | — | — | no | — | — |
+| Laser Grid | laser-grid | 4.0 | 6.5 | r3 (gpt-6.1-sol reviewer) | 6 | 8.5 | 7 | no | Tunnel chase (visible shots) | 5e35c8b |
 | Magma Rift | magma-rift | 5.0 | — | baseline | — | — | — | no | — | — |
 | Kinetic Rain | kinetic-rain | 3.5 | — | baseline | — | — | — | no | — | — |
 | Aurora Veil | aurora-veil | 4.0 | — | baseline | — | — | — | no | — | — |
 | Brass Orrery | brass-orrery | 3.5 | — | baseline | — | — | — | no | — | — |
-| Thunderhead | thunderhead | 4.5 | — | baseline | — | — | — | no | — | — |
+| Thunderhead | thunderhead | 4.5 | 7.0 | r3 (gpt-6.1-sol reviewer) | 6.5 | 7.5 | 8 | no | Bolt from the blue (clearly visible) | 0b5c815 |
 | Prism Engine | prism-engine | 4.5 | — | baseline | — | — | — | no | — | — |
 | Impossible Stairs | impossible-stairs | 4.0 | — | baseline | — | — | — | no | — | — |
 | Silk Storm | silk-storm | 4.5 | — | baseline | — | — | — | no | — | — |

@@ -30,6 +30,12 @@ No show is planned (owner, 2026-10-16): the December placeholder date, feature f
 
 **Delivered 2026-10-12 — Continuous world development (INCREMENTAL):** the approved transformation study is integrated as Unfolding Garden / Living Forms. One connected mesh changes from filaments into membranes and blossoms, with a reversible Development fader, 4/8/16-bar cues, exact pause and phase-preserving Stage handoff. Six catalog looks and real renderer previews added. [Evidence](docs/EVIDENCE.md#continuous-world-development-2026-10-12). Next: owner play-through of the integrated controls, then native external-display timing and endurance before extending this model to more worlds.
 
+## Now — look and rhythm review (2026-10-16/17)
+
+**INCREMENTAL / EMPIRICAL.** All 27 worlds now have three named, world-specific rhythm presets (81 presets / 243 authored gesture loops), with off-beats, syncopation and phrase-end fills; automatic patterns follow the current release while protected edits remain untouched. German/English names appear in the Rhythm menu. Signature fourth gestures and visual reworks are landing in verified batches; each world is independently reviewed against the [fixed rubric](docs/research/look-review-2026-10-16/RUBRIC.md). [Current scores and baseline](docs/research/look-review-2026-10-16/SCORES.md) are the acceptance record, not earlier self-ratings. The baseline has **0/27 passing**, Overall 3–5; the goal remains every world ≥ 8. No show or community work is scheduled.
+
+**Next:** finish signature-effect coverage across all 27, then reviewer must-fixes → fix lanes → independent re-review (closest to 8 first); serialize native timing after GPU workers finish. Keep the flash limiter unchanged and deploy every verified batch. **Later:** remaining external-display endurance, output blackout and real-mixer acceptance gates.
+
 ## Product shape
 
 - **Play:** one catalog of every look — authored and own — with favourites and 0–10 ratings; the first 32 cards of the current view are on the keyboard (physical key positions, so QWERTZ works) (D65, D68). Configuration stays accessible; an optional stage-only settings lock protects it without disabling performance (D52). Local preview plays at 120 BPM with autopilot and Random on; opening the stage transfers the current performance. Autopilot plays rated catalog looks (optionally favourites only) for 8, 12 or 16 bars with smooth three-bar changes; **Next** skips ahead (D66). Any manual trigger takes over and hands back after 32 idle bars.
