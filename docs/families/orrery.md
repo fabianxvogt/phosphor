@@ -1,87 +1,78 @@
 # Brass Orrery / Messing-Orrery
 
-**INCREMENTAL / EMPIRICAL**, fleet r3, 2026-10-16. Family **109**, renderer `orrery`, world `brass-orrery`. Implementer: openai-codex/gpt-6.1-sol. No engine or flash-limiter changes. World/state/look IDs, eight preset names/seeds/parameters, schema keys and the three existing rhythm IDs are unchanged. Slot 3 is additive; no world HISTORY migration is needed.
+**INCREMENTAL / EMPIRICAL**, fleet r4, 2026-10-17. Family **109**, renderer `orrery`, world `brass-orrery`. Implementer: openai-codex/gpt-6.1-sol. No engine, limiter, preset, schema, state or rhythm-placement changes; no HISTORY migration needed.
 
 ## Signature mathematics
 
-Real extruded **involute profiles**, with common module `m = 0.05`, pressure angle `α = 20°` and integer tooth counts 56/24/40:
+Actual extruded involutes, common module `m = 0.05`, pressure angle `α = 20°`, integer teeth 56/24/40:
 
 - Pitch radius `r = mN/2`, base radius `rb = r cos α`.
 - Involute `I(t) = rb(cos t + t sin t, sin t − t cos t)`.
-- Flank half-angle `π/(2N) + tan α − α − inv(R)`, where `inv(R) = sqrt((R/rb)² − 1) − atan(sqrt((R/rb)² − 1))`.
-- Addendum `r + m`, dedendum `r − 1.25m`; the flank starts at `max(rb, dedendum)`.
+- Flank half-angle `π/(2N) + tan α − α − inv(R)`, with `inv(R) = sqrt((R/rb)² − 1) − atan(sqrt((R/rb)² − 1))`.
+- Addendum `r + m`, dedendum `r − 1.25m`; flank begins at `max(rb, dedendum)`.
 
-Each train is a nine-gear tree: one 56-tooth driver, four 24-tooth intermediates and four 40-tooth followers. Pitch-centre distance is `rp + rc`; signed angular ratio is `ωc = −ωp Np/Nc`, so `ωp rp + ωc rc = 0`. Tooth-to-gap phase is solved on each contact line. **25 seed-persistent trains, 225 gears, 200 meshes** transform rigidly with uniform train scales; rhythm never changes a meshing shaft's speed.
+Each nine-gear train is a tree: one 56-tooth driver, four 24-tooth intermediates, four 40-tooth followers. Pitch-centre distance is `rp + rc`; signed ratio `ωc = −ωp Np/Nc` preserves `ωp rp + ωc rc = 0`. Contact phases solve tooth-to-gap alignment. **25 seed-persistent trains, 225 gears, 200 meshes** transform rigidly under uniform train scales. Rhythm never changes meshing shaft speeds.
 
-Five planetary shafts have exact ratios **1:2:3:4:6**, radii `1.3 + 0.49i` and independent inclined planes. The shared drive period **30π** completes integer turns for every gear and planet. This is an astronomical clock, not a Solar System ephemeris or a contact-dynamics simulation.
-
-`orrery-model.mjs` provides CPU references for involutes, bevels, train/camera placement, planet/meridian positions, warm-anchor selection, light falloff and sphere eclipses. Shared mitered bevels remain 0.008 units wide, capped at twice that width. Far-bank annulus fans preserve every outer involute/bevel point. No topology or upload cost changed in this fleet round.
+Five planetary shafts use ratios **1:2:3:4:6**, radii `1.3 + 0.49i` and independent inclinations. The shared drive period **30π** completes integer turns for all shafts. This is an astronomical clock, not an ephemeris or contact-dynamics simulation. CPU references in `orrery-model.mjs` cover involutes, 0.008-unit shared bevels, camera/train placement, orbits, palette anchor, light falloff and sphere eclipses.
 
 ## States, camera and looks
 
-The three state presets retain seed **10901** and identical non-development parameters. Development 0–2 is reversible geometry, not a dissolve, reset or mesh rebuild.
+Three same-seed **10901** states, identical other parameters; reversible development 0–2 never rebuilds geometry:
 
-| State               | Composition                                                                                                                                                                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Gears / Zahnräder   | Close oblique mechanism, overlapping peripheral teeth and smaller receding trains. Thick bodies, raised bearings, spoke apertures and filtered machining.                                                                                                    |
-| Orrery              | Central sun and independently inclined meridians. Continuous development-local **9% focal compensation** enlarges the intermediate hero without changing its camera phase. Whole-camera-loop tests retain a safe short-side margin, including the 1.8% kick. |
-| Clockwork / Uhrwerk | Inward gear walls, gear-covered roof, eight receding bays, trusses, transmission shafts, chains and a monumental pendulum. The original sun/orrery persists down the nave.                                                                                   |
+| State               | Composition                                                                                                                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gears / Zahnräder   | Oblique thick mechanism, near tooth arcs, raised bearings, spoke apertures and machining.                                                                                                |
+| Orrery              | Central sun, inclined meridians, continuous 9% focal compensation. First side banks remain near the camera instead of retreating into black; ribs, shafts and floor emerge continuously. |
+| Clockwork / Uhrwerk | Gear walls, roof, eight receding bays, chains, trusses and a pendulum frame the original train. Distant mechanisms darken; the bob no longer obscures the central mechanism.             |
 
-The roll-free camera uses short-side projection in landscape and portrait. Near peripheral cropping is intentional; the central meridians remain inside the tested margin. Foreground movement, depth fog, contact shading, reflection gradients and repeated scale cues supply depth.
+Roll-free camera, short-side projection, deliberately cropped peripheral masses. CPU tests cover the complete middle-state camera loop and safe meridian margin including 1.8% kick. Camera/drive clocks wrap at **2π / 30π**. Eight unchanged looks: Gears, Orrery, Clockwork, Watchmaker, Copernican Night, Silver Escapement, Sidereal Vault, Midnight Calibre.
 
-Eight unchanged looks: Gears, Orrery, Clockwork; Watchmaker / Uhrmacher; Copernican Night / Kopernikanische Nacht; Silver Escapement / Silberhemmung; Sidereal Vault / Sterngewölbe; Midnight Calibre / Mitternachtskaliber.
+## r4 review response
 
-## Fleet r3 look changes and energy grammar
+1. **Middle staging:** near banks no longer move backwards as the camera retreats. First-bank centres at development 1 are `(±4.6, 0, 3)`, under six units ahead of the camera. Existing architecture and floor perspective continue through the middle.
+2. **Readable strike:** a thicker, jewel-tipped fork sits in front of and left of the sun. The count-selected contact uses the same rigid rotation and development transform as the actual fork. A narrow stress front crosses gear faces and bearing seats, not broad cylinder sides. Explicit envelope gating gives dark recovery; muted counts change zero pixels.
+3. **Peak hierarchy:** pendulum bob radius **0.95 → 0.50**, peak planet radii scaled by **0.52** with matching eclipse radii. Receding banks and peak meridians dim; cohort glints narrow to an annulus. Geometry/ratios persist.
+4. **Materials:** palette-derived saturated alloy, narrower reflection card, reduced broad fill/white dilution and reduced sun diffuse/emission. Tooth roots, cool glints, solid bevels, floor and black gaps remain.
 
-The palette's warmer primary/secondary anchor still owns the alloy. Bounded accent absorption warms the default lime anchor into gold without hard-coded orange RGB. Lower white dilution preserves mid-tone saturation; cool reflection cards separate from the metal. Reduced background scattering and secondary-owned dark fog restore black gaps and overlapping depth layers rather than veiling the cathedral in olive haze.
+Three r4 film rounds plus a final refinement were inspected as sheets and individual 960px stills. Round 1 over-warmed the alloy. Round 2 exposed the critical obstruction as the **pendulum bob**, not an orbiting planet. Round 3 corrected the obstruction and enlarged pallet contacts; final refinement suppressed sidewall stress patches and count-dependent idle tip light.
 
-Filtered major/minor dial graduations resolve with energy **0.15–0.8**. Energy also changes integrated gear/camera rates, not master exposure. Engraving is a detail change, not new geometry. Sun geometry and the local `10 / (0.7 + distance²)` light retain analytic moving planet eclipses. Bright peaks are local; no screen-space flash is drawn.
+Energy reveals filtered major/minor dial indices at **0.15–0.8** and changes integrated movement rates, never master exposure. The sun remains a local inverse-square light, `10 / (0.7 + distance²)`, with analytic moving planet eclipses. Events remain local behind the unmodified live limiter.
 
-Round 1 added the signature and stronger local gestures; round 2 separated alloy/cards, reduced haze and enlarged the hero; round 3 refined gold absorption, dial indices and the spatial strike width/colour. Before and all three round films are retained under `artifacts/look-review/brass-orrery-r3-*`.
+## Four gestures / unchanged presets
 
-## Four gestures and three presets
+| Slot | Gesture                            | Effect                                                                                            |
+| ---- | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 0    | Escapement tick                    | Bounded fork rock and engaged tooth sectors.                                                      |
+| 1    | Ratio cohort                       | Count-selected narrow cool dial/bearing catches.                                                  |
+| 2    | Clockwork wave                     | Sparse wave along real tooth rims.                                                                |
+| 3    | Escapement strike / Hemmungsschlag | Alternating jewel contact, followed by a narrow gear-face/bearing stress front and dark recovery. |
 
-| Slot  | Gesture                                | Visible mechanism                                                                                                                                                                                                                                                                                                                                       |
-| ----- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | Escapement tick                        | Bounded anchor rock and count-selected engaged tooth sectors, rather than tinting an entire face.                                                                                                                                                                                                                                                       |
-| 1     | Ratio cohort                           | A persistent shaft cohort catches a cool face/rim glint; meshing ratios never change.                                                                                                                                                                                                                                                                   |
-| 2     | Clockwork wave                         | An infrequent accent wave propagates over actual tooth rims through the cathedral.                                                                                                                                                                                                                                                                      |
-| **3** | **Escapement strike / Hemmungsschlag** | Alternating pallet origins launch a narrow amber/accent stress front through real gear rims, bearing seats and armillary rings. `u_rhythm.w` drives propagation, `u_rhythmHit.w` contributes to bounded anchor motion, and `u_rhythmCount.w` alternates the origin/direction. With envelope and hit zero, count changes cannot produce light or motion. |
+| Style      | Name                                  | Hits/bar | Slot-3 eighth-note steps (zero-based) |
+| ---------- | ------------------------------------- | -------- | ------------------------------------- |
+| restrained | Sleeping gears / Schlafende Zahnräder | 3.75     | 14, 28                                |
+| driving    | Brass escapement / Messinghemmung     | 12.5     | 0, 13, 18, 30                         |
+| accented   | Cathedral clock / Kathedralenuhr      | 19.5     | 0, 11, 22, 24, 30                     |
 
-Three world-specific presets, counting **family tracks only**, excluding globals:
+Slot 3 spans four bars. Off-beats, fast local tooth ticks, spaced structural waves and the three-bar accented cohort retain their original placement differences. Existing DE/EN labels remain unchanged.
 
-| Style      | Name                                  | Hits/bar | Slot-3 loop, eighth-note steps |
-| ---------- | ------------------------------------- | -------- | ------------------------------ |
-| restrained | Sleeping gears / Schlafende Zahnräder | 3.75     | `........                      | ......X. | ........ | ....x...` |
-| driving    | Brass escapement / Messinghemmung     | 12.5     | `X.......                      | .....X.. | ..x..... | ......X.` |
-| accented   | Cathedral clock / Kathedralenuhr      | 19.5     | `X.......                      | ...X.... | ......x. | X.....X.` |
+## Cost and verification
 
-Slot 3 spans four bars: zero-based steps **14,28** / **0,13,18,30** / **0,11,22,24,30**. Fast tooth ticks fill the grid; slower shaft addresses and phrase waves retain recovery space. The shared limiter is unchanged. DE/EN labels and descriptions are additive immediately after this family's existing descriptions.
+Seed-only mesh: **1,887,642 vertices / 128,359,656 uploaded bytes** (3,456 vertices added for mirrored contact jewels). Fixed 128 MiB construction allocation, no new pass or simulation. Earlier architecture visibility deliberately increases middle-state fill cost.
 
-## Endlessness and cost
+Native Apple M3 Pro / ANGLE Metal, 48 synchronous frames/state including post, energy 0.95; shared-machine throughput, **not venue cadence qualification**:
 
-Drive and camera integrated clocks wrap at **30π** and **2π**. Pendulum, dust and orbital phases respect those periods; no simulation can stall or saturate. Late shaders are checked at **43,200 seconds**.
+| State     | 1080p p50/p95 | 4K p50/p95     | ABBA Δ p50 vs main 1080p / 4K |
+| --------- | ------------- | -------------- | ----------------------------- |
+| Gears     | 4.2 / 8.3 ms  | 8.7 / 11.1 ms  | +4.8% / +5.1%                 |
+| Orrery    | 5.1 / 7.8 ms  | 10.1 / 14.0 ms | +10.3% / +19.2%               |
+| Clockwork | 5.5 / 8.1 ms  | 11.8 / 15.4 ms | −3.7% / +2.0%                 |
 
-Unchanged seed-only mesh: **1,884,186 vertices / 628,062 triangles / 128,124,648 uploaded bytes**. The model uses a bounded 128 MiB construction allocation. The added cost is fragment-side filtered engraving and bounded stress-front arithmetic, not new passes, resources, raymarches or topology.
+Absolute p50 budgets pass; **paired +5% gate fails**, chiefly the deliberately fuller middle. Do not hide this regression.
 
-Native Apple M3 Pro / Chrome / ANGLE Metal; 48 synchronous samples per state including post, energy 0.95. These are shared-machine throughput measurements, **not venue cadence qualification**:
+- `npm test`: **1020 pass / 22 opt-in skips / 0 fail**; world-rhythm and pipeline-flash included. Typecheck and touched-file Prettier pass. Native DE/EN UI passes.
+- Opt-in family GPU: **14/14**, 81 state/energy/palette/aspect/4K combinations at 43,200 seconds; zero GL/non-finite errors; identical paused reversal, same mesh; muted count changes zero pixels. This inherited deterministic probe disables asynchronous approval through its shared render helper; it is not limiter acceptance.
+- Separate `scripts/verify-orrery.mjs --rig --port 48782`: **35 limiter-enabled captures**, three palettes × three states × three energies at square aspect and 12h, plus eight samples across an actual scheduled strike at energy 0.85. Zero GL/non-finite errors, no empty frames or full-screen white. `report.json` records limiter state, lit fraction and white area.
+- Raw evidence: `artifacts/orrery/r4-{gpu,live,profile-1080,profile-4k,pair-1080,pair-4k}/`.
+- Final reviewer evidence: `artifacts/look-review/brass-orrery-r4/`, including standard sheets/film/grids, large middle/peak frames and supplementary limiter-enabled `strike-sequence.png` / individual strike stills.
 
-| State     | 1080p p50 / p95 | 4K p50 / p95   | Paired main delta 1080p / 4K |
-| --------- | --------------- | -------------- | ---------------------------- |
-| Gears     | 4.3 / 4.5 ms    | 8.5 / 9.0 ms   | +5.0% / +7.8%                |
-| Orrery    | 4.0 / 4.6 ms    | 7.9 / 9.0 ms   | +2.6% / +9.7%                |
-| Clockwork | 4.9 / 5.3 ms    | 10.8 / 11.6 ms | +4.3% / +7.3%                |
-
-All absolute p50 budgets pass (8/16 ms). The ABBA pair probe against main has **64 frames/candidate/state**; its stricter +5% relative gate exits nonzero, especially at 4K. This regression is reported, not hidden. Raw probes live in `artifacts/orrery/r3-verification/{profile-1080,profile-4k,pair-1080,pair-4k}/profile.json`.
-
-## Verification and evidence
-
-- Full suite: **974 pass, 21 opt-in skips, zero failures**. Includes world-rhythm and pipeline-flash tests.
-- Family native GPU suite: **13/13 pass**, including **81** combinations of 3 states × 3 energies (0.1/0.5/0.9) × Symbiosis/Glacier/Silver × landscape/portrait/4K at time 43,200. Zero GL errors/non-finite values, minimum downsampled mean 7.77/255, minimum peak 242/255.
-- Isolated slot-3 GPU probe: muted count changes affect **0%** of pixels; an early strike affects **15.0%**, and moving its front affects **30.4%** (RGB delta >3/255 at 160×90). This proves localized visible response, not aesthetic quality; the shared limiter stays intact.
-- Paused 0.73 → 1.97 → 0.73: byte-identical frame and same mesh. CPU tests cover continuous placement, exact meshing, preset validation, slot 3, all style loops and grid density.
-- Typecheck, build, distribution check and native DE/EN i18n pass. The UI script requires `--native-gpu`; `--rig` alone is ignored by that script and its software attempt timed out. Profile CLI uses `--families` (the brief's singular `--family` is unsupported).
-- Prettier passes the fully owned scene/test/doc/plan files. Full shared dictionaries already fail Prettier on main; only the new keys are formatted, avoiding unowned rewrites.
-- Final reviewer evidence: `artifacts/look-review/brass-orrery-r3/brass-orrery-{sheet,rhythm}.png`, `brass-orrery.mp4`, `grids.md`. Additional full films: `brass-orrery-r3-ember/`, `brass-orrery-r3-glacier/`. Portrait/4K energy images and health JSON: `artifacts/orrery/round3-gpu/`.
-
-**Self-assessment: L 6.5/10, not an independent pass.** Warm/cool separation and rhythmic mechanism accents improve substantially over baseline. Remaining weaknesses: the intermediate orrery is still a compact centred assembly with empty landscape margins; distant teeth remain high-frequency; pale stroke highlights can read as tint rather than a mechanically striking pallet; the large mesh and 4K relative regression remain. A further conceptual composition pass would be needed to claim L≥8 honestly.
+**Self-assessment: L 7.5, not an independent pass.** Stronger inhabited middle, exposed contact and less obstructed peak. Remaining risk: abundant thin orbital crossings and some dull alloy mid-tones; the short default rhythm strip is less explanatory than the consecutive live strike samples. Independent reviewer owns the ≥8 verdict.
