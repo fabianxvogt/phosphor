@@ -20,7 +20,14 @@ export const CORRIDOR = 0.62; // clearance kept around the camera path
 export const LIFT = 0.22; // camera crane at Hall (development 2)
 export const LIMITS = { habit: 1.6, breath: 1.04, tip: 1.9 };
 const TAU = Math.PI * 2;
-const QUAD = [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]];
+const QUAD = [
+  [0, 0],
+  [1, 0],
+  [1, 1],
+  [0, 0],
+  [1, 1],
+  [0, 1],
+];
 const WALL_THETA = 96,
   WALL_Z = 144;
 
@@ -34,7 +41,11 @@ const smooth = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
-const add = (a, b, s = 1) => [a[0] + b[0] * s, a[1] + b[1] * s, a[2] + b[2] * s];
+const add = (a, b, s = 1) => [
+  a[0] + b[0] * s,
+  a[1] + b[1] * s,
+  a[2] + b[2] * s,
+];
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const cross = (a, b) => [
@@ -52,13 +63,19 @@ const norm = (a) => {
 // (i+1/2, sqrt(3)(j+1/2)); the six bisectors bound one regular hexagon.
 export function hexCell(x, y) {
   const h = Math.sqrt(3);
-  const a = [x - Math.floor(x + .5), y - h * Math.floor(y / h + .5)];
-  const b = [x - (Math.floor(x) + .5), y - h * (Math.floor(y / h) + .5)];
+  const a = [x - Math.floor(x + 0.5), y - h * Math.floor(y / h + 0.5)];
+  const b = [x - (Math.floor(x) + 0.5), y - h * (Math.floor(y / h) + 0.5)];
   const local = dot2(a, a) < dot2(b, b) ? a : b;
-  const edge = .5 - Math.max(Math.abs(local[0]), Math.abs(.5 * local[0] + h / 2 * local[1]), Math.abs(-.5 * local[0] + h / 2 * local[1]));
-  return { local, centre: [x-local[0], y-local[1]], edge };
+  const edge =
+    0.5 -
+    Math.max(
+      Math.abs(local[0]),
+      Math.abs(0.5 * local[0] + (h / 2) * local[1]),
+      Math.abs(-0.5 * local[0] + (h / 2) * local[1]),
+    );
+  return { local, centre: [x - local[0], y - local[1]], edge };
 }
-const dot2 = (a, b) => a[0]*b[0] + a[1]*b[1];
+const dot2 = (a, b) => a[0] * b[0] + a[1] * b[1];
 
 // Shader mirror: growth factors [length, radius] of the Hall-sized crystal.
 // Pure in (kind, birth, development, detail), hence continuous and reversible.
@@ -66,21 +83,22 @@ export function growth(kind, birth, development, detail = 0.5) {
   const dev = Math.min(2, Math.max(0, development));
   if (kind === KIND.seed) {
     const t = smooth(0, 2, dev);
-    return [0.45 + 0.55 * t, 0.9 + 0.1 * t];
+    return [0.72 + 0.28 * t, 0.95 + 0.05 * t];
   }
   if (kind === KIND.member) {
     const g1 = smooth(0.08 + 0.62 * birth, 0.38 + 0.62 * birth, dev),
       g2 = smooth(1, 2, dev);
     return [
-      g1 * (0.62 + 0.38 * g2),
-      smooth(0, 0.25, g1) * (0.7 + 0.3 * g1) * (0.8 + 0.2 * g2),
+      (0.28 + 0.72 * g1) * (0.62 + 0.38 * g2),
+      (0.36 + 0.64 * smooth(0, 0.25, g1)) * (0.7 + 0.3 * g1) * (0.8 + 0.2 * g2),
     ];
   }
   if (kind === KIND.hall) {
     const g = smooth(1.02 + 0.6 * birth, 1.32 + 0.6 * birth, dev);
     return [g, smooth(0, 0.25, g) * (0.7 + 0.3 * g)];
   }
-  const g = smooth(birth - 0.1, birth + 0.1, detail) * (0.55 + 0.45 * dev * 0.5);
+  const g =
+    smooth(birth - 0.1, birth + 0.1, detail) * (0.55 + 0.45 * dev * 0.5);
   return [g, smooth(0, 0.25, g) * (0.7 + 0.3 * g)];
 }
 
@@ -118,13 +136,17 @@ function rockOf(rand) {
 // Wall point for polar angle theta (-PI/2 is the floor) at cavern depth z.
 export function wallPoint(rock, theta, z) {
   const w = (TAU * z) / PERIOD;
-  const breathe = 1 + 0.15 * Math.sin(2 * w + rock.b1) + 0.06 * Math.sin(5 * w + rock.b2);
+  const breathe =
+    1 + 0.15 * Math.sin(2 * w + rock.b1) + 0.06 * Math.sin(5 * w + rock.b2);
   let r = 1;
   for (const k of rock.terms) r += k.a * Math.sin(k.m * theta + k.n * w + k.p);
   const x = 3.1 * breathe * Math.cos(theta) * r;
   let y = 2.25 * (0.55 + 0.45 * breathe) * Math.sin(theta) * r;
   // A nearly flat floor with low relief keeps the horizon readable.
-  const floor = -1.5 + 0.05 * Math.sin(3 * w + rock.f1 + theta * 4) + 0.04 * Math.sin(7 * w + rock.f2);
+  const floor =
+    -1.5 +
+    0.05 * Math.sin(3 * w + rock.f1 + theta * 4) +
+    0.04 * Math.sin(7 * w + rock.f2);
   const k = 0.45,
     h = Math.max(k - Math.abs(y - floor), 0) / k;
   y = Math.max(y, floor) + h * h * k * 0.25;
@@ -148,7 +170,11 @@ const STEP = 0.05,
   TABLE = Array.from({ length: SAMPLES }, (_, k) => cameraPath(k * STEP, 0));
 function corridorDistance(p) {
   const margin = CORRIDOR + 0.6;
-  if (Math.abs(p[0]) > 0.84 + margin || p[1] < -0.43 - margin || p[1] > 0.03 + LIFT + margin)
+  if (
+    Math.abs(p[0]) > 0.84 + margin ||
+    p[1] < -0.43 - margin ||
+    p[1] > 0.03 + LIFT + margin
+  )
     return margin;
   let best = Infinity;
   const base = Math.round(p[2] / STEP);
@@ -180,7 +206,10 @@ function clampLength(root, dir, length, radius) {
 function tangentPoint(rock, theta, z, angle, distance) {
   const p = wallPoint(rock, theta, z),
     radius = Math.hypot(p[0], p[1]) || 1;
-  return [theta + (Math.sin(angle) * distance) / radius, z + Math.cos(angle) * distance];
+  return [
+    theta + (Math.sin(angle) * distance) / radius,
+    z + Math.cos(angle) * distance,
+  ];
 }
 
 function towardWall(dir, normal, minimum = 0.3) {
@@ -203,7 +232,7 @@ function jitter(rand, dir, amount) {
 export function cavern(seed) {
   const rand = random(seed >>> 0 || 1);
   // Hues come from a separate stream so the layout of every seed is unchanged.
-  const hueRand = random(((seed >>> 0) ^ 0x51ed27) || 1);
+  const hueRand = random((seed >>> 0) ^ 0x51ed27 || 1);
   let hue = 0;
   const rock = rockOf(rand);
   const crystals = [],
@@ -221,7 +250,8 @@ export function cavern(seed) {
   // Nucleation sites: stratified along the cavern, all around its section.
   const NC = 56;
   for (let i = 0; i < NC; i++) {
-    const theta = -Math.PI / 2 + (rand() - 0.5) * TAU * (rand() < 0.35 ? 0.35 : 1),
+    const theta =
+        -Math.PI / 2 + (rand() - 0.5) * TAU * (rand() < 0.35 ? 0.35 : 1),
       { root, normal, z } = site(theta, ((i + rand()) * PERIOD) / NC);
     const axis = jitter(rand, normal, 0.22);
     const helper = Math.abs(axis[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0],
@@ -233,7 +263,17 @@ export function cavern(seed) {
     for (let k = 0; k < 3; k++) {
       const a = turn + (k * TAU) / 3;
       habits.push(
-        norm(add(add([0, 0, 0], axis, Math.cos(cone)), add(e1.map((v) => v * Math.cos(a)), e2, Math.sin(a)), Math.sin(cone))),
+        norm(
+          add(
+            add([0, 0, 0], axis, Math.cos(cone)),
+            add(
+              e1.map((v) => v * Math.cos(a)),
+              e2,
+              Math.sin(a),
+            ),
+            Math.sin(cone),
+          ),
+        ),
       );
     }
     const scale = 0.55 + 0.5 * rand();
@@ -243,8 +283,8 @@ export function cavern(seed) {
       kind: KIND.seed,
       root,
       dir: axis,
-      length: scale * (1.25 + 0.75 * rand()),
-      radius: scale * (0.1 + 0.04 * rand()),
+      length: scale * (1.05 + 0.55 * rand()),
+      radius: scale * (0.18 + 0.09 * rand()),
       birth: 0,
       rnd: rand(),
     });
@@ -271,7 +311,7 @@ export function cavern(seed) {
         root: s.root,
         dir,
         length,
-        radius: length * (needle ? 0.05 : 0.1 + 0.07 * rand()),
+        radius: length * (needle ? 0.075 : 0.17 + 0.12 * rand()),
         birth: Math.min(1, 0.72 * (distance / spread) + 0.28 * rand()),
         rnd: rand(),
       });
@@ -286,7 +326,13 @@ export function cavern(seed) {
       scale = 0.35 + 0.55 * rand();
     hue = hueRand();
     for (let m = 0; m < 7; m++) {
-      const [t2, z2] = tangentPoint(rock, theta, base.z, rand() * TAU, 0.32 * Math.sqrt(rand())),
+      const [t2, z2] = tangentPoint(
+          rock,
+          theta,
+          base.z,
+          rand() * TAU,
+          0.32 * Math.sqrt(rand()),
+        ),
         s = site(t2, z2),
         length = scale * (0.35 + 0.9 * Math.pow(rand(), 1.8));
       push({
@@ -294,7 +340,7 @@ export function cavern(seed) {
         root: s.root,
         dir: towardWall(jitter(rand, axis, 0.28), s.normal),
         length,
-        radius: length * (0.11 + 0.06 * rand()),
+        radius: length * (0.18 + 0.09 * rand()),
         birth: Math.min(1, birth * 0.85 + 0.15 * rand()),
         rnd: rand(),
       });
@@ -322,7 +368,8 @@ export function cavern(seed) {
 function bake(crystals, points) {
   const BINS = 36,
     bins = Array.from({ length: BINS }, () => []);
-  const bin = (z) => Math.floor((((z % PERIOD) + PERIOD) % PERIOD) / (PERIOD / BINS)) % BINS;
+  const bin = (z) =>
+    Math.floor((((z % PERIOD) + PERIOD) % PERIOD) / (PERIOD / BINS)) % BINS;
   const n = crystals.length,
     root = new Float64Array(n * 3),
     stage = new Float64Array(n * 3 * 7), // per stage: light xyz, 1/reach², glow, ao depth, 1/spread²
@@ -341,11 +388,18 @@ function bake(crystals, points) {
       stage[k + 1] = c.root[1] + c.dir[1] * length * 0.55;
       stage[k + 2] = c.root[2] + c.dir[2] * length * 0.55;
       stage[k + 3] = length > 0.001 ? 1 / (reach * reach) : 0;
-      stage[k + 4] = length > 0.001 ? (c.kind === KIND.seed ? 1.1 : 0.05) + length * radius * 2.5 : 0;
+      stage[k + 4] =
+        length > 0.001
+          ? (c.kind === KIND.seed ? 1.1 : 0.05) + length * radius * 2.5
+          : 0;
       stage[k + 5] = length > 0.001 ? 0.55 * Math.min(1, length * 4) : 0;
       stage[k + 6] = 1 / (spread * spread);
       // Beyond this root distance both terms are below about 1e-3.
-      cutoff[i] = Math.max(cutoff[i], (length * 0.55 + reach * 2.7) ** 2, (spread * 2.7) ** 2);
+      cutoff[i] = Math.max(
+        cutoff[i],
+        (length * 0.55 + reach * 2.7) ** 2,
+        (spread * 2.7) ** 2,
+      );
     }
   });
   return points.map((p) => {
@@ -389,7 +443,9 @@ function build(seed) {
   const { rock, crystals } = cavern(seed);
   const wallVertices = WALL_THETA * WALL_Z * 6,
     crystalVertices = crystals.length * 54;
-  const data = new Float32Array((wallVertices + crystalVertices + MOTES * 6) * STRIDE);
+  const data = new Float32Array(
+    (wallVertices + crystalVertices + MOTES * 6) * STRIDE,
+  );
   let o = 0;
   // Crystals first, so the wall behind them is rejected by the depth test.
   const hex = Array.from({ length: 7 }, (_, k) => [
@@ -413,7 +469,16 @@ function build(seed) {
   }
   const instance = new Float32Array(12);
   for (const c of crystals) {
-    instance.set([...c.root, c.rnd, ...c.dir, c.birth, c.length, c.radius, c.hue, c.kind]);
+    instance.set([
+      ...c.root,
+      c.rnd,
+      ...c.dir,
+      c.birth,
+      c.length,
+      c.radius,
+      c.hue,
+      c.kind,
+    ]);
     for (const v of local) {
       data.set(v, o);
       data.set(instance, o + 6);
@@ -482,19 +547,27 @@ function build(seed) {
       let dz = p[2] - l[2];
       dz -= Math.round(dz / PERIOD) * PERIOD;
       const d = (p[0] - l[0]) ** 2 + (p[1] - l[1]) ** 2 + dz * dz;
-      if (d < bestD) (bestD = d), (best = l);
+      if (d < bestD) ((bestD = d), (best = l));
     }
     return best;
   };
   const record = new Float32Array(grid.length * STRIDE);
   grid.forEach((g, k) => {
     const b = baked[k];
-    record.set([...g.p, ...g.n, ...b.glow, 0, ...b.ao, 0, g.theta, 0, 0, KIND.wall], k * STRIDE);
+    record.set(
+      [...g.p, ...g.n, ...b.glow, 0, ...b.ao, 0, g.theta, 0, 0, KIND.wall],
+      k * STRIDE,
+    );
   });
   for (let j = 0; j < WALL_Z; j++) {
     const anchor = (j / WALL_Z) * PERIOD;
     for (let i = 0; i < WALL_THETA; i++) {
-      const centre = mul4(grid, [at(i, j), at(i + 1, j), at(i, j + 1), at(i + 1, j + 1)]),
+      const centre = mul4(grid, [
+          at(i, j),
+          at(i + 1, j),
+          at(i, j + 1),
+          at(i + 1, j + 1),
+        ]),
         light = nearest(centre);
       for (const [di, dj] of QUAD) {
         const k = at(i + di, j + dj);
@@ -516,8 +589,35 @@ function build(seed) {
       rnd = rand(),
       size = 0.008 + 0.014 * rand() * rand(),
       phase = rand();
-    for (const [cx, cy] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) {
-      data.set([cx, cy, 0, 0, 0, 0, ...base, rnd, 0, 0, 0, z, size, phase, 0, KIND.mote], o);
+    for (const [cx, cy] of [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, -1],
+      [1, 1],
+      [-1, 1],
+    ]) {
+      data.set(
+        [
+          cx,
+          cy,
+          0,
+          0,
+          0,
+          0,
+          ...base,
+          rnd,
+          0,
+          0,
+          0,
+          z,
+          size,
+          phase,
+          0,
+          KIND.mote,
+        ],
+        o,
+      );
       o += STRIDE;
     }
   }
@@ -525,6 +625,7 @@ function build(seed) {
 }
 const mul4 = (grid, ks) => {
   const s = [0, 0, 0];
-  for (const k of ks) for (let c = 0; c < 3; c++) s[c] += grid[k].p[c] / ks.length;
+  for (const k of ks)
+    for (let c = 0; c < 3; c++) s[c] += grid[k].p[c] / ks.length;
   return s;
 };

@@ -45,10 +45,10 @@ flat out vec4 v_axis;
 flat out float v_rad,v_hue;
 float ss(float a,float b,float x){return smoothstep(a,b,x);}
 vec2 growth(float kind,float birth,float dev,float detail){
- if(kind<1.5){float t=ss(0.,2.,dev);return vec2(.45+.55*t,.9+.1*t);}
+ if(kind<1.5){float t=ss(0.,2.,dev);return vec2(.72+.28*t,.95+.05*t);}
  if(kind<2.5){
   float g1=ss(.08+.62*birth,.38+.62*birth,dev),g2=ss(1.,2.,dev);
-  return vec2(g1*(.62+.38*g2),ss(0.,.25,g1)*(.7+.3*g1)*(.8+.2*g2));
+  return vec2((.28+.72*g1)*(.62+.38*g2),(.36+.64*ss(0.,.25,g1))*(.7+.3*g1)*(.8+.2*g2));
  }
  float g=kind<3.5?ss(1.02+.6*birth,1.32+.6*birth,dev)
   :ss(birth-.1,birth+.1,detail)*(.55+.45*dev*.5);
@@ -110,7 +110,7 @@ void main(){
   float shown=step(fract(a_a.w*7.31),.25+.75*clamp(u_params[6],0.,1.));
   view.xy+=a_p.xy*a_c.x*smoothstep(.5,1.5,view.z)*shown;
  }
- float A=u_resolution.x/u_resolution.y,F=mix(1.7,1.4,ss(1.,2.,dev))*(1.+.02*u_kick);
+ float A=u_resolution.x/u_resolution.y,F=mix(1.9,1.5,ss(1.,2.,dev))*(1.+.02*u_kick);
  float nearZ=.04,farZ=40.;
  gl_Position=vec4(view.x*F/max(A,1.),view.y*F*min(A,1.),
   (view.z*(farZ+nearZ)-2.*farZ*nearZ)/(farZ-nearZ),view.z);
@@ -127,7 +127,7 @@ flat in float v_rad,v_hue;
 uniform float u_time,u_level;
 uniform float u_params[8];
 uniform vec3 u_primary,u_secondary,u_accent;
-uniform vec4 u_rhythm;
+uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 uniform highp sampler2D u_state;
 ${common}
 out vec4 outColor;
@@ -140,7 +140,7 @@ void main(){
  vec3 N=normalize(v_normal);
  vec3 K=normalize(vec3(-.35,.85,.45));
  vec3 lamp=vec3(.3,.45,-.3)-v_pos;float lampD=dot(lamp,lamp);lamp*=inversesqrt(lampD);
- float lampA=.8/(1.+.22*lampD)*mix(.45,1.,smoothstep(0.,1.2,dev));
+ float lampA=1.1/(1.+.22*lampD)*mix(.75,1.,smoothstep(0.,1.2,dev));
  vec3 fogC=mix(u_secondary,u_primary,.3)*.025;
  float fog=max(1.-exp(-dist*.055),smoothstep(16.,25.,dist));
  vec3 col;
@@ -165,7 +165,7 @@ void main(){
   vec2 hc=hash2(bestId+17.);
   float fw=fwidth(uv.x)+fwidth(uv.y),detail=smoothstep(.9,.25,fw);
   float glowN=1.-exp(-v_wall.x*1.6);
-  float cover=(dev-1.)*.85+.7*glowN-.3;
+  float cover=(dev-1.)*.45+.65*glowN-.48;
   float grow=smoothstep(hc.x*.8,hc.x*.8+.3,cover);
   // Each Voronoi cell is one crystal base; growth raises its hexagonal
   // pyramid from a flat rock chip to a pointed druse crystal.
@@ -178,10 +178,11 @@ void main(){
   vec2 fd=vec2(cos(sector),sin(sector)),chip=hc-.5;
   N=normalize(N+((T1*fd.x+T2*fd.y)*1.6*grow+(T1*chip.x+T2*chip.y)*.14*(1.-grow))*detail);
   float groove=smoothstep(0.,.16,edge);
-  vec3 rock=mix(u_secondary,vec3(.22),.65)*.07*(.95+.1*hc.x);
+  float strata=.6+.4*sin(v_abs.z*2.8+v_abs.x*3.+sin(v_abs.y*7.));
+  vec3 rock=mix(u_secondary,u_primary,.18)*.1*(.7+.3*strata);
   float diff=max(dot(N,K),0.),lit=max(dot(N,lamp),0.)*lampA;
   vec3 stone=rock*(.12+.45*diff+1.6*lit+.25*max(-N.y,0.));
-  float poolK=u_params[4]*mix(.26,.16,smoothstep(1.,2.,dev));
+  float poolK=u_params[4]*mix(.38,.18,smoothstep(1.,2.,dev));
   vec3 poolC=mix(u_primary,u_secondary,.25);
   float pool=glowN*glowN*glowN*poolK;
   stone+=poolC*pool*(.85+.3*hc.y)*1.4;
@@ -189,9 +190,9 @@ void main(){
   vec3 dl=v_root-v_abs;dl.z=mod(dl.z+PERIOD*.5,PERIOD)-PERIOD*.5;
   float sd2=dot(dl,dl);
   float seedI=u_params[4]*(1.+.9*(1.-smoothstep(.3,1.,dev))*(.6+.4*sin(TAU*phaseAt(1)*2.)));
-  float seedPool=seedI*max(dot(N,dl*inversesqrt(sd2+1e-4)),0.)/(1.+sd2*16.)*(1.-smoothstep(.5,1.1,sqrt(sd2)));
+  float seedPool=seedI*max(dot(N,dl*inversesqrt(sd2+1e-4)),0.)/(1.+sd2*8.)*(1.-smoothstep(.5,1.1,sqrt(sd2)));
   vec3 seedLC=mix(u_primary,u_accent,.38)*1.15;
-  stone+=seedLC*seedPool*.55;
+  stone+=seedLC*seedPool*.8;
   // Druse points: glassy facets with a bright apex and sparkle.
   float nv=abs(dot(N,V)),fres=pow(1.-nv,3.);
   float spec=pow(max(dot(N,normalize(K+V)),0.),220.)+pow(max(dot(N,normalize(lamp+V)),0.),260.)*lampA*1.5;
@@ -202,14 +203,14 @@ void main(){
    +mix(cellC,vec3(1.),.35)*fres*.05
    +mix(cellC,vec3(1.),.2)*spec*.3*detail*lively
    +poolC*pool*1.1+seedLC*seedPool*.5
-   +mix(cellC,vec3(1.),.25)*apex*(.15+.7*glowN)*u_params[4]*.45*lively;
+   +cellC*apex*glowN*u_params[4]*.035*lively;
   float rfw=fwidth(ridgeD)+1e-4;
-  druse+=mix(cellC,vec3(1.),.4)*(1.-smoothstep(0.,rfw*1.3,ridgeD))*detail*(.04+.1*glowN)*smoothstep(.05,.3,r);
+  druse+=cellC*(1.-smoothstep(0.,rfw*1.3,ridgeD))*detail*.018*glowN*smoothstep(.05,.3,r);
   float slot=floor(u_time*2.3+hc.x*7.);
   float tw=step(1.-clamp(u_params[3],0.,2.)*.05-u_rhythm.x*.12,hash1(hc.y*91.+slot*.31))
    *sin(PI*fract(u_time*2.3+hc.x*7.));
   druse+=mix(cellC,vec3(1.),.6)*tw*(1.5*spec+.9*apex)*detail*lively;
-  col=mix(stone,druse,grow)*(.4+.6*mix(1.,groove,max(grow,.12)))*mix(1.,.6,smoothstep(1.,2.,dev));
+  col=mix(stone,druse,grow)*(.4+.6*mix(1.,groove,grow))*mix(1.,.6,smoothstep(1.,2.,dev));
   col*=mix(.3,1.,v_wall.y);
  }else{
   float face=v_info.z,g=v_info.w;
@@ -225,47 +226,69 @@ void main(){
   float sAx=clamp((e-b*dd)/den,0.,len);
   float tR=max(dot(v_root+d*sAx-v_pos,rd),0.);
   float dc=length(v_pos+rd*tR-v_root-d*sAx)/rad;
-  float core=exp(-dc*dc*9.)*(.3+.7*sAx/len);
-  float haze=exp(-dc*dc*2.2)*(.2+.8*sAx/len);
+  float core=exp(-dc*dc*5.)*(.15+.85*smoothstep(.35,1.05,sAx/len));
+  float haze=exp(-dc*dc*1.5)*(.25+.75*sAx/len);
   bool seed=kind<1.5;
   float tipZone=smoothstep(.8,1.12,along);
   float hueT=mix(.04,.62,fract(v_hue+.13*rnd));
   vec3 tint=pal(hueT);
-  vec3 body=tint*.065;
-  vec3 coreC=mix(pal(mix(.12,.64,v_hue)),vec3(1.),.14);
+  vec3 body=tint*.22;
+  vec3 coreC=pal(mix(.12,.64,v_hue));
+  // Transverse mineral growth zones are visible through the flat facets;
+  // narrow discontinuities are filtered, never time-varying grain.
+  float zones=.5+.5*cos(along*19.+face*.45+rnd*8.);
+  coreC*=.65+.35*smoothstep(.25,.65,zones);
   vec3 seedC=mix(u_accent,vec3(1.),.12);
   // Seeds glow in accent; as they grow only their terminations keep it.
-  float accentMix=seed?mix(1.,tipZone,smoothstep(.2,1.,dev)):0.;
+  float accentMix=seed?tipZone*.3:0.;
   coreC=mix(coreC,mix(coreC,seedC,smoothstep(.25,.8,core)),accentMix);
   float dormant=seed?(1.-smoothstep(.3,1.,dev)):0.;
-  float glowP=u_params[4]*(seed?1.2:.75)*(.45+.55*g)*(1.+.45*smoothstep(1.,2.,dev))*(1.+dormant*(.9+.5*sin(TAU*phaseAt(1)*2.+rnd*TAU)));
+  float glowP=u_params[4]*(seed?1.15:.45)*(.45+.55*g)*(1.+.45*smoothstep(1.,2.,dev))*(1.+dormant*(.9+.5*sin(TAU*phaseAt(1)*2.+rnd*TAU)));
   col=body*(.3+.7*diff+1.1*lit+.3*max(-N.y,0.));
-  col+=tint*haze*.32*glowP;
-  col+=mix(tint,vec3(1.),.45)*fres*.38;
+  col+=tint*haze*.26*glowP;
+  col+=mix(tint,vec3(1.),.18)*fres*.2;
   // A bounded interference tint, no discontinuity at a palette endpoint.
   col+=pal(.5-.5*cos(TAU*(2.2*nv+rnd)))*fres*.14;
-  col+=mix(tint,vec3(1.),.55)*spec*.5;
-  col+=coreC*core*glowP*.95;
+  col+=mix(tint,vec3(1.),.35)*spec*.65;
+  float inclusions=.82+.18*sin(along*38.+rnd*17.+face*2.);
+  col+=coreC*core*glowP*.55*inclusions;
+  // Broad reflected light strips break up the axial glow. They are locked
+  // to facet/view geometry, not time noise, and retain saturated midtones.
+  float reflection=pow(.5+.5*cos(dot(reflect(-V,N),K)*9.+rnd*5.),14.);
+  col+=mix(u_secondary,u_primary,.35)*reflection*(.2+.5*fres);
+  col+=tint*pow(.5+.5*cos(along*17.+face*.8),10.)*.06;
   // Facet edges stay about 1.5 px wide at any output size.
   float ed=face<5.5?min(min(v_face.x,1.-v_face.x),1.-v_face.y)
    :min(min(v_face.x-.5*v_face.y,1.-v_face.x-.5*v_face.y),v_face.y);
   float fw=fwidth(ed);
   float line=(1.-smoothstep(0.,fw*1.4,ed))*smoothstep(.45,.1,fw);
-  col+=mix(tint,vec3(1.),.6)*line*(.16+.35*fres+.25*tipZone);
+  col+=mix(tint,vec3(1.),.15)*line*(.035+.12*fres+.12*tipZone);
   // Light pulses travel from the root to the tip; energy speeds them up.
   float pulse=fract(phaseAt(1)+rnd);
   float band=exp(-pow((along-pulse*1.25)*7.,2.))*min(u_params[2],2.);
   col+=coreC*band*(.25*haze+.6*core)*glowP;
-  col+=coreC*exp(-pow((along-(1.-u_rhythm.y))*7.,2.))*u_rhythm.y*.5*(.25+haze);
+  col+=coreC*exp(-pow((along-(1.-u_rhythm.y))*5.,2.))*u_rhythm.y*2.2*(.25+haze);
   // Facet sparkle: a few facets glint at a time; density rises with energy.
   float slot=floor(u_time*2.3+rnd*7.);
   float pick=hash1(face+rnd*97.+slot*.137);
   float amount=clamp(u_params[3],0.,2.)*.08+u_rhythm.x*.25;
   float tw=step(1.-amount,pick)*sin(PI*fract(u_time*2.3+rnd*7.));
-  col+=mix(u_primary,vec3(1.),.75)*tw*(.35+1.5*spec+.4*fres);
-  if(seed)col+=seedC*u_rhythm.z*.9*(core+.3*fres)*(.4+.6*tipZone);
+  col+=mix(u_primary,vec3(1.),.25)*tw*(.35+1.5*spec+.4*fres);
+  float facetCohort=.35+.65*pow(.5+.5*cos(face*PI/3.-u_rhythm.x*3.),3.);
+  col+=mix(tint,u_accent,.3)*u_rhythm.x*facetCohort*(.22+.7*fres+.5*tipZone);
+  if(seed)col+=seedC*u_rhythm.z*1.8*(core+.3*fres)*(.4+.6*tipZone);
+  // Crystal chime: an angular wave selects mineral groups, then a broad
+  // ring climbs each selected prism. Count rotates the next strike origin.
+  float theta=atan(v_abs.y+.2,v_abs.x);
+  float chimePhase=theta-u_rhythmCount.w*2.399963+(1.-u_rhythm.w)*TAU;
+  float cohort=pow(.5+.5*cos(chimePhase),8.);
+  float ring=exp(-pow((along-(1.-u_rhythm.w)*1.4)*4.,2.));
+  float chime=u_rhythm.w*cohort*(.25+1.7*ring+.6*tipZone);
+  chime+=u_rhythmHit.w*cohort*.2*(1.-smoothstep(0.,.3,along));
+  col+=mix(u_primary,u_accent,.72)*chime*2.4*(.3+haze);
   // Contact occlusion where the prism meets rock and its neighbours.
   col*=.2+.8*smoothstep(0.,.3,along*len)*smoothstep(-.1,.08,along);
+  col*=.9+.1*float(seed);
  }
  col=mix(col,fogC,fog);
  outColor=vec4(max(col,vec3(0.)),1.);
@@ -289,13 +312,62 @@ const schema = [
     step: 0.01,
     default: 0,
   },
-  { key: "drift", label: "Glide speed", min: 0.1, max: 2, step: 0.01, default: 1 },
-  { key: "shimmer", label: "Light pulses", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "sparkle", label: "Facet sparkle", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "glow", label: "Core glow", min: 0.2, max: 1.6, step: 0.01, default: 1 },
-  { key: "habit", label: "Crystal habit", min: 0.4, max: 1.6, step: 0.01, default: 1 },
-  { key: "detail", label: "Crystal grains", min: 0, max: 1, step: 0.01, default: 0.45 },
-  { key: "gaze", label: "Gaze to the wall", min: 0, max: 1, step: 0.01, default: 0 },
+  {
+    key: "drift",
+    label: "Glide speed",
+    min: 0.1,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "shimmer",
+    label: "Light pulses",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "sparkle",
+    label: "Facet sparkle",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "glow",
+    label: "Core glow",
+    min: 0.2,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "habit",
+    label: "Crystal habit",
+    min: 0.4,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "detail",
+    label: "Crystal grains",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.45,
+  },
+  {
+    key: "gaze",
+    label: "Gaze to the wall",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0,
+  },
 ];
 const look = (name, seed, development, params = {}) => ({
   name,
@@ -324,11 +396,37 @@ export default {
     look("Dormant Seeds", 311, 0),
     look("Quartz Lattice", 311, 1),
     look("Geode Hall", 311, 2),
-    look("Needle Grotto", 1207, 1.5, { habit: 0.5, detail: 0.85, drift: 0.7, gaze: 0.3 }),
-    look("Amethyst Vault", 4421, 1.6, { habit: 1.3, glow: 1.3, drift: 0.6, gaze: 0.35 }),
-    look("Glacier Druse", 58, 1.25, { habit: 0.85, sparkle: 1.6, detail: 0.7, drift: 1.35 }),
-    look("Ember Sprouts", 2718, 0.6, { glow: 1.4, shimmer: 1.4, detail: 0.8, drift: 0.8, gaze: 0.2 }),
-    look("Cathedral Geode", 911, 2, { habit: 1.15, drift: 0.8, sparkle: 0.7, gaze: 0.15 }),
+    look("Needle Grotto", 1207, 1.5, {
+      habit: 0.5,
+      detail: 0.85,
+      drift: 0.7,
+      gaze: 0.3,
+    }),
+    look("Amethyst Vault", 4421, 1.6, {
+      habit: 1.3,
+      glow: 1.3,
+      drift: 0.6,
+      gaze: 0.35,
+    }),
+    look("Glacier Druse", 58, 1.25, {
+      habit: 0.85,
+      sparkle: 1.6,
+      detail: 0.7,
+      drift: 1.35,
+    }),
+    look("Ember Sprouts", 2718, 0.6, {
+      glow: 1.4,
+      shimmer: 1.4,
+      detail: 0.8,
+      drift: 0.8,
+      gaze: 0.2,
+    }),
+    look("Cathedral Geode", 911, 2, {
+      habit: 1.15,
+      drift: 0.8,
+      sparkle: 0.7,
+      gaze: 0.15,
+    }),
   ],
   stage: ["drift", "sparkle", "glow"],
   type: { key: "development", values: [0, 1, 2] },
@@ -343,40 +441,139 @@ export default {
     { param: "shimmer", feature: "low", amount: 0.06 },
     { param: "sparkle", feature: "high", amount: 0.05 },
   ],
-  rhythmStyles: { restrained: "Hidden facets", driving: "Quartz steps", accented: "Prismatic chime" },
+  rhythmStyles: {
+    restrained: "Hidden facets",
+    driving: "Quartz steps",
+    accented: "Prismatic chime",
+  },
   rhythm: [
     familyEffect(
       "facet-glint",
       0,
       "Facet glint",
       "More crystal facets catch the light at once.",
-      { period: 4, strength: 0.6, duration: 0.5, steps: "X...", styles: {
-        restrained: { steps: "X....x.. | ...x....", division: 2, strength: 0.5, duration: 0.9 },
-        driving: { steps: "X.x.X.x. | X..xX.xx", division: 2, strength: 0.78, duration: 0.3 },
-        accented: { steps: "X.x..X.x..X.x..xX.x.", division: 4, strength: 0.94, duration: 0.2 },
-      } },
+      {
+        period: 4,
+        strength: 0.6,
+        duration: 0.5,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....x.. | ...x....",
+            division: 2,
+            strength: 0.5,
+            duration: 0.9,
+          },
+          driving: {
+            steps: "X.x.X.x. | X..xX.xx",
+            division: 2,
+            strength: 0.78,
+            duration: 0.3,
+          },
+          accented: {
+            steps: "X.x..X.x..X.x..xX.x.",
+            division: 4,
+            strength: 0.94,
+            duration: 0.2,
+          },
+        },
+      },
     ),
     familyEffect(
       "growth-pulse",
       1,
       "Growth pulse",
       "A band of light climbs every crystal from its root to its tip.",
-      { period: 8, strength: 0.65, duration: 1, steps: "X.......", styles: {
-        restrained: { steps: "..x..... | ......X.", division: 2, strength: 0.55, duration: 1.25 },
-        driving: { steps: "...X..x. | .X...x..", division: 2, strength: 0.78, duration: 0.75 },
-        accented: { steps: "...X..x..X..x... | .X..x..X..x...X.", division: 4, strength: 0.9, duration: 0.4 },
-      } },
+      {
+        period: 8,
+        strength: 0.65,
+        duration: 1,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "..x..... | ......X.",
+            division: 2,
+            strength: 0.55,
+            duration: 1.25,
+          },
+          driving: {
+            steps: "...X..x. | .X...x..",
+            division: 2,
+            strength: 0.78,
+            duration: 0.75,
+          },
+          accented: {
+            steps: "...X..x..X..x... | .X..x..X..x...X.",
+            division: 4,
+            strength: 0.9,
+            duration: 0.4,
+          },
+        },
+      },
     ),
     familyEffect(
       "seed-beacons",
       2,
       "Seed beacons",
       "The original seed crystals flare together.",
-      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ....X... | ........", division: 2, strength: 0.55, duration: 2 },
-        driving: { steps: "........ | ......xX | ........ | .....x.X", division: 2, strength: 0.82, duration: 0.35 },
-        accented: { steps: "................ | ..........x.X.xx", division: 4, strength: 0.97, duration: 0.18 },
-      } },
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ....X... | ........",
+            division: 2,
+            strength: 0.55,
+            duration: 2,
+          },
+          driving: {
+            steps: "........ | ......xX | ........ | .....x.X",
+            division: 2,
+            strength: 0.82,
+            duration: 0.35,
+          },
+          accented: {
+            steps: "................ | ..........x.X.xx",
+            division: 4,
+            strength: 0.97,
+            duration: 0.18,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "crystal-chime",
+      3,
+      "Crystal chime",
+      "A ringing light cascade circles the crystal groups and climbs their terminations.",
+      {
+        period: 8,
+        strength: 0.95,
+        duration: 0.8,
+        steps: "..X...x.",
+        styles: {
+          restrained: {
+            steps: "........ | ....X... | ........ | ......x.",
+            division: 2,
+            strength: 0.72,
+            duration: 1.3,
+          },
+          driving: {
+            steps: "..X..... | .....X.. | ...x.... | ......X.",
+            division: 2,
+            strength: 0.95,
+            duration: 0.85,
+          },
+          accented: {
+            steps: "..X..... | .....x.. | ...X.... | ..x...X.",
+            division: 2,
+            strength: 1,
+            duration: 0.8,
+          },
+        },
+      },
     ),
   ],
   fragment: `void main(){vec2 p=v_uv-.5;outColor=vec4(mix(u_secondary,u_primary,.3)*.035*(1.-.4*dot(p,p)),1.);}`,

@@ -2232,6 +2232,8 @@ export default {
   "A band of light climbs every crystal from its root to its tip.": "Ein Lichtband steigt in jedem Kristall von der Wurzel bis zur Spitze.",
   "Seed beacons": "Keimfeuer",
   "The original seed crystals flare together.": "Die ursprünglichen Keimkristalle leuchten gemeinsam auf.",
+  "Crystal chime": "Kristallklang",
+  "A ringing light cascade circles the crystal groups and climbs their terminations.": "Eine klingende Lichtkaskade umkreist die Kristallgruppen und steigt zu ihren Spitzen.",
   "Hidden facets": "Verborgene Facetten",
   "Quartz steps": "Quarzschritte",
   "Prismatic chime": "Prismatischer Glockenklang",

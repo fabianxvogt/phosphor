@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 import {
   ATTRIBUTES,
   CORRIDOR,
@@ -106,10 +107,10 @@ test("growth is continuous, reversible and tells sparse → structured → full"
       // Pure function of development: reversal retraces the same values.
       assert.deepEqual(growth(kind, birth, 1.37), growth(kind, birth, 1.37));
     }
-  // Seeds: only the nuclei exist.
+  // Seeds: dominant nuclei have small subsidiary quartz at their roots.
   assert.ok(growth(KIND.seed, 0, 0)[0] > 0.1);
   for (const birth of [0, 0.5, 1]) {
-    assert.equal(growth(KIND.member, birth, 0)[0], 0);
+    close(growth(KIND.member, birth, 0)[0], 0.28 * 0.62);
     assert.equal(growth(KIND.hall, birth, 0)[0], 0);
   }
   // Lattice: every druse member has fully nucleated; the hall has not begun.
@@ -170,22 +171,60 @@ test("no crystal ever reaches the camera corridor at any development or energy",
 
 test("hexagonal wall cells are exact nearest sites and repeat without a seam", () => {
   const h = Math.sqrt(3);
-  for (let x=-2; x<2; x+=.137) for(let y=-2; y<2; y+=.193) {
-    const c=hexCell(x,y);
-    let best=Infinity;
-    for(let i=-4;i<=4;i++) for(let j=-4;j<=4;j++) for(const s of [0,.5])
-      best=Math.min(best,Math.hypot(x-i-s,y-h*(j+s)));
-    close(Math.hypot(...c.local),best,1e-10);
-    assert.ok(c.edge >= -1e-10);
-    const shifted=hexCell(x+96,y+192*h);
-    c.local.forEach((v,i)=>close(v,shifted.local[i],1e-10));
-    close(c.edge,shifted.edge,1e-10);
+  for (let x = -2; x < 2; x += 0.137)
+    for (let y = -2; y < 2; y += 0.193) {
+      const c = hexCell(x, y);
+      let best = Infinity;
+      for (let i = -4; i <= 4; i++)
+        for (let j = -4; j <= 4; j++)
+          for (const s of [0, 0.5])
+            best = Math.min(best, Math.hypot(x - i - s, y - h * (j + s)));
+      close(Math.hypot(...c.local), best, 1e-10);
+      assert.ok(c.edge >= -1e-10);
+      const shifted = hexCell(x + 96, y + 192 * h);
+      c.local.forEach((v, i) => close(v, shifted.local[i], 1e-10));
+      close(c.edge, shifted.edge, 1e-10);
+    }
+  close(hexCell(0.5, 0).edge, 0);
+  close(hexCell(0, 0).edge, 0.5);
+  close(growth(KIND.seed, 0, 0)[0], 0.72);
+  assert.match(scene.geometry.vertex, /vec2\(\.72\+\.28\*t,\.95\+\.05\*t\)/);
+  assert.deepEqual(
+    scene.presets.map((p) => p.seed),
+    [311, 311, 311, 1207, 4421, 58, 2718, 911],
+  );
+});
+
+test("crystal chime occupies slot 3 and authored grids meet density targets", () => {
+  assert.equal(scene.rhythm.length, 4);
+  const chime = scene.rhythm.find((g) => g.slot === 3);
+  assert.equal(chime.id, "crystal-chime");
+  for (const [style, minimum] of Object.entries({
+    restrained: 2,
+    driving: 6,
+    accented: 8,
+  })) {
+    const pattern = defaultPattern(scene.rhythm, style);
+    let density = 0;
+    for (const track of pattern.tracks) {
+      const hits = track.steps.flatMap((x, i) => (x > 0 ? [i] : []));
+      density += (hits.length * track.division * 4) / track.length;
+      if (track.effect === chime.id) {
+        assert.ok(hits.length >= 2);
+        for (let i = 0; i < hits.length; i++) {
+          const gap =
+            (hits[(i + 1) % hits.length] +
+              (i === hits.length - 1 ? track.length : 0) -
+              hits[i]) /
+            track.division;
+          assert.ok(track.duration < gap);
+        }
+      }
+    }
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
   }
-  close(hexCell(.5,0).edge,0);
-  close(hexCell(0,0).edge,.5);
-  close(growth(KIND.seed,0,0)[0],.45);
-  assert.match(scene.geometry.vertex, /vec2\(\.45\+\.55\*t,\.9\+\.1\*t\)/);
-  assert.deepEqual(scene.presets.map(p=>p.seed),[311,311,311,1207,4421,58,2718,911]);
+  for (const channel of ["u_rhythm.w", "u_rhythmCount.w", "u_rhythmHit.w"])
+    assert.ok(scene.geometry.fragment.includes(channel), channel);
 });
 
 test("camera travel integrates in exact 24-bit steps at every speed", () => {

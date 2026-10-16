@@ -2232,6 +2232,8 @@ export default {
   "A band of light climbs every crystal from its root to its tip.": "A band of light climbs every crystal from its root to its tip.",
   "Seed beacons": "Seed beacons",
   "The original seed crystals flare together.": "The original seed crystals flare together.",
+  "Crystal chime": "Crystal chime",
+  "A ringing light cascade circles the crystal groups and climbs their terminations.": "A ringing light cascade circles the crystal groups and climbs their terminations.",
   "Hidden facets": "Hidden facets",
   "Quartz steps": "Quartz steps",
   "Prismatic chime": "Prismatic chime",
