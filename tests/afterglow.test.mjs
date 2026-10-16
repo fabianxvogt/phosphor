@@ -11,15 +11,20 @@ import {
 import { initialShowSet, validateShowSet } from "../show-set.mjs";
 import { catalogLooks } from "../catalog.mjs";
 import evolution, { morphogenSimulation } from "../scene-evolution.mjs";
-import afterglow, { CHEMISTRY, crownEnvelope } from "../scene-afterglow.mjs";
-import {
-  calyxHeight,
+import afterglow, {
+  CHEMISTRY,
+  CELLS,
+  FIELD,
+  FAR_IMAGES,
+  ADDITIVE_FROM,
+  FLOWER_VERTICES,
+  DETAIL_VERTICES,
+  SIMPLE_VERTICES,
+  TAIL_VERTICES,
+  flowerTemplate,
+  flowerInstances,
   gardenEye,
-  landscapeGeometry,
-  GARDEN_LANDSCAPE_VERTICES as LANDSCAPE_VERTICES,
-  CALYX_VERTICES,
-  SPORE_COUNT,
-} from "../organic-landscape.mjs";
+} from "../scene-afterglow.mjs";
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 
@@ -95,120 +100,46 @@ test("linear visual filtering decodes exactly; simulation retains explicit neare
   }
 });
 
-test("calyx envelope has exact six-fold symmetry and continuous bounded development", () => {
-  for (let i = 0; i < 200; i++) {
-    const angle = i * 0.17,
-      r = (i / 200) * 0.7;
-    const x = r * Math.cos(angle),
-      y = r * Math.sin(angle);
-    for (let k = 0; k < 6; k++) {
-      const a = angle + (k * Math.PI) / 3;
-      assert.ok(
-        Math.abs(
-          crownEnvelope(x, y, 1) -
-            crownEnvelope(r * Math.cos(a), r * Math.sin(a), 1),
-        ) < 1e-12,
-      );
-    }
-    let previous = 1;
-    for (let k = 0; k <= 200; k++) {
-      const mask = crownEnvelope(x, y, k / 200);
-      assert.ok(mask >= 0 && mask <= previous + 1e-12);
-      previous = mask;
-    }
-  }
-  assert.equal(crownEnvelope(0, 0, 1), 1);
-  assert.equal(crownEnvelope(0.551, 0, 1), 0);
-  // Algebraic cos(6 theta) avoids trigonometry in every march sample.
-  for (let i = 0; i < 100; i++) {
-    const a = i * 0.2,
-      x = Math.cos(a),
-      y = Math.sin(a);
-    const c3 = x * (x * x - 3 * y * y);
-    assert.ok(Math.abs(2 * c3 * c3 - 1 - Math.cos(6 * a)) < 1e-13);
-  }
-  for (let i = 0; i < 200; i++) {
-    const a = i * 0.17,
-      r = (i / 200) * 0.8,
-      v = 0.25;
-    const h = calyxHeight(r * Math.cos(a), r * Math.sin(a), v, 1);
-    assert.ok(
-      Math.abs(
-        h -
-          calyxHeight(
-            r * Math.cos(a + Math.PI / 3),
-            r * Math.sin(a + Math.PI / 3),
-            v,
-            1,
-          ),
-      ) < 1e-12,
-    );
-    assert.ok(
-      calyxHeight(2, 2, v, 1) > 0,
-      "field never contracts into an island",
-    );
-    assert.ok(
-      Math.abs(h - calyxHeight(r * Math.cos(a), r * Math.sin(a), v, 1 - 1e-6)) <
-        1e-6,
-    );
-  }
-  assert.match(afterglow.geometry.vertex, /return low\+city\(\)/);
-  assert.match(
-    afterglow.geometry.fragment,
-    /vec2 local=v_position.xy-focus\(\)/,
-  );
+test("flower template: detailed, simple and additive parts in a fixed order", () => {
+  const template = flowerTemplate();
+  assert.equal(template.length / 3, FLOWER_VERTICES);
+  assert.equal(afterglow.geometry.additiveFrom, ADDITIVE_FROM);
+  assert.equal(ADDITIVE_FROM, DETAIL_VERTICES + SIMPLE_VERTICES);
+  assert.equal(FLOWER_VERTICES - ADDITIVE_FROM, TAIL_VERTICES);
+  assert.ok(template.every(Number.isFinite));
+  const parts = [];
+  for (let i = 0; i < template.length; i += 3) parts.push(template[i]);
+  // Opaque parts (< 30) strictly precede the additive halo and pollen.
+  assert.ok(parts.slice(0, ADDITIVE_FROM).every((p) => p < 30));
+  assert.ok(parts.slice(ADDITIVE_FROM).every((p) => p >= 30));
+  // One instance per spot-finder cell; the far images never include the
+  // detailed square itself and stay unique.
+  assert.equal(flowerInstances().length / 2, CELLS * CELLS);
+  assert.equal(afterglow.precompute.size[0], CELLS);
+  assert.equal(afterglow.precompute.size[1], 2 * CELLS);
+  assert.equal(FIELD % CELLS, 0);
+  assert.ok(!FAR_IMAGES.some(([x, y]) => x === 0 && y === 0));
+  assert.equal(new Set(FAR_IMAGES.map(String)).size, FAR_IMAGES.length);
+  // Without float targets the flowers are simply absent (ground still draws).
+  assert.match(afterglow.geometry.vertex, /#ifndef PRECOMPUTED\n  hide\(\);/);
 });
 
-test("material-aligned calyx rings remain finite, persistent and depth ordered", () => {
-  const data = landscapeGeometry(true);
-  assert.equal(
-    data.length / 3,
-    LANDSCAPE_VERTICES + CALYX_VERTICES + SPORE_COUNT * 6,
-  );
-  assert.equal(
-    afterglow.geometry.additiveFrom,
-    LANDSCAPE_VERTICES + CALYX_VERTICES,
-  );
-  assert.ok(data.every(Number.isFinite));
-  for (
-    let i = LANDSCAPE_VERTICES * 3;
-    i < (LANDSCAPE_VERTICES + CALYX_VERTICES) * 3;
-    i += 3
-  ) {
-    assert.equal(data[i + 2], -1);
-    assert.ok(
-      data[i] >= 0 && data[i] <= 1 && data[i + 1] >= 0 && data[i + 1] <= 1,
-    );
+test("camera rises within a bounded range so a one-bar drop is a gentle crane", () => {
+  let previous = gardenEye(0);
+  for (let d = 0.01; d <= 2.0001; d += 0.01) {
+    const eye = gardenEye(d);
+    assert.ok(eye.z >= previous.z - 1e-12, "eye height is monotone");
+    assert.ok(Math.abs(eye.z - previous.z) < 0.004, "no jump per 0.01");
+    previous = eye;
   }
-  assert.match(
-    afterglow.geometry.fragment,
-    /derivative[s]? defined before discarding/,
-  );
-  assert.doesNotMatch(
-    afterglow.geometry.vertex,
-    /city\(\)<=0.*gl_Position/,
-    "the inner carrier persists even before Bloom",
-  );
-  assert.match(
-    afterglow.geometry.fragment,
-    /if\(v_kind>-.5&&crown\(local\)>0\.\)discard/,
-  );
-});
-
-test("camera clearance survives low altitude, high relief and development reversal", () => {
-  for (let d = 0; d <= 2; d += 0.01)
-    for (const altitude of [0.7, 1, 1.4])
-      for (const relief of [0.3, 1, 1.6])
-        for (const yaw of [0, 0.18, 1, 2]) {
-          const [x, y, z] = gardenEye(d, altitude, relief, yaw);
-          const b = Math.max(0, Math.min(1, d - 1)),
-            bloom = b * b * (3 - 2 * b);
-          assert.ok(
-            z >
-              calyxHeight(x, y, 1, bloom, { relief, fieldScale: 0.065 }) + 0.03,
-            "camera remains above the maximal field",
-          );
-        }
+  const low = gardenEye(0),
+    high = gardenEye(2);
+  assert.ok(high.z / low.z <= 4.5);
+  assert.ok(Math.abs(high.pitch - low.pitch) <= (10 * Math.PI) / 180);
+  for (const altitude of [0.7, 1.4])
+    assert.ok(gardenEye(0, altitude).z > 0.034, "never in the soil");
+  // The shader mirrors the same numbers.
+  assert.match(afterglow.fragment, /\.05 \+ \.07 \* agSmooth\(0\., 1\., d\) \+ \.09 \* agSmooth\(1\., 2\., d\)/);
 });
 
 test("saved sets with the earlier evolution-based Afterglow Garden upgrade; edited ones stay", () => {
@@ -355,3 +286,103 @@ test("abrupt development jumps keep the garden alive; an empty garden regrows", 
   const empty = garden(96, 96);
   assert.ok(run(empty, B, 40) > 0.2);
 });
+
+// CPU mirror of the precompute spot finder: 2×2 box means on the half-texel
+// lattice (one bilinear tap), cell argmax, strict local maximum within r = 5
+// (ties broken towards lower y, then lower x).
+function boxField(g) {
+  const { W, H, v } = g;
+  const at = (x, y) => v[(((y % H) + H) % H) * W + (((x % W) + W) % W)];
+  return (x, y) =>
+    (at(x - 1, y - 1) + at(x, y - 1) + at(x - 1, y) + at(x, y)) / 4;
+}
+function isMaximum(S, x, y) {
+  const s = S(x, y);
+  if (s <= 0.06) return false;
+  for (let dy = -5; dy <= 5; dy++)
+    for (let dx = -5; dx <= 5; dx++) {
+      if ((!dx && !dy) || dx * dx + dy * dy > 25) continue;
+      const q = S(x + dx, y + dy);
+      if (q > s || (q === s && (dy < 0 || (dy === 0 && dx < 0)))) return false;
+    }
+  return true;
+}
+function findSpots(g, cell = 6) {
+  const S = boxField(g),
+    spots = [];
+  for (let cy = 0; cy < g.H / cell; cy++)
+    for (let cx = 0; cx < g.W / cell; cx++) {
+      let best = -1,
+        at = null;
+      for (let j = 0; j < cell; j++)
+        for (let i = 0; i < cell; i++) {
+          const s = S(cx * cell + i, cy * cell + j);
+          if (s > best) [best, at] = [s, [cx * cell + i, cy * cell + j]];
+        }
+      if (isMaximum(S, ...at)) spots.push(at);
+    }
+  return spots;
+}
+function elongation(g, [x, y]) {
+  const S = boxField(g),
+    s = S(x, y);
+  const hxx = S(x + 3, y) + S(x - 3, y) - 2 * s,
+    hyy = S(x, y + 3) + S(x, y - 3) - 2 * s;
+  const hxy = (S(x + 3, y + 3) + S(x - 3, y - 3) - S(x + 3, y - 3) - S(x - 3, y + 3)) / 4;
+  const m = (hxx + hyy) / 2,
+    q = Math.hypot((hxx - hyy) / 2, hxy);
+  const l1 = m - q,
+    l2 = m + q;
+  return l1 < 0 ? Math.max(0, Math.min(1, 1 - Math.abs(Math.min(l2, 0)) / Math.abs(l1))) : 1;
+}
+
+test("the spot finder sees every flower exactly once, owned by one cell", () => {
+  const g = garden(96, 96);
+  for (let y = 8; y < 96; y += 24) for (let x = 8; x < 96; x += 24) bud(g, x, y, 5);
+  run(g, CHEMISTRY[2], 40);
+  const S = boxField(g);
+  const global = [];
+  for (let y = 0; y < 96; y++)
+    for (let x = 0; x < 96; x++) if (isMaximum(S, x, y)) global.push(`${x},${y}`);
+  const found = findSpots(g).map(String);
+  assert.ok(found.length > 20, `flowers ${found.length}`);
+  assert.deepEqual([...found].sort(), [...global].sort());
+  assert.equal(new Set(found).size, found.length);
+});
+
+test("a cleared Bloom patch refills by spot division", () => {
+  const g = garden(96, 96);
+  for (let y = 8; y < 96; y += 24) for (let x = 8; x < 96; x += 24) bud(g, x, y, 5);
+  run(g, CHEMISTRY[2], 50);
+  const [cx, cy, R] = [48, 48, 18];
+  const near = (spots) =>
+    spots.filter(([x, y]) => Math.hypot(x - cx, y - cy) < R + 6).length;
+  const before = near(findSpots(g));
+  // The shader's wilt: V → 0 inside a soft disk, then one seed bud.
+  for (let k = 0; k < 180; k++) {
+    for (let y = 0; y < 96; y++)
+      for (let x = 0; x < 96; x++) {
+        const d = Math.hypot(x - cx, y - cy);
+        const w = 1 - smooth(14, 20, d);
+        const i = y * 96 + x;
+        g.u[i] += (1 - g.u[i]) * 0.03 * w;
+        g.v[i] += (0 - g.v[i]) * 0.03 * w;
+      }
+    step(g, CHEMISTRY[2]);
+  }
+  bud(g, cx, cy, 4);
+  assert.ok(near(findSpots(g)) < before, "the patch wilted");
+  let dividing = 0;
+  for (let s = 0; s < 14; s++) {
+    run(g, CHEMISTRY[2], 1);
+    dividing += findSpots(g).filter(
+      (p) => Math.hypot(p[0] - cx, p[1] - cy) < R + 8 && elongation(g, p) > 0.5 && elongation(g, p) < 0.85,
+    ).length;
+  }
+  assert.ok(dividing > 0, "pinching spots appear while the patch refills");
+  assert.ok(near(findSpots(g)) >= before - 1, `refilled ${near(findSpots(g))} / ${before}`);
+});
+function smooth(a, b, x) {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
