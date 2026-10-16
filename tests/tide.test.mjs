@@ -9,7 +9,11 @@ import tide, {
   ROLLER,
   GLITTER,
 } from "../scene-tide.mjs";
-import { samplePattern, defaultPattern, effectDefinitions } from "../rhythm.mjs";
+import {
+  samplePattern,
+  defaultPattern,
+  effectDefinitions,
+} from "../rhythm.mjs";
 import scenes from "../scenes.mjs";
 import { FAMILY_CATALOG } from "../family-catalog.mjs";
 import { catalogLooks } from "../catalog.mjs";
@@ -59,8 +63,7 @@ function waves(seed, dev, height = 1, clock = 0) {
   return WAVE_HARMONICS.map((n, i) => {
     const omega = 0.35 * n,
       k = (omega * omega) / GRAVITY;
-    const angle =
-      1.0208 + SPREAD[i] + 0.3 * (hash(i + 17, seed % 997) - 0.5);
+    const angle = 1.0208 + SPREAD[i] + 0.3 * (hash(i + 17, seed % 997) - 0.5);
     return {
       id: i,
       k,
@@ -352,13 +355,18 @@ function foamAt(signal, level, scale = 1) {
 }
 
 test("foam follows the wind sea's analytic signal, not noise ridges", () => {
-  assert.ok(!/tdLace|tdGradient|laceField|threads|tdFoamCells/.test(tide.fragment));
+  assert.ok(
+    !/tdLace|tdGradient|laceField|threads|tdFoamCells/.test(tide.fragment),
+  );
   assert.match(tide.fragment, /foamData=tdFoamData\(p.xz\)/);
   assert.match(
     tide.fragment,
     /for\(int i=1;i<5;i\+\+\) \{\s*vec4 w=gW\[i\]; float phase=dot\(w.xy,q\)\+w.w;\s*float c=w.z\*\(i==1\?\.36:i==2\?\.64:i==3\?1\.:1\.96\);/,
   );
-  assert.match(tide.fragment, /age=mod\(1\.5707963-atan\(foamData.x,foamData.y\),TAU\)/);
+  assert.match(
+    tide.fragment,
+    /age=mod\(1\.5707963-atan\(foamData.x,foamData.y\),TAU\)/,
+  );
   // For a single mode the analytic signal's argument IS the wave phase, and
   // age 0 is exactly its crest (maximum height).
   const w = waves(10301, 1, 1, 0.4);
@@ -393,15 +401,26 @@ test("foam persistence is the closed-form decaying sum of past crest passages", 
     for (let age = 0.001; age < 2 * Math.PI; age += 0.05) {
       // Sum of pulses from every earlier crest, each decaying since passing.
       let sum = 0;
-      for (let m = 0; m < 400; m++) sum += Math.exp(-(age + 2 * Math.PI * m) / kappa);
-      const closed = Math.exp(-age / kappa) / (1 - Math.exp((-2 * Math.PI) / kappa));
+      for (let m = 0; m < 400; m++)
+        sum += Math.exp(-(age + 2 * Math.PI * m) / kappa);
+      const closed =
+        Math.exp(-age / kappa) / (1 - Math.exp((-2 * Math.PI) / kappa));
       assert.ok(Math.abs(sum - closed) < 1e-9);
       // The shader subtracts the floor left just before the next crest and
       // normalizes: 1 at the crest, 0 just before the next one.
-      const floor = Math.exp((-2 * Math.PI) / kappa) / (1 - Math.exp((-2 * Math.PI) / kappa));
-      const fill = (Math.exp(-age / kappa) - Math.exp((-2 * Math.PI) / kappa)) /
+      const floor =
+        Math.exp((-2 * Math.PI) / kappa) /
         (1 - Math.exp((-2 * Math.PI) / kappa));
-      assert.ok(Math.abs(fill - (closed - floor) / (1 / (1 - Math.exp((-2 * Math.PI) / kappa)) - floor)) < 1e-9);
+      const fill =
+        (Math.exp(-age / kappa) - Math.exp((-2 * Math.PI) / kappa)) /
+        (1 - Math.exp((-2 * Math.PI) / kappa));
+      assert.ok(
+        Math.abs(
+          fill -
+            (closed - floor) /
+              (1 / (1 - Math.exp((-2 * Math.PI) / kappa)) - floor),
+        ) < 1e-9,
+      );
     }
 });
 
@@ -452,17 +471,25 @@ test("gated foam is continuous through phase dislocations and the crest wrap", (
   assert.ok(1.3 * 0.48 < 0.65);
   assert.match(tide.fragment, /threshold=mix\(1\.1,\.65,u_level\)/);
   // The extra Swell lowering scales with gSwell: zero in Calm.
-  assert.match(tide.fragment, /threshold-=\.3\*gSwell\*\(1\.-gVortex\)\*exp\(-t\/70\.\);/);
+  assert.match(
+    tide.fragment,
+    /threshold-=\.3\*gSwell\*\(1\.-gVortex\)\*exp\(-t\/70\.\);/,
+  );
 });
 
 test("the vortex twist is a radius-preserving bijection with an exact pullback", () => {
   assert.match(tide.fragment, /float a=gTwist\*exp\(-dot\(x,x\)\/900\.\)/);
-  assert.match(tide.fragment, /gTwist=-3\.5\*smoothstep\(1\.,1\.6,u_params\[0\]\)/);
+  assert.match(
+    tide.fragment,
+    /gTwist=-3\.5\*smoothstep\(1\.,1\.6,u_params\[0\]\)/,
+  );
   assert.match(tide.fragment, /gVortex=smoothstep\(1\.2,2\.,u_params\[0\]\)/);
-  const field = (y) => Math.sin(0.21 * y[0] - 0.13 * y[1]) + 0.4 * Math.cos(0.33 * y[1]);
+  const field = (y) =>
+    Math.sin(0.21 * y[0] - 0.13 * y[1]) + 0.4 * Math.cos(0.33 * y[1]);
   const gradientAt = (y) => [
     0.21 * Math.cos(0.21 * y[0] - 0.13 * y[1]),
-    -0.13 * Math.cos(0.21 * y[0] - 0.13 * y[1]) - 0.4 * 0.33 * Math.sin(0.33 * y[1]),
+    -0.13 * Math.cos(0.21 * y[0] - 0.13 * y[1]) -
+      0.4 * 0.33 * Math.sin(0.33 * y[1]),
   ];
   for (const dev of [1, 1.3, 1.7, 2])
     for (let i = 0; i < 400; i++) {
@@ -471,7 +498,10 @@ test("the vortex twist is a radius-preserving bijection with an exact pullback",
       assert.ok(Math.abs(Math.hypot(...x) - Math.hypot(...y)) < 1e-9);
       // Inverse: rotate back by the same angle (radius is unchanged).
       const a = -twistAngle(x, dev),
-        back = [Math.cos(a) * y[0] - Math.sin(a) * y[1], Math.sin(a) * y[0] + Math.cos(a) * y[1]];
+        back = [
+          Math.cos(a) * y[0] - Math.sin(a) * y[1],
+          Math.sin(a) * y[0] + Math.cos(a) * y[1],
+        ];
       assert.ok(Math.hypot(back[0] - x[0], back[1] - x[1]) < 1e-9);
       const g = pullback(x, gradientAt(y), dev),
         eps = 1e-5;
@@ -497,7 +527,8 @@ test("line coverage conserves flux at 540p, 1080p and 4K; spiral seams are exact
     tide.fragment.indexOf("armAA=max") < tide.fragment.lastIndexOf("if(t>0.)"),
   );
   assert.ok(
-    tide.fragment.indexOf("phaseAA=min") < tide.fragment.lastIndexOf("if(t>0.)"),
+    tide.fragment.indexOf("phaseAA=min") <
+      tide.fragment.lastIndexOf("if(t>0.)"),
   );
   for (const height of [540, 1080, 2160]) {
     const width = 0.025 + (1.25 * 80) / height;
@@ -529,15 +560,24 @@ test("line coverage conserves flux at 540p, 1080p and 4K; spiral seams are exact
 });
 
 test("biolight is HDR and locally kick-modulated; points conserve subpixel flux", () => {
-  assert.match(tide.fragment, /gesture=\(1\.\+1\.6\*packet\*u_rhythm.x\)\*\(1\.\+\.3\*u_kick\*hot\)/);
+  assert.match(
+    tide.fragment,
+    /gesture=\(1\.\+1\.6\*packet\*u_rhythm.x\)\*\(1\.\+\.3\*u_kick\*hot\)/,
+  );
   assert.match(tide.fragment, /vortexFront=front\*knots\*tumble\*gesture/);
   assert.match(tide.fragment, /col\+=u_primary\*living\*glow\*1\.1/);
   // Knots travel along the lip with whole wave-clock turns: periodic.
-  assert.match(tide.fragment, /1\.5\*vec2\(cos\(gWavePhase\),sin\(gWavePhase\)\)/);
+  assert.match(
+    tide.fragment,
+    /1\.5\*vec2\(cos\(gWavePhase\),sin\(gWavePhase\)\)/,
+  );
   assert.match(tide.fragment, /mistT<t/);
   // Gesture x travels at the true group velocity of mode 3:
   // envelope wavenumber K per unit clock Omega=1 gives c = 1/K = n/(2k).
-  assert.match(tide.fragment, /cos\(2\.\*gK\[3\]\/5\.\*dot\(gD\[3\],q\)-gWavePhase\)/);
+  assert.match(
+    tide.fragment,
+    /cos\(2\.\*gK\[3\]\/5\.\*dot\(gD\[3\],q\)-gWavePhase\)/,
+  );
   const w = waves(10301, 1)[3];
   assert.ok(Math.abs(1 / ((2 * w.k) / 5) - 5 / (2 * w.k)) < 1e-12);
   // Kick lifts a hot front by at most 30 %, never the whole frame.
@@ -548,7 +588,8 @@ test("biolight is HDR and locally kick-modulated; points conserve subpixel flux"
     for (const fp of [0, 0.02, 0.1, 0.2, 0.4]) {
       const variance = size + Math.min(0.0085 - size, fp * fp * 0.7);
       assert.ok(
-        Math.abs(Math.PI * variance * (size / variance) - Math.PI * size) < 1e-15,
+        Math.abs(Math.PI * variance * (size / variance) - Math.PI * size) <
+          1e-15,
       );
       const atCellBorder =
         Math.exp(-(0.25 ** 2) / variance) *
@@ -644,11 +685,21 @@ test("swell-signal bank preserves the foam phase without caching colour", (t) =>
         const exact = exactAt(p),
           cached = cachedData(p, exactAt);
         const scale = Math.hypot(exact[0], exact[1]);
-        e.signal = Math.max(e.signal, Math.hypot(exact[0] - cached[0], exact[1] - cached[1]));
-        e.material = Math.max(e.material, Math.hypot(exact[2] - cached[2], exact[3] - cached[3]));
+        e.signal = Math.max(
+          e.signal,
+          Math.hypot(exact[0] - cached[0], exact[1] - cached[1]),
+        );
+        e.material = Math.max(
+          e.material,
+          Math.hypot(exact[2] - cached[2], exact[3] - cached[3]),
+        );
         if (scale > breaks) {
-          const d = Math.atan2(exact[0], exact[1]) - Math.atan2(cached[0], cached[1]);
-          e.phase = Math.max(e.phase, Math.abs(Math.atan2(Math.sin(d), Math.cos(d))));
+          const d =
+            Math.atan2(exact[0], exact[1]) - Math.atan2(cached[0], cached[1]);
+          e.phase = Math.max(
+            e.phase,
+            Math.abs(Math.atan2(Math.sin(d), Math.cos(d))),
+          );
         }
       }
     }
@@ -721,71 +772,76 @@ test("ray-specific slabs bound the exact ocean, including the deep throat", (tc)
     [15, 10, 7],
   );
   for (const budget of budgets) {
-  assert.match(tide.fragment, /if\(previous==1\) fhi\*=\.5/);
-  assert.match(tide.fragment, /if\(previous==-1\) flo\*=\.5/);
-  let worstResidual = 0;
-  for (const dev of [0, 0.5, 1, 1.5, 2])
-    for (const seed of [10301, 10303]) {
-      const w = waves(seed, dev, 1.3, 1.8),
-        v = smooth(1.2, 2, dev);
-      const height = w.reduce((s, a) => s + a.amplitude, 0);
-      const ro = [0, 9 + 33 * v, 47];
-      for (const dx of [-0.7, -0.3, 0, 0.3, 0.7])
-        for (const dy of [-1, -0.7, -0.4]) {
-          const length = Math.hypot(dx, dy, -1),
-            rd = [dx / length, dy / length, -1 / length];
-          const closest = Math.max(
-            0,
-            -(ro[0] * rd[0] + ro[2] * rd[2]) / (rd[0] ** 2 + rd[2] ** 2),
-          );
-          const radius2 =
-            (ro[0] + rd[0] * closest) ** 2 + (ro[2] + rd[2] * closest) ** 2;
-          const nearRadius = Math.max(0, Math.sqrt(radius2) - 0.72);
-          const lower =
-            -height - v * (0.8 + 42 * Math.exp(-(nearRadius ** 2) / 190));
-          const upper = height + 4.6 * v;
-          let lo = Math.max(0, (upper - ro[1]) / rd[1]),
-            hi = Math.min(700, (lower - ro[1]) / rd[1]);
-          const sample = (t) =>
-            sea([ro[0] + rd[0] * t, ro[2] + rd[2] * t], w, dev, 0.8).h;
-          for (let i = 0; i <= 40; i++) {
-            const h = sample(lo + ((hi - lo) * i) / 40);
-            assert.ok(h >= lower - 1e-10 && h <= upper + 1e-10);
-          }
-          const f = (t) => ro[1] + rd[1] * t - sample(t);
-          let flo = f(lo),
-            fhi = f(hi),
-            previous = 0,
-            t = lo;
-          assert.ok(flo >= 0 && fhi <= 0);
-          for (let i = 0; i < budget.steps; i++) {
-            t = lo + (hi - lo) * clamp(flo / (flo - fhi), 0.08, 0.92);
-            const value = f(t);
-            if (Math.abs(value) < 0.008 + (2 / 1080) * t * 0.2) break;
-            if (value > 0) {
-              lo = t;
-              flo = value;
-              if (previous === 1) fhi *= 0.5;
-              previous = 1;
-            } else {
-              hi = t;
-              fhi = value;
-              if (previous === -1) flo *= 0.5;
-              previous = -1;
+    assert.match(tide.fragment, /if\(previous==1\) fhi\*=\.5/);
+    assert.match(tide.fragment, /if\(previous==-1\) flo\*=\.5/);
+    let worstResidual = 0;
+    for (const dev of [0, 0.5, 1, 1.5, 2])
+      for (const seed of [10301, 10303]) {
+        const w = waves(seed, dev, 1.3, 1.8),
+          v = smooth(1.2, 2, dev);
+        const height = w.reduce((s, a) => s + a.amplitude, 0);
+        const ro = [0, 9 + 33 * v, 47];
+        for (const dx of [-0.7, -0.3, 0, 0.3, 0.7])
+          for (const dy of [-1, -0.7, -0.4]) {
+            const length = Math.hypot(dx, dy, -1),
+              rd = [dx / length, dy / length, -1 / length];
+            const closest = Math.max(
+              0,
+              -(ro[0] * rd[0] + ro[2] * rd[2]) / (rd[0] ** 2 + rd[2] ** 2),
+            );
+            const radius2 =
+              (ro[0] + rd[0] * closest) ** 2 + (ro[2] + rd[2] * closest) ** 2;
+            const nearRadius = Math.max(0, Math.sqrt(radius2) - 0.72);
+            const lower =
+              -height - v * (0.8 + 42 * Math.exp(-(nearRadius ** 2) / 190));
+            const upper = height + 4.6 * v;
+            let lo = Math.max(0, (upper - ro[1]) / rd[1]),
+              hi = Math.min(700, (lower - ro[1]) / rd[1]);
+            const sample = (t) =>
+              sea([ro[0] + rd[0] * t, ro[2] + rd[2] * t], w, dev, 0.8).h;
+            for (let i = 0; i <= 40; i++) {
+              const h = sample(lo + ((hi - lo) * i) / 40);
+              assert.ok(h >= lower - 1e-10 && h <= upper + 1e-10);
             }
+            const f = (t) => ro[1] + rd[1] * t - sample(t);
+            let flo = f(lo),
+              fhi = f(hi),
+              previous = 0,
+              t = lo;
+            assert.ok(flo >= 0 && fhi <= 0);
+            for (let i = 0; i < budget.steps; i++) {
+              t = lo + (hi - lo) * clamp(flo / (flo - fhi), 0.08, 0.92);
+              const value = f(t);
+              if (Math.abs(value) < 0.008 + (2 / 1080) * t * 0.2) break;
+              if (value > 0) {
+                lo = t;
+                flo = value;
+                if (previous === 1) fhi *= 0.5;
+                previous = 1;
+              } else {
+                hi = t;
+                fhi = value;
+                if (previous === -1) flo *= 0.5;
+                previous = -1;
+              }
+            }
+            worstResidual = Math.max(worstResidual, Math.abs(f(t)));
           }
-          worstResidual = Math.max(worstResidual, Math.abs(f(t)));
-        }
-    }
-  budget.residual = worstResidual;
+      }
+    budget.residual = worstResidual;
   }
-  tc.diagnostic(budgets.map((b) => `${b.steps} steps: ${b.residual} m`).join("; "));
+  tc.diagnostic(
+    budgets.map((b) => `${b.steps} steps: ${b.residual} m`).join("; "),
+  );
   assert.ok(
     budgets[0].residual < 0.15,
     `15-step intersection residual ${budgets[0].residual} m`,
   );
   // Reduced budgets stay a bounded geometric approximation (sub-metre).
-  assert.ok(budgets[2].residual < 0.3, `7-step residual ${budgets[2].residual} m`);
+  assert.ok(
+    budgets[2].residual < 0.3,
+    `7-step residual ${budgets[2].residual} m`,
+  );
 });
 
 // Mirror of the shader camera: coastal sway, crane and orbit; eye > 0.7
@@ -814,21 +870,33 @@ function camera(dev, phase, eyeParam = 0.4, height = 1, camDev = dev) {
 }
 
 test("camera remains above the sea; kick bounded; energy never changes development", () => {
-  assert.match(tide.fragment, /coastal=gWaveHeight\+4\.6\*gVortex\+\.5\+2\.6\*eye/);
+  assert.match(
+    tide.fragment,
+    /coastal=gWaveHeight\+4\.6\*gVortex\+\.5\+2\.6\*eye/,
+  );
   assert.match(tide.fragment, /crane=smoothstep\(1\.1,1\.9,tdCamDev\(\)\)/);
   assert.match(
     tide.fragment,
     /mix\(12\.\*sin\(orbit\),radius\*sin\(orbit\),crane\)/,
   );
   assert.match(tide.fragment, /mix\(radius,radius\*cos\(orbit\),crane\)/);
-  assert.match(tide.fragment, /27\.\+15\.\*eye\+12\.\*high-14\.\*lowEye\+2\.\*sin\(orbit\)/);
+  assert.match(
+    tide.fragment,
+    /27\.\+15\.\*eye\+12\.\*high-14\.\*lowEye\+2\.\*sin\(orbit\)/,
+  );
   for (let dev = 0; dev <= 2; dev += 0.01)
     for (const eyeParam of [0, 0.1, 0.25, 0.4, 0.7, 1])
       for (const height of [0.4, 1, 1.3])
         for (let phase = 0; phase < 2 * Math.PI; phase += 0.4) {
           // The spring lags the raw development: every pair must clear.
           for (const camDev of [0, 0.5, 1, 1.5, 2, dev]) {
-            const { upper, position } = camera(dev, phase, eyeParam, height, camDev);
+            const { upper, position } = camera(
+              dev,
+              phase,
+              eyeParam,
+              height,
+              camDev,
+            );
             assert.ok(
               position[1] > upper + 0.49,
               `${dev}/${camDev}/${eyeParam}: eye ${position[1]} above envelope ${upper}`,
@@ -929,11 +997,20 @@ test("Calm has no breaking foam at any energy; only faint biolight sparks", () =
   assert.match(tide.fragment, /sparkGate=smoothstep\(\.15,\.7,compress\)/);
   // The seeded shoal biases breaking near the coastal camera; it scales
   // with swell height (zero in Calm) and yields to the maelstrom.
-  assert.match(tide.fragment, /\*gSwell\*\(1\.-gVortex\);\s*\}\s*threshold-=\.55\*shoal;/);
+  assert.match(
+    tide.fragment,
+    /\*gSwell\*\(1\.-gVortex\);\s*\}\s*threshold-=\.55\*shoal;/,
+  );
   // The moon road is the Cox-Munk glitter statistic: its width follows the
   // wind (energy), never a fixed lobe.
-  assert.match(tide.fragment, new RegExp(`sigma=${GLITTER.base}\\+${GLITTER.gain}\\*wind`));
-  assert.match(tide.fragment, /tdPoints\(q\*2\.2,footprint\*2\.2,\.0015,\.82\)/);
+  assert.match(
+    tide.fragment,
+    new RegExp(`sigma=${GLITTER.base}\\+${GLITTER.gain}\\*wind`),
+  );
+  assert.match(
+    tide.fragment,
+    /tdPoints\(q\*2\.2,footprint\*2\.2,\.0015,\.82\)/,
+  );
 });
 
 test("signature Moon roller: slot 3, three spaced styles, recoverable progress", () => {
@@ -950,26 +1027,36 @@ test("signature Moon roller: slot 3, three spaced styles, recoverable progress",
   const fieldOfView = 2 * Math.atan(1 / 1.5);
   for (const style of ["restrained", "driving", "accented"]) {
     const loop = roller.styles[style];
-    const hits = loop.steps.flatMap((v, i) => (v > 0 ? [i / loop.division] : []));
+    const hits = loop.steps.flatMap((v, i) =>
+      v > 0 ? [i / loop.division] : [],
+    );
     assert.ok(hits.length >= 2, `${style}: at least two rollers per loop`);
     const span = loop.length / loop.division;
     // Each roller finishes before the next starts (cyclic): it never jumps
     // back to the horizon.
     hits.forEach((beat, i) => {
       const next = i + 1 < hits.length ? hits[i + 1] : hits[0] + span;
-      assert.ok(next - beat >= loop.duration - 1e-9, `${style}: ${beat} → ${next}`);
+      assert.ok(
+        next - beat >= loop.duration - 1e-9,
+        `${style}: ${beat} → ${next}`,
+      );
     });
     // On-screen pace for the default coastal camera (≈2.4 m above the
     // water): 1/D runs linearly, the front's depression angle atan(h/D)
     // sweeps at most a quarter of the short side per second at 126 BPM.
     const seconds = (loop.duration * 60) / 126,
       h = 2.4;
-    const angle = (p) =>
-      Math.atan(h * ((1 - p) / ROLLER.d0 + p / ROLLER.d1));
+    const angle = (p) => Math.atan(h * ((1 - p) / ROLLER.d0 + p / ROLLER.d1));
     let fastest = 0;
     for (let p = 0; p < 1; p += 0.01)
-      fastest = Math.max(fastest, (angle(p + 0.01) - angle(p)) / 0.01 / seconds);
-    assert.ok(fastest / fieldOfView <= 0.26, `${style}: ${fastest / fieldOfView}`);
+      fastest = Math.max(
+        fastest,
+        (angle(p + 0.01) - angle(p)) / 0.01 / seconds,
+      );
+    assert.ok(
+      fastest / fieldOfView <= 0.26,
+      `${style}: ${fastest / fieldOfView}`,
+    );
   }
   // The picture inverts the engine's envelope A s(1 - p) back to p.
   for (const amplitude of [0.15, 0.6, 1])
@@ -984,25 +1071,60 @@ test("signature Moon roller: slot 3, three spaced styles, recoverable progress",
   const definitions = effectDefinitions(tide);
   const pattern = defaultPattern(definitions, "driving");
   const start = samplePattern(pattern, definitions, 0.001, -0.001);
-  assert.ok(start.hits[3] > 0 && Math.abs(start.values[3] - start.hits[3]) < 0.01);
+  assert.ok(
+    start.hits[3] > 0 && Math.abs(start.values[3] - start.hits[3]) < 0.01,
+  );
   const later = samplePattern(pattern, definitions, 3, 2.99);
   assert.equal(later.hits[3], 0);
   const y = later.values[3] / start.hits[3];
   assert.ok(Math.abs(0.5 + Math.sin(Math.asin(1 - 2 * y) / 3) - 3 / 6) < 1e-9);
   // The simulation latches the event amplitude; the picture reads it.
   assert.deepEqual(tide.simulation.size, [2, 1]);
-  assert.match(tide.simulation.fragment, /if \(u_rhythmHit\.w > 0\.\) amplitude = u_rhythmHit\.w;/);
-  assert.match(tide.fragment, /rollY=rollA>\.005\?clamp\(u_rhythm\.w\/rollA,0\.,1\.\):0\./);
+  assert.match(
+    tide.simulation.fragment,
+    /if \(u_rhythmHit\.w > 0\.\) amplitude = u_rhythmHit\.w;/,
+  );
+  assert.match(
+    tide.fragment,
+    /rollY=rollA>\.005\?clamp\(u_rhythm\.w\/rollA,0\.,1\.\):0\./,
+  );
   // The bump is shading only: the intersection (tdSea, the slabs and the
   // camera clearance above) never sees it, and it fades out around the lens.
-  const sea = tide.fragment.slice(tide.fragment.indexOf("vec2 tdSea("), tide.fragment.indexOf("vec3 tdSky("));
+  const sea = tide.fragment.slice(
+    tide.fragment.indexOf("vec2 tdSea("),
+    tide.fragment.indexOf("vec3 tdSky("),
+  );
   assert.ok(sea.includes("tdSurfaceBase(x)") && !sea.includes("tdRoller"));
   assert.match(tide.fragment, /float upper=gWaveHeight\+4\.6\*gVortex;/);
   assert.ok(ROLLER.clear[0] > 0 && ROLLER.clear[1] > ROLLER.clear[0]);
-  assert.match(tide.fragment, /gRollMask=smoothstep\(4\.,10\.,length\(x-gRo\.xz\)\)/);
+  assert.match(
+    tide.fragment,
+    /gRollMask=smoothstep\(4\.,10\.,length\(x-gRo\.xz\)\)/,
+  );
   // Light only: no full-screen term. Every roller light term is weighted by
   // a band (tip, face or wake) around the front.
-  assert.match(tide.fragment, /float rollGain=gRollLight\*smoothstep\(1\.,3\.,length\(p\.xz-ro\.xz\)\)/);
+  assert.match(
+    tide.fragment,
+    /float rollGain=gRollLight\*smoothstep\(1\.,3\.,length\(p\.xz-ro\.xz\)\)/,
+  );
+});
+
+test("Moon Tide presets fill the panel without rushing the roller", () => {
+  const minimum = { restrained: 2, driving: 6, accented: 8 };
+  for (const [style, target] of Object.entries(minimum)) {
+    const pattern = defaultPattern(tide.rhythm, style);
+    const density = pattern.tracks.reduce(
+      (sum, track) =>
+        sum +
+        (track.steps.filter((value) => value > 0).length * 4 * track.division) /
+          track.length,
+      0,
+    );
+    assert.ok(density >= target, `${style}: ${density} hits/bar < ${target}`);
+    assert.equal(pattern.tracks.length, 4);
+    // Only local lighting accents become busy; the six-beat roller stays slow.
+    assert.ok(pattern.tracks[3].duration >= 6);
+  }
 });
 
 test("camera spring: a one-bar drop cranes over seconds and settles", () => {
@@ -1024,8 +1146,14 @@ test("camera spring: a one-bar drop cranes over seconds and settles", () => {
       if (arrived === null && Math.abs(d - to) < 0.02) arrived = tick / 60;
     }
     assert.ok(fastest <= vmax + 1e-12);
-    assert.ok(arrived >= Math.abs(to - from) / vmax * 0.9, `${from}→${to}: ${arrived} s`);
+    assert.ok(
+      arrived >= (Math.abs(to - from) / vmax) * 0.9,
+      `${from}→${to}: ${arrived} s`,
+    );
     assert.ok(Math.abs(d - to) < 1e-3, "settles");
   }
-  assert.match(tide.simulation.fragment, /if \(u_reset\) \{ d = target; v = 0\.; \}/);
+  assert.match(
+    tide.simulation.fragment,
+    /if \(u_reset\) \{ d = target; v = 0\.; \}/,
+  );
 });

@@ -350,7 +350,7 @@ float gSwell, gPixel, gWavePhase, gWaveHeight;
 vec3 gMoon, gRo;
 float gRollP, gRollF, gRollH, gRollLight, gRollFlare, gRollMask, gRollScale, gRollU;
 float tdCamDev() { return 2. * unpack16(texelFetch(u_state, ivec2(0), 0)).x; }
-// The Moon roller as a shading bump: an asymmetric sech^2 swell (steep face
+// The Moon roller as a shading bump: an asymmetric Gaussian swell (steep face
 // toward its travel direction) on the coordinate s, which blends from the
 // swell direction (sea) to the radius (maelstrom). Returns (height,
 // gradient, s - front). It tilts normals and lights the water but never
@@ -370,11 +370,11 @@ vec4 tdRoller(vec2 x) {
   float u=s-gRollF;
   gRollU=u;
   float w=u>0.?${f(ROLLER.face)}:${f(ROLLER.back)};
-  float a=clamp(u/w,-12.,12.), ch=cosh(a);
+  float a=u/w;
   gRollMask=smoothstep(${f(ROLLER.clear[0])},${f(ROLLER.clear[1])},length(x-gRo.xz));
-  float height=gRollH*gRollMask/(ch*ch);
+  float height=gRollH*gRollMask*exp(-a*a);
   vec2 ds=mix(gD[0],-x/r,gVortex);
-  return vec4(height,-2.*height*tanh(a)/w*ds,u);
+  return vec4(height,-2.*height*a/w*ds,u);
 }
 // Sparse Gaussian points: the cell is only a candidate lookup, never a
 // shaded square. Each point vanishes well before its cell border; widen by
@@ -781,12 +781,12 @@ void main() {
       float n1=tdNoise(around*vec2(1.,1.3)+vec2(.09*(r+16.*f1),0.)+vec2(5.3,2.9));
       float w0=1.-abs(2.*f0-1.);
       float streak=mix(n1,n0,w0);
-      float fine=tdNoise(around*vec2(4.5,5.5)+vec2(.22*(r+16.*f0),1.7))*w0
-        +tdNoise(around*vec2(4.5,5.5)+vec2(.22*(r+16.*f1),8.1))*(1.-w0);
-      // Contrast lost in the crossfade is restored around the mean.
-      armStreak=clamp(.5+1.5*(streak-.5)+1.3*(fine-.5),0.,1.);
+      // One advected octave, plus cheap phase-locked capillary streaks.
+      // Avoid the old two extra hash-noise octaves per band pixel at 4K.
+      float fine=.5+.5*sin(3.7*r+2.*sin(armPhase)-12.*gFlow);
+      armStreak=clamp(.5+2.*(streak-.5)+.25*(fine-.5),0.,1.);
       armStreak=mix(armStreak,.5,smoothstep(.4,1.2,footprint));
-      armSlow=tdNoise(vec2(cos(polar),sin(polar))*1.4+vec2(.08*r,3.));
+      armSlow=.5+.5*sin(2.*polar+.08*r);
     }
     float bandWidth=.44*(.6+.8*armSlow);
     float armBand=exp(-sq((armAcross+.22)/bandWidth))*(1.-smoothstep(-armAA,.06+armAA,armAcross))*armWindow
@@ -1020,40 +1020,108 @@ export default {
       period: 2 * Math.PI,
     },
   ],
-  rhythmStyles: { restrained: "Slack water", driving: "Rolling swell", accented: "Spring tide" },
+  rhythmStyles: {
+    restrained: "Slack water",
+    driving: "Rolling swell",
+    accented: "Spring tide",
+  },
   rhythm: [
     familyEffect(
       "crest-packet",
       0,
       "Crest packet",
       "A wave group at the true group velocity lights the breaking crests it passes.",
-      { period: 4, strength: 0.55, duration: 1.3, steps: "X...", styles: {
-        restrained: { steps: "X....... | .....x.. | ........ | ..X.....", division: 2, strength: 0.48, duration: 2 },
-        driving: { steps: "X....x.. | .X...x..", division: 2, strength: 0.74, duration: 1.1 },
-        accented: { steps: "X.........x..... | ......X......x.. | ....X.......x...", division: 4, strength: 0.88, duration: 0.9 },
-      } },
+      {
+        period: 4,
+        strength: 0.55,
+        duration: 1.3,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....x.. | ...x.... | .X....x. | ..X.....",
+            division: 2,
+            strength: 0.48,
+            duration: 1.2,
+          },
+          driving: {
+            steps: "X.x.X..x | .X.x.X.x",
+            division: 2,
+            strength: 0.84,
+            duration: 0.42,
+          },
+          accented: {
+            steps: "X..x..X.x..x..X. | ..X.x..X..x.X..x | X.x..X..x.X..x..",
+            division: 4,
+            strength: 0.95,
+            duration: 0.21,
+          },
+        },
+      },
     ),
     familyEffect(
       "spiral-ridge",
       1,
       "Spiral ridge",
       "A surge of biolight runs down the spiral arms into the glowing eye.",
-      { period: 8, strength: 0.5, duration: 2, steps: "X.......", styles: {
-        restrained: { steps: "...x.... | ........ | ......X. | ........", division: 2, strength: 0.45, duration: 2.5 },
-        driving: { steps: "...X.... | ......x. | ..X..... | .......x", division: 2, strength: 0.7, duration: 1.5 },
-        accented: { steps: ".....X......x... | ...X......x..... | .......X......x.", division: 4, strength: 0.84, duration: 1.2 },
-      } },
+      {
+        period: 8,
+        strength: 0.5,
+        duration: 2,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | ........ | ......X. | ........",
+            division: 2,
+            strength: 0.45,
+            duration: 2.5,
+          },
+          driving: {
+            steps: "...X..x. | .X....x. | ..X...x. | X....x..",
+            division: 2,
+            strength: 0.78,
+            duration: 0.65,
+          },
+          accented: {
+            steps: ".....X......x... | ...X......x..... | .......X......x.",
+            division: 4,
+            strength: 0.84,
+            duration: 1.2,
+          },
+        },
+      },
     ),
     familyEffect(
       "incoming-tide",
       2,
       "Incoming tide",
       "A tide ring rolls out from the glowing eye across the maelstrom's shoulder.",
-      { period: 16, strength: 0.6, duration: 3, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | .......X", division: 2, strength: 0.5, duration: 3 },
-        driving: { steps: "........ | .....x.. | ........ | .......X", division: 2, strength: 0.76, duration: 2.5 },
-        accented: { steps: "................ | ..........X..... | ................ | .........x....X.", division: 4, strength: 0.92, duration: 1 },
-      } },
+      {
+        period: 16,
+        strength: 0.6,
+        duration: 3,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | .......X",
+            division: 2,
+            strength: 0.5,
+            duration: 3,
+          },
+          driving: {
+            steps: "........ | .....x.. | ........ | .......X",
+            division: 2,
+            strength: 0.76,
+            duration: 2.5,
+          },
+          accented: {
+            steps:
+              "................ | ..........X..... | ................ | .........x....X.",
+            division: 4,
+            strength: 0.92,
+            duration: 1,
+          },
+        },
+      },
     ),
     // Signature: a roller every second bar. Events are spaced at least one
     // duration apart, so a roller never jumps back to the horizon.
@@ -1067,9 +1135,23 @@ export default {
         strength: 0.8,
         duration: 6,
         styles: {
-          restrained: { steps: "X....... | ........ | ........ | ........ | ........ | 6....... | ........ | ........", strength: 0.62, duration: 7 },
-          driving: { steps: "X....... | ........ | .x...... | ........", strength: 0.8, duration: 6 },
-          accented: { steps: "X....... | .......x | ........ | ........ | X....... | ......X. | ........ | ........", strength: 0.95, duration: 6 },
+          restrained: {
+            steps:
+              "X....... | ........ | ........ | ........ | ........ | 6....... | ........ | ........",
+            strength: 0.62,
+            duration: 7,
+          },
+          driving: {
+            steps: "X....... | ........ | .x...... | ........",
+            strength: 0.8,
+            duration: 6,
+          },
+          accented: {
+            steps:
+              "X....... | .......x | ........ | ........ | X....... | ......X. | ........ | ........",
+            strength: 0.95,
+            duration: 6,
+          },
         },
       },
     ),

@@ -105,7 +105,6 @@ try {
               engine.resize(o.width, o.height);
               engine.speed = 1;
               engine.view = { hue: 0, zoom: 1 };
-              engine.options.flashLimit = false;
               engine.blackout = engine.blackoutTarget = 0;
               const ticks = Math.max(2, Math.round((o.warm * 3600) / o.bpm));
               const startBeat = o.beat - (ticks * o.bpm) / 3600;
@@ -125,7 +124,17 @@ try {
                 engine.beat = o.beat - (t * o.bpm) / 3600;
                 engine.advance(1 / 60, false);
               }
-              engine.present();
+              // Let the normal asynchronous safety pipeline approve this
+              // exact frame; a tight simulation loop otherwise captures a
+              // stale approved frame (or startup black). Never disable it.
+              engine.pipeline.requestRefresh();
+              for (let frame = 0; frame < 120; frame++) {
+                await new Promise((done) => requestAnimationFrame(done));
+                engine.present();
+                if (!engine.pipeline.refreshPending) break;
+              }
+              if (engine.pipeline.refreshPending)
+                throw new Error("Flash approval did not settle");
               const gl = engine.gl;
               const c = document.createElement("canvas");
               c.width = o.width;
