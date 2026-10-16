@@ -555,8 +555,9 @@ vec2 nbWebField(vec3 x, uint clock, float growth) {
 // Remnant filaments on the sphere of directions: x = finger strength,
 // y = second ridge (hot filament cores).
 const shellData = `
-// x = finger strength, y = second ridge (hot cores), zw = broad patchiness.
-vec4 nbShellData(vec3 dn, float level) {
+// x = finger strength, y = second ridge (hot cores), z = broad patchiness,
+// w = smooth breathing corrugation of the shell radius.
+vec4 nbShellData(vec3 dn, float level, uint clock) {
   float a = nbGNoise(dn * 1.6 + 3.1, ivec3(14, 7, 14), 0x51a7u);
   float a2 = nbGNoise(dn * 3.2 + 6.2, ivec3(28, 14, 28), 0x9c3bu);
   float s1 = nbGNoise(dn * 3.1 + 7.7 + .25 * (a - .5), ivec3(14, 7, 14), 0x51a7u);
@@ -564,7 +565,10 @@ vec4 nbShellData(vec3 dn, float level) {
   float s2x = nbGNoise(c2, ivec3(14, 7, 14), 0x51a7u), s2y = nbGNoise(c2 * 2., ivec3(28, 14, 28), 0x9c3bu);
   float ridge = 1. - abs(2. * s1 - 1.), ridge2 = 1. - abs(2. * s2x - 1.);
   float holes = nbSmooth(.35, .65, a + .3 * (s2y - .5));
-  return vec4(pow(ridge, mix(24., 13., level)) * (.3 + 1.1 * ridge2 * ridge2 * ridge2) * holes, ridge2, a, a2);
+  float bA = NB_TAU * nbCycle(clock, ${N.breathe}u), bB = NB_TAU * nbCycle(clock, ${N.breathe + 7}u);
+  float lift = .032 * sin(dot(dn, vec3(3.1, 1.7, -2.3)) + bA) + .025 * sin(dot(dn, vec3(-3.2, 4.9, 2.2)) + bB)
+    + .02 * sin(dot(dn, vec3(5.1, -6., 6.4)) - bA);
+  return vec4(pow(ridge, mix(24., 13., level)) * (.3 + 1.1 * ridge2 * ridge2 * ridge2) * holes, ridge2, a2, lift);
 }
 vec3 nbOctaDecode(vec2 uv) {
   vec2 p = uv * 2. - 1.;
@@ -626,7 +630,7 @@ vec4 nbShellAt(vec3 dn) {
   vec2 c = clamp((d.xz * .5 + .5) * ${f(OCTA)}, .5, ${f(OCTA - 0.5)});
   return texture(u_precomputed, c / NB_ATLAS);
 #else
-  return nbShellData(dn, clamp(u_level, 0., 1.));
+  return nbShellData(dn, clamp(u_level, 0., 1.), nbClock());
 #endif
 }
 vec4 nbDiskAt(vec2 xz, float twist, float pattern, float gasPhase) {
@@ -704,7 +708,7 @@ void main() {
     vec2 hole = vec2(1e9, -1e9);
     if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .72));
     float skip = max(0., min(hole.y, t1) - max(hole.x, t0));
-    float steps = clamp(ceil((t1 - t0 - skip) / mix(.08, .16, k4)), wWeb + wShell > .001 ? mix(8., 6., k4) : 2., mix(24., 14., k4));
+    float steps = clamp(ceil((t1 - t0 - skip) / mix(.08, .16, k4)), wWeb + wShell > .001 ? mix(8., 5., k4) : 2., mix(24., 12., k4));
     float dt = (t1 - t0 - skip) / steps;
     uvec2 pix = uvec2(gl_FragCoord.xy);
     // The jitter changes every frame: at 60 Hz the eye averages it like
@@ -718,7 +722,6 @@ void main() {
     float armPulse = mix(.15, 1.8, 1. - u_rhythm.x), ripple = 2.6 * (1. - u_rhythm.z);
     float shellPhase = NB_TAU * nbCycle(clock, 2u); // 720 s per turn, exact at wrap
     mat2 shellTurn = mat2(cos(shellPhase), -sin(shellPhase), sin(shellPhase), cos(shellPhase));
-    float breatheA = NB_TAU * nbCycle(clock, ${N.breathe}u), breatheB = NB_TAU * nbCycle(clock, ${N.breathe + 7}u);
     float ejecta = nbCycle(clock, ${N.ejecta}u);
     float sharp = mix(.6, 1.35, level);
     for (int i = 0; i < 24; i++) {
@@ -787,19 +790,15 @@ void main() {
         // ride outward with the shell; radial extent makes them RT fingers.
         vec3 dn = nbRot * vec3(shellTurn * d.xz, d.y).xzy;
         vec4 sh = nbShellAt(dn);
-        vec2 s0 = sh.zw;
+        float patchy = sh.z, lift = sh.w, ridge2 = sh.y;
         float u = r / Rs;
-        // Smooth, slowly breathing corrugation: no lattice facets on the silhouette.
-        float lift = .032 * sin(dot(dn, vec3(3.1, 1.7, -2.3)) + breatheA) + .025 * sin(dot(dn, vec3(-3.2, 4.9, 2.2)) + breatheB)
-          + .02 * sin(dot(dn, vec3(5.1, -6., 6.4)) - breatheA);
-        float limb = exp(-nbSq((u - .99 - lift) / (.012 + .02 * s0.x)));
-        float ridge2 = sh.y;
+        float limb = exp(-nbSq((u - .99 - lift) / (.012 + .02 * ridge2)));
         float reach = .8 + .1 * ridge2;
         float band = nbSmooth(reach, reach + .08, u) * (1. - nbSmooth(.98 + lift, 1.03 + lift, u)) * (.55 + .45 * nbSmooth(reach, 1., u));
         float fil = sh.x * band;
         fil *= .55 + .45 * sin(NB_TAU * (u * 11. - ejecta) + 6. * ridge2);
-        float rim = exp(-nbSq((u - 1.035 - lift) / .009)) * nbSmooth(.5, .8, s0.y) * nbSmooth(.25, .6, s0.x);
-        vec3 E = mix(cGas, cHot, .4 * s0.x) * limb * (.08 + 1.4 * s0.y * s0.y) * .9 + mix(cArm, cHot, pow(ridge2, 5.)) * fil * 9.
+        float rim = exp(-nbSq((u - 1.035 - lift) / .009)) * nbSmooth(.5, .8, patchy) * nbSmooth(.25, .6, ridge2);
+        vec3 E = mix(cGas, cHot, .4 * ridge2) * limb * (.08 + 1.4 * patchy * patchy) * .9 + mix(cArm, cHot, pow(ridge2, 5.)) * fil * 9.
           + cAcc * rim * 1.1
           + cAcc * fil * pow(ridge2, 12.) * 6.;
         E += mix(cArm, cHot, .5) * fil * u_rhythm.x * 3.;
@@ -892,7 +891,7 @@ void main() {
   if (dev >= 1.) {
     // Remnant direction map while the web is not shown.
     if (px.x < ${OCTA} && px.y < ${OCTA})
-      outColor = nbShellData(nbOctaDecode((vec2(px) + .5) / ${f(OCTA)}), level);
+      outColor = nbShellData(nbOctaDecode((vec2(px) + .5) / ${f(OCTA)}), level, clock);
     return;
   }
   // Web slices with a clamped duplicate gutter; the box corners stay empty.

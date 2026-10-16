@@ -468,7 +468,7 @@ test("fixed particle budget; data atlas holds scalar fields, never a colour imag
   ]);
   // Direct fallbacks evaluate the same fields when no float target exists.
   assert.match(nebula.fragment, /#else\s+return nbWebField\(x, clock, u_params\[2\]\);/);
-  assert.match(nebula.fragment, /#else\s+return nbShellData\(dn, clamp\(u_level, 0\., 1\.\)\);/);
+  assert.match(nebula.fragment, /#else\s+return nbShellData\(dn, clamp\(u_level, 0\., 1\.\), nbClock\(\)\);/);
   assert.match(nebula.fragment, /#else\s+return nbDiskData\(/);
   assert.match(nebula.particles.vertex, /s.kind != 2 && \(id & 3u\) != 0u/);
   assert.match(nebula.simulation.fragment, /id >= 118784u \|\| \(id & 3u\) != 0u/);
