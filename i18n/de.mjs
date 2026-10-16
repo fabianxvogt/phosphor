@@ -2408,6 +2408,8 @@ export default {
   "Light runs down every ribbon along the direction of the flow.": "Licht läuft in Flussrichtung über jedes Band.",
   "Head sparks": "Kopffunken",
   "The leading point of every trajectory flares together.": "Die Spitzen aller Bahnen flammen gemeinsam auf.",
+  "Ribbon relay": "Bandstaffel",
+  "A bright packet races from tail to head through a ribbon bundle, leaving a fading wake.": "Ein helles Lichtpaket eilt vom Ende zur Spitze durch eine Bandgruppe und zieht eine verblassende Leuchtspur hinter sich her.",
   "Loose strands": "Lose Stränge",
   "Braided current": "Geflochtene Strömung",
   "Attractor weave": "Attraktorgewebe",
