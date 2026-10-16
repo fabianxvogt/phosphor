@@ -514,10 +514,21 @@ vec3 nbEigen(mat3 m) {
 // x = q + D·S(q), deformation eigenvalues there, linear-overdensity node.
 // y = streaming fibres: two-phase flow noise advected along S.
 vec2 nbWebField(vec3 x, uint clock, float growth) {
-  uint key = nbKey();
-  mat3 h;
-  vec3 S0 = nbWeb(key, x, clock, h).xyz;
-  vec4 web = nbWeb(key, x - growth * S0, clock, h);
+  // Read the mode table once; both passes reuse it.
+  vec3 ks[${MODES}]; float as[${MODES}];
+  for (int m = 0; m < ${MODES}; m++) nbMode(nbKey(), uint(m), clock, ks[m], as[m]);
+  vec3 S0 = vec3(0.);
+  for (int m = 0; m < ${MODES}; m++) S0 += as[m] / max(dot(ks[m], ks[m]), 1e-3) * sin(dot(ks[m], x) + NB_PI) * ks[m];
+  vec3 q = x - growth * S0;
+  vec4 web = vec4(0.); mat3 h = mat3(0.); float total = 0.;
+  for (int m = 0; m < ${MODES}; m++) {
+    float kk = max(dot(ks[m], ks[m]), 1e-3), arg = dot(ks[m], q) + NB_PI;
+    web.xyz += as[m] / kk * sin(arg) * ks[m];
+    h += outerProduct(ks[m], ks[m]) * (as[m] / kk * cos(arg));
+    web.w += as[m] * cos(arg);
+    total += as[m];
+  }
+  web.w *= 2. / total;
   // Eigenvalues of the deformation I + D·∂S/∂q: one near zero is a sheet
   // (pancake), two a filament, three a node. Filaments carry the light.
   vec3 ev = abs(nbEigen(mat3(1.) + growth * h));
