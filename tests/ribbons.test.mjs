@@ -12,6 +12,7 @@ import {
   blend,
   shown,
   presence,
+  relayPacket,
   canonical,
   quantize,
   inside,
@@ -22,6 +23,7 @@ import {
 import { flow, rk4 } from "../scene-attractor.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
 import { defaultWorlds, continuousDevelopment } from "../worlds.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 let s = 97;
 const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -138,7 +140,7 @@ test("the camera stays outside the attractors; ribbons near the eye are not draw
             const c = camera(d, { distance, elevation }, a, b);
             closest = Math.min(closest, Math.hypot(...c.eye));
             assert.ok(c.pitch <= 1.3 && c.pitch >= -0.4);
-            assert.ok(c.focal >= 1.5 && c.focal <= 2.1);
+            assert.ok(c.focal >= 1.77 && c.focal <= 2.46);
           }
   // Beyond the 95th-percentile radius of every flow (≈ 1.05), so the eye is
   // never inside the bulk; rare excursions closer than NEAR_FADE vanish.
@@ -162,17 +164,102 @@ test("identity is fixed per seed and independent of development", () => {
     assert.ok(Math.abs(a[r * PER_RIBBON + 5] - ranks[r]) < 1e-6);
 });
 
-test("tube impostor normals use the across sign once, not twice", () => {
-  // Unsigned W plus a in [-1,1] makes a symmetric circular cross-section.
-  const normal = a => [a, Math.sqrt(1 - a * a)];
-  for (const a of [0, .25, .75, 1]) {
-    assert.ok(Math.abs(Math.hypot(...normal(a)) - 1) < 1e-12);
-    assert.equal(normal(-a)[0], -normal(a)[0]);
-    assert.equal(normal(-a)[1], normal(a)[1]);
+test("twisting ribbon frames stay orthonormal with one unsigned side vector", () => {
+  // In the tangent's normal plane W and B rotate without changing width.
+  for (let twist = -0.65; twist <= 0.65; twist += 0.01) {
+    const W = [Math.cos(twist), Math.sin(twist)];
+    const N = [-Math.sin(twist), Math.cos(twist)];
+    assert.ok(Math.abs(Math.hypot(...W) - 1) < 1e-12);
+    assert.ok(Math.abs(W[0] * N[0] + W[1] * N[1]) < 1e-12);
   }
-  assert.match(scene.geometry.vertex, /v_side = vec3\(dot\(W, right\), dot\(W, up\), -dot\(W, fwd\)\);/);
+  assert.match(
+    scene.geometry.vertex,
+    /bandNormal = cos\(twist\) \* B - sin\(twist\) \* W/,
+  );
+  assert.match(scene.geometry.fragment, /normalize\(v_normal\)/);
+  assert.match(
+    scene.geometry.vertex,
+    /v_side = vec3\(dot\(W, right\), dot\(W, up\), -dot\(W, fwd\)\);/,
+  );
   assert.ok(PER_RIBBON * RIBBONS < 150000, "20% fewer repeated vertices");
-  assert.deepEqual(scene.presets.map(p => p.seed), [9701,9701,9701,9702,9703,9704,9705,9706]);
+  assert.deepEqual(
+    scene.presets.map((p) => p.seed),
+    [9701, 9701, 9701, 9702, 9703, 9704, 9705, 9706],
+  );
+});
+
+test("energy reveals more fixed-rank ribbons without changing trajectory identity", () => {
+  for (let development = 0; development <= 2; development += 0.05) {
+    assert.ok(shown(development, 0.9) > shown(development, 0.1));
+    assert.ok(shown(development, 0.1) > 0.28, "low energy is not empty");
+    const before = camera(
+      development,
+      { distance: 1, elevation: 0.35 },
+      0.3,
+      0.6,
+    );
+    const after = camera(
+      development + 0.0001,
+      { distance: 1, elevation: 0.35 },
+      0.3,
+      0.6,
+    );
+    assert.ok(Math.abs(after.focal - before.focal) < 0.001);
+    assert.ok(
+      Math.hypot(...after.target.map((v, i) => v - before.target[i])) < 0.001,
+    );
+  }
+});
+
+test("slot-3 relay is a bounded monotone tail-to-head event with a finite wake", () => {
+  assert.match(scene.simulation.fragment, /u_rhythmHit\.w > 0/);
+  assert.match(scene.simulation.fragment, /max\(u_rhythm\.w, u_rhythmHit\.w\)/);
+  assert.match(scene.simulation.fragment, /mod\(u_rhythmCount\.w, 3\.\)/);
+  assert.match(scene.simulation.fragment, /old \+ 1\. \/ 45\./);
+  let last = 1;
+  for (const age of [0.1, 0.25, 0.4, 0.55, 0.7]) {
+    let best = -1,
+      location = 0;
+    for (let s = 0; s <= 1; s += 0.001) {
+      const [front, wake] = relayPacket(s, 0.001, age, 0.94, 0);
+      assert.ok(front >= 0 && front <= 1 && wake >= 0 && wake <= 1);
+      if (front > best) {
+        best = front;
+        location = s;
+      }
+    }
+    assert.ok(location < last);
+    last = location;
+    assert.deepEqual(relayPacket(location, 0.001, age, 1, 1), [0, 0]);
+    assert.deepEqual(relayPacket(location, 0.001, 1, 1, 0), [0, 0]);
+    assert.deepEqual(relayPacket(location, 0.001, age, 0, 0), [0, 0]);
+  }
+});
+
+test("four gestures include three authored signature loops and meet density targets", () => {
+  assert.deepEqual(
+    scene.rhythm.map((r) => r.slot),
+    [0, 1, 2, 3],
+  );
+  assert.equal(scene.rhythm[3].id, "ribbon-relay");
+  const signatures = [];
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(scene.rhythm, style);
+    const relay = pattern.tracks.find((t) => t.effect === "ribbon-relay");
+    assert.ok(relay.steps.filter(Boolean).length >= 2);
+    signatures.push(JSON.stringify(relay.steps));
+    const density = pattern.tracks.reduce(
+      (n, t) =>
+        n + (t.steps.filter(Boolean).length * t.division * 4) / t.length,
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density}`);
+  }
+  assert.equal(new Set(signatures).size, 3);
 });
 
 test("looks validate; the three world states differ only in development", () => {

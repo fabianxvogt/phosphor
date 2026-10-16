@@ -46,18 +46,27 @@ export function blend(development) {
   const a = Math.min(1, Math.floor(d));
   return { a, w: smoothstep(0, 1, d - a) };
 }
-// Fraction of ribbons shown: sparse wings, a fuller vortex, the labyrinth
-// (about 90 %: the full set made the Thomas tangle unreadable).
-export const shown = (development) =>
-  0.42 + 0.26 * smoothstep(0.1, 1, development) + 0.2 * smoothstep(1.1, 2, development);
+// Development reveals more of the same ranked trajectories; low energy
+// leaves breathing room between the broad hero bands.
+export const shown = (development, level = 1) =>
+  (0.42 +
+    0.26 * smoothstep(0.1, 1, development) +
+    0.2 * smoothstep(1.1, 2, development)) *
+  (0.65 + 0.35 * level);
 // A ribbon of rank ρ ∈ [0, 1) appears over a band of 0.06 as `shown` passes it.
-export const presence = (rank, development) =>
-  smoothstep(rank, rank + 0.06, shown(development) + 0.06 * (1 - rank) - 0.0001);
+export const presence = (rank, development, level = 1) =>
+  smoothstep(
+    rank,
+    rank + 0.06,
+    shown(development, level) + 0.06 * (1 - rank) - 0.0001,
+  );
 
 // System coordinates → the canonical view frame (Y up, radius ≈ 1).
 export function canonical(f, p) {
   const d = p.map((v, i) => v - f.center[i]);
-  return f.frame.map((row) => f.scale * (row[0] * d[0] + row[1] * d[1] + row[2] * d[2]));
+  return f.frame.map(
+    (row) => f.scale * (row[0] * d[0] + row[1] * d[1] + row[2] * d[2]),
+  );
 }
 // 16-bit fraction of the system's box, as the state texture stores it.
 export function quantize(f, p) {
@@ -93,7 +102,10 @@ export function camera(development, params, yawPhase, driftPhase) {
     1.3,
     Math.max(
       -0.4,
-      0.12 + 0.2 * mid + 1.0 * (params.elevation - 0.35) + (0.1 + 0.12 * peak) * Math.sin(drift),
+      0.12 +
+        0.2 * mid +
+        1.0 * (params.elevation - 0.35) +
+        (0.1 + 0.12 * peak) * Math.sin(drift),
     ),
   );
   const eye = [
@@ -103,14 +115,29 @@ export function camera(development, params, yawPhase, driftPhase) {
   ];
   const target = [
     0.15 * peak * Math.sin(1.3 * yaw + 0.5),
-    -0.14 * (1 - mid) - 0.04 * peak + 0.08 * peak * Math.sin(drift),
+    -0.14 * (1 - mid) - 0.12 * peak + 0.08 * peak * Math.sin(drift),
     0.15 * peak * Math.cos(1.3 * yaw + 0.5),
   ];
-  const focal = 2.1 + (1.75 - 2.1) * mid + (1.72 - 1.75) * peak;
+  const focal = 2.46 + (2.24 - 2.46) * mid + (1.78 - 2.24) * peak;
   return { eye, target, focal, dist, pitch };
 }
 // Ribbons thin to nothing near the eye, so a fly-through never fills the lens.
 export const NEAR_FADE = [0.15, 0.45];
+
+// CPU reference of the local relay front/wake in scene-ribbons.mjs.
+// Age is fixed-tick elapsed time / 0.75 s, not a decaying beat envelope.
+export function relayPacket(s, rank, age, strength, count) {
+  const selected = Math.floor(rank * 24) % 3 === count % 3 ? 1 : 0;
+  const d = s - (1.08 - 1.4 * age);
+  const hot = Math.exp(-((d / 0.045) ** 2));
+  const wake = Math.exp(-Math.max(0, d) * 10) * smoothstep(-0.015, 0.025, d);
+  const gain =
+    selected *
+    strength *
+    smoothstep(0, 0.09, age) *
+    (1 - smoothstep(0.8, 0.99, age));
+  return [hot * gain, wake * gain];
+}
 
 // ---- GLSL ---------------------------------------------------------------
 const g = (x) => {
@@ -126,17 +153,61 @@ const table = (type, name, values) =>
 export const glsl = `
 const int RIBBONS = ${RIBBONS}, HISTORY = ${HISTORY}, SEGMENTS = ${SEGMENTS}, PER_RIBBON = ${PER_RIBBON};
 const int GLOBAL_ROW = ${RIBBONS * 6};
-${table("vec3", "RB_LO", FLOWS.map((f) => v3(f.lo)))}
-${table("vec3", "RB_HI", FLOWS.map((f) => v3(f.hi)))}
-${table("vec3", "RB_CENTER", FLOWS.map((f) => v3(f.center)))}
-${table("float", "RB_SCALE", FLOWS.map((f) => g(f.scale)))}
-${table("mat3", "RB_FRAME", FLOWS.map((f) => mat(f.frame)))}
-${table("float", "RB_H", FLOWS.map((f) => g(f.h)))}
-${table("float", "RB_K", FLOWS.map((f) => g(f.k[0])))}
-${table("float", "RB_VREF", FLOWS.map((f) => g(f.vref * f.scale * SUBSTEPS * f.h)))}
-${table("vec3", "RB_INIT_CENTER", FLOWS.map((f) => v3(f.init.center)))}
-${table("float", "RB_INIT_RADIUS", FLOWS.map((f) => g(f.init.radius)))}
-${table("float", "RB_INIT_H", FLOWS.map((f) => g(f.init.h)))}
+${table(
+  "vec3",
+  "RB_LO",
+  FLOWS.map((f) => v3(f.lo)),
+)}
+${table(
+  "vec3",
+  "RB_HI",
+  FLOWS.map((f) => v3(f.hi)),
+)}
+${table(
+  "vec3",
+  "RB_CENTER",
+  FLOWS.map((f) => v3(f.center)),
+)}
+${table(
+  "float",
+  "RB_SCALE",
+  FLOWS.map((f) => g(f.scale)),
+)}
+${table(
+  "mat3",
+  "RB_FRAME",
+  FLOWS.map((f) => mat(f.frame)),
+)}
+${table(
+  "float",
+  "RB_H",
+  FLOWS.map((f) => g(f.h)),
+)}
+${table(
+  "float",
+  "RB_K",
+  FLOWS.map((f) => g(f.k[0])),
+)}
+${table(
+  "float",
+  "RB_VREF",
+  FLOWS.map((f) => g(f.vref * f.scale * SUBSTEPS * f.h)),
+)}
+${table(
+  "vec3",
+  "RB_INIT_CENTER",
+  FLOWS.map((f) => v3(f.init.center)),
+)}
+${table(
+  "float",
+  "RB_INIT_RADIUS",
+  FLOWS.map((f) => g(f.init.radius)),
+)}
+${table(
+  "float",
+  "RB_INIT_H",
+  FLOWS.map((f) => g(f.init.h)),
+)}
 float rbUnpack16(vec2 b) { return dot(floor(b * 255. + .5), vec2(256., 1.)) / 65535.; }
 float rbUnpack24(vec4 c) { vec3 b = floor(c.rgb * 255. + .5); return dot(b, vec3(65536., 256., 1.)) / 16777216.; }
 `;

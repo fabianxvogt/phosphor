@@ -75,6 +75,17 @@ void main() {
   float rate = clamp(u_params[1] * ${(SAMPLES_PER_SECOND / 60).toFixed(4)}, 0., .98);
   bool advance = acc + rate >= 1.;
   if (cell.y == GLOBAL_ROW) {
+    // Spare global texels latch one physical light packet per scheduled hit.
+    // The fixed-tick age advances independently of speed/development/energy.
+    if (cell.x >= 4 && cell.x <= 6) {
+      bool hit = !u_reset && u_rhythmHit.w > 0.;
+      float old = rbUnpack24(texelFetch(u_state, cell, 0));
+      float value = cell.x == 4 ? (hit ? 0. : min(.99999, old + 1. / 45.))
+                  : cell.x == 5 ? (hit ? min(.99999, max(u_rhythm.w, u_rhythmHit.w)) : old)
+                  : (hit ? mod(u_rhythmCount.w, 3.) / 3. : old);
+      outColor = rbPack24(u_reset ? (cell.x == 4 ? .99999 : 0.) : value);
+      return;
+    }
     float value = u_reset ? fract(u_seed * (.0131 + .0077 * float(cell.x))) : rbUnpack24(texelFetch(u_state, cell, 0));
     float speed = cell.x == 0 ? rate
                 : cell.x == 1 ? u_params[3] * .016 / 60.
@@ -110,8 +121,26 @@ void main() {
 const ground = `
 vec3 ground(vec2 frag) {
   vec2 p = (frag - .5 * u_resolution) / min(u_resolution.x, u_resolution.y);
-  float glow = exp(-dot(p, p) * 2.2);
-  return mix(u_secondary * .01, mix(u_secondary, u_primary, .25) * .05, glow);
+  vec2 q = p - vec2(-.12, .08);
+  float glow = exp(-dot(q * vec2(.8, 1.15), q * vec2(.8, 1.15)) * 3.2);
+  return u_secondary * .006 + mix(u_secondary, u_primary, .35) * .065 * glow;
+}
+`;
+
+// Shared by the mesh and surface so the widening band and its light front
+// agree. The Gaussian front and broad wake stay local, with zero afterlife.
+const relay = `
+vec2 rbRelay(float s, float rank) {
+  float age = rbUnpack24(texelFetch(u_state, ivec2(4, ${RIBBONS * 6}), 0));
+  float strength = rbUnpack24(texelFetch(u_state, ivec2(5, ${RIBBONS * 6}), 0));
+  float cohort = floor(3. * rbUnpack24(texelFetch(u_state, ivec2(6, ${RIBBONS * 6}), 0)) + .5);
+  float selected = 1. - step(.5, abs(mod(floor(rank * 24.), 3.) - cohort));
+  float front = 1.08 - 1.4 * age;
+  float d = s - front;
+  float hot = exp(-pow(d / .045, 2.));
+  float wake = exp(-max(0., d) * 10.) * smoothstep(-.015, .025, d);
+  float gain = selected * strength * smoothstep(0., .09, age) * (1. - smoothstep(.8, .99, age));
+  return vec2(hot, wake) * gain;
 }
 `;
 
@@ -122,14 +151,15 @@ layout(location=0) in float a_rank;
 uniform float u_params[8];
 uniform vec2 u_resolution;
 uniform float u_kick, u_level;
-uniform vec4 u_rhythm, u_rhythmCount;
+uniform vec4 u_rhythm, u_rhythmCount, u_rhythmHit;
 uniform sampler2D u_state;
 uniform vec3 u_primary, u_secondary, u_accent;
-out vec3 v_side, v_toCam, v_color;
+out vec3 v_side, v_toCam, v_normal, v_color;
 out float v_across, v_s, v_fog, v_cover, v_speed, v_head, v_glow;
 flat out float v_rank;
 const float PI = 3.14159265359, TAU = 6.28318530718;
 ${glsl}
+${relay}
 float global(int i) { return rbUnpack24(texelFetch(u_state, ivec2(i, GLOBAL_ROW), 0)); }
 vec4 rbTexel(int r, int k, int j, int c) { return texelFetch(u_state, ivec2(j, r * 6 + k * 2 + c), 0); }
 // Canonical position of ribbon r in flow k at sample j, plus its generation.
@@ -153,7 +183,7 @@ void main() {
   float side = corner == 2 || corner == 3 || corner == 5 ? 1. : -1.;
   float dev = clamp(u_params[0], 0., 2.);
   // Development shows more ribbons: sparse wings, fuller vortex, labyrinth.
-  float shown = .42 + .26 * smoothstep(.1, 1., dev) + .2 * smoothstep(1.1, 2., dev);
+  float shown = (.42 + .26 * smoothstep(.1, 1., dev) + .2 * smoothstep(1.1, 2., dev)) * (.65 + .35 * u_level);
   float presence = smoothstep(a_rank, a_rank + .06, shown + .06 * (1. - a_rank) - .0001);
   if (presence <= 0.) return;
   int ka = min(int(dev), 1);
@@ -181,26 +211,33 @@ void main() {
   float dist = u_params[7] * mix(mix(3., 2.9, mid), 2.45, peak) * (1. + .1 * peak * sin(2. * yaw + drift));
   float pitch = clamp(.12 + .2 * mid + (u_params[6] - .35) + (.1 + .12 * peak) * sin(drift), -.4, 1.3);
   vec3 eye = dist * vec3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw));
-  vec3 target = vec3(.15 * peak * sin(1.3 * yaw + .5), -.14 * (1. - mid) - .04 * peak + .08 * peak * sin(drift), .15 * peak * cos(1.3 * yaw + .5));
+  vec3 target = vec3(.15 * peak * sin(1.3 * yaw + .5), -.14 * (1. - mid) - .12 * peak + .08 * peak * sin(drift), .15 * peak * cos(1.3 * yaw + .5));
   float roll = .09 * peak * sin(1.7 * drift + 1.);
   vec3 fwd = normalize(target - eye);
   vec3 right = normalize(cross(fwd, vec3(sin(roll), cos(roll), 0.)));
   vec3 up = cross(right, fwd);
-  float focal = mix(mix(2.1, 1.75, mid), 1.72, peak) * (1. + .022 * u_kick);
-  focal *= mix(.88, 1., smoothstep(.7, 1.2, u_resolution.x / u_resolution.y));
+  float focal = mix(mix(2.46, 2.24, mid), 1.78, peak) * (1. + .022 * u_kick);
+  focal *= mix(mix(.88, .76, peak), 1., smoothstep(.85, 1.5, u_resolution.x / u_resolution.y));
   float minSide = min(u_resolution.x, u_resolution.y);
 
-  // A camera-facing band, shaded as a tube (see the surface pass).
+  // A camera-facing satin band with an optically twisting normal.
   vec3 toCam = eye - P;
   float depth = max(.05, dot(P - eye, fwd));
   vec3 W = cross(T, toCam);
   W = length(W) > 1e-6 ? normalize(W) : right;
-  float head = 1. - smoothstep(0., .035, s);
+  vec3 B = normalize(cross(W, T));
+  float twist = .65 * sin(TAU * (s * 1.25 + a_rank * 7.));
+  // Keep the projected strip camera-facing: rotating its actual width into
+  // depth makes adjacent trajectories on Aizawa's sheet interpenetrate and
+  // sparkle. Rotate the optical normal instead (a satin-band impostor).
+  vec3 bandNormal = cos(twist) * B - sin(twist) * W;
+  float head = 1. - smoothstep(0., .065, s);
   // A few broad foreground trajectories against many fine tracers give
   // scale without changing seeded ranks, population or integration.
-  float weight = mix(.6, 1.65, pow(1. - a_rank, 2.));
-  float width = .018 * u_params[4] * (1. + .18 * peak) * weight * mix(1., .3, s) * (1. - .75 * head * head) * presence * p0.w;
-  width *= smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, depth);
+  float hero = pow(1. - a_rank, 5.);
+  float weight = mix(.2, 2.45, hero);
+  float width = .022 * u_params[4] * (1. + .12 * peak) * weight * mix(.65, 1.15, u_level) * mix(1., .25, s) * (1. - .55 * head * head) * presence * p0.w;
+  width *= (1. + .32 * rbRelay(s, a_rank).x) * smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, depth);
   float minWidth = 1.2 * depth / (focal * .5 * minSide);
   v_cover = clamp(width / minWidth, 0., 1.);
   width = width > 1e-5 ? max(width, minWidth) : 0.;
@@ -211,10 +248,11 @@ void main() {
   gl_Position = vec4(view.x * focal * minSide / u_resolution.x, view.y * focal * minSide / u_resolution.y,
                      (view.z * (far + near) + 2. * far * near) / (near - far), -view.z);
   // Ribbons on one surface (Aizawa's sphere) get a stable order, not z-fighting.
-  gl_Position.z += a_rank * 2e-4 * gl_Position.w;
+  gl_Position.z += a_rank * 8e-4 * gl_Position.w;
   // Keep W unsigned: v_across supplies the sign exactly once. Multiplying
   // both here and in the surface folded both halves onto the same normal.
   v_side = vec3(dot(W, right), dot(W, up), -dot(W, fwd));
+  v_normal = vec3(dot(bandNormal, right), dot(bandNormal, up), -dot(bandNormal, fwd));
   vec3 c = normalize(toCam);
   v_toCam = vec3(dot(c, right), dot(c, up), -dot(c, fwd));
   v_across = side;
@@ -223,9 +261,9 @@ void main() {
   v_speed = clamp(speed, 0., 2.);
   v_head = head;
   v_rank = a_rank;
-  // Colour: speed along the flow picks the palette (fast = light), the rank
-  // shifts it a little so neighbouring ribbons separate.
-  v_color = palette(min(.62, .06 + .3 * smoothstep(.1, 1.4, speed) + .28 * a_rank)) * (1. + .25 * peak);
+  // Colour: speed along the flow picks saturated palette mids; rank
+  // separates neighbouring trajectories without pervasive accent emission.
+  v_color = mix(u_secondary, u_primary, .18 + .72 * smoothstep(.15, 1.4, speed + .4 * a_rank));
   // Rhythm: x one cohort of whole ribbons, y light running down every
   // ribbon at once, z a burst at the heads.
   float cohort = step(mod(floor(a_rank * 24.) - u_rhythmCount.x, 4.), .5);
@@ -234,7 +272,7 @@ void main() {
 
 const surface = `#version 300 es
 precision highp float;
-in vec3 v_side, v_toCam, v_color;
+in vec3 v_side, v_toCam, v_normal, v_color;
 in float v_across, v_s, v_fog, v_cover, v_speed, v_head, v_glow;
 flat in float v_rank;
 uniform float u_params[8];
@@ -246,10 +284,13 @@ out vec4 outColor;
 const float PI = 3.14159265359, TAU = 6.28318530718;
 ${ground}
 float rbUnpack24(vec4 c) { vec3 b = floor(c.rgb * 255. + .5); return dot(b, vec3(65536., 256., 1.)) / 16777216.; }
+${relay}
 void main() {
-  // Tube impostor: the band's cross coordinate bends the normal round.
+  // A folded, brushed band rather than a circular plastic cable. Its
+  // optical normal moves the satin key across broad, dark margins.
   float a = clamp(v_across, -1., 1.);
-  vec3 N = normalize(normalize(v_side) * a + normalize(v_toCam) * sqrt(max(0., 1. - a * a)));
+  float fold = sign(a) * (.08 * abs(a) + .32 * smoothstep(.6, 1., abs(a)));
+  vec3 N = normalize(normalize(v_normal) + normalize(v_side) * fold);
   vec3 V = normalize(v_toCam);
   vec3 L = normalize(vec3(-.5, .75, .45));
   float diffuse = max(0., dot(N, L)), wrap = .5 + .5 * dot(N, L);
@@ -258,23 +299,27 @@ void main() {
   vec3 base = v_color;
   // Tails fade into the dark; heads carry the light.
   float life = pow(1. - v_s, 1.1);
-  vec3 color = base * (.06 + 1.2 * diffuse + .22 * wrap) * (.35 + .65 * life);
-  // A little self-light: ribbons are light, not paint.
-  color += base * .22 * life;
-  color += mix(mix(u_secondary, vec3(1.), .35), u_accent, .2) * fresnel * .45 * life;
-  color += mix(base, vec3(1.), .6) * spec * .9 * life;
+  float margin = .65 + .35 * (1. - smoothstep(.7, 1., abs(a)));
+  vec3 color = base * (.08 + 1.05 * diffuse + .12 * wrap) * (.22 + .78 * life) * margin;
+  color += base * .18 * life;
+  color += u_primary * fresnel * .32 * life;
+  color += mix(base, vec3(1.), .12) * spec * .75 * life;
   // Flowing light: pulses run from tail to head along every ribbon.
   float pulse = rbUnpack24(texelFetch(u_state, ivec2(3, ${RIBBONS * 6}), 0));
   float wave = pow(.5 + .5 * cos(TAU * (v_s * (2. + 4. * u_params[5]) + pulse * 3. + v_rank * 7.)), 18.);
-  color += mix(base, vec3(1.), .35) * wave * (.15 + .5 * u_params[5]) * life;
-  float run = pow(.5 + .5 * cos(TAU * (v_s * 1.5 + pulse * 6.)), 30.);
-  color += mix(base, u_accent, .4) * run * u_rhythm.y * .9 * life;
+  color += base * wave * (.1 + .35 * u_params[5]) * life;
+  float run = pow(.5 + .5 * cos(TAU * (v_s * 1.5 + pulse * 6.)), 16.);
+  color += mix(base, u_primary, .4) * run * u_rhythm.y * 1.8 * life;
   // Heads: a small accent spark (rare, ≤ a few % of lit pixels).
-  color += mix(u_accent, vec3(1.), .3) * v_head * (.5 + .9 * u_rhythm.z);
-  color = mix(color, mix(base, u_accent, .5) * 1.4, .5 * v_glow * life);
+  color += mix(u_accent, vec3(1.), .08) * v_head * (.2 + 2.4 * u_rhythm.z);
+  color += u_primary * .9 * v_glow * (.25 + .75 * life);
+  vec2 packet = rbRelay(v_s, v_rank);
+  // Hot core is rare; the long saturated wake makes direction legible.
+  color += mix(u_accent, vec3(1.), .15) * packet.x * 3.2;
+  color += mix(u_primary, u_accent, .35) * packet.y * 1.25;
   color *= v_cover;
   vec3 g = ground(gl_FragCoord.xy);
-  float fog = 1. - exp(-max(0., v_fog + .9) * .55);
+  float fog = 1. - exp(-max(0., v_fog + .65) * .85);
   color = mix(color, g, clamp(fog, 0., .9));
   // Soft silhouettes: the band's edges fade into the ground over ~a pixel.
   float edge = 1. - abs(a);
@@ -283,14 +328,70 @@ void main() {
 }`;
 
 const schema = [
-  { key: "development", label: "Development · wings / vortex / labyrinth", min: 0, max: 2, step: 0.01, default: 0 },
-  { key: "flow", label: "Flow speed", min: 0, max: 1.9, step: 0.01, default: 1 },
-  { key: "length", label: "Ribbon length", min: 0.2, max: 1, step: 0.01, default: 0.7 },
-  { key: "orbit", label: "Camera orbit", min: -1, max: 1, step: 0.01, default: 0.4 },
-  { key: "thickness", label: "Ribbon width", min: 0.5, max: 1.8, step: 0.01, default: 1 },
-  { key: "pulses", label: "Light pulses", min: 0, max: 1, step: 0.01, default: 0.4 },
-  { key: "elevation", label: "Camera elevation", min: 0, max: 1, step: 0.01, default: 0.35 },
-  { key: "distance", label: "Camera distance", min: 0.85, max: 1.3, step: 0.01, default: 1 },
+  {
+    key: "development",
+    label: "Development · wings / vortex / labyrinth",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 0,
+  },
+  {
+    key: "flow",
+    label: "Flow speed",
+    min: 0,
+    max: 1.9,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "length",
+    label: "Ribbon length",
+    min: 0.2,
+    max: 1,
+    step: 0.01,
+    default: 0.7,
+  },
+  {
+    key: "orbit",
+    label: "Camera orbit",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    default: 0.4,
+  },
+  {
+    key: "thickness",
+    label: "Ribbon width",
+    min: 0.5,
+    max: 1.8,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "pulses",
+    label: "Light pulses",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.4,
+  },
+  {
+    key: "elevation",
+    label: "Camera elevation",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.35,
+  },
+  {
+    key: "distance",
+    label: "Camera distance",
+    min: 0.85,
+    max: 1.3,
+    step: 0.01,
+    default: 1,
+  },
 ];
 
 const look = (name, seed, development, params = {}) => ({
@@ -321,11 +422,38 @@ export default {
     look("Butterfly Wings", 9701, 0),
     look("Aizawa Vortex", 9701, 1),
     look("Thomas Labyrinth", 9701, 2),
-    look("Long Exposure", 9702, 0, { flow: 0.6, length: 1, thickness: 0.75, pulses: 0.15, elevation: 0.55 }),
-    look("Vortex from Below", 9703, 1, { elevation: 0.05, orbit: -0.35, thickness: 1.3, distance: 0.92 }),
-    look("Labyrinth Rush", 9704, 2, { flow: 1.6, length: 0.55, orbit: 0.75, pulses: 0.85 }),
-    look("Unfolding Wings", 9705, 0.3, { length: 0.85, orbit: -0.3, elevation: 0.2 }),
-    look("Slow Labyrinth", 9706, 1.85, { flow: 0.45, length: 0.9, orbit: 0.2, thickness: 1.25, pulses: 0.1, elevation: 0.75 }),
+    look("Long Exposure", 9702, 0, {
+      flow: 0.6,
+      length: 1,
+      thickness: 0.75,
+      pulses: 0.15,
+      elevation: 0.55,
+    }),
+    look("Vortex from Below", 9703, 1, {
+      elevation: 0.05,
+      orbit: -0.35,
+      thickness: 1.3,
+      distance: 0.92,
+    }),
+    look("Labyrinth Rush", 9704, 2, {
+      flow: 1.6,
+      length: 0.55,
+      orbit: 0.75,
+      pulses: 0.85,
+    }),
+    look("Unfolding Wings", 9705, 0.3, {
+      length: 0.85,
+      orbit: -0.3,
+      elevation: 0.2,
+    }),
+    look("Slow Labyrinth", 9706, 1.85, {
+      flow: 0.45,
+      length: 0.9,
+      orbit: 0.2,
+      thickness: 1.25,
+      pulses: 0.1,
+      elevation: 0.75,
+    }),
   ],
   stage: ["flow", "length", "orbit"],
   type: { key: "development", values: [0, 1, 2] },
@@ -340,23 +468,138 @@ export default {
     { param: "flow", feature: "low", amount: 0.04 },
     { param: "pulses", feature: "onset", amount: 0.08 },
   ],
-  rhythmStyles: { restrained: "Loose strands", driving: "Braided current", accented: "Attractor weave" },
+  rhythmStyles: {
+    restrained: "Loose strands",
+    driving: "Braided current",
+    accented: "Attractor weave",
+  },
   rhythm: [
-    familyEffect("ribbon-cohort", 0, "Ribbon cohort", "One in four whole ribbons lights up along its full trajectory.", { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
-        restrained: { steps: "X....... | ......x. | ...X....", division: 2, strength: 0.5, duration: 1.5 },
-        driving: { steps: "X.....x. | ...X..x.", division: 2, strength: 0.76, duration: 0.8 },
-        accented: { steps: "X........x...... | ..X........x.... | ....X........x..", division: 4, strength: 0.9, duration: 0.65 },
-      } }),
-    familyEffect("flow-run", 1, "Flow run", "Light runs down every ribbon along the direction of the flow.", { period: 8, strength: 0.6, duration: 1.5, steps: "X.......", styles: {
-        restrained: { steps: "...x.... | .X...... | .....x..", division: 2, strength: 0.5, duration: 1.3 },
-        driving: { steps: "..X..x..X..x", division: 2, strength: 0.76, duration: 0.8 },
-        accented: { steps: "..X..x..X..x..X..x..", division: 4, strength: 0.9, duration: 0.5 },
-      } }),
-    familyEffect("head-sparks", 2, "Head sparks", "The leading point of every trajectory flares together.", { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | .......x | ........ | ......X.", division: 2, strength: 0.55, duration: 1.6 },
-        driving: { steps: "........ | ......xX | ........ | ....x..X", division: 2, strength: 0.8, duration: 0.4 },
-        accented: { steps: "............x... | .........X.x..xx", division: 4, strength: 0.96, duration: 0.18 },
-      } }),
+    familyEffect(
+      "ribbon-cohort",
+      0,
+      "Ribbon cohort",
+      "One in four whole ribbons lights up along its full trajectory.",
+      {
+        period: 4,
+        strength: 0.6,
+        duration: 1,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | ......x. | ...X....",
+            division: 2,
+            strength: 0.5,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "X.....x. | ...X..x.",
+            division: 2,
+            strength: 0.76,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "X........x...... | ..X........x.... | ....X........x..",
+            division: 4,
+            strength: 0.9,
+            duration: 0.65,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "flow-run",
+      1,
+      "Flow run",
+      "Light runs down every ribbon along the direction of the flow.",
+      {
+        period: 8,
+        strength: 0.6,
+        duration: 1.5,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | .X...... | .....x..",
+            division: 2,
+            strength: 0.5,
+            duration: 1.3,
+          },
+          driving: {
+            steps: "..X..x..X..x",
+            division: 2,
+            strength: 0.76,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "..X..x..X..x..X..x..",
+            division: 4,
+            strength: 0.9,
+            duration: 0.5,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "head-sparks",
+      2,
+      "Head sparks",
+      "The leading point of every trajectory flares together.",
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | .......x | ........ | ......X.",
+            division: 2,
+            strength: 0.55,
+            duration: 1.6,
+          },
+          driving: {
+            steps: "........ | ......xX | ........ | ....x..X",
+            division: 2,
+            strength: 0.8,
+            duration: 0.4,
+          },
+          accented: {
+            steps: "............x... | .........X.x..xx",
+            division: 4,
+            strength: 0.96,
+            duration: 0.18,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "ribbon-relay",
+      3,
+      "Ribbon relay",
+      "A bright packet races from tail to head through a ribbon bundle, leaving a fading wake.",
+      {
+        strength: 0.9,
+        duration: 1.65,
+        styles: {
+          restrained: {
+            steps: "....X... | ........ | ......x. | ........",
+            division: 2,
+            strength: 0.7,
+            duration: 1.65,
+          },
+          driving: {
+            steps: "X....... | ...X....",
+            division: 2,
+            strength: 0.94,
+            duration: 1.65,
+          },
+          accented: {
+            steps: "X...........X... | ...X......X.....",
+            division: 4,
+            strength: 1,
+            duration: 1.3,
+          },
+        },
+      },
+    ),
   ],
   fragment: `${ground}
 void main() { outColor = vec4(ground(gl_FragCoord.xy), 1.); }`,
@@ -377,7 +620,10 @@ export function ribbonRanks(seed) {
     s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
     return s / 4294967296;
   };
-  const ranks = Array.from({ length: RIBBONS }, (_, i) => (i + rand()) / RIBBONS);
+  const ranks = Array.from(
+    { length: RIBBONS },
+    (_, i) => (i + rand()) / RIBBONS,
+  );
   for (let i = ranks.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
     [ranks[i], ranks[j]] = [ranks[j], ranks[i]];
@@ -387,6 +633,7 @@ export function ribbonRanks(seed) {
 export function createRibbons(seed) {
   const ranks = ribbonRanks(seed),
     data = new Float32Array(RIBBONS * PER_RIBBON);
-  for (let r = 0; r < RIBBONS; r++) data.fill(ranks[r], r * PER_RIBBON, (r + 1) * PER_RIBBON);
+  for (let r = 0; r < RIBBONS; r++)
+    data.fill(ranks[r], r * PER_RIBBON, (r + 1) * PER_RIBBON);
   return data;
 }

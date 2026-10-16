@@ -2413,6 +2413,8 @@ export default {
   "Light runs down every ribbon along the direction of the flow.": "Light runs down every ribbon along the direction of the flow.",
   "Head sparks": "Head sparks",
   "The leading point of every trajectory flares together.": "The leading point of every trajectory flares together.",
+  "Ribbon relay": "Ribbon relay",
+  "A bright packet races from tail to head through a ribbon bundle, leaving a fading wake.": "A bright packet races from tail to head through a ribbon bundle, leaving a fading wake.",
   "Loose strands": "Loose strands",
   "Braided current": "Braided current",
   "Attractor weave": "Attractor weave",
