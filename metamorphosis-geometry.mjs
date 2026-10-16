@@ -8,14 +8,14 @@ function random(seed) {
 export function organism(seed) {
   const rand = random(seed),
     base = [
-      [-0.98, -0.55, 0.43],
+      [-1.4, -0.55, 0.62],
       [0.06, -0.05, 1.22], // hero; all other centres are persistent scale cues
-      [-0.68, 0.92, 0.48],
-      [0.8, 0.91, 0.35],
-      [-1.25, 0.48, 0.29],
-      [1.12, -0.63, 0.3],
-      [-0.84, -1.05, 0.26],
-      [1.2, 0.3, 0.32],
+      [-1.15, 1.55, 0.58],
+      [1.1, 1.5, 0.52],
+      [-1.85, 0.48, 0.48],
+      [1.5, -0.63, 0.58],
+      [-0.84, -1.24, 0.36],
+      [1.9, 0.45, 0.46],
       [-1.8, 1.6, 0.45],
       [0.1, 1.9, 0.5],
       [1.7, 1.65, 0.4],
@@ -90,7 +90,14 @@ export function petalPoint(
   t,
   v,
   development,
-  { phase = 0, sway = 1, edgeGesture = 0 } = {},
+  {
+    phase = 0,
+    sway = 1,
+    level = 0.5,
+    edgeGesture = 0,
+    flush = 0,
+    count = 0,
+  } = {},
 ) {
   const smooth = (x) => {
     x = Math.max(0, Math.min(1, x));
@@ -107,14 +114,35 @@ export function petalPoint(
       Math.sin(Math.PI * Math.pow(Math.max(0, Math.min(1, t)), 0.83)),
     ) ** 0.75;
   const sector = angle + (v * Math.PI) / node.petals;
+  const cohort =
+    (0.5 +
+      0.5 * Math.cos(sector + (angle - sector) * flower - count * 2.39996)) **
+    3;
+  const release = flush * (0.25 + 0.75 * cohort) * (0.35 + 0.65 * flower);
   const filament = [
-    radial[0] * t * 0.7 + side[0] * v * 0.012 * envelope,
-    radial[1] * t * 0.7 + side[1] * v * 0.012 * envelope,
+    radial[0] * t * 0.7 +
+      side[0] *
+        (v * 0.038 * envelope +
+          0.2 * Math.sin(t * Math.PI) * (0.65 + 0.35 * level)),
+    radial[1] * t * 0.7 +
+      side[1] *
+        (v * 0.038 * envelope +
+          0.2 * Math.sin(t * Math.PI) * (0.65 + 0.35 * level)),
   ];
-  const sheet = [Math.cos(sector) * t * 0.7, Math.sin(sector) * t * 0.7];
+  const sheet = [Math.cos(sector), Math.sin(sector)].map(
+    (x) => x * (t * 0.7 + 0.04 * release * t * t),
+  );
   const pet = [
-    radial[0] * (t * 0.98 - 0.16 * t * t * t) + side[0] * v * 0.29 * envelope,
-    radial[1] * (t * 0.98 - 0.16 * t * t * t) + side[1] * v * 0.29 * envelope,
+    radial[0] *
+      (t * (0.99 + 0.045 * Math.sin(angle * 3 + node.id)) -
+        0.16 * t * t * t +
+        0.15 * release * t * t) +
+      side[0] * v * 0.34 * envelope * Math.sqrt(t),
+    radial[1] *
+      (t * (0.99 + 0.045 * Math.sin(angle * 3 + node.id)) -
+        0.16 * t * t * t +
+        0.15 * release * t * t) +
+      side[1] * v * 0.34 * envelope * Math.sqrt(t),
   ];
   const mix = (a, b, w) => a + (b - a) * w;
   const drift =
@@ -132,27 +160,27 @@ export function petalPoint(
   );
   const sheetRise =
     node.size *
-    (0.1 * Math.sin(t * Math.PI) +
-      0.014 * Math.sin(sector * node.petals) * t * t);
+    ((0.14 + 0.045 * release) * Math.sin(t * Math.PI) +
+      0.025 * Math.sin(sector * node.petals) * t * t);
   const petalRise =
     node.size *
-    (0.62 * t * t -
+    ((0.63 + 0.07 * Math.sin(angle * 3 + node.id)) * t * t -
       0.12 * Math.sin(t * Math.PI) +
-      0.016 * Math.cos(v * Math.PI * 2) * envelope +
-      0.1 * v * v * envelope +
-      0.025 * edgeGesture * t * t);
+      0.032 * Math.cos(v * Math.PI * 2) * envelope +
+      0.1 * v * v * envelope * Math.sqrt(t) +
+      (0.1 * edgeGesture - 0.22 * release) * t * t);
   const filamentRise =
-    0.025 * Math.sin(t * Math.PI) +
-    0.012 * Math.sqrt(Math.max(0, 1 - v * v)) * envelope;
+    node.size *
+    (0.14 * t * t + 0.035 * Math.sqrt(Math.max(0, 1 - v * v)) * envelope);
   const z =
     mix(mix(filamentRise, sheetRise, membrane), petalRise, flower) +
-    0.008 * sway * Math.sin(phase * 0.52 + node.id + t * 4) * t;
+    0.025 * sway * Math.sin(phase * 0.52 + node.id + t * 4) * t;
   return [...p, z];
 }
 
 export function projectPoint(point, time, aspect = 16 / 9, kick = 0) {
   const yaw = 0.26 * Math.sin(time * 0.025) + 0.08 * Math.sin(time * 0.017);
-  const eye = [2.55 * Math.sin(yaw), -2.55 * Math.cos(yaw), 3.65];
+  const eye = [3.15 * Math.sin(yaw), -3.15 * Math.cos(yaw), 3.1];
   const norm = (v) => {
     const l = Math.hypot(...v);
     return v.map((x) => x / l);
@@ -165,7 +193,7 @@ export function projectPoint(point, time, aspect = 16 / 9, kick = 0) {
   const fit = Math.max(0, Math.min(1, (aspect - 1) / 0.5));
   const depth = dot(F),
     lens =
-      (2.75 + 0.28 * fit * fit * (3 - 2 * fit)) *
+      (2.3 + 1.24 * fit * fit * (3 - 2 * fit)) *
       (1 + 0.015 * Math.max(0, Math.min(1, kick)));
   return [
     (dot(R) * lens) / (Math.max(1, aspect) * depth),
