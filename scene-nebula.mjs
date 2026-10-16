@@ -42,11 +42,12 @@ export { SIZE };
 const f = (x) => (Number.isInteger(x) ? `${x}.` : `${x}`);
 const v3 = (a) => `vec3(${a.map(f).join(", ")})`;
 const SLICES = [8 * (WEB_GRID[0] + 2), (WEB_GRID[1] / 8) * (WEB_GRID[2] + 2)];
-// Atlas: web slices | disk map to their right; the remnant direction map
-// reuses the slice region while the web is not shown.
-// Filament line sprites per web edge (dormant rows not used by motes).
-const PER = 150;
-const ATLAS = [SLICES[0] + DISK_MAP, Math.max(SLICES[1], DISK_MAP, OCTA)];
+// Atlas: packed web/Cartesian-remnant volume | disk map | fine Cartesian
+// shear map. These are scalar fields, never reduced-resolution radiance.
+// Broad gas sprites per web edge (dormant rows not used by motes).
+const PER = 50;
+const FINE_X = SLICES[0] + DISK_MAP;
+const ATLAS = [FINE_X + OCTA, Math.max(SLICES[1], DISK_MAP, OCTA)];
 const common = `
 const float NB_TAU = 6.283185307179586;
 const float NB_PI = 3.141592653589793;
@@ -79,12 +80,17 @@ float nbSq(float x) { return x * x; }
 float nbStarfront(vec3 x) {
   float env = clamp(u_rhythm.w, 0., 1.);
   if (env <= 0. && u_rhythmHit.w <= 0.) return 0.;
-  float radius = .65 + 1.4 * (1. - env);
+  float travel = clamp(1. - env, 0., 1.);
+  float radius = .12 + 2.25 * travel;
   float angle = 2.39996323 * mod(u_rhythmCount.w, 144.);
   vec2 dir = x.xz / max(length(x.xz), 1e-4);
-  float sector = .18 + .82 * nbSq(nbSq(.5 + .5 * dot(dir, vec2(cos(angle), sin(angle)))));
-  return (env + .08 * clamp(u_rhythmHit.w, 0., 1.)) * sector
-    * exp(-nbSq((length(x) - radius) / .24));
+  float facing = .5 + .5 * dot(dir, vec2(cos(angle), sin(angle)));
+  float sector = pow(max(0., (facing - .72) / .28), 2.);
+  float dr = length(x) - radius;
+  float crest = exp(-nbSq(dr / .09));
+  float wake = .2 * exp(-nbSq((dr + .22) / .2));
+  float gate = min(1., env * 12.) * min(1., travel * 10. + clamp(u_rhythmHit.w, 0., 1.));
+  return gate * sector * (crest + wake);
 }
 float nbSmooth(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0., 1.); return t * t * (3. - 2. * t); }
 float nbGauss(float u1, float u2) { return sqrt(-2. * log(max(u1, 1e-7))) * cos(NB_TAU * u2); }
@@ -367,14 +373,15 @@ void main() {
         float pulse = .3 + .7 * nbSq(.5 + .5 * sin(NB_TAU * (along * len * 1.3 - 2. * nbCycle(clock, ${N.stream}u)) + float(e)));
         // Broken, feathered cloud strands rather than uniform diagram wires.
         float clump = .18 + .82 * nbSq(.5 + .5 * sin(along * len * 19. + float(e) * 2.7));
-        I *= pulse * clump * .55;
-        P += (.012 + .02 * loops) * sin(P.zxy * 27. + float(e)) * sin(along * NB_PI);
+        I *= pulse * clump * .1;
+        w *= 2.5 + 2. * nbSq(sin(along * len * 4. + float(e)));
+        P += (.025 + .035 * loops) * sin(P.zxy * 17. + float(e)) * sin(along * NB_PI);
       } else {
         int i = 1 + f - ${EDGES * PER};
         if (i >= ${NODES}) return;
         P = nbMorph(nbNodePos(key, i), p);
         float mass = nbNodeMass(key, i);
-        I = 1.2 + 2. * mass; w = .015 + .03 * mass; along = 1.;
+        I = .08 + 18. * pow(mass, 9.); w = .012 + .035 * mass; along = 1.;
       }
       vec3 pos = nbRotY(P, NB_TAU * nbCycle(clock, ${N.cloud}u));
       vec3 v = pos - cam.eye;
@@ -390,11 +397,11 @@ void main() {
       float corePx = max(max(w * scale, 1.2 * res), .8 * spacing);
       float size = clamp(9. * corePx, 3. * res, 160. * res);
       gl_PointSize = size;
-      float fog = exp(-max(z - 1.6, 0.) / 2.4) * nbSmooth(.15, .7, z) * (1. - nbSmooth(150., 160., size / res));
+      float fog = exp(-max(z - 1.6, 0.) / 2.4) * nbSmooth(.15, .7, z);
       // Line intensity independent of sprite spacing and pixel floor.
       float lineGain = min(w * scale / corePx, 1.) * clamp(spacing / size, .02, 1.) * 9.;
-      vec3 hue = mix(mix(cGas, cArm, .25 + .55 * nbRnd(key, uint(max(e, 0)), 938u)), cHot, (e < ${EDGES} ? .08 * along : .4));
-      v_soft = e < ${EDGES} ? 2. + clamp(corePx / size, .02, 1.) : .5;
+      vec3 hue = mix(cGas, cArm, .25 + .65 * nbRnd(key, uint(max(e, 0)), 938u));
+      v_soft = e < ${EDGES} ? 1. : 2.06;
       v_color = hue * I * fade * fog * lineGain * light * (1. + .6 * u_rhythm.x);
       return;
     }
@@ -489,8 +496,8 @@ void main() {
       compress = 1. + 4. * exp(-dot(g - B, g - B) / .02);
     }
     // Dust: tracers glow faintly; the web's caustics brighten by crowding.
-    vec3 gas = mix(cGas, cHot, clamp(.1 + .2 * s.tone + .12 * compress, 0., 1.));
-    float dustB = .03 * compress + 1.4 * pow(s.tone, 50.);
+    vec3 gas = mix(cGas, cArm, clamp(.2 + .3 * s.tone + .1 * compress, 0., 1.));
+    float dustB = .016 * compress + .8 * pow(s.tone, 50.);
     float dustSize = 1.8 + 1.6 * s.layer;
     // Spiral: crest stars young (secondary → white), inter-arm stars old.
     vec3 young = mix(cArm, vec3(1.), .35), old = mix(cGas, cArm, .25);
@@ -692,30 +699,31 @@ vec2 nbWebField(vec3 x, uint clock, float growth) {
 }
 `;
 
-// Remnant filaments on the sphere of directions: x = finger strength,
-// y = second ridge (hot filament cores).
+// Remnant topology throughout a Cartesian volume: x = ridge strength,
+// y = fine knot ridge, z = broad cavities, w = breathing edge displacement.
 const shellData = `
-// x = finger strength, y = second ridge (hot cores), z = broad patchiness,
-// w = smooth breathing corrugation of the shell radius.
+// The argument is a real 3D location, not a unit direction. Radial depth
+// therefore changes the turbulence instead of extruding a feathered shell.
 vec4 nbShellData(vec3 dn, float level, uint clock) {
   float a = nbGNoise(dn * 1.6 + 3.1, ivec3(14, 7, 14), 0x51a7u);
-  float a2 = nbGNoise(dn * 3.2 + 6.2, ivec3(28, 14, 28), 0x9c3bu);
-  // Fine ridged turbulence follows the same seeded directional identity.
-  float s1 = nbGNoise(dn * 7.1 + 7.7 + .8 * (a - .5), ivec3(28, 14, 28), 0x51a7u);
-  vec3 c2 = nbRot * dn * 14.6 + 2.3;
-  float s2x = nbGNoise(c2, ivec3(14, 7, 14), 0x51a7u), s2y = nbGNoise(c2 * 2., ivec3(28, 14, 28), 0x9c3bu);
-  float ridge = 1. - abs(2. * s1 - 1.), ridge2 = 1. - abs(2. * s2x - 1.);
-  float holes = nbSmooth(.3, .56, a + .3 * (s2y - .5));
+  float a2 = nbGNoise(nbRot * dn * 6.8 + 6.2 + .9 * (a - .5), ivec3(28, 14, 28), 0x9c3bu);
+  float grain = nbGNoise(dn * 11.7 + 4.2, ivec3(56, 28, 56), 0x77c1u);
+  // The volume cache carries broad topology and unequal branching ridges;
+  // a separate fine shear atlas resolves threads across these 3D plumes.
+  float ridge = 1. - abs(2. * a2 - 1.), ridge2 = 1. - abs(2. * grain - 1.);
+  float holes = nbSmooth(.3, .56, a + .3 * (a2 - .5));
   float bA = NB_TAU * nbCycle(clock, ${N.breathe}u), bB = NB_TAU * nbCycle(clock, ${N.breathe + 7}u);
   float lift = .032 * sin(dot(dn, vec3(3.1, 1.7, -2.3)) + bA) + .025 * sin(dot(dn, vec3(-3.2, 4.9, 2.2)) + bB)
     + .02 * sin(dot(dn, vec3(5.1, -6., 6.4)) - bA);
-  return vec4(pow(ridge, mix(32., 20., level)) * (.15 + 1.4 * pow(ridge2, 4.)) * holes, ridge2, a2, lift);
+  return vec4(pow(ridge, mix(20., 11., level) * (.7 + a)) * (.1 + 1.5 * pow(ridge2, 5.)) * holes, ridge2, a, lift);
 }
-vec3 nbOctaDecode(vec2 uv) {
-  vec2 p = uv * 2. - 1.;
-  vec3 d = vec3(p.x, 1. - abs(p.x) - abs(p.y), p.y);
-  if (d.y < 0.) d.xz = (1. - abs(d.zx)) * vec2(d.x >= 0. ? 1. : -1., d.z >= 0. ? 1. : -1.);
-  return normalize(d);
+// Fine turbulent shear in a Cartesian plane, NOT a direction map. The
+// volume samples an oblique, depth-warped plane so threads branch across
+// plumes rather than forming identical radial feathers.
+vec2 nbFineData(vec2 p) {
+  float a = nbGNoise(vec3(p * 5.2, 2.7), ivec3(28, 14, 28), 0x51a7u);
+  float b = nbGNoise(vec3(p.yx * 11.4, 8.3), ivec3(56, 28, 56), 0x9c3bu);
+  return vec2(pow(1. - abs(2. * a - 1.), 18.) * (.12 + pow(1. - abs(2. * b - 1.), 5.)), b);
 }
 // Disk map at a world point of the plane: x = arm crest, y = clumpy arm
 // light, z = lane optical depth, w = HII knots. Arms follow the pattern;
@@ -728,10 +736,10 @@ vec4 nbDiskData(vec2 xz, float twist, float pattern, float gasPhase, float level
   vec3 hc = nbRot * vec3(g.x, 0., g.y) * 7.5 + 1.3;
   float hfx = nbGNoise(hc, ivec3(14, 7, 14), 0x51a7u), hfy = nbGNoise(hc * 2., ivec3(28, 14, 28), 0x9c3bu);
   float ph = nbArmPhase(xz, twist, pattern);
-  float arm = exp(-nbSq(sin(ph + .35 * (nzx - .5))) / .18);
+  float arm = exp(-nbSq(sin(ph + .22 * (nzx - .5))) / .085);
   float lane = exp(-nbSq(sin(ph - .28 + .3 * (nzx - .5) + .15 * (hfx - .5))) / (.01 + .018 * hfy)) * nbSmooth(.12, .32, rd);
   float inner = nbSmooth(.12, .42, rd);
-  float clumps = .06 + 3.2 * nbSq(nbSmooth(.4, .78, hfx)) + .25 * nzy;
+  float clumps = .2 + 1.6 * nbSmooth(.3, .72, hfx) + .3 * nzy;
   float spur = exp(-nbSq(sin(ph + 1.1 + 2.5 * (nzy - .5))) / .05) * .35;
   // Fine star-cloud grain resolves the arms at full output resolution.
   vec3 fc = nbRot * vec3(g.y, 0., g.x) * 26. + 4.2;
@@ -765,13 +773,24 @@ vec2 nbWebAt(vec3 x, uint clock) {
 #endif
 }
 vec4 nbShellAt(vec3 dn) {
+  dn = clamp(dn, vec3(-1.5), vec3(1.5));
 #ifdef PRECOMPUTED
-  vec3 d = dn / (abs(dn.x) + abs(dn.y) + abs(dn.z));
-  if (d.y < 0.) d.xz = (1. - abs(d.zx)) * vec2(d.x >= 0. ? 1. : -1., d.z >= 0. ? 1. : -1.);
-  vec2 c = clamp((d.xz * .5 + .5) * ${f(OCTA)}, .5, ${f(OCTA - 0.5)});
-  return texture(u_precomputed, c / NB_ATLAS);
+  vec3 c = clamp((dn / 1.5 * .5 + .5) * (NB_GRID - 1.), vec3(0.), NB_GRID - 1.001);
+  float s = floor(c.y);
+  vec4 a = texture(u_precomputed, (nbSlice(s) + c.xz + 1.5) / NB_ATLAS);
+  vec4 b = texture(u_precomputed, (nbSlice(s + 1.) + c.xz + 1.5) / NB_ATLAS);
+  return mix(a, b, c.y - s);
 #else
   return nbShellData(dn, clamp(u_level, 0., 1.), nbClock());
+#endif
+}
+vec2 nbFineAt(vec3 p) {
+  vec2 q = p.xy + vec2(.23, .41) * p.z + .11 * sin(p.yz * 8. + p.zx * 3.);
+#ifdef PRECOMPUTED
+  vec2 c = clamp((q / 2. * .5 + .5) * ${f(OCTA)}, .5, ${f(OCTA - 0.5)});
+  return texture(u_precomputed, (c + vec2(${f(FINE_X)}, 0.)) / NB_ATLAS).xy;
+#else
+  return nbFineData(clamp(q, vec2(-2.), vec2(2.)));
 #endif
 }
 vec4 nbDiskAt(vec2 xz, float twist, float pattern, float gasPhase) {
@@ -819,7 +838,7 @@ void main() {
   vec2 screen = (v_uv * 2. - 1.) * u_resolution / min(u_resolution.x, u_resolution.y);
   vec3 ray = normalize(cam.fwd * cam.focal + cam.right * screen.x + cam.up * screen.y);
   vec3 cGas = u_primary, cArm = u_secondary, cHot = mix(u_secondary, vec3(1.), .82), cAcc = u_accent;
-  float wWeb = 1. - p, wDisk = nbSmooth(.15, .85, p) * (1. - nbSmooth(.45, 1., n)), wShell = n;
+  float wWeb = 1. - p, wDisk = nbSmooth(.15, .85, p) * (1. - nbSmooth(.65, 1., n)), wShell = n;
   float R0 = NB_SHELL * (.1 + .9 * n) * (1. + .03 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u)));
   float lobe = .22 + .38 * (1. - nbSmooth(.3, 1., n));
   vec2 span = vec2(1e9, -1e9), b;
@@ -830,7 +849,7 @@ void main() {
     b = nbEllipsoid(cam.eye, ray, vec3(1.78, .16, 1.78));
     span = vec2(min(span.x, b.x), max(span.y, b.y));
   }
-  if (wShell > .001) { b = nbEllipsoid(cam.eye, ray, R0 * vec3(1.22, 1.22 * (1. + lobe), 1.22)); span = vec2(min(span.x, b.x), max(span.y, b.y)); }
+  if (wShell > .001) { b = nbEllipsoid(cam.eye, ray, R0 * vec3(1.58, 1.58 * (1. + lobe), 1.58)); span = vec2(min(span.x, b.x), max(span.y, b.y)); }
   float along = -dot(cam.eye, ray);
   float impact = length(cam.eye + ray * along);
   vec3 col = vec3(0.);
@@ -847,17 +866,18 @@ void main() {
     // A pure remnant keeps only its filament layers in the march: the
     // interior (haze, shock fronts) is integrated analytically below.
     vec2 hole = vec2(1e9, -1e9);
-    if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .6));
+    if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .38));
     float skip = max(0., min(hole.y, t1) - max(hole.x, t0));
     float detail = nbSmooth(.05, .3, wShell);
     float stride = mix(mix(.08, .16, k4), mix(.055, .1, k4), detail);
-    float cap = mix(mix(24., 10., k4), mix(36., 18., k4), detail);
+    float cap = mix(mix(24., 10., k4), mix(24., 12., k4), detail);
     cap *= clamp(u_raySteps / 96., .42, 1.);
     float steps = clamp(ceil((t1 - t0 - skip) / stride), wWeb + wShell > .001 ? mix(8., 4., k4) : 2., cap);
     float dt = (t1 - t0 - skip) / steps;
     uvec2 pix = uvec2(gl_FragCoord.xy);
-    // Static interleaved-gradient jitter: no temporal shimmer on LED walls.
-    float t = t0 + dt * fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715))));
+    // Static per-pixel jitter: no temporal shimmer or diagonal comb pattern.
+    float jitter = float(nbHash(pix.x ^ nbHash(pix.y + 7919u)) >> 8) / 16777216.;
+    float t = t0 + dt * jitter;
     float cloudPhase = NB_TAU * nbCycle(clock, ${N.cloud}u);
     mat2 toCloud = mat2(cos(cloudPhase), -sin(cloudPhase), sin(cloudPhase), cos(cloudPhase));
     float twist = 1.35 * (2.2 + .9 * nbRnd(key, 0u, 905u)) * u_params[3];
@@ -868,7 +888,7 @@ void main() {
     mat2 shellTurn = mat2(cos(shellPhase), -sin(shellPhase), sin(shellPhase), cos(shellPhase));
     float ejecta = nbCycle(clock, ${N.ejecta}u);
     float sharp = mix(.6, 1.35, level);
-    for (int i = 0; i < 36; i++) {
+    for (int i = 0; i < 24; i++) {
       if (t > hole.x && t < hole.y) t += hole.y - hole.x;
       if (float(i) >= steps || t > t1) break;
       vec3 x = cam.eye + ray * t;
@@ -899,7 +919,8 @@ void main() {
           float hot = max(web.x - 2.6, 0.) * sharp * env;
           float haze = env * fib * fib * .03;
           // Diffuse sheets and walls between the filaments: faint, broad.
-          e += wWeb * (mix(cGas, cArm, .3) * (web.x * .09 * env + core * .18) + cArm * haze * 1.5);
+          e += wWeb * (mix(cGas, cArm, .35 + .5 * fib) * (web.x * .12 * env + core * .24) + cArm * haze * 2.);
+          e += wWeb * cArm * hot * hot * .025;
           if (u_rhythm.x > 0.) e += wWeb * cHot * dens * u_rhythm.x * .8 * exp(-nbSq((r - armPulse) / .25));
           sigma += wWeb * (dens * .25 + haze * 2.);
           matter += wWeb * dens * .3;
@@ -921,7 +942,7 @@ void main() {
         // Lanes are cold, opaque dust: they stop emitting and hide what is behind.
         float dark = exp(-laneK * .85);
         // Old disk stars fill the whole disk softly; young arms ride on top.
-        vec3 E = surface * dark * (cGas * .1 * (.5 + arm) + mix(cArm, cHot, .35) * .14 * inner + cArm * armLight * 3.6 * (1. - .4 * hotC) + cHot * hotC * 3.2);
+        vec3 E = surface * dark * (cGas * .2 * (.5 + arm) + mix(cArm, cHot, .12) * .14 * inner + cArm * armLight * 1.6 * (1. - .7 * hotC) + mix(cArm, cHot, .25) * hotC * .8);
         if (u_rhythm.x > 0.) E += cArm * arm * surface * u_rhythm.x * 3. * exp(-nbSq((rd - armPulse) / .15));
         float K = surface * (laneK * 2.2 + .3 * arm + .5); // + diffuse midplane dust (edge-on lane)
         e += wDisk * clear * cAcc * knots * surface * 16. * dark * knotColumn * 2. * mix(.25, 1., nbSmooth(.05, .35, abs(ray.y)));
@@ -932,38 +953,41 @@ void main() {
       if (wShell > .001) {
         vec3 d = x / max(r, 1e-4);
         float Rs = R0 * (1. + lobe * d.y * d.y);
-        // Filaments live on the sphere of directions, so the same fingers
-        // ride outward with the shell; radial extent makes them RT fingers.
+        // The normalized expanding coordinates carry one fixed 3D field
+        // through development, with unequal lobe lengths and dark cavities.
         float u = r / Rs;
-        vec3 dn = nbRot * vec3(shellTurn * d.xz, d.y).xzy;
-        // Oblique, curved ejecta sheets: the direction field winds through
-        // the shell thickness instead of extruding radial brush strokes.
-        dn = normalize(dn + (.9 * (u - .82) + .08 * sin(u * 17.))
-          * cross(dn, normalize(vec3(.3, 1., .6))));
-        vec4 sh = nbShellAt(dn);
-        float patchy = sh.z, lift = sh.w, ridge2 = sh.y;
-        // A thick, torn edge: the outer radius wanders with the direction
-        // map and the emitting layer breaks into patches and holes.
-        float edge = 1. + 2.6 * lift + .3 * (patchy - .5);
-        float torn = nbSmooth(.3, .6, patchy + .25 * (ridge2 - .5));
-        float limb = nbSmooth(edge - .2 - .08 * ridge2, edge - .05, u) * (1. - nbSmooth(edge - .03, edge + .05, u)) * torn;
-        float reach = .68 + .14 * ridge2;
-        float band = nbSmooth(reach, reach + .22, u) * (1. - nbSmooth(edge - .04, edge + .06, u));
-        float fil = sh.x * band;
-        // Ejecta knots drift outward along each finger (phase varies per finger).
-        fil *= .8 + .2 * sin(NB_TAU * (u * 3. - ejecta) + 17. * ridge2);
-        // Filaments in the secondary, their hottest knots in the accent; a
-        // patchy, thick limb of shocked gas in the primary.
-        float face = .5 + .5 * dot(d, normalize(cam.eye));
-        vec3 filamentHue = mix(cGas, cArm, .2 + .8 * face);
-        vec3 E = mix(cGas, cArm, .35) * limb * (.1 + .9 * patchy * patchy) * .28
-          + filamentHue * fil * 11.
-          + mix(cArm, cHot, .25) * fil * pow(ridge2, 16.) * 4.;
-        E += mix(cArm, cHot, .5) * fil * u_rhythm.x * 3.;
-        // The breakout reaches full brightness early: an energetic young bubble.
-        e += nbSmooth(0., .4, n) * E;
-        sigma += wShell * (fil * 5. + limb * .6);
-        matter += wShell * (fil + limb * .5);
+        vec3 dn = nbRot * vec3(shellTurn * (x.xz / Rs), x.y / Rs).xzy;
+        // Both topology and fine shear vary with Cartesian radial depth.
+        vec4 root = nbShellAt(dn);
+        vec4 sh = root;
+        float patchy = root.z, lift = root.w, ridge2 = sh.y;
+        float edge = .9 + 3.8 * lift + .55 * (patchy - .5);
+        float torn = nbSmooth(.36, .64, patchy + .3 * (ridge2 - .5));
+        float limb = exp(-nbSq((u - edge + .1) / (.07 + .13 * ridge2))) * torn;
+        float reach = .28 + .48 * root.y;
+        float band = nbSmooth(reach, reach + .16, u) * (1. - nbSmooth(edge - .08, edge + .08, u));
+        if (band > .001) {
+          vec2 fine = nbFineAt(dn);
+          float fil = sh.x * band * (.08 + 2. * torn) * (.025 + 4. * fine.x);
+          float plume = band * torn * pow(max(0., sh.z - .32), 2.) * .8;
+          // The original disk arms seed the emerging gas, with their lanes.
+          vec4 ancestry = vec4(0.);
+          if (n < .999) ancestry = nbDiskAt(x.xz / (1. + .35 * n), twist, pattern, cloudPhase);
+          float lane = exp(-ancestry.z * (1. - .6 * n));
+          float armMemory = mix(1., .3 + ancestry.x + .6 * ancestry.y, 1. - nbSmooth(.55, 1., n));
+          fil *= armMemory * lane * (.75 + .25 * sin(NB_TAU * (u * 3. - ejecta) + 17. * ridge2));
+          plume *= armMemory * lane;
+          // Fine bright threads cross dimmer, absorbing translucent plumes.
+          float face = .5 + .5 * dot(d, normalize(cam.eye));
+          vec3 filamentHue = mix(cGas, cArm, .2 + .8 * face);
+          vec3 E = mix(cGas, cArm, .25) * (limb * .08 + plume * .8)
+            + filamentHue * fil * 16.
+            + mix(cArm, cHot, .15) * fil * pow(ridge2, 16.) * 3.;
+          E += mix(cArm, cHot, .5) * fil * u_rhythm.x * 3.;
+          e += nbSmooth(0., .4, n) * E;
+          sigma += wShell * (fil * 3. + limb * .6 + plume * 2.5);
+          matter += wShell * (fil + plume + limb * .2);
+        }
       }
       // Shock ripple: a ring of light runs out through whatever matter is there.
       if (u_rhythm.z > 0.) e += cArm * matter * u_rhythm.z * 5. * exp(-nbSq((r - ripple) / .15));
@@ -1023,8 +1047,30 @@ void main() {
     float jet = exp(-nbSq(dl / (.015 + .12 * abs(sAxis)))) * exp(-nbSq(sAxis / (.13 * R0))) * nbSmooth(.0, .06, abs(sAxis));
     col += Tcore * mix(cAcc, cHot, .4) * jet * n * .9 * (1. + 1.5 * u_rhythm.y);
   }
-  // Faint scattered light around the form: depth, not a fill.
-  col += cGas * .012 * exp(-impact * impact / 3.) * (1. - .5 * n);
+  // World-space gas banks pass in front of the nursery/remnant. Unequal
+  // hollow ellipsoids make soft occlusion and parallax, never a screen veil.
+  float gasPhase = NB_TAU * nbCycle(clock, ${N.cloud}u);
+  mat2 gasTurn = mat2(cos(gasPhase), -sin(gasPhase), sin(gasPhase), cos(gasPhase));
+  for (int g = 0; g < 2; g++) {
+    float az = NB_TAU * nbRnd(key, uint(g), 981u);
+    vec3 centre = vec3(gasTurn * (2.25 * vec2(cos(az), sin(az))), .5 + .45 * n + .2 * sin(az * 2.)).xzy;
+    vec3 o = cam.eye - centre;
+    float tc = -dot(o, ray);
+    if (tc > 0.) {
+      vec3 metric = vec3(.8, 1.8 + float(g) * .5, .65);
+      vec3 om = o * metric, dm = ray * metric;
+      float A = dot(dm, dm), B = dot(om, dm);
+      float cloud = 1.0989 / sqrt(A) * exp(-(dot(om, om) - B * B / A) / .3844);
+      om += vec3(.16, .08, .12) * metric;
+      B = dot(om, dm);
+      float cavity = .709 / sqrt(A) * exp(-(dot(om, om) - B * B / A) / .16);
+      float bank = max(0., cloud - 1.1 * cavity);
+      float foreground = 1. - nbSmooth(1.3, 3.5, tc);
+      col = col * exp(-bank * foreground * 1.8)
+        + mix(cGas, cArm, .2 + float(g) * .2) * bank * (.04 + .24 * foreground);
+    }
+  }
+  col += cGas * .012 * exp(-impact * impact / 5.) * (1. - .5 * n);
   col *= u_params[4];
   emit(vec4(col, 1.));
 }
@@ -1039,6 +1085,13 @@ void main() {
   float dev = clamp(u_params[0], 0., 2.), level = clamp(u_level, 0., 1.);
   uint clock = nbClock(), key = nbKey();
   outColor = vec4(0.);
+  if (px.x >= ${FINE_X}) {
+    if (dev > 1. && px.y < ${OCTA}) {
+      vec2 q = ((vec2(px - ivec2(${FINE_X}, 0)) + .5) / ${f(OCTA)} * 2. - 1.) * 2.;
+      outColor = vec4(nbFineData(q), 0., 0.);
+    }
+    return;
+  }
   if (px.x >= ${SLICES[0]}) {
     // Disk map, only while the disk is shown.
     if (dev > 0. && dev < 2. && px.y < ${DISK_MAP}) {
@@ -1049,9 +1102,16 @@ void main() {
     return;
   }
   if (dev >= 1.) {
-    // Remnant direction map while the web is not shown.
-    if (px.x < ${OCTA} && px.y < ${OCTA})
-      outColor = nbShellData(nbOctaDecode((vec2(px) + .5) / ${f(OCTA)}), level, clock);
+    // The same packed 3D scalar cache becomes volume turbulence. Sampling
+    // actual radial depth removes the angular-map extrusion/pinwheel.
+    ivec2 blk = px / ivec2(${WEB_GRID[0] + 2}, ${WEB_GRID[2] + 2});
+    ivec2 loc = px - blk * ivec2(${WEB_GRID[0] + 2}, ${WEB_GRID[2] + 2}) - 1;
+    int slice = blk.y * 8 + blk.x;
+    if (slice < ${WEB_GRID[1]}) {
+      ivec3 cc = ivec3(clamp(loc.x, 0, ${WEB_GRID[0] - 1}), slice, clamp(loc.y, 0, ${WEB_GRID[2] - 1}));
+      vec3 x = (vec3(cc) / ${v3(WEB_GRID.map((g) => g - 1))} * 2. - 1.) * 1.5;
+      outColor = nbShellData(x, level, clock);
+    }
     return;
   }
   // Web slices with a clamped duplicate gutter; the box corners stay empty.
@@ -1309,16 +1369,16 @@ export default {
             duration: 1.4,
           },
           driving: {
-            steps: "X....... | ....X... | ...X.... | ....X...",
+            steps: "X....... | ........ | ...X.... | ........",
             division: 4,
             strength: 0.94,
-            duration: 0.9,
+            duration: 3.2,
           },
           accented: {
-            steps: "X....X.. | ...X.... | X....X.. | ....X...",
+            steps: "X....... | ...X.... | .......X | ........",
             division: 4,
             strength: 1,
-            duration: 0.65,
+            duration: 2.1,
           },
         },
       },

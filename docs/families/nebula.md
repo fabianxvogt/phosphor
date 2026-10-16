@@ -2,6 +2,34 @@
 
 Family **87**, renderer/world ID **`nebula`**. Continuous **Dust → Spiral → Nova**. A bounded volumetric raymarch carries the unresolved gas; one persistent seed-derived particle population carries resolved stars, tracers, ejecta and near-field motes. This is astronomical choreography, not hydrodynamics or an N-body solver.
 
+## Round 4 — inhabitable gas, travelling crest (2026-10-16)
+
+The r3 independent review was L6 / G8.5 / E7, overall6.5. This revision changes the representation of the gas, not the world/state/look IDs, seeds or parameter schema. No HISTORY migration is needed. The sections below this one are historical evidence, not the current rendering specification.
+
+- **Camera and depth:** CPU and GLSL share closer distances 2.85 / 2.15 / 3.65 and larger look-at offsets .56 / .58 / .62. The spring and outside-form constraints remain. Hollow, world-space gas banks absorb the distant form and scatter palette light; near motes and the distant starfield remain. The peak is larger and drifts away from centre.
+- **Dust:** broad irregular bridges replace bright wire cores. Fifty overlapping cloud sprites per edge replace150, limiting overdraw from their wider cross-sections. A minority of massive nodes get compact saturated cores and diffuse sheaths. Fixing the size-cap fade matters: previously every capped160px gas sprite, including the largest knots, vanished entirely. The original graph, tracer paths and nucleus persist.
+- **Nova:** the old angular-map extrusion is gone. The packed96×48×96 scalar cache becomes a real Cartesian turbulence volume. Radial depth changes topology, density and cavities. A512² Cartesian shear map, sampled in an oblique depth-warped plane, resolves fine strands through the broad plumes without combing identical ribs around a sphere. Unequal reaches, thicknesses and a wandering edge break the perimeter. Front/back palette separation, the compact pulsar and localized pink accents are retained.
+- **Transition:** narrower, less blobby arms persist longer. Their same map and cold lanes seed the emerging gas until the remnant develops; the outer disk is cleared as the shell grows. This remains an illustrative astronomical morph, not hydrodynamics.
+- **Starfront:** a localized leading crest advances from radius .12 to2.37 with a dimmer wake .22 units behind. Its intensity no longer fades in proportion to radius. The count still selects golden-angle sectors. Driving launches at steps0/19 over32 sixteenths, duration3.2 beats; accented launches at0/11/23, duration2.1. Restrained remains11/29 over32 eighths. Presets **Distant embers / Spiral beacon / Pulsar crown** now deliver **2.5 / 7 / 11.5 hits/bar**. Other syncopated unequal loops remain; no envelope overlap or limiter changes.
+
+### Rendering and evidence
+
+The atlas is1808×588 RGBA16F: packed volume, disk and512² fine-shear scalars, never a colour-image cache. Every field has an analytic fallback. Dust/disk caps remain24/10 at1080p/4K; Nova is24/12, with `u_raySteps` scaling. Empty shell bands skip fine work. Bounds enclose the torn radius and its falloff. Static hashed per-pixel jitter replaces the visibly diagonal interleaved pattern; it is still grain, not temporal dithering.
+
+Eight intermediate full films, sheets and large individual stills were inspected. Directional prototypes were rejected for pinwheel feathers; coarse Cartesian-only prototypes for cotton-like blobs; a48-step hybrid for a3× performance regression. Final evidence: `artifacts/look-review/nebula-r4/` (default, Ember, Arctic; sheets, rhythm strips, films and `grids.md`). Verification and performance reports: `artifacts/nebula-r4/`.
+
+Final native measurements under fleet contention (M3 Pro, milliseconds p50/p95):
+
+| State  | 1080p   | 4K        | Paired p50 delta1080p /4K vs main |
+| ------ | ------- | --------- | --------------------------------- |
+| Dust   | 7.2/7.9 | 18.0/19.1 | +20.4% /+32.5%                    |
+| Spiral | 4.5/4.7 | 10.7/13.2 | +5.6% /+9.8%                      |
+| Nova   | 7.7/9.2 | 17.6/18.6 | +23.6% /+21.1%                    |
+
+The1080p medians meet8ms; Dust/Nova exceed the16ms4K target. Pair probes also fail their5% regression gate. This is an explicit cost increase, **not a clean performance pass**. Native34 energy/palette/portrait cases, reversal, a quantised12h clock sample and240 limiter-enabled1080p frames report zero GL errors or non-finite uploads. Live RAF p50/p95 is16.7/16.8ms, with no limiter exemption. Full suite1021 pass /22 opt-in skipped /0 fail; family21/21 and targeted rhythm/flash59/59; typecheck, build, DE/EN native i18n and scoped Prettier pass. The shared catalog's existing table format fails Prettier both before and after this row edit; unrelated rows are not reformatted.
+
+Residual limits: grain remains visible in large diffuse plumes; the breakdown can still reveal its seeded graph; the foreground banks are subtle. Self-assessed L7, **not independent acceptance**. Large stills expose stronger static sampling grain than the contact-sheet thumbnails; this remains below an unqualified8. Native verification results and measured cost are recorded in the r4 plan/report.
+
 ## Round 3 — Starfront (2026-10-16, openai-codex/gpt-6.1-sol)
 
 The independent baseline was L5 / G2 / E2.5, overall4. The fresh before capture reproduced its diagram-like Dust and soft radial Nova. Three look film iterations plus an early M4 capture are in `artifacts/look-review/nebula-r3-{before,m4,look1,look2,look3}`. Final reviewer evidence is `artifacts/look-review/nebula-r3/`.

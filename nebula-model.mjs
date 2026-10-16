@@ -43,25 +43,25 @@ export const N = {
 // Camera framing per state (Dust, Spiral, Nova), blended by the smoothed
 // camera development. crane: elevation swing; offset: look-at drift.
 export const CAMERA = {
-  distance: [3.0, 2.3, 4.4],
-  elevation: [.32, .9, .44],
-  crane: [.1, .3, .12],
-  offset: [.3, .36, .14],
-  craneDolly: .22,
+  distance: [2.85, 2.15, 3.65],
+  elevation: [0.32, 0.9, 0.44],
+  crane: [0.1, 0.3, 0.12],
+  offset: [0.56, 0.58, 0.62],
+  craneDolly: 0.22,
   heightGain: 1.1,
-  lift: .03,
+  lift: 0.03,
   focal: 1.85,
 };
 // Camera development follows the show's development through a critically
 // damped spring: a one-bar drop never lurches the camera.
-export const FOLLOW = { omega: 1.2, vmax: .25 };
+export const FOLLOW = { omega: 1.2, vmax: 0.25 };
 // Zel'dovich web data box (cloud frame) and its sampling grid.
 export const WEB_BOX = [2.2, 1.1, 2.2];
 export const WEB_GRID = [96, 48, 96];
-export const OCTA = 512; // remnant direction map (octahedral), texels per side
+export const OCTA = 512; // legacy constant name; now the Cartesian fine-shear map side
 export const DISK_MAP = 512; // disk map texels per side over ±DISK_EXTENT
 export const DISK_EXTENT = 1.8;
-export const MODULATION = .3; // web mode amplitude breathing depth
+export const MODULATION = 0.3; // web mode amplitude breathing depth
 // Analytic filament web: seeded nodes (node 0 = nucleus at the origin); every
 // node links to its nearest heavier node (a tree draining into the nucleus)
 // and to its nearest other node (closing loops). Cloud frame.
@@ -75,15 +75,18 @@ export const RELAX = 0.55; // ψ relaxation rate (1/s) when dispersing
 // Normalised sech² dust slab: rho(y) = k/(2h) sech²(ky/h).
 // Exact line integral on a finite segment. A foreground star does not
 // include the dust behind it; a grazing ray has a finite parallel limit.
-export function dustColumn(start, eye, h = .035) {
+export function dustColumn(start, eye, h = 0.035) {
   const k = 1.20276058;
   const dy = eye[1] - start[1];
   const len = Math.hypot(...eye.map((v, i) => v - start[i]));
-  if (Math.abs(dy) < .0001) {
-    const a = Math.tanh(k * start[1] / h);
-    return len * k / (2 * h) * (1 - a * a);
+  if (Math.abs(dy) < 0.0001) {
+    const a = Math.tanh((k * start[1]) / h);
+    return ((len * k) / (2 * h)) * (1 - a * a);
   }
-  return .5 * len / Math.abs(dy) * Math.abs(Math.tanh(k * eye[1] / h) - Math.tanh(k * start[1] / h));
+  return (
+    ((0.5 * len) / Math.abs(dy)) *
+    Math.abs(Math.tanh((k * eye[1]) / h) - Math.tanh((k * start[1]) / h))
+  );
 }
 
 export function hash32(x) {
@@ -118,12 +121,16 @@ export const sedovTaylor = (c) => Math.pow(Math.max(c, 0), 0.4);
 
 export function nodePos(key, i) {
   if (i === 0) return [0, 0, 0];
-  const u = rnd(key, i, 920), az = 2 * Math.PI * rnd(key, i, 921), z = 2 * rnd(key, i, 922) - 1;
-  const sr = Math.sqrt(1 - z * z), r = WEB_R * (.25 + .75 * Math.pow(u, .7));
-  return [r * sr * Math.cos(az), r * .6 * z, r * sr * Math.sin(az)];
+  const u = rnd(key, i, 920),
+    az = 2 * Math.PI * rnd(key, i, 921),
+    z = 2 * rnd(key, i, 922) - 1;
+  const sr = Math.sqrt(1 - z * z),
+    r = WEB_R * (0.25 + 0.75 * Math.pow(u, 0.7));
+  return [r * sr * Math.cos(az), r * 0.6 * z, r * sr * Math.sin(az)];
 }
 export const nodeMass = (key, i) => (i === 0 ? 2 : rnd(key, i, 923));
-const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+const d2 = (a, b) =>
+  (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 // Graph of one seed: parent (nearest heavier node) and neighbour (nearest
 // other node that is neither its parent nor its child; −1 when none).
 export function webGraph(key) {
@@ -131,16 +138,20 @@ export function webGraph(key) {
   const mass = pos.map((_, i) => nodeMass(key, i));
   const parent = pos.map((P, i) => {
     if (i === 0) return -1;
-    let best = -1, bd = Infinity;
+    let best = -1,
+      bd = Infinity;
     for (let j = 0; j < NODES; j++)
-      if (j !== i && mass[j] > mass[i] && d2(P, pos[j]) < bd) [best, bd] = [j, d2(P, pos[j])];
+      if (j !== i && mass[j] > mass[i] && d2(P, pos[j]) < bd)
+        [best, bd] = [j, d2(P, pos[j])];
     return best;
   });
   const neighbour = pos.map((P, i) => {
     if (i === 0) return -1;
-    let best = -1, bd = Infinity;
+    let best = -1,
+      bd = Infinity;
     for (let j = 1; j < NODES; j++)
-      if (j !== i && j !== parent[i] && parent[j] !== i && d2(P, pos[j]) < bd) [best, bd] = [j, d2(P, pos[j])];
+      if (j !== i && j !== parent[i] && parent[j] !== i && d2(P, pos[j]) < bd)
+        [best, bd] = [j, d2(P, pos[j])];
     return best;
   });
   return { pos, mass, parent, neighbour };
@@ -150,40 +161,72 @@ export function webGraph(key) {
 export function webMorph(P, p) {
   const r = Math.hypot(P[0], P[2]);
   // Wound in the arms' sense (θ grows outward): the inner web turns most.
-  const a = -p * (6 * Math.exp(-.8 * r) + .3), sc = 1 - .38 * p;
-  const c = Math.cos(a), s = Math.sin(a);
-  return [(c * P[0] - s * P[2]) * sc, P[1] * (1 - .92 * p), (s * P[0] + c * P[2]) * sc];
+  const a = -p * (6 * Math.exp(-0.8 * r) + 0.3),
+    sc = 1 - 0.38 * p;
+  const c = Math.cos(a),
+    s = Math.sin(a);
+  return [
+    (c * P[0] - s * P[2]) * sc,
+    P[1] * (1 - 0.92 * p),
+    (s * P[0] + c * P[2]) * sc,
+  ];
 }
 // Edge e (child → node it drains into): endpoints and a seeded bend, with
 // the child end retracting toward the node as development rises.
 export function webEdge(key, graph, e, p = 0) {
-  const i = 1 + (e >> 1), j = e & 1 ? graph.neighbour[i] : graph.parent[i];
+  const i = 1 + (e >> 1),
+    j = e & 1 ? graph.neighbour[i] : graph.parent[i];
   if (j < 0) return null;
-  const A = graph.pos[i], B = graph.pos[j];
+  const A = graph.pos[i],
+    B = graph.pos[j];
   const u = B.map((v, k) => v - A[k]);
   const len = Math.hypot(...u);
-  const ax = [rnd(key, e, 931) - .5, rnd(key, e, 932) - .5, rnd(key, e, 933) - .5];
-  let perp = [u[1] * ax[2] - u[2] * ax[1], u[2] * ax[0] - u[0] * ax[2], u[0] * ax[1] - u[1] * ax[0]];
+  const ax = [
+    rnd(key, e, 931) - 0.5,
+    rnd(key, e, 932) - 0.5,
+    rnd(key, e, 933) - 0.5,
+  ];
+  let perp = [
+    u[1] * ax[2] - u[2] * ax[1],
+    u[2] * ax[0] - u[0] * ax[2],
+    u[0] * ax[1] - u[1] * ax[0],
+  ];
   const pl = Math.max(Math.hypot(...perp), 1e-6);
   perp = perp.map((v) => v / pl);
   // Two seeded control points make a smooth (often S-curved) filament.
-  const b1 = .8 * len * (rnd(key, e, 930) - .5), b2 = .8 * len * (rnd(key, e, 934) - .5);
+  const b1 = 0.8 * len * (rnd(key, e, 930) - 0.5),
+    b2 = 0.8 * len * (rnd(key, e, 934) - 0.5);
   const M1 = A.map((v, k) => v + (B[k] - v) / 3 + perp[k] * b1);
-  const M2 = A.map((v, k) => v + (B[k] - v) * 2 / 3 + perp[k] * b2);
+  const M2 = A.map((v, k) => v + ((B[k] - v) * 2) / 3 + perp[k] * b2);
   const lerp = (X, Y, t) => X.map((v, k) => v + (Y[k] - v) * t);
   return {
-    pts: [webMorph(lerp(A, B, .55 * p), p), webMorph(lerp(M1, B, .4 * p), p), webMorph(lerp(M2, B, .2 * p), p), webMorph(B, p)],
+    pts: [
+      webMorph(lerp(A, B, 0.55 * p), p),
+      webMorph(lerp(M1, B, 0.4 * p), p),
+      webMorph(lerp(M2, B, 0.2 * p), p),
+      webMorph(B, p),
+    ],
     tree: !(e & 1),
   };
 }
 // A point at s ∈ [0, 1] along the edge: a cubic Bézier A, C1, C2, B.
 export function edgePoint(E, s) {
-  const [P0, P1, P2, P3] = E.pts, r = 1 - s;
-  return P0.map((v, c) => r * r * r * v + 3 * r * r * s * P1[c] + 3 * r * s * s * P2[c] + s * s * s * P3[c]);
+  const [P0, P1, P2, P3] = E.pts,
+    r = 1 - s;
+  return P0.map(
+    (v, c) =>
+      r * r * r * v +
+      3 * r * r * s * P1[c] +
+      3 * r * s * s * P2[c] +
+      s * s * s * P3[c],
+  );
 }
 // A dust tracer's filament: a seeded edge (tree edge when its loop edge is absent).
 export function tracerEdge(world, ident) {
-  let e = Math.min(EDGES - 1, Math.floor(rnd(world.key, ident.id, 940) * EDGES));
+  let e = Math.min(
+    EDGES - 1,
+    Math.floor(rnd(world.key, ident.id, 940) * EDGES),
+  );
   if (e & 1 && world.graph.neighbour[1 + (e >> 1)] < 0) e -= 1;
   return e;
 }
@@ -310,7 +353,8 @@ export function psiRate(world, ident, dev, psi) {
 
 // Breathing mode amplitude: the phases stay fixed, so the node stays put.
 export const modeAmp = (m, clock) =>
-  m.amp * (1 + MODULATION * Math.sin(2 * Math.PI * cycle(clock, m.drift) + m.breathe));
+  m.amp *
+  (1 + MODULATION * Math.sin(2 * Math.PI * cycle(clock, m.drift) + m.breathe));
 
 // Zel'dovich displacement S(q) = −∇Φ, Φ = Σ amp/|k|² cos(k·q + φ).
 export function zeldovich(world, q, clock) {
@@ -352,7 +396,8 @@ export function position(world, ident, env) {
     level = 0.5,
     shock = 1,
   } = env;
-  if (ident.kind === 2) return ident.shellDir.map((v) => v * (7 + 9 * ident.layer));
+  if (ident.kind === 2)
+    return ident.shellDir.map((v) => v * (7 + 9 * ident.layer));
   const { p, n } = progress(dev, ident.rank);
   const cloud = 2 * Math.PI * cycle(clock, N.cloud);
   const lambda = ident.ang0 + cloud + psi;
@@ -382,9 +427,13 @@ export function position(world, ident, env) {
     const E = webEdge(world.key, world.graph, tracerEdge(world, ident), p);
     const g = edgePoint(E, streamPhase(ident, clock));
     const spread = 0.03 + 0.03 * ident.layer;
-    const jitter = [ident.q[0], ident.q[1], ident.q[2]].map((v, k) =>
-      spread * Math.sin(7.3 * v + 2.1 * k + 2 * Math.PI * ident.tone));
-    const dust = rotY(g.map((v, k) => v + jitter[k] * (1 - p)), cloud + psi);
+    const jitter = [ident.q[0], ident.q[1], ident.q[2]].map(
+      (v, k) => spread * Math.sin(7.3 * v + 2.1 * k + 2 * Math.PI * ident.tone),
+    );
+    const dust = rotY(
+      g.map((v, k) => v + jitter[k] * (1 - p)),
+      cloud + psi,
+    );
     pos = dust.map((v, k) => v + (galaxy[k] - v) * p);
   }
   if (n <= 0) return pos;
@@ -407,8 +456,8 @@ export const SHELL = 1.55;
 // along ±y), then rounds into a sphere. Smooth in development; no flash.
 export function shellRadius(dev, dirY = 0) {
   const n = smooth(1, 2, dev);
-  const lobe = .22 + .38 * (1 - smooth(.3, 1, n));
-  return SHELL * (.1 + .9 * n) * (1 + lobe * dirY * dirY);
+  const lobe = 0.22 + 0.38 * (1 - smooth(0.3, 1, n));
+  return SHELL * (0.1 + 0.9 * n) * (1 + lobe * dirY * dirY);
 }
 
 // CPU mirror of the shader's Zel'dovich web data (cloud frame): one
@@ -417,24 +466,39 @@ export function shellRadius(dev, dirY = 0) {
 export function webDensity(world, x, clock, growth = 1.8) {
   const S = zeldovich(world, x, clock);
   const q = x.map((v, i) => v - growth * S[i]);
-  const H = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
-  let f = 0, total = 0;
+  const H = [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+  ];
+  let f = 0,
+    total = 0;
   for (const m of world.modes) {
     const a = modeAmp(m, clock);
     const arg = m.k[0] * q[0] + m.k[1] * q[1] + m.k[2] * q[2] + m.phase;
     const w = (a / (m.kLen * m.kLen)) * Math.cos(arg) * growth;
-    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) H[i][j] += w * m.k[i] * m.k[j];
+    for (let i = 0; i < 3; i++)
+      for (let j = 0; j < 3; j++) H[i][j] += w * m.k[i] * m.k[j];
     f += a * Math.cos(arg);
     total += a;
   }
   const det = Math.abs(
     H[0][0] * (H[1][1] * H[2][2] - H[1][2] * H[2][1]) -
-    H[0][1] * (H[1][0] * H[2][2] - H[1][2] * H[2][0]) +
-    H[0][2] * (H[1][0] * H[2][1] - H[1][1] * H[2][0]));
-  const caustic = Math.min(1 / Math.max(det, .07), 9);
+      H[0][1] * (H[1][0] * H[2][2] - H[1][2] * H[2][0]) +
+      H[0][2] * (H[1][0] * H[2][1] - H[1][1] * H[2][0]),
+  );
+  const caustic = Math.min(1 / Math.max(det, 0.07), 9);
   const node = Math.max(0, -f / total); // 1 exactly where all modes crest
-  const env = Math.exp(-((Math.hypot(x[0], x[2]) / 1.8) ** 4)) * Math.exp(-((x[1] / .8) ** 2));
-  return { caustic, node, env, rho: (Math.max(caustic - .8, 0) * .9 + .14 * caustic + 3 * node ** 6) * env };
+  const env =
+    Math.exp(-((Math.hypot(x[0], x[2]) / 1.8) ** 4)) *
+    Math.exp(-((x[1] / 0.8) ** 2));
+  return {
+    caustic,
+    node,
+    env,
+    rho:
+      (Math.max(caustic - 0.8, 0) * 0.9 + 0.14 * caustic + 3 * node ** 6) * env,
+  };
 }
 
 // One fixed 1/60 s step of the camera-development spring (semi-implicit).
@@ -445,35 +509,88 @@ export function followStep({ d, v }, target, dt = 1 / 60) {
   return { d: Math.max(0, Math.min(2, d + nv * dt)), v: nv };
 }
 
-const norm = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
-const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (v) => {
+  const l = Math.hypot(...v);
+  return v.map((x) => x / l);
+};
+const cross = (a, b) => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
 // Camera of the GLSL nbCamera(): per-state framing blended by the smoothed
 // camera development, a slow orbit, a crane over the disk edge in Spiral
 // and an off-centre look-at drift on phrase scale.
-export function cameraFraming(camDev, clock, { distance = 1, height = .66, seed = 3141 } = {}) {
+export function cameraFraming(
+  camDev,
+  clock,
+  { distance = 1, height = 0.66, seed = 3141 } = {},
+) {
   const key = seedKey(seed);
-  const p = smooth(0, 1, camDev), n = smooth(1, 2, camDev);
+  const p = smooth(0, 1, camDev),
+    n = smooth(1, 2, camDev);
   const w = [1 - p, p * (1 - n), n];
   const mix3 = (v) => v[0] * w[0] + v[1] * w[1] + v[2] * w[2];
   const h = Math.min(1, Math.max(0, height));
-  const crane = Math.sin(2 * Math.PI * (cycle(clock, N.crane) + rnd(key, 0, 908)));
-  const craneAmp = mix3(CAMERA.crane) * smooth(0, .5, h);
-  const elevation = Math.min(1.35, Math.max(-.05, mix3(CAMERA.elevation) +
-    CAMERA.heightGain * (h - .66) + craneAmp * crane +
-    CAMERA.lift * Math.sin(2 * Math.PI * cycle(clock, N.lift))));
+  const crane = Math.sin(
+    2 * Math.PI * (cycle(clock, N.crane) + rnd(key, 0, 908)),
+  );
+  const craneAmp = mix3(CAMERA.crane) * smooth(0, 0.5, h);
+  const elevation = Math.min(
+    1.35,
+    Math.max(
+      -0.05,
+      mix3(CAMERA.elevation) +
+        CAMERA.heightGain * (h - 0.66) +
+        craneAmp * crane +
+        CAMERA.lift * Math.sin(2 * Math.PI * cycle(clock, N.lift)),
+    ),
+  );
   const yaw = 2 * Math.PI * (cycle(clock, N.yaw) + rnd(key, 0, 907));
   // Never closer than 2.0: outside the disk and the web's dense core.
-  const dist = Math.max(2, distance * mix3(CAMERA.distance) *
-    (1 + CAMERA.craneDolly * w[1] * crane * smooth(0, .5, h)) *
-    (1 + .03 * Math.sin(2 * Math.PI * cycle(clock, N.dolly))));
-  const eye = [dist * Math.cos(elevation) * Math.sin(yaw), dist * Math.sin(elevation),
-    dist * Math.cos(elevation) * Math.cos(yaw)];
+  const dist = Math.max(
+    2,
+    distance *
+      mix3(CAMERA.distance) *
+      (1 + CAMERA.craneDolly * w[1] * crane * smooth(0, 0.5, h)) *
+      (1 + 0.03 * Math.sin(2 * Math.PI * cycle(clock, N.dolly))),
+  );
+  const eye = [
+    dist * Math.cos(elevation) * Math.sin(yaw),
+    dist * Math.sin(elevation),
+    dist * Math.cos(elevation) * Math.cos(yaw),
+  ];
   const f0 = norm(eye.map((v) => -v));
   const r0 = norm(cross(f0, [0, 1, 0]));
   const fr = 2 * Math.PI * (cycle(clock, N.frame) + rnd(key, 0, 909));
   const off = mix3(CAMERA.offset);
-  const target = [0, 1, 2].map((i) => off * (r0[i] * Math.sin(fr) + (i === 1 ? .3 * Math.cos(fr) : 0)) - (i === 1 ? .04 : 0));
+  const target = [0, 1, 2].map(
+    (i) =>
+      off * (r0[i] * Math.sin(fr) + (i === 1 ? 0.3 * Math.cos(fr) : 0)) -
+      (i === 1 ? 0.04 : 0),
+  );
   return { eye, target, distance: dist, elevation, focal: CAMERA.focal };
+}
+
+// CPU reference of the bounded slot-3 crest. Envelope decay moves the
+// crest, but does not extinguish it before it reaches the outer gas.
+export function starfront(x, envelope, count, hit = 0) {
+  const env = Math.max(0, Math.min(1, envelope));
+  if (env <= 0 && hit <= 0) return 0;
+  const travel = 1 - env,
+    radius = 0.12 + 2.25 * travel;
+  const angle = 2.39996323 * (count % 144);
+  const len = Math.max(Math.hypot(x[0], x[2]), 1e-4);
+  const facing =
+    0.5 + (0.5 * (x[0] * Math.cos(angle) + x[2] * Math.sin(angle))) / len;
+  const sector = Math.max(0, (facing - 0.72) / 0.28) ** 2;
+  const dr = Math.hypot(...x) - radius;
+  const crest = Math.exp(-((dr / 0.09) ** 2));
+  const wake = 0.2 * Math.exp(-(((dr + 0.22) / 0.2) ** 2));
+  const gate =
+    Math.min(1, env * 12) *
+    Math.min(1, travel * 10 + Math.max(0, Math.min(1, hit)));
+  return gate * sector * (crest + wake);
 }
 
 export function shockFront(R, clock, shock = 1) {
@@ -534,8 +651,7 @@ export function jetPhase(ident, clock) {
   const t = (ident.layer - 0.72) / 0.28 + cycle(clock, N.jet);
   return t - Math.floor(t);
 }
-export const jetLight = (t) =>
-  0.7 * Math.pow(1 - t, 1.5) * smooth(0, 0.06, t);
+export const jetLight = (t) => 0.7 * Math.pow(1 - t, 1.5) * smooth(0, 0.06, t);
 
 // Normalised Σ amp·cos(k·q + φ) in about [−1, 1].
 export function fingerField(world, q, clock) {
