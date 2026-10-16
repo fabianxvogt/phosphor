@@ -178,3 +178,30 @@ Native M3 Pro synchronous whole-frame throughput (shared fleet GPU; milliseconds
 Reference was current main (resolved hashes are in each JSON). The first final 1080p ABBA run was +4.3% / +4.2% / +12.3%; repeat was +6.7% / +3.2% / +1.7%. Retained both rather than hiding fleet variance. Thus the strict +5% relative gate is **not cleanly met**; corridor remains a small regression (0.3 ms on repeat). All final stock 1080p states meet 8 ms p50, but **all 4K states exceed 16 ms**. No reduced-resolution or engine workaround was introduced. Initial every-step cavern beams cost +12–19%; alternate-step midpoint probes brought the final cavern pair delta below 5%.
 
 Final `npm test`: **971 passed, 21 skipped, 0 failed** (992 total). Typecheck, native DE/EN i18n, build, distribution audit (151 assets), formatting on the family/script/test/doc/plan files, and `git diff --check` pass. Focused Descent/world-rhythm/flash suite: 46 passed. Final late ladder uses a fixed clip-energy anchor of 0.5 so it genuinely exercises the energy slopes; all nine frames have nonzero coverage and zero GL/GPU/nonfinite errors. Limiter-enabled stills and unmodified official review/profiling tools are complementary evidence, not a venue photosensitivity certification.
+
+## Round 4 · architectural hierarchy and travelling ignition
+
+Independent r3 review: **L6.5 / G8.5 / E7, Overall 7.0**. This revision addresses its four priorities without changing world/state/look IDs, seeds, schema, camera route, integrated travel or groove names. No saved-world migration is needed.
+
+1. **Breakdowns:** selected coarse recessed apertures emit saturated primary/secondary inner light with limited spill. Six-unit architecture-attached threshold lights and a narrower field of view establish the main portal. Sun patches are quieter; intervening piers remain dark.
+2. **Monumental recursion:** the coarsest carving grows to 1.2 times its former width; fine carving shrinks to 0.6. This changes the field itself into heavier piers with larger dominant openings, rather than merely dimming a tiled texture. Fine rims and windows are quieter and the distance footprint rises from 1.6 to 3.6 pixels (scaled above 1080 short-side pixels). Large seeded city chambers retain localized lime/lilac activity between events.
+3. **Smooth haze:** removed the projected abyss street grid that caused the evenly spaced blue diagonal bands. Removed periodic dust modulation. Smooth height/depth haze and real ceiling-opening-occluded hall shafts remain; the city void has no projected screen.
+4. **Ignition wave:** one advancing storey, adjacent facade spill and a short decaying wake replace the persistent passed-floor plateau. Every recursive scale uses the same 2/3-unit storey address. The primary leader precedes a localized accent wake; alternating vertical direction and hall aperture-ring travel remain. The driving duration is now **2.25 beats**, with unchanged eighth-note hits at steps **3, 9, 14** (zero-based). Restrained duration remains 2.5 beats, accented 1.5. Presets remain **Empty avenues / Window procession / Recursive rush**, at **2.25 / 6.25 / 11.0 family hits/bar**. No polyrhythm was requested by the reviewer, so placements are preserved.
+
+Five filmed change/read/critique rounds are documented in `.claude/world-polish/plans/descent-r3.md`; individual early/peak frames were inspected alongside both sheets. Canonical reviewer evidence: `artifacts/look-review/descent-r4/` (`descent-sheet.png`, `descent-rhythm.png`, `descent.mp4`, `grids.md`, full-size stills). Self-assessed L7.5 / G8.5 / E8.5, rounded Overall 8, **not an independent acceptance**. The material remains angular and some sunlit lime surfaces still trend olive.
+
+### r4 verification and cost
+
+Tests add coarse/fine aperture hierarchy and no-striped-projection guards, common-storey addressing, and numerical narrow-leader/short-wake checks. Existing conservative field bounds, free-core clearance, travel continuity, density/preset validation and energy-normalized front tests remain. Full suite: **1005 passed, 21 skipped, zero failed**; typecheck, build/dist, native DE/EN UI and formatting pass. Initial software UI navigation timed out; native rerun passed.
+
+Limiter-enabled native still probes cover all three states at energies 0.1/0.5/0.9, Phosphor at scene time 43200 and Glacier Quiet Vault in portrait. All 18 frames are nonempty with zero GL/GPU/nonfinite errors. Ember reverse-development film was inspected. Shared flash limiter and official film/profile tools are unchanged; offline films do not establish live photosensitivity compliance.
+
+M3 Pro synchronous native throughput, including post, under fleet load:
+
+| State    | 1080p p50 / p95 ms | 4K p50 / p95 ms | ABBA p50 delta vs main, 1080p / 4K |
+| -------- | ------------------ | --------------- | ---------------------------------- |
+| Corridor | 4.8 / 4.9          | 18.5 / 18.7     | +2.0% / +4.3%                      |
+| Cavern   | 6.6 / 6.9          | 22.5 / 23.0     | -9.5% / -14.1%                     |
+| City     | 5.6 / 5.9          | 19.6 / 22.9     | -14.3% / -12.8%                    |
+
+All states meet the 1080p and relative +5% gates. **All 4K states remain above the absolute 16 ms budget**; no reduced-resolution or limiter workaround was introduced. JSON: `artifacts/performance/descent-r4-{1080,2160,pair1080,pair2160}/`. Native health sheets: `artifacts/stills/descent-r4-{late-ladder,glacier-portrait}/`; Ember reversal: `artifacts/look-review/descent-r4-reverse/`.

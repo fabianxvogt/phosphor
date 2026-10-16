@@ -177,8 +177,8 @@ test("constant-scale field preserves the full candidate order and suffix bound",
   };
   const map = (p, dev, open, levels, stop) => {
     const f = frame(dev, open),
-      w = open / 3,
-      w0 = w * mix(1, 0.6, smooth(1, 2, dev));
+      w = (open / 3) * 0.6,
+      w0 = (open / 3) * 1.2 * mix(1, 0.6, smooth(1, 2, dev));
     let holes = narrowHall(f, p),
       trap = -1;
     for (let i = 0; i < 5 && i < levels; i++) {
@@ -254,6 +254,46 @@ test("descent retains legacy gestures and adds authored slot-3 ignition", () => 
     /1\.0 \+ 0\.6 \* clamp\(u_rhythm\.y/,
   );
   assert.doesNotMatch(descent.fragment, /state\.x \* 6\.0 \+ u_rhythm\.y/);
+});
+
+test("r4 portals dominate fine perforations and the abyss has no projected stripes", () => {
+  assert.match(descent.fragment, /gW = b \* 0\.6;/);
+  assert.match(descent.fragment, /gW0 = b \* 1\.2 \* mix/);
+  assert.match(descent.fragment, /float lodPixels = 3\.6 \*/);
+  assert.match(descent.fragment, /float portal = bayLight/);
+  assert.doesNotMatch(descent.fragment, /float street =|float dust =/);
+  // At every development, the coarse aperture is >= 1.2 times the fine
+  // carving's normalised width (and >= 3.6 times its world-space width).
+  for (let dev = 0; dev <= 2; dev += 0.01) {
+    const coarse = 1.2 * mix(1, 0.6, smooth(1, 2, dev));
+    assert.ok(coarse / (0.6 / 3) >= 3.6 - 1e-10);
+  }
+});
+
+test("r4 ignition has a narrow leading storey and no persistent passed-floor plateau", () => {
+  const leader = (passed) => Math.exp(-passed * passed * 9);
+  const wake = (passed) => (passed >= 0 ? Math.exp(-passed * 1.9) : 0);
+  assert.ok(leader(0) > 10 * leader(2 / 3));
+  assert.ok(wake(2) < 0.025);
+  assert.equal(wake(-1), 0);
+  assert.ok(leader(3) + wake(3) < 0.004);
+  assert.match(
+    descent.fragment,
+    /float leader = exp\(-passed \* passed \* 9\.0\)/,
+  );
+  assert.match(descent.fragment, /exp\(-passed \* 1\.9\)/);
+  assert.doesNotMatch(descent.fragment, /1\.3, gCity\) \* igEnv/);
+  assert.equal(descent.rhythm[3].styles.driving.duration, 2.25);
+  assert.match(
+    descent.fragment,
+    /float floorY = \(floor\(hp\.y \* 1\.5\) \+ 0\.5\) \/ 1\.5 - ro\.y/,
+  );
+  // Fine/coarse aperture hits within a storey share one leading-row address.
+  for (const y of [-6.1, -1.2, 0.1, 2.4, 6.8]) {
+    const storey = Math.floor(y * 1.5);
+    const center = (storey + 0.5) / 1.5;
+    assert.ok(Math.abs(center - y) <= 1 / 3 + 1e-12);
+  }
 });
 
 test("ignition front is finite, bounded and smoothly monotone at every energy", () => {
