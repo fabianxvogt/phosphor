@@ -28,6 +28,7 @@ import {
   detailWeight,
   camera,
   carrierLipschitz,
+  stormBox,
   SEGMENTS,
   BRANCH_PROBABILITY,
   TREE_SHAPES,
@@ -37,6 +38,7 @@ import { catalogLooks } from "../catalog.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { advanceClocks } from "../scene-time.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 const distance = (a, b) => Math.hypot(...a.map((x, i) => x - b[i]));
 const developments = Array.from({ length: 41 }, (_, i) => i / 20);
@@ -390,6 +392,11 @@ test("lightning irradiance is local, monotone and attenuated inside the cloud", 
   }
   assert.equal(flashFalloff(0), 1);
   assert.ok(flashFalloff(40) < 0.01);
+  assert.ok(flashFalloff(6) < 0.04, "distant towers must retain dark shadows");
+  assert.match(
+    storm.fragment,
+    /accentLocal = stSig\*0\.65\*exp\(-signatureDistance\*signatureDistance\*0\.2\)/,
+  );
   for (const x of [-4, 0, 8]) {
     const a = [x, 0, 1],
       b = [x, 4, 1];
@@ -401,12 +408,55 @@ test("lightning irradiance is local, monotone and attenuated inside the cloud", 
       channelDistance([x + 3, 2, 1], b, a),
     );
   }
-  assert.match(stormVolume, /float g = power\/pow\(1\.0\+d\*d\*0\.06,1\.5\)/);
+  assert.match(stormVolume, /float g = power\/pow\(1\.0\+d\*d\*0\.22,1\.5\)/);
   assert.match(stormVolume, /g \*= exp\(-tau\*d\*0\.333\*0\.16\)/);
 });
 
+test("r4: towers share a bank, turbulence has no height-only rings, peak keeps headroom", () => {
+  for (const d of [0.75, 1, 1.25, 1.5, 2]) {
+    const { base } = cells(10701, d);
+    for (let x = -10; x <= 10; x += 0.25)
+      assert.ok(carrier([x, base + 0.4, 11], 10701, d, 0.7) < 0, `${d}/${x}`);
+  }
+  assert.doesNotMatch(stormVolume, /sin\(stTau\*p\.y/);
+  assert.match(stormVolume, /stSuper\*2\.4\*\(stNoise\(eddy\)\.x-0\.5\)/);
+  assert.match(stormVolume, /stSuper\*\(fray-0\.5\)\*1\.1/);
+  assert.ok(camera(2).focal < 1.5);
+  assert.ok(
+    stormBox(10701, 2, 0.7).hi[1] > 12.4,
+    "height scaling precedes atlas clipping",
+  );
+  assert.ok(
+    stormBox(10701, 2, 1.2).hi[1] <= 17.1,
+    "never march beyond the physical lattice",
+  );
+  assert.match(
+    storm.fragment,
+    /float framing = clamp\(\(u_resolution\.x\/u_resolution\.y\)\/\(16\.0\/9\.0\),0\.5,1\.0\)/,
+  );
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(storm.rhythm, style);
+    const density = pattern.tracks.reduce(
+      (n, t) =>
+        n + t.steps.filter((v) => v > 0).length / (t.length / t.division / 4),
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+  }
+  const loop = storm.rhythm[0].styles.driving;
+  assert.equal(
+    loop.length / loop.division,
+    6,
+    "six-beat cell addresses walk over 4/4",
+  );
+});
+
 test("empty-space skipping is conservative for the carrier field", () => {
-  // Outside, the lattice stores -(sd - 1.3)·0.8/L. Skipping that far is safe
+  // Outside, the lattice stores -(sd - 2.8)·0.8/L. Skipping that far is safe
   // where |∇sd| ≤ L/0.8, with L the local bound for anvil and updraft.
   let worst = 0;
   const eps = 1e-3;
@@ -432,12 +482,12 @@ test("empty-space skipping is conservative for the carrier field", () => {
       );
     }
   assert.ok(worst <= 1 / 0.8, `${worst}`);
-  // Erosion moves the surface outward by at most half the largest erosion.
-  assert.match(stormVolume, /float e = mix\(1\.0,2\.5,/);
-  assert.match(stormVolume, /float skip = max\(1e-4,\(sd-1\.3\)\*0\.8\/lip\)/);
+  // 4 × 1.35 peak erosion: half the maximum stays inside the 2.8 margin.
+  assert.match(stormVolume, /float e = mix\(1\.0,4\.0,/);
+  assert.match(stormVolume, /float skip = max\(1e-4,\(sd-2\.8\)\*0\.8\/lip\)/);
   assert.match(
     stormVolume,
-    /float lip = mix\(1\.55,1\.25,stRise\)\+wA\*mix\(0\.45,1\.4,stSuper\)\+3\.5\*wM/,
+    /float lip = mix\(1\.55,2\.0,stRise\)\+wA\*mix\(0\.45,1\.4,stSuper\)\+4\.5\*wM/,
   );
   assert.match(stormVolume, /if \(sd > 0\.5\*e\+0\.05\) return 0\.0/);
 });

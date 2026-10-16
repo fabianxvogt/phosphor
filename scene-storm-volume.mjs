@@ -85,13 +85,13 @@ void stBubbles() {
     vec4 c = stCell[i];
     float hgt = c.w-c.z;
     float leanK = (stRand(8,i)-0.5)*0.3*stRise*(1.0-0.6*stSuper);
-    float calm = i == 2 ? 1.0-0.75*stSuper : 1.0;
+    float calm = i == 2 ? 1.0-0.15*stSuper : 1.0;
     for (int k = 0; k < 3; ++k) {
       float fk = float(k);
       float bob = sin(stPhase+stTau*stRand(9,i*3+k));
-      float by = c.z+hgt*(0.5+0.19*fk)+0.18*bob;
+      float by = c.z+hgt*(0.3+0.6*stRand(13,i*3+k))+0.18*bob;
       stBubble[i*3+k] = vec4(c.x+(stRand(10,i*3+k)-0.5)*1.0*stCellR[i]+leanK*(by-c.z), by,
-        c.y+(stRand(11,i*3+k)-0.5)*1.0*stCellR[i], stCellR[i]*(0.8-0.14*fk)*mix(0.75,1.0,stRise)*calm);
+        c.y+(stRand(11,i*3+k)-0.5)*1.0*stCellR[i], stCellR[i]*(0.5+0.24*stRand(14,i*3+k))*mix(0.75,1.0,stRise)*calm);
     }
   }
 }
@@ -111,7 +111,7 @@ void stCloudSetup() {
 void stStormBox(out vec3 lo, out vec3 hi) {
   float minX = 1e3, maxX = -1e3, minZ = 1e3, maxZ = -1e3, top = 0.0;
   for (int i = 0; i < 5; ++i) {
-    float r = stCellR[i]*1.25+2.0+0.15*(stCell[i].w-stCell[i].z);
+    float r = stCellR[i]*1.25+3.0+0.15*(stCell[i].w-stCell[i].z);
     minX = min(minX,stCell[i].x-r); maxX = max(maxX,stCell[i].x+r);
     minZ = min(minZ,stCell[i].y-r); maxZ = max(maxZ,stCell[i].y+r);
     top = max(top,stCell[i].w);
@@ -119,12 +119,12 @@ void stStormBox(out vec3 lo, out vec3 hi) {
   float ra = stAnvilR+2.0;
   minX = min(minX,stAnvil.x-ra); maxX = max(maxX,stAnvil.x+ra);
   minZ = min(minZ,stAnvil.z-ra); maxZ = max(maxZ,stAnvil.z+ra);
-  // Haze bubbles boil up to ~0.7 above the crown: 2.8 headroom above top.
+  // Turbulent erosion and thermal bubbles need 4.5 headroom above top.
   // No cloud lies below the lowest base (wall cloud, ragged floor and its
   // ramp reach at most 1.4 below stBase): rays under the base start late.
   lo = vec3(max(minX,stVolumeLo.x),max(stVolumeLo.y,(stBase-1.5)*u_params[2]),max(minZ,stVolumeLo.z));
   hi = vec3(min(maxX,stVolumeLo.x+stVolumeSize.x),
-    min(stVolumeLo.y+stVolumeSize.y,top+stDomeR+2.8)*u_params[2],
+    min(stVolumeLo.y+stVolumeSize.y,(top+stDomeR+4.5)*u_params[2]),
     min(maxZ,stVolumeLo.z+stVolumeSize.z));
 }
 float stSmin(float a, float b, float k) {
@@ -147,11 +147,13 @@ float stCarrier(vec3 p, bool fine, bool lobes, out vec2 parts) {
     // Towers taper upward (broad base, narrower crown); the bank stays wide.
     float R = stCellR[i]*(mix(0.82+0.26*smoothstep(c.z,c.z+0.5*(c.w-c.z),p.y),1.1-0.35*smoothstep(c.z+0.2*(c.w-c.z),c.w,p.y),stRise*(1.0-stSuper)));
     if (i == 2 && stSuper > 0.0) {
-      // Mesocyclone: narrower stacked base, helical striation terraces.
+      // Turbulent updraft: a broad lean and irregular 3-D lobes, not
+      // any periodic height-only striation (which reads as stacked tyres).
       float low = 1.0-smoothstep(c.z+3.0,c.z+6.5,p.y);
-      float theta = atan(d.y,d.x+1e-5);
-      R *= mix(1.0,0.7+0.3*smoothstep(c.z,c.z+5.0,p.y),stSuper*low);
-      R += stSuper*low*0.55*sin(stTau*p.y*0.7+theta-2.0*stPhase);
+      R *= mix(1.0,0.78+0.22*smoothstep(c.z,c.z+5.0,p.y),stSuper*low);
+      vec3 eddy = vec3(d.x,p.y,d.y)*0.55+vec3(sin(stPhase),0.0,cos(stPhase))*0.45;
+      R *= 1.0-0.1*stSuper;
+      R += stSuper*2.4*(stNoise(eddy).x-0.5);
     }
     float hgt = c.w-c.z;
     // Bubbles form the crowns; the supercell's updraft keeps its column.
@@ -179,7 +181,12 @@ float stCarrier(vec3 p, bool fine, bool lobes, out vec2 parts) {
   // Supercell: one dark shelf under the whole line of cells.
   // A dark shelf joins the bases (thin in Towers, full under the supercell).
   if (stRise > 0.0) {
-    float shelf = max(foot+(1.0-stRise)*6.0, abs(p.y-(stBase-0.5))-mix(0.75,1.1,stSuper));
+    vec2 bankP = (p.xz-vec2(0.0,11.0))*vec2(0.075,0.27);
+    float bankLength = max(length(bankP),1e-4);
+    float bankGradient = max(length(bankP*vec2(0.075,0.27))/bankLength,0.075);
+    float bank = (bankLength-1.0)/bankGradient;
+    float connected = stSmin(foot,bank,1.5);
+    float shelf = max(connected+(1.0-stRise)*6.0, abs(p.y-(stBase+0.1))-mix(1.65,1.5,stSuper));
     field = stSmin(field,shelf,1.0);
   }
   // Anvil: elliptical wedge, thick at the core, thin and lifted at the edge.
@@ -191,8 +198,16 @@ float stCarrier(vec3 p, bool fine, bool lobes, out vec2 parts) {
   float theta = atan(a.y,a.x+1e-5);
   float rim = stAnvilR*(1.0+stSuper*(0.13*sin(2.0*theta+stTau*stRand(12,0))+0.07*sin(5.0*theta+stTau*stRand(12,1))-0.1));
   float k = clamp(length(a)/rim,0.0,1.0);
-  float thick = stAnvilT*(1.0-0.7*k*k);
-  float centre = stAnvil.y+0.5*k*k;
+  float fray = 0.5, shear = 0.0;
+  // These terms are multiplied by stSuper: don't pay their cost in Haze
+  // or Towers, including every light-transport tap of those states.
+  if (stSuper > 0.0) {
+    fray = stNoise(p*vec3(0.35,0.6,0.5)+vec3(sin(stPhase),0,cos(stPhase))*0.3).x;
+    shear = stSuper*(0.32*sin(p.x*0.46+p.z*0.38+stPhase)
+      +0.18*sin(p.x*0.83-p.z*0.64-stPhase));
+  }
+  float thick = stAnvilT*(1.0-0.7*k*k)+stSuper*(fray-0.5)*1.1;
+  float centre = stAnvil.y+0.5*k*k+shear;
   float under = centre-thick;
   if (fine && stSuper > 0.0 && abs(p.y-under) < 1.6 && k > 0.2 && k < 0.98) {
     // Mammatus: rounded pouches hang from the anvil underside.
@@ -216,12 +231,12 @@ float stCarrier(vec3 p, bool fine, bool lobes, out vec2 parts) {
 }
 // Erosion amplitude: billowy crowns, smoother bases, laminar mesocyclone.
 float stErosion(vec3 p) {
-  float e = mix(1.0,2.5,smoothstep(stBase+0.4,stBase+4.0,p.y));
+  float e = mix(1.0,4.0,smoothstep(stBase+0.4,stBase+4.0,p.y));
   vec2 d = p.xz-stCell[2].xy;
   float core = exp(-dot(d,d)/36.0)*(1.0-smoothstep(stBase+3.0,stBase+6.5,p.y));
-  e *= 1.0-0.8*stSuper*core;
+  e *= 1.0+0.35*stSuper*core;
   float anvil = smoothstep(stAnvil.y-2.5,stAnvil.y-0.5,p.y)*stSuper;
-  return e*(1.0-0.5*anvil);
+  return e*(1.0-0.15*anvil);
 }
 // Extinction at p. detail 0 is the light-transport estimate (one billow
 // octave); detail 1 adds the second octave. sd returns the carrier distance.
@@ -248,8 +263,8 @@ float stDensityAt(vec3 p, int detail, out float sd) {
   // The anvil is fibrous: streamers stretched downstream, not lobes.
   float anvilW = stSuper*smoothstep(stAnvil.y-2.5,stAnvil.y-0.8,p.y);
   if (anvilW > 0.0) {
-    float streak = stNoise(vec3(q.x*0.22,q.y*1.1,q.z*0.8)).x*0.6+stNoise(vec3(q.x*0.5,q.y*2.2,q.z*1.9)+3.3).x*0.4;
-    billow = mix(billow,streak,anvilW);
+    float streak = stNoise(vec3(q.x*0.28,q.y*0.7,q.z*0.65)).x*0.6+stNoise(vec3(q.x*0.5,q.y*1.4,q.z*1.3)+3.3).x*0.4;
+    billow = mix(billow,streak,anvilW*0.65);
   }
   float v = -sd+e*(billow-0.5);
   // The ramp spans more than two lattice nodes: interpolation cannot print
@@ -284,7 +299,7 @@ float stFlashLight(vec3 p, bool occlude) {
     power *= (k == 3 ? 1.8 : k == 2 ? 1.2 : mix(1.5,0.8,smoothstep(1.15,1.75,u_params[0])))*mix(3.0,1.0,stRise);
     vec3 c;
     float d = stChannelDistance(p,k,c);
-    float g = power/pow(1.0+d*d*0.06,1.5);
+    float g = power/pow(1.0+d*d*0.22,1.5);
     if (g < 0.004) continue;
     if (occlude && g > 0.02) {
       // One midpoint tap along the path to the channel (cheap carrier
@@ -306,9 +321,9 @@ vec4 stOptical(vec3 p) {
   // anvil's elliptical scaling and mammatus, the striated updraft.
   float wM = stSuper*(1.0-smoothstep(0.0,2.0,parts.x-sd));
   float wA = 1.0-smoothstep(0.0,2.0,parts.y-sd);
-  float lip = mix(1.55,1.25,stRise)+wA*mix(0.45,1.4,stSuper)+3.5*wM;
-  float skip = max(1e-4,(sd-1.3)*0.8/lip)*min(1.0,u_params[2]);
-  if (density <= 0.0 && sd > 2.2) return vec4(-skip,0.0,1.0,stFlashLight(p,false));
+  float lip = mix(1.55,2.0,stRise)+wA*mix(0.45,1.4,stSuper)+4.5*wM;
+  float skip = max(1e-4,(sd-2.8)*0.8/lip)*min(1.0,u_params[2]);
+  if (density <= 0.0 && sd > 3.0) return vec4(-skip,0.0,1.0,stFlashLight(p,false));
   // Nodes near the boundary carry the same transport as interior nodes, so
   // interpolation across the surface cannot print lattice cells.
   float tau = 0.0, last = 0.0;

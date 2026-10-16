@@ -275,7 +275,9 @@ void main() {
   stCameraSetup(); stLoadState(); stCloudSetup();
   float shortSide = min(u_resolution.x, u_resolution.y);
   vec2 screen = (v_uv - 0.5) * u_resolution / shortSide * 2.0;
-  float framing = mix(1.05,1.0,smoothstep(0.9,1.6,u_resolution.x/u_resolution.y));
+  // Fit the whole storm by the short side on portrait/square screens,
+  // rather than cropping off the anvil and moon as a landscape cover image.
+  float framing = clamp((u_resolution.x/u_resolution.y)/(16.0/9.0),0.5,1.0);
   float focal = stFocal * framing * (1.0 + 0.02 * u_kick);
   vec2 view = screen / focal;
   vec3 rd = normalize(stF + stR * view.x + stU * view.y);
@@ -292,10 +294,9 @@ void main() {
   vec3 moonTint = mix(stSat(u_secondary,1.3),vec3(1),0.3);
   vec3 skyLight = stSat(u_secondary,1.3)*0.12;
   vec3 townLight = stSat(mix(u_primary,u_accent,0.45),1.3)*0.12;
-  // Ordinary discharges are cold white-violet with a hint of accent; the
-  // accent is kept for the signature strike (stSig), which floods the
-  // storm's interior with it.
-  vec3 flashLight = mix(mix(vec3(0.9,0.94,1.0),stSat(u_secondary,1.2),0.12),stSat(u_accent,1.1),0.18+0.42*stSig)*2.0;
+  // Cold ordinary discharges. Signature accent is added only near its
+  // channel below, never as a global tint over every illuminated tower.
+  vec3 flashLight = mix(mix(vec3(0.9,0.94,1.0),stSat(u_secondary,1.2),0.12),stSat(u_accent,1.1),0.1)*2.0;
   float phase0 = mix(stHG(0.72,mu),stHG(-0.25,mu),0.3);
   float phase1 = 0.35*mix(stHG(0.36,mu),stHG(-0.125,mu),0.3);
   float phase2 = 0.12*mix(stHG(0.18,mu),stHG(-0.0625,mu),0.3);
@@ -333,35 +334,41 @@ void main() {
       float crevice = 1.0;
       inside++;
       if (fade > 0.01) {
-        vec3 chart = p*1.5+vec3(sin(stPhase)*0.3,cos(stPhase)*0.2,0);
+        vec3 chart = p*0.85+vec3(sin(stPhase)*0.3,cos(stPhase)*0.2,0);
         chart.xz = stRotation*chart.xz;
         float anvilW = stSuper*smoothstep(stAnvil.y-2.2,stAnvil.y-0.9,p.y/u_params[2]);
         // Anvil: fibrous streamers stretched downstream, not lobes.
         chart.x *= 1.0-0.88*anvilW;
         chart.z *= 1.0-0.5*anvilW;
-        chart.y *= 1.0+2.0*anvilW;
+        chart.y *= 1.0+0.5*anvilW;
         float fine = (1.0-smoothstep(0.1,0.45,pixel*t*3.7))*(inside <= 2 ? 1.0 : 0.0);
-        float lobe = stDetail(chart).x*0.68+(fine > 0.0 ? mix(0.5,stDetail(chart*2.47+vec3(1.3,2.9,0.7)).x,fine) : 0.5)*0.32;
+        vec4 billowDetail = stDetail(chart);
+        float lobe = billowDetail.x*0.68+(fine > 0.0 ? mix(0.5,stDetail(chart*2.47+vec3(1.3,2.9,0.7)).x,fine) : 0.5)*0.32;
         lobe = clamp((lobe-0.25)/0.5,0.0,1.0);
         float full = 3.2*u_params[3];
-        float erode = (1.0-lobe)*0.42*fade*(1.0-0.75*anvilW);
+        float erode = (1.0-lobe)*0.58*fade*(1.0-0.5*anvilW);
         if (anvilW > 0.01) {
           // Anvil: fibrous ice streamers stretched downstream, at output
           // resolution (no lattice steps on the thin sheet's edge).
-          vec3 w = p*vec3(0.3,2.6,0.9)+vec3(0.6*sin(stPhase),0.0,0.4*cos(stPhase));
+          vec3 w = p*vec3(0.3,1.1,0.7)+vec3(0.6*sin(stPhase),0.0,0.4*cos(stPhase));
           float fib = stNoise(w).x;
           erode = mix(erode,0.25+(1.0-fib)*0.95,anvilW*fade);
         }
         sigma = full*smoothstep(erode,erode+0.3,sigma/full);
-        crevice = mix(1.0,0.68+0.45*smoothstep(0.0,1.0,lobe),fade*(1.0-0.6*anvilW));
+        float billowLight = clamp(0.85+0.45*dot(billowDetail.yzw,stLight),0.45,1.15);
+        crevice = mix(1.0,(0.48+0.65*smoothstep(0.0,1.0,lobe))*billowLight,fade*(1.0-0.3*anvilW));
       }
       if (sigma <= 0.0) { t += ds; continue; }
       float tau = o.y;
       float ms = phase0*exp(-tau)+phase1*exp(-0.4*tau)+phase2*exp(-0.16*tau);
       float height = clamp((p.y/u_params[2]-stBase)/9.0,0.0,1.0);
       float powder = mix(0.45,1.0,1.0-exp(-2.0*sigma));
+      vec3 channelPoint;
+      float signatureDistance = stChannelDistance(p,1,channelPoint);
+      float accentLocal = stSig*0.65*exp(-signatureDistance*signatureDistance*0.2);
+      vec3 localFlash = mix(flashLight,stSat(u_accent,1.25)*2.0,accentLocal);
       vec3 S = (moonTint*ms*1.5*powder + skyLight*o.z*(0.3+0.7*height)
-        + townLight*sq(sq(1.0-height))*(0.4+1.2*(1.0-o.z)))*crevice + flashLight*o.w;
+        + townLight*sq(sq(1.0-height))*(0.4+1.2*(1.0-o.z)))*crevice + localFlash*o.w;
       float stepT = exp(-sigma*ds);
       cloud += trans*S*(1.0-stepT);
       trans *= stepT;
@@ -781,14 +788,13 @@ void main() {
             duration: 1.1,
           },
           driving: {
-            steps: "X....x.. | ......Xx | ........ | ...X...x",
+            steps: "X...x...X...",
             division: 2,
             strength: 0.76,
             duration: 0.4,
           },
           accented: {
-            steps:
-              "X..........x.... | .............Xx. | ...X.......x.... | ..............XX",
+            steps: "X.......x.......X.......",
             division: 4,
             strength: 0.9,
             duration: 0.18,
@@ -814,14 +820,14 @@ void main() {
             duration: 1.5,
           },
           driving: {
-            steps: "...X.... | .......x | .....X.. | ........",
+            steps: "...X..x. | .X...x..",
             division: 2,
             strength: 0.74,
             duration: 0.9,
           },
           accented: {
             steps:
-              ".....X.......x.. | ............X..x | ................ | .......X......x.",
+              "..X.......x..... | ....X.......x... | .X.......x...... | ....X.......x...",
             division: 4,
             strength: 0.88,
             duration: 0.5,
@@ -854,7 +860,7 @@ void main() {
           },
           accented: {
             steps:
-              "................ | ..............x. | ................ | .............X.X",
+              "....X.......x... | ..X.......x..... | ....x.......X... | ..x.......X.....",
             division: 4,
             strength: 0.95,
             duration: 0.35,
@@ -885,14 +891,14 @@ void main() {
             duration: 1.8,
           },
           driving: {
-            steps: "......X. | ........ | ......X. | ....X.X.",
+            steps: "...X...X | ...X...X | ...X...X | ...X...X",
             division: 2,
             strength: 1,
             duration: 1.4,
           },
           accented: {
             steps:
-              "..............X. | ...X............ | ......X.......X. | ...........X..X.",
+              "......X.......X. | ...X.......X.... | ......X.......X. | ...X.......X....",
             division: 4,
             strength: 1,
             duration: 0.9,
