@@ -69,7 +69,7 @@ const AUTHORED = [
     id: "garden",
     name: "Afterglow Garden",
     description:
-      "A low flight over glowing roots rises above petals into crowns of light. Play every stage in between.",
+      "A living morphogen meadow grows from glowing roots through lantern buds into open flowers at dusk.",
     states: [
       { name: "Roots", look: "afterglow:Glowing Roots" },
       { name: "Petals", look: "afterglow:Opening Petals" },
@@ -394,6 +394,18 @@ const HISTORY = [
       { name: "Understory", look: "mycelium:Hyphal Understory" },
       { name: "Tide", look: "mycelium:Tidal Lamellae" },
       { name: "City", look: "mycelium:Lantern City" },
+    ],
+  },
+  // Garden before the round-3 terrain-to-meadow rework; keep saved sets upgrading.
+  {
+    id: "garden",
+    name: "Afterglow Garden",
+    description:
+      "A low flight over glowing roots rises above petals into crowns of light. Play every stage in between.",
+    states: [
+      { name: "Roots", look: "afterglow:Glowing Roots" },
+      { name: "Petals", look: "afterglow:Opening Petals" },
+      { name: "Bloom", look: "afterglow:Crowns at Dusk" },
     ],
   },
 ];
