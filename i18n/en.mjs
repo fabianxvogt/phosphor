@@ -289,6 +289,9 @@ export default {
   "The magnetic crown swells without changing its hexagonal cell identities.": "The magnetic crown swells without changing its hexagonal cell identities.",
   "A slow magnetic breath stretches the same liquid body.": "A slow magnetic breath stretches the same liquid body.",
   "The persistent chrome satellites drift out from the sculpture.": "The persistent chrome satellites drift out from the sculpture.",
+  "Magnetic strike": "Magnetic strike",
+  "A kick-like magnetic strike lifts fixed-site spikes toward alternating poles and sends pressure rings across the mirror pool.":
+    "A kick-like magnetic strike lifts fixed-site spikes toward alternating poles and sends pressure rings across the mirror pool.",
   "Still mercury": "Still mercury",
   "Magnetic breath": "Magnetic breath",
   "Chrome resonance": "Chrome resonance",

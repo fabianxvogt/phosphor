@@ -289,6 +289,9 @@ export default {
   "The magnetic crown swells without changing its hexagonal cell identities.": "Die Magnetkrone schwillt an, ohne die Identitäten ihrer hexagonalen Zellen zu verändern.",
   "A slow magnetic breath stretches the same liquid body.": "Ein langsamer Magnetatem streckt denselben Flüssigkeitskörper.",
   "The persistent chrome satellites drift out from the sculpture.": "Die beständigen Chromsatelliten treiben von der Skulptur nach außen.",
+  "Magnetic strike": "Magnetschlag",
+  "A kick-like magnetic strike lifts fixed-site spikes toward alternating poles and sends pressure rings across the mirror pool.":
+    "Ein kickartiger Magnetschlag hebt ortsfeste Spitzen zu wechselnden Polen und schickt Druckringe über den Flüssigmetallspiegel.",
   "Still mercury": "Stilles Quecksilber",
   "Magnetic breath": "Magnetischer Atem",
   "Chrome resonance": "Chromresonanz",

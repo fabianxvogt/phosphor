@@ -130,7 +130,8 @@ const presets = [
 ];
 
 const fragment = `${lateClockGlsl}
-float gForm, gLift, gPhase, gCam, gStudio, gBreath, gAmp, gPixel, gWidth, gRipple;
+float gForm, gLift, gPhase, gCam, gStudio, gBreath, gAmp, gPixel, gWidth, gRipple, gStrike;
+vec2 gPole;
 vec3 gRadii, gCentre;
 mat2 gRotation;
 
@@ -157,7 +158,10 @@ float ferroProfile(vec3 q) {
   // Peaks have conical tips and rounded shoulders, not plastic bubbles.
   float spikes = peak * peak * mix(0.12, 1.0, population);
   float upper = mix(smoothstep(-0.1, 0.3, n.y), 1.0, gLift);
-  return spikes * upper;
+  // The event selects a broad magnetic pole, not a new lattice. Sites
+  // leap and settle into the exact same surface when its envelope ends.
+  float pole = 0.25 + 0.75 * smoothstep(-0.35, 0.6, dot(n.xz, gPole));
+  return spikes * upper * (1.0 + gStrike * pole);
 }
 float ferroMap(vec3 p) {
   vec3 q = p - gCentre;
@@ -186,14 +190,14 @@ vec2 ferroBound(vec3 ro, vec3 rd, vec3 c, float r) {
 float ferroMarch(vec3 ro, vec3 rd) {
   // The expanded ellipsoid contains its offset surface (sqrt(3) margin).
   // In Pool this rejects the enormous empty volume of a sphere bound.
-  vec3 extent = gRadii + vec3(1.733 * (gAmp + gRipple) + 0.025);
+  vec3 extent = gRadii + vec3(1.733 * (gAmp * (1.0 + gStrike) + gRipple) + 0.025);
   vec3 p = (ro - gCentre) / extent, v = rd / extent;
   float a = dot(v, v), b = dot(p, v), h = b * b - a * (dot(p, p) - 1.0);
   if (h < 0.0) return 100.0;
   vec2 bound = vec2(-b - sqrt(h), -b + sqrt(h)) / a;
   float t = max(bound.x, 0.0), previous = t;
   for (int i = 0; i < 128; ++i) {
-    if (t > bound.y) break;
+    if (t > bound.y || float(i) >= u_raySteps) break;
     float d = ferroMap(ro + rd * t);
     if (d < max(0.00045, t * gPixel * 0.24)) {
       // The displaced ellipsoid is a distance estimator, not an exact SDF.
@@ -236,28 +240,35 @@ vec3 ferroStudio(vec3 d) {
   // The studio keeps moving even when the fluid-motion fader is zero.
   d.xz = rot2(gStudio) * d.xz;
   d.xy = rot2(0.16 * sin(gStudio)) * d.xy;
-  vec3 primary = mix(u_primary, vec3(1.0), 0.42);
-  vec3 silver = mix(u_secondary, vec3(1.0), 0.48);
-  vec3 col = silver * (0.008 + 0.018 * smoothstep(-0.6, 0.7, d.y));
+  vec3 primary = mix(u_primary, vec3(1.0), 0.24);
+  vec3 silver = mix(u_secondary, vec3(1.0), 0.82);
+  vec3 col = silver * (0.025 + 0.10 * smoothstep(-0.35, 0.8, d.y));
   // Large reflected diffusion cards describe the curvature between strips.
-  col += silver * 0.13 * pow(max(dot(d, normalize(vec3(0.4, 0.8, 0.6))), 0.0), 7.0);
-  col += primary * 0.045 * pow(max(dot(d, normalize(vec3(-0.8, 0.4, -0.4))), 0.0), 4.0);
+  float window = pow(max(dot(d, normalize(vec3(0.4, 0.8, 0.6))), 0.0), 5.0);
+  // Reflected dark mullions cross the broad silver window: this is sharp
+  // specular environment structure, never a diffuse paint layer.
+  float mullion = 0.55 + 0.45 * smoothstep(0.08, 0.24, abs(sin(d.x * 13.0 + d.z * 4.0)));
+  col += silver * 1.05 * window * mullion;
+  col += primary * 0.12 * pow(max(dot(d, normalize(vec3(-0.8, 0.4, -0.4))), 0.0), 4.0);
   // Negative space between narrow cards is essential: broad cards turn
   // the shallow crown into a white diffuse-looking plastic sheet.
-  col += silver * ferroBox(d, vec3(-0.25, 1.0, 0.2), 0.72, 0.11) * 0.65;
+  col += silver * ferroBox(d, vec3(-0.25, 1.0, 0.2), 0.72, 0.25) * 0.85;
   col += primary * ferroBox(d, vec3(-0.65, 0.65, 0.6), 0.12 * gWidth, 1.15) * 1.6;
   col += silver * ferroBox(d, vec3(0.8, 0.45, 0.1), 1.1, 0.075 * gWidth) * 1.8;
   col += primary * ferroBox(d, vec3(0.1, 0.25, -1.0), 0.045 * gWidth, 1.4) * 2.0;
   col += u_accent * ferroBox(d, vec3(-0.85, 0.1, -0.5), 0.018 * gWidth, 0.6) * 1.2;
-  col += primary * 0.15 * exp(-sq((d.y - 0.06) / 0.09));
+  // The long silver horizon describes the lower-facing valleys as well as
+  // the tips. A conductor needs reflected shape, not an emissive outline.
+  col += silver * 0.62 * exp(-sq((d.y + 0.15) / 0.14));
   return col;
 }
 vec3 ferroValley(vec3 p, vec3 n, vec3 rd) {
   if (gForm < 0.001) return vec3(1.0);
   vec3 reflected = reflect(rd, n);
   float nearD = ferroMap(p + reflected * 0.075);
-  float farD = ferroMap(p + reflected * 0.19);
-  float visibility = clamp(min(nearD / 0.052, farD / 0.13), 0.0, 1.0);
+  // One near-field visibility probe is sufficient for the broad reflected
+  // window. Cavity shading already supplies the longer-range attenuation.
+  float visibility = clamp(nearD / 0.052, 0.0, 1.0);
   // A single environment bounce about the carrier normal approximates
   // neighbouring chrome walls; no recursive ray march / extra normal.
   vec3 carrierNormal = normalize((p - gCentre) / (gRadii * gRadii));
@@ -268,7 +279,7 @@ vec3 ferroValley(vec3 p, vec3 n, vec3 rd) {
     (0.08 + 0.55 * pow(max(dot(bounceDirection, normalize(vec3(0.4, 0.8, 0.6))), 0.0), 4.0));
   bounce += mix(u_primary, vec3(1.0), 0.35) *
     0.45 * pow(max(dot(bounceDirection, normalize(vec3(-0.8, 0.4, -0.4))), 0.0), 4.0);
-  return mix(vec3(0.35) + bounce * 0.22, vec3(1.0), visibility);
+  return mix(vec3(0.52) + bounce * 0.28, vec3(1.0), visibility);
 }
 vec3 ferroMetal(vec3 p, vec3 n, vec3 rd, float cavity) {
   vec3 reflection = reflect(rd, n);
@@ -294,11 +305,16 @@ void main() {
   float seedAngle = float(u_seedBits % 997u) * 0.0063;
   gBreath = sin(gPhase);
   gRotation = rot2(0.15 * sin(gPhase) + seedAngle);
-  float impulse = 1.0 + 0.11 * u_kick + 0.12 * u_rhythm.x;
+  // A missed render frame may deliver the newly crossed hit below its
+  // envelope peak. The bounded hit floor preserves that strike, not history.
+  gStrike = 0.85 * max(u_rhythm.w, 0.8 * u_rhythmHit.w);
+  float poleAngle = mod(u_rhythmCount.w, 4.0) * 1.570796327 + seedAngle;
+  gPole = vec2(cos(poleAngle), sin(poleAngle));
+  float impulse = 1.0 + 0.11 * u_kick + 0.38 * u_rhythm.x;
   gAmp = gForm * (0.25 + 0.16 * gLift) * u_params[1] * impulse;
-  gRipple = (1.0 - gForm) * (0.006 + 0.018 * u_kick + 0.012 * u_rhythm.x);
-  gRadii = mix(vec3(1.9, 0.24 + 0.018 * gBreath, 1.9), vec3(1.0), gLift);
-  gRadii.y *= 1.0 + 0.035 * u_rhythm.y + 0.025 * u_level * sin(gPhase * 2.0);
+  gRipple = (1.0 - gForm) * (0.006 + 0.018 * u_kick + 0.030 * u_rhythm.x + 0.035 * gStrike);
+  gRadii = mix(vec3(1.9, 0.24 + 0.018 * gBreath, 1.9), vec3(1.10, 1.0, 0.92), gLift);
+  gRadii.y *= 1.0 + 0.12 * u_rhythm.y + 0.025 * u_level * sin(gPhase * 2.0);
   gCentre = vec3(0.0, 0.23 + 1.25 * gLift + 0.035 * sin(gPhase) * gLift, 0.0);
   gPixel = 1.0 / min(u_resolution.x, u_resolution.y);
   gWidth = u_params[5];
@@ -311,7 +327,7 @@ void main() {
   vec3 up = cross(right, fw);
   vec2 uv = aspectUV() / min(u_resolution.x / u_resolution.y, 1.0);
   float portraitFit = mix(0.72, 1.0, smoothstep(0.6, 1.2, u_resolution.x / u_resolution.y));
-  float focal = mix(1.8, 2.05, gLift) * u_params[7] * portraitFit * (1.0 + 0.022 * u_kick);
+  float focal = mix(1.8, 2.30, gLift) * u_params[7] * portraitFit * (1.0 + 0.022 * u_kick);
   // One full-resolution ray. Pixel-scaled normals and angularly filtered
   // studio cards resolve glints without duplicating the complete SDF path.
   vec3 rd = normalize(fw * focal + right * uv.x + up * uv.y);
@@ -325,9 +341,17 @@ void main() {
   vec3 floorP = ro + rd * floorT;
   float pool = 1.0 - smoothstep(2.1, 2.55, length(floorP.xz));
   if (rd.y < -0.0001 && !mainHit) {
-    vec3 reflection = reflect(rd, vec3(0.0, 1.0, 0.0));
+    float basinRadius = length(floorP.xz);
+    vec2 basinSlope = floorP.xz / max(basinRadius, 0.01) *
+      (0.016 * sin(12.0 * basinRadius - 2.0 * gPhase));
+    vec3 reflection = reflect(rd, normalize(vec3(basinSlope.x, 1.0, basinSlope.y)));
     float shadow = 1.0 - 0.8 * exp(-dot(floorP.xz, floorP.xz) / (1.6 + gLift));
-    col += mix(u_secondary, vec3(1.0), 0.4) * (0.008 + 0.012 * pool) * shadow;
+    col += mix(u_secondary, vec3(1.0), 0.65) * (0.006 + 0.025 * pool) * shadow;
+    // A low, spatial reflection connects liquid and floor, rather than an
+    // isolated outlined ellipse on black. Broad falloff avoids frame edges.
+    float floorCard = exp(-sq((floorP.x + 0.45 * floorP.z) / 0.8)) *
+      exp(-0.18 * dot(floorP.xz, floorP.xz));
+    col += mix(u_secondary, vec3(1.0), 0.8) * floorCard * pool * 0.055 * shadow;
     // One actual SDF bounce in the pool, rather than a generic ball shadow.
     // Trace from the pool surface so the clipped base cannot occlude it.
     if (pool > 0.001 && gLift > 0.01) {
@@ -335,11 +359,13 @@ void main() {
       float rt = ferroMarch(reflectionOrigin, reflection);
       if (rt < 90.0) {
         vec3 rp = reflectionOrigin + reflection * rt;
-        col += ferroMetal(rp, ferroNormal(rp, rt), reflection, 0.75) * 0.23 * pool * gLift;
+        col += ferroMetal(rp, ferroNormal(rp, rt), reflection, 0.75) * 0.38 * pool * gLift;
       }
     }
-    float rim = exp(-sq((length(floorP.xz) - 2.3) / 0.024));
-    col += mix(u_primary, vec3(1.0), 0.4) * rim * 0.1;
+    float rim = exp(-sq((basinRadius - 2.3) / 0.065));
+    col += mix(u_secondary, vec3(1.0), 0.65) * rim * 0.045;
+    float pressure = exp(-sq((basinRadius - (2.45 - 1.55 * gStrike)) / 0.09));
+    col += u_primary * pressure * pool * gStrike * 0.4;
   }
   vec3 normal = vec3(0.0);
   if (mainHit) {
@@ -362,7 +388,7 @@ void main() {
     float growth = gLift * gLift * u_params[6];
     float radius = (0.10 + 0.05 * sin(id * 7.1)) * growth * (0.65 + 0.35 * u_level);
     vec3 centre = gCentre + vec3(cos(a) * (1.7 + 0.12 * sin(a * 2.0)), sin(a + id) * 0.85, sin(a) * 1.7);
-    centre += normalize(centre - gCentre) * 0.14 * u_rhythm.z;
+    centre += normalize(centre - gCentre) * 0.45 * u_rhythm.z;
     vec2 span = ferroBound(ro, rd, centre, radius);
     if (radius > 0.0001 && span.x > 0.0 && span.x < span.y && span.x < hit) {
       hit = span.x;
@@ -396,40 +422,138 @@ export default {
     { rate: (p) => p[3] * 0.045, period: 2 * Math.PI },
     { rate: () => 0.065, period: 2 * Math.PI },
   ],
-  rhythmStyles: { restrained: "Still mercury", driving: "Magnetic breath", accented: "Chrome resonance" },
+  rhythmStyles: {
+    restrained: "Still mercury",
+    driving: "Magnetic breath",
+    accented: "Chrome resonance",
+  },
   rhythm: [
     familyEffect(
       "spike-swell",
       0,
       "Spike swell",
       "The magnetic crown swells without changing its hexagonal cell identities.",
-      { period: 4, strength: 0.55, duration: 1.25, steps: "X...", styles: {
-        restrained: { steps: "X....... | ......x. | ...X.... | ........", division: 2, strength: 0.48, duration: 1.8 },
-        driving: { steps: "X.....x. | ..X...x.", division: 2, strength: 0.72, duration: 0.9 },
-        accented: { steps: "X.........x..... | .....X.......x.. | ..X........x....", division: 4, strength: 0.86, duration: 1 },
-      } },
+      {
+        period: 4,
+        strength: 0.55,
+        duration: 1.25,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | ......x. | ...X.... | ........",
+            division: 2,
+            strength: 0.48,
+            duration: 1.8,
+          },
+          driving: {
+            steps: "X.....x. | ..X...x.",
+            division: 2,
+            strength: 0.72,
+            duration: 0.9,
+          },
+          accented: {
+            steps: "X.........x..... | .....X.......x.. | ..X........x....",
+            division: 4,
+            strength: 0.86,
+            duration: 1,
+          },
+        },
+      },
     ),
     familyEffect(
       "field-breath",
       1,
       "Field breath",
       "A slow magnetic breath stretches the same liquid body.",
-      { period: 8, strength: 0.5, duration: 2, steps: "X.......", styles: {
-        restrained: { steps: "....x... | ........ | .......X | ........", division: 2, strength: 0.45, duration: 2 },
-        driving: { steps: "...X.... | .......x", division: 2, strength: 0.68, duration: 1.5 },
-        accented: { steps: ".......X........ | ............x... | ....X...........", division: 4, strength: 0.82, duration: 1.5 },
-      } },
+      {
+        period: 8,
+        strength: 0.5,
+        duration: 2,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "....x... | ........ | .......X | ........",
+            division: 2,
+            strength: 0.45,
+            duration: 2,
+          },
+          driving: {
+            steps: "...X.... | .......x",
+            division: 2,
+            strength: 0.68,
+            duration: 1.5,
+          },
+          accented: {
+            steps: ".......X........ | ............x... | ....X...........",
+            division: 4,
+            strength: 0.82,
+            duration: 1.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "droplet-orbit",
       2,
       "Droplet orbit",
       "The persistent chrome satellites drift out from the sculpture.",
-      { period: 16, strength: 0.6, duration: 2.5, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | .....X.. | ........", division: 2, strength: 0.5, duration: 2.5 },
-        driving: { steps: "........ | ......x. | ........ | ....X...", division: 2, strength: 0.74, duration: 2 },
-        accented: { steps: "..............x. | ........X....... | ............X... | ......x.........", division: 4, strength: 0.9, duration: 1.5 },
-      } },
+      {
+        period: 16,
+        strength: 0.6,
+        duration: 2.5,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | .....X.. | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 2.5,
+          },
+          driving: {
+            steps: "........ | ......x. | ........ | ....X...",
+            division: 2,
+            strength: 0.74,
+            duration: 2,
+          },
+          accented: {
+            steps:
+              "..............x. | ........X....... | ............X... | ......x.........",
+            division: 4,
+            strength: 0.9,
+            duration: 1.5,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "magnetic-strike",
+      3,
+      "Magnetic strike",
+      "A kick-like magnetic strike lifts fixed-site spikes toward alternating poles and sends pressure rings across the mirror pool.",
+      {
+        strength: 0.85,
+        duration: 0.42,
+        styles: {
+          restrained: {
+            steps: "X............... | ..........x.....",
+            division: 4,
+            strength: 0.6,
+            duration: 0.8,
+          },
+          driving: {
+            steps: "X.X.X.X. | X.X..Xx.",
+            division: 2,
+            strength: 0.9,
+            duration: 0.42,
+          },
+          accented: {
+            steps: "X..x..X.x.X...x. | X.x..X..X..x..X.",
+            division: 4,
+            strength: 1,
+            duration: 0.4,
+          },
+        },
+      },
     ),
   ],
   fragment,
