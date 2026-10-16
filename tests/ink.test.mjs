@@ -157,7 +157,10 @@ test("cascade morph is continuous and reversible: lobes neck, pinch and re-absor
     ...c.peak,
     ...c.daughterCentre,
     c.daughterRadius,
+    c.daughterTilt,
     c.parentCore,
+    c.radius,
+    c.neck,
   ];
   let previous = keys(inkCascade(0));
   for (let i = 1; i <= 2000; i++) {
@@ -165,7 +168,11 @@ test("cascade morph is continuous and reversible: lobes neck, pinch and re-absor
       now = keys(inkCascade(dev));
     now.forEach((v, j) => {
       assert.ok(Number.isFinite(v));
-      assert.ok(Math.abs(v - previous[j]) < 0.004, `jump at ${dev} key ${j}`);
+      // Lipschitz-bounded in development (the dissolving neck is steepest).
+      assert.ok(
+        Math.abs(v - previous[j]) < (j === 13 ? 0.02 : 0.004),
+        `jump at ${dev} key ${j}`,
+      );
     });
     // Reversal: the same development is the same form, from either side.
     assert.deepEqual(keys(inkCascade(dev)), now);
@@ -182,26 +189,36 @@ test("cascade morph is continuous and reversible: lobes neck, pinch and re-absor
   assert.ok(
     half.bud > 0.3 && half.bud < 0.7 && half.pinch > 0 && half.pinch < 0.5,
   );
-  // ... separate fully at Plumes and stay secondary to the primary ring.
+  // ... separate fully at Plumes, leaving no string behind, and stay
+  // secondary to the primary ring ...
   assert.equal(plumes.pinch, 1);
-  assert.ok(plumes.daughterRadius < 0.4);
-  assert.ok(nebula.g2 === 1 && nebula.daughterRadius < 0.4);
+  assert.equal(plumes.neck, 0);
+  assert.ok(half.neck === 1 && plumes.daughterRadius < 0.4);
   assert.ok(plumes.daughterCentre[1] < plumes.peak[1] - 0.8);
+  // ... and at the peak bloom: they rise to the rim, travel outward and
+  // roll over (axis tilted past 80 degrees), still smaller than the parent.
+  assert.ok(nebula.g2 === 1 && nebula.daughterRadius < 0.4 * nebula.radius);
+  assert.ok(nebula.daughterCentre[1] > plumes.daughterCentre[1] + 0.8);
+  assert.ok(nebula.daughterCentre[0] > plumes.daughterCentre[0] + 1.0);
+  assert.ok(nebula.daughterTilt > 1.4);
   // The shader carries the same schedule.
   for (const source of [
     "gLobeAmp=0.035+0.15*smoothstep(0.0,0.55,gG1)*gFinger",
     "gBud=smoothstep(0.05,0.95,gG1)",
     "gPinch=smoothstep(0.35,0.95,gG1)",
-    "gDaughter=vec3(gPeak.x+0.62*gBud*gFinger*gSpread,gPeak.y-1.05*gBud*gFinger,0.0)",
-    "gRd=mix(0.06,0.34,smoothstep(0.15,0.85,gG1))",
+    "gRP=1.0+0.35*gG2",
+    "gDaughter=vec3(gPeak.x+(0.62*gBud*gFinger+0.95*gG2)*gSpread,",
+    "gPeak.y-1.05*gBud*gFinger*(1.0-0.85*gG2)+0.25*gG2,0.0)",
+    "gTiltC=cos(0.5*gBud+1.1*gG2)",
+    "gRd=mix(0.06,0.34,smoothstep(0.15,0.85,gG1))+0.16*gG2",
+    "(1.0-smoothstep(0.45,0.9,gPinch))",
   ])
     assert.ok(ink.fragment.includes(source), source);
 });
 
-test("silk and threads use exact line and sheet integrals of their Gaussian profiles", () => {
+test("silk uses the exact sheet integral of its Gaussian profile; no threads remain", () => {
   // Numerical integral of rho exp(-d^2/w^2) along a ray crossing a sheet at
-  // angle: rho w sqrt(pi) / |cos|. And for a tube at closest distance d0 and
-  // angle theta: rho r sqrt(pi) exp(-d0^2/r^2) / sin(theta).
+  // angle: rho w sqrt(pi) / |cos|.
   const integrate = (f, a, b, n = 200000) => {
     let sum = 0;
     const h = (b - a) / n;
@@ -213,27 +230,11 @@ test("silk and threads use exact line and sheet integrals of their Gaussian prof
       numeric = integrate((s) => Math.exp(-((s * cos) ** 2) / w ** 2), -1, 1);
     assert.ok(Math.abs(numeric - (w * SQRT_PI) / cos) < 1e-6);
   }
-  for (const sin of [1, 0.6, 0.15])
-    for (const d0 of [0, 0.01]) {
-      const r = 0.016,
-        numeric = integrate(
-          (s) => Math.exp(-(d0 * d0 + (s * sin) ** 2) / r ** 2),
-          -1,
-          1,
-        );
-      assert.ok(
-        Math.abs(
-          numeric - (r * SQRT_PI * Math.exp(-(d0 * d0) / (r * r))) / sin,
-        ) < 1e-6,
-      );
-    }
   assert.ok(Math.abs(1.7725 - SQRT_PI) < 1e-4);
   assert.match(ink.fragment, /0\.65\*0\.012\*1\.7725/);
-  assert.match(
-    ink.fragment,
-    /rn\*1\.7725\*exp\(-sq\(d\/wide\)\)\/\(sine\*span\)/,
-  );
-  assert.match(ink.fragment, /0\.9\*0\.01\*1\.7725\*exp/);
+  // The straight drop tail and pinched-neck threads are gone (L0 review):
+  // necks dissolve as they pinch, wakes are the bells.
+  assert.doesNotMatch(ink.fragment, /twisted pair of threads|sine\*span/);
 });
 
 test("guttered half-float body atlas has bijective nodes and matching shader layout", () => {
@@ -288,10 +289,6 @@ test("time stays seamless: every clock phase has an integer coefficient", () => 
       Number.isInteger(Number(coefficient)),
       `gPhase coefficient ${coefficient}`,
     );
-  // Motes rise one exact lattice period (28 cells of 0.26) per clock turn.
-  assert.match(glsl, /gPhase\/TAU\*7\.28\)\/0\.26/);
-  assert.ok(Math.abs(7.28 / 0.26 - 28) < 1e-12);
-  assert.match(glsl, /mod\(cell\.y,28\.0\)/);
   const p = ink.schema.map((f) => f.default);
   for (const t of [3600, 4096, 43200]) {
     const state = {};

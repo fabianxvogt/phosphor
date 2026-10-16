@@ -74,27 +74,34 @@ const smooth = (a, b, x) => {
 };
 const mix = (a, b, t) => a + (b - a) * t;
 // CPU transcription of the cascade schedule (shader inkCascade()).
-export function inkCascade(development, finger = 0.9, level = 0.5) {
+export function inkCascade(development, finger = 0.9, level = 0.5, spread = 1) {
   const dev = Math.min(2, Math.max(0, development));
   const g1 = smooth(0, 1, dev),
     g2 = smooth(1, 2, dev);
   const reach = Math.min(finger, 1.4) * (0.85 + 0.3 * level);
   const lobeAmp = 0.035 + 0.15 * smooth(0, 0.55, g1) * reach;
-  const bud = smooth(0.05, 0.95, g1);
-  const peak = [1 + 0.55 * lobeAmp, -lobeAmp];
+  const bud = smooth(0.05, 0.95, g1),
+    pinch = smooth(0.35, 0.95, g1);
+  const radius = 1 + 0.35 * g2;
+  const peak = [radius * (1 + 0.55 * lobeAmp), -radius * lobeAmp];
   return {
     g1,
     g2,
     lobeAmp,
     bud,
-    pinch: smooth(0.35, 0.95, g1),
+    pinch,
     peak,
+    radius,
+    // At the peak the daughters rise and roll outward (a blooming crown).
     daughterCentre: [
-      peak[0] + 0.62 * bud * reach,
-      peak[1] - 1.05 * bud * reach,
+      peak[0] + (0.62 * bud * reach + 0.95 * g2) * spread,
+      peak[1] - 1.05 * bud * reach * (1 - 0.85 * g2) + 0.25 * g2,
     ],
-    daughterRadius: mix(0.06, 0.34, smooth(0.15, 0.85, g1)),
-    parentCore: 0.24 - 0.06 * g1 + 0.1 * g2,
+    daughterTilt: 0.5 * bud + 1.1 * g2,
+    daughterRadius: mix(0.06, 0.34, smooth(0.15, 0.85, g1)) + 0.16 * g2,
+    parentCore: 0.24 - 0.06 * g1 + 0.08 * g2,
+    // The neck stretches and dissolves as it pinches: no string remains.
+    neck: 1 - smooth(0.45, 0.9, pinch),
   };
 }
 
@@ -221,8 +228,8 @@ void inkCamera() {
   float az=orbit+0.35, el=0.1+0.3*sin(2.0*orbit+0.6);
   // Longer fingers hang the crown lower: frame them (no state crops it).
   float reach=max(min(u_params[3],1.4)-0.9,0.0)*gG1;
-  gCentre=vec3(0.0,0.35-0.62*gG1+0.12*gG2-0.45*reach,0.0);
-  float dist=(4.1+1.15*gG1+0.85*gG2+0.9*reach)*max(u_params[7],0.92);
+  gCentre=vec3(0.0,0.35-0.62*gG1+0.38*gG2-0.45*reach,0.0);
+  float dist=(4.1+1.15*gG1+1.7*gG2+0.9*reach)*max(u_params[7],0.92);
   gEye=gCentre+dist*vec3(cos(el)*sin(az),sin(el),cos(el)*cos(az));
   gFw=normalize(gCentre-gEye);
   gRight=normalize(cross(gFw,vec3(0,1,0)));
@@ -255,19 +262,31 @@ void inkSetup() {
   // The cascade schedule (inkCascade() in JS): Widnall lobes grow, neck and
   // pinch off into daughter rings; at the peak every bell flares and folds.
   gLobeAmp=0.035+0.15*smoothstep(0.0,0.55,gG1)*gFinger;
-  gRP=1.0+0.15*gG2;
-  gAP=0.24-0.06*gG1+0.06*gG2;
+  gRP=1.0+0.35*gG2;
+  gAP=0.24-0.06*gG1+0.08*gG2;
   gBud=smoothstep(0.05,0.95,gG1);
   gPinch=smoothstep(0.35,0.95,gG1);
   gPeak=gRP*vec2(1.0+0.55*gLobeAmp,-gLobeAmp);
-  gDaughter=vec3(gPeak.x+0.62*gBud*gFinger*gSpread,gPeak.y-1.05*gBud*gFinger,0.0);
-  gTiltC=cos(0.5*gBud); gTiltS=sin(0.5*gBud);
+  // At the peak the daughters rise and roll outward: a blooming crown,
+  // not a hanging mobile.
+  gDaughter=vec3(gPeak.x+(0.62*gBud*gFinger+0.95*gG2)*gSpread,
+    gPeak.y-1.05*gBud*gFinger*(1.0-0.85*gG2)+0.25*gG2,0.0);
+  gTiltC=cos(0.5*gBud+1.1*gG2); gTiltS=sin(0.5*gBud+1.1*gG2);
   gSpinC=cos(gSeed); gSpinS=sin(gSeed);
-  gRd=mix(0.06,0.34,smoothstep(0.15,0.85,gG1))+0.05*gG2;
-  gAd=mix(gAP*0.85,0.062,smoothstep(0.1,0.8,gG1))+0.02*gG2;
-  gVeilH=1.25+0.45*gG2;
+  gRd=mix(0.06,0.34,smoothstep(0.15,0.85,gG1))+0.16*gG2;
+  gAd=mix(gAP*0.85,0.062,smoothstep(0.1,0.8,gG1))+0.07*gG2;
+  gVeilH=1.1+0.2*gG2;
   gVeil2=smoothstep(0.45,1.1,dev);
   inkCamera();
+}
+// The wake bell's radius (relative to the ring) at height fraction sv: a
+// short scalloped wake that narrows but never closes to a point; at the
+// peak it rounds into a mushroom cap rolling outward over the ring.
+float inkBell(float sv, float w) {
+  float root=sqrt(sv), lobe=1.0+0.55*gLobeAmp*w;
+  float wake=lobe*(1.0-0.65*root*sqrt(root))+(0.07+0.07*gG2)*w*(1.0-sv);
+  float cap=lobe*(1.12*sqrt(max(1.0-sv*sv,0.0))+0.2*sq(1.0-sv))+0.1*w*(1.0-sv);
+  return mix(wake,cap,gG2);
 }
 // Shared two-octave turbulence: ink rising past the descending ring.
 float inkErode(vec3 q) {
@@ -349,7 +368,8 @@ vec2 inkBody(vec3 p, float fp) {
     float wide=max(rn,fp);
     // Thick necks are cached; once thinner than a cell they are drawn as
     // silk (inkSilk) so the lattice never slices them.
-    float neck=(1.0+0.8*gPinch)*(1.0-0.85*gG2)*exp(-sq(dn/wide))*rn/wide*smoothstep(fp,2.0*fp,rn);
+    // The neck stretches and dissolves as it pinches: no string remains.
+    float neck=(1.0+0.8*gPinch)*(1.0-smoothstep(0.45,0.9,gPinch))*exp(-sq(dn/wide))*rn/wide;
     density+=daughter+neck;
     gen=(daughter+0.5*neck)/max(density,1e-4);
   }
@@ -366,57 +386,19 @@ vec2 inkSilk(vec3 q, vec3 v, float span, float fp, float ero, out vec3 sheet, ou
   sheet=vec3(9.0); weight=vec3(0.0);
   if (s>-0.05 && s<1.1) {
     float sv=clamp(s,0.0,1.0), w=cos(gN*(phi-gLobe));
-    float root=sqrt(sv), flare=1.0+0.3*gG2*sq(1.0-sv);
-    float fade=smoothstep(-0.05,0.18,s)*(1.0-smoothstep(0.7,1.08,s))*clamp(0.6+0.6*ero,0.0,1.3);
+    float bell=inkBell(sv,w);
+    float fade=smoothstep(-0.05,0.18,s)*(1.0-smoothstep(0.55,0.95+0.1*gG2,s))*clamp(0.6+0.6*ero,0.0,1.3);
     for (int k=0;k<2;++k) {
       float layer=k==0?1.0:gVeil2;
       if (layer<0.001) break;
       float fk=float(k);
-      float rv=gRP*flare*(1.0-0.17*fk)*((1.0+0.55*gLobeAmp*w)*(1.0-0.8*root*sqrt(root))
-        +(0.07+0.07*gG2)*w*(1.0-sv)+0.035*sin(3.0*phi+7.0*sv-2.0*gPhase+2.1*fk)*sv);
+      float rv=gRP*(1.0-0.17*fk)*(bell+0.035*sin(3.0*phi+7.0*sv-2.0*gPhase+2.1*fk)*sv);
       // Energy shifts the silk from 7 broad pleats to 15 fine ones (integer
       // harmonics blended, so the azimuth seam never shows).
       float pleat=4.0*sv-gPhase+gSeed+1.7*fk;
       float streak=0.5+0.5*mix(sin(7.0*phi+pleat),sin(15.0*phi+pleat),u_level);
       sheet[k]=r-rv+0.04*ero;
       weight[k]=layer*(0.08+0.92*streak*streak)*fade;
-    }
-  }
-  // Threads are integrated analytically: when this step contains the ray's
-  // closest approach to a thread, add its whole line integral
-  // rho0 * r * sqrt(pi) / sin(angle) once. Crisp at any step length.
-  // The drop's tail: a twisted pair of threads rising from the veil's neck.
-  if (q.y>0.6 && q.y<2.9) {
-    vec2 off=0.05*vec2(sin(5.0*q.y-2.0*gPhase),cos(5.0*q.y-2.0*gPhase));
-    float across=max(length(v.xz),0.05), wide=max(0.01,fp);
-    for (int j=0;j<2;++j) {
-      vec2 o=q.xz-(j==0?off:-off);
-      float sClose=-dot(o,v.xz)/sq(across);
-      if (sClose>=0.0 && sClose<span) {
-        float d=length(o+v.xz*sClose);
-        density+=0.9*0.01*1.7725*exp(-sq(d/wide))/(across*span)*smoothstep(0.75,1.15,q.y)*
-          (1.0-smoothstep(2.3,2.9,q.y))*(1.0-0.75*gG2);
-      }
-    }
-  }
-  if (gPinch>0.001) {
-    // The pinched neck: a thread from the rim lobe to its daughter.
-    float pk=gLobe+floor((phi-gLobe)*gN/TAU+0.5)*TAU/gN;
-    vec3 sq3=q, sv3=v;
-    mat2 turn=rot2(pk);
-    sq3.xz=turn*sq3.xz; sv3.xz=turn*sv3.xz;
-    vec3 A=vec3(gPeak,0.0), ab=gDaughter+vec3(0.0,0.45*gRd,0.0)-A;
-    float c=max(dot(ab,ab),1e-6), b=dot(sv3,ab), w0d=dot(sv3,sq3-A), e=dot(ab,sq3-A);
-    float h=clamp((e-b*w0d)/max(c-b*b,1e-6),0.0,1.0);
-    float sClose=b*h-w0d;
-    if (sClose>=0.0 && sClose<span) {
-      float d=length(sq3+sv3*sClose-A-ab*h);
-      float rn=mix(gAP*0.8,0.016,gPinch)*(1.0-0.3*h*gPinch), wide=max(rn,fp);
-      float sine=max(sqrt(max(1.0-b*b/c,0.0)),0.05);
-      float neck=(1.0+0.8*gPinch)*(1.0-0.85*gG2)*rn*1.7725*exp(-sq(d/wide))/(sine*span)*
-        (1.0-smoothstep(gCell,2.0*gCell,rn));
-      density+=neck;
-      gen+=0.6*neck;
     }
   }
   if (gG2>0.001) {
@@ -426,14 +408,14 @@ vec2 inkSilk(vec3 q, vec3 v, float span, float fp, float ero, out vec3 sheet, ou
     sq3.xz=turn*sq3.xz; dv.xz=turn*dv.xz;
     vec3 d=sq3-gDaughter;
     d.xy=tilt*d.xy; dv.xy=tilt*dv.xy;
-    float veilD=gRd*1.7*gG2, sd=d.y/max(veilD,1e-3);
+    float veilD=gRd*1.25*gG2, sd=d.y/max(veilD,1e-3);
     if (sd>-0.05 && sd<1.1 && length(d.xz)<gRd*1.3) {
       d.xz=mat2(gSpinC,-gSpinS,gSpinS,gSpinC)*d.xz;
       dv.xz=mat2(gSpinC,-gSpinS,gSpinS,gSpinC)*dv.xz;
       float rd=length(d.xz), c=d.x/max(rd,1e-5);
       float wd=gM>3.5?8.0*c*c*(c*c-1.0)+1.0:c*(4.0*c*c-3.0);
       float sv=clamp(sd,0.0,1.0), root=sqrt(sv);
-      float rv=gRd*((1.0+0.07*gG2*wd)*(1.0-0.8*root*sqrt(root))+0.12*wd*(1.0-sv));
+      float rv=gRd*((1.0+0.07*gG2*wd)*mix(1.0-0.8*root*sqrt(root),1.12*sqrt(max(1.0-sv*sv,0.0)),gG2)+0.12*wd*(1.0-sv));
       sheet.z=rd-rv+0.02*ero;
       weight.z=0.75*gG2*smoothstep(-0.05,0.2,sd)*(1.0-smoothstep(0.65,1.05,sd))*clamp(0.6+0.6*ero,0.0,1.3);
     }
@@ -451,16 +433,15 @@ vec3 inkEnvelope(vec3 p) {
   float x=rho/gAP*clamp(1.0+(0.22+0.25*gG2)*ero,0.8,1.8);
   float density=0.9*(1.0-0.4*gG2)*exp(-sq(x/1.1))*clamp(0.7+0.5*ero,0.1,1.3);
   float dist=(rho-2.6*gAP)*0.8;
-  float s=q.y/gVeilH, sv=clamp(s,0.0,1.0), root=sqrt(sv), flare=1.0+0.3*gG2*sq(1.0-sv);
-  float bell=gRP*flare*((1.0+0.55*gLobeAmp*w)*(1.0-0.8*root*sqrt(root))+(0.07+0.07*gG2)*w*(1.0-sv));
+  float s=q.y/gVeilH, sv=clamp(s,0.0,1.0);
+  float bell=gRP*inkBell(sv,w);
   float dv=r-bell, dv2=r-0.83*bell;
   if (s>-0.05 && s<1.1)
-    density+=0.18*exp(-sq(dv/0.06))*smoothstep(-0.05,0.18,s)*(1.0-smoothstep(0.7,1.08,s));
+    density+=0.18*exp(-sq(dv/0.06))*smoothstep(-0.05,0.18,s)*(1.0-smoothstep(0.55,0.95+0.1*gG2,s));
   // Distance to the bells' finite sheets (their rims are curves, not slabs);
   // the margin covers the omitted folds (0.035) and erosion (0.06).
   float over=max(max(s-1.1,-0.05-s),0.0)*gVeilH;
   float silk=(length(vec2(min(abs(dv),gVeil2>0.001?abs(dv2):9.0),over))-0.11)*0.6;
-  if (q.y>0.6) silk=min(silk,max((r-0.16)*0.8,q.y-3.0));
   if (gG1>0.001) {
     float pk=gLobe+floor((phi-gLobe)*gN/TAU+0.5)*TAU/gN;
     vec3 sq3=q;
@@ -472,18 +453,17 @@ vec3 inkEnvelope(vec3 p) {
     vec3 A=vec3(gPeak,0.0), ab=gDaughter+vec3(0.0,0.45*gRd,0.0)-A;
     float dn=length(sq3-A-ab*clamp(dot(sq3-A,ab)/max(dot(ab,ab),1e-6),0.0,1.0));
     float rn=mix(gAP*0.8,0.016,gPinch);
-    density+=(1.0-0.85*gG2)*exp(-sq(dn/max(rn,0.04)))*rn/max(rn,0.04);
+    density+=(1.0-smoothstep(0.45,0.9,gPinch))*exp(-sq(dn/max(rn,0.04)))*rn/max(rn,0.04);
     dist=min(dist,min((rd-2.6*gAd)*0.8,(dn-2.2*max(rn,0.015))*0.8));
-    if (gPinch>0.001) silk=min(silk,dn-0.15);
     // Each daughter's bell sits in a short cylinder above its ring.
-    if (gG2>0.001) silk=min(silk,max(length(d.xz)-gRd*1.3,max(-d.y-0.08,d.y-gRd*1.7*gG2)));
+    if (gG2>0.001) silk=min(silk,max(length(d.xz)-gRd*1.3,max(-d.y-0.08,d.y-gRd*1.25*gG2)));
   }
   return vec3(density,min(dist,silk),silk);
 }
 `;
 const lattice = `
-vec3 inkExtent() { return vec3(1.75+0.85*gG1+0.45*gG2,2.3+0.55*gG1+0.5*gG2,1.75+0.85*gG1+0.45*gG2); }
-vec3 inkOffset() { return vec3(0.0,0.45-0.55*gG1+0.2*gG2,0.0); }
+vec3 inkExtent() { return vec3(1.75+0.85*gG1+1.35*gG2,2.3+0.55*gG1-0.75*gG2,1.75+0.85*gG1+1.35*gG2); }
+vec3 inkOffset() { return vec3(0.0,0.45-0.55*gG1+0.55*gG2,0.0); }
 const vec3 INK_GRID=vec3(96,128,96);
 const vec2 INK_TILE=vec2(98,130);
 const vec2 INK_ATLAS=vec2(1568,780);
@@ -522,39 +502,22 @@ vec4 inkSample(vec3 p) {
   return inkCell(p);
 #endif
 }
+// Ink barely diffuses: carve the cached body near its surface with ridged
+// detail (1-2 octaves, faded by footprint) so edges become crisp lobes and
+// creases. Deep inside and far outside the field is left untouched.
+float inkCarve(vec3 p, float raw, float fp) {
+  float near=smoothstep(0.0,0.1,raw)*(1.0-smoothstep(0.55,1.1,raw));
+  if (near<=0.0) return raw;
+  float r1=1.0-abs(inkNoise(p*9.0+vec3(0.0,-3.0*gPhase,gSeed)));
+  float r2=1.0-abs(inkNoise(p.zxy*21.0+vec3(gSeed,0.0,-4.0*gPhase)));
+  float detail=0.34*(r1*r1-0.5)*(1.0-smoothstep(0.03,0.07,fp))
+    +0.17*(r2*r2-0.5)*(1.0-smoothstep(0.012,0.03,fp));
+  return raw+near*detail*(0.35+0.3*gCurl)*(0.8+0.4*u_level);
+}
+const float INK_ISO=0.2;
 const int INK_STEP_CAP=96;
 float inkPhase(float mu, float g) {
   return (1.0-g*g)/pow(1.0+g*g-2.0*g*mu,1.5);
-}
-// Suspended motes on three cylindrical shells about the descent axis. They
-// rise past the lens at the ring's speed: the fall reads through parallax.
-vec3 inkMotes(vec3 ro, vec3 rd, float pix, float tMid, vec3 trans, vec3 lamp) {
-  vec3 sum=vec3(0);
-  float a2=max(dot(rd.xz,rd.xz),1e-6), b=dot(ro.xz,rd.xz), c0=dot(ro.xz,ro.xz);
-  float presence=0.02+0.035*u_level;
-  for (int i=0;i<2;++i) {
-    float R=i==0?2.2:4.1;
-    float disc=b*b-a2*(c0-R*R);
-    if (disc<0.0) continue;
-    for (int j=0;j<2;++j) {
-      float t=(-b+(j==0?-1.0:1.0)*sqrt(disc))/a2;
-      if (t<0.5) continue;
-      vec3 p=ro+rd*t;
-      float around=floor(TAU*R/0.26);
-      vec2 g=vec2((atan(p.z,p.x)/TAU+0.5)*around,(p.y-gPhase/TAU*7.28)/0.26);
-      vec2 cell=floor(g);
-      cell=vec2(mod(cell.x,around),mod(cell.y,28.0));
-      float h=hash(cell+vec2(float(i)*101.0,0.0));
-      if (h>presence) continue;
-      vec2 at=0.2+0.6*vec2(hash(cell+vec2(float(i)*101.0+0.5,7.0)),hash(cell+vec2(float(i)*101.0+0.25,13.0)));
-      float d=length(fract(g)-at)*0.26;
-      float size=max(t*pix*1.2,0.0045);
-      float face=smoothstep(0.15,0.45,abs(dot(normalize(vec3(p.x,0.0,p.z)),rd)));
-      float glow=exp(-sq(d/size))*sq(0.0045/size)*face;
-      sum+=glow*lamp*(0.5+0.8*inkPhase(dot(rd,gLight),0.5))*(t>tMid?trans:vec3(1.0))*(0.6+0.8*h/presence);
-    }
-  }
-  return sum*0.22;
 }
 void main() {
   inkSetup();
@@ -584,9 +547,11 @@ void main() {
   float skipMargin=0.6*length(2.0*bound/(INK_GRID-1.0))+0.01;
   // Dye colour: the palette colour squared and renormalized is the light that
   // survives the pigment, so thick ink deepens toward it. Two generations.
-  vec3 dyes[2], absorbs[2];
-  for (int g=0;g<2;++g) {
-    vec3 base=palette(0.06+0.18*float(g));
+  // Two generations of deep dye plus a second hue for thin sheets and lit
+  // rims (toward the palette's primary), so a palette reads in two colours.
+  vec3 dyes[3], absorbs[3];
+  for (int g=0;g<3;++g) {
+    vec3 base=g<2?palette(0.06+0.18*float(g)):mix(u_secondary,u_primary,0.85);
     float top=max(max(base.r,base.g),max(base.b,0.04));
     dyes[g]=base*base/top;
     absorbs[g]=1.0-0.9*dyes[g]/max(max(dyes[g].r,dyes[g].g),max(dyes[g].b,0.02));
@@ -597,7 +562,7 @@ void main() {
   float budget=96.0/clamp(u_raySteps,16.0,96.0), cell0=inkCellSize();
   gCell=cell0;
   vec3 prevSheet=vec3(9.0), prevWeight=vec3(0.0);
-  float prevStep=1.0;
+  float prevStep=1.0, prevField=0.0, prevT=start;
   bool prevOk=false;
   if (end>start) {
     float t=start;
@@ -609,13 +574,13 @@ void main() {
       // The cached distance (minus its trilinear error) skips empty water.
       float skip=cell.z-skipMargin;
       float fp=t*pix;
-      if (skip>0.0) { t+=clamp(skip,0.05,0.5); prevOk=false; continue; }
+      if (skip>0.0) { prevT=t; t+=clamp(skip,0.05,0.5); prevOk=false; prevField=0.0; continue; }
       // Bodies come from the cache at its own resolution; the march steps
       // at most about half a cell through them, longer through sparse or
       // already-hidden ink. One analytic octave adds native-resolution grain.
       bool nearSilk=cell.w<skipMargin;
       float span=max(1.5*fp,(cell.x>0.02?2.3:3.5)*cell0)*budget*(2.2-1.2*clear);
-      float grain=cell.x>0.02||nearSilk?inkNoise(p.yzx*23.0+vec3(-4.0*gPhase,0.0,gSeed))*(1.0-smoothstep(0.01,0.03,fp)):0.0;
+      float grain=0.0;
       vec3 sheet=vec3(9.0), weight=vec3(0.0);
       vec2 silk=nearSilk?inkSilk(p,rd,span,fp,grain,sheet,weight):vec2(0.0);
       float sheetTau=0.0;
@@ -624,34 +589,58 @@ void main() {
           sheetTau+=max(weight[k],prevWeight[k])*0.65*0.012*1.7725/
             max(abs(sheet[k]-prevSheet[k])/prevStep,0.1);
       prevSheet=sheet; prevWeight=weight; prevOk=nearSilk;
-      // A contrast curve on the cached field gives the bodies firmer,
-      // ink-like edges; the native grain perturbs them below a cell.
-      float body=1.3*smoothstep(0.02,0.75,cell.x*clamp(0.7+(0.3+0.5*u_level)*gCurl*grain,0.15,1.5));
+      // A steep density -> opacity curve on the carved field: crisp ink
+      // edges. Where a step enters the ink, bisect to the edge so the
+      // silhouette never shows the march's slices, and light its rim.
+      float field=inkCarve(p,cell.x,fp);
+      float edgeExtra=0.0, rim=0.0;
+      if (prevField<INK_ISO && field>=INK_ISO) {
+        float lo=prevT, hi=t;
+        for (int j=0;j<3;++j) {
+          float mid=0.5*(lo+hi);
+          vec3 pm=eye+rd*mid;
+          if (inkCarve(pm,inkSample(pm).x,mid*pix)>=INK_ISO) hi=mid; else lo=mid;
+        }
+        edgeExtra=t-0.5*(lo+hi);
+        // Backlit rim: silhouette-facing edges toward the key glow.
+        vec3 pe=eye+rd*hi;
+        float e=cell0*0.7;
+        float f0=inkSample(pe).x;
+        vec3 n=-normalize(vec3(inkSample(pe+vec3(e,0,0)).x-f0,
+          inkSample(pe+vec3(0,e,0)).x-f0,inkSample(pe+vec3(0,0,e)).x-f0)+vec3(1e-6));
+        rim=pow(1.0-abs(dot(n,rd)),2.0)*(0.3+0.7*max(dot(n,gLight),0.0));
+      }
+      prevField=field; prevT=t;
+      float body=0.75*smoothstep(INK_ISO-0.03,INK_ISO+0.03,field)+0.6*max(field-INK_ISO,0.0);
+      float thin=1.0-smoothstep(INK_ISO+0.02,0.8,field);
       // Bodies below the primary rim belong to the daughters' generation.
       float bodyGen=gG1*smoothstep(gPeak.y-0.05,gPeak.y-0.45,p.y)*smoothstep(0.6,1.1,length(p.xz));
       float stepLen=span;
-      float density=body+silk.x+sheetTau/stepLen, gen=mix(bodyGen,silk.y,silk.x/max(body+silk.x,1e-4));
+      float density=body*(1.0+edgeExtra/stepLen)+silk.x+sheetTau/stepLen;
+      float gen=mix(bodyGen,silk.y,silk.x/max(body+silk.x,1e-4));
+      float hue=clamp(max(sheetTau/max(sheetTau+body*stepLen,1e-4),0.35*thin),0.0,1.0);
       prevStep=stepLen;
       vec3 inside=bound-abs(p-offset);
       float box=smoothstep(0.0,0.3,min(min(inside.x,inside.y),inside.z));
-      vec3 dye=mix(dyes[0],dyes[1],gen), absorb=mix(absorbs[0],absorbs[1],gen);
+      vec3 dye=mix(mix(dyes[0],dyes[1],gen),dyes[2],hue);
+      vec3 absorb=mix(mix(absorbs[0],absorbs[1],gen),absorbs[2],hue);
       // Light reaching the sample (key optical depth) and, scattered inside
       // dense ink, crossing more dye: cores deepen and saturate while thin
       // sheets stay light and translucent. Exponents combined: two exps.
       vec3 keyDepth=cell.y*sigmaScale*(4.0-2.0*gG2)*mix(vec3(1),absorb,0.4);
-      vec3 inner=density*1.3*mix(vec3(1),absorb,0.7);
+      vec3 inner=min(density,1.6)*0.6*mix(vec3(1),absorb,0.7);
       vec3 alpha=1.0-exp(-density*box*sigmaScale*1.8*stepLen*mix(vec3(1),absorb,0.12));
       vec3 lit=exp(-keyDepth-inner);
       float band=u_rhythm.z>0.001?exp(-sq((p.y-bandY)/0.22))*u_rhythm.z:0.0;
       vec3 light=lit*(lamp*phaseInk*(1.0+0.15*u_rhythm.x)+u_accent*band*1.6)
         +fillLamp*exp(-0.5*keyDepth-inner);
       col+=trans*alpha*dye*light;
+      col+=trans*rim*dyes[2]*lamp*exp(-0.5*keyDepth)*(1.1+0.3*u_rhythm.x);
       trans*=1.0-alpha;
       t+=stepLen;
     }
   }
-  float tMid=dot(gCentre-eye,rd);
-  col+=inkMotes(eye,rd,pix,tMid,trans,lamp);
+
   col+=trans*bg;
   col*=1.0-0.25*smoothstep(0.8,2.1,length(uv));
   outColor=vec4(max(col,vec3(0)),1);
