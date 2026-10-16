@@ -396,27 +396,40 @@ export default {
     { rate: (p) => p[3] * 0.045, period: 2 * Math.PI },
     { rate: () => 0.065, period: 2 * Math.PI },
   ],
+  rhythmStyles: { restrained: "Still mercury", driving: "Magnetic breath", accented: "Chrome resonance" },
   rhythm: [
     familyEffect(
       "spike-swell",
       0,
       "Spike swell",
       "The magnetic crown swells without changing its hexagonal cell identities.",
-      { period: 4, strength: 0.55, duration: 1.25 },
+      { period: 4, strength: 0.55, duration: 1.25, steps: "X...", styles: {
+        restrained: { steps: "X....... | ......x. | ...X.... | ........", division: 2, strength: 0.48, duration: 1.8 },
+        driving: { steps: "X.....x. | ..X...x.", division: 2, strength: 0.72, duration: 0.9 },
+        accented: { steps: "X.........x..... | .....X.......x.. | ..X........x....", division: 4, strength: 0.86, duration: 1 },
+      } },
     ),
     familyEffect(
       "field-breath",
       1,
       "Field breath",
       "A slow magnetic breath stretches the same liquid body.",
-      { period: 8, strength: 0.5, duration: 2 },
+      { period: 8, strength: 0.5, duration: 2, steps: "X.......", styles: {
+        restrained: { steps: "....x... | ........ | .......X | ........", division: 2, strength: 0.45, duration: 2 },
+        driving: { steps: "...X.... | .......x", division: 2, strength: 0.68, duration: 1.5 },
+        accented: { steps: ".......X........ | ............x... | ....X...........", division: 4, strength: 0.82, duration: 1.5 },
+      } },
     ),
     familyEffect(
       "droplet-orbit",
       2,
       "Droplet orbit",
       "The persistent chrome satellites drift out from the sculpture.",
-      { period: 16, strength: 0.6, duration: 2.5 },
+      { period: 16, strength: 0.6, duration: 2.5, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | .....X.. | ........", division: 2, strength: 0.5, duration: 2.5 },
+        driving: { steps: "........ | ......x. | ........ | ....X...", division: 2, strength: 0.74, duration: 2 },
+        accented: { steps: "..............x. | ........X....... | ............X... | ......x.........", division: 4, strength: 0.9, duration: 1.5 },
+      } },
     ),
   ],
   fragment,

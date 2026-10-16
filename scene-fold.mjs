@@ -366,21 +366,40 @@ export default {
     { param: "streak", feature: "low", amount: 0.06 },
     { param: "rims", feature: "high", amount: 0.05 },
   ],
+  rhythmStyles: { restrained: "Paper hush", driving: "Crease dance", accented: "Thousand cranes" },
   rhythm: [
     familyEffect("edge-flash", 0, "Edge flash", "Every polygon edge flares at once.", {
       period: 4,
       strength: 0.6,
       duration: 0.5,
+      steps: "X...",
+      styles: {
+        restrained: { steps: "X.....x. | ...x..X.", division: 2, strength: 0.5, duration: 0.65 },
+        driving: { steps: "X.x..X.x | .X.x..X.", division: 2, strength: 0.76, duration: 0.35 },
+        accented: { steps: "X.x..X..x.X. | .x.X..x.X..x", division: 4, strength: 0.92, duration: 0.2 },
+      },
     }),
     familyEffect("fold-breath", 1, "Fold breath", "All hinges open slightly and close again.", {
       period: 8,
       strength: 0.6,
       duration: 1,
+      steps: "X.......",
+      styles: {
+        restrained: { steps: "....x... | .X......", division: 2, strength: 0.5, duration: 1.25 },
+        driving: { steps: "...X.... | ......x.", division: 2, strength: 0.74, duration: 1.1 },
+        accented: { steps: ".....X......x... | ...X........x...", division: 4, strength: 0.88, duration: 0.8 },
+      },
     }),
     familyEffect("core-flare", 2, "Core flare", "The light core flares and lights every face.", {
       period: 16,
       strength: 0.7,
       duration: 2,
+      steps: "X...............",
+      styles: {
+        restrained: { steps: "........ | ........ | .......X | ........", division: 2, strength: 0.55, duration: 2 },
+        driving: { steps: "........ | .....x.X | ........ | ......xX", division: 2, strength: 0.8, duration: 0.4 },
+        accented: { steps: "................ | .........x..X.xx", division: 4, strength: 0.96, duration: 0.18 },
+      },
     }),
   ],
   fragment,

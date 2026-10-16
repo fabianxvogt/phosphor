@@ -560,27 +560,40 @@ export default {
     { param: "glow", feature: "low", amount: 0.1 },
     { param: "light", feature: "high", amount: 0.06 },
   ],
+  rhythmStyles: { restrained: "Empty avenues", driving: "Window procession", accented: "Recursive rush" },
   rhythm: [
     familyEffect(
       "window-cohort",
       0,
       "Window cohort",
       "One seeded cohort of recursive windows lights together.",
-      { period: 4, strength: 0.6, duration: 1 },
+      { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
+        restrained: { steps: "X....... | .....x.. | ...X.... | ........", division: 2, strength: 0.5, duration: 1.25 },
+        driving: { steps: "X....x.. | .X....x.", division: 2, strength: 0.76, duration: 0.85 },
+        accented: { steps: "X......x........ | ...X......x.....", division: 4, strength: 0.9, duration: 0.7 },
+      } },
     ),
     familyEffect(
       "descent-impulse",
       1,
       "Flight impulse",
       "Advance the camera a bounded distance along its street and settle back.",
-      { period: 8, strength: 0.5, duration: 1, kind: "motion" },
+      { period: 8, strength: 0.5, duration: 1, kind: "motion", steps: "X.......", styles: {
+        restrained: { steps: "......x. | ........ | .......X | ........", division: 2, strength: 0.45, duration: 1.5 },
+        driving: { steps: "......x. | .......X | ........ | .....x..", division: 2, strength: 0.65, duration: 1 },
+        accented: { steps: "..........x..... | .............X.. | ......x......... | ...........X....", division: 4, strength: 0.8, duration: 0.9 },
+      } },
     ),
     familyEffect(
       "seam-surge",
       2,
       "Seam surge",
       "The sponge's recursive edges flare once.",
-      { period: 16, strength: 0.6, duration: 2 },
+      { period: 16, strength: 0.6, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | ...x.... | ........ | ......X.", division: 2, strength: 0.5, duration: 1.5 },
+        driving: { steps: "..x...X. | ...x..X.", division: 2, strength: 0.74, duration: 0.75 },
+        accented: { steps: "..x.X..x..X..x.. | .x..X.x..X..x.XX", division: 4, strength: 0.9, duration: 0.2 },
+      } },
     ),
   ],
   fragment,

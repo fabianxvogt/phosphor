@@ -719,27 +719,40 @@ void main() {
     { rate: (p) => p[1] * 0.16, period: 2 * Math.PI },
     { rate: (p) => p[6] * 0.035, period: 2 * Math.PI },
   ],
+  rhythmStyles: { restrained: "Distant rumble", driving: "Charged silence", accented: "Forked sky" },
   rhythm: [
     familyEffect(
       "buried-discharge",
       0,
       "Buried discharge",
       "A bounded discharge lights the interior of the same charged cloud.",
-      { period: 4, strength: 0.6, duration: 1.2 },
+      { period: 4, strength: 0.6, duration: 1.2, steps: "X...", styles: {
+        restrained: { steps: "X....... | .....x..", division: 2, strength: 0.5, duration: 1.1 },
+        driving: { steps: "X....x.. | ......Xx | ........ | ...X...x", division: 2, strength: 0.76, duration: 0.4 },
+        accented: { steps: "X..........x.... | .............Xx. | ...X.......x.... | ..............XX", division: 4, strength: 0.9, duration: 0.18 },
+      } },
     ),
     familyEffect(
       "branch-corona",
       1,
       "Branch corona",
       "A small ionisation glow expands around a persistent leader root.",
-      { period: 8, strength: 0.6, duration: 2 },
+      { period: 8, strength: 0.6, duration: 2, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | .......X", division: 2, strength: 0.5, duration: 1.5 },
+        driving: { steps: "...X.... | .......x | .....X.. | ........", division: 2, strength: 0.74, duration: 0.9 },
+        accented: { steps: ".....X.......x.. | ............X..x | ................ | .......X......x.", division: 4, strength: 0.88, duration: 0.5 },
+      } },
     ),
     familyEffect(
       "stepped-return",
       2,
       "Stepped return",
       "A return stroke traces the existing connected leader tree.",
-      { period: 16, strength: 0.65, duration: 2.5 },
+      { period: 16, strength: 0.65, duration: 2.5, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.55, duration: 2 },
+        driving: { steps: "........ | ......x. | ........ | .......X", division: 2, strength: 0.8, duration: 1.2 },
+        accented: { steps: "................ | ..............x. | ................ | .............X.X", division: 4, strength: 0.95, duration: 0.35 },
+      } },
     ),
   ],
 };
