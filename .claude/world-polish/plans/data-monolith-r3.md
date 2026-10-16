@@ -19,7 +19,29 @@ A monumental black-silicon memory tower bursts into a recursive addressed vault;
 
 Fragment per-port work may raise fill cost at 4K; use analytic local rectangles, no marches/new passes. Avoid camera rework unless evidence demands it (current CPU clearance and integrated clocks are sound). Do not add architectural connectors. Actual attribution is openai-codex/gpt-6.1-sol, resolving stale Opus co-author text in assignment. Final look score remains self-assessment, never write SCORES.
 
-## Execution / evidence
+## r4
+
+Review-first diagnosis: independent r3 L6.5 / Overall7 is accurate. Keep solid recessed-port matter, persistent CA identity, near/far contrast, local pink accents and all three rhythm placements.
+
+1. Composition: widen the assembled bank physically, reduce its height, frame its crown and base, offset the target, and stagger the back ranks into a dim depth layer. Update CPU camera/position references and clearance tests together.
+2. Material: replace olive diffuse slabs with secondary-led dark silicon, directional face gradients, panel recess shadow, narrow machined bevels and saturated primary conductors. Do not solve this with more bloom.
+3. Peak hierarchy: anisotropic memory modules, stronger distance falloff and deterministic port intensity variation; keep the recursive architecture legible but make the rewrite seam—not every striped cube—the brightest structure.
+4. Signature: replace repeated ten-unit planes with one oblique contiguous front; a passed-front mask changes binary port patterns and drives a small coherent bank turn. Keep scan-plane separate (thin, cool, no data rewrite). Lengthen write traversal while preserving existing placements/densities.
+
+Three film rounds required, including large extracted Assembly/Unfold and event stills. Audit energy/palette/portrait/reversal/late time, full tests/typecheck/i18n/format, native family checks and 1080p/4K + main pair. No schema/state/preset/rhythm IDs change; no HISTORY migration needed. Geometry remains 1296 persistent CA addresses and 225 bridges. Risk: wider blocks may collide with the late camera; conservative clearance tests gate it.
+
+### r4 execution / evidence
+
+- Round 1: wider/shorter banks, inset panels, stronger fog and single oblique front. Sheets plus large Assembly/peak read: rejected overly dark secondary-led lighting.
+- Round 2: broader shallow modules, titanium key light, pale cool ports, segmented words. Sheets and large stills read: material hierarchy improved, but x-travelling seam mostly crossed distant banks and empty space.
+- Round 3: swept the visible memory canopy with one oblique seam, coherent turn/retraction, staggered rear banks. Sheets and large stills read: foreground event now clear. CPU clearance exposed a mid-unfold camera collision.
+- Round 4: lowered peak crane from 12.5 to 10, kept continuous camera/identity, corrected anisotropic normals and replaced transient port phase offsets with explicit previous/current binary words. CPU clearance and native health pass. Sheets read: complete assembled crown, broader stepped bank, quiet near/far vault and local pink rewrite across adjacent modules. Final film and large Assembly/vault/event stills inspected; no further shader changes.
+- Retained all rhythm placements and density 2.75/7.75/13.25; driving rewrite duration 1.65 beats. No polyrhythm requested, so did not replace existing grooves.
+- Full tests 1020 pass/22 skip; native 12 pass; typecheck/build/DE+EN pass. Audit: 72 three-palette/energy/look checks, portrait, 180 limiter-enabled frames; zero GPU/nonfinite/browser errors. Extra Ember Broken Register reversal film inspected.
+- 1080p all states p50 2.1, worst p95 2.5 ms; 4K p50 5.4/5.7/7.8, p95 9.1/7.5/12.3 ms. Pair 1080p −30.3/−20/0%; 4K initial 0/+8.3/+8%, repeat +2/+5.9/+3.8%. Assembly remains above the relative script's +5% gate; absolute budgets pass. Both attempts retained rather than selecting a passing narrative.
+- Self-assessment L7.5, not independent acceptance: quiet own-palette vault remains dark/repetitive, but no olive panels or thin clipped tower. Final evidence `artifacts/look-review/data-monolith-r4/` includes standard film/sheets/grids and large individual event stills.
+
+## r3 execution / evidence
 
 - Merged main before rhythm work; rhythm-presets commit b3fec04 was present. No earlier dirty lane work existed.
 - Round 1: new solid faces, darkened bevels and recessed ports removed the wireframe appearance. Critique: too dim; write planes crossed mostly empty architecture.

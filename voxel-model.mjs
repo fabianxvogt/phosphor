@@ -3,7 +3,7 @@
 // s'(x,y,z) = XOR(s(x±1,y,z), s(x,y±1,z), s(x,y,z±1)).
 export const GENERATIONS = 27;
 export const SPACING = 15 / GENERATIONS;
-export const ASSEMBLY_PITCH = [0.46, 0.44, 0.46];
+export const ASSEMBLY_PITCH = [1.05, 0.28, 0.7];
 export const RAIN_HEIGHT = 14;
 export const MONOLITH = [8, 27, 6];
 export const COUNT = MONOLITH.reduce((a, b) => a * b);
@@ -89,7 +89,7 @@ export function identities(seed) {
         (h2 - 0.5) * 20,
       ],
       monolith: [
-        ((id % 8) - 3.5) * ASSEMBLY_PITCH[0],
+        ((id % 8) - 3.5) * ASSEMBLY_PITCH[0] + (Math.floor(id / 8) % 6) * 0.65,
         0.22 + Math.floor(id / 48) * ASSEMBLY_PITCH[1],
         ((Math.floor(id / 8) % 6) - 2.5) * ASSEMBLY_PITCH[2],
       ],
@@ -119,19 +119,36 @@ export function position(voxel, development, phase = 0) {
     (v, i) => (v + (voxel.monolith[i] - v) * a) * (1 - b) + voxel.target[i] * b,
   );
 }
+// CPU reference of the single write front and retained binary-word mask.
+// No modulo/storey repetition: adjacent banks share one spatial crossing.
+export function rewriteFrame(point, development, envelope, hit = 0) {
+  const e = Math.max(0, Math.min(1, envelope));
+  const phase = Math.max(0, Math.min(1, 1 - e + Math.min(hit, 0.025)));
+  const unfold = smooth(1, 2, development);
+  const address =
+    Math.abs(point[1]) + point[0] * (0.48 - 0.33 * unfold) - point[2] * 0.12;
+  const front = -2 + 13 * unfold + phase * (14 - 4 * unfold);
+  const gate = smooth(0, 0.1, e);
+  const wake = smooth(-0.25, 0.3, front - address) * gate;
+  return {
+    seam: Math.exp(-(((address - front) / 0.8) ** 2)) * gate,
+    wake,
+    written: Math.max(0, Math.min(1, 1 - gate + wake)),
+  };
+}
 // CPU camera reference: a low hall view cranes into the central CA void.
 export function cameraFrame(development, phase, distance = 1) {
   const a = smooth(0, 1, development),
     s = smooth(1, 2, development);
   const angle = 0.48 + 0.24 * Math.sin(phase);
-  const radius = ((8.3 + (7.3 - 8.3) * a) * (1 - s) + 5.8 * s) * distance;
+  const radius = ((8.3 + (11.8 - 8.3) * a) * (1 - s) + 5.8 * s) * distance;
   return {
     eye: [
       radius * Math.sin(angle),
-      1.35 + 11.15 * s + 0.18 * Math.sin(2 * phase),
+      (1.35 + 1.85 * a) * (1 - s) + 10 * s + 0.18 * Math.sin(2 * phase),
       radius * Math.cos(angle),
     ],
-    target: [0, (3.1 + (2.3 - 3.1) * a) * (1 - s) + 16 * s, 0],
+    target: [1.6 * a * (1 - s), (3.1 + (4.0 - 3.1) * a) * (1 - s) + 16 * s, 0],
   };
 }
 // Unit cube, shared by every instance and its depth-correct floor mirror.

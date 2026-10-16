@@ -10,23 +10,25 @@ float ss(float a,float b,float x){float t=clamp((x-a)/(b-a),0.,1.);return t*t*(3
 void camera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float dev=clamp(u_params[0],0.,2.),a=ss(0.,1.,dev),s=ss(1.,2.,dev);
  float angle=.48+.24*sin(u_clock[1]);
- float radius=mix(mix(8.3,7.3,a),5.8,s)*u_params[5];
- eye=vec3(radius*sin(angle),mix(1.35,12.5,s)+.18*sin(2.*u_clock[1]),radius*cos(angle));
- vec3 target=vec3(0.,mix(mix(3.1,2.3,a),16.,s),0.);
+ float radius=mix(mix(8.3,11.8,a),5.8,s)*u_params[5];
+ eye=vec3(radius*sin(angle),mix(mix(1.35,3.2,a),10.,s)+.18*sin(2.*u_clock[1]),radius*cos(angle));
+ vec3 target=vec3(1.6*a*(1.-s),mix(mix(3.1,4.0,a),16.,s),0.);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
 float lens(){return mix(1.6,1.32,ss(1.,2.,u_params[0]))*(1.+.018*clamp(u_kick,0.,1.));}
 vec3 fogColor(){return mix(u_secondary,u_primary,.25)*.008;}
-// Scheduled envelope moves a local write head, never a whole-frame flash.
-float rewrite(vec3 p){
+// One contiguous oblique write front, distinct from the horizontal cool scan.
+// x = narrow live seam, y = passed-front wake; no repeated storey planes.
+vec2 rewriteState(vec3 p){
  float e=clamp(u_rhythm.w,0.,1.);
- float phase=clamp(1.-e+min(u_rhythmHit.w,.05),0.,1.);
+ float phase=clamp(1.-e+min(u_rhythmHit.w,.025),0.,1.);
  float unfold=ss(1.,2.,u_params[0]);
- float height=mix(14.,10.,unfold);
- float address=mix(abs(p.y),mod(abs(p.y),10.),unfold);
- float y=mix(phase,1.-phase,mod(u_rhythmCount.w,2.))*height;
- return exp(-pow((address-y)/.9,2.))*ss(0.,.14,e);
+ float address=abs(p.y)+p.x*mix(.48,.15,unfold)-p.z*.12;
+ float y=mix(-2.,11.,unfold)+phase*mix(14.,10.,unfold);
+ float gate=ss(0.,.10,e);
+ return vec2(exp(-pow((address-y)/.8,2.)),ss(-.25,.3,y-address))*gate;
 }
+float rewrite(vec3 p){return rewriteState(p).x;}
 `;
 const vertex = `#version 300 es
 precision highp float;
@@ -65,7 +67,7 @@ void main(){
  vec3 target=a_target;target.xz*=u_params[3];
  vec3 p=mix(mix(rain,a_monolith,assemble),target,unfold);
  // Local row cohorts receive a bounded bit flip, never a population reset.
- float row=floor((a_monolith.y-.22)/.44+.5);
+ float row=floor((a_monolith.y-.22)/.28+.5);
  float cohort=1.-step(.5,abs(mod(row,8.)-mod(u_rhythmCount.z,8.)));
  float glitch=clamp(u_rhythm.z,0.,1.)*cohort*.30*u_params[6];
  p.x+=glitch*sin(6.28318530718*rnd);
@@ -78,8 +80,9 @@ void main(){
  halfSize=mix(halfSize,.248*u_params[4],unfold);
  vec3 local=a_position;
  float write=rewrite(p);
- float turn=(bit*.08+glitch)*2.+write*.34*(rnd-.5);
- p.x+=write*.13*sin(rnd*6.28318530718);
+ float wake=rewriteState(p).y;
+ float turn=(bit*.08+glitch)*2.+write*.20+wake*.075;
+ p.z-=write*.20;
  mat2 rot=mat2(cos(turn),-sin(turn),sin(turn),cos(turn));
  vec3 n=a_normal;local.xz=rot*local.xz;n.xz=rot*n.xz;
  float link=step(.0001,dot(a_link,a_link));
@@ -88,7 +91,10 @@ void main(){
  // Only rain can approach the lens. Fade its geometric size, not the whole
  // frame, before the near plane; fixed architecture never clips the camera.
  halfSize*=mix(ss(.55,1.25,length(p-eye)),1.,assemble);
- vec3 extent=mix(vec3(halfSize),(.5*span+vec3(.012))*unfold,link);
+ vec3 module=mix(vec3(halfSize),vec3(halfSize*2.20,halfSize*.59,halfSize*1.05),assemble);
+ vec3 extent=mix(module,(.5*span+vec3(.012))*unfold,link);
+ n=n/max(extent,vec3(.001));
+ n*=inversesqrt(max(dot(n,n),.00001));
  vec3 world=p+local*extent;
  float tail=1.-step(.5,dot(a_normal,a_normal));
  if(tail>.5){
@@ -149,14 +155,15 @@ void main(){
   col=mix(fogColor(),col,exp(-v_depth.x*mix(.038,.058,ss(1.,2.,dev))));
   outColor=vec4(max(col,vec3(0.)),1.);return;
  }
- vec3 base=mix(u_secondary,u_primary,.5+.4*v_info.x);
+ vec3 base=mix(u_secondary,vec3(1.),.20+.06*v_info.x);
+ vec3 portColor=mix(u_secondary,vec3(1.),.66);
  float cavities=.45+.55*ss(0.,2.8,abs(v_world.y));
  float fill=v_light.w;
  // Solid black-silicon faces, a broad key and a narrow physical bevel.
  float bevel=ss(.78,.99,edge);
- vec3 col=base*(.055+.64*diffuse)*cavities*(1.-bevel*.48);
- col+=u_secondary*fill*.12;
- col+=mix(base,vec3(1.),.08)*spec*.7;
+ vec3 col=base*(.045+.65*diffuse)*cavities*(1.-bevel*.65);
+ col+=u_secondary*fill*.055;
+ col+=mix(base,vec3(1.),.04)*spec*.5;
  float address=1.-step(.8,abs(mod(floor(v_info.w*1296.),16.)-mod(u_rhythmCount.x,16.)));
  float data=address*clamp(u_rhythm.x,0.,1.);
  float emit=(.11+u_params[2]*.16);
@@ -166,6 +173,12 @@ void main(){
  col+=u_primary*edges*(scan*.65+v_info.z*.6);
  // Face memory pads: an addressed bit-flip travels with the kick front.
  vec2 uv=a.x>.999?v_local.yz:(a.y>.999?v_local.xz:v_local.xy);
+ // A grazing directional gradient and machined inset lip, not a flat fill.
+ col*=.62+.38*ss(-1.,1.,uv.x*.65+uv.y*.35);
+ float recess=(1.-ss(.67,.78,abs(uv.x)))*(1.-ss(.66,.78,abs(uv.y)));
+ col*=1.-recess*.48;
+ float lip=(1.-ss(.012,.055,abs(abs(uv.x)-.75)))*(1.-ss(.70,.80,abs(uv.y)));
+ col+=base*lip*(.10+.28*diffuse);
  vec2 pad=abs(uv-vec2(-.27,.2));
  vec2 padAA=max(fwidth(uv),vec2(.015));
  float memory=(1.-ss(.13-padAA.x,.13+padAA.x,pad.x))*(1.-ss(.23-padAA.y,.23+padAA.y,pad.y));
@@ -177,22 +190,32 @@ void main(){
  float readout=1.-ss(.012-lineAA,.012+lineAA,line);
  col+=u_secondary*readout*(.025+scan*.18)*(1.-edges);
  // Energy enables more actual illuminated memory ports, not global gain.
- vec2 ports=vec2(abs(uv.x),abs(fract((uv.y*.5+.5)*4.)-.5));
+ vec2 ports=vec2(abs(uv.x),abs(fract((uv.y*.5+.5)*3.)-.5));
  vec2 portAA=max(fwidth(uv)*1.1,vec2(.03));
  float bank=(1.-ss(.53-portAA.x,.53+portAA.x,ports.x))
   *(1.-ss(.155-portAA.y,.155+portAA.y,ports.y));
- float register=step(.32,fract(v_info.x*83.+floor((uv.y*.5+.5)*4.)*.618));
- bank*=.22+.78*register;
+ vec2 writeState=rewriteState(v_world);
+ float write=writeState.x,wake=writeState.y;
+ float portRow=floor((uv.y*.5+.5)*3.);
+ float bitAddress=v_info.x*83.+portRow*.618+floor(uv.x*4.)*.37;
+ float oldWord=step(.43,fract(bitAddress+mod(u_rhythmCount.w-1.,2.)*.47));
+ float newWord=step(.43,fract(bitAddress+mod(u_rhythmCount.w,2.)*.47));
+ // Previous data ahead of the seam, retained current data behind it.
+ // Muting still silences the gesture; no autonomous rewrite oscillator.
+ float written=1.-ss(0.,.10,clamp(u_rhythm.w,0.,1.))+wake;
+ float register=mix(oldWord,newWord,clamp(written,0.,1.));
+ bank*=.10+.90*register;
  float enabled=step(v_info.x,.18+u_level*.55);
- float write=rewrite(v_world);
+ float portVariation=.35+.65*pow(v_info.x,2.);
  float interior=(1.-edges)*(1.-bevel*.55);
  col*=1.-bank*.45;
- col+=base*bank*interior*enabled*(1.65+data*2.6+scan*3.2);
- col+=u_accent*write*interior*(bank*4.5+memory*1.2+.25);
- col+=u_primary*write*(edges*.85+interior*.4);
+ col+=portColor*bank*interior*enabled*portVariation*(1.6+data*2.0+scan*.8);
+ col+=u_primary*bank*interior*enabled*wake*.65;
+ col+=u_accent*write*interior*(bank*5.+memory*.6+.28);
+ col+=u_primary*write*(edges*.65+interior*.12);
  col+=u_accent*(bank*interior*data*.7+memory*marked*v_info.z*2.5);
  if(v_info.y>.5)col*=v_depth.y*exp(-abs(v_world.y)*.075);
- col=mix(fogColor(),col,exp(-v_depth.x*mix(.038,.058,ss(1.,2.,dev))));
+ col=mix(fogColor(),col,exp(-v_depth.x*mix(.055,.11,ss(1.,2.,dev))));
  outColor=vec4(max(col,vec3(0.)),1.);
 }`;
 const background = `
@@ -473,7 +496,7 @@ export default {
             steps: "X...X... | ...X..X.",
             division: 2,
             strength: 1,
-            duration: 0.95,
+            duration: 1.65,
           },
           accented: {
             steps: "X...X..X....X... | ..X...X...X...X.",

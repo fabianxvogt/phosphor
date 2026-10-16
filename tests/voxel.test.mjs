@@ -37,6 +37,7 @@ import {
   createCube,
   createGeometry,
   cameraFrame,
+  rewriteFrame,
   createInstances,
 } from "../voxel-model.mjs";
 const scene = scenes.find((s) => s.id === "voxel");
@@ -107,10 +108,45 @@ test("rewrite is slot 3, all presets are dense and shader responses stay local",
   for (const shader of [scene.geometry.vertex, scene.geometry.fragment]) {
     assert.match(shader, /u_rhythm\.w/);
     assert.match(shader, /u_rhythmHit\.w/);
-    assert.match(shader, /u_rhythmCount\.w/);
-    assert.match(shader, /exp\(-pow\(\(address-y\)\/.9,2\.\)\)/);
+    assert.match(shader, /exp\(-pow\(\(address-y\)\/.8,2\.\)\)/);
+    assert.doesNotMatch(shader, /mod\(abs\(p.y\),10\.\)/);
   }
   assert.match(scene.geometry.fragment, /\.18\+u_level\*\.55/);
+  assert.match(scene.geometry.fragment, /u_rhythmCount\.w/);
+  assert.match(scene.geometry.fragment, /mix\(oldWord,newWord/);
+  assert.match(scene.geometry.vertex, /write\*\.20\+wake\*\.075/);
+  assert.match(scene.geometry.fragment, /mix\(\.055,\.11/);
+});
+
+test("rewrite is one moving front with a monotonic changed-data wake", () => {
+  for (const development of [0, 1, 1.5, 2]) {
+    let previousPeak = -Infinity;
+    for (const envelope of [1, 0.8, 0.6, 0.4, 0.2]) {
+      const rows = Array.from({ length: 361 }, (_, i) => {
+        const y = i / 10;
+        return { y, ...rewriteFrame([0, y, 0], development, envelope) };
+      });
+      const peak = rows.reduce((a, b) => (a.seam > b.seam ? a : b));
+      assert.ok(
+        peak.y >= previousPeak,
+        "front travels, never repeats by storey",
+      );
+      previousPeak = peak.y;
+      let lobes = 0;
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i].seam > 0.5 && rows[i - 1].seam <= 0.5) lobes++;
+        assert.ok(rows[i].written <= rows[i - 1].written + 1e-10);
+        assert.ok(Object.values(rows[i]).every(Number.isFinite));
+      }
+      assert.ok(lobes <= 1, "at most one contiguous bright seam");
+    }
+    for (const y of [0, 8, 16, 24, 32]) {
+      const settled = rewriteFrame([0, y, 0], development, 0);
+      assert.equal(settled.seam, 0, "muted envelope is silent");
+      assert.equal(settled.wake, 0, "bank returns mechanically");
+      assert.equal(settled.written, 1, "new data survives after the front");
+    }
+  }
 });
 
 test("CA step equals an independent dense six-neighbour XOR reference", () => {
@@ -257,9 +293,11 @@ test("persistent identities cover exactly the CA and move continuously in both d
 test("monumental framing keeps the low camera outside cubes and causal bridges", () => {
   const voxels = identities(1151),
     links = bridges(voxels);
-  assert.deepEqual(ASSEMBLY_PITCH, [0.46, 0.44, 0.46]);
+  assert.deepEqual(ASSEMBLY_PITCH, [1.05, 0.28, 0.7]);
+  const xs = voxels.map((v) => v.monolith[0]);
+  assert.ok(Math.max(...xs) - Math.min(...xs) > 10, "broad staggered bank");
   assert.equal(RAIN_HEIGHT, 14);
-  assert.ok(Math.max(...voxels.map((v) => v.monolith[1])) > 11.5);
+  assert.ok(Math.max(...voxels.map((v) => v.monolith[1])) < 7.6);
   assert.equal(Math.min(...voxels.map((v) => v.monolith[1])), 0.22);
   const boxDistance = (eye, center, extent) =>
     Math.hypot(
@@ -278,9 +316,10 @@ test("monumental framing keeps the low camera outside cubes and causal bridges",
           [true, true, true],
         );
         for (const v of voxels) {
-          // circumscribed extent also covers the bounded kick rotation.
+          // Conservative default-size module and rewrite bounds; the native
+          // suite also exercises scheduled row glitches and larger preset sizes.
           const p = position(v, d, 0),
-            extent = [0.4, 0.32, 0.4];
+            extent = [0.75, 0.25, 0.6];
           clearance = Math.min(clearance, boxDistance(eye, p, extent));
         }
         for (const { from, to } of links) {
@@ -303,7 +342,7 @@ test("monumental framing keeps the low camera outside cubes and causal bridges",
     Math.hypot(peak.eye[0], peak.eye[2]) < 6,
     "camera is inside the 30-unit architecture",
   );
-  assert.ok(peak.eye[1] > 12);
+  assert.ok(peak.eye[1] > 9.8);
 });
 
 test("recursive bridges join real cells, are axis-aligned, unique and never skip live cells", () => {
