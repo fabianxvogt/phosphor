@@ -2591,6 +2591,8 @@ export default {
   "The anchor rocks and the engaged involute tooth rims catch a local accent.": "The anchor rocks and the engaged involute tooth rims catch a local accent.",
   "A persistent shaft cohort catches a white glint without changing its meshing speed.": "A persistent shaft cohort catches a white glint without changing its meshing speed.",
   "A bounded light wave follows tooth rims out through the cathedral.": "A bounded light wave follows tooth rims out through the cathedral.",
+  "Escapement strike": "Escapement strike",
+  "An alternating pallet strike sends a narrow luminous stress front through gear faces, bearings and armillary rings.": "An alternating pallet strike sends a narrow luminous stress front through gear faces, bearings and armillary rings.",
   "Sleeping gears": "Sleeping gears",
   "Brass escapement": "Brass escapement",
   "Cathedral clock": "Cathedral clock",

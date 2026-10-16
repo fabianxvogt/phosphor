@@ -6,6 +6,7 @@ import { FAMILY_CATALOG } from "../family-catalog.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { shaderVariant } from "../scene-time.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 import { PALETTES } from "../palettes.mjs";
 import {
   MODULE,
@@ -202,14 +203,14 @@ test("Orrery sun stays centred and the crossed armillary fills the short side fo
     for (let i = 0; i < 3; i++) for (let theta = 0; theta < TAU; theta += 0.02) {
       const p = armillaryPosition(i, theta), q = sub(p, c.eye), z = dot(q, F);
       assert.ok(z > 2, "no near-plane crossing");
-      xs.push(dot(q, R) * 1.42 / z);
-      ys.push(dot(q, U) * 1.42 / z);
+      xs.push(dot(q, R) * 1.42 * 1.09 / z);
+      ys.push(dot(q, U) * 1.42 * 1.09 / z);
       close(distance(armillaryPosition(i, theta + TAU), p), 0);
     }
     const height = (Math.max(...ys) - Math.min(...ys)) / 2;
     const width = (Math.max(...xs) - Math.min(...xs)) / 2;
     assert.ok(height >= 0.6 && height <= 0.8, `height ${height}`);
-    assert.ok(width >= 0.6 && width <= 0.82, `width ${width}`);
+    assert.ok(width >= 0.8 && width <= 0.90, `width ${width}`);
     // The same short-side projection is used in landscape and portrait;
     // even the bounded 1.8% kick cannot crop a meridian at either aspect.
     assert.ok(Math.max(...xs.map(Math.abs), ...ys.map(Math.abs)) * 1.018 < 0.95);
@@ -371,7 +372,9 @@ test(
     const { mkdir, writeFile } = await import("node:fs/promises");
     const out = new URL("../artifacts/orrery/round3-gpu/", import.meta.url);
     await mkdir(out, { recursive: true });
-    const server = await serve(".", 48504),
+    const flag = process.argv.indexOf("--port");
+    const port = flag < 0 ? 48783 : Number(process.argv[flag + 1]);
+    const server = await serve(".", port),
       runtime = await launch({ rig: true, headless: true });
     const rows = [];
     try {
@@ -382,7 +385,7 @@ test(
           [360, 640],
           [3840, 2160],
         ])
-          for (const index of [0, 1, 2]) {
+          for (const index of [0, 1, 2]) for (const level of [0.1, 0.5, 0.9]) {
             const snapshot = presetSnapshot(scene, index);
             snapshot.palette = PALETTES.find((p) => p.id === palette).colors;
             await lab.page.evaluate(renderLook, {
@@ -392,12 +395,12 @@ test(
               width,
               height,
               frames: 2,
-              level: 0.1,
+              level,
               capture: false,
               pollHealth: false,
             });
             const row = await lab.page.evaluate(
-              ({ index, palette, width, height }) => {
+              ({ index, palette, width, height, level }) => {
                 const { engine } = window.__phosphorLab,
                   s = engine.slots.at(-1);
                 s.time = 43200;
@@ -436,6 +439,7 @@ test(
                   palette,
                   width,
                   height,
+                  level,
                   time: s.time,
                   mean: sum / (64 * 36 * 3),
                   peak,
@@ -447,7 +451,7 @@ test(
                   png,
                 };
               },
-              { index, palette, width, height },
+              { index, palette, width, height, level },
             );
             assert.equal(row.glError, 0);
             assert.equal(row.nonFinite, 0);
@@ -456,7 +460,7 @@ test(
             assert.equal(row.late, true);
             if (row.png)
               await writeFile(
-                new URL(`${palette}-${width}-${index}.png`, out),
+                new URL(`${palette}-${width}-${index}-${level}.png`, out),
                 Buffer.from(row.png, "base64"),
               );
             delete row.png;
@@ -506,9 +510,23 @@ test(
 test("rhythm acts locally on the signature; parameter-dependent phases use integrated clocks", () => {
   assert.deepEqual(
     scene.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16],
+    [4, 8, 16, 16],
   );
-  assert.equal(scene.rhythm.length, 3);
+  assert.equal(scene.rhythm.length, 4);
+  const signature = scene.rhythm.find((r) => r.slot === 3);
+  assert.equal(signature.id, "escapement-strike");
+  for (const [style, minimum] of [["restrained", 2], ["driving", 6], ["accented", 8]]) {
+    assert.ok(signature.styles[style]);
+    const pattern = defaultPattern(scene.rhythm, style);
+    const hitsPerBar = pattern.tracks.reduce((sum, t) =>
+      sum + t.steps.filter((v) => v > 0).length * t.division * 4 / t.length, 0);
+    assert.ok(hitsPerBar >= minimum, `${style}: ${hitsPerBar} hits/bar`);
+    assert.ok(signature.styles[style].steps.filter((v) => v > 0).length >= 2);
+  }
+  assert.match(scene.geometry.vertex, /u_rhythmHit.w/);
+  assert.match(scene.geometry.vertex, /u_rhythmCount.w/);
+  assert.match(scene.geometry.fragment, /clamp\(u_rhythm.w/);
+  assert.match(scene.geometry.fragment, /v_p-origin/);
   const shader = scene.geometry.vertex;
   assert.match(shader, /a_motion.x\*drive\(\)\+a_motion.y/);
   assert.match(shader, /kind>2.5&&kind<3.5/);
