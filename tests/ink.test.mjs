@@ -15,6 +15,9 @@ import ink, {
   INK_ATMOS,
   inkStream,
   inkCross,
+  inkSheetIntegral,
+  inkEventProgress,
+  inkAngle,
 } from "../scene-ink.mjs";
 import scenes from "../scenes.mjs";
 import { catalogLooks } from "../catalog.mjs";
@@ -118,8 +121,8 @@ test("Kaden roll-up: sheets lie on rho/a = (c/theta)^(2/3), denser toward the co
       assert.ok(inner < x && inner2 < inner && x - inner > inner - inner2);
     }
   // The shader phase is c x^-1.5 - theta + roll with |grad| from dPhi/dx.
-  assert.match(ink.fragment, /K=gTurns\/\(x\*sqrt\(x\)\)/);
-  assert.match(ink.fragment, /S1=\(K\+gRoll-theta\)\/TAU/);
+  assert.match(ink.fragment, /K=turns\/\(x\*sqrt\(x\)\)/);
+  assert.match(ink.fragment, /FP=rP\.x\+gRoll-rP\.y/);
   const x = 0.9,
     c = 6,
     h = 1e-6;
@@ -245,26 +248,96 @@ test("sheet integral reference and characteristic dye have no opaque isosurfaces
   }
   assert.ok(Math.abs(1.7725 - SQRT_PI) < 1e-4);
   assert.match(ink.precompute.fragment, /vec3 X=inkOrigin\(p\)/);
-  assert.match(ink.fragment, /vec4 density=max\(inkSample\(p,offset,bound\)/);
-  // The cache contains physical concentrations, never palette colours.
+  assert.match(ink.fragment, /vec3 q=vec3\(s\.xy,max\(gRP\+s\.x,0\.08\)\)/);
+  // Cache only smooth poloidal coordinates, never palette or density.
   assert.doesNotMatch(
     ink.precompute.fragment,
     /u_primary|u_secondary|u_accent/,
   );
-  assert.match(
-    ink.precompute.fragment,
-    /return vec4\(sheet,core,sheet\*accent,/,
-  );
-  assert.match(ink.fragment, /inkSheet\(dP,0\.025,fp\)/);
+  assert.match(ink.precompute.fragment, /return vec4\(q\.xy,daughter\)/);
+  assert.match(ink.fragment, /inkSheet\(havePrev\?prevP:skinP,skinP,w,len\)/);
+  assert.match(ink.fragment, /inkSpiral\(havePrev\?prevFP:FP,FP,wfP,len\)/);
+  assert.doesNotMatch(ink.fragment, /dot\(p,vec3\(31,7,-19\)\)/);
   assert.doesNotMatch(ink.fragment, /INK_ISO|inkCarve|prevField/);
   // The straight drop tail and pinched-neck threads are gone (L0 review):
   // necks dissolve as they pinch, wakes are the bells.
   assert.doesNotMatch(ink.fragment, /twisted pair of threads|sine\*span/);
 });
 
-test("guttered half-float physical atlas has bijective nodes and matching shader layout", () => {
-  const grid = [96, 128, 96],
-    tile = [98, 130],
+test("native quartic quadrature resolves sub-step sheets, including reverse rays", () => {
+  for (const width of [0.003, 0.013, 0.02]) {
+    for (const [d0, d1] of [
+      [-0.4, 0.3],
+      [0.3, -0.4],
+      [-0.01, 0.03],
+      [0.4, 0.5],
+      [0, 0],
+    ]) {
+      const n = 20000;
+      let reference = 0;
+      for (let i = 0; i < n; i++) {
+        const d = d0 + ((d1 - d0) * (i + 0.5)) / n;
+        reference += Math.max(1 - ((0.6 * d) / width) ** 2, 0) ** 2 / n;
+      }
+      assert.ok(
+        Math.abs(inkSheetIntegral(d0, d1, width, 1) - reference) < 0.002,
+      );
+    }
+  }
+});
+
+test("native range-reduced angle preserves sheet phase in every quadrant", () => {
+  for (let i = 0; i <= 10000; i++) {
+    const a = -Math.PI + (2 * Math.PI * i) / 10000;
+    const p = [Math.cos(a), Math.sin(a)];
+    assert.ok(Math.abs(inkAngle(p) - Math.atan2(p[1], p[0])) < 0.00021);
+  }
+  assert.equal(inkAngle([0, 0]), 0);
+});
+
+test("packet flight recovers envelope progress, keeps four filaments and fill timing", () => {
+  for (let i = 0; i <= 100; i++) {
+    const progress = i / 100;
+    const x = 1 - progress;
+    assert.ok(
+      Math.abs(inkEventProgress(0.9 * x * x * (3 - 2 * x)) - progress) < 1e-7,
+    );
+  }
+  assert.match(ink.fragment, /for \(int i=0;i<4;\+\+i\)/);
+  assert.match(ink.fragment, /dir\*0\.62\*fly/);
+  assert.match(
+    ink.fragment,
+    /inkLayer\(heart\.x\*dense,heart\.y,accent\*0\.03/,
+  );
+  assert.match(ink.fragment, /inkMiss\(ro,rd,centre,radius\)/);
+  const density = (style) =>
+    ink.rhythm.reduce((sum, gesture) => {
+      const pattern = gesture.styles[style];
+      return (
+        sum +
+        (pattern.steps.filter((v) => v > 0).length * 4 * pattern.division) /
+          pattern.steps.length
+      );
+    }, 0);
+  assert.ok(density("driving") >= 6);
+  assert.ok(density("accented") >= 8);
+  assert.equal(ink.rhythm[2].styles.driving.steps.length, 6);
+  assert.equal(ink.rhythm[2].styles.accented.steps.length, 12);
+  for (const style of ["restrained", "driving", "accented"]) {
+    const p = ink.rhythm[3].styles[style];
+    p.steps.forEach((hit, i) => {
+      if (hit)
+        assert.ok(
+          (i / p.division) % 8 >= 6,
+          `${style} hit at beat ${i / p.division}`,
+        );
+    });
+  }
+});
+
+test("guttered half-float coordinate atlas has bijective nodes and matching shader layout", () => {
+  const grid = [64, 96, 64],
+    tile = [66, 98],
     columns = 16,
     atlas = [tile[0] * columns, tile[1] * Math.ceil(grid[2] / columns)];
   assert.deepEqual(ink.precompute.size, atlas);
@@ -290,12 +363,12 @@ test("guttered half-float physical atlas has bijective nodes and matching shader
       }
   assert.equal(addresses.size, grid[0] * grid[1] * grid[2]);
   for (const source of [
-    "const vec3 INK_GRID=vec3(96,128,96);",
-    "const vec2 INK_TILE=vec2(98,130);",
-    "const vec2 INK_ATLAS=vec2(1568,780);",
+    "const vec3 INK_GRID=vec3(64,96,64);",
+    "const vec2 INK_TILE=vec2(66,98);",
+    "const vec2 INK_ATLAS=vec2(1056,392);",
   ])
     assert.ok(ink.fragment.includes(source), source);
-  assert.ok(ink.precompute.fragment.includes("int z=(py/130)*16+pixel.x/98;"));
+  assert.ok(ink.precompute.fragment.includes("int z=(py/98)*16+pixel.x/66;"));
   // Trilinear interpolation of a 1-Lipschitz distance errs by at most half a
   // cell diagonal; the skip subtracts more than that.
   assert.match(
@@ -403,7 +476,7 @@ test("eight stable looks, id-selected world, gestures, step budget and dark tank
   // The march honours the engine's ray-step budget (governor 96/64/40).
   assert.match(
     ink.fragment,
-    /int limit=int\(min\(float\(INK_STEP_CAP\),\(0\.5-0\.04\*gG2\)\*u_raySteps\)\)/,
+    /int limit=int\(min\(float\(INK_STEP_CAP\),\(0\.23-0\.01\*gG2\)\*u_raySteps\)\)/,
   );
   assert.match(ink.fragment, /budget=96\.0\/clamp\(u_raySteps,16\.0,96\.0\)/);
   // Dark tank: no cream lamp field; colour only from the palette.
