@@ -45,17 +45,17 @@ export const N = {
 // camera development. crane: elevation swing; offset: look-at drift.
 export const CAMERA = {
   distance: [3.0, 2.6, 4.0],
-  elevation: [.32, .72, .34],
+  elevation: [.32, .72, .44],
   crane: [.1, .3, .12],
   offset: [.3, .36, .14],
-  craneDolly: .12,
+  craneDolly: .22,
   heightGain: 1.1,
   lift: .03,
   focal: 1.85,
 };
 // Camera development follows the show's development through a critically
 // damped spring: a one-bar drop never lurches the camera.
-export const FOLLOW = { omega: 1.8, vmax: .6 };
+export const FOLLOW = { omega: 1.4, vmax: .45 };
 // Zel'dovich web data box (cloud frame) and its sampling grid.
 export const WEB_BOX = [2.2, 1.1, 2.2];
 export const WEB_GRID = [112, 56, 112];
@@ -310,8 +310,11 @@ export function position(world, ident, env) {
       j * Math.sin(wob + 1.7 + ident.q[0] * 2),
       j * Math.cos(wob + ident.q[2] * 2),
     ];
+    // Tracers stream along S into the nodes over their own cycle; the
+    // shader darkens them where the cycle wraps (streamLight).
+    const tau = streamPhase(ident, clock);
     const disp = rotY(
-      S.map((v, i) => v * growth + jitter[i]),
+      S.map((v, i) => v * growth * (1 + 0.7 * (tau - 0.5)) + jitter[i]),
       cloud + psi,
     );
     pos = pos.map((v, i) => v + disp[i] * (1 - p));
@@ -391,8 +394,10 @@ export function cameraFraming(camDev, clock, { distance = 1, height = .66, seed 
     CAMERA.heightGain * (h - .66) + craneAmp * crane +
     CAMERA.lift * Math.sin(2 * Math.PI * cycle(clock, N.lift))));
   const yaw = 2 * Math.PI * (cycle(clock, N.yaw) + rnd(key, 0, 907));
-  const dist = distance * mix3(CAMERA.distance) * (1 + CAMERA.craneDolly * w[1] * crane) *
-    (1 + .03 * Math.sin(2 * Math.PI * cycle(clock, N.dolly)));
+  // Never closer than 2.0: outside the disk and the web's dense core.
+  const dist = Math.max(2, distance * mix3(CAMERA.distance) *
+    (1 + CAMERA.craneDolly * w[1] * crane * smooth(0, .5, h)) *
+    (1 + .03 * Math.sin(2 * Math.PI * cycle(clock, N.dolly))));
   const eye = [dist * Math.cos(elevation) * Math.sin(yaw), dist * Math.sin(elevation),
     dist * Math.cos(elevation) * Math.cos(yaw)];
   const f0 = norm(eye.map((v) => -v));
@@ -448,6 +453,12 @@ export function shellPoint(world, ident, from, clock, growth = 1.8, shock = 1) {
   const front = shockFront(R, clock, shock);
   return nd.map((v) => v * (R + 0.08 * front));
 }
+// Streaming phase of a dust tracer in [0, 1) and its light (zero at wrap).
+export function streamPhase(ident, clock) {
+  const t = cycle(clock, N.stream) + ident.tone;
+  return t - Math.floor(t);
+}
+export const streamLight = (t) => Math.sin(Math.PI * t);
 // Position along a pulsar jet in [0, 1) for jet stars (bulge, layer > 0.72),
 // −1 otherwise. The flow wraps where jetLight is zero, so no star pops.
 export function jetPhase(ident, clock) {

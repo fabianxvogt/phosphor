@@ -24,9 +24,16 @@ import {
   potential,
   progress,
   psiRate,
-  radianceCloudPoint,
-  radianceShellRadius,
-  radianceShellEnvelope,
+  DISK_MAP,
+  FOLLOW,
+  MODES,
+  OCTA,
+  WEB_GRID,
+  followStep,
+  shellRadius,
+  streamLight,
+  streamPhase,
+  webDensity,
   sedovTaylor,
   shockFront,
   worldOf,
@@ -118,6 +125,13 @@ test("position is continuous in time at every development, including clock wrap"
         if (ta >= 0 && tb < ta) {
           // A pulsar-jet star re-enters at the core only while unlit.
           assert.ok(jetLight(ta) < 0.01 && jetLight(tb) < 0.01);
+          continue;
+        }
+        const sa = streamPhase(id, clock),
+          sb = streamPhase(id, (clock + step) >>> 0);
+        if (dev < 1 && id.kind !== 2 && sb < sa) {
+          // A streaming dust tracer restarts its run only while dark.
+          assert.ok(streamLight(sa) < 0.01 && streamLight(sb) < 0.01);
           continue;
         }
         // One frame of motion stays small (shock fronts included).
@@ -310,9 +324,10 @@ test("Nova freezes the record and Sedov–Taylor fronts expand as t^(2/5)", () =
 
 test("dust extinction integrates only the finite emitter-to-eye column", () => {
   assert.equal(nebula.particles.blend, undefined, "no screen-space absorber overlay");
-  assert.match(nebula.particles.vertex, /nbTransmission\(pos, cam.eye, key, clock, arms\)/);
+  assert.match(nebula.particles.vertex, /nbTransmission\(pos, cam.eye, twist, pattern\)/);
   assert.match(nebula.particles.vertex, /id >= 118784u/);
-  assert.match(nebula.particles.vertex, /\.60138029 \/ h \* \(1\. - a \* a\)/);
+  assert.match(nebula.particles.vertex, /\.60138029 \/ h \* \(1\. - t \* t\)/);
+  assert.match(nebula.fragment, /nbColumn\(xa, xb, h\)/, "the volume integrates the same exact column");
   assert.equal(dustColumn([0, .7, 0], [0, 3, 0]), 0, "foreground star is untouched");
   assert.ok(dustColumn([0, -.7, 0], [0, 3, 0]) > .999, "background star sees the slab");
   for (const [start, eye] of [
@@ -334,93 +349,135 @@ test("dust extinction integrates only the finite emitter-to-eye column", () => {
   assert.equal(dustColumn([0, -.1, 0], [1, .3, 0]), dustColumn([1, .3, 0], [0, -.1, 0]));
 });
 
-test("radiance carriers are continuous geometry with conservative finite bounds", () => {
-  const eye = [2.1, 3.2, -1.7];
-  const direction = [-.34, -.78, .23];
-  const ray = direction.map(v => v / Math.hypot(...direction));
-  let previous = null;
-  for (let i = 0; i <= 400; i++) {
-    const dev = i / 200;
-    const { point, t, thickness } = radianceCloudPoint(eye, ray, dev);
-    assert.ok(thickness >= .035 - 1e-10 && thickness <= .65);
-    assert.ok(t > 0 && point.every(Number.isFinite));
-    const metricLength = q => Math.hypot(q[0], q[1] / thickness, q[2]);
-    for (const dt of [-.1,.1]) {
-      const neighbour = eye.map((v,k) => v + ray[k] * (t+dt));
-      assert.ok(metricLength(point) <= metricLength(neighbour) + 1e-12);
-    }
-    const R = radianceShellRadius(dev);
-    if (previous) assert.ok(Math.abs(R-previous) < .01);
-    previous = R;
-    const n = dev <= 1 ? 0 : (dev-1)**2 * (3-2*(dev-1));
-    for (let a = -Math.PI; a < Math.PI; a += .1) {
-      const r = radianceShellRadius(dev,a);
-      assert.ok(r > 0);
-      assert.ok(r * 1.16 <= SHELL * (.25 + .75*n) * 1.16 + 1e-12, "no clipped shell tails");
-      assert.equal(r, R, "spherical support independent of viewing angle");
+test("the web's densest node is the seeded nucleus and the pulsar, at every clock", () => {
+  // Every potential mode crests at the origin (phase π): no displacement
+  // there, and the linear overdensity Σ amp·(−cos) is maximal, for any
+  // breathing of the amplitudes. The bulge and the pulsar sit at the same point.
+  for (const clock of [0, 123456789, 3e9, TWO32 - 1]) {
+    for (const v of zeldovich(world, [0, 0, 0], clock)) assert.ok(Math.abs(v) < 1e-12);
+    assert.equal(webDensity(world, [0, 0, 0], clock).node, 1);
+    for (let i = 0; i < 300; i++) {
+      const x = [Math.sin(i * 1.7) * 1.6, Math.cos(i * 2.3) * 0.7, Math.sin(i * 0.9 + 1) * 1.6];
+      const d = webDensity(world, x, clock);
+      assert.ok(d.node < 1 && Number.isFinite(d.rho) && d.rho >= 0);
     }
   }
-  assert.doesNotMatch(nebula.fragment, /sin\(5\.\*angle\)|cos\(11\.\*angle\)/);
+  assert.match(nebula.particles.vertex, /float kk = max\(dot\(k, k\), 1e-3\), arg = dot\(k, q\) \+ NB_PI;/);
+  assert.match(nebula.fragment, /exp\(-impact \* impact \/ \.012\)/, "nucleus at the origin");
+  assert.match(nebula.fragment, /exp\(-coreR2 \/ \.0016\)/, "hot core and pulsar at the origin");
+  // The mode table the simulation writes mirrors worldOf().
+  assert.match(nebula.simulation.fragment, /z \* \.85, r \* sin\(az\)\)\) \* \(5\. \+ 5\. \* nbRnd\(key, m, 902u\)\)/);
+  assert.equal(world.modes.length, MODES);
+  for (const m of world.modes) assert.ok(m.kLen >= 5 && m.kLen <= 10 && m.phase === Math.PI);
 });
 
-test("spherical shock emission has a bright turbulent limb and a C1 outer fade", () => {
-  for (const dev of [1, 1.1, 1.5, 2]) {
-    const R = radianceShellRadius(dev);
-    for (const noise0 of [0, .5, 1]) for (const noise1 of [0, .5, 1]) {
-      const at = r => radianceShellEnvelope(dev, r*R, noise0, noise1);
-      assert.equal(at(.94).cover, 1);
-      assert.equal(at(1.16).cover, 0);
-      assert.equal(at(1.2).cover, 0);
-      assert.ok(at(.87).limb > .8 && at(.87).limb > 100*at(0).limb);
-      assert.ok(at(1.05).cover > 0 && at(1.05).cover < 1);
-      assert.ok(at(1.16-1e-5).cover < 1e-7, "no hard support edge");
-      let previous = 1;
-      for (let i=94; i<=120; i++) {
-        const {cover,limb} = at(i/100);
-        assert.ok(Number.isFinite(limb) && limb >= 0 && limb <= 1);
-        assert.ok(cover <= previous && cover >= 0);
-        previous = cover;
-      }
+test("mode table and camera spring use spare state texels only", () => {
+  const W = SIZE[0];
+  for (let m = 0; m < MODES; m++)
+    for (let c = 1; c <= 4; c++) {
+      const id = (SIZE[1] - 1) * W + 8 * m + c;
+      assert.ok(id >= ABSORBERS, "beyond the tracer population");
+      assert.notEqual((id - ABSORBERS) & 7, 0, "never a near-field mote");
+    }
+  for (const id of [1, 2]) assert.notEqual(id & 3, 0, "never a ψ tracer");
+  assert.match(nebula.simulation.fragment, /cell\.y == 255 && cell\.x < 128/);
+});
+
+test("remnant breaks out of the disk as bipolar lobes and rounds into a sphere", () => {
+  let previous = shellRadius(1, 0);
+  for (let i = 0; i <= 200; i++) {
+    const dev = 1 + i / 200;
+    const eq = shellRadius(dev, 0),
+      pole = shellRadius(dev, 1);
+    assert.ok(eq >= previous - 1e-12, "the shell only grows with development");
+    assert.ok(Math.abs(eq - previous) < 0.02, "continuous");
+    assert.ok(pole >= eq);
+    previous = eq;
+  }
+  assert.ok(shellRadius(1.4, 1) > 1.25 * shellRadius(1.4, 0), "bipolar breakout");
+  assert.equal(shellRadius(2, 1), shellRadius(2, 0), "spherical at the top state");
+  assert.ok(Math.abs(shellRadius(1, 0) - 0.1 * SHELL) < 1e-12);
+  // No development-locked flash: ignition is a steady structural state.
+  assert.doesNotMatch(nebula.fragment + nebula.particles.vertex, /ignite/);
+});
+
+test("camera spring never lurches and settles without overshoot", () => {
+  for (const [from, to] of [[1, 2], [0, 2], [2, 0], [2, 1]]) {
+    let state = { d: from, v: 0 },
+      peak = 0;
+    for (let k = 0; k < 60 * 8; k++) {
+      state = followStep(state, to);
+      peak = Math.max(peak, Math.abs(state.v));
+      assert.ok(state.d >= Math.min(from, to) - 1e-9 && state.d <= Math.max(from, to) + 1e-9, "no overshoot");
+    }
+    assert.ok(peak <= FOLLOW.vmax + 1e-12);
+    assert.ok(Math.abs(state.d - to) < 0.01, `settles ${from}→${to}`);
+  }
+  // A one-bar drop: the view turns slower than a quarter of the short side
+  // per second, including orbit and crane at 1.5× motion speed.
+  const step = clockStep(1 / 60, 1.5);
+  const dir = (c) => {
+    const v = c.target.map((t, i) => t - c.eye[i]);
+    const l = Math.hypot(...v);
+    return v.map((x) => x / l);
+  };
+  for (const clock0 of [0, 1e9, 3e9]) {
+    let state = { d: 1, v: 0 },
+      clock = clock0;
+    let prev = cameraFraming(state.d, clock);
+    for (let k = 0; k < 60 * 5; k++) {
+      state = followStep(state, 2);
+      clock = (clock + step) >>> 0;
+      const next = cameraFraming(state.d, clock);
+      const a = dir(prev),
+        b = dir(next);
+      const turn = Math.acos(Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])) * 60;
+      assert.ok(turn < (0.25 * 2) / CAMERA.focal, `view turns ${turn.toFixed(3)} rad/s`);
+      // Size changes by under half per second: at ~80% of the short side its
+      // silhouette moves under a fifth of the short side per second.
+      assert.ok((Math.abs(next.distance - prev.distance) * 60) / next.distance < 0.5, "dolly rate");
+      prev = next;
     }
   }
-  assert.match(nebula.fragment, /R\*1\.17/);
-  assert.match(nebula.fragment, /cavity\*n/);
+  assert.match(nebula.simulation.fragment, /vel = clamp\(vel \+ acc \* u_dt, -0\.45, 0\.45\)/);
 });
 
-test("closer tilted camera is continuous, bounded and never enters the hero", () => {
-  assert.deepEqual(CAMERA.distance, [3.95, 2.9, 3.7]);
-  for (const clock of [0, 1e9, 3e9, TWO32-1]) {
-    let previous = cameraFraming(0, clock);
-    for (let i=0; i<=400; i++) {
-      const dev = i/200, frame = cameraFraming(dev, clock);
-      assert.ok(Math.abs(frame.distance-previous.distance) < .02);
-      assert.ok(frame.elevation >= .77 && frame.elevation <= .91);
-      const near = cameraFraming(dev, clock, {distance:.7});
-      assert.ok(near.distance > (dev <= 1 ? 1.9 : SHELL*1.17) + .04);
-      previous = frame;
-    }
-    assert.ok(cameraFraming(0,clock).distance < 4.5);
-    assert.ok(cameraFraming(1,clock).distance < 3.5);
-  }
-  assert.match(nebula.fragment, /c\.focal = 1\.85 \* \(1\. \+ \.02/);
+test("camera stays outside the forms for every fader position", () => {
+  for (const clock of [0, 7e8, 2e9, 4e9])
+    for (const distance of [0.7, 1, 1.4])
+      for (const height of [0, 0.08, 0.35, 0.66, 1])
+        for (const dev of [0, 0.5, 1, 1.5, 2]) {
+          const c = cameraFraming(dev, clock, { distance, height });
+          const r = Math.hypot(...c.eye),
+            rxz = Math.hypot(c.eye[0], c.eye[2]);
+          if (dev === 0) assert.ok(r > 1.95, "outside the web's dense core");
+          if (dev >= 0.5 && dev <= 1.5)
+            assert.ok(rxz > 1.78 || Math.abs(c.eye[1]) > 0.12, "never inside the disk");
+          if (dev >= 1.5) assert.ok(r > shellRadius(dev, c.eye[1] / r) * 1.12, "outside the remnant");
+        }
 });
 
-test("fixed particle budget and optional scalar data cache, never a colour-image cache", () => {
-  assert.deepEqual(SIZE,[512,256]);
-  assert.deepEqual(nebula.simulation.size,SIZE);
-  assert.deepEqual(nebula.precompute.size,[128,129]);
-  assert.match(nebula.precompute.fragment,/nbCorners\(cell\)/);
-  assert.match(nebula.fragment,/texelFetch\(u_precomputed, i & 127, 0\)/);
-  assert.match(nebula.fragment,/#else\s+return nbCorners\(i\)/);
-  assert.match(nebula.fragment,/exp\(-clusterR2\/knotWidth\)/, "HII cores are Gaussian knots, not thresholded noise plaques");
-  assert.match(nebula.fragment,/cellFade.x\*cellFade.y/, "cluster tails vanish at cell boundaries");
-  assert.match(nebula.particles.vertex,/s.kind != 2 && \(id & 7u\) != 0u/);
-  assert.match(nebula.simulation.fragment,/id >= 118784u \|\| \(id & 7u\) != 0u/);
-  const skies = sample(1000,101).filter(s => s.kind === 2);
-  const depths = skies.map(s => Math.hypot(...position(world,s,{clock:0,dev:0})));
+test("fixed particle budget; data atlas holds scalar fields, never a colour image", () => {
+  assert.deepEqual(SIZE, [512, 256]);
+  assert.deepEqual(nebula.simulation.size, SIZE);
+  assert.equal(nebula.precompute.format, "rgba16f");
+  assert.equal(nebula.precompute.filter, "linear");
+  assert.deepEqual(nebula.precompute.size, [
+    8 * (WEB_GRID[0] + 2) + DISK_MAP,
+    Math.max((WEB_GRID[1] / 8) * (WEB_GRID[2] + 2), DISK_MAP, OCTA),
+  ]);
+  // Direct fallbacks evaluate the same fields when no float target exists.
+  assert.match(nebula.fragment, /#else\s+return nbWebField\(x, clock, u_params\[2\]\);/);
+  assert.match(nebula.fragment, /#else\s+return nbShellData\(dn, clamp\(u_level, 0\., 1\.\)\);/);
+  assert.match(nebula.fragment, /#else\s+return nbDiskData\(/);
+  assert.match(nebula.particles.vertex, /s.kind != 2 && \(id & 3u\) != 0u/);
+  assert.match(nebula.simulation.fragment, /id >= 118784u \|\| \(id & 3u\) != 0u/);
+  assert.match(nebula.particles.vertex, /if \(\(m & 7u\) != 0u\) return;/, "an eighth of the dormant rows are near-field motes");
+  const skies = sample(1000, 101).filter((s) => s.kind === 2);
+  const depths = skies.map((s) => Math.hypot(...position(world, s, { clock: 0, dev: 0 })));
   assert.ok(Math.min(...depths) >= 7 && Math.max(...depths) < 16);
-  assert.ok(Math.max(...depths)-Math.min(...depths) > 5, "real star-field depth");
-  assert.equal(ABSORBERS,118784);
+  assert.ok(Math.max(...depths) - Math.min(...depths) > 5, "real star-field depth");
+  assert.equal(ABSORBERS, 118784);
 });
 
 test("shader constants follow the CPU model", () => {

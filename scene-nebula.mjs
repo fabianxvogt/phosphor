@@ -150,8 +150,9 @@ NbCam nbCamera(uint clock, float d) {
   float el = clamp(dot(w, ${v3(CAMERA.elevation)}) + ${f(CAMERA.heightGain)} * (height - .66) + craneAmp * crane
     + ${f(CAMERA.lift)} * sin(NB_TAU * nbCycle(clock, ${N.lift}u)), -.05, 1.35);
   float yaw = NB_TAU * (nbCycle(clock, ${N.yaw}u) + nbRnd(key, 0u, 907u));
-  c.dist = u_params[5] * dot(w, ${v3(CAMERA.distance)}) * (1. + ${f(CAMERA.craneDolly)} * w.y * crane)
-    * (1. + .03 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u)));
+  // Never closer than 2.0: outside the disk and the web's dense core.
+  c.dist = max(2., u_params[5] * dot(w, ${v3(CAMERA.distance)}) * (1. + ${f(CAMERA.craneDolly)} * w.y * crane * nbSmooth(0., .5, height))
+    * (1. + .03 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u))));
   c.eye = c.dist * vec3(cos(el) * sin(yaw), sin(el), cos(el) * cos(yaw));
   vec3 r0 = normalize(cross(-c.eye, vec3(0., 1., 0.)));
   float fr = NB_TAU * (nbCycle(clock, ${N.frame}u) + nbRnd(key, 0u, 909u));
@@ -525,7 +526,7 @@ vec2 nbWebField(vec3 x, uint clock, float growth) {
   float filament = max(1. / max(a.y, .26) - .85, 0.);
   float node = max(0., -.5 * web.w);
   float env = exp(-pow(length(x.xz) / 1.8, 4.)) * exp(-nbSq(x.y / .8));
-  float rho = ((.1 * max(sheet - 1.5, 0.) + .5 * sheet * filament) * (1. - .85 * nbSmooth(.35, .8, node)) + 3. * pow(node, 6.)) * env;
+  float rho = ((.1 * max(sheet - 1.5, 0.) + .5 * sheet * filament) * (1. - .9 * nbSmooth(.2, .6, node)) + 3. * pow(node, 6.)) * env;
   vec3 dir = web.xyz / max(length(web.xyz), 1e-5);
   vec3 c = nbRot * x * 3.2;
   c -= .55 * dot(c, dir) * dir;
@@ -630,6 +631,15 @@ ${lanes}
 ${fields}
 ${shellData}
 ${atlas}
+// ∫ exp(−|m∘(o + t·d)|²/s²) dt on t < tc and t > tc (erf ≈ tanh form).
+vec2 nbGaussPath(vec3 o, vec3 d, vec3 m, float s, float tc) {
+  vec3 om = o * m, dm = d * m;
+  float A = dot(dm, dm), B = dot(om, dm), C = dot(om, om);
+  float total = s * 1.7724539 / sqrt(A) * exp(-(C - B * B / A) / (s * s));
+  float z = clamp((tc + B / A) * sqrt(A) / s, -6., 6.);
+  float front = .5 * (1. + tanh(1.12838 * z + .10066 * z * z * z)) * total;
+  return vec2(front, total - front);
+}
 vec2 nbEllipsoid(vec3 o, vec3 d, vec3 r) {
   vec3 oo = o / r, dd = d / r;
   float a = dot(dd, dd), b = dot(oo, dd), c = dot(oo, oo) - 1.;
@@ -653,17 +663,17 @@ void main() {
   vec3 webR = vec3(mix(1.97, 1.66, p), .9 * mix(1., .1, p), mix(1.97, 1.66, p));
   if (wWeb > .001) { b = nbEllipsoid(cam.eye, ray, webR); span = vec2(min(span.x, b.x), max(span.y, b.y)); }
   if (wDisk > .001) {
-    // Thin slab inside the disk radius, plus the bulge: their hull.
-    vec2 slab = nbEllipsoid(cam.eye, ray, vec3(1.78, .16, 1.78));
-    vec2 bulge = nbEllipsoid(cam.eye, ray, vec3(.75, .5, .75));
-    b = vec2(min(slab.x, bulge.x), max(slab.y, bulge.y));
+    // Only the thin slab is marched; the bulge is integrated analytically.
+    b = nbEllipsoid(cam.eye, ray, vec3(1.78, .16, 1.78));
     span = vec2(min(span.x, b.x), max(span.y, b.y));
   }
   if (wShell > .001) { b = nbEllipsoid(cam.eye, ray, R0 * vec3(1.15, 1.15 * (1. + lobe), 1.15)); span = vec2(min(span.x, b.x), max(span.y, b.y)); }
   float along = -dot(cam.eye, ray);
   float impact = length(cam.eye + ray * along);
   vec3 col = vec3(0.);
-  float T = 1., Tcore = 1.;
+  float T = 1., Tcore = 1., Tpre = 1., Tpost = 1.;
+  float tPlane = abs(ray.y) > 1e-4 ? -cam.eye.y / ray.y : 1e9;
+  float sb = .26 * mix(1., .22, nbSmooth(0., .35, n));
   if (span.y > max(span.x, .05)) {
     float t0 = max(span.x, .05), t1 = span.y;
     float minSide = min(u_resolution.x, u_resolution.y);
@@ -676,7 +686,7 @@ void main() {
     vec2 hole = vec2(1e9, -1e9);
     if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .72));
     float skip = max(0., min(hole.y, t1) - max(hole.x, t0));
-    float steps = clamp(ceil((t1 - t0 - skip) / mix(.075, .15, k4)), 8., mix(28., 16., k4));
+    float steps = clamp(ceil((t1 - t0 - skip) / mix(.075, .15, k4)), wWeb + wShell > .001 ? 8. : 2., mix(28., 16., k4));
     float dt = (t1 - t0 - skip) / steps;
     uvec2 pix = uvec2(gl_FragCoord.xy);
     float t = t0 + dt * float(nbHash(pix.x * 1973u + pix.y * 9277u + 0x2a1bu) >> 8) / 16777216.;
@@ -685,8 +695,6 @@ void main() {
     float twist = 1.35 * (2.2 + .9 * nbRnd(key, 0u, 905u)) * u_params[3];
     float pattern = NB_TAU * nbCycle(clock, ${N.pattern}u);
     float flatten = mix(1., .1, p);
-    float sb = .26 * mix(1., .22, nbSmooth(0., .35, n));
-    float bulgeAmp = p * (1. - nbSmooth(.55, 1., n)) * mix(4., 7., nbSmooth(0., .35, n)) * (1. + 1.2 * u_rhythm.y);
     float armPulse = mix(.15, 1.8, 1. - u_rhythm.x), ripple = 2.6 * (1. - u_rhythm.z);
     float shellPhase = NB_TAU * nbCycle(clock, 2u); // 720 s per turn, exact at wrap
     mat2 shellTurn = mat2(cos(shellPhase), -sin(shellPhase), sin(shellPhase), cos(shellPhase));
@@ -710,7 +718,7 @@ void main() {
           w.y /= flatten;
         }
         // Finite cloud: the envelope reaches zero inside the march bound.
-        float env = (1. - nbSmooth(1.35, 1.95, length(w.xz))) * (1. - nbSmooth(.45, .88, abs(w.y)));
+        float env = 1. - nbSmooth(.68, 1., length(w / vec3(1.95, .88, 1.95)));
         if (env > 0.) {
           vec2 web = nbWebAt(w, clock);
           float fib = nbSmooth(.25, .85, web.y);
@@ -733,21 +741,18 @@ void main() {
         vec3 xa = x - ray * dt * .5, xb = x + ray * dt * .5;
         float column = nbColumn(xa, xb, h) / dt;
         // Star-forming knots sit in a thinner layer than the stellar disk.
-        float knotColumn = nbColumn(xa, xb, .012) / dt;
+        float knotColumn = min(nbColumn(xa, xb, .012), 1.2) / dt;
         // Arms: clumpy star-forming gas; the brightest clumps go white-hot.
         float hotC = nbSmooth(1.1, 2.4, armLight);
         // Lanes are cold, opaque dust: they stop emitting and hide what is behind.
         float dark = exp(-laneK * 1.25);
         vec3 E = surface * dark * (cGas * .1 * (.5 + arm) + cArm * armLight * 1.8 * (1. - .4 * hotC) + cHot * hotC * 2.2);
         if (u_rhythm.x > 0.) E += cArm * arm * surface * u_rhythm.x * 3. * exp(-nbSq((rd - armPulse) / .15));
-        float K = surface * (laneK * 3.2 + .3 * arm);
-        e += wDisk * clear * cAcc * knots * surface * 16. * dark * knotColumn * 2.;
+        float K = surface * (laneK * 3.2 + .3 * arm + .5); // + diffuse midplane dust (edge-on lane)
+        e += wDisk * clear * cAcc * knots * surface * 16. * dark * knotColumn * 2. * mix(.25, 1., nbSmooth(.05, .35, abs(ray.y)));
         e += wDisk * clear * E * column * 2.;
         sigma += wDisk * clear * K * column;
         matter += wDisk * clear * surface * column * (1. + arm) * .5;
-        // Bulge: old hot stars, compact, rising into the steady hot core.
-        float bulge = exp(-(dot(x.xz, x.xz) + nbSq(x.y / .62)) / (sb * sb));
-        e += cHot * bulge * bulgeAmp + mix(cGas, cHot, .4) * exp(-(dot(x.xz, x.xz) + nbSq(x.y / .5)) / .16) * .6 * wDisk;
       }
       if (wShell > .001) {
         vec3 d = x / max(r, 1e-4);
@@ -768,7 +773,7 @@ void main() {
         float fil = sh.x * band;
         fil *= .55 + .45 * sin(NB_TAU * (u * 11. - ejecta) + 6. * ridge2);
         float rim = exp(-nbSq((u - 1.035 - lift) / .009)) * nbSmooth(.5, .8, s0.y) * nbSmooth(.25, .6, s0.x);
-        vec3 E = mix(cGas, cHot, .4 * s0.x) * limb * (.25 + .9 * s0.y) * 1.6 + mix(cArm, cHot, pow(ridge2, 5.)) * fil * 7.
+        vec3 E = mix(cGas, cHot, .4 * s0.x) * limb * (.08 + 1.4 * s0.y * s0.y) * .9 + mix(cArm, cHot, pow(ridge2, 5.)) * fil * 9.
           + cAcc * rim * 1.1
           + cAcc * fil * pow(ridge2, 12.) * 6.;
         E += mix(cArm, cHot, .5) * fil * u_rhythm.x * 3.;
@@ -781,11 +786,22 @@ void main() {
       // The remnant's interior holds only smooth haze: stride through it.
       col += T * e * dt;
       if (t < along) Tcore = T;
+      float Tbefore = T;
       T *= exp(-sigma * dt);
+      if (t - .5 * dt < tPlane) { Tpost = T; Tpre = t + .5 * dt < tPlane ? T : Tbefore; }
       if (T < .02) break;
       t += dt;
     }
     if (t1 < along) Tcore = T;
+  }
+  if (wDisk > .001 || (p > 0. && n < 1.)) {
+    // Bulge: old hot stars, compact, rising into the steady hot core. Path
+    // integrals split at the disk plane: lanes hide the far half.
+    float bulgeAmp = p * (1. - nbSmooth(.55, 1., n)) * mix(2.4, 5., nbSmooth(0., .35, n)) * (1. + 1.2 * u_rhythm.y);
+    vec2 core = nbGaussPath(cam.eye, ray, vec3(1., 1. / .62, 1.), sb, tPlane);
+    vec2 halo = nbGaussPath(cam.eye, ray, vec3(1., 1. / .5, 1.), .4, tPlane);
+    col += cHot * bulgeAmp * (core.x * Tpre + core.y * Tpost)
+      + mix(cGas, cHot, .4) * .6 * wDisk * (halo.x * Tpre + halo.y * Tpost);
   }
   if (n > 0.) {
     // Remnant interior: synchrotron haze around the pulsar and the
@@ -793,7 +809,7 @@ void main() {
     float sig = .32 * R0;
     float haze = sig * 1.7725 * exp(-impact * impact / (sig * sig));
     float shockC = nbCycle(clock, ${N.shock}u);
-    float F = 2.35 * pow(shockC, .4) * R0 / NB_SHELL, fw = .035;
+    float F = R0 * pow(shockC, .4), fw = .035; // Sedov–Taylor R ∝ t^(2/5), inside the shell
     float sphere = F > impact ? 2. * fw * 1.7725 / max(sqrt(1. - nbSq(impact / F)), sqrt(2. * fw / max(F, .01)))
       : fw * 1.7725 * sqrt(2. * F / fw) * exp(-nbSq((impact - F) / fw));
     float front = u_params[7] * nbSmooth(0., .05, shockC) * (1. - shockC) * sphere * nbSmooth(.05, .3, F);
@@ -908,10 +924,10 @@ export default {
     look("Drifting Dust", 3141, 0),
     look("Grand Spiral", 3141, 1),
     look("Supernova Shell", 3141, 2),
-    look("Cosmic Web", 1618, 0, { web: 2.4, distance: 0.92, height: 0.3 }),
-    look("Edge-on Lanes", 2718, 1, { height: 0.08, distance: 1.06, arms: 1.25 }),
+    look("Cosmic Web", 1618, 0, { web: 2.4, distance: 0.95, height: 0.8, speed: 1.2 }),
+    look("Edge-on Lanes", 2718, 1, { height: 0.08, distance: 0.8, arms: 1.25 }),
     look("Open Whirlpool", 577, 1, { height: 0.92, arms: 0.85, distance: 1.02 }),
-    look("Remnant Bloom", 4669, 2, { distance: 1.02, height: 0.35, shock: 1.3 }),
+    look("Remnant Bloom", 4669, 2, { distance: 0.82, height: 0.35, shock: 1.3 }),
   ],
   stage: ["speed", "web", "shock"],
   type: { key: "development", values: [0, 1, 2] },
