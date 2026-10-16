@@ -58,7 +58,7 @@ export const CAMERA = {
 export const FOLLOW = { omega: 1.4, vmax: .45 };
 // Zel'dovich web data box (cloud frame) and its sampling grid.
 export const WEB_BOX = [2.2, 1.1, 2.2];
-export const WEB_GRID = [112, 56, 112];
+export const WEB_GRID = [96, 48, 96];
 export const OCTA = 512; // remnant direction map (octahedral), texels per side
 export const DISK_MAP = 512; // disk map texels per side over ±DISK_EXTENT
 export const DISK_EXTENT = 1.8;

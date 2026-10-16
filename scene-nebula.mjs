@@ -539,6 +539,8 @@ vec2 nbWebField(vec3 x, uint clock, float growth) {
   float node = max(0., -.5 * web.w);
   float env = exp(-pow(length(x.xz) / 1.8, 4.)) * exp(-nbSq(x.y / .8));
   float rho = ((.1 * max(sheet - 1.5, 0.) + .5 * sheet * filament) * (1. - .9 * nbSmooth(.2, .6, node)) + 3. * pow(node, 6.)) * env;
+  // Voids carry no light: skip their fibres (the volume weights by rho).
+  if (rho < .02) return vec2(rho, .5);
   vec3 dir = web.xyz / max(length(web.xyz), 1e-5);
   vec3 c = nbRot * x * 3.2;
   c -= .55 * dot(c, dir) * dir;
