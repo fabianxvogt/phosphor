@@ -15,11 +15,11 @@ Medusae, swarms, chains, shafts and plankton are placed by a seeded integer hash
 
 ## States (world Abyssal Bloom, seed 61)
 
-| Development | State | Form |
-| --- | --- | --- |
-| 0 | Sparks | Near-total darkness, marine snow, blinking plankton, five lone medusae drifting past; the other large medusae and the swarms glow faintly far away and go dark as the camera nears. |
-| 1 | Swarms | Every large medusa has lit up (jellyfish bloom), siphonophore chains, plankton clouds that light where disturbed, first swarm members. |
-| 2 | Reef | The camera sinks and tilts towards a glowing reef forest; medusae settle into a lower band just above the reef; full swarms pulse on the beat, light waves ripple through plankton, reef and seabed, shafts and caustics from above. |
+| Development | State  | Form                                                                                                                                                                                                                                 |
+| ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0           | Sparks | Near-total darkness, marine snow, blinking plankton, five lone medusae drifting past; the other large medusae and the swarms glow faintly far away and go dark as the camera nears.                                                  |
+| 1           | Swarms | Every large medusa has lit up (jellyfish bloom), siphonophore chains, plankton clouds that light where disturbed, first swarm members.                                                                                               |
+| 2           | Reef   | The camera sinks and tilts towards a glowing reef forest; medusae settle into a lower band just above the reef; full swarms pulse on the beat, light waves ripple through plankton, reef and seabed, shafts and caustics from above. |
 
 In between, medusae light up in birth order, plankton visibly gathers, reef patches grow from their roots and the camera lowers continuously; from development 1.2 the medusae and swarm centres settle (y → −0.25 + 0.35·(y − 0.8)), so the tilted Reef camera keeps near bells inside the top of the frame. `reefGrowth`, `jellyReveal` and `settleY` are the CPU mirrors (pure functions, so reversal retraces the same frames; a paused 0.5 → 1.7 → 0.5 redraw is pixel-identical on the GPU).
 
@@ -50,9 +50,9 @@ The fill cost is mostly the opaque seabed shader, not the translucent overdraw (
 
 Whole-frame throughput (`profile-families.mjs --types --frames 30`, M3 Pro, control Living Forms in the same run; the GPU was quieter than in the wave-2 run, so compare ratios):
 
-| Output | Sparks | Swarms | Reef | Control |
-| --- | --- | --- | --- | --- |
-| 1920×1080 p50 / p95 | 2.2 / 2.5 ms | 2.7 / 2.9 ms | 3.0 / 3.2 ms | 1.5 / ≤ 1.8 ms |
+| Output              | Sparks       | Swarms       | Reef         | Control            |
+| ------------------- | ------------ | ------------ | ------------ | ------------------ |
+| 1920×1080 p50 / p95 | 2.2 / 2.5 ms | 2.7 / 2.9 ms | 3.0 / 3.2 ms | 1.5 / ≤ 1.8 ms     |
 | 3840×2160 p50 / p95 | 4.6 / 4.8 ms | 5.3 / 5.4 ms | 6.0 / 6.1 ms | 3.4–3.8 / ≤ 4.1 ms |
 
 4K ratio to the control: 1.3–1.7× (Reef 1.6–1.7×; before the polish, HEAD in the same run: Reef 6.1 ms). The 8.0–8.3 ms reported in wave 2 was measured on a GPU shared with four other lanes (control 4.6–5.6 ms then); Reef stays under 8 ms at 4K here.
@@ -83,10 +83,10 @@ bell (3 × maximum radius + 0.7 drift); CPU tests prove the rejection bound.
 
 Native M3 Pro p50 ms, state order Sparks / Swarms / Reef:
 
-| Output | Initial baseline | Final | Adjacent baseline replay (`deaaae1`) |
-| --- | --- | --- | --- |
-| 1080p | 2.1 / 2.5 / 3.1 | 2.5 / 2.7 / 3.1 | 2.4 / 2.9 / 3.4 |
-| 4K | 4.7 / 5.7 / 7.3 | 5.4 / 6.0 / 7.0 | 6.0 / 8.7 / 7.9 |
+| Output | Initial baseline | Final           | Adjacent baseline replay (`deaaae1`) |
+| ------ | ---------------- | --------------- | ------------------------------------ |
+| 1080p  | 2.1 / 2.5 / 3.1  | 2.5 / 2.7 / 3.1 | 2.4 / 2.9 / 3.4                      |
+| 4K     | 4.7 / 5.7 / 7.3  | 5.4 / 6.0 / 7.0 | 6.0 / 8.7 / 7.9                      |
 
 The five-lane shared GPU varied substantially; adjacent replay is the fairer
 comparison, not a claim that the first baseline became intrinsically slower.
@@ -99,6 +99,83 @@ portrait sweep. Reviewed strips and full-size ladder stills. Honest rating:
 **8.5/10** — much stronger living glass and first read, but the landscape
 breakdown remains intentionally sparse and the reef still has illustrative
 branching fans. No claim of collision simulation or venue cadence.
+
+## Round 3 — living relay (2026-10-16)
+
+The independent baseline supersedes the optimistic historical self-rating above:
+L 6.5 / G 2 / E 2 (overall 4.5). The three state names, eight look names, seeds,
+parameters and world description are unchanged. The five lone medusae now form
+an alternating-sided sequence 9/17/25/38/52 units ahead of the seeded initial
+camera. CPU and shader placement agree; the camera-clearance tests still pass.
+Whole animals fade smoothly before reaching the lens instead of leaving a
+cropped bright cap at the border. A small portrait-only gaze adjustment retains
+the sentinel in narrow frames; landscape camera motion is unchanged.
+
+Bells have eight wavering radial canals, a less white fresnel and an accent
+organ in the sentinel. Gorgonian sectors are cupped in depth, with changing
+normals, irregular vein intensity and small polyps rather than a prominent
+crossbar grid. Sea-pen leaves have dark inner tissue, edge emission and a
+raking key. Parallax, fog, scale variation and the reef's opaque depth buffer
+remain intact. Energy still changes current/pulse speed, swarm density,
+reactivity and sway, never global brightness.
+
+### Four authored rhythm tracks
+
+- Slot 0 **Bell beat**: stronger, separated contractions (at most two/bar).
+- Slot 1 **Plankton wave**: separated simulated shell launches.
+- Slot 2 **Reef cascade**: quicker local crown/pen/fan answers.
+- Slot 3 **Living relay** (`living-relay`): a finite-speed bioluminescent fill
+  across polyps, bell canals and plankton. A single `u_rhythmHit.w` latches age
+  and strength in reserved texel 14; `u_rhythmCount.w` alternates the side and
+  `u_rhythm.w` supplies strength. The relay decays after two seconds; it does
+  not repeat-inject while its sequencer envelope is held. It works at every
+  development, not only Reef. No new render pass, mesh topology or limiter
+  changes.
+
+Presets: **Abyssal hush**, **Lantern drift**, **Reef awakening**; respectively
+4.3 / 7.8 / 12.8 family hits per bar. Driving relay sixteenth steps (1-based)
+4, 15, 23, 31 in a two-bar loop; accented 3, 9, 15, 21, 27, 31; restrained
+15 and 29 in a four-bar eighth-note loop. Structural contractions/launches
+stay sparse while local living light fills the grid.
+
+Three change/capture/critique rounds are retained under
+`artifacts/look-review/deep-sea-r3-round{1,2,3}/`: rhythm/colour, composition
+and reef tissue, then alternating depths and bell canals. The first pass
+still had cropped medusae; the second improved framing but needed saturated
+organs and a counterbalancing left animal; the third retains those fixes.
+The portrait verification then prompted the narrow-screen gaze correction.
+Final reviewer evidence: `artifacts/look-review/deep-sea-r3/`.
+
+`node scripts/verify-abyss.mjs --rig --port 48902` checks 19 native cases:
+three energies at each state, Glacier/Ember/Acid Yellow, portrait, 12-hour
+shader time, finite uploads and GL health. Its presented captures retain the
+live flash limiter; paused development reversal is compared separately in
+the scene FBO so limiter history cannot contaminate equality. Review films
+and standard throughput harnesses have their documented offline capture
+semantics; they are not live photosensitivity or venue-cadence certification.
+
+Native M3 Pro throughput, 30 samples per state (p50 / p95, milliseconds):
+
+| Output    | Sparks    | Swarms    | Reef      |
+| --------- | --------- | --------- | --------- |
+| 1920×1080 | 2.3 / 2.5 | 2.7 / 3.0 | 3.1 / 3.5 |
+| 3840×2160 | 5.3 / 5.7 | 5.8 / 6.5 | 6.6 / 6.9 |
+
+Interleaved ABBA versus main `28b6a9c`, same engine and native GPU: p50
+changes Sparks/Swarms/Reef are +4.35% / 0% / 0% at 1080p and
++2.08% / +1.85% / +1.45% at 4K. Both pair gates pass (<5% per state);
+raw samples are in `artifacts/perf-pair-final/` and `artifacts/perf-pair-4k/`.
+
+All states are inside the 8/16 ms p50 budgets. Zero GL errors and non-finite
+uploads in every measured state. Native verification passed 19/19 cases;
+paused 0.5→1.7→0.5 returned 0 differing downsampled channels (the intervening
+state changed 6040). Low-energy mean max-channel values are 5.8 / 7.0 / 19.0
+out of 255, with 7.2 / 8.9 / 67.9% of pixels above 8: Sparks is still
+intentionally dark, not claimed to have uniform screen coverage.
+
+`npm test`: 979 passed, 21 opt-in browser cases skipped; typecheck, build,
+DE/EN native i18n and scoped Prettier pass. Shared dictionaries receive only
+additive keys; their pre-existing whole-file formatting is not rewritten.
 
 ## Limits
 

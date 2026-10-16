@@ -2506,6 +2506,8 @@ export default {
   "A shell of light ripples outwards through the plankton.": "Eine Lichtschale breitet sich wellenförmig durch das Plankton aus.",
   "Reef cascade": "Riffkaskade",
   "A front of light sweeps across the reef: crowns, sea pens and fans flare in turn.": "Eine Lichtfront zieht über das Riff: Kronen, Seefedern und Fächer leuchten nacheinander auf.",
+  "Living relay": "Lebendes Lichtband",
+  "A bioluminescent fill travels across reef polyps, bell canals and plankton, alternating sides.": "Ein biolumineszentes Fill wandert abwechselnd von beiden Seiten durch Riffpolypen, Glockenkanäle und Plankton.",
   "Abyssal hush": "Tiefseestille",
   "Lantern drift": "Laternen treiben",
   "Reef awakening": "Rifferwachen",
