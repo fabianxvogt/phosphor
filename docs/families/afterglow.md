@@ -1,112 +1,121 @@
 # Afterglow Garden
 
 **Exploratory / empirical.** World `garden`, family `afterglow`, number 100.
-Round 3 replaces the rubber terrain/calyx renderer with a living meadow at dusk.
-It is an artistic Gray–Scott model, not simulated botany. World/state IDs, all
-8 look names/seeds/parameter values, schema keys and the first three rhythm IDs
-are preserved. The previous authored world definition is appended to `HISTORY`.
+An artistic Gray–Scott meadow, not simulated botany. Round 4 addresses the
+independent r3 review (L6.5/G7.5/E6): sleeping foreground, local pollen events,
+material hierarchy and readable secondary gestures. IDs, three states, eight
+look names/seeds/parameters, schema and all rhythm patterns remain unchanged.
 
-## Algorithm and signature detail
+## Algorithm and continuous identity
 
-The unchanged shared `morphogenSimulation()` step runs on a 384² periodic field,
-with two steps per tick, explicit nearest simulation stencils and linearly
-filtered 16-bit U/V for display. Codec `gray-scott-uv16-v1` still carries traces
-from Evolution, Acid and Mycelium. Development steers the measured chemistry:
+The shared `morphogenSimulation()` runs a 384² periodic U/V field, two steps per
+tick. Simulation stencils explicitly fetch nearest texels; display samples
+linearly filtered 16-bit values. Codec `gray-scott-uv16-v1` carries traces from
+Evolution, Acid and Mycelium. Sparse spore rain repairs empty regions, while
+nutrient hits seed a bounded in-view packet once, including restrained hits.
 
-| State  | F    | k     | Dv  | Form                                              |
-| ------ | ---- | ----- | --- | ------------------------------------------------- |
-| Roots  | .032 | .0585 | .50 | Low seed lanterns, soil under-glow, dusk horizon  |
-| Petals | .034 | .0612 | .47 | Curved stems rise into closed lantern buds        |
-| Bloom  | .036 | .0625 | .47 | Six individual curled petals open over the meadow |
+| State  | F    | k     | Dv  | Form                                               |
+| ------ | ---- | ----- | --- | -------------------------------------------------- |
+| Roots  | .032 | .0585 | .50 | Pointed sleeping buds among backlit grass and moss |
+| Petals | .034 | .0612 | .47 | Taller lantern cups, uneven clustered heights      |
+| Bloom  | .036 | .0625 | .47 | Separate curled petals, sparse larger hero blooms  |
 
-A 64×192 RGBA32F data pass finds strict local V maxima within radius 5 texels,
-with quadratic subtexel refinement, prominence and a Hessian division axis.
-The same pass caches per-spot character, avoiding repeated vertex noise. Each
-maximum owns a flower; moderate Hessian anisotropy pinches its head and core.
-A CPU test observes spot division after an externally cleared patch; this is
-not an autonomous wilt event. Sparse spore rain repairs empty regions. Nutrient
-hits seed one bounded packet in view, once per simulation impulse, including
-low-strength restrained hits. No field reset is tied to development.
+A 64×192 RGBA32F data pass finds strict local V maxima within five texels,
+refines positions quadratically and measures prominence/Hessian anisotropy.
+Each maximum owns a flower; moderate anisotropy pinches its head/core during
+spot division. A third row caches continuous per-spot character. Development
+never rebuilds geometry or resets chemistry; reversal preserves identity.
+Without float targets, concentration-driven lanterns use the explicit byte
+decoder instead. The real fallback is compiled by the family verifier.
 
-The full-resolution picture draws palette-only dusk sky, static stars, quiet
-clouds, wet black soil, concentration-derived root tissue and light pools.
-Instanced geometry supplies curved tapered stems, individually shaped petals,
-small cores, distant cards, halos and pollen. Near heads retract continuously
-inside a camera-clearance disk; conservative frustum rejection includes pollen.
-Without float-data support, concentration-driven lanterns remain visible using
-an explicit byte decoder; the chemistry and ground remain intact.
+Full-resolution background: palette-only dusk, layered quiet clouds, parallax
+ridge, stars and matte moss/root tissue. Wet specular pools were removed:
+their projected bands read as oily ellipses and dark wedges. Opaque geometry
+adds two tapered, curved grass blades per finder cell, independently of whether
+that cell currently owns a chemical maximum. This keeps breakdowns populated.
 
-## Looks, development and energy
+## Material, framing and energy
 
-Glowing Roots / Opening Petals / Crowns at Dusk use seed 5607 and identical
-non-development parameters. Root Horizon, Petal Field, Halfway to Bloom,
-Lantern Orchard and Low Bloom retain their original identities. Planting
-controls initial populations; petals controls flower size; relief controls stem
-height; altitude and sway remain camera/wind controls.
+Blue petals, lime throats and rare pink dividing cores/events remain the own
+palette hierarchy. Pointed closed buds open continuously into separate petals;
+petal aspect/curl, clustered hero scale and stem height vary continuously with
+the chemical spot position. Directional shading, midribs, branching veins,
+translucent margins and fresnel rims give the heroes surface structure. Reduced
+broad emission and a saturated highlight shoulder prevent milky near blooms.
 
-Development grows the same plants and opens their petals, rather than stacking
-two pictures. Reversal retains slot, simulation textures and geometry identity.
-Energy changes opening, growth rate, wind amplitude and pollen populations, not
-master brightness. The camera glides periodically through the field, with slow
-yaw, a 9° development pitch range, short-side aspect fitting and 1.2% kick lens
-punch. Wind/pollen use fixed-rate cycles; spatial sap phases use integer torus
-frequencies. A late 43,200-second frame is explicitly checked. Camera clearance
-prevents the enormous foreground petals seen in an intermediate portrait pass.
+Energy changes openness, chemical growth, wind and mote population, not master
+brightness. Glowing Roots / Opening Petals / Crowns at Dusk retain seed 5607
+and identical non-development parameters. Root Horizon, Petal Field, Halfway
+to Bloom, Lantern Orchard and Low Bloom retain their authored identities.
+
+The endless camera translates one field period every 96 seconds, weaves and
+yaws on exact periodic paths, and cranes within .12–.26 world units plus a
+small 64-second phrase breath. Pitch varies .12–.28 radians, without cuts or
+shake; kick lens punch is 1.2%. Clearance retracts near plants continuously.
+Portrait and a 43,200-second frame are explicitly checked. All colour derives
+from the selected palette; default, Ember and Glacier films were read.
 
 ## Rhythm
 
-Three world-specific presets from **World rhythm presets** are retained:
-**Sleeping petals**, **Nectar paths**, **Midnight flowering**.
+The reviewed world-specific presets and their original syncopation/2–3–4-bar
+polyrhythms are preserved: **Sleeping petals**, **Nectar paths**, **Midnight
+flowering**. Family densities: **2.8 / 6.5 / 10.3 hits per bar**.
 
-- **Vein pulse**, slot 0: stronger local root/sap front and flower afterglow.
-- **Petal-cohort light**, slot 1: a selected spatial population visibly unfurls.
-- **Local morphogen feed**, slot 2: a single-use, amplitude-weighted nutrient
-  packet ahead of the camera; a selected population also catches feed light.
-- **Pollen rising**, slot 3: a local patch ahead of the eye opens and releases
-  four curved, beaded pollen trails per flower. Envelope controls lift, hit
-  adds the launch impulse, count varies placement. Palette accent is confined
-  to these tiny trails and dividing cores. No full-screen white event.
+- **Vein pulse**, slot 0: a bounded depth front lights stems and actual petal
+  margins/midribs, independently of broad bloom emission.
+- **Petal-cohort light**, slot 1: a count-selected population physically flexes
+  and opens its petals, with understated local light.
+- **Local morphogen feed**, slot 2: one amplitude-weighted chemical seed packet;
+  a count-selected population also catches a small feed highlight.
+- **Pollen rising**, slot 3: count moves a narrow patch ahead of the camera.
+  That cluster grows/open-flushes pink, an expanding pink/gold ground ring
+  marks its origin, and twelve soft motes per selected flower travel on curved
+  spreading paths with envelope-driven lift/fade. Minimum screen-scaled radius
+  gives approximately 4-pixel soft cores at 960×540, not one-pixel rain streaks.
+  The emitting patch projects below one-third of the landscape review width;
+  the deliberately expanding ground ring is wider. Ambient fireflies are sparse.
 
-Zero-based signature steps: restrained **0, 24** at division 2, duration 3 beats;
-driving **14, 28** at division 2, duration 2.75; accented **12, 30, 44, 60** at
-division 4, duration 2.5. All settle before the next event. The shared flash
-limiter is untouched; the family-owned GPU verifier leaves it enabled.
+Zero-based pollen steps: restrained **0,24**, division 2, duration 3 beats;
+driving **14,28**, division 2, duration 2.75; accented **12,30,44,60**, division 4,
+duration 2.5. All envelopes settle before the next event. No full-screen white;
+shared `flash-limiter.mjs` is untouched and enabled in the visual verifier.
 
-## Verification and cost
+## Verification and cost (r4)
 
-Native M3 Pro, shared fleet GPU, 40 samples per type; synchronous whole-frame
-throughput including post, **not venue cadence**. Roots / Petals / Bloom:
+M3 Pro native synchronous whole-frame throughput including post, 40 samples per
+type, not venue display cadence. Roots / Petals / Bloom:
 
-| Resolution | p50 ms             | p95 ms             |
-| ---------- | ------------------ | ------------------ |
-| 1920×1080  | 7.4 / 6.4 / 4.8    | 15.0 / 15.1 / 11.9 |
-| 3840×2160  | 12.6 / 14.6 / 11.3 | 18.3 / 19.6 / 21.2 |
+| Resolution | p50 ms            | p95 ms             |
+| ---------- | ----------------- | ------------------ |
+| 1920×1080  | 3.9 / 4.5 / 4.3   | 4.3 / 4.8 / 5.0    |
+| 3840×2160  | 8.0 / 10.3 / 10.8 | 13.0 / 11.7 / 14.0 |
 
-All p50 values meet 8/16 ms budgets. ABBA pairs against main `26e5f47` reduce
-contention bias: 1080p **2.4→3.3, 2.4→3.9, 2.5→4.2 ms**; 4K **6.2→8.0,
-6.1→9.4, 6.7→11.8 ms**. This conceptual geometry replacement is slower than
-the old terrain: **+38–68% / +29–76%**; the pair tool's +5% gate therefore
-returns nonzero. Do not describe that gate as passing.
+All absolute p50 budgets pass. Interleaved ABBA against main `010103b` gives
+1080p deltas **−4.6% / +7.9% / −10.2%** and 4K **+21.1% / +8.2% / −4.0%**.
+The pair tool's +5% regression gate therefore fails for Roots/Petals; report
+that honestly. The first pair's Roots samples were fleet-contention inflated
+(13.0→12.4 ms); the separate absolute probe above is substantially quieter.
+Grass adds 36 opaque vertices per cell; twelve motes reuse the old pollen tail's
+72 vertices, so no additional particle pass or reduced-resolution image exists.
 
-`tests/afterglow.test.mjs` covers unchanged Evolution hashes, field continuity,
-preset bounds, saved-world upgrades, camera bounds, finite persistent geometry,
-maxima ownership, chemistry survival/regrowth, and slot-3 preset validation.
-Full tests, typecheck, DE/EN i18n and family-owned formatting checks pass.
-`scripts/verify-afterglow.mjs --rig --port 48480` produces 24 all-look energy
-stills (0.1/.5/.9), portrait, reversal and late-time frames; all have populated
-pixels and zero GL/non-finite errors. It also compiles the no-float-cache path.
+`npm test`: 967 pass, 21 opt-in skips, zero failures. Typecheck, build, native
+DE/EN i18n and family-owned Prettier checks pass. Family tests cover chemistry
+survival/division, continuity, maxima ownership, preset validation, original
+Evolution shader hashes, bounded camera, opaque grass/mote template, local
+patch projection and required rhythm density. Focused world-rhythm/flash tests
+pass. `scripts/verify-afterglow.mjs --rig --port 48480` captures all eight looks
+at .1/.5/.9 energy, portrait, reversal and 12-hour time: 27 populated captures,
+zero GL/GPU/non-finite errors, persistent identity and fallback compilation.
 
-Final evidence: `artifacts/look-review/garden-r3/` (film, sheet, rhythm, grids),
-`garden-r3-ember/`, `garden-r3-glacier/`, `garden-r3-reversal/` and
-`artifacts/garden-r3-verify/`. At least three visual film rounds were read.
+Four change/capture/read/critique rounds are recorded in
+`.claude/world-polish/plans/garden-r3.md`. Final review evidence:
+`artifacts/look-review/garden-r4/` (film, sheet, rhythm, grids), with
+`garden-r4-ember/`, `garden-r4-glacier/` and `artifacts/garden-r4-verify/`.
 
-## Remaining weaknesses
+## Still weak
 
-Self-assessment, not independent acceptance: **look 7/10**. The meadow is a
-substantial improvement over the rubber cup, but Roots still reads more as a
-sparse lamp field than a root network; some open heads have a papery/faceted
-silhouette, and distant cards repeat. The pollen is readable but not yet an
-unforgettable phone moment. Maxima births/deaths and periodic-image handovers
-can still expose small plant changes; CPU uniqueness is not a proof of perfect
-temporal continuity. Warm palettes retain a little pale light at the cores.
-An independent ≥8 review is still needed, not claimed here.
+Self-assessed look **7.5**, not independent acceptance. The sleeping foreground
+remains intentionally dim; distant billboard flowers repeat, and some closed
+heads retain a slightly papery silhouette. Warm palettes have paler throats.
+Chemical maximum births/deaths can still expose small plant handovers.
+Independent re-scoring is required before claiming the owner's ≥8 bar.
