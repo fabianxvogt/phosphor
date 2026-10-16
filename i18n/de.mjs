@@ -304,6 +304,8 @@ export default {
   "Magnetic strike": "Magnetschlag",
   "A kick-like magnetic strike lifts fixed-site spikes toward alternating poles and sends pressure rings across the mirror pool.":
     "Ein kickartiger Magnetschlag hebt ortsfeste Spitzen zu wechselnden Polen und schickt Druckringe über den Flüssigmetallspiegel.",
+  "A mercury lens grows a dense hexagonal crown of liquid-metal needles, rooted in its mirror puddle. Magnetic strikes tilt the field and send pressure waves past orbiting chrome droplets.":
+    "Eine Quecksilberlinse bildet eine dichte hexagonale Krone aus Flüssigmetallnadeln, die mit ihrem Spiegelbad verbunden bleibt. Magnetschläge neigen das Feld und schicken Druckwellen an kreisenden Chromtropfen vorbei.",
   "Still mercury": "Stilles Quecksilber",
   "Magnetic breath": "Magnetischer Atem",
   "Chrome resonance": "Chromresonanz",

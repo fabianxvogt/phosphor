@@ -74,7 +74,8 @@ export const FAMILY_CATALOG = {
   },
   ferro: {
     algorithm: "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
-    description: "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",
+    description:
+      "A mercury lens grows a dense hexagonal crown of liquid-metal needles, rooted in its mirror puddle. Magnetic strikes tilt the field and send pressure waves past orbiting chrome droplets.",
     styles: ["spatial", "organic"],
     variants: ["Pool", "Crown", "Sculpture"],
   },

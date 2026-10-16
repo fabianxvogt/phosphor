@@ -190,7 +190,7 @@ const AUTHORED = [
     id: "liquid-chrome",
     name: "Liquid Chrome",
     description:
-      "A black mirror pool grows a magnetic crown of sharp hexagonal spikes, then rises into a floating liquid-metal sculpture with orbiting chrome droplets.",
+      "A mercury lens grows a dense hexagonal crown of liquid-metal needles, rooted in its mirror puddle. Magnetic strikes tilt the field and send pressure waves past orbiting chrome droplets.",
     states: [
       { name: "Pool", look: "ferro:Pool" },
       { name: "Crown", look: "ferro:Crown" },
@@ -384,6 +384,18 @@ const HISTORY = [
   withoutParams(GARDEN_EVOLUTION),
   INK_BLOOM_BACKLIT,
   INK_BLOOM_CARVED,
+  // Liquid Chrome before the r4 grounded magnetic crown (same saved looks).
+  {
+    id: "liquid-chrome",
+    name: "Liquid Chrome",
+    description:
+      "A black mirror pool grows a magnetic crown of sharp hexagonal spikes, then rises into a floating liquid-metal sculpture with orbiting chrome droplets.",
+    states: [
+      { name: "Pool", look: "ferro:Pool" },
+      { name: "Crown", look: "ferro:Crown" },
+      { name: "Sculpture", look: "ferro:Sculpture" },
+    ],
+  },
   // Living Mycelium before the seeded-network renderer (round 3).
   {
     id: "mycelium",

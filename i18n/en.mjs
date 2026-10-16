@@ -304,6 +304,8 @@ export default {
   "Magnetic strike": "Magnetic strike",
   "A kick-like magnetic strike lifts fixed-site spikes toward alternating poles and sends pressure rings across the mirror pool.":
     "A kick-like magnetic strike lifts fixed-site spikes toward alternating poles and sends pressure rings across the mirror pool.",
+  "A mercury lens grows a dense hexagonal crown of liquid-metal needles, rooted in its mirror puddle. Magnetic strikes tilt the field and send pressure waves past orbiting chrome droplets.":
+    "A mercury lens grows a dense hexagonal crown of liquid-metal needles, rooted in its mirror puddle. Magnetic strikes tilt the field and send pressure waves past orbiting chrome droplets.",
   "Still mercury": "Still mercury",
   "Magnetic breath": "Magnetic breath",
   "Chrome resonance": "Chrome resonance",
