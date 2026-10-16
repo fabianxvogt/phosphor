@@ -827,7 +827,7 @@ void main() {
     // A pure remnant keeps only its filament layers in the march: the
     // interior (haze, shock fronts) is integrated analytically below.
     vec2 hole = vec2(1e9, -1e9);
-    if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .62));
+    if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .6));
     float skip = max(0., min(hole.y, t1) - max(hole.x, t0));
     float steps = clamp(ceil((t1 - t0 - skip) / mix(.08, .16, k4)), wWeb + wShell > .001 ? mix(8., 4., k4) : 2., mix(24., 10., k4));
     float dt = (t1 - t0 - skip) / steps;
@@ -919,10 +919,11 @@ void main() {
         float edge = 1. + 1.6 * lift + .16 * (patchy - .5);
         float torn = nbSmooth(.3, .6, patchy + .25 * (ridge2 - .5));
         float limb = nbSmooth(edge - .2 - .08 * ridge2, edge - .05, u) * (1. - nbSmooth(edge - .03, edge + .05, u)) * torn;
-        float reach = .62 + .2 * ridge2;
-        float band = nbSmooth(reach, reach + .15, u) * (1. - nbSmooth(edge - .04, edge + .06, u));
+        float reach = .68 + .14 * ridge2;
+        float band = nbSmooth(reach, reach + .22, u) * (1. - nbSmooth(edge - .04, edge + .06, u));
         float fil = sh.x * band;
-        fil *= .55 + .45 * sin(NB_TAU * (u * 9. - ejecta) + 6. * ridge2);
+        // Ejecta knots drift outward along each finger (phase varies per finger).
+        fil *= .8 + .2 * sin(NB_TAU * (u * 3. - ejecta) + 17. * ridge2);
         // Filaments in the secondary, their hottest knots in the accent; a
         // patchy, thick limb of shocked gas in the primary.
         vec3 E = cGas * limb * (.1 + .9 * patchy * patchy) * .45 + cArm * fil * 4. + cAcc * fil * pow(ridge2, 6.) * 4.;

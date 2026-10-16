@@ -413,7 +413,11 @@ test("filaments: Bézier edges from child to node, wound into the arms' sense, t
   const clock = Math.round((0.2 / N.stream) * TWO32) - streamPhase(id, 0) * 0;
   const s0 = streamPhase(id, clock), s1 = streamPhase(id, (clock + clockStep(1, 1)) >>> 0);
   if (s1 > s0) assert.ok(dist(edgePoint(E, s1), end) < dist(edgePoint(E, s0), end) + 1e-9);
-  assert.match(nebula.fragment, /if \(!nbEdgeAt\(e, p, E\)\) continue;/);
+  // Filaments are particle line sprites: the 7/8 of the dormant rows not
+  // used by motes cover every edge (150 sprites each) plus the nodes.
+  assert.match(nebula.particles.vertex, /if \(!nbEdgeEval\(key, e, p, E\)\) return;/);
+  assert.ok(EDGES * 150 + NODES - 1 <= (SIZE[0] * SIZE[1] - ABSORBERS) * 7 / 8);
+  assert.doesNotMatch(nebula.fragment, /for \(int e = 0; e < /, "no per-pixel filament loop");
   assert.match(nebula.fragment, /Static interleaved-gradient jitter/);
   assert.doesNotMatch(nebula.fragment, /u_tick/);
 });
@@ -524,7 +528,7 @@ test("fixed particle budget; data atlas holds scalar fields, never a colour imag
   assert.match(nebula.fragment, /#else\s+return nbDiskData\(/);
   assert.match(nebula.particles.vertex, /s.kind != 2 && \(id & 3u\) != 0u/);
   assert.match(nebula.simulation.fragment, /id >= 118784u \|\| \(id & 3u\) != 0u/);
-  assert.match(nebula.particles.vertex, /if \(\(m & 7u\) != 0u\) return;/, "an eighth of the dormant rows are near-field motes");
+  assert.match(nebula.particles.vertex, /if \(\(m & 7u\) != 0u\) \{/, "an eighth of the dormant rows are near-field motes");
   const skies = sample(1000, 101).filter((s) => s.kind === 2);
   const depths = skies.map((s) => Math.hypot(...position(world, s, { clock: 0, dev: 0 })));
   assert.ok(Math.min(...depths) >= 7 && Math.max(...depths) < 16);
