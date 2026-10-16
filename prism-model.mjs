@@ -152,8 +152,8 @@ export function prismPose(seed, id, development, phase = 0, spacing = 1) {
   if (!id)
     return {
       identity: ident,
-      center: [0, 1.55 + 0.25 * vault, -2.2 * vault],
-      scale: 2 - 0.35 * rise + 0.45 * vault,
+      center: [0, 1.55 + 0.25 * vault, -2.8 * vault],
+      scale: 2 - 0.35 * rise - 0.05 * vault,
       angle: 0.08 * Math.sin(phase),
       yaw,
     };
@@ -163,11 +163,11 @@ export function prismPose(seed, id, development, phase = 0, spacing = 1) {
     return {
       identity: ident,
       center: [
-        side * (1.75 - 0.7 * vault) * spacing * rise,
-        (2.15 + vault * (Math.floor(lens / 2) < 0.5 ? 1.05 : 3.15)) * rise,
-        ((Math.floor(lens / 2) - 0.5) * 3.5 * (1 - vault) - 1.2 * vault) * rise,
+        side * (1.75 + 0.95 * vault) * spacing * rise,
+        (2.15 + vault * (Math.floor(lens / 2) < 0.5 ? 0.1 : 3.1)) * rise,
+        ((Math.floor(lens / 2) - 0.5) * 3.5 * (1 - vault) - 1.7 * vault) * rise,
       ],
-      scale: (0.65 + 0.04 * vault) * rise,
+      scale: (0.65 - 0.16 * vault) * rise,
       angle: 0,
       yaw: (side * 0.35 + 0.1 * Math.sin(phase)) * (1 - vault),
     };
@@ -181,8 +181,8 @@ export function prismPose(seed, id, development, phase = 0, spacing = 1) {
     return {
       identity: ident,
       center: [
-        Math.cos(theta) * 2.45 * spacing * growth,
-        (4.25 + Math.sin(theta) * 2.45) * growth,
+        Math.cos(theta) * 2.7 * spacing * growth,
+        (4.5 + Math.sin(theta) * 2.7) * growth,
         -1.5 * growth,
       ],
       scale: 0.82 * growth,

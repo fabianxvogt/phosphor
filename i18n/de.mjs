@@ -87,6 +87,8 @@ export default {
   "The incident angle breathes gently, steering the physically refracted fan.": "Der Einfallswinkel atmet sanft und lenkt den physikalisch gebrochenen Fächer.",
   "Caustic sweep": "Kaustik-Wanderung",
   "A wavelength band travels across the existing spectral floor caustics.": "Ein Wellenlängenband wandert über die bestehenden spektralen Bodenkaustiken.",
+  "Spectral relay": "Spektralstaffel",
+  "A light packet fires through the prism and its spectral relays, leaving a coloured caustic on the floor.": "Ein Lichtpaket schießt durch das Prisma und seine spektralen Relais und hinterlässt eine farbige Kaustik auf dem Boden.",
   "Sleeping spectrum": "Schlafendes Spektrum",
   "Refracted paths": "Gebrochene Pfade",
   "Caustic choir": "Kaustikenchor",

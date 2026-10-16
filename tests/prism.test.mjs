@@ -354,16 +354,64 @@ test("all eight presets validate, and the appended world has identical non-devel
   );
 });
 
+test("diffuse scattering skips redundant sheaths, never physical spectral sheets", () => {
+  assert.match(
+    prism.geometry.vertex,
+    /kind==1\.&&segment==2\.5&&abs\(a_info\.z-\.5\)>\.001/,
+  );
+  assert.match(prism.geometry.fragment, /scattered\*sheath\*3\.28/);
+  // Median-only diffuse transport does not remove a wavelength from the
+  // Snell/Cauchy fan (segment 2), secondary fan (5) or receivers (kind 2).
+  assert.equal(SPECTRAL_SAMPLES, 41);
+  assert.match(prism.geometry.vertex, /segment==2\.\|\|segment==5\./);
+});
+
 test("bounded signature gestures use 4/8/16 beats; rate changes cannot retime the optics after 12h", () => {
   assert.deepEqual(
     prism.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16],
+    [4, 8, 16, 8],
   );
-  for (const channel of ["x", "y", "z"])
+  assert.equal(prism.rhythm[3].id, "spectral-relay");
+  assert.equal(prism.rhythm[3].slot, 3);
+  for (const loop of Object.values(prism.rhythm[3].styles)) {
+    const hits = loop.steps.flatMap((v, i) => (v > 0 ? [i] : []));
+    const gap = Math.min(
+      ...hits.map(
+        (hit, i) =>
+          ((hits[(i + 1) % hits.length] - hit + loop.length) % loop.length) /
+          loop.division,
+      ),
+    );
+    assert.ok(
+      loop.duration < gap,
+      "spectral packet settles before its next hit",
+    );
+  }
+  for (const channel of ["x", "y", "z", "w"])
     assert.ok(
       prism.geometry.vertex.includes(`u_rhythm.${channel}`) ||
         prism.geometry.fragment.includes(`u_rhythm.${channel}`),
     );
+  for (const [style, minimum] of Object.entries({
+    restrained: 2,
+    driving: 6,
+    accented: 8,
+  })) {
+    let density = 0;
+    for (const effect of prism.rhythm) {
+      const loop = effect.styles[style];
+      assert.ok(loop.steps.filter((v) => v > 0).length >= 2);
+      density +=
+        (loop.steps.filter((v) => v > 0).length * 4 * loop.division) /
+        loop.length;
+    }
+    assert.ok(
+      density >= minimum,
+      `${style}: ${density} >= ${minimum} hits/bar`,
+    );
+  }
+  assert.match(prism.geometry.fragment, /u_rhythmHit\.w/);
+  assert.match(prism.geometry.fragment, /u_rhythmCount\.w/);
   const params = prism.schema.map((s) => s.default);
   for (const t of [3600, 43200]) {
     const state = {};
