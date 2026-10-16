@@ -1,93 +1,90 @@
 # Moon Tide · Mondflut
 
-Family **103**, renderer `tide`, world `moon-tide`. **INCREMENTAL / EMPIRICAL**, round 3, 2026-10-16. Implementation/continuation: **openai-codex/gpt-6.1-sol**. Native captures are evidence, not venue qualification. The old wave-5/6 self-ratings are superseded: current honest **self-assessed L = 7**, not an independent pass.
+Family **103**, renderer `tide`, world `moon-tide`. **INCREMENTAL / EMPIRICAL**, r4, 2026-10-16/17. Implementation: **openai-codex/gpt-6.1-sol**. Native evidence is not venue qualification or an independent aesthetic pass.
 
-A reflective night ocean: a silver moon road, peeling bioluminescent breakers, then the _same_ sea wound into a deep glowing maelstrom. This round resumes the useful scene work from `polish2/moon-tide` rather than blindly merging its branch. No engine, limiter, catalog-preview or world identity changes.
+A reflective nocturnal ocean develops from dim silver swells through peeling bioluminescent breakers into a recessed, foaming maelstrom. R4 responds to the independent r3 review (L6/G8.5/E7, Overall6.5): water material rather than a luminous flower, composed breakdown, an irregular travelling roller, a retained moon and softer distant sea.
 
-## Core mathematics and rendering
+## Mathematics and identity
 
-Six persistent seeded Gerstner modes: `ωᵢ = 0.35 nᵢ`, `n = [2,3,4,5,7,10]`, **`kᵢ = ωᵢ² / 9.81`**. Longer waves travel faster. Amplitudes `[0.8,0.4,0.24,0.16,0.085,0.035]` develop continuously from ×0.48 to ×2.35; the height fader multiplies them. At full schema extent, `Σ Q k A = 0.5530875468 < 1`, so the horizontal map does not fold. Two Newton iterations invert the material map. The dominant swell travels obliquely toward the coastal camera.
+Six persistent seeded Gerstner modes: `ω = 0.35 n`, `n = [2,3,4,5,7,10]`, **`k = ω²/9.81`**, amplitudes `[0.8,0.4,0.24,0.16,0.085,0.035]`. Development raises the spectrum from ×0.48 to ×2.35 through Swell; the height fader multiplies it. R4 attenuates long-wave relief smoothly to ×0.55 of Swell in the full vortex, preventing large polished petal silhouettes. Maximum `Σ Q k A = 0.5530875468 < 1` remains at Swell; the horizontal map does not fold. Two Newton iterations invert the material map.
 
-The breaking signal is `z = Σ cᵢ exp(iφᵢ)` over wind-sea modes 1–4, weighted by steepness. Its magnitude gives the wave-group envelope and its argument gives the crest age. Closed-form accumulated foam decay is
+Wind-sea modes 1–4 produce an analytic complex crest signal weighted by steepness. Magnitude gates breaking; argument gives crest age. Foam persists as
 
 ```
 F(age) = (exp(-age/κ) - exp(-2π/κ)) / (1 - exp(-2π/κ))
 ```
 
-with a continuous gate where the phase becomes undefined. Calm remains free of intrinsic breaking foam; the rhythm roller can still pass through it. A fixed seeded shoal steepens the near Swell. This round lowers the Swell threshold locally and suppresses unresolved distant whitecaps.
+with a continuous gate where phase is undefined. Calm has no intrinsic breakers; authored rhythm can still roll through it. A seeded shoal steepens near Swell. Peeling fronts use a masked periodic 55 m lateral cycle, broken whitewater, face light and droplets.
 
-The vortex samples the same waves through the radius-preserving bijection `R(φ(r))x`, with `φ = -3.5 smoothstep(1,1.6,development) exp(-r²/900)`. Gradients use the exact Jacobian pullback. The 42 m depression, raised shoulder and five meandering spiral ridges deepen during development 1.2–2.0. No stacked-state dissolve.
+The vortex samples the same waves through the radius-preserving bijection `R(φ(r))x`, now `φ = -1.8 smoothstep(1,1.6,development) exp(-r²/900)`. Gradients use its exact Jacobian pullback. The 42 m depression and raised shoulder deepen during development 1.2–2.0. Spiral relief is reduced from 0.8 to 0.3 m; no new form is dissolved over the ocean.
 
-The optional **1024×513 RGBA32F data table** retains two banks: height/gradient/compression and analytic signal/material coordinates. It is not a colour cache. Polar core and boundary blend into the exact path; no-float hosts retain analytic fallback. The safeguarded Illinois solve follows `u_raySteps`: 15/10/7 iterations at 96/64/40. Full picture resolution is retained.
+The optional **1024×513 RGBA32F data table** holds height/gradient/compression and crest-signal/material-coordinate banks, never colour. The core and boundary blend into the exact fallback. A safeguarded Illinois heightfield solve follows `u_raySteps`: 15/10/7 iterations at 96/64/40. Full output resolution is retained.
 
-## Round-3 light and material
+## R4 material and composition
 
-- Larger shaded moon (0.068 rad), three-scale aureole, readable silver-lined clouds and horizon wash.
-- Cox–Munk-style anisotropic facet statistics replace smooth reflection lobes and widely scattered dust. Resolved deterministic facets become their mean as they shrink below a pixel. Energy/wind changes road width and facet population; hashes are material-fixed, never per-frame grain.
-- Swell lips peel laterally in a seeded 55 m cycle. The fract seam is masked at both ends. A thin hot edge, broken whitewater mass, translucent face light and local droplets replace a single smooth tube.
-- Saturated secondary/accent glow sits beneath primary lips; white stays at small tips. Palette colours only.
-- Spiral bands vary in width/intensity and stream inward using two-phase periodic flow mapping. Final cost pass uses one advected noise octave plus phase-locked fine streaks, not three noise octaves.
-- A water-occluded analytic Gaussian column and throat scattering make the eye a light source. It is not a simulated volume or physical refraction.
+- Preserve the shaded 0.068 rad moon, maria, aureole, cloud edges and Cox–Munk-style anisotropic reflection road. Resolved material-fixed facets blend into their statistical mean when subpixel.
+- Calm has slope-selective silver face/back-face scattering and broad height-selective crest light. Dark troughs and the near silhouette remain; this is not a frame-wide exposure lift. The coastal viewpoint is raised 1.3 m to reveal more intermediate water.
+- Replace continuous fivefold emissive rims with broken, graded whitewater rafts, rough wet normals and local spray. Reuse the periodic water texture for the residual arm streaks, removing the old extra two-noise arm flow field.
+- Retain dark troughs, the recessed eye and localized purple events. Reduce white-hot arm cores and throat backlighting that made smooth black blades look like petals.
+- Blend distant shading toward the longest swell and fade capillary detail by footprint. Crossing short modes remain in the actual sea geometry but no longer dominate distant highlights as a regular mesh.
+- Lower the default peak crane and widen its focal factor from 1.5 to 1.25. The default peak retains a sky band, complete moon and reflected road. The moon's azimuth is compositionally carried by the orbit (not a physically fixed astronomical direction). Special high-eye Spiral Cathedral remains deliberately overhead.
 
-## States and looks
+All state names, look names, seeds, non-development preset values, schema and rhythm IDs remain unchanged; no world-definition/HISTORY migration is needed.
 
-State seed **10301** and identical non-development parameters are unchanged; names, seeds, schema keys, preset IDs and existing rhythm IDs are preserved. No `HISTORY` migration is needed.
+| Look                                | Development | Character                                             |
+| ----------------------------------- | ----------: | ----------------------------------------------------- |
+| Calm / Stille                       |           0 | Dim graded swell faces, textured moon and silver road |
+| Swell / Dünung                      |           1 | Oblique peeling breakers over the shoal               |
+| Maelstrom / Mahlstrom               |           2 | Rough whitewater shoulder draining into a lit throat  |
+| Silver Passage / Silberpassage      |         0.2 | Low moon, near-water view, rough glitter road         |
+| Living Breakers / Lebendige Brecher |           1 | Highest waves, low eye, strong local biolight         |
+| Spiral Cathedral / Spiralkathedrale |           2 | Overhead spiral                                       |
+| Far Lantern / Ferne Laterne         |        0.65 | Higher moon/view, smaller swell                       |
+| Undertow / Sog                      |         1.7 | Low view across the developing throat                 |
 
-| Look                                | Development | Character                                                |
-| ----------------------------------- | ----------: | -------------------------------------------------------- |
-| Calm / Stille                       |           0 | Low swells, silver road, cloud-lined moon, rare plankton |
-| Swell / Dünung                      |           1 | Oblique peeling breakers over the shoal                  |
-| Maelstrom / Mahlstrom               |           2 | Wound crests streaming toward a lit throat               |
-| Silver Passage / Silberpassage      |         0.2 | Low moon, near-water view, rough glitter road            |
-| Living Breakers / Lebendige Brecher |           1 | Highest waves, low eye, strong local biolight            |
-| Spiral Cathedral / Spiralkathedrale |           2 | Overhead spiral mandala                                  |
-| Far Lantern / Ferne Laterne         |        0.65 | Higher moon/view, smaller swell                          |
-| Undertow / Sog                      |         1.7 | Low view across the developing throat                    |
+## Camera, energy and endlessness
 
-## Camera and endless energy grammar
+A two-texel RGBA8 simulation stores spring-smoothed camera development/velocity and the latched roller amplitude. Only the crane follows the critically damped spring (`ω=1.4`, speed ≤0.3 development units/s); geometry retains raw development. Clearance tests vary raw and camera development independently. Reversal preserves seed, slot and clocks. A regression projects the full moon disc inside the default peak FOV throughout an entire orbit, including maximum kick.
 
-A **two-texel RGBA8 simulation** stores camera development/velocity in texel 0 and the last roller amplitude in texel 1. Only the crane follows the critically damped development spring (`ω=1.4`, speed ≤0.3 development units/s). Geometry, bowl and twist retain raw development. Reset snaps the viewpoint to a newly loaded look. CPU clearance tests cover lagging camera development against raw development independently. A fast reversal does not reset seed or clock identity.
+Energy changes wind/road width, capillary detail, breaking threshold, foam persistence, spray and speed, never development or whole-frame exposure. Kick FOV stays bounded to 2.2%. Three periodic integrated clocks preserve wave, orbit and current phases through late time and rate changes. Noise is material-fixed/periodically advected, not per-frame grain.
 
-Energy affects road width, capillary detail, breaking threshold, persistence, spray population and flow/motion speed—not development or a whole-frame exposure multiplier. Kick FOV is bounded to 2.2%. Three integrated clocks preserve wave, camera and flow phase. Clock consumers use integer harmonics; two-phase flow noise is invisible at its wraps. Early, late and analytic-fallback variants compile; time checks at 3600/4096/43200 s and parameter-rate changes pass.
+## Rhythm
 
-## Four authored rhythm tracks
+Preserved slots: **Crest packet** (0), **Spiral ridge** (1), **Incoming tide** (2), **Moon roller / Mondwoge** (3). Slots 0/1 select local crest/arm light; slot 2 rolls outward across the shoulder.
 
-Existing slots remain **Crest packet** (0), **Spiral ridge** (1), **Incoming tide** (2). The first accents true group-velocity crest packets; the second drives arm surges and local plankton; the third sends an outgoing ring across the sea/shoulder. Local accents are stronger and can play quickly; the crane and long roller remain slow.
+**Moon roller:** a long irregular front of scattered biolight arrives from the sea, bends around the shoulder and contracts toward the eye, finishing with a ramped local throat flare. R4 bends open-water fronts with persistent wave phases and replaces the old fivefold ring scallop with unequal two/threefold meanders. Narrower face/wake illumination, broken crest knots and quieter intervening water make one front more distinct.
 
-**Slot 3: Moon roller / Mondwoge.** A long band of biolight rolls from the horizon toward the viewer. As the sea winds up, it becomes a five-fold-warped ring pulled down into the eye, followed by a ramped local throat flare. A small asymmetric Gaussian normal bump supplies the lit face; it is shading-only and never alters intersections or camera clearance.
+The simulation latches `u_rhythmHit.w`; the picture inverts the smoothstep envelope `u_rhythm.w / amplitude` to recover progress. `u_rhythmCount.w` seeds lateral peel variation. The 0.5 m asymmetric normal bump is **shading-only**, not an overturning geometric breaker; it never enters the intersection or rises into the camera. No limiter changes.
 
-The simulation latches `u_rhythmHit.w`; the shader inverts the smoothstep envelope `u_rhythm.w / amplitude` to recover event progress. `u_rhythmCount.w` seeds lateral peel variation. The six/seven-beat event finishes before the next hit, rather than teleporting back to the horizon.
+| Preset                          | Hits/bar | Roller steps (1-based eighth steps)  |
+| ------------------------------- | -------: | ------------------------------------ |
+| Slack water / Stilles Wasser    |     2.50 | 1, 41 of 64; seven-beat events       |
+| Rolling swell / Rollende Dünung |     7.00 | 1, 18 of 32; six-beat events         |
+| Spring tide / Springflut        |     9.25 | 1, 16, 33, 47 of 64; six-beat events |
 
-| Preset                          | Total hits/bar | Roller steps (1-based)           | Timing                                                                 |
-| ------------------------------- | -------------: | -------------------------------- | ---------------------------------------------------------------------- |
-| Slack water / Stilles Wasser    |           2.50 | 1, 41 of 64 eighth steps         | 8 bars; 7-beat rollers                                                 |
-| Rolling swell / Rollende Dünung |           7.00 | 1, 18 of 32 eighth steps         | 4 bars; 6-beat rollers, every second bar with a half-beat displacement |
-| Spring tide / Springflut        |           9.25 | 1, 16, 33, 47 of 64 eighth steps | 8 bars; 6-beat rollers, anticipations and fills                        |
-
-Crest accents use eighth syncopations in driving and sixteenth figures over three bars in accented. Regression tests enforce density ≥2/6/8 across all four tracks and keep rollers spaced. Both languages include the new gesture name/description beside the existing tide keys. The shared flash limiter is unchanged. The new verifier waits for normal asynchronous approval instead of disabling it.
+Eighth syncopations, the three-bar accented local track and longer structural phrases are unchanged. Tests enforce density ≥2/6/8 and event completion before retriggering. Existing DE/EN gesture descriptions remain accurate.
 
 ## Verification and evidence
 
-All evidence below is relative to `.claude/worktrees/moon-tide-r3/`:
+Paths are relative to `.claude/worktrees/moon-tide-r3/`.
 
-- Final reviewer film, twelve-frame sheet, twenty-four-frame rhythm strip and authored grids: **`artifacts/look-review/moon-tide-r3/`**. Read after the final shader cost pass.
-- Preserved film iterations: `moon-tide-r3-before`, `r3-round2`, `r3-round3`, `r3-wip2` under `artifacts/look-review/`. The missing earlier r3 plan was reconstructed in `.claude/world-polish/plans/moon-tide-r3.md` after inspecting commits and dirty work.
-- All eight looks × energy 0.1/0.5/0.9: `artifacts/contact/tide-r3/`, captured/read as `artifacts/verification/tide-r3/energy-ladder.png`.
-- Native early/late/fallback, reverse seed/slot identity, 1080p/4K, portrait and time-wrap report: `artifacts/verification/tide-r3/verification.json`. Zero GL errors, non-finite uploads or GPU errors; no empty low-energy state.
-- Limiter-approved palette stills: `artifacts/stills/r3-{ember,glacier,ultraviolet}/`; portrait `r3-portrait/`; late `r3-late/`; energy `r3-energy-approved/`. Reports include lit/white coverage and rhythm values. Initial `r3-energy/` is superseded because its first image was captured before asynchronous approval settled.
-- Reversal film: `artifacts/films/r3-reverse/tide-maelstrom.mp4` and strip. Read the strip.
-- `npm test`: **973 pass, 21 opt-in skips, 0 fail** (994 total). Includes family continuity/clearance/preset/slot-3/density, world-rhythm and pipeline-flash tests. Typecheck passes. Build passes. Native i18n passes DE/EN. Prettier checks pass on scene, family tests and verifier; the repository does not include translation dictionaries in its formatting target (whole-file checks flag inherited long dictionary lines, which are not reformatted).
+- Final canonical film, 12-frame sheet, 24-frame rhythm strip and grids: **`artifacts/look-review/moon-tide-r4/`**. Three dedicated change/capture/read rounds: `moon-tide-r4-round1`, `-round2`, `-round3`; further bounded corrections were recaptured into the final directory. Critiques are recorded in the plan.
+- All eight looks × energy 0.1/0.5/0.9: `artifacts/contact/tide-r4/`; readable sheet `artifacts/verification/tide-r4/energy-ladder.png`.
+- Native early/late/fallback compilation, 1080p/4K, portrait, twelve-hour/rate/wrap and reversal identity checks: `artifacts/verification/tide-r4/verification.json`. Zero GL errors, non-finite uploads or GPU errors; no empty low-energy states.
+- Limiter-approved energy/palette/portrait/late stills: `artifacts/stills/r4-*`. Ember, Glacier and Ultraviolet were read. Final energy approval evidence: `r4-final-energy`. Maximum white coverage remains local (no full-screen white).
+- Reverse film: `artifacts/films/tide-r4-reverse/tide-maelstrom.mp4` and contact strip, read after capture.
+- Full test suite: **992 pass, 21 opt-in skips, 0 fail**; typecheck/build pass. Native i18n passes DE/EN. Family tests cover revised CPU geometry, clearance, continuity, projected moon framing, slot 3 and preset density. Pipeline-flash/world-rhythm tests pass. Prettier checks scene, family tests and verifier.
 
-## Measured cost and remaining limits
+## Performance and remaining limits
 
-M3 Pro / ANGLE Metal, synchronous whole-frame throughput including post, 36 samples/state, shared fleet GPU. Absolute measurements are load-sensitive; do not infer venue cadence.
+Native M3 Pro / ANGLE Metal, synchronous throughput including post (36 samples/state), shared fleet GPU. Absolute timings are not live stage cadence. Final paired ABBA tests use 64 samples/candidate against main `7c6257b`.
 
-| State     | 1080p p50/p95 ms | 4K p50/p95 ms   | Paired Δ p50 vs main, 1080p / 4K |
-| --------- | ---------------- | --------------- | -------------------------------- |
-| Calm      | 4.2 / 6.9        | 12.5 / 12.9     | +5.4% / +34.1%                   |
-| Swell     | 4.8 / 9.9        | 13.8 / 15.0     | +8.6% / +18.5%                   |
-| Maelstrom | 6.2 / 7.0        | **18.8 / 19.2** | +21.4% / +27.4%                  |
+| State     | 1080p p50/p95 ms | 4K p50/p95 ms | Paired p50 Δ 1080p / 4K |
+| --------- | ---------------- | ------------- | ----------------------- |
+| Calm      | 4.1 / 5.9        | 15.6 / 18.0   | +16.2% / +12.3%         |
+| Swell     | 5.0 / 7.5        | 16.8 / 18.7   | +10.0% / +6.1%          |
+| Maelstrom | 5.7 / 7.6        | 18.0 / 19.5   | −5.3% / −11.3%          |
 
-Profiles: `artifacts/performance/r3-final-{1080,4k}/profile.json`; ABBA comparisons (64 samples/candidate): `artifacts/rework-pair/r3-final-{1080,4k}/profile.json`, main reference `6c9792f`. All health counters zero. The first peak measured 19.9 ms; removing redundant arm noise and hyperbolic roller math reduced it, but **4K peak still fails the 16 ms target**. Pair scripts also exit 1 at their stricter +5% regression gate. This is reported, not waved away as contention.
+Evidence: `artifacts/performance/tide-r4-final-{1080,4k}/profile.json` and `artifacts/rework-pair/tide-r4-final-{1080,4k}/profile.json`. All health counters zero. **4K Swell/peak exceed 16 ms**, and the pair script's +5% gate fails for Calm/Swell. Peak is faster than r3/main, but this is not an overall performance pass.
 
-Remaining visual limits: Calm still has a sparse foreground; the periodic funnel can read as neon satin rather than churning water; distant bright bands can show small raster dashes; a near ridge can silhouette the eye; the moon leaves frame as the peak orbit progresses (the horizon remains). Portrait crops the outer arms. The sea is an analytic six-mode heightfield, not FFT/Navier–Stokes water; it cannot overturn into a barrel. Independent review is still required before claiming L≥8.
+Self-assessed look: **L7.5, provisional**, not an independent ≥8 verdict. Calm is still restrained, some lit foam can read as projected streaks close to the lens, and the heightfield cannot overturn into real spray/barrels. Portrait crops the outer shoulder; the special overhead look intentionally omits the sky. Independent review determines whether the final canonical evidence clears the owner's bar.
