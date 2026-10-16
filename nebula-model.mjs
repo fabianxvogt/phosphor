@@ -33,19 +33,18 @@ export const N = {
   yaw: 10, // camera orbit 144 s
   lift: 9, // camera height swing 160 s
   dolly: 6, // camera distance 240 s
-  wobble: 80, // dust turbulence 18 s
   jet: 240, // pulsar jet flow 6 s
   crane: 24, // camera crane 60 s
   frame: 15, // off-centre framing drift 96 s
   flow: 288, // web streaming: one flow-noise cycle per 5 s
-  stream: 72, // tracer streaming into nodes: 20 s per particle cycle
+  stream: 144, // tracer streaming along a filament into its node: 10 s
   ejecta: 360, // ejecta pulses stream out along the fingers: 4 s
 };
 // Camera framing per state (Dust, Spiral, Nova), blended by the smoothed
 // camera development. crane: elevation swing; offset: look-at drift.
 export const CAMERA = {
-  distance: [3.0, 2.6, 4.0],
-  elevation: [.32, .72, .44],
+  distance: [3.0, 2.3, 4.4],
+  elevation: [.32, .9, .44],
   crane: [.1, .3, .12],
   offset: [.3, .36, .14],
   craneDolly: .22,
@@ -55,7 +54,7 @@ export const CAMERA = {
 };
 // Camera development follows the show's development through a critically
 // damped spring: a one-bar drop never lurches the camera.
-export const FOLLOW = { omega: 1.4, vmax: .45 };
+export const FOLLOW = { omega: 1.2, vmax: .25 };
 // Zel'dovich web data box (cloud frame) and its sampling grid.
 export const WEB_BOX = [2.2, 1.1, 2.2];
 export const WEB_GRID = [96, 48, 96];
@@ -63,6 +62,12 @@ export const OCTA = 512; // remnant direction map (octahedral), texels per side
 export const DISK_MAP = 512; // disk map texels per side over ±DISK_EXTENT
 export const DISK_EXTENT = 1.8;
 export const MODULATION = .3; // web mode amplitude breathing depth
+// Analytic filament web: seeded nodes (node 0 = nucleus at the origin); every
+// node links to its nearest heavier node (a tree draining into the nucleus)
+// and to its nearest other node (closing loops). Cloud frame.
+export const NODES = 36;
+export const EDGES = 2 * (NODES - 1);
+export const WEB_R = 2.6;
 export const ORBIT_V = 0.22; // flat rotation curve speed
 export const ORBIT_CORE = 0.26; // solid-body core radius
 export const RELAX = 0.55; // ψ relaxation rate (1/s) when dispersing
@@ -111,6 +116,78 @@ export const cloudOmega = () => (2 * Math.PI * N.cloud) / CLOCK_PERIOD;
 // Sedov–Taylor blast wave: R(t) = ξ (E t² / ρ)^(1/5), normalised to R(1) = 1.
 export const sedovTaylor = (c) => Math.pow(Math.max(c, 0), 0.4);
 
+export function nodePos(key, i) {
+  if (i === 0) return [0, 0, 0];
+  const u = rnd(key, i, 920), az = 2 * Math.PI * rnd(key, i, 921), z = 2 * rnd(key, i, 922) - 1;
+  const sr = Math.sqrt(1 - z * z), r = WEB_R * (.25 + .75 * Math.pow(u, .7));
+  return [r * sr * Math.cos(az), r * .6 * z, r * sr * Math.sin(az)];
+}
+export const nodeMass = (key, i) => (i === 0 ? 2 : rnd(key, i, 923));
+const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+// Graph of one seed: parent (nearest heavier node) and neighbour (nearest
+// other node that is neither its parent nor its child; −1 when none).
+export function webGraph(key) {
+  const pos = Array.from({ length: NODES }, (_, i) => nodePos(key, i));
+  const mass = pos.map((_, i) => nodeMass(key, i));
+  const parent = pos.map((P, i) => {
+    if (i === 0) return -1;
+    let best = -1, bd = Infinity;
+    for (let j = 0; j < NODES; j++)
+      if (j !== i && mass[j] > mass[i] && d2(P, pos[j]) < bd) [best, bd] = [j, d2(P, pos[j])];
+    return best;
+  });
+  const neighbour = pos.map((P, i) => {
+    if (i === 0) return -1;
+    let best = -1, bd = Infinity;
+    for (let j = 1; j < NODES; j++)
+      if (j !== i && j !== parent[i] && parent[j] !== i && d2(P, pos[j]) < bd) [best, bd] = [j, d2(P, pos[j])];
+    return best;
+  });
+  return { pos, mass, parent, neighbour };
+}
+// Development morph of a cloud-frame point: inner gas winds up faster than
+// outer gas while the web contracts and flattens into the disk.
+export function webMorph(P, p) {
+  const r = Math.hypot(P[0], P[2]);
+  // Wound in the arms' sense (θ grows outward): the inner web turns most.
+  const a = -p * (6 * Math.exp(-.8 * r) + .3), sc = 1 - .38 * p;
+  const c = Math.cos(a), s = Math.sin(a);
+  return [(c * P[0] - s * P[2]) * sc, P[1] * (1 - .92 * p), (s * P[0] + c * P[2]) * sc];
+}
+// Edge e (child → node it drains into): endpoints and a seeded bend, with
+// the child end retracting toward the node as development rises.
+export function webEdge(key, graph, e, p = 0) {
+  const i = 1 + (e >> 1), j = e & 1 ? graph.neighbour[i] : graph.parent[i];
+  if (j < 0) return null;
+  const A = graph.pos[i], B = graph.pos[j];
+  const u = B.map((v, k) => v - A[k]);
+  const len = Math.hypot(...u);
+  const ax = [rnd(key, e, 931) - .5, rnd(key, e, 932) - .5, rnd(key, e, 933) - .5];
+  let perp = [u[1] * ax[2] - u[2] * ax[1], u[2] * ax[0] - u[0] * ax[2], u[0] * ax[1] - u[1] * ax[0]];
+  const pl = Math.max(Math.hypot(...perp), 1e-6);
+  perp = perp.map((v) => v / pl);
+  // Two seeded control points make a smooth (often S-curved) filament.
+  const b1 = .8 * len * (rnd(key, e, 930) - .5), b2 = .8 * len * (rnd(key, e, 934) - .5);
+  const M1 = A.map((v, k) => v + (B[k] - v) / 3 + perp[k] * b1);
+  const M2 = A.map((v, k) => v + (B[k] - v) * 2 / 3 + perp[k] * b2);
+  const lerp = (X, Y, t) => X.map((v, k) => v + (Y[k] - v) * t);
+  return {
+    pts: [webMorph(lerp(A, B, .55 * p), p), webMorph(lerp(M1, B, .4 * p), p), webMorph(lerp(M2, B, .2 * p), p), webMorph(B, p)],
+    tree: !(e & 1),
+  };
+}
+// A point at s ∈ [0, 1] along the edge: a cubic Bézier A, C1, C2, B.
+export function edgePoint(E, s) {
+  const [P0, P1, P2, P3] = E.pts, r = 1 - s;
+  return P0.map((v, c) => r * r * r * v + 3 * r * r * s * P1[c] + 3 * r * s * s * P2[c] + s * s * s * P3[c]);
+}
+// A dust tracer's filament: a seeded edge (tree edge when its loop edge is absent).
+export function tracerEdge(world, ident) {
+  let e = Math.min(EDGES - 1, Math.floor(rnd(world.key, ident.id, 940) * EDGES));
+  if (e & 1 && world.graph.neighbour[1 + (e >> 1)] < 0) e -= 1;
+  return e;
+}
+
 // Polar angle offset ε and radius of the ellipse point with parameter u
 // (axes a, b): wrap-free, |ε| < π/2.
 export function ellipsePolar(a, b, u) {
@@ -153,6 +230,7 @@ export function worldOf(seed) {
   }
   return {
     key,
+    graph: webGraph(key),
     modes,
     twist: 1.35 * (2.2 + 0.9 * rnd(key, 0, 905)), // orientation radians per unit radius
     scale: 0.72 + 0.12 * rnd(key, 0, 906), // exponential disk length
@@ -295,29 +373,19 @@ export function position(world, ident, env) {
     epsG = e.eps;
     yG = ident.height;
   }
-  const rhoQ = Math.hypot(ident.q[0], ident.q[2]);
-  const rho = rhoQ + (rhoG - rhoQ) * p;
-  const y = ident.q[1] + (yG - ident.q[1]) * p;
   const th = lambda + p * epsG;
-  let pos = [rho * Math.cos(th), y, rho * Math.sin(th)];
+  const galaxy = [rhoG * Math.cos(th), yG, rhoG * Math.sin(th)];
+  let pos = galaxy;
   if (p < 1) {
-    const S = zeldovich(world, ident.q, clock);
-    const wob =
-      2 * Math.PI * cycle(clock, N.wobble) + 2 * Math.PI * ident.tone;
-    const j = 0.03 * (0.4 + 0.9 * level);
-    const jitter = [
-      j * Math.sin(wob + ident.q[1] * 3),
-      j * Math.sin(wob + 1.7 + ident.q[0] * 2),
-      j * Math.cos(wob + ident.q[2] * 2),
-    ];
-    // Tracers stream along S into the nodes over their own cycle; the
-    // shader darkens them where the cycle wraps (streamLight).
-    const tau = streamPhase(ident, clock);
-    const disp = rotY(
-      S.map((v, i) => v * growth * (1 + 0.7 * (tau - 0.5)) + jitter[i]),
-      cloud + psi,
-    );
-    pos = pos.map((v, i) => v + disp[i] * (1 - p));
+    // Dust: the tracer streams along its filament into the node it drains
+    // into, spread across the filament's soft cross-section.
+    const E = webEdge(world.key, world.graph, tracerEdge(world, ident), p);
+    const g = edgePoint(E, streamPhase(ident, clock));
+    const spread = 0.03 + 0.03 * ident.layer;
+    const jitter = [ident.q[0], ident.q[1], ident.q[2]].map((v, k) =>
+      spread * Math.sin(7.3 * v + 2.1 * k + 2 * Math.PI * ident.tone));
+    const dust = rotY(g.map((v, k) => v + jitter[k] * (1 - p)), cloud + psi);
+    pos = dust.map((v, k) => v + (galaxy[k] - v) * p);
   }
   if (n <= 0) return pos;
   // Nova: collapse, then the same star rides out on the shell.
@@ -339,7 +407,7 @@ export const SHELL = 1.55;
 // along ±y), then rounds into a sphere. Smooth in development; no flash.
 export function shellRadius(dev, dirY = 0) {
   const n = smooth(1, 2, dev);
-  const lobe = .6 * (1 - smooth(.3, 1, n));
+  const lobe = .22 + .38 * (1 - smooth(.3, 1, n));
   return SHELL * (.1 + .9 * n) * (1 + lobe * dirY * dirY);
 }
 
@@ -434,7 +502,7 @@ export function shellPoint(world, ident, from, clock, growth = 1.8, shock = 1) {
     const sign = ident.tone < 0.5 ? -1 : 1;
     return axis.map(
       (v, i) =>
-        v * sign * (0.05 + 1.6 * t * t) + (n0[i] - along * v) * 0.035 * t,
+        v * sign * (0.04 + 0.35 * t * t) + (n0[i] - along * v) * 0.06 * t,
     );
   }
   const q = n0.map((v) => v * 2);

@@ -17,6 +17,9 @@ import {
   WEB_BOX,
   WEB_GRID,
   OCTA,
+  NODES,
+  EDGES,
+  WEB_R,
   DISK_MAP,
   DISK_EXTENT,
 } from "./nebula-model.mjs";
@@ -134,6 +137,49 @@ vec4 nbWeb(uint key, vec3 q, uint clock, out mat3 hess) {
   }
   return vec4(s, 2. * fsum / total);
 }
+// Analytic filament web (CPU: webGraph/webEdge). Node 0 is the nucleus.
+vec3 nbNodePos(uint key, int i) {
+  if (i == 0) return vec3(0.);
+  uint u = uint(i);
+  float r = ${f(WEB_R)} * (.25 + .75 * pow(nbRnd(key, u, 920u), .7));
+  float az = NB_TAU * nbRnd(key, u, 921u), z = 2. * nbRnd(key, u, 922u) - 1., sr = sqrt(1. - z * z);
+  return r * vec3(sr * cos(az), .6 * z, sr * sin(az));
+}
+float nbNodeMass(uint key, int i) { return i == 0 ? 2. : nbRnd(key, uint(i), 923u); }
+// Graph links written by the simulation into spare state texels:
+// r = parent (nearest heavier node), g = neighbour + 1 (0 = none).
+ivec2 nbLinks(int i) {
+  vec4 t = texelFetch(u_state, ivec2(129 + 8 * i, ${SIZE[1] - 1}), 0);
+  return ivec2(int(t.r * 255. + .5), int(t.g * 255. + .5) - 1);
+}
+vec3 nbMorph(vec3 P, float p) {
+  float r = length(P.xz), a = -p * (6. * exp(-.8 * r) + .3), sc = 1. - .38 * p;
+  float c = cos(a), sn = sin(a);
+  return vec3((c * P.x - sn * P.z) * sc, P.y * (1. - .92 * p), (sn * P.x + c * P.z) * sc);
+}
+// Edge e: cubic Bézier from the child end P[0] via two seeded controls to
+// the node P[3]
+// (morphed); false when absent.
+bool nbEdgeEval(uint key, int e, float p, out vec3 P[4]) {
+  int i = 1 + e / 2;
+  ivec2 l = nbLinks(i);
+  int j = (e & 1) == 1 ? l.y : l.x;
+  if (j < 0) { P[0] = P[1] = P[2] = P[3] = vec3(0.); return false; }
+  vec3 A = nbNodePos(key, i), B = nbNodePos(key, j);
+  vec3 u = B - A;
+  uint ue = uint(e);
+  vec3 ax = vec3(nbRnd(key, ue, 931u), nbRnd(key, ue, 932u), nbRnd(key, ue, 933u)) - .5;
+  vec3 perp = cross(u, ax);
+  perp /= max(length(perp), 1e-6);
+  float len = length(u);
+  vec3 M1 = A + u / 3. + perp * (.8 * len * (nbRnd(key, ue, 930u) - .5));
+  vec3 M2 = A + u * (2. / 3.) + perp * (.8 * len * (nbRnd(key, ue, 934u) - .5));
+  P[0] = nbMorph(mix(A, B, .55 * p), p);
+  P[1] = nbMorph(mix(M1, B, .4 * p), p);
+  P[2] = nbMorph(mix(M2, B, .2 * p), p);
+  P[3] = nbMorph(B, p);
+  return true;
+}
 `;
 
 // Camera shared by the volume and the particles (CPU: cameraFraming).
@@ -205,6 +251,26 @@ void main() {
       d = clamp(d + vel * u_dt, 0., 2.);
     }
     v = cell.x == 1 ? uint(min(d * 2147483648., 4294967040.)) : uint(int(round(vel * 268435456.)));
+  } else if (cell.y == ${SIZE[1] - 1} && cell.x >= 129 && cell.x < ${129 + 8 * NODES} && ((cell.x - 129) & 7) == 0) {
+    // Filament graph links of node i (static per seed).
+    uint key = nbKey();
+    int i = (cell.x - 129) >> 3;
+    vec3 P[${NODES}]; float m[${NODES}]; int par[${NODES}];
+    for (int k = 0; k < ${NODES}; k++) { P[k] = nbNodePos(key, k); m[k] = nbNodeMass(key, k); }
+    for (int k = 0; k < ${NODES}; k++) {
+      par[k] = -1; float bd = 1e9;
+      if (k > 0) for (int j = 0; j < ${NODES}; j++) {
+        vec3 d = P[k] - P[j];
+        if (j != k && m[j] > m[k] && dot(d, d) < bd) { bd = dot(d, d); par[k] = j; }
+      }
+    }
+    int nb = -1; float bd = 1e9;
+    if (i > 0) for (int j = 1; j < ${NODES}; j++) {
+      vec3 d = P[i] - P[j];
+      if (j != i && j != par[i] && par[j] != i && dot(d, d) < bd) { bd = dot(d, d); nb = j; }
+    }
+    outColor = vec4(float(max(par[i], 0)), float(nb + 1), 0., 0.) / 255.;
+    return;
   } else if (cell.y == ${SIZE[1] - 1} && cell.x < ${MODES * 8} && (cell.x & 7) >= 1 && (cell.x & 7) <= 4) {
     // Mode table for this tick (exact float bits).
     vec3 k; float amp;
@@ -335,27 +401,28 @@ void main() {
       float w = u + .7853981634;
       crest = pow(.5 + .5 * cos(2. * w), 3.);
     }
-    float rhoQ = length(s.q.xz);
-    float rho = mix(rhoQ, rhoG, p), y = mix(s.q.y, yG, p);
     float th = lambda + p * epsG;
-    pos = vec3(rho * cos(th), y, rho * sin(th));
+    pos = vec3(rhoG * cos(th), yG, rhoG * sin(th));
     if (p < 1.) {
-      // Zel'dovich: x = q + D·S(q); caustics gather the cosmic web. Each
-      // tracer streams along S into the node over its own cycle and is dark
-      // where the cycle wraps.
-      mat3 hess;
-      vec3 S = nbWeb(key, s.q, clock, hess).xyz;
-      float det = abs(determinant(mat3(1.) + growth * hess));
-      compress = clamp(1. / max(det, .05), .25, 7.);
+      // Dust: the tracer streams along its filament into the node it drains
+      // into (dark where its run restarts), across a soft cross-section.
+      int e = min(${EDGES - 1}, int(nbRnd(key, id, 940u) * ${f(EDGES)}));
+      if ((e & 1) == 1 && nbLinks(1 + e / 2).y < 0) e -= 1;
+      vec3 E[4];
+      nbEdgeEval(key, e, p, E);
       float tau = fract(nbCycle(clock, ${N.stream}u) + s.tone);
+      float r1 = 1. - tau;
+      vec3 g = r1 * r1 * r1 * E[0] + 3. * r1 * r1 * tau * E[1] + 3. * r1 * tau * tau * E[2] + tau * tau * tau * E[3];
+      vec3 B = E[3];
+      vec3 jit = (.03 + .03 * s.layer) * sin(7.3 * s.q + vec3(0., 2.1, 4.2) + NB_TAU * s.tone);
+      vec3 dust = nbRotY(g + jit * (1. - p), cloud + psi);
+      pos = mix(dust, pos, p);
       flowLight = mix(1., sin(NB_PI * tau), 1. - p);
-      float wob = NB_TAU * nbCycle(clock, ${N.wobble}u) + NB_TAU * s.tone;
-      vec3 jitter = .03 * (.4 + .9 * level) * vec3(sin(wob + s.q.y * 3.), sin(wob * 1. + 1.7 + s.q.x * 2.), cos(wob + s.q.z * 2.));
-      pos += nbRotY(S * growth * (1. + .7 * (tau - .5)) + jitter, cloud + psi) * (1. - p);
+      compress = 1. + 4. * exp(-dot(g - B, g - B) / .02);
     }
     // Dust: tracers glow faintly; the web's caustics brighten by crowding.
     vec3 gas = mix(cGas, cHot, clamp(.1 + .2 * s.tone + .12 * compress, 0., 1.));
-    float dustB = .004 * pow(compress, 1.2) + 1.4 * pow(s.tone, 50.);
+    float dustB = .03 * compress + 1.4 * pow(s.tone, 50.);
     float dustSize = 1.8 + 1.6 * s.layer;
     // Spiral: crest stars young (secondary → white), inter-arm stars old.
     vec3 young = mix(cArm, vec3(1.), .35), old = mix(cGas, cArm, .25);
@@ -380,7 +447,7 @@ void main() {
           vec3 axis = normalize(vec3(.45 * sin(ph), 1., .45 * cos(ph)));
           jet = fract((s.layer - .72) / .28 + nbCycle(clock, ${N.jet}u));
           vec3 side = nd0 - dot(nd0, axis) * axis;
-          shell = axis * (s.tone < .5 ? -1. : 1.) * (.05 + 1.6 * jet * jet) + side * .035 * jet;
+          shell = axis * (s.tone < .5 ? -1. : 1.) * (.04 + .35 * jet * jet) + side * .06 * jet;
         } else shell = nd0 * (.015 + .05 * s.layer * s.layer);
       } else {
         mat3 shellHess;
@@ -408,7 +475,7 @@ void main() {
       novaB += 1.1 * front;
       if (jet >= 0.) {
         novaHue = mix(mix(cAcc, vec3(1.), .5), cArm, jet);
-        novaB = .2 * pow(1. - jet, 1.5) * nbSmooth(0., .06, jet);
+        novaB = .08 * pow(1. - jet, 1.5) * nbSmooth(0., .06, jet);
       }
       hue = mix(hue, novaHue, s2);
       bright = mix(bright, novaB, s2);
@@ -564,11 +631,11 @@ vec4 nbShellData(vec3 dn, float level, uint clock) {
   vec3 c2 = nbRot * dn * 7.3 + 2.3;
   float s2x = nbGNoise(c2, ivec3(14, 7, 14), 0x51a7u), s2y = nbGNoise(c2 * 2., ivec3(28, 14, 28), 0x9c3bu);
   float ridge = 1. - abs(2. * s1 - 1.), ridge2 = 1. - abs(2. * s2x - 1.);
-  float holes = nbSmooth(.35, .65, a + .3 * (s2y - .5));
+  float holes = nbSmooth(.42, .62, a + .3 * (s2y - .5));
   float bA = NB_TAU * nbCycle(clock, ${N.breathe}u), bB = NB_TAU * nbCycle(clock, ${N.breathe + 7}u);
   float lift = .032 * sin(dot(dn, vec3(3.1, 1.7, -2.3)) + bA) + .025 * sin(dot(dn, vec3(-3.2, 4.9, 2.2)) + bB)
     + .02 * sin(dot(dn, vec3(5.1, -6., 6.4)) - bA);
-  return vec4(pow(ridge, mix(24., 13., level)) * (.3 + 1.1 * ridge2 * ridge2 * ridge2) * holes, ridge2, a2, lift);
+  return vec4(pow(ridge, mix(18., 10., level)) * (.2 + 1.2 * ridge2 * ridge2) * holes, ridge2, a2, lift);
 }
 vec3 nbOctaDecode(vec2 uv) {
   vec2 p = uv * 2. - 1.;
@@ -633,6 +700,18 @@ vec4 nbShellAt(vec3 dn) {
   return nbShellData(dn, clamp(u_level, 0., 1.), nbClock());
 #endif
 }
+#ifdef PRECOMPUTED
+// Morphed edges (row 512: four polyline points per edge, w = 1 when
+// present) and nodes (row 513) in the cloud frame.
+bool nbEdgeAt(int e, float p, out vec3 P[4]) {
+  vec4 a = texelFetch(u_precomputed, ivec2(${SLICES[0]} + 4 * e, 512), 0);
+  P[0] = a.xyz;
+  for (int k = 1; k < 4; k++) P[k] = texelFetch(u_precomputed, ivec2(${SLICES[0]} + 4 * e + k, 512), 0).xyz;
+  return a.w > .5;
+}
+#else
+bool nbEdgeAt(int e, float p, out vec3 P[4]) { return nbEdgeEval(nbKey(), e, p, P); }
+#endif
 vec4 nbDiskAt(vec2 xz, float twist, float pattern, float gasPhase) {
 #ifdef PRECOMPUTED
   vec2 c = clamp((xz / ${f(DISK_EXTENT)} * .5 + .5) * ${f(DISK_MAP)}, .5, ${f(DISK_MAP - 0.5)});
@@ -678,9 +757,9 @@ void main() {
   vec2 screen = (v_uv * 2. - 1.) * u_resolution / min(u_resolution.x, u_resolution.y);
   vec3 ray = normalize(cam.fwd * cam.focal + cam.right * screen.x + cam.up * screen.y);
   vec3 cGas = u_primary, cArm = u_secondary, cHot = mix(u_primary, vec3(1.), .7), cAcc = u_accent;
-  float wWeb = 1. - p, wDisk = p * (1. - nbSmooth(.45, 1., n)), wShell = n;
+  float wWeb = 1. - p, wDisk = nbSmooth(.15, .85, p) * (1. - nbSmooth(.45, 1., n)), wShell = n;
   float R0 = NB_SHELL * (.1 + .9 * n) * (1. + .03 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u)));
-  float lobe = .6 * (1. - nbSmooth(.3, 1., n));
+  float lobe = .22 + .38 * (1. - nbSmooth(.3, 1., n));
   vec2 span = vec2(1e9, -1e9), b;
   vec3 webR = vec3(mix(1.97, 1.66, p), .9 * mix(1., .1, p), mix(1.97, 1.66, p));
   if (wWeb > .001) { b = nbEllipsoid(cam.eye, ray, webR); span = vec2(min(span.x, b.x), max(span.y, b.y)); }
@@ -689,7 +768,7 @@ void main() {
     b = nbEllipsoid(cam.eye, ray, vec3(1.78, .16, 1.78));
     span = vec2(min(span.x, b.x), max(span.y, b.y));
   }
-  if (wShell > .001) { b = nbEllipsoid(cam.eye, ray, R0 * vec3(1.15, 1.15 * (1. + lobe), 1.15)); span = vec2(min(span.x, b.x), max(span.y, b.y)); }
+  if (wShell > .001) { b = nbEllipsoid(cam.eye, ray, R0 * vec3(1.22, 1.22 * (1. + lobe), 1.22)); span = vec2(min(span.x, b.x), max(span.y, b.y)); }
   float along = -dot(cam.eye, ray);
   float impact = length(cam.eye + ray * along);
   vec3 col = vec3(0.);
@@ -706,19 +785,18 @@ void main() {
     // A pure remnant keeps only its filament layers in the march: the
     // interior (haze, shock fronts) is integrated analytically below.
     vec2 hole = vec2(1e9, -1e9);
-    if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .72));
+    if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .62));
     float skip = max(0., min(hole.y, t1) - max(hole.x, t0));
     float steps = clamp(ceil((t1 - t0 - skip) / mix(.08, .16, k4)), wWeb + wShell > .001 ? mix(8., 4., k4) : 2., mix(24., 10., k4));
     float dt = (t1 - t0 - skip) / steps;
     uvec2 pix = uvec2(gl_FragCoord.xy);
-    // The jitter changes every frame: at 60 Hz the eye averages it like
-    // film grain instead of a screen-fixed pattern under moving gas.
-    float t = t0 + dt * float(nbHash(pix.x * 1973u + pix.y * 9277u + nbHash(u_tick + 0x2a1bu)) >> 8) / 16777216.;
+    // Static interleaved-gradient jitter: no temporal shimmer on LED walls.
+    float t = t0 + dt * fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715))));
     float cloudPhase = NB_TAU * nbCycle(clock, ${N.cloud}u);
     mat2 toCloud = mat2(cos(cloudPhase), -sin(cloudPhase), sin(cloudPhase), cos(cloudPhase));
     float twist = 1.35 * (2.2 + .9 * nbRnd(key, 0u, 905u)) * u_params[3];
     float pattern = NB_TAU * nbCycle(clock, ${N.pattern}u);
-    float flatten = mix(1., .1, p);
+    float flatten = 1. - .92 * p;
     float armPulse = mix(.15, 1.8, 1. - u_rhythm.x), ripple = 2.6 * (1. - u_rhythm.z);
     float shellPhase = NB_TAU * nbCycle(clock, 2u); // 720 s per turn, exact at wrap
     mat2 shellTurn = mat2(cos(shellPhase), -sin(shellPhase), sin(shellPhase), cos(shellPhase));
@@ -736,8 +814,9 @@ void main() {
         // disk as it condenses (geometry, not a dissolve).
         vec3 w = vec3(toCloud * x.xz, x.y).xzy;
         if (p > 0.) {
-          float a = p * 2.4 * exp(-length(w.xz) * .7);
-          w.xz = mat2(cos(a), -sin(a), sin(a), cos(a)) * w.xz * mix(1., 1.2, p);
+          // Inverse of nbMorph (to first order): unwind, expand, thicken.
+          float sc = 1. - .38 * p, a = p * (6. * exp(-.8 * length(w.xz) / sc) + .3);
+          w.xz = mat2(cos(a), sin(a), -sin(a), cos(a)) * w.xz / sc;
           w.y /= flatten;
         }
         // Finite cloud: the envelope reaches zero inside the march bound.
@@ -753,9 +832,10 @@ void main() {
           float dens = (web.x * .35 + core) * env * near;
           float hot = max(web.x - 2.6, 0.) * sharp * env;
           float haze = env * fib * fib * .03;
-          e += wWeb * (cGas * (web.x * .08 * env + core * .6) + cHot * hot * .35 + cArm * haze * 1.5);
+          // Diffuse sheets and walls between the filaments: faint, broad.
+          e += wWeb * (cGas * (web.x * .09 * env + core * .18) + cArm * haze * 1.5);
           if (u_rhythm.x > 0.) e += wWeb * cHot * dens * u_rhythm.x * .8 * exp(-nbSq((r - armPulse) / .25));
-          sigma += wWeb * (dens * .5 + haze * 4.);
+          sigma += wWeb * (dens * .25 + haze * 2.);
           matter += wWeb * dens * .3;
         }
       }
@@ -792,19 +872,22 @@ void main() {
         vec4 sh = nbShellAt(dn);
         float patchy = sh.z, lift = sh.w, ridge2 = sh.y;
         float u = r / Rs;
-        float limb = exp(-nbSq((u - .99 - lift) / (.012 + .02 * ridge2)));
-        float reach = .8 + .1 * ridge2;
-        float band = nbSmooth(reach, reach + .08, u) * (1. - nbSmooth(.98 + lift, 1.03 + lift, u)) * (.55 + .45 * nbSmooth(reach, 1., u));
+        // A thick, torn edge: the outer radius wanders with the direction
+        // map and the emitting layer breaks into patches and holes.
+        float edge = 1. + 1.6 * lift + .16 * (patchy - .5);
+        float torn = nbSmooth(.3, .6, patchy + .25 * (ridge2 - .5));
+        float limb = nbSmooth(edge - .2 - .08 * ridge2, edge - .05, u) * (1. - nbSmooth(edge - .03, edge + .05, u)) * torn;
+        float reach = .62 + .2 * ridge2;
+        float band = nbSmooth(reach, reach + .15, u) * (1. - nbSmooth(edge - .04, edge + .06, u));
         float fil = sh.x * band;
-        fil *= .55 + .45 * sin(NB_TAU * (u * 11. - ejecta) + 6. * ridge2);
-        float rim = exp(-nbSq((u - 1.035 - lift) / .009)) * nbSmooth(.5, .8, patchy) * nbSmooth(.25, .6, ridge2);
-        vec3 E = mix(cGas, cHot, .4 * ridge2) * limb * (.08 + 1.4 * patchy * patchy) * .9 + mix(cArm, cHot, pow(ridge2, 5.)) * fil * 9.
-          + cAcc * rim * 1.1
-          + cAcc * fil * pow(ridge2, 12.) * 6.;
+        fil *= .55 + .45 * sin(NB_TAU * (u * 9. - ejecta) + 6. * ridge2);
+        // Filaments in the secondary, their hottest knots in the accent; a
+        // patchy, thick limb of shocked gas in the primary.
+        vec3 E = cGas * limb * (.1 + .9 * patchy * patchy) * .45 + cArm * fil * 4. + cAcc * fil * pow(ridge2, 6.) * 4.;
         E += mix(cArm, cHot, .5) * fil * u_rhythm.x * 3.;
         // The breakout reaches full brightness early: an energetic young bubble.
         e += nbSmooth(0., .4, n) * E;
-        sigma += wShell * (fil * 6. + limb * .3);
+        sigma += wShell * (fil * 5. + limb * .6);
         matter += wShell * (fil + limb * .5);
       }
       // Shock ripple: a ring of light runs out through whatever matter is there.
@@ -832,14 +915,81 @@ void main() {
   if (n > 0.) {
     // Remnant interior: synchrotron haze around the pulsar and the
     // Sedov–Taylor fronts as thin spheres (path-integrated, analytic).
-    float sig = .32 * R0;
-    float haze = sig * 1.7725 * exp(-impact * impact / (sig * sig));
+    float sig = .62 * R0;
+    float haze = sig * 1.7725 * exp(-impact * impact / (sig * sig)) * .75;
     float shockC = nbCycle(clock, ${N.shock}u);
     float F = R0 * pow(shockC, .4), fw = .035; // Sedov–Taylor R ∝ t^(2/5), inside the shell
     float sphere = F > impact ? 2. * fw * 1.7725 / max(sqrt(1. - nbSq(impact / F)), sqrt(2. * fw / max(F, .01)))
       : fw * 1.7725 * sqrt(2. * F / fw) * exp(-nbSq((impact - F) / fw));
     float front = u_params[7] * nbSmooth(0., .05, shockC) * (1. - shockC) * sphere * nbSmooth(.05, .3, F);
-    col += Tcore * n * (mix(cArm, cHot, .55) * haze * .35 + cHot * front * .45);
+    col += Tcore * n * (mix(cGas, cHot, .2) * haze * .32 + cHot * front * .45);
+  }
+  if (p < 1.) {
+    // Analytic filaments: distance from the ray to each bent node-to-node
+    // segment, a soft cross-section with a pixel-footprint floor, streaming
+    // pulses toward the node and depth fog. The web winds into the disk.
+    float cloudPhase = NB_TAU * nbCycle(clock, ${N.cloud}u);
+    mat2 toCloud = mat2(cos(cloudPhase), -sin(cloudPhase), sin(cloudPhase), cos(cloudPhase));
+    vec3 O = vec3(toCloud * cam.eye.xz, cam.eye.y).xzy, D = vec3(toCloud * ray.xz, ray.y).xzy;
+    float fp = 2.4 / (cam.focal * min(u_resolution.x, u_resolution.y));
+    float flow = nbCycle(clock, ${N.stream}u);
+    float fade = 1. - nbSmooth(.35, 1., p), loops = nbSmooth(.15, .6, level);
+    vec3 fil = vec3(0.);
+    for (int e = 0; e < ${EDGES}; e++) {
+      vec3 E[4];
+      if (!nbEdgeAt(e, p, E)) continue;
+      float wgt = ((e & 1) == 1 ? .55 * loops : 1.) * (.35 + .65 * nbRnd(key, uint(e), 935u));
+      if (wgt <= 0.) continue;
+      float w = (e & 1) == 1 ? .009 : .014;
+      // Cull by the control hull's bounding sphere (sheath included).
+      vec3 cen = .5 * (E[0] + E[3]);
+      float rad = sqrt(max(max(dot(E[0] - cen, E[0] - cen), dot(E[1] - cen, E[1] - cen)), dot(E[2] - cen, E[2] - cen)));
+      vec3 vc = cen - O;
+      float tc = dot(vc, D);
+      if (dot(vc, vc) - tc * tc > nbSq(rad + 8. * w + 3. * fp * max(tc, 0.) + .02)) continue;
+      vec3 Pb[5];
+      for (int k = 0; k < 5; k++) {
+        float q = float(k) * .25, r1 = 1. - q;
+        Pb[k] = r1 * r1 * r1 * E[0] + 3. * r1 * r1 * q * E[1] + 3. * r1 * q * q * E[2] + q * q * q * E[3];
+      }
+      for (int h = 0; h < 4; h++) {
+        vec3 P = Pb[h], Q = Pb[h + 1];
+        vec3 u = Q - P, w0 = O - P;
+        float L2 = max(dot(u, u), 1e-6), bb = dot(D, u), dd = dot(D, w0), ee = dot(u, w0);
+        float sg = clamp((ee - dd * bb) / max(L2 - bb * bb, 1e-6), 0., 1.);
+        float tt = sg * bb - dd;
+        if (tt < .15) continue;
+        vec3 c = w0 + tt * D - sg * u;
+        float d2 = dot(c, c);
+        float along = (float(h) + sg) * .25, len = sqrt(L2) * 4.;
+        // Clumped, wavering cross-section (thicker toward the node) and
+        // pulses running into the node.
+        float wid = w * (.55 + .6 * along) * (.75 + .5 * sin(along * len * 6. + float(e) * 1.7) * sin(along * len * 2.3 + float(e)));
+        float ww = max(wid, fp * tt);
+        float pulse = .3 + .7 * nbSq(.5 + .5 * sin(NB_TAU * (along * len * 1.3 - 2. * flow) + float(e)));
+        float core = wid / ww * exp(-d2 / (ww * ww));
+        // A broad gas sheath around the bright core.
+        float hw = 6. * w + 2. * fp * tt;
+        float sheath = .22 * exp(-d2 / (hw * hw));
+        float fog = exp(-max(tt - 1.6, 0.) / 2.4) * nbSmooth(.15, .7, tt);
+        // As the web winds up its filaments take on the arms' colour.
+        fil += fog * wgt * (core * pulse * mix(mix(cGas, cArm, p), cHot, .3 * pulse * along) + sheath * mix(cGas, cArm, .25 + .75 * p));
+      }
+    }
+    // Nodes: knotted junctions, bigger for heavier nodes.
+    for (int i = 1; i < ${NODES}; i++) {
+#ifdef PRECOMPUTED
+      vec4 nd = texelFetch(u_precomputed, ivec2(${SLICES[0]} + i, 513), 0);
+#else
+      vec4 nd = vec4(nbMorph(nbNodePos(key, i), p), nbNodeMass(key, i));
+#endif
+      vec3 v = nd.xyz - O;
+      float tt = dot(v, D);
+      if (tt < .15) continue;
+      float d2 = dot(v, v) - tt * tt, rr = max(.015 + .03 * nd.w, fp * tt);
+      fil += cHot * (.35 + .6 * nd.w) * (.015 + .03 * nd.w) / rr * exp(-d2 / (rr * rr)) * exp(-max(tt - 1.6, 0.) / 2.4) * nbSmooth(.15, .7, tt);
+    }
+    col += fil * fade * 1.1 * (1. + .6 * u_rhythm.x);
   }
   // The densest web node, the future nucleus: a compact hot knot
   // (path-integrated Gaussian, analytic).
@@ -860,8 +1010,8 @@ void main() {
     vec3 w0 = cam.eye;
     float b2 = dot(ray, axis);
     float sAxis = (dot(w0, axis) - b2 * dot(w0, ray)) / max(1. - b2 * b2, 1e-4);
-    float jet = exp(-nbSq(dl / (.006 + .03 * abs(sAxis)))) * exp(-abs(sAxis) / (.28 * R0)) * nbSmooth(.02, .1, abs(sAxis));
-    col += Tcore * mix(cAcc, vec3(1.), .35) * jet * n * 1.4 * (1. + 1.5 * u_rhythm.y);
+    float jet = exp(-nbSq(dl / (.015 + .12 * abs(sAxis)))) * exp(-nbSq(sAxis / (.13 * R0))) * nbSmooth(.0, .06, abs(sAxis));
+    col += Tcore * mix(cAcc, cHot, .4) * jet * n * .9 * (1. + 1.5 * u_rhythm.y);
   }
   // Faint scattered light around the form: depth, not a fill.
   col += cGas * .012 * exp(-impact * impact / 3.) * (1. - .5 * n);
@@ -879,6 +1029,18 @@ void main() {
   float dev = clamp(u_params[0], 0., 2.), level = clamp(u_level, 0., 1.);
   uint clock = nbClock(), key = nbKey();
   outColor = vec4(0.);
+  if (px.x >= ${SLICES[0]} && (px.y == 512 || px.y == 513)) {
+    // Filament edges and nodes while the web is shown.
+    int k = px.x - ${SLICES[0]};
+    float p = nbSmooth(0., 1., dev);
+    if (dev >= 1.) return;
+    if (px.y == 512 && k < ${4 * EDGES}) {
+      vec3 E[4];
+      bool on = nbEdgeEval(key, k / 4, p, E);
+      outColor = vec4(E[k & 3], on ? 1. : 0.);
+    } else if (px.y == 513 && k < ${NODES}) outColor = vec4(nbMorph(nbNodePos(key, k), p), nbNodeMass(key, k));
+    return;
+  }
   if (px.x >= ${SLICES[0]}) {
     // Disk map, only while the disk is shown.
     if (dev > 0. && dev < 2. && px.y < ${DISK_MAP}) {

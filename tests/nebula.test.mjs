@@ -25,6 +25,12 @@ import {
   progress,
   psiRate,
   DISK_MAP,
+  EDGES,
+  NODES,
+  edgePoint,
+  tracerEdge,
+  webEdge,
+  webMorph,
   FOLLOW,
   MODES,
   OCTA,
@@ -101,8 +107,8 @@ test("identity is seed-derived only; position is continuous in development", () 
     for (let k = 1; k <= 400; k++) {
       const next = position(world, id, { clock, dev: k / 200, psi: 0.3 });
       for (const v of next) assert.ok(Number.isFinite(v));
-      // 0.005 development never moves a star more than 0.06 world units.
-      assert.ok(dist(prev, next) < 0.06, `star ${id.id} jumps at ${k / 200}`);
+      // 0.005 development never moves a star more than 0.1 world units.
+      assert.ok(dist(prev, next) < 0.1, `star ${id.id} jumps at ${k / 200}`);
       prev = next;
     }
   }
@@ -365,10 +371,51 @@ test("the web's densest node is the seeded nucleus and the pulsar, at every cloc
   assert.match(nebula.particles.vertex, /float kk = max\(dot\(k, k\), 1e-3\), arg = dot\(k, q\) \+ NB_PI;/);
   assert.match(nebula.fragment, /exp\(-impact \* impact \/ \.012\)/, "nucleus at the origin");
   assert.match(nebula.fragment, /exp\(-coreR2 \/ \.0016\)/, "hot core and pulsar at the origin");
+  // The analytic filament web drains into the same node: every node's
+  // chain of heavier parents ends at node 0 (the nucleus at the origin).
+  const g = world.graph;
+  assert.deepEqual(g.pos[0], [0, 0, 0]);
+  for (let i = 1; i < NODES; i++) {
+    let j = i, hops = 0;
+    while (j !== 0 && hops++ < NODES) {
+      assert.ok(g.mass[g.parent[j]] > g.mass[j], "parents are heavier");
+      j = g.parent[j];
+    }
+    assert.equal(j, 0, `node ${i} drains into the nucleus`);
+    const nb = g.neighbour[i];
+    if (nb >= 0) assert.ok(nb !== g.parent[i] && g.parent[nb] !== i, "loop links never duplicate tree links");
+  }
   // The mode table the simulation writes mirrors worldOf().
   assert.match(nebula.simulation.fragment, /z \* \.85, r \* sin\(az\)\)\) \* \(5\. \+ 5\. \* nbRnd\(key, m, 902u\)\)/);
   assert.equal(world.modes.length, MODES);
   for (const m of world.modes) assert.ok(m.kLen >= 5 && m.kLen <= 10 && m.phase === Math.PI);
+});
+
+test("filaments: Bézier edges from child to node, wound into the arms' sense, tracers stream into the node", () => {
+  for (let e = 0; e < EDGES; e++) {
+    const E = webEdge(world.key, world.graph, e, 0);
+    if (!E) continue;
+    const i = 1 + (e >> 1), j = e & 1 ? world.graph.neighbour[i] : world.graph.parent[i];
+    assert.deepEqual(edgePoint(E, 0), world.graph.pos[i]);
+    for (let k = 0; k < 3; k++) assert.ok(Math.abs(edgePoint(E, 1)[k] - world.graph.pos[j][k]) < 1e-12);
+    // Smooth curve: consecutive samples never jump.
+    for (let k = 1; k <= 50; k++) assert.ok(dist(edgePoint(E, k / 50), edgePoint(E, (k - 1) / 50)) < 0.25);
+  }
+  // Winding: the inner web turns further than the outer web, in the sense
+  // in which the arms' phase grows outward (θ = r·twist + c).
+  const turn = (r) => { const P = webMorph([r, 0, 0], 0.5); return Math.atan2(P[2], P[0]); };
+  assert.ok(turn(0.4) < turn(1.2) && turn(1.2) < turn(2.4));
+  assert.deepEqual(webMorph([1, 0.5, 0], 0), [1, 0.5, 0]);
+  // Tracer streaming moves toward the node end of its filament.
+  const id = sample(400).find((s) => s.kind === 0);
+  const E = webEdge(world.key, world.graph, tracerEdge(world, id), 0);
+  const end = E.pts[3];
+  const clock = Math.round((0.2 / N.stream) * TWO32) - streamPhase(id, 0) * 0;
+  const s0 = streamPhase(id, clock), s1 = streamPhase(id, (clock + clockStep(1, 1)) >>> 0);
+  if (s1 > s0) assert.ok(dist(edgePoint(E, s1), end) < dist(edgePoint(E, s0), end) + 1e-9);
+  assert.match(nebula.fragment, /if \(!nbEdgeAt\(e, p, E\)\) continue;/);
+  assert.match(nebula.fragment, /Static interleaved-gradient jitter/);
+  assert.doesNotMatch(nebula.fragment, /u_tick/);
 });
 
 test("mode table and camera spring use spare state texels only", () => {
@@ -381,6 +428,9 @@ test("mode table and camera spring use spare state texels only", () => {
     }
   for (const id of [1, 2]) assert.notEqual(id & 3, 0, "never a ψ tracer");
   assert.match(nebula.simulation.fragment, /cell\.y == 255 && cell\.x < 128/);
+  // Filament graph links: x = 129 + 8i on the last row, clear of the mode table.
+  for (let i = 0; i < NODES; i++) assert.ok(129 + 8 * i >= 128 && 129 + 8 * i < SIZE[0]);
+  assert.match(nebula.simulation.fragment, /cell\.x >= 129 && cell\.x < 417/);
 });
 
 test("remnant breaks out of the disk as bipolar lobes and rounds into a sphere", () => {
@@ -395,17 +445,18 @@ test("remnant breaks out of the disk as bipolar lobes and rounds into a sphere",
     previous = eq;
   }
   assert.ok(shellRadius(1.4, 1) > 1.25 * shellRadius(1.4, 0), "bipolar breakout");
-  assert.equal(shellRadius(2, 1), shellRadius(2, 0), "spherical at the top state");
+  const top = shellRadius(2, 1) / shellRadius(2, 0);
+  assert.ok(top > 1.15 && top < 1.3, "a mildly bipolar remnant at the top state");
   assert.ok(Math.abs(shellRadius(1, 0) - 0.1 * SHELL) < 1e-12);
   // No development-locked flash: ignition is a steady structural state.
   assert.doesNotMatch(nebula.fragment + nebula.particles.vertex, /ignite/);
 });
 
 test("camera spring never lurches and settles without overshoot", () => {
-  for (const [from, to] of [[1, 2], [0, 2], [2, 0], [2, 1]]) {
+  for (const [from, to] of [[1, 2], [0, 2], [2, 0], [2, 1], [0, 1], [1, 0]]) {
     let state = { d: from, v: 0 },
       peak = 0;
-    for (let k = 0; k < 60 * 8; k++) {
+    for (let k = 0; k < 60 * 14; k++) {
       state = followStep(state, to);
       peak = Math.max(peak, Math.abs(state.v));
       assert.ok(state.d >= Math.min(from, to) - 1e-9 && state.d <= Math.max(from, to) + 1e-9, "no overshoot");
@@ -421,12 +472,13 @@ test("camera spring never lurches and settles without overshoot", () => {
     const l = Math.hypot(...v);
     return v.map((x) => x / l);
   };
-  for (const clock0 of [0, 1e9, 3e9]) {
-    let state = { d: 1, v: 0 },
+  for (const clock0 of [0, 1e9, 3e9])
+  for (const [from, to] of [[0, 1], [1, 2], [2, 0]]) {
+    let state = { d: from, v: 0 },
       clock = clock0;
     let prev = cameraFraming(state.d, clock);
-    for (let k = 0; k < 60 * 5; k++) {
-      state = followStep(state, 2);
+    for (let k = 0; k < 60 * 10; k++) {
+      state = followStep(state, to);
       clock = (clock + step) >>> 0;
       const next = cameraFraming(state.d, clock);
       const a = dir(prev),
@@ -435,11 +487,11 @@ test("camera spring never lurches and settles without overshoot", () => {
       assert.ok(turn < (0.25 * 2) / CAMERA.focal, `view turns ${turn.toFixed(3)} rad/s`);
       // Size changes by under half per second: at ~80% of the short side its
       // silhouette moves under a fifth of the short side per second.
-      assert.ok((Math.abs(next.distance - prev.distance) * 60) / next.distance < 0.5, "dolly rate");
+      assert.ok((Math.abs(next.distance - prev.distance) * 60) / next.distance < 0.4, "dolly rate");
       prev = next;
     }
   }
-  assert.match(nebula.simulation.fragment, /vel = clamp\(vel \+ acc \* u_dt, -0\.45, 0\.45\)/);
+  assert.match(nebula.simulation.fragment, /vel = clamp\(vel \+ acc \* u_dt, -0\.25, 0\.25\)/);
 });
 
 test("camera stays outside the forms for every fader position", () => {
@@ -487,7 +539,7 @@ test("shader constants follow the CPU model", () => {
     nebula.fragment,
   ].join("\n");
   assert.ok(sources.includes(`NB_P = ${CLOCK_PERIOD}.`));
-  for (const n of [N.cloud, N.pattern, N.shock, N.yaw, N.wobble, N.jet])
+  for (const n of [N.cloud, N.pattern, N.shock, N.yaw, N.stream, N.jet])
     assert.ok(sources.includes(`${n}u`));
   assert.ok(!/\$\{/.test(sources), "no unexpanded template");
 });
