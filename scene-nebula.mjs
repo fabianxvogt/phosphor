@@ -273,7 +273,8 @@ void main() {
     vec3 along = normalize(vec3(nbRnd(key, g, 953u) - .5, .4 * (nbRnd(key, g, 954u) - .5), nbRnd(key, g, 955u) - .5));
     bool star = nbRnd(key, g, 956u) > .78;
     float bend = sin(member * 4. + 6. * nbRnd(key, g, 957u));
-    vec3 pos = centre + along * member * (star ? .14 : .5) + .06 * bend * vec3(along.z, .5, -along.x);
+    vec3 scatter = vec3(nbRnd(key, m, 961u), nbRnd(key, m, 962u), nbRnd(key, m, 963u)) - .5;
+    vec3 pos = star ? centre + .35 * scatter : centre + along * member * .5 + .06 * bend * vec3(along.z, .5, -along.x);
     vec3 v = pos - cam.eye;
     float z = dot(v, cam.fwd);
     if (z < .2) return;
@@ -359,7 +360,7 @@ void main() {
     // Spiral: crest stars young (secondary → white), inter-arm stars old.
     vec3 young = mix(cArm, vec3(1.), .35), old = mix(cGas, cArm, .25);
     vec3 starHue = s.kind == 1 ? cHot : mix(old, young, crest);
-    float starB = s.kind == 1 ? .06 : (.12 + .7 * crest) * (.04 + 2.2 * pow(s.tone, 18.));
+    float starB = s.kind == 1 ? .06 : (.12 + 1.2 * crest) * (.05 + 3. * pow(s.tone, 18.));
     if (s.kind == 0 && s.tone > .994 && crest > .55) { starHue = cAcc; starB = 1.1; }
     hue = mix(gas, starHue, p);
     bright = mix(dustB, starB, p);
@@ -523,7 +524,7 @@ vec2 nbWebField(vec3 x, uint clock, float growth) {
   vec3 a = vec3(min(min(ev.x, ev.y), ev.z), 0., max(max(ev.x, ev.y), ev.z));
   a.y = ev.x + ev.y + ev.z - a.x - a.z;
   float sheet = min(1. / max(a.x, .09), 11.);
-  float filament = max(1. / max(a.y, .26) - .85, 0.);
+  float filament = max(1. / max(a.y, .2) - .85, 0.);
   float node = max(0., -.5 * web.w);
   float env = exp(-pow(length(x.xz) / 1.8, 4.)) * exp(-nbSq(x.y / .8));
   float rho = ((.1 * max(sheet - 1.5, 0.) + .5 * sheet * filament) * (1. - .9 * nbSmooth(.2, .6, node)) + 3. * pow(node, 6.)) * env;
@@ -574,8 +575,12 @@ vec4 nbDiskData(vec2 xz, float twist, float pattern, float gasPhase, float level
   float inner = nbSmooth(.12, .42, rd);
   float clumps = .2 + 1.6 * nbSq(nbSmooth(.3, .8, hfx)) + .5 * nzy;
   float spur = exp(-nbSq(sin(ph + 1.1 + 2.5 * (nzy - .5))) / .05) * .35;
-  float armLight = (arm * clumps + spur * hfy) * inner;
-  float knots = nbSmooth(.72 - .1 * level, .9, hfy) * arm * arm * nbSmooth(.22, .45, rd);
+  // Fine star-cloud grain resolves the arms at full output resolution.
+  vec3 fc = nbRot * vec3(g.y, 0., g.x) * 26. + 4.2;
+  float fine = nbGNoise(fc, ivec3(56, 28, 56), 0x3e1du);
+  float armLight = (arm * clumps * (.45 + 1.1 * fine * fine) + spur * hfy) * inner;
+  float kn = nbGNoise(fc * .55 + 7.1, ivec3(56, 28, 56), 0x77c1u);
+  float knots = nbSmooth(.74 - .08 * level, .86, kn) * nbSmooth(.4, .7, hfy) * arm * arm * nbSmooth(.22, .45, rd);
   return vec4(arm, armLight, lane * (1.6 + 2.4 * nzy) * inner, knots);
 }
 `;
@@ -722,10 +727,15 @@ void main() {
         if (env > 0.) {
           vec2 web = nbWebAt(w, clock);
           float fib = nbSmooth(.25, .85, web.y);
-          float dens = web.x * sqrt(sqrt(web.x)) * mix(1., .2 + 1.8 * fib * fib, .5 * sharp) * env * nbSmooth(.05, .6, t);
+          // Crisp filament cores (an iso-band of the smooth field) inside a
+          // soft glow; energy sharpens the streaming fibres.
+          float fibre = mix(1., .25 + 1.6 * fib * fib, .5 * sharp);
+          float near = nbSmooth(.05, .6, t);
+          float core = nbSmooth(1.6, 3.4, web.x) * web.x * fibre * env * near;
+          float dens = (web.x * .35 + core) * env * near;
           float hot = max(web.x - 2.6, 0.) * sharp * env;
           float haze = env * fib * fib * .03;
-          e += wWeb * (mix(cArm, cGas, nbSmooth(.05, .8, dens)) * dens * .3 + cHot * hot * .25 + cArm * haze);
+          e += wWeb * (cGas * (web.x * .08 * env + core * .6) + cHot * hot * .35 + cArm * haze * 1.5);
           if (u_rhythm.x > 0.) e += wWeb * cHot * dens * u_rhythm.x * .8 * exp(-nbSq((r - armPulse) / .25));
           sigma += wWeb * (dens * .5 + haze * 4.);
           matter += wWeb * dens * .3;
@@ -746,7 +756,7 @@ void main() {
         float hotC = nbSmooth(1.1, 2.4, armLight);
         // Lanes are cold, opaque dust: they stop emitting and hide what is behind.
         float dark = exp(-laneK * 1.25);
-        vec3 E = surface * dark * (cGas * .1 * (.5 + arm) + cArm * armLight * 1.8 * (1. - .4 * hotC) + cHot * hotC * 2.2);
+        vec3 E = surface * dark * (cGas * .1 * (.5 + arm) + cArm * armLight * 3.6 * (1. - .4 * hotC) + cHot * hotC * 3.2);
         if (u_rhythm.x > 0.) E += cArm * arm * surface * u_rhythm.x * 3. * exp(-nbSq((rd - armPulse) / .15));
         float K = surface * (laneK * 3.2 + .3 * arm + .5); // + diffuse midplane dust (edge-on lane)
         e += wDisk * clear * cAcc * knots * surface * 16. * dark * knotColumn * 2. * mix(.25, 1., nbSmooth(.05, .35, abs(ray.y)));
@@ -777,7 +787,8 @@ void main() {
           + cAcc * rim * 1.1
           + cAcc * fil * pow(ridge2, 12.) * 6.;
         E += mix(cArm, cHot, .5) * fil * u_rhythm.x * 3.;
-        e += wShell * E;
+        // The breakout reaches full brightness early: an energetic young bubble.
+        e += nbSmooth(0., .4, n) * E;
         sigma += wShell * (fil * 6. + limb * .3);
         matter += wShell * (fil + limb * .5);
       }
@@ -817,7 +828,7 @@ void main() {
   }
   // The densest web node, the future nucleus: a compact hot knot
   // (path-integrated Gaussian, analytic).
-  col += Tcore * cHot * (1. - p) * .19 * exp(-impact * impact / .012) * 1.6 * (1. + u_rhythm.y);
+  col += Tcore * cHot * (1. - p) * (.19 * exp(-impact * impact / .012) * 3. + .5 * exp(-impact * impact / .0015)) * (1. + u_rhythm.y);
   // Steady hot core and pulsar (point-like, analytic): ignition is a
   // structural state of development, never a timed flash.
   float core = nbSmooth(0., .3, n);
