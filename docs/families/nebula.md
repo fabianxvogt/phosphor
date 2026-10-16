@@ -59,7 +59,21 @@ Steps follow the bounded chord (step .08 at 1080p, .16 at 4K). Caps are 24/12, a
 
 Native headless Chrome / ANGLE Metal / Apple M3 Pro. `profile-rework-pair.mjs --reference main` (ABBA, level .95) under fleet load:
 
-PERF_TABLE
+| State | 1080p main → final p50 (ratio) | 4K main → final p50 (ratio) | Stock `profile-families` p50 1080p / 4K |
+| --- | --- | --- | --- |
+| Dust | 2.5 → **5.4 ms** (×2.16) | 6.1 → **11.3 ms** (×1.85) | 5.0 / 11.6 ms |
+| Spiral | 2.5 → **3.9 ms** (×1.56) | 5.6 → **10.0 ms** (×1.79) | 4.4 / 11.7 ms |
+| Nova | 2.2 → **4.9 ms** (×2.23) | 5.9 → **11.2 ms** (×1.90) | 4.9 / 9.7 ms |
+
+The load average was 65–90 during these runs, from four other lanes on the same GPU. On a quiet machine main measures about 1.9–2.0 ms at 1080p, so the ratios put the final at about 4–4.5 ms at 1080p and 10–11 ms at 4K. Targets were ≤ 5 ms at 1080p and ≤ 12 ms at 4K (16 ms ceiling). Optimisation steps, each A/B-measured against its predecessor:
+
+- mode table in state texels (pair ×0.65–0.9);
+- single read of the mode table per web texel;
+- void early-out and 96-grid web atlas (Dust ×0.76);
+- analytic bulge and slab-only disk march;
+- analytic remnant interior with a skipped hole;
+- corrugation stored in the direction map;
+- chord-based step counts with 4K caps.
 
 ## Verification
 
