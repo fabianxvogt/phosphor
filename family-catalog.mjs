@@ -26,7 +26,7 @@ export const FAMILY_CATALOG = {
   },
   storm: {
     algorithm: "Volumetric cumulonimbus lit from inside by seeded stepped-leader discharges",
-    description: "A distant bank flickering with heat lightning grows into towering cumulonimbus and a supercell with a streaming anvil. Every discharge lights the cloud from inside; strikes fall from the anvil to the plain.",
+    description: "A moonlit bank flickering with heat lightning grows into towering cumulonimbus and a supercell with a streaming anvil over a dark lake. Every discharge lights the cloud from inside; strikes fall from the anvil to the shore and flash again in the water.",
     styles: ["spatial", "organic"],
     variants: ["Haze", "Towers", "Supercell"],
   },

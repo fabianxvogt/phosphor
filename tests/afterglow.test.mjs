@@ -146,19 +146,19 @@ test("camera rises within a bounded range so a one-bar drop is a gentle crane", 
   for (let d = 0.01; d <= 2.0001; d += 0.01) {
     const eye = gardenEye(d);
     assert.ok(eye.z >= previous.z - 1e-12, "eye height is monotone");
-    assert.ok(Math.abs(eye.z - previous.z) < 0.004, "no jump per 0.01");
+    assert.ok(Math.abs(eye.z - previous.z) < 0.002, "no jump per 0.01");
     previous = eye;
   }
   const low = gardenEye(0),
     high = gardenEye(2);
-  assert.ok(high.z / low.z <= 4.5);
+  assert.ok(high.z / low.z <= 2.2);
   assert.ok(Math.abs(high.pitch - low.pitch) <= (10 * Math.PI) / 180);
   for (const altitude of [0.7, 1.4])
     assert.ok(gardenEye(0, altitude).z > 0.034, "never in the soil");
   // The shader mirrors the same numbers.
   assert.match(
     afterglow.fragment,
-    /\.05 \+ \.07 \* agSmooth\(0\., 1\., d\) \+ \.09 \* agSmooth\(1\., 2\., d\)/,
+    /\.12 \+ \.06 \* agSmooth\(0\., 1\., d\) \+ \.08 \* agSmooth\(1\., 2\., d\)/,
   );
 });
 
@@ -449,6 +449,49 @@ test("slot-3 pollen signature has three authored, distinct, bounded loops", () =
   for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
     assert.ok(afterglow.geometry.vertex.includes(uniform), uniform);
   assert.match(afterglow.geometry.vertex, /part >= 33/);
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(afterglow.rhythm, style);
+    const density = pattern.tracks.reduce(
+      (sum, track) =>
+        sum +
+        (track.steps.filter((x) => x > 0).length * track.division * 4) /
+          track.length,
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+  }
+});
+
+test("r4 meadow keeps opaque grass, local motes and independent sap/flex signals", () => {
+  const parts = [];
+  const template = flowerTemplate();
+  for (let i = 0; i < template.length; i += 3) parts.push(template[i]);
+  for (const grass of [22, 23]) {
+    assert.equal(parts.filter((p) => p === grass).length, 18);
+    assert.ok(parts.indexOf(grass) < ADDITIVE_FROM);
+  }
+  for (let mote = 33; mote < 45; mote++)
+    assert.equal(parts.filter((p) => p === mote).length, 6);
+  assert.match(
+    afterglow.geometry.vertex,
+    /v_signal = vec3\(agPulse\(far\), pollen, cohort\)/,
+  );
+  assert.match(
+    afterglow.geometry.fragment,
+    /u_primary \* v_signal.x \* \(margin/,
+  );
+  assert.match(afterglow.geometry.fragment, /u_accent \* v_signal.y/);
+  assert.match(afterglow.fragment, /packetRing/);
+  assert.doesNotMatch(afterglow.fragment, /vec3 mirrored|float fresnel/);
+  // Conservative angular projection of a radius .21 patch at .88 distance,
+  // including its lateral excursion: < one third of a 16:9 review frame.
+  const width = (2 * 0.21 * 1.15) / Math.sqrt(0.88 ** 2 - 0.21 ** 2) / (16 / 9);
+  assert.ok(width < 1 / 3, `patch width ${width}`);
+  assert.match(afterglow.geometry.vertex, /agSmooth\(\.09, \.21/);
 });
 
 function smooth(a, b, x) {
