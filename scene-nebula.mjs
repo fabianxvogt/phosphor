@@ -570,8 +570,8 @@ vec4 nbDiskData(vec2 xz, float twist, float pattern, float gasPhase, float level
   vec3 hc = nbRot * vec3(g.x, 0., g.y) * 7.5 + 1.3;
   float hfx = nbGNoise(hc, ivec3(14, 7, 14), 0x51a7u), hfy = nbGNoise(hc * 2., ivec3(28, 14, 28), 0x9c3bu);
   float ph = nbArmPhase(xz, twist, pattern);
-  float arm = exp(-nbSq(sin(ph + .35 * (nzx - .5))) / .2);
-  float lane = exp(-nbSq(sin(ph - .28 + .3 * (nzx - .5) + .15 * (hfx - .5))) / (.02 + .035 * hfy)) * nbSmooth(.12, .32, rd);
+  float arm = exp(-nbSq(sin(ph + .35 * (nzx - .5))) / .18);
+  float lane = exp(-nbSq(sin(ph - .28 + .3 * (nzx - .5) + .15 * (hfx - .5))) / (.01 + .018 * hfy)) * nbSmooth(.12, .32, rd);
   float inner = nbSmooth(.12, .42, rd);
   float clumps = .2 + 1.6 * nbSq(nbSmooth(.3, .8, hfx)) + .5 * nzy;
   float spur = exp(-nbSq(sin(ph + 1.1 + 2.5 * (nzy - .5))) / .05) * .35;
@@ -581,7 +581,7 @@ vec4 nbDiskData(vec2 xz, float twist, float pattern, float gasPhase, float level
   float armLight = (arm * clumps * (.45 + 1.1 * fine * fine) + spur * hfy) * inner;
   float kn = nbGNoise(fc * .55 + 7.1, ivec3(56, 28, 56), 0x77c1u);
   float knots = nbSmooth(.74 - .08 * level, .86, kn) * nbSmooth(.4, .7, hfy) * arm * arm * nbSmooth(.22, .45, rd);
-  return vec4(arm, armLight, lane * (1.6 + 2.4 * nzy) * inner, knots);
+  return vec4(arm, armLight, lane * (.6 + 2.6 * nzy * nzy) * inner, knots);
 }
 `;
 
@@ -694,7 +694,9 @@ void main() {
     float steps = clamp(ceil((t1 - t0 - skip) / mix(.075, .15, k4)), wWeb + wShell > .001 ? 8. : 2., mix(28., 16., k4));
     float dt = (t1 - t0 - skip) / steps;
     uvec2 pix = uvec2(gl_FragCoord.xy);
-    float t = t0 + dt * float(nbHash(pix.x * 1973u + pix.y * 9277u + 0x2a1bu) >> 8) / 16777216.;
+    // The jitter changes every frame: at 60 Hz the eye averages it like
+    // film grain instead of a screen-fixed pattern under moving gas.
+    float t = t0 + dt * float(nbHash(pix.x * 1973u + pix.y * 9277u + nbHash(u_tick + 0x2a1bu)) >> 8) / 16777216.;
     float cloudPhase = NB_TAU * nbCycle(clock, ${N.cloud}u);
     mat2 toCloud = mat2(cos(cloudPhase), -sin(cloudPhase), sin(cloudPhase), cos(cloudPhase));
     float twist = 1.35 * (2.2 + .9 * nbRnd(key, 0u, 905u)) * u_params[3];
@@ -753,12 +755,13 @@ void main() {
         // Star-forming knots sit in a thinner layer than the stellar disk.
         float knotColumn = min(nbColumn(xa, xb, .012), 1.2) / dt;
         // Arms: clumpy star-forming gas; the brightest clumps go white-hot.
-        float hotC = nbSmooth(1.1, 2.4, armLight);
+        float hotC = nbSmooth(1.1, 2.4, armLight), inner = nbSmooth(.12, .42, rd);
         // Lanes are cold, opaque dust: they stop emitting and hide what is behind.
-        float dark = exp(-laneK * 1.25);
-        vec3 E = surface * dark * (cGas * .1 * (.5 + arm) + cArm * armLight * 3.6 * (1. - .4 * hotC) + cHot * hotC * 3.2);
+        float dark = exp(-laneK * .85);
+        // Old disk stars fill the whole disk softly; young arms ride on top.
+        vec3 E = surface * dark * (cGas * .1 * (.5 + arm) + mix(cArm, cHot, .35) * .14 * inner + cArm * armLight * 3.6 * (1. - .4 * hotC) + cHot * hotC * 3.2);
         if (u_rhythm.x > 0.) E += cArm * arm * surface * u_rhythm.x * 3. * exp(-nbSq((rd - armPulse) / .15));
-        float K = surface * (laneK * 3.2 + .3 * arm + .5); // + diffuse midplane dust (edge-on lane)
+        float K = surface * (laneK * 2.2 + .3 * arm + .5); // + diffuse midplane dust (edge-on lane)
         e += wDisk * clear * cAcc * knots * surface * 16. * dark * knotColumn * 2. * mix(.25, 1., nbSmooth(.05, .35, abs(ray.y)));
         e += wDisk * clear * E * column * 2.;
         sigma += wDisk * clear * K * column;
