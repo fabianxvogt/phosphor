@@ -16,7 +16,7 @@ Every crystal is a 54-vertex hexagonal prism. Its root, axis, length, radius, bi
 | 1           | Lattice | Every druse member has nucleated in birth order, outward from its nucleus; parallel habit groups.                   |
 | 2           | Hall    | Druses lengthen and thicken, seed crystals become columns, micro-druses and a faceted druse lining cover the walls. |
 
-`growth(kind, birth, development, detail)` in [crystal-geometry.mjs](../../crystal-geometry.mjs) is the CPU mirror of the shader function. It is a pure function, so reversal retraces the forward path exactly; the GPU check below confirms pixel identity. The wall lining uses per-cell thresholds on the same development value: a Voronoi cell on the (angle, depth) surface raises a hexagonal pyramid from a flat rock chip.
+`growth(kind, birth, development, detail)` in [crystal-geometry.mjs](../../crystal-geometry.mjs) is the CPU mirror of the shader function. It is a pure function, so reversal retraces the forward path exactly; the GPU check below confirms pixel identity. The historical shader-only Voronoi lining was removed in r4: Hall is now filled by the actual micro-druse meshes against quiet rock, not outlined cells.
 
 ## Looks
 
@@ -88,6 +88,29 @@ The standard ABBA script compares scene shaders but serves the current geometry 
 
 Evidence: `artifacts/look-review/cavern-r3/` (reviewer sheet, rhythm strip, MP4, grids), `cavern-r3-round{1,2,3}/`, `cavern-r3-palettes/`, `cavern-r3-checks/`, `cavern-r3-ladder/`, `cavern-r3-perf/` in the cavern-r3 worktree. Self-assessment **L6.5**, not an independent pass: early chambers remain too empty, large facets can still read as polished plastic, and the wall lattice remains artificial. The historical 8.5 estimate above is not a current acceptance score.
 
+## Round 4 — staged druses, quiet stone, optical facets (2026-10-17)
+
+Response to the independent r3 L6 / Overall6.5 review. Six change/capture/read rounds are retained, followed by final reviewer captures. All world/state/look names, seeds, schema and rhythm IDs remain unchanged; this is still Seeds → Lattice → Hall, not a new world definition.
+
+- **Material:** no transverse mineral stripes or repeated cosine reflection bands. Broad facets retain dark interiors, coherent reflected light, a refracted shaft exit and unequal filtered glints. Three outgoing opposite-plane pairs replace six ray/plane candidates (CPU equivalence regression). The far termination is approximate; transmitted light samples an analytic directional environment, not the actual scene behind the crystal. Tiny Hall/grain meshes omit the optical solve. Pure primary/secondary mineral cohorts avoid complementary-colour grey; accent remains the chime colour.
+- **Staging:** 12 larger alternating off-centre nucleation druses, smaller supporting sites, seven stronger companions per hero, and taller floor-facing axes. Subsidiary members start at 39.68% Hall length and 43.68% radius; their identity and growth remain pure/monotone/reversible. Existing Hall clearance clamps still apply. The new seed-311 mesh contains 2672 crystals / 230352 vertices, without an extra rendering pass.
+- **Rock/hierarchy:** cellular material removed entirely. Low-frequency periodic strata, quiet reflected contours, seed pools and baked contact occlusion describe the passage. Near occluders and distant micro-druses are darker than midground formations; the winding tunnel and near/far scale differences are retained.
+- **Crystal chime:** narrower angular front and dim trailing wake, then a filtered climbing band; a small reflected echo travels through adjacent rock pools. Count still rotates the launch address, hit still supplies the root attack. Driving duration increases .85 → 1.7 beats, restrained 1.3 → 2, accented .8 → 1.5, all shorter than the next scheduled hit. Steps/names/loop lengths are unchanged: Hidden facets / Quartz steps / Prismatic chime, density 3.3 / 8.5 / 14.9 hits/bar, including the five-beat accented glint loop. The event remains local and coloured, never a white frame.
+
+Final native M3 Pro synchronous throughput, concurrent fleet load:
+
+| State   | 1080p p50/p95 ms | 4K p50/p95 ms | paired p50 delta vs main d685e94 |
+| ------- | ---------------- | ------------- | -------------------------------- |
+| Seeds   | 2.2 / 2.6        | 6.2 / 9.6     | −12.5%                           |
+| Lattice | 2.2 / 2.5        | 6.6 / 10.9    | −14.3%                           |
+| Hall    | 2.5 / 2.7        | 7.8 / 10.4    | +3.8%                            |
+
+Pair runner compares scene shaders with the **current geometry helper shared by both candidates**, not a full old/new geometry benchmark. Earlier optical candidates regressed Hall +14.3% and +7.4%; tracing three outgoing planes and omitting the optical solve on micro-druses reduced the final delta to +3.8%. Absolute probes include final geometry and remain inside 8/16ms p50 budgets; none of these measures proves venue cadence.
+
+Verification: npm test **993 passed / 21 skipped / zero failures**, typecheck, build, native DE/EN i18n, Prettier and diff check pass. Family tests include the independent corridor check, growth/identity, preset bounds, slot3/density and three-vs-six plane equivalence; pipeline-flash and world-rhythm pass. The first software i18n attempt timed out; native reruns pass. Square authored/ember/glacier × three energies × all states, late time43200 and paused reversal were checked with the shared limiter **enabled**: zero GL/non-finite errors; reversal max difference4/255 including post/limiter, low-energy scenes nonempty. All eight looks have an energy ladder; Needle Grotto has an extra film.
+
+Evidence: `artifacts/look-review/cavern-r4/` (final sheet/rhythm/MP4/grids), `cavern-r4-round{1..6}/`, `cavern-r4-palettes/`, `cavern-r4-checks/`, `cavern-r4-ladder/`, `cavern-r4-extra/`, `cavern-r4-perf/`, `cavern-r4-verification/` in this worktree. Final sheets were read. **Self-assessment L7**, not an independent acceptance claim: staging and rock are improved, but the large hexagonal habits can still read as stylized polished mineral rather than convincing transparent quartz, and the complete ringing circuit is more legible in motion than half-beat stills. An Overall≥8 result remains for independent review.
+
 ## Limits
 
-Authored growth, not physics: crystals may intersect each other inside a druse, and lining cells are shading, not geometry. Shared palette recolouring of catalog images is approximate. Multi-hour endurance on Stage and external-display 4K cadence are unmeasured.
+Authored growth, not physics: crystals may intersect each other inside a druse. Shared palette recolouring of catalog images is approximate. Multi-hour endurance on Stage and external-display 4K cadence are unmeasured.

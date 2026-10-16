@@ -110,7 +110,7 @@ test("growth is continuous, reversible and tells sparse → structured → full"
   // Seeds: dominant nuclei have small subsidiary quartz at their roots.
   assert.ok(growth(KIND.seed, 0, 0)[0] > 0.1);
   for (const birth of [0, 0.5, 1]) {
-    close(growth(KIND.member, birth, 0)[0], 0.28 * 0.62);
+    close(growth(KIND.member, birth, 0)[0], 0.64 * 0.62);
     assert.equal(growth(KIND.hall, birth, 0)[0], 0);
   }
   // Lattice: every druse member has fully nucleated; the hall has not begun.
@@ -225,6 +225,48 @@ test("crystal chime occupies slot 3 and authored grids meet density targets", ()
   }
   for (const channel of ["u_rhythm.w", "u_rhythmCount.w", "u_rhythmHit.w"])
     assert.ok(scene.geometry.fragment.includes(channel), channel);
+});
+
+test("three outgoing hexagon plane pairs give the same exit as six planes", () => {
+  for (let i = 0; i < 1000; i++) {
+    const p = [Math.sin(i * 1.7) * 0.45, Math.cos(i * 2.3) * 0.45];
+    const ray = [Math.cos(i * 0.271), Math.sin(i * 0.271)];
+    const trace = (pairs) => {
+      let best = Infinity;
+      for (let j = 0; j < (pairs ? 3 : 6); j++) {
+        const phi = ((j + 0.5) * Math.PI) / 3;
+        let n = [Math.cos(phi), Math.sin(phi)];
+        const dot = (a, b) => a[0] * b[0] + a[1] * b[1];
+        if (pairs && dot(ray, n) < 0) n = n.map((x) => -x);
+        const denom = dot(ray, n);
+        const t = (Math.sqrt(3) / 2 - dot(p, n)) / denom;
+        if (denom > 1e-4 && t > 0.001) best = Math.min(best, t);
+      }
+      return best;
+    };
+    close(trace(true), trace(false), 1e-10);
+  }
+});
+
+test("r4 keeps rock quiet and traces filtered internal mineral glints", () => {
+  const shader = scene.geometry.fragment;
+  assert.ok(!shader.includes("vec2 cells="), "no tiled shell");
+  assert.ok(!shader.includes("along*19."), "no milky growth stripes");
+  assert.ok(shader.includes("float exitT=rad*6."));
+  assert.ok(shader.includes("refract(rd,-exitN,1.5)"));
+  assert.ok(shader.includes("fwidth(internalGlint)"));
+  assert.ok(shader.includes("fwidth(fissure)"));
+  assert.ok(shader.includes("float wake="));
+  // A staged hierarchy exists at every passage phase, without extra meshes.
+  const { clusters, crystals } = cavern(311);
+  const sizes = clusters.map((c) => c.scale);
+  assert.ok(sizes.filter((s) => s > 1.3).length >= 10);
+  assert.ok(sizes.filter((s) => s < 0.71).length >= 35);
+  assert.ok(
+    crystals.filter((c) => c.kind === KIND.member && c.length > 0.5).length >
+      50,
+  );
+  assert.match(scene.geometry.vertex, /\(\.64\+\.36\*g1\)/);
 });
 
 test("camera travel integrates in exact 24-bit steps at every speed", () => {

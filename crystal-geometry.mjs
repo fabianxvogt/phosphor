@@ -89,8 +89,8 @@ export function growth(kind, birth, development, detail = 0.5) {
     const g1 = smooth(0.08 + 0.62 * birth, 0.38 + 0.62 * birth, dev),
       g2 = smooth(1, 2, dev);
     return [
-      (0.28 + 0.72 * g1) * (0.62 + 0.38 * g2),
-      (0.36 + 0.64 * smooth(0, 0.25, g1)) * (0.7 + 0.3 * g1) * (0.8 + 0.2 * g2),
+      (0.64 + 0.36 * g1) * (0.62 + 0.38 * g2),
+      (0.78 + 0.22 * smooth(0, 0.25, g1)) * (0.7 + 0.3 * g1) * (0.8 + 0.2 * g2),
     ];
   }
   if (kind === KIND.hall) {
@@ -250,10 +250,20 @@ export function cavern(seed) {
   // Nucleation sites: stratified along the cavern, all around its section.
   const NC = 56;
   for (let i = 0; i < NC; i++) {
-    const theta =
-        -Math.PI / 2 + (rand() - 0.5) * TAU * (rand() < 0.35 ? 0.35 : 1),
+    // Recurring hero druses sit off the walking line, alternating sides.
+    // Supporting sites still wrap the whole section and preserve enclosure.
+    const hero = i % 5 === 0;
+    const theta = hero
+        ? -Math.PI / 2 + (i % 10 === 0 ? -0.66 : 0.66)
+        : -Math.PI / 2 + (rand() - 0.5) * TAU * (rand() < 0.35 ? 0.35 : 1),
       { root, normal, z } = site(theta, ((i + rand()) * PERIOD) / NC);
-    const axis = jitter(rand, normal, 0.22);
+    const axis = jitter(
+      rand,
+      hero
+        ? norm([normal[0] * 0.3, Math.abs(normal[1]), normal[2] * 0.3])
+        : normal,
+      0.22,
+    );
     const helper = Math.abs(axis[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0],
       e1 = norm(cross(helper, axis)),
       e2 = cross(axis, e1);
@@ -276,7 +286,7 @@ export function cavern(seed) {
         ),
       );
     }
-    const scale = 0.55 + 0.5 * rand();
+    const scale = hero ? 1.32 + 0.18 * rand() : 0.38 + 0.32 * rand();
     hue = hueRand();
     clusters.push({ theta, z, root, axis, habits, scale, hue });
     push({
@@ -304,7 +314,10 @@ export function cavern(seed) {
       else best = Math.floor(rand() * habits.length);
       const dir = towardWall(jitter(rand, habits[best], 0.05), s.normal),
         near = 1 - 0.5 * (distance / spread),
-        length = scale * (0.25 + 1.0 * Math.pow(rand(), 2.4)) * near,
+        length =
+          scale *
+          ((hero && m < 7 ? 0.72 : 0.25) + 1.0 * Math.pow(rand(), 2.4)) *
+          near,
         needle = rand() < 0.16;
       push({
         kind: KIND.member,
