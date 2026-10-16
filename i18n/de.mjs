@@ -2576,6 +2576,9 @@ export default {
   "Fresh lava surges through the rivers; the crust skins thin and glow.": "Frische Lava schießt durch die Flüsse; die Krustenhäute werden dünn und glühen.",
   "Ejecta volley": "Auswurfsalve",
   "The fountain surges and the ejecta flare; embers burst from the field.": "Die Fontäne schießt hoch und die Auswürfe glühen auf; Glutfunken sprühen aus dem Feld.",
+  "Rift pressure": "Spaltendruck",
+  "A pressure wave tears along the rifts and climbs the fountain as a hot ejecta packet.":
+    "Eine Druckwelle reißt die Spalten auf und steigt als glühender Auswurf durch die Fontäne.",
   "Cooling seams": "Kühlende Fugen",
   "Lava channels": "Lavakanäle",
   "Cinder fountain": "Glutfontäne",

@@ -32,12 +32,40 @@ const schema = [
     default: 0,
   },
   { key: "flow", label: "Lava flow", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "plates", label: "Plate size", min: 0.6, max: 1.6, step: 0.01, default: 1 },
+  {
+    key: "plates",
+    label: "Plate size",
+    min: 0.6,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
   { key: "heat", label: "Heat", min: 0, max: 1, step: 0.01, default: 0.5 },
   { key: "embers", label: "Embers", min: 0, max: 1, step: 0.01, default: 0.5 },
-  { key: "orbit", label: "Camera orbit", min: -1, max: 1, step: 0.01, default: 0.35 },
-  { key: "height", label: "Camera height", min: 0, max: 1, step: 0.01, default: 0.4 },
-  { key: "fountain", label: "Fountain force", min: 0, max: 1.5, step: 0.01, default: 1 },
+  {
+    key: "orbit",
+    label: "Camera orbit",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    default: 0.35,
+  },
+  {
+    key: "height",
+    label: "Camera height",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.4,
+  },
+  {
+    key: "fountain",
+    label: "Fountain force",
+    min: 0,
+    max: 1.5,
+    step: 0.01,
+    default: 1,
+  },
 ];
 
 const base = {
@@ -124,7 +152,8 @@ const float FLARE_R = 2.1; // flare sprite support incl. its splash ring
 // Per-frame constants, assigned once in main().
 float gDev, gSplit, gLakeAmt, gErupt, gLevel, gHeat, gS, gFlow, gErPh, gOrbit;
 float gSeamW, gLavaT, gLakeR, gFountH, gForce, gPix, gEmbers, gKick;
-vec2 gSeedOff, gRot;
+float gPressure, gPressureHead;
+vec2 gPressureDir, gSeedOff, gRot;
 vec3 gVent;
 
 // Float lattice hashes (inputs stay within a few thousand).
@@ -179,7 +208,7 @@ vec3 gHeatDark, gHeatMid, gHeatHot;
 vec3 mrHeat(float T) {
   T = max(T, 0.0);
   vec3 c = mix(gHeatDark, gHeatMid, smoothstep(0.4, 0.78, T));
-  c = mix(c, gHeatHot, smoothstep(0.8, 1.15, T));
+  c = mix(c, gHeatHot, smoothstep(0.88, 1.3, T));
   c = mix(c, vec3(1.0), 0.55 * smoothstep(1.22, 1.6, T));
   return c * (2.2 * T * T * T + 0.04 * T);
 }
@@ -574,6 +603,12 @@ void mrSetup() {
 #endif
   float ventBase = mrBase(vec2(0.0));
   gVent = vec3(0.0, ventBase + 0.075, 0.0);
+  // A pressure packet uses only managed rhythm inputs; mute is exactly silent.
+  // Count selects a different rift sector; the hit reinforces its molten root.
+  gPressure = clamp(max(u_rhythm.w, 0.85 * u_rhythmHit.w), 0.0, 1.0);
+  gPressureHead = 0.4 + 15.0 * (1.0 - gPressure);
+  float pressureAngle = TAU * mod(u_rhythmCount.w, 3.0) / 3.0;
+  gPressureDir = vec2(cos(pressureAngle), sin(pressureAngle));
   gKick = u_kick * smoothstep(0.15, 1.0, level);
   gFountH = (1.0 + 8.0 * gForce) * gErupt * (1.0 + 0.12 * u_rhythm.z + 0.04 * gKick);
 }
@@ -807,10 +842,14 @@ void main() {
     hot = max(hot, mix(0.0, 0.55, smoothstep(0.6, 1.6, gDev)));
     // Gesture x: a crack-propagation flash runs out along the hot tree.
     float pulseA = 1.25 * (1.0 - u_rhythm.x);
-    float ring = u_rhythm.x * exp(-sq((Pl.arrive - pulseA) / 0.1)) * (0.25 + 0.75 * netSeam * behind);
+    float ring = u_rhythm.x * exp(-sq((Pl.arrive - pulseA) / 0.18)) * (0.25 + 0.75 * netSeam * behind);
     // Gesture y: a surge front of fresh lava travels down the channels.
     float surgeA = 1.35 * (1.0 - u_rhythm.y);
-    float surge = u_rhythm.y * (0.3 + 0.7 * exp(-sq((Pl.arrive - surgeA) / 0.12)) * net);
+    float surge = u_rhythm.y * (0.2 + 0.8 * exp(-sq((Pl.arrive - surgeA) / 0.2)) * net);
+    // Slot 3: a broad pressure wave races along the existing rifts, never
+    // illuminating an uncracked slab. Lake floes carry the same radial packet.
+    float sector = 0.35 + 0.65 * sq(0.5 + 0.5 * dot(x / max(r, 1e-3), gPressureDir));
+    float pressure = smoothstep(0.02, 0.2, gPressure) * exp(-sq((r - gPressureHead) / 2.2)) * sector;
     // Cold seams are dim dark-red hairlines; hot ones run near the lava
     // temperature.
     float seamT = gLavaT * (0.86 + 0.28 * vent) * mix(0.68, 1.32, hot);
@@ -818,7 +857,12 @@ void main() {
     seamT += 0.16 * (breathe - 0.5) * (1.0 - 0.6 * gSplit) * hot;
     // Only a seeded subset of hot cracks flares with any kick.
     float flare = smoothstep(0.72, 0.96, mrPlateId(Pl)) * hot;
-    seamT += 0.34 * ring + 0.1 * surge + 0.12 * kick * flare;
+    // A slow, seeded cooling skin interrupts uniform neon outlines. The
+    // field is continuous across both sides of a seam and uses no new clock.
+    float cooling = mrNoise(x * 3.2 + gSeedOff);
+    float exposed = smoothstep(0.3, 0.7, cooling);
+    seamT *= mix(0.68, 1.08, exposed);
+    seamT += 0.46 * ring + 0.22 * surge + 0.12 * kick * flare + 0.5 * pressure * (0.25 + 0.75 * net);
 
 #ifdef MR_DEBUG
     vec3 dbgT = vec3(0.0);
@@ -852,8 +896,8 @@ void main() {
       float skin = smoothstep(0.4, 0.6, n) * skinAmt;
       float tear = (1.0 - smoothstep(0.0, 0.05, abs(n - 0.43))) * skinAmt;
       // A crack's bottom is its hottest part; wider channels cool at the banks.
-      float T = min(seamT, 0.95) * (0.86 + 0.16 * centre);
-      T = mix(T, 1.12 + 0.06 * (gHeat - 0.5), core * core * centre);
+      float T = min(seamT, 0.98) * (0.38 + 0.67 * centre * centre * centre);
+      T = mix(T, 1.32 + 0.06 * (gHeat - 0.5), core * core * pow(centre, 6.0) * (0.2 + 0.8 * exposed));
       // Skins: dull, with stretched ropy folds across the flow.
       T *= mix(1.0, 0.4 + 0.1 * fn.y, skin);
       T += (0.24 * tear * centre + 0.12 * surge) * hot;
@@ -879,7 +923,8 @@ void main() {
         lcrack = max(lcrack, 0.22 * (1.0 - smoothstep(0.0, 0.18 + cw1, ridge1)) * along1);
         float boil = sin(r * 3.0 - TAU * gFlow) * sin(xr.x * 2.1 + xr.y * 1.7);
         float crust = (1.0 - lcrack) * (1.0 - open);
-        float Tl = (0.74 + 0.1 * (gHeat - 0.5)) * (1.0 - 0.42 * crust) + 0.14 * lcrack + (0.12 + 0.1 * boil) * open * gErupt;
+        float Tl = (0.67 + 0.1 * (gHeat - 0.5)) * (1.0 - 0.5 * crust) + 0.22 * lcrack + (0.16 + 0.1 * boil) * open * gErupt;
+        Tl += 0.32 * pow(clamp(lcrack, 0.0, 1.0), 6.0) * (0.3 + 0.7 * along1);
         // Ripples run out from the fountain's foot.
         Tl += 0.05 * gErupt * sin(r * 2.6 - TAU * gFlow * 2.0) * exp(-r / 2.5);
         float nl = 0.5 + 0.5 * (ridge1 - 0.5);
@@ -890,7 +935,7 @@ void main() {
         n = mix(n, nl, lakeM);
         skin = mix(skin, crust, lakeM);
       }
-      T += 0.18 * ring;
+      T += 0.25 * ring + 0.5 * pressure * mix(net, 0.6, lakeM);
 #ifdef MR_DEBUG
       dbgT = vec3(T, skin, n);
 #endif
@@ -915,7 +960,9 @@ void main() {
       float rq = dot(x / gS - Pl.siteA, rdir) * 22.0 + 1.2 * sin(x.x * 2.7 + 1.5 * sin(x.y * 3.1)) + 0.8 * sin(x.y * 2.3 - x.x * 1.1);
       float ropeKeep = (1.0 - smoothstep(0.25, 0.7, fp * 22.0 / TAU * 2.0)) * (1.0 - 0.8 * glassy);
       grad += mask * rdir * cos(rq) * 0.12 * ropeKeep;
-      float bump = mrNoise(x * 9.0) - 0.5;
+      float bump = cooling - 0.5;
+      // Fine seed-anchored facets break the broad glossy slab reflection.
+      grad += 0.16 * (vec2(cooling, bump + 0.5) - 0.5) * mask * (1.0 - smoothstep(0.08, 0.3, fp));
       N = normalize(vec3(-grad.x, 1.0, -grad.y));
       // Groove walls face the seam.
       float wallF = 1.0 - smoothstep(-0.012, 0.004, Pl.gap);
@@ -926,7 +973,7 @@ void main() {
       // Hot rock: groove walls glow just above the lava, a little cooler.
       float hotWall = (1.0 - smoothstep(0.0, 0.05, rock - lavaY)) * (1.0 - smoothstep(-0.005, 0.03, Pl.gap)) * mask;
       vec3 heatS = mrHeat(seamT);
-      emit = mrHeat(seamT * 0.88) * hotWall * 0.5;
+      emit = mrHeat(seamT * 0.78) * hotWall * 0.12;
       // The crack as coverage of the pixel footprint (far seams fade
       // smoothly instead of aliasing), and the heat soaking softly into
       // the slab beside a hot crack (radiance falls off with distance).
@@ -935,7 +982,7 @@ void main() {
       // It reaches zero well before the plate's medial axis, where the
       // governing seam (and its temperature) switches.
       float soak = sq(1.0 - smoothstep(0.0, 0.1 + 0.1 * hot, max(Pl.gap, 0.0))) * (0.05 + 0.3 * hot);
-      emit += (heatS * cover + mrHeat(seamT * 0.8) * soak) * mask;
+      emit += (heatS * cover * (0.05 + 0.12 * hot) + mrHeat(seamT * 0.68) * soak) * mask;
       // Thin-crust patches: a dull glow shining through the slab from below,
       // breathing slowly (a seed-anchored field across the whole crust).
       float thin = smoothstep(0.6, 0.88, mrNoise(x * 0.42 + gSeedOff * 0.13) + 0.12 * (bump + 0.5));
@@ -969,7 +1016,7 @@ void main() {
     // Compact: it ends before the plate's medial axis (no wedge seams).
     float seamFall = sq(1.0 - smoothstep(0.0, 0.06 + 0.5 * Pl.width, max(Pl.gap, 0.0)));
     vec3 seamHeat = mrHeat(seamT);
-    light += seamHeat * 0.7 * seamFall * (0.25 + 0.75 * max(dot(N, Ls), 0.0)) * mask;
+    light += seamHeat * 0.35 * seamFall * (0.25 + 0.75 * max(dot(N, Ls), 0.0)) * mask;
     // Field glow: the lit haze and the whole lava field seen from the wall.
     vec3 Lf = normalize(vec3(-x / max(r, 1e-3), 0.25));
     light += heat62 * 0.1 * fieldGlow * (0.2 + max(dot(N, Lf), 0.0)) * (0.3 + 1.7 * (1.0 - mask));
@@ -1081,14 +1128,14 @@ void main() {
           float nRaw = mrBillow(p * vec3(0.95 - 0.4 * umb, 0.95, 0.95 - 0.4 * umb) + vec3(gSeedOff, 0.0), TAU * gErPh * 0.5);
           // A lattice value noise breaks the sines' regular holes.
           nRaw += 0.22 * (mrNoise(p.xz * 0.7 + vec2(p.y * 0.45, -p.y * 0.3) + gSeedOff) - 0.5);
-          float dens = smoothstep(0.36, 0.8, nRaw) * shape * 3.0 * plumeAmt;
+          float dens = smoothstep(0.25, 0.72, nRaw) * shape * 3.8 * plumeAmt;
           // Lit from below: the fountain's light decays with height, but
           // the umbrella's underside still catches it; the top stays dark.
           float under = exp(-hy / (4.5 + 2.0 * gForce)) * (0.55 + 0.45 * smoothstep(rad, rad * 0.3, dr))
                       + 0.35 * umb * (1.0 - smoothstep(0.0, 2.5, hy - 7.5 - 2.0 * umb)) * smoothstep(rad * 0.2, rad * 0.8, dr);
           vec3 lightC = glowCol * (1.5 * under * (0.6 + 0.4 * gForce) * (1.0 + 0.35 * u_rhythm.z)) + mix(u_secondary, vec3(1.0), 0.2) * 0.02 + hazeCol * 1.5;
           // Thin billow edges catch the light; dense cores stay dark ash.
-          lightC *= mix(1.35, 0.15, smoothstep(0.48, 0.92, nRaw));
+          lightC *= mix(0.9, 0.045, smoothstep(0.38, 0.82, nRaw));
           float a = 1.0 - exp(-dens * ds * 2.0);
           acc += trans * a * lightC;
           trans *= 1.0 - a;
@@ -1128,7 +1175,7 @@ void main() {
       // give parallax, so the fan reads as a volume of spray.
       vec2 oc = ro.xz - gVent.xz;
       float A = dot(rd.xz, rd.xz), B = dot(oc, rd.xz), C0 = dot(oc, oc);
-      float occupancy = mix(0.32, 0.8, gLevel) * (1.0 + 0.4 * u_rhythm.z);
+      float occupancy = mix(0.32, 0.8, gLevel) * (1.0 + 0.65 * u_rhythm.z);
       float fs = 0.7 + 0.35 * gForce;
       for (int i = 0; i < SHELLS; ++i) {
         float fi = float(i);
@@ -1161,7 +1208,10 @@ void main() {
           float column = mod(floor(u), nCells);
           float v = hy / 0.9 - speed * gErPh + 7.0 * mrH2(vec2(column, fi + 0.5) + gSeedOff);
           vec3 h = mrH3(vec3(column, floor(v), fi * 7.0 + 1.3) + vec3(gSeedOff, 0.0));
-          if (h.x > occupancy) continue;
+          // Uneven falloff destroys the uniform umbrella silhouette; lobes
+          // are stationary in angle while individual droplets still advect.
+          float lobe = 0.55 + 0.45 * sq(0.5 + 0.5 * sin(3.0 * atan(rel.y, rel.x) + 1.7 * fi + gSeedOff.x));
+          if (h.x > occupancy * lobe) continue;
           float rho = length(rel);
           float du = (fract(u) - (0.2 + 0.6 * h.y)) * TAU * rho / nCells;
           // Motion blur: a streak along the flight, bright at its head.
@@ -1174,7 +1224,11 @@ void main() {
           float drop = exp(-sq(du / sig)) * (wd / sig) * streak;
           float env = smoothstep(bottom - 0.5, bottom + 1.0, hy) * (1.0 - smoothstep(top - 1.6, top + 0.5, hy));
           float T = (fall ? 0.8 - 0.14 * (1.0 - hy / max(top, 1.0)) : 1.06 - 0.2 * hy / max(gFountH, 1.0)) - 0.04 * fi + 0.12 * h.y;
-          add += mrHeat(T) * drop * env * gErupt * (side == 0 ? 1.0 : 0.55) * 1.9;
+          // The surge continues upward as a dense hot ejecta packet.
+          float packetY = (1.0 - gPressure) * gFountH;
+          float packet = smoothstep(0.02, 0.2, gPressure) * exp(-sq((hy - packetY) / 2.0));
+          T += 0.38 * packet + 0.32 * smoothstep(0.88, 1.0, h.y) * (fall ? 0.25 : 1.0);
+          add += mrHeat(T) * drop * env * gErupt * (side == 0 ? 1.0 : 0.55) * (1.9 + 2.8 * packet);
         }
       }
     }
@@ -1380,40 +1434,140 @@ export default {
     { param: "embers", feature: "high", amount: 0.1 },
     { param: "flow", feature: "mid", amount: 0.08 },
   ],
-  rhythmStyles: { restrained: "Cooling seams", driving: "Lava channels", accented: "Cinder fountain" },
+  rhythmStyles: {
+    restrained: "Cooling seams",
+    driving: "Lava channels",
+    accented: "Cinder fountain",
+  },
   rhythm: [
     familyEffect(
       "seam-pulse",
       0,
       "Seam pulse",
       "A ring of heat runs outward from the vent through every plate seam.",
-      { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
-        restrained: { steps: "X.....x. | ....X... | .......x | ........", division: 2, strength: 0.5, duration: 1.1 },
-        driving: { steps: "X.x.X..x | X.x..X.x", division: 2, strength: 0.76, duration: 0.35 },
-        accented: { steps: "X..x..X.x..X..xx | X.x..X..x.X..x.X", division: 4, strength: 0.9, duration: 0.2 },
-      } },
+      {
+        period: 4,
+        strength: 0.6,
+        duration: 1,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X.....x. | ....X... | .......x | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 1.1,
+          },
+          driving: {
+            steps: "X.x.X..x | X.x..X.x",
+            division: 2,
+            strength: 0.76,
+            duration: 0.35,
+          },
+          accented: {
+            steps: "X..x..X.x..X..xx | X.x..X..x.X..x.X",
+            division: 4,
+            strength: 0.9,
+            duration: 0.2,
+          },
+        },
+      },
     ),
     familyEffect(
       "lava-surge",
       1,
       "Lava surge",
       "Fresh lava surges through the rivers; the crust skins thin and glow.",
-      { period: 8, strength: 0.6, duration: 1.5, steps: "X.......", styles: {
-        restrained: { steps: "...x.... | ......X. | ..x..... | ........", division: 2, strength: 0.5, duration: 1.5 },
-        driving: { steps: "...X..x. | ..X...x.", division: 2, strength: 0.76, duration: 0.8 },
-        accented: { steps: "...X..x..X.. | x..X..x..X..", division: 4, strength: 0.9, duration: 0.5 },
-      } },
+      {
+        period: 8,
+        strength: 0.6,
+        duration: 1.5,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | ......X. | ..x..... | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "...X..x. | ..X...x.",
+            division: 2,
+            strength: 0.76,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "...X..x..X.. | x..X..x..X..",
+            division: 4,
+            strength: 0.9,
+            duration: 0.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "ejecta-volley",
       2,
       "Ejecta volley",
       "The fountain surges and the ejecta flare; embers burst from the field.",
-      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | ....X...", division: 2, strength: 0.55, duration: 2 },
-        driving: { steps: "........ | ......x. | ........ | .....x.X", division: 2, strength: 0.8, duration: 0.75 },
-        accented: { steps: "................ | ...........x..Xx | ................ | ........X..x.XXX", division: 4, strength: 0.96, duration: 0.18 },
-      } },
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | ....X...",
+            division: 2,
+            strength: 0.55,
+            duration: 2,
+          },
+          driving: {
+            steps: "........ | ......x. | ........ | .....x.X",
+            division: 2,
+            strength: 0.8,
+            duration: 0.75,
+          },
+          accented: {
+            steps:
+              "................ | ...........x..Xx | ................ | ........X..x.XXX",
+            division: 4,
+            strength: 0.96,
+            duration: 0.18,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "rift-pressure",
+      3,
+      "Rift pressure",
+      "A pressure wave tears along the rifts and climbs the fountain as a hot ejecta packet.",
+      {
+        period: 8,
+        strength: 0.9,
+        duration: 1.4,
+        styles: {
+          restrained: {
+            steps: "....X... | ........ | ......x. | ........",
+            division: 2,
+            strength: 0.78,
+            duration: 3.0,
+          },
+          driving: {
+            steps: "..X..... | ..X..... | ..X..... | ..X.....",
+            division: 2,
+            strength: 1,
+            duration: 3.2,
+          },
+          accented: {
+            steps:
+              "X............... | ..X............. | X............... | ...X............",
+            division: 4,
+            strength: 1,
+            duration: 2.8,
+          },
+        },
+      },
     ),
   ],
   fragment,
