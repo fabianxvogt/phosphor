@@ -1,7 +1,7 @@
 import { familyEffect } from "./family-rhythm.mjs";
 import { createGeometry } from "./metamorphosis-geometry.mjs";
-// The same connected mesh develops continuously: spokes fill into membranes,
-// then separate and curl into petals. This is authored geometry, not biology.
+// A fixed mesh releases rolled seed membranes into layered cups and petals.
+// The open seams are intentional: no intermediate development becomes a disc.
 const camera = `
 float gardenLens(float aspect){return mix(2.30,3.35,smoothstep(1.,1.5,aspect));}
 void gardenCamera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
@@ -48,7 +48,7 @@ vec3 surface(vec2 uv){
  float growth=.65+.35*u_level;
  vec2 radial=vec2(cos(a_angle),sin(a_angle)),side=vec2(-radial.y,radial.x);
  if(a_kind>1.5){
-  float r=a_center.z*(.025+.034*membrane+.030*flower)*(1.+.10*sin(v*PI*10.)*sin(t*PI*8.))*(1.+.25*u_rhythm.z);
+  float r=a_center.z*(.035+.024*membrane+.030*flower)*(1.+.10*sin(v*PI*10.)*sin(t*PI*8.))*(1.+.25*u_rhythm.z);
   float th=t*PI,ph=v*PI;
   return orient(vec3(a_center.xy,0.018)+r*vec3(sin(th)*cos(ph),sin(th)*sin(ph),cos(th)));
  }
@@ -60,27 +60,30 @@ vec3 surface(vec2 uv){
   return orient(vec3(p+side*cos(ph)*radius,-.48*(1.-t)+sin(ph)*radius));
  }
  float envelope=pow(max(.00001,sin(PI*pow(t,.83))),.75);
- float petals=a_id==1.?8.:5.+mod(a_id,5.);
+ float petals=a_id==1.?8.:(a_id==0.?3.:5.+mod(a_id,5.));
  float sector=a_angle+v*PI/petals;
- float flushCohort=pow(.5+.5*cos(mix(sector,a_angle,flower)-u_rhythmCount.w*2.39996),3.);
- float front=1.12-1.25*u_rhythm.w;
+ float flushCohort=pow(.5+.5*cos(a_angle-u_rhythmCount.w*2.39996),3.);
+ float veinDelay=.10*sin(a_angle*3.+a_id)+.06*cos(a_angle*5.-a_id)+.07*v*v;
+ float front=1.12-1.25*u_rhythm.w-veinDelay;
  float release=(1.-smoothstep(front-.13,front+.12,t))*smoothstep(0.,.22,u_rhythm.w);
  float flush=release*(.25+.75*flushCohort)*(.35+.65*flower);
- vec2 filament=radial*(t*.73-.21*t*t*t)+side*(v*.15*(8./petals)*envelope+.16*sin(t*PI)*growth);
- vec2 sheet=vec2(cos(sector),sin(sector))*(t*(.70+.055*sin(sector*3.+a_id))+.04*flush*t*t);
- vec2 petal=radial*(t*(.99+.10*sin(a_angle*3.+a_id))-.16*t*t*t)+side*(v*.34*(8./petals)*envelope*sqrt(t));
- petal+=radial*.22*flush*t*t;
- vec2 p=a_center.xy+a_center.z*mix(mix(filament,sheet,membrane),petal,flower);
+ float nearFrame=1.-step(.1,abs(a_id));
+ float opening=mix(membrane,0.,nearFrame*.70);
+ float bloom=flower*(1.-nearFrame*.70);
+ float lengthScale=1.+.10*sin(a_angle*3.+a_id);
+ float reach=mix(mix(.86*t-.58*t*t*t,.92*t-.32*t*t*t,opening),.99*t-.16*t*t*t,bloom)*lengthScale;
+ float width=mix(mix(.19,.26,opening),.34,bloom)*(8./petals);
+ vec2 p=a_center.xy+a_center.z*(radial*(reach+.22*flush*t*t)+side*(v*width*envelope*sqrt(t)+.14*sin(t*PI)*growth*(1.-bloom)));
+
 #ifdef PHOSPHOR_LATE
  p+=side*.012*u_params[1]*sin(u_clock[0]*.40+a_id*1.3+a_angle)*t*t*(1.-membrane+flower);
 #else
  p+=side*.012*u_params[1]*sin(u_time*u_params[2]*.40+a_id*1.3+a_angle)*t*t*(1.-membrane+flower);
 #endif
- float sheetRise=a_center.z*((.25+.045*flush)*sin(t*PI)+(.025*sin(sector*petals)+.08*sin(sector*3.+a_id))*t*t);
- float petalRise=a_center.z*((.63+.07*sin(a_angle*3.+a_id))*t*t-.12*sin(t*PI)+.032*cos(v*PI*2.)*envelope+.10*v*v*envelope*sqrt(t));
- petalRise+=a_center.z*(.10*u_rhythm.y-.34*flush)*t*t;
- float filamentRise=a_center.z*(.48*t*t+.10*sin(t*PI)+.09*v*v*envelope);
- float rise=mix(mix(filamentRise,sheetRise,membrane),petalRise,flower);
+ float cup=mix(mix(.64*t+.16*sin(t*PI),.54*t*t+.08*sin(t*PI),opening),.63*t*t-.12*sin(t*PI),bloom);
+ float pleat=(.012*cos(v*PI*2.)+.075*v*v+.018*sin(t*13.+a_angle*2.)*v)*envelope*sqrt(t);
+ float layer=.065*sin(a_angle*3.+a_id)*t*t;
+ float rise=a_center.z*(cup+pleat+layer+(.10*u_rhythm.y-.34*flush)*t*t);
 #ifdef PHOSPHOR_LATE
  rise+=.025*u_params[1]*sin(u_clock[0]*.52+a_id+t*4.)*t;
 #else
@@ -126,15 +129,21 @@ void main(){
  vec3 L=normalize(vec3(-.65,-.35,.85));
  float light=max(0.,dot(N,L)),side=max(0.,dot(N,normalize(vec3(.8,.5,.35))));
  float flushCohort=pow(.5+.5*cos(v_angle-u_rhythmCount.w*2.39996),3.);
- float flushBand=exp(-pow((v_uv.x-(1.12-1.25*u_rhythm.w))/.085,2.))*smoothstep(0.,.12,u_rhythm.w);
+ float veinDelay=.10*sin(v_angle*3.+v_id)+.06*cos(v_angle*5.-v_id)+.07*v_uv.y*v_uv.y;
+ float travel=v_uv.x-(1.12-1.25*u_rhythm.w-veinDelay);
+ float veinPath=exp(-pow((v_uv.y+.07*sin(v_uv.x*9.+v_angle))/.18,2.));
+ float flushBand=exp(-pow(travel/.075,2.))*smoothstep(0.,.12,u_rhythm.w);
+ float wake=exp(-max(0.,-travel)*7.)*step(travel,0.)*smoothstep(0.,.16,u_rhythm.w);
+ flushBand*=.18+.82*veinPath;
  float sap=exp(-pow((v_uv.x-(1.-u_rhythm.x))/.15,2.))*smoothstep(0.,.1,u_rhythm.x);
  // Secondary blossoms are scale cues, not extra hero materials. Their
  // low-frequency light avoids paying for subpixel veins/specular lobes.
  if(v_id!=1.&&v_id!=0.&&v_id!=5.&&v_id!=6.){
   float grazing=1.-abs(dot(N,view));
-  vec3 small=mix(u_secondary,u_primary,.45+.40*v_uv.x)*(.12+.80*light+.12*side);
-  small+=u_primary*grazing*grazing*.32;
+  vec3 small=mix(u_primary,u_secondary,.15*v_uv.x)*(.16+.50*light+.08*side);
+  small+=u_primary*grazing*grazing*.08;
   if(v_kind<.5)small+=u_primary*.08*exp(-v_uv.y*v_uv.y*90.);
+  small=mix(small,u_secondary*.24,smoothstep(1.1,3.3,v_position.y)*.65);
   if(v_kind<.5)small+=u_primary*.17*(1.-smoothstep(0.,1.,u_params[0]));
   if(v_kind>.5&&v_kind<1.5)small*=.42;
   if(v_kind<.5)small+=u_accent*flushBand*flushCohort*.85;
@@ -143,32 +152,40 @@ void main(){
   vec2 screen=gl_FragCoord.xy/u_resolution;
   float margin=min(min(screen.x,1.-screen.x),min(screen.y,1.-screen.y));
   small*=u_params[3]*smoothstep(0.,.08,margin);
-  float haze=exp(-max(0.,length(eye-v_position)-3.3)*.78);
-  outColor=vec4(mix(mix(u_secondary,u_primary,.15)*.022,small,haze),1.);return;
+  float haze=exp(-max(0.,length(eye-v_position)-3.3)*.60);
+  outColor=vec4(mix(u_secondary*(.04+.14*light),small,haze),1.);return;
  }
  float fresnel=pow(1.-abs(dot(N,view)),3.);
  float spec=pow(max(0.,dot(N,normalize(L+view))),80.);
  float membrane=smoothstep(0.,.5,u_morph),flower=smoothstep(.5,1.,u_morph);
- vec3 mint=mix(u_secondary,u_primary,.65),pearl=mix(u_primary,vec3(1.),.08),gold=u_accent;
- vec3 base=mix(u_secondary,u_primary,.36+.50*v_uv.x);
+ vec3 mint=mix(u_secondary,u_primary,.65),pearl=mix(u_primary,vec3(1.),.025),gold=u_accent;
+ vec3 pigment=pow(max(u_primary,vec3(0.)),vec3(1.8));
+ vec3 transmitted=u_secondary/max(max(u_secondary.r,u_secondary.g),max(u_secondary.b,.05));
+ vec3 blue=pow(transmitted,vec3(2.2));
+ vec3 base=mix(blue*.80,pigment,pow(smoothstep(.12,1.,v_uv.x),2.5));
  float midrib=exp(-pow((v_uv.y+.035*sin(v_uv.x*11.+v_id))/.036,2.));
  float branch=abs(fract(v_uv.x*(4.+u_level)+abs(v_uv.y)*.82+.06*sin(v_uv.x*17.+v_id))-.5);
  float vein=max(midrib,exp(-branch*branch*1800.)*smoothstep(.05,.2,abs(v_uv.y))*.45);
  float fold=.5+.5*sin(v_uv.y*PI*1.6+v_uv.x*3.+.3*sin(v_uv.x*13.));
  float tissue=.5+.5*sin(v_uv.x*83.+sin(v_uv.y*37.))*sin(v_uv.y*63.+v_uv.x*19.);
+ float fibres=pow(.5+.5*sin(v_uv.y*170.+sin(v_uv.x*19.+v_angle)*3.),10.);
 #ifdef PHOSPHOR_LATE
  float pulse=pow(.5+.5*sin(v_uv.x*13.-u_clock[0]*.8+v_id),12.);
 #else
  float pulse=pow(.5+.5*sin(v_uv.x*13.-u_time*u_params[2]*.8+v_id),12.);
 #endif
- float contact=.22+.78*smoothstep(.02,.38,v_uv.x);
- float transmission=pow(max(0.,dot(-N,L)),2.)*.48;
- vec3 color=base*(.10+light*1.05+side*.14+transmission)*contact;
- color*=.65+.35*fold;
- color*=.94+.06*tissue;
- color+=pearl*spec*.28*contact;
- color+=u_primary*fresnel*.12;
- color+=u_primary*(.06+.20*vein)*contact;
+ float contact=.09+.91*smoothstep(.04,.48,v_uv.x);
+ float transmission=pow(max(0.,dot(-N,L)),2.);
+ float selectedFold=pow(max(0.,cos(v_angle-1.2)),6.);
+ vec3 color=base*(.20+light*1.35+side*.16)*contact;
+ color*=.55+.45*fold;
+ color*=.78+.16*tissue+.06*fibres;
+ color+=base*transmission*(.45+.85*vein)*contact;
+ color+=u_accent*.16*exp(-pow((v_uv.x-.28)/.13,2.))*light*contact;
+ color+=transmitted*transmission*.36*selectedFold*contact;
+ color+=pearl*spec*.07*contact;
+ color+=base*fresnel*(.02+.10*selectedFold);
+ color+=base*(.025+.40*vein+.045*fibres)*contact;
  color+=u_secondary*pulse*.15*(1.-membrane*.4);
  float edge=1.-smoothstep(max(fwidth(v_uv.y)*1.5,.007),max(fwidth(v_uv.y)*3.,.014),1.-abs(v_uv.y));
  if(v_kind<.5) {
@@ -180,13 +197,16 @@ void main(){
  color*=u_params[3]*(v_id==1.?1.:.72);
  if(v_kind<.5){
   color+=u_primary*sap*.38;
-  color+=mix(u_primary,u_accent,.75)*flushBand*(.18+.82*flushCohort)*1.6;
+  color+=mix(u_primary,u_accent,.80)*(flushBand*2.3+wake*vein*.50)*(.18+.82*flushCohort);
   color+=u_primary*u_rhythm.y*.24*pow(abs(v_uv.y),8.)*membrane;
  }
  if(v_kind>.5&&v_kind<1.5)color+=u_primary*sap*.8;
  if(v_kind>1.5)color+=gold*(u_rhythm.z*1.3+u_rhythmHit.w*.10);
  float atmosphere=exp(-max(0.,length(eye-v_position)-3.3)*.48);
- color=mix(mix(u_secondary,u_primary,.15)*.022,color,atmosphere);
+ color=mix(u_secondary*.045,color,atmosphere);
+ vec2 screen=gl_FragCoord.xy/u_resolution;
+ float margin=min(min(screen.x,1.-screen.x),min(screen.y,1.-screen.y));
+ color*=smoothstep(0.,.055,margin);
  outColor=vec4(max(vec3(0.),color),1.);
 }`;
 const schema = [

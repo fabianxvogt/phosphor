@@ -2181,6 +2181,8 @@ export default {
   "The connected centres glow together.": "The connected centres glow together.",
   "Petal flush": "Petal flush",
   "A coloured sap front runs out through a whorl and releases its curled petals.": "A coloured sap front runs out through a whorl and releases its curled petals.",
+  "Rolled seed membranes release into layered cups and luminous veined blossoms, with a vein-led sap flush in a receding garden.": "Rolled seed membranes release into layered cups and luminous veined blossoms, with a vein-led sap flush in a receding garden.",
+  "Curled seed membranes release into layered cups and luminous blossoms in a receding garden. Play every stage in between.": "Curled seed membranes release into layered cups and luminous blossoms in a receding garden. Play every stage in between.",
   "Folded seed": "Folded seed",
   "Opening whorl": "Opening whorl",
   "Golden emergence": "Golden emergence",

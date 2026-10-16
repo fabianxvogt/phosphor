@@ -68,3 +68,27 @@ Current full suite with bounded concurrency: 971 pass, 21 skipped, 0 fail; typec
 Fresh 64-frame native profiles per state: 1080p p50 1.9/1.9/1.9 ms, p95 2.8/2.6/2.8; 4K p50 4.7/4.9/5.0, p95 5.2/5.2/5.6. Pair against then-current main: +8/+12.5/−12.5% at 1080p (`5e35c8b`) and +2.2/+6.7/+2.1% at 4K (`acfdd9d`), both fail relative +5% gate. All raw earlier and resumed results retained under `artifacts/verification/unfolding-r3/`; absolute budgets pass, zero GL/non-finite errors. Shared pair helper does not route historical metamorphosis geometry, so not a complete historical-layout comparison.
 
 Final default film/sheet/rhythm and grids were regenerated after the merge at the exact reviewer paths and read again. The old palette and portrait/reversal captures still represent unchanged family source. No engine, limiter, main, other worktree or preview generation edits.
+
+## r5
+
+Read independent r4 review first: L7/G8.5/E8, overall 7.5. Clean worktree preserved; merged main before implementation. Priority responses:
+
+1. Replace the filament → sealed radial sheet → flower interpolation with separated, tightly rolled seed membranes → released layered cups → full blossom. Keep centres, fixed topology, counts, names and seeds. Exact adjoining membrane seams were an earlier implementation constraint, not the visual brief: intentionally retire that constraint (and its CPU test) to eliminate the saucer. All intermediate values remain smooth/reversible.
+2. Replace olive wax with saturated palette-primary interiors, dark contact pockets and directional transmitted secondary light; reduce broad specular and repeated rim brightness. Veins remain, brightest fold highlights selected by orientation.
+3. Recompose the fourteen persistent plants into overlapping rear clusters, a middle layer and a single near curled framing form. Distance haze suppresses far detail and contrast. No new draw or vertex budget.
+4. Use smoothly angle/vein-dependent propagation delays shared by deformation and colour, with a short leading front and longer decaying vein wake. Break the annular stamp without losing centre-to-tip travel, count selection or release/recovery.
+
+Keep frame occupancy, different orientations, veins, dark overlaps, restrained pink centres, all four gestures and the authored 3.0/6.5/11.2 density/cross-length phrasing. At least three change/capture/read rounds including large stills, then all palette/energy/late/reversal checks, native profiles and full tests. No runtime/limiter edits. Self-assessment starts at reviewer L7; do not infer acceptance from a glow increase.
+
+### r5 film decisions and verification
+
+1. Round 1 removed the saucer and repeated satellite scatter. Read sheet/rhythm and large hero: too dark, narrow seed strips resemble tubes, clustered rear silhouettes overlap the hero.
+2. Round 2 broadened seed membranes, moved rear clusters outside the hero and restored lighting. Read sheet/rhythm and full membrane still: coherent unfolding, but green faces remain waxy.
+3. Round 3 thinned pleats and added static fine fibres and secondary-colour interiors. Read sheet/rhythm/large hero: complementary mixes become grey, not richer tissue.
+4. Round 4 shaped palette pigments nonlinearly: saturated blue interiors with green tips (red interior in Ember), selected transmitted folds and vein-guided rose travel. Read all sheets and large still. Final small refinement strengthens local sap and gives distant haze directional shading; regenerated final film and grids and read them.
+
+Final self-assessment L7.5/G8.5/E8, rounded overall 8 (not independent acceptance). The low-state curled cup now releases continuously into a layered blossom, never a flat plate. Still weak: far simplified silhouettes, approximate thin-tissue lighting, generous portrait negative space. All old IDs/names/seeds and rhythm placements retained. Old world definition appended to HISTORY; additive EN/DE descriptions accompany the changed world/catalog description.
+
+Fresh native 54-cell palette/seed/energy matrix, square/portrait reversal, 12-hour late geometry and 180 limiter-enabled RAF frames: zero GL/GPU/non-finite/browser errors. Read matrix, both late frames, both extra palette films and portrait Evening Blossom reversal. Eight family tests pass; full suite 1001 pass/21 skipped/0 fail, typecheck/build/DE+EN i18n pass. 88,320 vertices (less than r4).
+
+64-frame native p50/p95 by state: 1080p 2.1/3.7, 2.2/5.1, 2.1/4.4 ms; 4K 5.1/8.9, 6.1/9.2, 6.0/9.7 ms. Pair vs main: 1080p 0/+5.6/0%; 4K +2.2/0/+8.7%, both narrowly fail relative +5% despite passing absolute budgets. Retain samples, no reroll. Stock pair does not route historical geometry helper, so compares shaders with current geometry. Evidence: `artifacts/look-review/unfolding-r5/`, palette/iteration siblings and `artifacts/verification/unfolding-r5/`. No limiter/engine/other-world/preview edits.

@@ -69,7 +69,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | Physarum Networks | physarum | Agent chemotaxis with a diffusing trail field | Free Foraging / Food Nodes / Food Ring / Moving Food Nodes | 8 |
 | Geometric Caustics | caustics | Snell refraction through a moving heightfield | Point Waves / Crossing Wave Banks / Lens Sheet | 8 |
 | Space Colonization | colonization | Nearest-branch attraction and reached-point removal | Canopy / Root Fan / Coral Arbor | 8 |
-| [Living Forms](families/metamorphosis.md) | metamorphosis | Connected parametric surface deformation | Filaments / Membrane / Blossom | 6 |
+| [Living Forms](families/metamorphosis.md) | metamorphosis | Rolled membranes release into layered, veined blossoms | Filaments / Membrane / Blossom | 6 |
 | [Linked Fibres](families/fibration.md) (world Hopf Bloom) | fibration | Exact linked Hopf tubes with travelling fibre currents | Torus / Nest / Bundle | 8 |
 | [Crystal Habit](families/crystal.md) | crystal | Lattice-aligned growth of faceted hexagonal prisms | Seeds / Lattice / Hall | 8 |
 | [Polyhedral Folding](families/fold.md) | fold | Dyed paper nets close along exact hinges, then form a V-folded storm with sector crease snaps | Sheet / Fold / Shards | 8 |

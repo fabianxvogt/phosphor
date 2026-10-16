@@ -153,7 +153,7 @@ export const FAMILY_CATALOG = {
   metamorphosis: {
     algorithm: "Continuous deformation of a connected parametric mesh",
     description:
-      "One geometric organism becomes filaments, membranes and blossoms without replacing its centres or branches.",
+      "Rolled seed membranes release into layered cups and luminous veined blossoms, with a vein-led sap flush in a receding garden.",
     styles: ["organic", "spatial"],
     variants: ["Filaments", "Membrane", "Blossom"],
   },
