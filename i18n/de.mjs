@@ -344,6 +344,8 @@ export default {
   "The laser fan opens by a bounded twelve percent.": "Der Laserfächer öffnet sich um höchstens zwölf Prozent.",
   "Vault rib": "Gewölberippe",
   "A narrow light rib travels along the same folded material grid.": "Eine schmale Lichtrippe wandert über dasselbe gefaltete Materialgitter.",
+  "Tunnel chase": "Tunneljagd",
+  "The eight tunnel lasers fire one after another in a sixteenth chase, each shot hot in the accent colour.": "Die acht Tunnellaser feuern nacheinander als Sechzehntel-Jagd, jeder Schuss heiß in der Akzentfarbe.",
   "Dark aperture": "Dunkle Öffnung",
   "Beam relay": "Strahlenstaffel",
   "Vault chase": "Gewölbejagd",

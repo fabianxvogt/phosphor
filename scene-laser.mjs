@@ -143,6 +143,10 @@ float lgSegment2(vec2 p, vec2 a, vec2 b) {
   return dot(q, q);
 }
 
+// Scan rings travelling down the tunnel: age in [0,1) from far to near.
+// Integer harmonics of the wrapped sweep phase keep them continuous.
+float lgRingAge(int k) { return fract(float(k) / 3.0 + gPhase * 12.0 / TAU); }
+float lgRingEnv(float u) { return smoothstep(0.0, 0.18, u) * (1.0 - smoothstep(0.72, 1.0, u)); }
 // Abramowitz-Stegun 7.1.26, max absolute error < 1.5e-7 (CPU tested).
 float lgErf(float x) {
   float a = abs(x), t = 1.0 / (1.0 + 0.3275911 * a);
@@ -261,6 +265,23 @@ void main() {
     col += mix(u_primary, u_secondary, 0.3) * major * fog * mix(0.35, 0.85, gFold);
     col += u_primary * seam * fog * gRise * 0.7;
     col += u_secondary * 0.009 * fog * key;
+    // Light falloff from the projector: material near the source glows
+    // softly (the far floor before the vault, the tunnel walls after it).
+    vec3 hitP = gEye + gRay * depth;
+    vec3 source = mix(vec3(0, 3.4, 65), vec3(0, 5.7, 55), gFold);
+    col += mix(u_secondary, u_primary, 0.4) * u_params[3] * 0.1 * exp(-length(hitP - source) / mix(14.0, 22.0, gFold)) * key;
+    // The tunnel's travelling scan rings also sweep the vault material as
+    // light gates moving towards the viewer (continuous, not rhythmic).
+    if (gFold > 0.0) for (int k = 0; k < 3; ++k) {
+      float u = lgRingAge(k);
+      float gate = exp(-sq((hitP.z - 49.0 + 44.0 * u) / 0.7)) * lgRingEnv(u);
+      col += mix(u_primary, u_secondary, 0.38) * gate * (0.12 + 0.7 * grid + 0.5 * seam) * gFold * u_params[3] * key;
+    }
+    // Polished floor: a soft vertical sheen of the projector below it.
+    if (abs(hitP.y) < 0.05) {
+      vec2 mirror = lgProject(vec3(source.x, -source.y, source.z)) - view;
+      col += mix(u_primary, u_secondary, 0.3) * u_params[3] * exp(-sq(mirror.x / 0.04) - sq(mirror.y / 0.32)) * 0.3;
+    }
   }
   // Towers retain (side, bay, height seed) throughout. They rotate with the
   // side strip and retract into ribbed relief as the cathedral closes.
@@ -289,7 +310,9 @@ void main() {
       towerLight = 0.4 + 0.6 * abs(d.x); towerId = float(i);
     }
   }
+  float onSheet = depth < 129.0 ? 1.0 : 0.0;
   if (towerDepth < depth) {
+    onSheet = 0.0;
     vec3 edgeDistance = abs(abs(towerP) - towerSize);
     // Analytic world footprint avoids derivatives across different box hits.
     vec3 edgeAA = vec3(max(0.008, gPixel * towerDepth * 0.8));
@@ -306,8 +329,24 @@ void main() {
     float faceKey = edgeDistance.z < edgeDistance.x ? 0.45 : 1.0;
     float faceGradient = 0.35 + 0.65 * smoothstep(-towerSize.y, towerSize.y, towerP.y);
     col = mix(u_secondary, u_primary, 0.18) * 0.085 * faceKey * faceGradient * exp(-depth * 0.025);
+    // Lit window cells, seeded per tower/row/column: the faces read as
+    // occupied buildings instead of transparent wire boxes. Energy lights
+    // more of them (structure, not gain). Roofs stay dark.
+    bool front = edgeDistance.z < edgeDistance.x;
+    float roof = step(edgeDistance.y, min(edgeDistance.x, edgeDistance.z));
+    float column = (front ? towerP.x : towerP.z) / 0.62;
+    vec2 cellAA = vec2((front ? edgeAA.x : edgeAA.z) / 0.62, edgeAA.y / (gSpace * 0.38));
+    vec2 cell = vec2(fract(column) - 0.5, fract(rowCoordinate) - 0.5);
+    float pane = (1.0 - smoothstep(0.27 - cellAA.x, 0.27 + cellAA.x, abs(cell.x))) *
+      (1.0 - smoothstep(0.2 - cellAA.y, 0.2 + cellAA.y, abs(cell.y)));
+    pane *= (1.0 - roof) * (1.0 - smoothstep(0.22, 0.5, max(cellAA.x, cellAA.y)));
+    float cellSeed = lgHash(floor(column) * 7.31 + floor(rowCoordinate) * 13.7 + towerId * 31.0 + (front ? 0.0 : 101.0));
+    float lit = smoothstep(mix(0.8, 0.5, level), mix(0.84, 0.54, level), cellSeed);
+    vec3 windowInk = mix(u_primary, u_secondary, lgHash(cellSeed * 97.0 + towerId));
+    col += windowInk * pane * lit * (0.25 + 0.55 * fract(cellSeed * 53.0)) * exp(-depth * 0.022) * towerLight;
+    float crown = 0.45 + 0.95 * smoothstep(-towerSize.y, towerSize.y, towerP.y);
     col += mix(u_secondary, u_primary, 0.68) *
-      (corners * 1.35 + levels * occupied * 0.7 + uprights * 0.16) * exp(-depth * 0.025) * towerLight;
+      (corners * 1.1 * crown + levels * occupied * 0.22 + uprights * 0.1) * exp(-depth * 0.025) * towerLight;
     col += u_secondary * 0.012 * towerLight * exp(-depth * 0.018);
   }
 
@@ -327,15 +366,16 @@ void main() {
     if (weight < 0.001) continue;
     vec3 a = source.xyz;
     vec4 axis = lgData(i, 7), eyeOffset = lgData(i, 8);
-    float width = max(0.025, gPixel * metrics.y * 0.6);
+    float chase = lgChase(i), address = lgAddress(i);
+    float width = min(max(0.025, gPixel * metrics.y * 0.6) * (1.0 + 2.2 * chase + 0.8 * address), 0.4);
     float core = 0.0;
     // The same conservative bound, tightened for the AA core.
     if (lgInsideTaper(view, endpoints.xy, endpoints.zw, radii * (width / 0.4) + gPixel * 2.0))
       core = lgBeam(gRay, axis.xyz, axis.w, eyeOffset.xyz, eyeOffset.w, width, limit, 0.014, false) / width;
     float volume = lgBeam(gRay, axis.xyz, axis.w, eyeOffset.xyz, eyeOffset.w, 0.18 + 0.22 * haze, limit, 0.021, true);
     vec3 ink = mix(u_primary, u_secondary, target.w);
-    if (i > 0 && abs(mod(u_rhythmCount.x, 16.0) + 1.0 - float(i)) < 0.5)
-      ink = mix(ink, u_accent, 0.75 * u_rhythm.x);
+    ink = mix(ink, u_accent, min(1.0, 1.3 * chase + 0.9 * address));
+    weight *= 1.0 + 2.6 * chase + 1.4 * address;
     float cosine = dot(axis.xyz, -gRay);
     float phaseBase = inversesqrt(1.09 - 0.6 * cosine);
     float phase = 0.91 * phaseBase * phaseBase * phaseBase;
@@ -347,22 +387,45 @@ void main() {
     float spotRadius2 = dot(off, off) / sq(spotWidth);
     if (spotRadius2 < 12.0 && depth < 129.0)
       col += mix(ink, vec3(1), 0.2) * weight * exp(-spotRadius2) * 3.5;
+    // A soft splash of scattered light around the impact on the material
+    // (radius 0.8, inside the 2.4-unit candidate capsule).
+    float splash = dot(off, off) / 0.64;
+    if (splash < 12.0 && depth < 129.0)
+      col += ink * weight * exp(-splash) * (0.12 + 0.5 * chase + 0.3 * address) * exp(-depth * 0.012);
   }
-  // Liquid sky: a finite, softly filled scanning plane from a far emitter.
-  // Analytic ray/plane crossing, with a grazing-angle cap, no volume march.
-  vec3 sheetOrigin = vec3(0, mix(2.0, 7.2, gFold), 62);
-  vec3 sheetNormal = normalize(vec3(0.16 * sin(gPhase), 1, 0.05 + 0.09 * sin(gPhase)));
+  // Liquid sky: a finite scanning sheet ABOVE the eye, seen from below as a
+  // rippling light ceiling; discrete fan rays sweep across it. Analytic
+  // ray/plane crossing with a grazing-angle cap, no volume march.
+  float sheetHeight = mix(u_params[7] + 1.7, max(7.2, u_params[7] + 1.7), gFold);
+  vec3 sheetOrigin = vec3(0, sheetHeight, 62);
+  vec3 sheetNormal = normalize(vec3(0.06 * sin(gPhase), 1, 0.025 + 0.025 * sin(gPhase)));
   float sheetDenom = dot(gRay, sheetNormal);
   float sheetT = dot(sheetOrigin - gEye, sheetNormal) / (abs(sheetDenom) < 1e-5 ? 1e-5 : sheetDenom);
   vec3 sheetP = gEye + gRay * sheetT - sheetOrigin;
-  float sheetSpan = smoothstep(1.0, 10.0, -sheetP.z) * (1.0 - smoothstep(40.0, 64.0, -sheetP.z));
-  float sheetWidth = 1.0 - smoothstep(0.25, 0.8, abs(sheetP.x) / max(-sheetP.z, 0.1));
-  float sheetRipples = 0.8 + 0.2 * sin(sheetP.z * 0.45 + 1.8 * sin(sheetP.x * 0.38 + gPhase));
-  if (sheetT > 0.0 && sheetT < depth)
-    col += mix(u_secondary, u_primary, 0.32) * sheetSpan * sheetWidth * sheetRipples * haze * mix(0.13, 0.24, gFold) * exp(-sheetT * 0.012) / max(abs(sheetDenom), 0.16);
+  float sheetSpan = smoothstep(1.0, 10.0, -sheetP.z) * (1.0 - smoothstep(52.0, 76.0, -sheetP.z));
+  float fanCoord = sheetP.x / max(-sheetP.z, 0.1);
+  float sheetWidth = 1.0 - smoothstep(0.35, 0.95, abs(fanCoord));
+  float sheetRipples = 0.7 + 0.3 * sin(sheetP.z * 0.45 + 2.0 * gPhase + 1.8 * sin(sheetP.x * 0.38 + gPhase));
+  float rayPhase = fanCoord * 38.0 + 3.0 * gPhase;
+  float rayAA = 1.0 - smoothstep(0.35, 1.4, fwidth(rayPhase));
+  float rays = pow(0.5 + 0.5 * cos(rayPhase), 6.0) * rayAA;
+  float fineAA = 1.0 - smoothstep(0.35, 1.4, 2.0 * fwidth(rayPhase));
+  rays += 0.6 * pow(0.5 + 0.5 * cos(rayPhase * 2.0 - 5.0 * gPhase), 10.0) * fineAA * smoothstep(0.3, 0.9, level);
+  float sheetGain = 0.35 + 0.65 * 0.16 / max(abs(sheetDenom), 0.16);
+  if (sheetT > 0.0 && sheetT < depth) {
+    float sheet = sheetSpan * sheetWidth * haze * sheetGain * exp(-sheetT * 0.014);
+    col += mix(u_secondary, u_primary, 0.2) * sheet * sheetRipples * mix(0.24, 0.2, gFold);
+    col += mix(u_primary, u_secondary, 0.15) * sheet * rays * (0.35 + 0.65 * sheetRipples) * 1.1;
+  }
+  // The projector itself: a small hot source, occluded by anything nearer.
+  vec3 emitter = mix(vec3(0, 3.4, 65), vec3(0, 5.7, 55), gFold);
+  vec2 emitterView = lgProject(emitter) - view;
+  if (depth > length(emitter - gEye) * 0.98)
+    col += mix(u_primary, vec3(1), 0.25) * (exp(-dot(emitterView, emitterView) / sq(gPixel * 3.0)) * 1.4
+      + exp(-dot(emitterView, emitterView) / 0.0016) * 0.12);
   // A widening hollow cone reads as the classic laser tunnel in haze.
   vec3 coneV = gEye - vec3(0, 5.7, 55);
-  float coneSlope = 0.19 + 0.025 * sin(gPhase * 2.0);
+  float coneSlope = gSlope;
   float coneA = dot(gRay.xy, gRay.xy) - sq(coneSlope * gRay.z);
   float coneB = dot(coneV.xy, gRay.xy) - sq(coneSlope) * coneV.z * gRay.z;
   float coneC = dot(coneV.xy, coneV.xy) - sq(coneSlope * coneV.z);
@@ -391,27 +454,45 @@ void main() {
       vec3 normal = normalize(vec3(p.xy, -sq(coneSlope) * p.z));
       // Broad axial density waves reveal the cone's circular cross-section,
       // like a scan tunnel in real haze, rather than a flat starburst.
-      float rings = exp(-sq((p.z + 36.0 + 4.0 * sin(gPhase)) / 1.15));
-      rings += 0.55 * exp(-sq((p.z + 20.0 + 3.0 * sin(gPhase * 2.0)) / 0.95));
-      col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * coneEdge * (0.09 + 0.44 * rings + 0.02 * sin(p.z * 0.45 + p.x * 0.4 + gPhase)) * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
+      // Three density waves travel down the tunnel towards the viewer.
+      float rings = 0.0;
+      for (int k = 0; k < 3; ++k) {
+        float u = lgRingAge(k);
+        rings += lgRingEnv(u) * exp(-sq((p.z + 6.0 + 44.0 * u) / 1.1));
+      }
+      col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * coneEdge * (0.12 + 0.5 * rings + 0.02 * sin(p.z * 0.45 + p.x * 0.4 + gPhase)) * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
+      // Tunnel chase: the cone wall around the fired spoke (and its two
+      // predecessors) lights up in accent, a sector spinning down the tunnel.
+      if (u_rhythm.w > 0.001) {
+        float sel = mod(u_rhythmCount.w + 7.0, 8.0), sector = 0.0;
+        float around = atan(p.y, p.x) - gPhase;
+        for (int j = 0; j < 3; ++j) {
+          float diff = mod(around - (sel - float(j)) * TAU / 8.0 + PI, TAU) - PI;
+          sector += (j == 0 ? 1.0 : j == 1 ? 0.55 : 0.22) * exp(-sq(diff / 0.2));
+        }
+        col += u_accent * sector * u_rhythm.w * gFold * env * coneEdge * (0.35 + rings) * 0.6 * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
+      }
     }
   }
   // Two finite scan fronts reveal the cone mouth at projector scale.
   // These are Gaussian axial density bands, evaluated at their centre plane;
   // the surrounding cone above supplies their continuous volumetric fill.
-  if (gFold > 0.0) for (int ring = 0; ring < 2; ++ring) {
-    float z = mix(12.0, 29.0, float(ring)) + 2.0 * sin(gPhase + float(ring) * PI);
+  if (gFold > 0.0) for (int ring = 0; ring < 3; ++ring) {
+    float u = lgRingAge(ring);
+    float z = 49.0 - 44.0 * u;
     float t = (z - gEye.z) / max(gRay.z, 0.01);
     vec2 p = (gEye + gRay * t).xy - vec2(0, 5.7);
     float off = length(p) - coneSlope * (55.0 - z);
     float width = max(0.045, gPixel * t * 0.8);
     if (t <= 0.0 || t >= depth || abs(off) > width * 20.0) continue;
     float front = exp(-sq(off / width)) + 0.12 * exp(-sq(off / (width * 5.0)));
-    col += mix(u_primary, u_secondary, 0.38) * front * gFold * haze * exp(-t * 0.014) * mix(2.2, 1.3, float(ring));
+    col += mix(u_primary, u_secondary, 0.38) * front * gFold * haze * exp(-t * 0.014) * 1.9 * lgRingEnv(u);
   }
   // A sparse travelling grid rib, not a whole-frame beat flash.
-  float rib = exp(-sq((gridUV.y - (52.0 - 58.0 * u_rhythm.z)) / 0.65));
-  col += u_accent * rib * grid * fog * gRise * u_rhythm.z * 0.5;
+  // Vault rib (slot 2): a soft accent band with brighter grid crossings,
+  // travelling along the folded sheet. Local, never a whole-frame flash.
+  float rib = exp(-sq((gridUV.y - (52.0 - 58.0 * u_rhythm.z)) / 0.9));
+  col += u_accent * rib * (0.25 + grid + 0.6 * seam) * fog * onSheet * mix(0.6, 1.0, gRise) * u_rhythm.z * 1.1;
   outColor = vec4(max(col, vec3(0)), 1.0);
 }
 `;
@@ -490,9 +571,22 @@ void main() {
       "Vault rib",
       "A narrow light rib travels along the same folded material grid.",
       { period: 16, strength: 0.65, duration: 3, steps: "X...............", styles: {
-        restrained: { steps: "..x..... | ......X. | ........ | .....x..", division: 2, strength: 0.5, duration: 1.3 },
-        driving: { steps: "X.x.X.x.X.x.X.xx", division: 4, strength: 0.78, duration: 0.2 },
-        accented: { steps: "XxxxXxxxXxxxXxxx | XxxxXxxxXxxxXxXX", division: 4, strength: 0.94, duration: 0.16 },
+        restrained: { steps: "..x..... | ......X. | ........ | .....x..", division: 2, strength: 0.6, duration: 1.3 },
+        driving: { steps: "X............... | ........x.......", division: 4, strength: 0.85, duration: 1.4 },
+        accented: { steps: "X.......x....... | X.......x...x.x.", division: 4, strength: 0.95, duration: 0.45 },
+      } },
+    ),
+    // Signature: the eight tunnel lasers (the horizon fan before the vault
+    // closes) fire one after another; u_rhythmCount.w selects the spoke.
+    familyEffect(
+      "tunnel-chase",
+      3,
+      "Tunnel chase",
+      "The eight tunnel lasers fire one after another in a sixteenth chase, each shot hot in the accent colour.",
+      { strength: 0.9, duration: 0.45, division: 4, steps: "..x...x...x...xX", styles: {
+        restrained: { steps: "................ | ............3579", division: 4, strength: 0.8, duration: 0.22 },
+        driving: { steps: "..x...x...x...xX | ..x...x...x.xxXX", division: 4, strength: 0.92, duration: 0.45 },
+        accented: { steps: "XxxxXxxxXxxxXxxx | Xxx5Xxx5XxXxXXXX", division: 4, strength: 1, duration: 0.24 },
       } },
     ),
   ],

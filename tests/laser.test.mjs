@@ -6,6 +6,8 @@ import { presetSnapshot } from "../session.mjs";
 import { catalogLooks } from "../catalog.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { advanceClocks } from "../scene-time.mjs";
+import { laserData } from "../scene-laser-data.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
 const add = (a, b) => a.map((x, i) => x + b[i]);
@@ -307,7 +309,7 @@ test("camera remains inside the vault but outside every tower, at all developmen
   assert.doesNotMatch(laser.fragment, /rot2\(/, "no camera roll");
 });
 
-test("presets declare a continuous world, eight bounded looks and three gestures", () => {
+test("presets declare a continuous world, eight bounded looks and four gestures", () => {
   assert.equal(laser.number, 105);
   assert.equal(laser.development, "development");
   assert.deepEqual(laser.type.values, [0, 1, 2]);
@@ -337,6 +339,7 @@ test("presets declare a continuous world, eight bounded looks and three gestures
       [0, 4],
       [1, 8],
       [2, 16],
+      [3, 16],
     ],
   );
   assert.ok(laser.energy.sweep.mul[1] / laser.energy.sweep.mul[0] <= 2);
@@ -578,4 +581,95 @@ test("rate-dependent phases stay continuous at 3600 s and 12 h without touching 
     const at = [...advanceClocks(state, laser.clocks, time + 1 / 60, p, 0.9)];
     for (let i = 0; i < 2; i++) assert.ok(Math.abs(at[i] - start[i]) < 0.01);
   }
+});
+
+
+test("slot-3 signature: tunnel chase is authored for all three phrase styles", () => {
+  const chase = laser.rhythm.find((effect) => effect.slot === 3);
+  assert.ok(chase, "signature gesture in slot 3");
+  assert.equal(chase.id, "tunnel-chase");
+  for (const style of ["restrained", "driving", "accented"]) {
+    const loop = chase.styles[style];
+    assert.ok(loop, style);
+    const hits = loop.steps.filter((v) => v > 0).length;
+    assert.ok(hits >= 2, `${style}: at least two hits`);
+    assert.ok(loop.strength > 0 && loop.strength <= 1, `${style}: bounded`);
+    assert.equal(loop.division, 4, `${style}: a sixteenth chase`);
+  }
+  assert.deepEqual(defaultPattern(laser.rhythm).tracks.at(-1).steps, chase.styles.driving.steps);
+  // Shader reads all signature channels; selection lives in the shared data
+  // code, so the data pass and the picture always agree on the fired spoke.
+  assert.match(laserData, /u_rhythmCount\.w/);
+  assert.match(laserData, /float lgChase\(int i\)/);
+  assert.match(laserData, /weight = max\(weight, lgChase\(i\)\)/);
+  assert.match(laser.fragment, /u_rhythm\.w/);
+  assert.match(laser.fragment, /float chase = lgChase\(i\), address = lgAddress\(i\);/);
+});
+
+// CPU mirror of lgChase: the newest hit fires the next spoke, its two
+// predecessors glow less; the chase rotates through all eight spokes.
+const chaseOf = (count, spoke, env = 1) => {
+  const mod = (a, b) => a - b * Math.floor(a / b);
+  const back = mod(mod(count + 7, 8) - spoke + 8, 8);
+  return env * (back < 0.5 ? 1 : back < 1.5 ? 0.55 : back < 2.5 ? 0.22 : 0);
+};
+test("tunnel chase rotates through every spoke with a bounded two-step tail", () => {
+  const fired = new Set();
+  for (let count = 1; count <= 16; count++) {
+    const levels = Array.from({ length: 8 }, (_, spoke) => chaseOf(count, spoke));
+    assert.equal(levels.filter((v) => v === 1).length, 1, "one hot spoke");
+    assert.equal(levels.filter((v) => v > 0).length, 3, "two-step tail");
+    const hot = levels.indexOf(1);
+    assert.equal(chaseOf(count + 1, (hot + 1) % 8), 1, "next hit fires the neighbour");
+    assert.equal(chaseOf(count + 1, hot), 0.55, "previous spoke becomes the tail");
+    fired.add(hot);
+  }
+  assert.equal(fired.size, 8);
+});
+
+test("horizon fan folds continuously into the tunnel cone (spoke identity)", () => {
+  // Mirror of the spoke endpoints in lgEndpoints, before surface clipping.
+  const spokeEnds = (spoke, dev, phase = 0.7, aperture = 0.85) => {
+    const fold = smooth(1, 2, dev),
+      slope = 0.19 + 0.025 * Math.sin(phase * 2),
+      angle = (spoke * 2 * Math.PI) / 8 + phase,
+      apex = [0, 5.7, 55];
+    const cone = add(apex, [Math.cos(angle) * slope * 53, Math.sin(angle) * slope * 53, -53]);
+    const k = (spoke - 3.5) / 3.5,
+      lift = 0.5 + 0.5 * Math.sin(phase * 2 + 1.3);
+    const fan = [k * 18 * aperture + 3 * Math.sin(phase + 0.4 * spoke), mix(-1.5, 9.5, lift) + 1.5 * k * k, 0.5];
+    const lerp = (p, q) => p.map((x, i) => mix(x, q[i], fold));
+    return { a: lerp([0, 3.4, 65], apex), b: lerp(fan, cone) };
+  };
+  for (let spoke = 0; spoke < 8; spoke++)
+    for (let dev = 0; dev < 2; dev += 0.01) {
+      const p = spokeEnds(spoke, dev),
+        q = spokeEnds(spoke, dev + 0.01);
+      assert.ok(Math.hypot(...sub(p.b, q.b)) < 0.6, "no jump between development steps");
+      // Endpoints stay in front of the whole camera path (z >= -7.2 + 7).
+      assert.ok(p.b[2] >= 0.5 - 1e-9 && p.a[2] >= 55);
+    }
+  assert.match(laserData, /a = mix\(vec3\(0, 3\.4, 65\), apex, gFold\);/);
+  assert.match(laserData, /b = mix\(fanEnd, coneEnd, gFold\);/);
+});
+
+test("liquid sky stays above the eye; scan rings travel continuously", () => {
+  for (const preset of laser.presets) {
+    const eye = preset.params.eye;
+    for (let dev = 0; dev <= 2; dev += 0.05) {
+      const fold = smooth(1, 2, dev),
+        height = mix(eye + 1.7, Math.max(7.2, eye + 1.7), fold);
+      // Normal z in [0, 0.05] only raises the sheet towards the viewer.
+      assert.ok(height > eye + 0.25 + 1.4, `${preset.name} sheet above eye`);
+    }
+  }
+  assert.match(laser.fragment, /float sheetHeight = mix\(u_params\[7\] \+ 1\.7, max\(7\.2, u_params\[7\] \+ 1\.7\), gFold\);/);
+  // Ring age uses an integer harmonic of the wrapped phase: continuous at 2π.
+  const age = (k, phase) => (((k / 3 + (phase * 12) / (2 * Math.PI)) % 1) + 1) % 1;
+  for (let k = 0; k < 3; k++) {
+    const before = age(k, 2 * Math.PI - 1e-9),
+      after = age(k, 0);
+    assert.ok(Math.min(Math.abs(before - after), 1 - Math.abs(before - after)) < 1e-6);
+  }
+  assert.match(laser.fragment, /fract\(float\(k\) \/ 3\.0 \+ gPhase \* 12\.0 \/ TAU\)/);
 });
