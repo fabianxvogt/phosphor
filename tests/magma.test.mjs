@@ -173,7 +173,14 @@ test("plate identity never depends on development; only seams, lava and sinking 
     ),
   );
   assert.equal((body.match(/wScale/g) ?? []).length, 2);
-  assert.doesNotMatch(body, /gDev|gSplit|gLakeAmt|gErupt|u_params/);
+  // Geometry may widen the drainage incision; the nearest-site search
+  // and identity assignments remain seed-only.
+  assert.doesNotMatch(
+    body.slice(0, body.indexOf("float width")),
+    /gDev|gSplit|gLakeAmt|gErupt|u_params/,
+  );
+  assert.match(body, /P\.cellA = ic \+ oA;/);
+  assert.match(body, /P\.siteA = q \+ mr;/);
   assert.match(
     src,
     /gSeamW = 0\.03 \+ 0\.056 \* gSplit \+ 0\.03 \* smoothstep\(1\.0, 2\.0, dev\);/,
@@ -307,7 +314,7 @@ test("the bound surface is above every slab and lava level", () => {
   for (const line of [
     "float top = 0.1 + 0.05 * (id - 0.5) + clamp(tl, -0.05, 0.05);",
     "vec2 mrTilt(Plate P) { return (fract(P.hA * vec2(17.3, 11.9)) - 0.5) * 0.07; }",
-    "return mix(mix(-0.08, 0.055, flood), 0.075, mrLakeMask(r) * gLakeAmt);",
+    "return mix(mix(-0.22, 0.015, flood), 0.075, mrLakeMask(r) * gLakeAmt);",
   ])
     assert.ok(src.includes(line), line);
   // Highest slab top 0.1 + 0.025 + 0.05 and highest lava 0.075 stay below.
@@ -327,7 +334,7 @@ test("a bomb's trail lies inside its precomputed bounding sphere", () => {
   ]) {
     const { vy, vh } = launch(hx, hy, 1.5, big);
     const v0 = [vh, vy, 0.3 * vh];
-    const span = 3 * (big ? 0.42 : 0.1);
+    const span = 3 * (big ? 0.09 : 0.055);
     for (let tt = 0; tt < flight(vy); tt += 0.05) {
       const h0 = bomb(p0, v0, tt),
         tail = bomb(p0, v0, Math.max(tt - span, 0));
@@ -912,13 +919,102 @@ test("slot-3 pressure is authored, local, mute-safe and fills the world presets"
   assert.match(src, /mod\(u_rhythmCount\.w, 3\.0\)/);
   assert.match(
     src,
-    /smoothstep\(0\.02, 0\.2, gPressure\) \* exp\(-sq\(\(r - gPressureHead\) \/ 2\.2\)\)/,
+    /smoothstep\(0\.02, 0\.2, gPressure\) \* exp\(-sq\(\(r - gPressureHead\) \/ 1\.1\)\)/,
   );
   // Events change heat and spray density, not physical trajectory or camera bounds.
   assert.doesNotMatch(
     src.slice(src.indexOf("bool mrLaunch("), src.indexOf("vec4 mrBombBound(")),
     /gPressure|u_rhythm\.w/,
   );
+});
+
+test("incised drainage widens monotonically without changing seeded plate identity", () => {
+  assert.match(src, /P\.gap = min\(P\.gap, cut - cutWidth \* 0\.22\);/);
+  assert.match(src, /P\.shore = normalize\(riverGrad \+ 1e-6\);/);
+  assert.match(src, /float rock = mix\(-0\.45, top, wall\);/);
+  // The groove floor must be below the breakdown lava, not a ghostly
+  // emissive dry floor. Negative-only relief cannot exceed TOP_BOUND.
+  assert.ok(-0.45 < -0.22);
+  for (const [a, b] of points(500, 1, 41)) {
+    const wv = a + 0.5,
+      chips = b + 0.5;
+    const river = fract(wv * 7.1);
+    let previous = Infinity;
+    for (let split = 0; split <= 1.001; split += 0.05) {
+      const width = mix(0.13, 0.6, split) * (0.8 + 0.4 * wv);
+      const cut = (0.58 - river + 0.09 * (chips - 0.5)) * 0.85 - width * 0.22;
+      assert.ok(cut <= previous + 1e-12);
+      previous = cut;
+    }
+    const top = 0.175 - 0.095 * (wv + chips);
+    assert.ok(top < 0.18 && Number.isFinite(top));
+  }
+});
+
+test("angular rubble has bounded negative relief and the exact analytic gradient", () => {
+  const relief = (x, y) => {
+    const q = [x * 4.6 + seedOff[0], y * 4.6 + seedOff[1]];
+    const i = q.map(Math.floor),
+      f = q.map(fract);
+    const hash = (x, y) => h22(x, y)[0];
+    const a = hash(...i),
+      b = hash(i[0] + 1, i[1]);
+    const c = hash(i[0], i[1] + 1),
+      d = hash(i[0] + 1, i[1] + 1);
+    return [
+      0.19 * mix(mix(a, b, f[0]), mix(c, d, f[0]), f[1]),
+      0.19 * 4.6 * mix(b - a, d - c, f[1]),
+      0.19 * 4.6 * mix(c - a, d - b, f[0]),
+    ];
+  };
+  assert.match(src, /top -= relief\.x;/);
+  assert.match(src, /grad -= relief\.yz;/);
+  for (const [x, y] of points(1000, 32, 31)) {
+    const r = relief(x, y),
+      e = 1e-6;
+    assert.ok(r[0] >= 0 && r[0] <= 0.19);
+    assert.ok(
+      Math.abs((relief(x + e, y)[0] - relief(x - e, y)[0]) / (2 * e) - r[1]) <
+        1e-4,
+    );
+    assert.ok(
+      Math.abs((relief(x, y + e)[0] - relief(x, y - e)[0]) / (2 * e) - r[2]) <
+        1e-4,
+    );
+  }
+});
+
+test("pressure reaches the vent before climbing and has a silent cooling interval", () => {
+  assert.match(
+    src,
+    /gPressureHead = 12\.0 \* \(1\.0 - smoothstep\(0\.0, 0\.7, 1\.0 - gPressure\)\);/,
+  );
+  assert.match(
+    src,
+    /packetY = smoothstep\(0\.68, 0\.98, 1\.0 - gPressure\) \* gFountH;/,
+  );
+  assert.match(
+    src,
+    /pressureMask = mix\(pressureMask, lcrack \* \(0\.3 \+ 0\.7 \* along1\), lakeM\);/,
+  );
+  let previous = 12;
+  for (let progress = 0; progress <= 1.001; progress += 0.01) {
+    const head = 12 * (1 - smooth(0, 0.7, progress));
+    const height = smooth(0.68, 0.98, progress);
+    assert.ok(head <= previous + 1e-12 && head >= 0);
+    assert.ok(height >= 0 && height <= 1);
+    if (height > 0.01) assert.ok(head < 0.1, "column waits for ground arrival");
+    previous = head;
+  }
+  const signature = magma.rhythm.find((r) => r.slot === 3);
+  const pattern = defaultPattern(magma.rhythm, "driving");
+  const track = pattern.tracks.find((t) => t.effect === signature.id);
+  assert.ok(track.duration < 4, "3.2-beat packet leaves 0.8 beat to cool");
+  assert.match(
+    src,
+    /float mrTrail\(bool big\) \{ return big \? 0\.09 : 0\.055; \}/,
+  );
+  assert.match(src, /tail \* fragments/);
 });
 
 test("style limits: palette-only colour, kick punch, roll, speed range, gestures", () => {

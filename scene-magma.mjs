@@ -3,14 +3,13 @@ import { lateClockGlsl } from "./scene-time.mjs";
 
 // Magma Rift (#104): a volcanic field raymarched as one continuous world.
 // The ground is a crust of basalt plates: a jittered Voronoi tessellation
-// whose exact seams (distance to the nearest bisector, found in one cached
-// 3×3 search) become cracks, then lava rivers, then the shore of a lava
-// lake into which the central plates sink one by one. A seed-only drainage
-// tree (three meandering trunks from the vent, two branches each) selects
-// which seams glow in the crust, widen into braided rivers and lead to the
-// vent; a heat front runs out along it with development. The lake opens
-// with a fountain of incandescent spray (paraboloid streak cones) and bombs
-// on exact ballistic parabolas under an ash umbrella lit from below. Plate
+// whose exact seams (one cached 3×3 search) form fine secondary fissures.
+// A seed-only drainage tree (three meandering trunks from the vent, two
+// branches each) incises rough banks through the plates into lava rivers,
+// then a lake where the central plates sink. Managed pressure travels
+// inward through the channels before climbing an irregular spray packet.
+// Exact ballistic bombs carry short broken cooling wakes under an ash
+// umbrella, with overlapping caldera ridges behind the vent. Plate
 // identity and the tree are functions of the seed only; development never
 // moves a site. Light is temperature: the emission ramp runs dark →
 // secondary → primary → accent → near white, so every library palette is a
@@ -330,6 +329,18 @@ vec2 mrFrame(vec2 x) {
   return mrChannel(x).zw;
 }
 
+// Angular value-noise relief and its exact bilinear gradient share four
+// hashes. No extra finite-difference noise evaluations per surface pixel.
+// Height is negative-only at the call site, preserving the slab bound.
+vec3 mrRubble(vec2 x) {
+  vec2 q = x * 4.6 + gSeedOff, i = floor(q), f = fract(q);
+  float a = mrH2(i), b = mrH2(i + vec2(1.0, 0.0));
+  float c = mrH2(i + vec2(0.0, 1.0)), d = mrH2(i + vec2(1.0));
+  return vec3(0.19 * mix(mix(a, b, f.x), mix(c, d, f.x), f.y),
+    0.19 * 4.6 * mix(b - a, d - c, f.y),
+    0.19 * 4.6 * mix(c - a, d - b, f.x));
+}
+
 struct Plate {
   vec2 cellA;   // nearest site's cell (plate identity)
   vec2 cellB;   // the cell across the governing seam
@@ -341,6 +352,7 @@ struct Plate {
   vec2 hA;      // the plate's site hash (seeds its height, tilt, ropes)
   float river;  // drainage-tree profile here (bilinear over cell corners)
   float arrive; // arrival along the tree (0 at the vent, 1 at the rim)
+  vec2 shore;   // normal toward the exposed channel, not a tile bisector
 };
 
 // Cached 3×3 Voronoi: one pass finds the nearest site, a second takes the
@@ -383,15 +395,28 @@ Plate mrPlates(vec2 q, float wScale) {
   // Without the data pass the tree is evaluated here (exact, not bilinear).
   c.zw = mrChannel(q * gS).xy;
 #endif
-  float width = wScale * (0.22 + 3.0 * c.z) * (0.3 + 1.4 * wv * wv);
+  // Fractured shore, not a regular bevel around every Voronoi cell.
+  float chips = 0.25 + 0.75 * wv;
+  float width = wScale * (0.06 + 0.18 * c.z) * (0.25 + 1.2 * chips * chips);
   Plate P;
   P.cellA = ic + oA;
   P.cellB = ic + floor(rB + f);
   P.siteA = q + mr;
   P.siteB = q + rB;
   P.gap = border - width;
+  // The persistent drainage tree cuts through plate interiors. Small
+  // side fissures remain, but only the river exposes broad molten matter.
+  float cutWidth = mix(0.13, 0.6, gSplit) * (0.8 + 0.4 * wv);
+  float cut = (0.58 - c.z + 0.09 * (chips - 0.5)) * 0.85;
+  vec2 riverGrad = vec2(mix(c10.z - c00.z, c11.z - c01.z, f.y), mix(c01.z - c00.z, c11.z - c10.z, f.x));
+#ifndef PRECOMPUTED
+  riverGrad = vec2(mrChannel((q + vec2(0.025, 0.0)) * gS).x - c.z, mrChannel((q + vec2(0.0, 0.025)) * gS).x - c.z) / 0.025;
+#endif
+  P.shore = normalize(P.siteB - P.siteA + 1e-6);
+  if (cut - cutWidth * 0.22 < P.gap) P.shore = normalize(riverGrad + 1e-6);
+  P.gap = min(P.gap, cut - cutWidth * 0.22);
   P.border = border;
-  P.width = width;
+  P.width = max(width, cutWidth * smoothstep(0.22, 0.6, c.z));
   P.hA = hA;
   P.river = c.z;
   P.arrive = c.w;
@@ -407,10 +432,15 @@ float mrBase(vec2 x) {
   float r = sqrt(r2);
   if (r > 19.0) {
     float a = atan(x.y, x.x);
-    float jag = 0.55 * sin(3.0 * a + 1.1) + 0.3 * sin(7.0 * a + 2.3) + 0.15 * sin(17.0 * a + 0.4);
+    float jag = 0.55 * sin(3.0 * a + 1.1) + 0.3 * sin(7.0 * a + 2.3) + 0.15 * sin(17.0 * a + 0.4) + 0.12 * sin(37.0 * a + 0.3) + 0.07 * sin(61.0 * a);
     float wallR = 25.5 + 2.2 * jag;
     float rise = smoothstep(wallR - 3.5, wallR + 5.5, r);
-    h += rise * (6.5 + 2.4 * jag + 0.9 * sin(13.0 * a + r * 0.7)) + 0.35 * smoothstep(0.3, 0.7, rise) * sin(r * 2.1 + 5.0 * a);
+    // Three radial ridge systems overlap and occlude, rather than one
+    // flat silhouette. Their foot stays outside the bounded plate field.
+    float ridgeGate = smoothstep(19.0, 21.0, r);
+    h += ridgeGate * 2.7 * exp(-sq((r - 22.5 - 0.8 * jag) / 2.0)) * (1.0 + 0.3 * sin(a * 9.0));
+    h += ridgeGate * 5.2 * exp(-sq((r - 29.0 - 1.7 * jag) / 3.0)) * (1.0 + 0.2 * sin(a * 13.0 + 1.0));
+    h += rise * (3.7 + 1.7 * jag + 0.5 * sin(13.0 * a + r * 0.7));
   }
   return h;
 }
@@ -427,7 +457,7 @@ float mrLakeMask(float r) { return 1.0 - smoothstep(gLakeR - 0.6, gLakeR + 0.9, 
 float lakeAmtAt(float r) { return mrLakeMask(r) * gLakeAmt; }
 float mrLavaLevel(float r, float w) {
   float flood = gSplit * smoothstep(0.012, 0.06, w);
-  return mix(mix(-0.08, 0.055, flood), 0.075, mrLakeMask(r) * gLakeAmt);
+  return mix(mix(-0.22, 0.015, flood), 0.075, mrLakeMask(r) * gLakeAmt);
 }
 
 // Full height: rock (plate slab with rounded edges, grooves at the seams,
@@ -448,15 +478,20 @@ float mrRock(vec2 x, Plate P, float base, float mask, out vec2 grad) {
   float sr = length(P.siteA * gS);
   float sink = smoothstep(gLakeR + 0.3, gLakeR - 1.6, sr) * gLakeAmt;
   top -= 0.32 * sink;
-  // Rounded edge toward the seam, then the groove.
-  float ew = 0.1 + 0.4 * P.width;
+  // Negative-only fractured thickness preserves TOP_BOUND. No smooth,
+  // identical chamfer: wide rough lips overhang the recessed lava.
+  vec3 relief = mrRubble(x);
+  float rubble = relief.x / 0.19;
+  top -= relief.x;
+  grad -= relief.yz;
+  float ew = 0.025 + 0.06 * rubble;
   float e = clamp(P.gap / ew, 0.0, 1.0);
-  top -= 0.075 * sq(1.0 - e);
+  top -= 0.025 * sq(1.0 - e);
   // ∇gap = −n/gS with n the unit normal toward the neighbouring site.
-  vec2 n = normalize(P.siteB - P.siteA + 1e-6);
-  grad -= 0.15 * (1.0 - e) / ew * step(0.0, P.gap) * n / gS;
+  vec2 n = P.shore;
+  grad -= 0.05 * (1.0 - e) / ew * step(0.0, P.gap) * n / gS;
   float wall = smoothstep(-0.35 * P.width - 0.01, 0.0, P.gap);
-  float rock = mix(-0.17, top, wall);
+  float rock = mix(-0.45, top, wall);
   grad *= mask * wall;
   return base + mask * rock;
 }
@@ -606,7 +641,8 @@ void mrSetup() {
   // A pressure packet uses only managed rhythm inputs; mute is exactly silent.
   // Count selects a different rift sector; the hit reinforces its molten root.
   gPressure = clamp(max(u_rhythm.w, 0.85 * u_rhythmHit.w), 0.0, 1.0);
-  gPressureHead = 0.4 + 15.0 * (1.0 - gPressure);
+  // First the incoming ground packet, then the rising column packet.
+  gPressureHead = 12.0 * (1.0 - smoothstep(0.0, 0.7, 1.0 - gPressure));
   float pressureAngle = TAU * mod(u_rhythmCount.w, 3.0) / 3.0;
   gPressureDir = vec2(cos(pressureAngle), sin(pressureAngle));
   gKick = u_kick * smoothstep(0.15, 1.0, level);
@@ -641,7 +677,7 @@ bool mrLaunch(int i, out vec3 p0, out vec3 v0, out float tt, out float tf, out f
 }
 // Exact curved tail over 3·trail seconds. The complete parabola lies in
 // the sphere around the endpoint midpoint (deviation ≤ gΔ²/8).
-float mrTrail(bool big) { return big ? 0.42 : 0.10; }
+float mrTrail(bool big) { return big ? 0.09 : 0.055; }
 vec4 mrBombBound(vec3 p0, vec3 v0, float tt, float tf, bool big) {
   if (tt >= tf) return vec4(mrBomb(p0, v0, tf), FLARE_R);
   float span = 3.0 * mrTrail(big);
@@ -725,7 +761,7 @@ void main() {
     float gap = p.y - mrBound(p.xz);
     if (gap < 0.01 + 0.001 * t) { hit = true; break; }
     if (p.y > 11.5 && rd.y > 0.0) break; // above the caldera wall
-    float slope = 0.13 + 2.3 * smoothstep(15.0, 21.0, r);
+    float slope = 0.13 + 4.0 * smoothstep(15.0, 21.0, r);
     tPrev = t;
     t += clamp(gap / (max(-rd.y, 0.0) + slope), 0.004 + 0.002 * t, 2.2 + 0.04 * t);
     if (t > tMax) break;
@@ -801,7 +837,7 @@ void main() {
     float mask = mrPlateMask(r);
     // Outside the finite plate field the caldera is solid rock. A valid
     // inert record avoids 9 site fetches + bisectors for every wall pixel.
-    Plate Pl = Plate(vec2(0.0), vec2(1.0, 0.0), vec2(0.0), vec2(1.0, 0.0), 1.0, 1.0, 0.0, vec2(0.5), 0.0, 1.0);
+    Plate Pl = Plate(vec2(0.0), vec2(1.0, 0.0), vec2(0.0), vec2(1.0, 0.0), 1.0, 1.0, 0.0, vec2(0.5), 0.0, 1.0, vec2(1.0, 0.0));
     if (mask > 0.0) {
       if (haveP) Pl = marchP; else Pl = mrPlates(x / gS, gSeamW);
     }
@@ -817,7 +853,7 @@ void main() {
     vec2 gb = vec2(mrBase(x + vec2(e, 0.0)) - base, mrBase(x + vec2(0.0, e)) - base) / e;
 
     // Normal across the nearest seam, toward the neighbouring plate.
-    vec2 sn = normalize(Pl.siteB - Pl.siteA + 1e-6);
+    vec2 sn = Pl.shore;
     float lakeM = mrLakeMask(r) * gLakeAmt * mask;
     float vent = exp(-r * r / 50.0);
     // Breathing: slow waves of heat travel outward through the seams.
@@ -848,8 +884,9 @@ void main() {
     float surge = u_rhythm.y * (0.2 + 0.8 * exp(-sq((Pl.arrive - surgeA) / 0.2)) * net);
     // Slot 3: a broad pressure wave races along the existing rifts, never
     // illuminating an uncracked slab. Lake floes carry the same radial packet.
-    float sector = 0.35 + 0.65 * sq(0.5 + 0.5 * dot(x / max(r, 1e-3), gPressureDir));
-    float pressure = smoothstep(0.02, 0.2, gPressure) * exp(-sq((r - gPressureHead) / 2.2)) * sector;
+    float sector = 0.7 + 0.3 * sq(0.5 + 0.5 * dot(x / max(r, 1e-3), gPressureDir));
+    float pressure = smoothstep(0.02, 0.2, gPressure) * exp(-sq((r - gPressureHead) / 1.1)) * sector;
+    pressure *= 1.0 - smoothstep(0.7, 0.78, 1.0 - gPressure);
     // Cold seams are dim dark-red hairlines; hot ones run near the lava
     // temperature.
     float seamT = gLavaT * (0.86 + 0.28 * vent) * mix(0.68, 1.32, hot);
@@ -861,7 +898,7 @@ void main() {
     // field is continuous across both sides of a seam and uses no new clock.
     float cooling = mrNoise(x * 3.2 + gSeedOff);
     float exposed = smoothstep(0.3, 0.7, cooling);
-    seamT *= mix(0.68, 1.08, exposed);
+    seamT *= mix(0.5, 0.94, exposed) * mix(0.5, 1.0, net);
     seamT += 0.46 * ring + 0.22 * surge + 0.12 * kick * flare + 0.5 * pressure * (0.25 + 0.75 * net);
 
 #ifdef MR_DEBUG
@@ -879,12 +916,13 @@ void main() {
       // incandescent seams. A white-hot core runs along the channel's
       // centreline and cools to deep red at the banks.
       float lakeFull = smoothstep(0.75, 0.95, lakeM);
+      float pressureMask = smoothstep(0.45, 0.65, Pl.river);
       vec2 fr = vec2(9.0, 0.0);
       // Skins only resolve in channels several footprints wide; narrower
       // ones take the skin/lava average (n = 0.5, half skinned).
       vec2 fn = vec2(0.5, 0.0);
       // The crust's narrow cracks need no channel frame (no skins there).
-      if (lakeFull < 1.0 && gSplit > 0.0) {
+      if (lakeFull < 1.0) {
         fr = mrFrame(x);
         if (Pl.width > 3.0 * fp) fn = mrFlowNoise(fr.y, fr.x, 11.0);
       }
@@ -892,22 +930,26 @@ void main() {
       float centre = sqrt(clamp(-Pl.gap / max(Pl.width * 0.8, 1e-3), 0.0, 1.0));
       // Channel core: near the tree's centreline, in open (wide) channels.
       float core = (1.0 - smoothstep(0.0, 1.4, abs(fr.x))) * net * gSplit * smoothstep(0.04, 0.16, Pl.width);
-      float skinAmt = mix(0.35, 1.0, gSplit) * (1.0 - 0.35 * gLevel) * (1.0 - 0.6 * surge) * (1.0 - 0.55 * core);
+      float skinAmt = (0.9 + 0.1 * gSplit) * (1.0 - 0.2 * gLevel) * (1.0 - 0.45 * surge) * (1.0 - 0.3 * core);
       float skin = smoothstep(0.4, 0.6, n) * skinAmt;
       float tear = (1.0 - smoothstep(0.0, 0.05, abs(n - 0.43))) * skinAmt;
       // A crack's bottom is its hottest part; wider channels cool at the banks.
-      float T = min(seamT, 0.98) * (0.38 + 0.67 * centre * centre * centre);
+      float T = min(seamT, 0.98) * (0.54 + 0.51 * centre * centre * centre);
+      T += 0.36 * net * (1.0 - gSplit) * exposed;
       T = mix(T, 1.32 + 0.06 * (gHeat - 0.5), core * core * pow(centre, 6.0) * (0.2 + 0.8 * exposed));
       // Skins: dull, with stretched ropy folds across the flow.
-      T *= mix(1.0, 0.4 + 0.1 * fn.y, skin);
-      T += (0.24 * tear * centre + 0.12 * surge) * hot;
+      T *= mix(1.0, 0.28 + 0.12 * fn.y, skin);
+      // Clinker fragments and narrow tears remain visible in the breakdown.
+      float clinker = mrNoiseLin(x * 10.0 + gSeedOff);
+      T *= mix(0.65, 1.0, smoothstep(0.2, 0.7, clinker));
+      T += (0.36 * tear * centre + 0.12 * surge) * hot;
       if (lakeM > 0.01) {
         // The lake turns slowly (one turn per 16 flow cycles) under a crust
         // of black floes split by incandescent cracks: ridges of a warped
         // value noise, wider where the fountain tears the crust open.
         float la = TAU * gFlow / 16.0;
         vec2 xr = mat2(cos(la), sin(la), -sin(la), cos(la)) * x;
-        xr += 0.35 * vec2(sin(xr.y * 0.9 + 0.6 * sin(xr.x * 1.7)), sin(xr.x * 0.8 + 1.0 + 0.6 * sin(xr.y * 1.5)));
+        xr += 0.12 * vec2(sin(xr.y * 0.9 + 0.6 * sin(xr.x * 1.7)), sin(xr.x * 0.8 + 1.0 + 0.6 * sin(xr.y * 1.5)));
         float lfp = fp * gS;
         // Few, large floes: one coarse crack net, with irregular widths
         // (a slow noise along the cracks) that open where the fountain
@@ -917,11 +959,12 @@ void main() {
         float open = exp(-r * r / (2.0 + 3.0 * gErupt));
         float ridge1 = abs(2.0 * c1 - 1.0), ridge2 = abs(2.0 * c2 - 1.0);
         float along1 = mrNoise(xr * 1.3 + 3.0);
-        float cw1 = (0.015 + 0.09 * along1 * along1) * (1.0 + 4.0 * open) + 0.02 * gLevel, cw2 = 0.02 + 0.06 * open;
+        float cw1 = (0.01 + 0.055 * along1 * along1) * (1.0 + 2.0 * open) + 0.01 * gLevel, cw2 = 0.015 + 0.03 * open;
         float lcrack = (1.0 - smoothstep(cw1 * 0.3, cw1 + lfp * 2.0, ridge1)) * (0.6 + 0.6 * along1);
         lcrack = max(lcrack, 0.35 * (1.0 - smoothstep(cw2 * 0.3, cw2 + lfp * 3.0, ridge2)) * (1.0 - along1));
         lcrack = max(lcrack, 0.22 * (1.0 - smoothstep(0.0, 0.18 + cw1, ridge1)) * along1);
         float boil = sin(r * 3.0 - TAU * gFlow) * sin(xr.x * 2.1 + xr.y * 1.7);
+        lcrack *= mix(0.28, 1.0, smoothstep(0.25, 0.65, mrNoiseLin(xr * 5.4)));
         float crust = (1.0 - lcrack) * (1.0 - open);
         float Tl = (0.67 + 0.1 * (gHeat - 0.5)) * (1.0 - 0.5 * crust) + 0.22 * lcrack + (0.16 + 0.1 * boil) * open * gErupt;
         Tl += 0.32 * pow(clamp(lcrack, 0.0, 1.0), 6.0) * (0.3 + 0.7 * along1);
@@ -934,8 +977,9 @@ void main() {
         T = mix(T, Tl, smoothstep(0.0, 0.7, lakeM));
         n = mix(n, nl, lakeM);
         skin = mix(skin, crust, lakeM);
+        pressureMask = mix(pressureMask, lcrack * (0.3 + 0.7 * along1), lakeM);
       }
-      T += 0.25 * ring + 0.5 * pressure * mix(net, 0.6, lakeM);
+      T += 0.25 * ring + 0.95 * pressure * pressureMask;
 #ifdef MR_DEBUG
       dbgT = vec3(T, skin, n);
 #endif
@@ -947,14 +991,16 @@ void main() {
       // Basalt plate: slab tilt, rounded edges and ropy surface relief.
       float id = mrPlateId(Pl);
       vec2 tilt = mrTilt(Pl);
-      float ew = 0.1 + 0.4 * Pl.width;
+      vec3 relief = mrRubble(x);
+      float rough = relief.x / 0.19;
+      float ew = 0.025 + 0.06 * rough;
       float ec = clamp(Pl.gap / ew, 0.0, 1.0);
       // d(rounding)/d(gap) · ∇gap, with ∇gap = -sn / gS (the gap grows
       // away from the seam, i.e. away from the neighbouring site).
-      float dEdge = 0.15 * (1.0 - ec) / ew * step(0.0, Pl.gap);
+      float dEdge = 0.05 * (1.0 - ec) / ew * step(0.0, Pl.gap);
       vec2 grad = gb + mask * (tilt - dEdge * sn / gS);
       // Two crusts: glassy obsidian plates and ropy pahoehoe plates.
-      float glassy = step(0.42, fract(id * 3.7));
+      float glassy = 0.15 * step(0.42, fract(id * 3.7));
       float ropeA = TAU * fract(Pl.hA.x * 5.3 + Pl.hA.y * 19.1);
       vec2 rdir = vec2(cos(ropeA), sin(ropeA));
       float rq = dot(x / gS - Pl.siteA, rdir) * 22.0 + 1.2 * sin(x.x * 2.7 + 1.5 * sin(x.y * 3.1)) + 0.8 * sin(x.y * 2.3 - x.x * 1.1);
@@ -962,14 +1008,15 @@ void main() {
       grad += mask * rdir * cos(rq) * 0.12 * ropeKeep;
       float bump = cooling - 0.5;
       // Fine seed-anchored facets break the broad glossy slab reflection.
-      grad += 0.16 * (vec2(cooling, bump + 0.5) - 0.5) * mask * (1.0 - smoothstep(0.08, 0.3, fp));
+      grad -= relief.yz * mask * (1.0 - smoothstep(0.08, 0.3, fp));
       N = normalize(vec3(-grad.x, 1.0, -grad.y));
       // Groove walls face the seam.
       float wallF = 1.0 - smoothstep(-0.012, 0.004, Pl.gap);
-      N = normalize(mix(N, normalize(vec3(sn.x * 0.9, 0.45, sn.y * 0.9)), wallF * mask));
+      N = normalize(mix(N, normalize(vec3(sn.x * 0.9, 0.45, sn.y * 0.9)), wallF * mask * net));
       float tone = 0.7 + 0.3 * id + 0.3 * bump * ropeKeep;
-      albedo = (vec3(0.16) + u_secondary * 0.05) * tone * mix(1.0, 0.45, glassy);
-      gloss = mix(0.35, 0.95, glassy);
+      float fissure = mix(0.55, 1.0, smoothstep(0.2, 0.75, rough));
+      albedo = (vec3(0.26) + u_secondary * 0.05) * tone * mix(0.35, 1.0, fissure) * mix(1.0, 0.45, glassy);
+      gloss = mix(0.12, 0.35, glassy);
       // Hot rock: groove walls glow just above the lava, a little cooler.
       float hotWall = (1.0 - smoothstep(0.0, 0.05, rock - lavaY)) * (1.0 - smoothstep(-0.005, 0.03, Pl.gap)) * mask;
       vec3 heatS = mrHeat(seamT);
@@ -982,7 +1029,7 @@ void main() {
       // It reaches zero well before the plate's medial axis, where the
       // governing seam (and its temperature) switches.
       float soak = sq(1.0 - smoothstep(0.0, 0.1 + 0.1 * hot, max(Pl.gap, 0.0))) * (0.05 + 0.3 * hot);
-      emit += (heatS * cover * (0.05 + 0.12 * hot) + mrHeat(seamT * 0.68) * soak) * mask;
+      emit += (heatS * cover * (0.015 + 0.04 * hot) + mrHeat(seamT * 0.68) * soak * net) * mask;
       // Thin-crust patches: a dull glow shining through the slab from below,
       // breathing slowly (a seed-anchored field across the whole crust).
       float thin = smoothstep(0.6, 0.88, mrNoise(x * 0.42 + gSeedOff * 0.13) + 0.12 * (bump + 0.5));
@@ -990,7 +1037,7 @@ void main() {
       emit += mrHeat(subT) * thin * 0.55 * mask * (1.0 - 0.6 * glassy);
       // Glow spill: the air and banks over an open channel glow softly.
       emit += mrHeat(0.72) * 0.07 * smoothstep(0.04, 0.3, Pl.river) * gSplit * (1.0 - lakeM) * mask;
-      ao = mix(1.0, mix(0.35, 1.0, smoothstep(-0.02, 0.12, Pl.gap)) * (1.0 - 0.25 * (1.0 - ec)), mask);
+      ao = mix(1.0, mix(0.18, 1.0, smoothstep(-0.02, 0.16, Pl.gap)) * (1.0 - 0.25 * (1.0 - ec)), mask);
       // Beyond the lava field: the caldera wall, layered rock.
       if (mask < 1.0) {
         float strata = 0.5 + 0.5 * sin(P.y * 3.1 + 2.0 * mrNoise(x * 0.7));
@@ -999,6 +1046,9 @@ void main() {
         vec3 nw = normalize(vec3(-gb.x, 1.0, -gb.y) + 0.35 * vec3(grit - 0.5, 0.0, strata - 0.5));
         N = normalize(mix(N, nw, 1.0 - mask));
         gloss = mix(gloss, 0.1, 1.0 - mask);
+        // Ashy ridges catch subdued sky light; near faces remain dark.
+        emit += (u_secondary * 0.06 + heat62 * 0.12 * gErupt * exp(-sq(r / 32.0))) * (0.2 + 0.8 * max(N.y, 0.0)) * (1.0 - mask);
+        emit += hazeCol * 2.5 * exp(-sq((r - 25.0) / 2.2)) * (1.0 - mask);
       }
       // Obsidian mirrors the ash deck (secondary-tinted, lit from below).
       vec3 R = reflect(rd, N);
@@ -1008,7 +1058,7 @@ void main() {
     // Lighting: a dim cool key (sky), lava light from the nearest seam,
     // the lake/fountain light, field glow from below and a fresnel rim.
     vec3 keyDir = normalize(vec3(-0.45, 0.6, 0.35));
-    vec3 keyCol = mix(u_secondary, vec3(1.0), 0.35) * 0.2;
+    vec3 keyCol = mix(u_secondary, vec3(1.0), 0.45) * 0.27;
     float diff = max(dot(N, keyDir), 0.0);
     vec3 light = keyCol * (0.3 + diff);
     // Seam light: falls off away from the seam, brightest on faces turned to it.
@@ -1152,7 +1202,7 @@ void main() {
     if (seesCurtain) {
       // A dense white-hot root that tears apart into spray: the molten
       // column only reaches 40% of the fountain height and thins upward.
-      float coreH = gFountH * 0.42;
+      float coreH = gFountH * 0.3;
       vec3 cs = mrRaySeg(ro, rd, gVent, gVent + vec3(0.0, coreH, 0.0));
       if (cs.y < t + 0.2 && cs.x < 2.5) {
         vec3 q = ro + rd * cs.y;
@@ -1162,6 +1212,7 @@ void main() {
         width *= 1.0 + 0.13 * sin(hy * 39.0 - TAU * gErPh * 3.0 + q.x * 4.0);
         float aa = max(0.035, gPix * cs.y * 1.5);
         float liquid = 1.0 - smoothstep(width - aa, width + aa, cs.x);
+        liquid *= 0.65 + 0.35 * billow;
         float core = 1.0 - smoothstep(width * 0.05, width * 0.4, cs.x);
         float skin = smoothstep(0.53, 0.82, billow);
         float T = 0.96 - 0.15 * hy + 0.1 * billow - 0.18 * skin;
@@ -1175,7 +1226,7 @@ void main() {
       // give parallax, so the fan reads as a volume of spray.
       vec2 oc = ro.xz - gVent.xz;
       float A = dot(rd.xz, rd.xz), B = dot(oc, rd.xz), C0 = dot(oc, oc);
-      float occupancy = mix(0.32, 0.8, gLevel) * (1.0 + 0.65 * u_rhythm.z);
+      float occupancy = mix(0.35, 0.92, gLevel) * (1.0 + 0.45 * u_rhythm.z);
       float fs = 0.7 + 0.35 * gForce;
       for (int i = 0; i < SHELLS; ++i) {
         float fi = float(i);
@@ -1211,7 +1262,10 @@ void main() {
           // Uneven falloff destroys the uniform umbrella silhouette; lobes
           // are stationary in angle while individual droplets still advect.
           float lobe = 0.55 + 0.45 * sq(0.5 + 0.5 * sin(3.0 * atan(rel.y, rel.x) + 1.7 * fi + gSeedOff.x));
-          if (h.x > occupancy * lobe) continue;
+          float packetY = smoothstep(0.68, 0.98, 1.0 - gPressure) * gFountH;
+          float packet = smoothstep(0.01, 0.08, gPressure) * smoothstep(0.66, 0.74, 1.0 - gPressure) * exp(-sq((hy - packetY) / 1.5));
+          float crown = top * (0.65 + 0.35 * mrH2(vec2(column, fi + 17.0)));
+          if (hy > crown || h.x > occupancy * lobe * (fall ? 0.18 : 1.0) * (0.65 + 2.4 * packet)) continue;
           float rho = length(rel);
           float du = (fract(u) - (0.2 + 0.6 * h.y)) * TAU * rho / nCells;
           // Motion blur: a streak along the flight, bright at its head.
@@ -1225,10 +1279,8 @@ void main() {
           float env = smoothstep(bottom - 0.5, bottom + 1.0, hy) * (1.0 - smoothstep(top - 1.6, top + 0.5, hy));
           float T = (fall ? 0.8 - 0.14 * (1.0 - hy / max(top, 1.0)) : 1.06 - 0.2 * hy / max(gFountH, 1.0)) - 0.04 * fi + 0.12 * h.y;
           // The surge continues upward as a dense hot ejecta packet.
-          float packetY = (1.0 - gPressure) * gFountH;
-          float packet = smoothstep(0.02, 0.2, gPressure) * exp(-sq((hy - packetY) / 2.0));
-          T += 0.38 * packet + 0.32 * smoothstep(0.88, 1.0, h.y) * (fall ? 0.25 : 1.0);
-          add += mrHeat(T) * drop * env * gErupt * (side == 0 ? 1.0 : 0.55) * (1.9 + 2.8 * packet);
+          T += 0.52 * packet + 0.32 * smoothstep(0.88, 1.0, h.y) * (fall ? 0.25 : 1.0);
+          add += mrHeat(T) * drop * env * gErupt * (side == 0 ? 1.0 : 0.55) * (1.35 + 4.0 * packet);
         }
       }
     }
@@ -1276,12 +1328,12 @@ void main() {
       float trail = mrTrail(big);
       vec3 h0 = mrBomb(p0, v0, tt);
       float life = tt / tf;
-      float T = (big ? 1.14 : 1.04) - 0.3 * life;
+      float T = (big ? 1.4 : 1.16) - 0.3 * life;
       float fade = smoothstep(0.0, 0.05, tt) * (big ? 1.0 : 1.0 - smoothstep(0.82, 1.0, life)) * on;
       // Head: distance from the ray to the bomb.
       float tq = dot(h0 - ro, rd);
-      float sigH = max(size, gPix * tq * 1.2);
-      float head = exp(-sq(length(ro + rd * tq - h0) / sigH)) * sq(size / sigH) * 2.5 * step(tq, t + 0.05);
+      float sigH = max(size * 0.7, gPix * tq * 0.9);
+      float head = exp(-sq(length(ro + rd * tq - h0) / sigH)) * sq(size * 0.7 / sigH) * 2.0 * step(tq, t + 0.05);
       vec3 glow = mrHeat(T) * head;
       // Large tails follow one exact parabola: the head can already be
       // falling while the cooling ember wake still curves over the apex.
@@ -1299,7 +1351,8 @@ void main() {
       float sw = size * mix(0.22, 0.82, sg.z);
       float sig = max(sw, gPix * sg.y * 1.2);
       float tail = exp(-sq(sg.x / sig)) * (sw / sig) * smoothstep(0.0, 0.65, sg.z);
-      glow += mrHeat(min(T, 1.0) - 0.3 * (1.0 - sg.z)) * tail * 0.9 * step(sg.y, t + 0.05);
+      float fragments = smoothstep(0.25, 0.48, sin(sg.z * 12.3 + float(i) * 2.7) * 0.5 + 0.5);
+      glow += mrHeat(min(T, 1.0) - 0.45 * (1.0 - sg.z)) * tail * fragments * 0.75 * step(sg.y, t + 0.05);
       add += glow * fade * (1.0 + 0.6 * u_rhythm.z);
     }
   }
@@ -1418,7 +1471,7 @@ export default {
   number: 104,
   name: "Magma Rift",
   description:
-    "A volcanic field raymarched as one continuous world: a seed-only drainage tree picks which seams of a Voronoi basalt crust glow, opens them into braided lava rivers with streaming crust skins and leads them to the vent, which founders into a crusted lava lake. Its fountain throws incandescent spray and ballistic bombs that flare where they land, under an ash umbrella lit from below. Colour is temperature on the palette. Energy raises flow, spray, ejecta and embers.",
+    "A volcanic field raymarched as one continuous world: a seed-only drainage tree cuts recessed lava channels through rough Voronoi basalt, then opens a crusted vent lake. Inbound pressure reaches the vent before climbing the irregular spray. Ballistic ejecta carry short broken cooling wakes under an ash plume and overlapping caldera ridges. Colour is temperature on the palette; energy raises flow, spray, ejecta and embers.",
   development: "development",
   schema,
   presets,
