@@ -184,9 +184,11 @@ test("the mesh: fixed opaque head, finite attributes, segments shorter than the 
     if (data[o + 23] >> 8 !== KIND.hypha) break;
     const seg = Math.hypot(data[o] - data[o + 4], data[o + 1] - data[o + 5]);
     assert.ok(seg < 0.03 && seg < PERIOD / 4);
+    if ((data[o + 23] & 7) <= 1)
+      assert.ok(seg < 0.01, `subdivided cord ${seg}`);
   }
   // Larger clustered canopy, but only one mesh instance (no flat pools).
-  assert.ok(vertices < 720000, `vertices ${vertices}`);
+  assert.ok(vertices < 1050000, `vertices ${vertices}`);
   assert.deepEqual(Array.from(mycelium.geometry.instances.create()), [0]);
 });
 
@@ -234,15 +236,15 @@ test("signal relay has three full authored styles and uses the complete slot-3 c
   ]);
   for (const name of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
     assert.ok(mycelium.geometry.fragment.includes(name), name);
-  assert.match(mycelium.geometry.vertex, /mySignal\(a3.x\+travel\)/);
+  assert.match(mycelium.geometry.vertex, /hero\?mySignal\(\.26\+travel\)/);
   assert.match(mycelium.geometry.vertex, /s\.h\*w/);
-  assert.match(mycelium.geometry.vertex, /exp\(-max\(0\.,age\)\/\.23\)/);
+  assert.match(mycelium.geometry.vertex, /exp\(-max\(0\.,age\)\/\.18\)/);
 });
 
-test("r4 keeps a floor-facing continuous crane and energy-dependent fine branching", () => {
+test("r5 keeps a floor-facing continuous crane and energy-dependent fine branching", () => {
   const shader = mycelium.geometry.vertex;
-  assert.match(shader, /pitch=mix\(-\.53,-\.42,crane\)/);
-  assert.match(shader, /h=mix\(\.17,\.14,crane\)/);
+  assert.match(shader, /pitch=mix\(-\.53,-\.28,crane\)/);
+  assert.match(shader, /h=mix\(\.17,\.18,crane\)/);
   assert.match(shader, /smoothstep\(hh-\.12,hh\+\.12,\.24\+\.8\*lv\)/);
   const tip = mycelium.rhythm[0].styles.driving;
   assert.equal(tip.length / tip.division, 3, "three beats against four");
@@ -260,6 +262,39 @@ test("r4 keeps a floor-facing continuous crane and energy-dependent fine branchi
     }, 0);
     assert.ok(density >= minimum, `${style}: ${density}`);
   }
+});
+
+test("r5 relay heroes are single actual predecessor routes ending at fruiting bodies", () => {
+  assert.equal(net.heroes.length, 12);
+  for (const hero of net.heroes) {
+    assert.equal(hero.path.at(-1), hero.mushroom.node);
+    assert.ok(hero.mushroom.cap > 0.029);
+    for (let i = 1; i < hero.path.length; i++)
+      assert.equal(net.pred[hero.path[i]], hero.path[i - 1]);
+  }
+  const { data, vertices } = myceliumMesh(211);
+  let fans = 0,
+    routes = 0,
+    tapered = 0;
+  for (let v = OPAQUE_VERTICES; v < vertices; v++) {
+    const o = v * STRIDE,
+      kind = data[o + 23] >> 8;
+    if (kind === 7) fans++;
+    if (kind === 6) {
+      routes++;
+      assert.ok(data[o + 12] >= -1e-6 && data[o + 12] <= 0.260001);
+      assert.ok(data[o + 22] >= 0 && data[o + 22] < 12);
+    }
+    if (kind === 0 && data[o + 9] === 0) tapered++;
+  }
+  assert.ok(fans > 90000 && fans < 160000, `fan vertices ${fans}`);
+  assert.ok(routes > 1000 && tapered > 1000);
+  assert.match(mycelium.geometry.vertex, /myOrganic\(P\)/);
+  assert.match(
+    mycelium.geometry.vertex,
+    /if\(route&&int\(a5.z\+\.5\)!=myHero\(\)\)/,
+  );
+  assert.match(mycelium.geometry.fragment, /v_c.w>1.5\?mySignal/);
 });
 
 test("development chemistry stays inside acid's stability clamps", () => {

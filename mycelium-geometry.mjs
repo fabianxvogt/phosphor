@@ -20,7 +20,7 @@ export const LEAF_U = 10,
   LEAF_V = 4;
 export const TWIG_U = 8,
   TWIG_V = 10;
-export const STEM_RINGS = 5,
+export const STEM_RINGS = 8,
   CAP_RINGS = 14,
   AROUND = 36;
 export const LEAF_VERTICES = LEAF_U * LEAF_V * 6;
@@ -354,7 +354,7 @@ const sstep = (a, b, x) => {
 export function eyeHeight(dev, altitude = 1) {
   const d = Math.max(0, Math.min(2, dev)) / 2,
     crane = 0.7 * d + 0.3 * d * d;
-  return (0.17 + (0.14 - 0.17) * crane) * altitude;
+  return (0.17 + (0.18 - 0.17) * crane) * altitude;
 }
 const TALL = [1.75, 1.45, 1.05, 0.85, 1.45],
   FLAT = [1.25, 0.85, 0.62, 0.52, 0.85];
@@ -399,7 +399,9 @@ export function shroomClearance(m) {
         const ex = PERIOD * ph,
           ey = pathY(ph);
         const capD =
-          Math.hypot(delta(ex - s.top[0]), delta(ey - s.top[1])) - s.rc;
+          Math.hypot(delta(ex - s.top[0]), delta(ey - s.top[1])) -
+          s.rc * 1.15 -
+          0.003;
         for (const altitude of [0.7, 1, 1.4]) {
           const ez = eyeHeight(dev, altitude);
           const vert = ez > zHigh ? ez - zHigh : ez < zLow ? zLow - ez : 0;
@@ -412,7 +414,10 @@ export function shroomClearance(m) {
               sy = m.y + Math.sin(m.lean) * o;
             best = Math.min(
               best,
-              Math.hypot(delta(ex - sx), delta(ey - sy)) - s.rs * 1.6,
+              Math.hypot(delta(ex - sx), delta(ey - sy)) -
+                s.rs * 1.6 -
+                0.06 * s.h -
+                0.003,
             );
           }
         }
@@ -726,7 +731,7 @@ export function growNetwork(seed = 1) {
         m === 0
           ? away + Math.PI + 0.35 * gauss()
           : away * 0.5 + spin + (TAU * m) / members + 0.4 * gauss();
-      const height = cap * (2.6 + 1.6 * random()) * (m === 0 ? 1.12 : 1);
+      const height = cap * (2.25 + 1.35 * random()) * (m === 0 ? 1.04 : 1);
       const candidate = {
         node: site,
         site: s,
@@ -777,6 +782,28 @@ export function growNetwork(seed = 1) {
   const edgeFlow = (a, b) =>
     pred[a] === b ? flow[a] : pred[b] === a ? flow[b] : 0;
 
+  // One camera-visible transport sink per lap sector. Its real predecessor
+  // chain is drawn separately; no simultaneous fronts from unrelated roots.
+  const heroes = [];
+  for (let bin = 0; bin < 12; bin++) {
+    const target = ((bin + 0.5) / 12) * PERIOD;
+    const chosen = mushrooms
+      .filter((m) => m.cap > 0.029 && m.height > 0.085)
+      .reduce((best, m) => {
+        const score =
+          Math.abs(delta(m.x - target)) +
+          1.5 * pathLateral(m.x, m.y) -
+          3 * m.cap;
+        return !best || score < best.score ? { m, score } : best;
+      }, null);
+    if (!chosen) continue;
+    const m = chosen.m;
+    const path = [];
+    for (let i = m.node; i >= 0; i = pred[i]) path.push(i);
+    path.reverse();
+    heroes.push({ bin, mushroom: m, path });
+  }
+
   // Litter learns how much network glows beneath it.
   for (const leaf of leaves) {
     let n = 0;
@@ -809,6 +836,7 @@ export function growNetwork(seed = 1) {
     single,
     flow,
     edgeFlow,
+    heroes,
     delta,
   };
 }
@@ -820,7 +848,7 @@ export const cordRadius = (q) => CORD_RADIUS * Math.cbrt(Math.max(0, q));
 
 // Hyphae as polyline strips with shared, averaged tangents (6 vertices per
 // segment, both endpoints per vertex), written straight into the buffer.
-function emitHyphae(net, data, v, longest, keyScale) {
+function emitHyphae(net, data, v, longest, keyScale, route = null) {
   const { px, py, pz, iterOf, hyphae } = net;
   const far = (n) => (Number.isFinite(n) ? n : 99);
   const X = new Float64Array(longest),
@@ -860,41 +888,184 @@ function emitHyphae(net, data, v, longest, keyScale) {
       T[3 * i + 1] = ty / len;
       T[3 * i + 2] = tz / len;
     }
+    // Radius spikes at one flow-tree junction used to look like cut rods.
+    // Smooth along the actual body, then taper germination and free ends.
+    const raw = RAD.slice(0, n);
+    for (let i = 0; i < n; i++) {
+      let sum = 0,
+        weights = 0;
+      for (let k = -4; k <= 4; k++) {
+        const j = Math.max(0, Math.min(n - 1, i + k));
+        const weight = 5 - Math.abs(k);
+        sum += raw[j] * weight;
+        weights += weight;
+      }
+      const start = h.order === 0 ? sstep(0, 6, i) : 1;
+      const end = h.terminal ? sstep(0, 8, n - 1 - i) : 1;
+      RAD[i] = (sum / weights) * start * end;
+    }
     const flags =
       Math.min(7, h.order) + (h.terminal ? 8 : 0) + (h.children ? 0 : 16);
     for (let i = 0; i + 1 < n; i++) {
       const mx = (X[i] + X[i + 1]) / 2,
         my = (Y[i] + Y[i + 1]) / 2;
-      const end = (e, o, side) => {
-        const id = ID[e],
+      const lerp = (values, t) => values[i] + (values[i + 1] - values[i]) * t;
+      const point = (t) => {
+        const len = Math.hypot(
+          X[i + 1] - X[i],
+          Y[i + 1] - Y[i],
+          Z[i + 1] - Z[i],
+        );
+        const t2 = t * t,
+          t3 = t2 * t;
+        return [X, Y, Z].map(
+          (values, k) =>
+            (2 * t3 - 3 * t2 + 1) * values[i] +
+            (t3 - 2 * t2 + t) * len * T[3 * i + k] +
+            (-2 * t3 + 3 * t2) * values[i + 1] +
+            (t3 - t2) * len * T[3 * (i + 1) + k],
+        );
+      };
+      const distance = (values, t) =>
+        far(values[ID[i]]) * (1 - t) + far(values[ID[i + 1]]) * t;
+      const end = (t, other, side) => {
+        const e = i + t,
+          o = i + other,
           w = v * STRIDE;
-        data[w] = X[e];
-        data[w + 1] = Y[e];
-        data[w + 2] = Z[e];
+        const P = point(t),
+          Q = point(other);
+        data[w] = P[0];
+        data[w + 1] = P[1];
+        data[w + 2] = P[2];
         data[w + 3] = side;
-        data[w + 4] = X[o];
-        data[w + 5] = Y[o];
-        data[w + 6] = Z[o];
-        data[w + 7] = RAD[e];
-        data[w + 8] = K[e];
-        data[w + 9] = e / (n - 1);
-        data[w + 10] = K[o];
-        data[w + 11] = o / (n - 1);
-        data[w + 12] = far(net.dist[id]);
-        data[w + 13] = far(net.single[0][id]);
-        data[w + 14] = far(net.single[1][id]);
-        data[w + 15] = far(net.single[2][id]);
-        data[w + 16] = T[3 * e];
-        data[w + 17] = T[3 * e + 1];
-        data[w + 18] = T[3 * e + 2];
+        data[w + 4] = Q[0];
+        data[w + 5] = Q[1];
+        data[w + 6] = Q[2];
+        data[w + 7] = lerp(RAD, t);
+        data[w + 8] = lerp(K, t);
+        data[w + 9] = Math.min(
+          e / (h.order === 0 ? 7 : 1),
+          h.terminal ? (n - 1 - e) / 7 : 1,
+          1,
+        );
+        data[w + 10] = lerp(K, other);
+        data[w + 11] = Math.min(
+          o / (h.order === 0 ? 7 : 1),
+          h.terminal ? (n - 1 - o) / 7 : 1,
+          1,
+        );
+        data[w + 12] = route
+          ? (0.26 * (distance(net.dist, t) - net.dist[route.path[0]])) /
+            Math.max(
+              0.001,
+              net.dist[route.path.at(-1)] - net.dist[route.path[0]],
+            )
+          : distance(net.dist, t);
+        data[w + 13] = distance(net.single[0], t);
+        data[w + 14] = distance(net.single[1], t);
+        data[w + 15] = distance(net.single[2], t);
+        for (let k = 0; k < 3; k++)
+          data[w + 16 + k] = T[3 * i + k] * (1 - t) + T[3 * (i + 1) + k] * t;
         data[w + 19] = h.hash;
         data[w + 20] = mx;
         data[w + 21] = my;
-        data[w + 22] = h.hash;
+        data[w + 22] = route ? route.bin : h.hash;
         data[w + 23] =
-          KIND.hypha * 256 + flags + (e === n - 1 && h.terminal ? 32 : 0);
+          (route ? 6 : KIND.hypha) * 256 +
+          flags +
+          (e === n - 1 && h.terminal ? 32 : 0);
         v++;
       };
+      const subdivisions = h.order <= 1 ? 3 : 1;
+      for (let k = 0; k < subdivisions; k++) {
+        const a = k / subdivisions,
+          b = (k + 1) / subdivisions;
+        end(a, b, -1);
+        end(a, b, 1);
+        end(b, a, -1);
+        end(b, a, -1);
+        end(a, b, 1);
+        end(b, a, 1);
+      }
+    }
+  }
+  return v;
+}
+
+// Short curved foraging fans rooted in the existing graph. These fine
+// interstitial fibres are visual tissue, not additional transport shortcuts.
+function fibreFans(net) {
+  const fans = [];
+  for (const h of net.hyphae) {
+    if (h.order > 2) continue;
+    for (let j = 5; j < h.nodes.length; j += h.order < 2 ? 9 : 17) {
+      const id = h.nodes[j],
+        before = h.nodes[j - 2];
+      if (net.pz[id] < 0) continue;
+      const angle = Math.atan2(
+        delta(net.py[id] - net.py[before]),
+        delta(net.px[id] - net.px[before]),
+      );
+      for (const side of [-1, 1])
+        for (let ray = 0; ray < 3; ray++) {
+          const points = [];
+          const length = 0.009 + 0.014 * ((h.hash * 13.7 + ray * 0.31) % 1);
+          for (let k = 0; k <= 4; k++) {
+            const t = k / 4,
+              a = angle + side * (0.55 + ray * 0.26 + t * 0.65);
+            points.push([
+              net.px[id] + Math.cos(a) * length * t,
+              net.py[id] + Math.sin(a) * length * t,
+              net.pz[id] + 0.0002 * Math.sin(t * Math.PI),
+            ]);
+          }
+          fans.push({ id, h, points, length });
+        }
+    }
+  }
+  return fans;
+}
+function emitFans(net, fans, data, v, keyScale) {
+  for (const { id, h, points, length } of fans) {
+    const end = (e, o, side) => {
+      const w = v++ * STRIDE,
+        p = points[e],
+        q = points[o];
+      data.set(
+        [
+          ...p,
+          side,
+          ...q,
+          HAIR_RADIUS * 0.5,
+          net.iterOf[id] * keyScale,
+          1 - e / 4,
+          net.iterOf[id] * keyScale,
+          1 - o / 4,
+          net.dist[id] + (length * e) / 4,
+          net.single[0][id],
+          net.single[1][id],
+          net.single[2][id],
+          q[0] - p[0],
+          q[1] - p[1],
+          q[2] - p[2],
+          h.hash,
+          points[0][0],
+          points[0][1],
+          h.hash,
+          7 * 256 + 2 + 8 + 16,
+        ],
+        w,
+      );
+      for (let i = 12; i < 16; i++)
+        if (!Number.isFinite(data[w + i])) data[w + i] = 99;
+      // Tangent orientation is independent of which triangle endpoint this is.
+      const a = points[Math.max(0, e - 1)],
+        b = points[Math.min(4, e + 1)];
+      data[w + 16] = b[0] - a[0];
+      data[w + 17] = b[1] - a[1];
+      data[w + 18] = b[2] - a[2];
+    };
+    for (let i = 0; i < 4; i++) {
       end(i, i + 1, -1);
       end(i, i + 1, 1);
       end(i + 1, i, -1);
@@ -905,7 +1076,6 @@ function emitHyphae(net, data, v, longest, keyScale) {
   }
   return v;
 }
-
 const cache = new Map();
 export function myceliumMesh(seed = 1) {
   if (cache.has(seed)) return cache.get(seed);
@@ -918,12 +1088,25 @@ export function myceliumMesh(seed = 1) {
     longest = 0;
   for (const h of hyphae) {
     const n = h.nodes.length + 1 + (h.fuse >= 0 ? 1 : 0);
-    if (n >= 2) hyphaVertices += (n - 1) * 6;
+    if (n >= 2) hyphaVertices += (n - 1) * 6 * (h.order <= 1 ? 3 : 1);
     longest = Math.max(longest, n);
   }
+  const fans = fibreFans(net);
+  const fanVertices = fans.length * 4 * 6;
+  const routeVertices = net.heroes.reduce(
+    (sum, r) => sum + (r.path.length - 1) * 18,
+    0,
+  );
+  longest = Math.max(longest, ...net.heroes.map((r) => r.path.length));
   const sporeVertices = (MUSHROOMS * SPORES_PER_MUSHROOM + FREE_SPORES) * 6;
   const glowVertices = MUSHROOMS * 6;
-  const total = OPAQUE_VERTICES + hyphaVertices + sporeVertices + glowVertices;
+  const total =
+    OPAQUE_VERTICES +
+    hyphaVertices +
+    fanVertices +
+    routeVertices +
+    sporeVertices +
+    glowVertices;
   const data = new Float32Array(total * STRIDE);
   let v = 0;
   // Per-object attributes are fixed; only the first vec4 varies per vertex.
@@ -1027,8 +1210,13 @@ export function myceliumMesh(seed = 1) {
   ];
   for (let m = 0; m < MUSHROOMS; m++) {
     const f = mushrooms[m];
-    if (f) set(...shroom(f, KIND.mushroom * 256 + 1, 0, 0, 0));
-    else
+    if (f) {
+      const mask = net.heroes.reduce(
+        (bits, r) => bits | (r.mushroom === f ? 1 << r.bin : 0),
+        0,
+      );
+      set(...shroom(f, KIND.mushroom * 256 + 1, 0, 0, mask));
+    } else
       set(
         0,
         0,
@@ -1056,6 +1244,19 @@ export function myceliumMesh(seed = 1) {
   const opaque = v;
   if (opaque !== OPAQUE_VERTICES) throw new Error("mycelium opaque layout");
   v = emitHyphae(net, data, v, longest, keyScale);
+  v = emitFans(net, fans, data, v, keyScale);
+  for (const route of net.heroes) {
+    const h = {
+      spawn: route.path[0],
+      nodes: route.path.slice(1),
+      fuse: -1,
+      order: 0,
+      terminal: false,
+      children: 1,
+      hash: 0.7,
+    };
+    v = emitHyphae({ ...net, hyphae: [h] }, data, v, longest, keyScale, route);
+  }
   // Spores: cohorts per mushroom, then free motes over the floor; lanterns.
   const corners = [-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1];
   const random = randomGenerator((seed * 40503) >>> 0 || 3);

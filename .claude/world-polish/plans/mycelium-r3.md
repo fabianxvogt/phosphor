@@ -47,6 +47,34 @@ Three-beat x against four-bar w gives 3.3 / 13.9 / 17.8 hits/bar. Relay driving 
 
 Native 1080p p50/p95 U/T/C 3.5/3.7, 3.7/4.1, 4.7/5.0 ms; 4K 8.8/9.5, 10.2/11.0, 13.7/14.8. Corrected paired delta −7.9/−8.1/+7.7% at 1080p; −11.8/−4.7/+19.6% at 4K. Shared pair script was run but omits geometry-helper routing, so a family-owned `--pair` mode routes both source files for an honest comparison. Budget passes; City regression remains explicit. Self-assessment L7.5/G8.5/E8→8, not independent acceptance.
 
+## r5
+
+Clean interrupted-work check; merged main by fast-forward before editing. Independent r4 L7/G8.5/E7 remains the baseline; no score claim from r4 is accepted.
+
+Priority responses before building:
+
+1. **Cut tubing (highest priority):** smooth transport radii along whole biological polylines, taper actual source/terminal bodies and intensity, and add curved lateral fibre fans. Junctions must flow into fine tissue rather than one-node width spikes or flat ends.
+2. **Living mat:** add fine interstitial branching anchored to existing hyphae, with short fuzzy fans and irregular strand bundles. Keep selective thick trunks, litter occlusion, dark cells and perspective; energy reveals extra tissue rather than raising exposure.
+3. **Causal relay:** replace simultaneous all-source lighting with a single selected visible hero route, carrying a compact head and dim trail along its predecessor chain, followed by stem ascent and radial gill arrival/slow decay. Other tracks stay subordinate. Preserve authored names, full grids, three-beat cross-meter and recovery intervals.
+4. **Fungal material:** curved tapered stems, asymmetrical cap thickness/margins, uneven split/short gills and moist low-contrast surface striations. No camouflage, plastic umbrella or brighter crown wash.
+5. **Forest headroom:** lower the tallest fruiting bodies and expose their silhouette without lifting the camera away from the persistent full-frame floor. Retain overlap, depth falloff, yellow-green/violet roles and localized pink.
+6. **Continuous environment:** keep topology/state/preset identity and smooth network-to-fruiting growth; no camera cut.
+
+At least three change→capture→read→critique rounds, followed by energy/reversal/portrait/late/palette and limiter-enabled health checks. Cost risks: more fine-fibre vertices and gill subdivisions; cut redundant halo work before sacrificing morphology. No engine, limiter or preview-bake changes.
+
+### r5 filmed execution and critique
+
+1. `mycelium-r5-round1`: radius smoothing/tapers, initial camera-sector hero routes, asymmetric cap/stem material. Read both sheets: softer tissue but cut bars persist; selected mushrooms too small, gill arrival fades before becoming readable. Not final.
+2. `...-round2`: real curved fine-fibre fans rooted in the graph, multi-step endpoint intensity taper, quieter background waves. Read both: mat is less empty, but diffuse fans alone do not fix the actual bars; relay route is visible only as a floor dot. Not final.
+3. `...-round3`: static periodic body meanders and corrected front range so the gills can arrive before envelope gating. Read both: less rigid tissue; hero selection still chooses tiny mushrooms. Crown variation too broad. Not final.
+4. `...-round4`: select substantial hero caps; strengthen conservative camera clearance; darken/taper twig bark (another source of bright blunt rods). Read both: now a clear cord→stem→cap response, but principal caps remain cropped. Not final.
+5. `...-round5`: 1 cm upward crane, shallower still-downward pitch, reduced cap heights; finer irregular gills. Read both: whole silhouettes, floor retained, no environment cut. Follow-up gill-only hue refinement makes the event pink rather than beige.
+6. `...-round6`: close verifier stills exposed remaining rectangular near-camera growth edges. Actual three-way cubic-Hermite subdivision on major cords/routes plus narrower pixel widths replaces the long chord bodies; no hiding them behind a busier network. Read both: foreground is finer and curved, fans persist, single pink ascent and gill response readable. This is the final geometry.
+
+Final `mycelium-r5` was re-filmed and read, alongside three final palette sheets and limiter-enabled energy/portrait/late/reversal evidence. Self-assessment L7.5/G8.5/E8.5→8, not independent acceptance. Still stylized, some portrait faceting; a route can change at a camera-sector boundary during a relay (no event latch). Keep this limitation explicit.
+
+Full suite 986 pass/21 skip; typecheck and DE/EN i18n pass. Limiter-enabled 25-case verification: no GL/non-finite/identity errors. Raw low-energy lit coverage 21.4/32.6/68.2%. Fixed mesh 987,270 vertices/94.8 MB. 1080p raw p50/p95 U/T/C 5.6/8.7, 4.7/6.8, 6.0/7.2 ms; 4K 14.8/15.4, 13.6/14.8, 17.4/19.2. Raw City exceeds budget during contention; corrected both-source ABBA final 4K is 11.0/12.3, 11.0/12.4, 15.2/15.9. Real paired p50 regressions +27/+19/+19% at 1080p and +22/+22/+15% at 4K are reported, not hidden. Shared pair was also run, but still omits geometry-helper routing.
+
 ## Execution / film critique (r3 archive)
 
 - **Round 1** (`artifacts/look-review/mycelium-r3-round1/`): selected old WIP graph renderer rather than blindly merging its scripts or metadata. Branching floor and actual mushrooms replace the canyon. Read sheet: fill works, but emission is uniformly yellow/white and caps are dim toy lamps.
