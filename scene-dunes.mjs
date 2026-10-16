@@ -665,27 +665,40 @@ export default {
     { rate: (p) => p[4] * 0.025, period: 2 * Math.PI },
     { rate: (p) => p[1] * 0.08, period: 2 * Math.PI },
   ],
+  rhythmStyles: { restrained: "Leeward hush", driving: "Saltation trails", accented: "Haboob drums" },
   rhythm: [
     familyEffect(
       "crest-saltation",
       0,
       "Crest saltation",
       "A packet of windblown grains follows the existing dune crests.",
-      { period: 4, strength: 0.55, duration: 1.4 },
+      { period: 4, strength: 0.55, duration: 1.4, steps: "X...", styles: {
+        restrained: { steps: "X......x | ....X... | ..x..... | ........", division: 2, strength: 0.48, duration: 1.3 },
+        driving: { steps: "X..x.X.. | x..X..x.", division: 2, strength: 0.72, duration: 0.7 },
+        accented: { steps: "X..x..X..x..X..x..X.", division: 4, strength: 0.86, duration: 0.4 },
+      } },
     ),
     familyEffect(
       "slipface-stream",
       1,
       "Slipface stream",
       "A second sand stream grazes the persistent slip faces.",
-      { period: 8, strength: 0.5, duration: 2 },
+      { period: 8, strength: 0.5, duration: 2, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | ......X. | .....x.. | ........", division: 2, strength: 0.45, duration: 1.5 },
+        driving: { steps: "..X..x.. | ....X..x", division: 2, strength: 0.68, duration: 0.8 },
+        accented: { steps: "..X...x..X..x... | ....X..x..X...x.", division: 4, strength: 0.82, duration: 0.5 },
+      } },
     ),
     familyEffect(
       "haboob-roll",
       2,
       "Haboob roll",
       "A slow gust lifts crest grains and lights one rolling fold inside the dust wall.",
-      { period: 16, strength: 0.5, duration: 3 },
+      { period: 16, strength: 0.5, duration: 3, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | .....X..", division: 2, strength: 0.42, duration: 2.8 },
+        driving: { steps: "........ | .......x | ........ | ......X.", division: 2, strength: 0.66, duration: 2 },
+        accented: { steps: "................ | ...........X.... | ................ | .........x....X.", division: 4, strength: 0.8, duration: 1 },
+      } },
     ),
   ],
   fragment,

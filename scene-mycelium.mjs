@@ -132,6 +132,20 @@ float myTrain(float d,float lambda,float off,float tail){
  float s=fract((u_clock[1]-d)/lambda+off);
  return smoothstep(0.,.012/lambda,s)*exp(-s*lambda/tail);
 }
+// A relayed signal follows the actual network metric, not a screen ring.
+// The envelope is a bounded travel coordinate; count shifts successive
+// trains, and the hit marks only the tiny source region on the first frame.
+float mySignal(float distanceToSource){
+ float e=clamp(u_rhythm.w,0.,1.);
+ float phase=mod(u_rhythmCount.w,3.)*.035;
+ float d=distanceToSource+phase;
+ float front=(1.-e)*.82;
+ float head=exp(-pow((d-front)/.052,2.));
+ float tail=step(d,front)*exp(-max(0.,front-d)/.12)*.32;
+ float gate=smoothstep(0.,.12,e);
+ float source=clamp(u_rhythmHit.w,0.,1.)*.06*exp(-d/.06);
+ return (head+tail)*gate+source;
+}
 float myPulses(float dmin,float d0){
  // Energy adds trains (structure); tails shorten so the mean stays put.
  float lv=clamp(u_level,0.,1.),tail=.085-.04*lv;
@@ -155,7 +169,7 @@ uniform vec2 u_resolution;
 uniform float u_params[8];
 uniform float u_clock[4];
 uniform vec3 u_primary,u_secondary,u_accent;
-uniform vec4 u_rhythm,u_rhythmCount;
+uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 uniform sampler2D u_state;`;
 const varyings = (dir) => `
 ${dir} vec4 v_a;
@@ -373,7 +387,7 @@ void main(){
   vec3 c=part<.5?s.base+vec3(s.lean*s.bend*s.h*w*w,s.h*w):s.top+myRotate(vec3(0.,0.,s.zApex-s.capH*.5),s.axis,s.tilt);
   if(dot(N,P-c)<0.)N=-N;
   gl_Position=project(P);
-  float flare=myPulses(a3.x,a3.x)*1.4;
+  float flare=myPulses(a3.x,a3.x)*1.4+mySignal(a3.x)*3.5;
   float hitSite=float(abs(a3.y-mod(u_rhythmCount.z,15.))<.5)*u_rhythm.z;
   v_a=vec4(a0.x,w,part,s.g);
   v_b=vec4(flare+hitSite*1.5,s.prim,a4.w,float(s.species));
@@ -398,7 +412,7 @@ void main(){
   s.top.xy+=off;s.base.xy+=off;
   if(kind==4){
    C=s.top+myRotate(vec3(0.,0.,s.zApex-s.capH*.7),s.axis,s.tilt);size=s.rc*5.;
-   bright=.035*s.g*s.g*(1.+myPulses(a3.x,a3.x)*1.5);
+   bright=.022*s.g*s.g*(1.+myPulses(a3.x,a3.x)*1.5+mySignal(a3.x)*3.);
   }else{
    float h=a3.z,k=a3.w;
    float T=8.+6.*a4.x,ph=fract(u_time/T+h);float age=ph*T;
@@ -445,11 +459,12 @@ void main(){
  if(v_kind==0){
   float cord=v_a.w;
   float pulse=myPulses(v_b.x,v_b.y)*(1.3+2.2*cord)*(1.+.4*clamp(u_params[7],0.,1.)*u_low);
-  float e=clamp(u_rhythm.y*2.,0.,1.);
-  float front=(1.-e)*2.2;
-  float wave=(exp(-sq((v_b.z-front)/.035))+.35*step(v_b.z,front)*exp(-max(0.,front-v_b.z)/.12))*e*(.6+1.5*cord);
+  float e=clamp(u_rhythm.y,0.,1.);
+  float front=(1.-e)*.85;
+  float wave=(exp(-sq((v_b.z-front)/.075))+.35*step(v_b.z,front)*exp(-max(0.,front-v_b.z)/.12))*smoothstep(0.,.1,e)*(.8+1.5*cord);
   float I=v_a.z;
-  float P=pulse*2.6+wave*2.;
+  float signal=mySignal(v_b.x);
+  float P=pulse*2.2+wave*3.+signal*(2.8+2.*cord);
   if(v_c.w>.5){
    // Light pool on the soil.
    float g=exp(-3.5*v_a.x*v_a.x)*(1.-smoothstep(.75,1.,abs(v_a.x)));
@@ -491,7 +506,7 @@ void main(){
   // the hottest core.
   float heat=smoothstep(1.6,3.2,P);
   c+=mix(mix(u_primary,vec3(1.),.15),u_accent,heat*.6)*(.1+I)*P*profile*1.2;
-  c+=vec3(1.)*max(0.,P-2.4)*core*(.1+I)*.12;
+  c+=u_accent*signal*profile*(.3+I)*1.2;
   c+=mix(u_primary,u_accent,.5)*tipI*core*1.6+u_accent*tipI*halo*.2;
   // Seen through translucent soil: dimmer, wider, cooler with depth.
   float soil=v_normal.x;
@@ -759,27 +774,139 @@ export default {
     { rate: (p) => 0.012 + 0.03 * p[1], period: 1 },
     { rate: (p, level) => 0.06 + 0.22 * level, period: 2 * Math.PI },
   ],
+  rhythmStyles: {
+    restrained: "Dormant threads",
+    driving: "Root signals",
+    accented: "Spore chorus",
+  },
   rhythm: [
     familyEffect(
       "reaction-front",
       0,
       "Hyphal tip flare",
       "Flash every growing hyphal tip and send a glint back along its thread.",
-      { period: 4, strength: 0.6 },
+      {
+        period: 4,
+        strength: 0.8,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X.....x. | ....x...",
+            division: 2,
+            strength: 0.65,
+            duration: 0.8,
+          },
+          driving: {
+            steps: "X.x.X..x | X.x.X.x.",
+            division: 2,
+            strength: 0.9,
+            duration: 0.45,
+          },
+          accented: {
+            steps: "X..x..x.X..x.x.. | X.x..x..X..x..xx",
+            division: 4,
+            strength: 1,
+            duration: 0.35,
+          },
+        },
+      },
     ),
     familyEffect(
       "chemical-band",
       1,
       "Nutrient wave",
       "Send one geodesic nutrient front from a colony through the whole network.",
-      { period: 8, strength: 0.5, duration: 4 },
+      {
+        period: 8,
+        strength: 0.8,
+        steps: "X.......",
+        duration: 1.2,
+        styles: {
+          restrained: {
+            steps: "...x.... | ......X.",
+            division: 2,
+            strength: 0.6,
+            duration: 1.3,
+          },
+          driving: {
+            steps: "..X...x. | ...X...x",
+            division: 2,
+            strength: 0.85,
+            duration: 1.1,
+          },
+          accented: {
+            steps: "...X.......x.... | ......X......x..",
+            division: 4,
+            strength: 1,
+            duration: 0.85,
+          },
+        },
+      },
     ),
     familyEffect(
       "feed",
       2,
       "Local chemical feed",
       "Inject a bounded feed patch into the living substrate; fruiting clusters puff spores.",
-      { period: 16, strength: 0.6, duration: 2, kind: "simulation" },
+      {
+        period: 16,
+        strength: 0.8,
+        duration: 0.5,
+        kind: "simulation",
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | ......X.",
+            division: 2,
+            strength: 0.55,
+            duration: 0.6,
+          },
+          driving: {
+            steps: "........ | ......x. | ........ | .......X",
+            division: 2,
+            strength: 0.9,
+            duration: 0.6,
+          },
+          accented: {
+            steps:
+              "................ | ............x... | ................ | ..........X...x.",
+            division: 4,
+            strength: 1,
+            duration: 0.45,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "signal-relay",
+      3,
+      "Signal relay",
+      "A nutrient signal races along branching cords and lights the gills as it arrives.",
+      {
+        strength: 0.85,
+        duration: 2.4,
+        styles: {
+          restrained: {
+            steps: "X....... | .......x | ........ | ........",
+            division: 2,
+            strength: 0.65,
+            duration: 3,
+          },
+          driving: {
+            steps: "X....... | ........ | ..X..... | .......x",
+            division: 2,
+            strength: 0.9,
+            duration: 2.2,
+          },
+          accented: {
+            steps:
+              "X............... | ..............x. | ........X....... | ............X...",
+            division: 4,
+            strength: 1,
+            duration: 1.8,
+          },
+        },
+      },
     ),
   ],
   fragment: backdrop,

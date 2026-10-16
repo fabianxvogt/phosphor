@@ -28,43 +28,43 @@ Ratings remain 0–10 in half steps; **0** means never play, and unrated looks c
 
 The renderer ids below remain the keys used in saved snapshots. Counts describe authored looks, not owner-created looks or independent algorithms.
 
-| Family                                 | Renderer ids    | Algorithm                                    | Structural variants / views                                                                   | Looks |
-| -------------------------------------- | --------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- | ----- |
-| Reaction–Diffusion                     | acid, evolution | Gray–Scott reaction–diffusion                | Acid Mycelium / Garden Relief                                                                 | 12    |
-| Magnetic Choir                         | magnetic        | Dye advection in vector fields               | Torus / Vortices / Silk                                                                       | 6     |
-| Cathedrals of Error                    | cathedral       | Recursive distance-field architecture        | Nave / Reliquary / Rose Window / Gallery                                                      | 7     |
-| Alien Aquarium                         | aquarium        | Lenia-inspired continuous cellular automaton | Lagoon / Tide / Gyre                                                                          | 6     |
-| Causal Tapestry                        | tapestry        | Elementary cellular automata                 | Cascade / Mirror / Rails / Tunnel                                                             | 14    |
-| Feedback Chapel                        | feedback        | Iterated image feedback                      | Halo / Portal / Weave / Procession                                                            | 6     |
-| Interference Rituals                   | interference    | Wave superposition and moiré                 | Floor / Vault / Screens / Orbit / Petals / Horizons                                           | 9     |
-| Topological Melt                       | melt            | Parametric knots and surfaces                | Trefoil / Figure Eight / Möbius Strip / Woven Orbit                                           | 6     |
-| Phase Transition Theatre               | phase           | Nearest-neighbour Kuramoto oscillators       | Manual / Gather / Launch / Return                                                             | 6     |
-| Pulse Geometry                         | pulse           | Layered rhythmic geometry                    | Bars / Tunnel / Grid / Shards                                                                 | 6     |
-| Fractal Flight                         | flight          | Raymarched Menger sponge                     | Corridor / Spiral / Shaft / Narrows                                                           | 6     |
-| Light Beams                            | beams           | Procedural light beams in haze               | Fan / Pillars / Crossfire / Starburst                                                         | 6     |
-| [Julia Observatory](families/julia.md) | julia           | Escape-time Julia maps                       | Quadratic / Cubic / Burning / Mirror                                                          | 6     |
-| Fourth Dimension                       | fourspace       | 4D polytope rotation and projection          | Tesseract / 16-cell / 24-cell / Duoprism                                                      | 6     |
-| Hyperbolic Loom                        | hyperbolic      | Hyperbolic tilings in the Poincaré disk      | Heptagons {7,3} / Pentagons {5,4} / Squares {4,5} / Triangles {3,8}                           | 6     |
-| Particle Swarm                         | swarm           | Particle advection in prescribed fields      | Curl Flow / de Jong Field / Differential Galaxy / Radial Bursts                               | 6     |
-| Game of Life                           | life            | Life-like and multi-state cellular automata  | Conway B3/S23 / HighLife B36/S23 / Day & Night / Brian’s Brain / Cyclic / Bosco               | 13    |
-| Strange Attractors                     | attractor       | Differential-equation and map attractors     | Lorenz / Rössler / Aizawa / Thomas / Halvorsen / Clifford                                     | 8     |
-| Mandelbrot Dive                        | mandelbrot      | Escape-time fractal sets                     | Mandelbrot / Burning Ship / Tricorn / Multibrot / Celtic                                      | 10    |
-| Abelian Sandpile                       | sandpile        | Abelian sandpile toppling                    | Centre Pile / Critical Rain / Wandering Sources / Identity                                    | 10    |
-| Newton Basins                          | newton          | Polynomial root-finding basins               | z³ − 1 / Wandering Roots / Halley / Nova / Roots of Unity                                     | 9     |
-| Fractal Flames                         | flame           | Chaos-game iterated function systems         | Swirl / Sinusoidal / Spherical / Julia / Barnsley Fern / Heighway Dragon                      | 10    |
-| Aperiodic Tilings                      | quasicrystal    | de Bruijn multigrid tilings                  | Penrose / Ammann–Beenker / Sevenfold / Twelvefold                                             | 8     |
-| Voronoi Cells                          | voronoi         | Nearest-site partitions and Lloyd relaxation | Lloyd Relaxation / Metric Morph / Power Diagram / Delaunay Dual                               | 11    |
-| Ripple Tank                            | ripple          | Discrete wave equation                       | Slits & Gratings / Raindrops / Lens / Phased Array                                            | 10    |
-| Langton's Ant                          | turmite         | Generalised Langton ants                     | RL / LLRR / LRRRRRLLR / RRLLLRLLLRRR / RLR / LLRRRLRLRLLR                                     | 10    |
-| Indra's Pearls                         | kleinian        | Möbius maps and circle inversions            | Apollonian / Schottky / Loxodromic Tunnel / Steiner Porism                                    | 11    |
-| Harmonograph                           | harmonograph    | Coupled oscillator curves                    | Lissajous / Damped Harmonograph / Spirograph / Lissajous Knot                                 | 10    |
-| Wallpaper Groups                       | wallpaper       | Symmetry-averaged periodic wave functions    | p1 / p2 / pm / pg / cm / pmm / pmg / pgg / cmm / p4 / p4m / p4g / p3 / p3m1 / p31m / p6 / p6m | 17    |
-| Truchet Tiles                          | truchet         | Oriented tile networks                       | Smith Arcs / 10 PRINT / Hexagons / Log-polar Tunnel                                           | 10    |
-| Space-filling Curves                   | hilbert         | Recursive space-filling curves               | Hilbert / Moore / Peano / Hilbert Locality                                                    | 9     |
-| Phyllotaxis                            | phyllotaxis     | Golden-angle point placement                 | Sunflower / Angle Sweep / Fibonacci Sphere / Growth                                           | 9     |
-| Hopf Fibration                         | hopf            | Stereographic Hopf fibres                    | Latitude Torus / Nested Tori / Loxodrome Fibres / Scattered Rings                             | 8     |
-| Chladni Figures                        | chladni         | Resonant modes with nodal sand settling      | Square Plate / Mode Morph / Circular Drumhead / Faraday Hexagons                              | 8     |
-| Domain Colouring                       | domain          | Complex-function domain colouring            | Rational / Riemann Zeta / Möbius Net / Iterated z² + c                                        | 9     |
+| Family                   | Renderer ids    | Algorithm                                    | Structural variants / views                                                                   | Looks |
+| ------------------------ | --------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- | ----- |
+| Reaction–Diffusion       | acid, evolution | Gray–Scott reaction–diffusion                | Acid Mycelium / Garden Relief                                                                 | 12    |
+| Magnetic Choir           | magnetic        | Dye advection in vector fields               | Torus / Vortices / Silk                                                                       | 6     |
+| Cathedrals of Error      | cathedral       | Recursive distance-field architecture        | Nave / Reliquary / Rose Window / Gallery                                                      | 7     |
+| Alien Aquarium           | aquarium        | Lenia-inspired continuous cellular automaton | Lagoon / Tide / Gyre                                                                          | 6     |
+| Causal Tapestry          | tapestry        | Elementary cellular automata                 | Cascade / Mirror / Rails / Tunnel                                                             | 14    |
+| Feedback Chapel          | feedback        | Iterated image feedback                      | Halo / Portal / Weave / Procession                                                            | 6     |
+| Interference Rituals     | interference    | Wave superposition and moiré                 | Floor / Vault / Screens / Orbit / Petals / Horizons                                           | 9     |
+| Topological Melt         | melt            | Parametric knots and surfaces                | Trefoil / Figure Eight / Möbius Strip / Woven Orbit                                           | 6     |
+| Phase Transition Theatre | phase           | Nearest-neighbour Kuramoto oscillators       | Manual / Gather / Launch / Return                                                             | 6     |
+| Pulse Geometry           | pulse           | Layered rhythmic geometry                    | Bars / Tunnel / Grid / Shards                                                                 | 6     |
+| Fractal Flight           | flight          | Raymarched Menger sponge                     | Corridor / Spiral / Shaft / Narrows                                                           | 6     |
+| Light Beams              | beams           | Procedural light beams in haze               | Fan / Pillars / Crossfire / Starburst                                                         | 6     |
+| [Julia Observatory](families/julia.md) | julia | Escape-time Julia maps                       | Quadratic / Cubic / Burning / Mirror                                                          | 6     |
+| Fourth Dimension         | fourspace       | 4D polytope rotation and projection          | Tesseract / 16-cell / 24-cell / Duoprism                                                      | 6     |
+| Hyperbolic Loom          | hyperbolic      | Hyperbolic tilings in the Poincaré disk      | Heptagons {7,3} / Pentagons {5,4} / Squares {4,5} / Triangles {3,8}                           | 6     |
+| Particle Swarm           | swarm           | Particle advection in prescribed fields      | Curl Flow / de Jong Field / Differential Galaxy / Radial Bursts                               | 6     |
+| Game of Life             | life            | Life-like and multi-state cellular automata  | Conway B3/S23 / HighLife B36/S23 / Day & Night / Brian’s Brain / Cyclic / Bosco               | 13    |
+| Strange Attractors       | attractor       | Differential-equation and map attractors     | Lorenz / Rössler / Aizawa / Thomas / Halvorsen / Clifford                                     | 8     |
+| Mandelbrot Dive          | mandelbrot      | Escape-time fractal sets                     | Mandelbrot / Burning Ship / Tricorn / Multibrot / Celtic                                      | 10    |
+| Abelian Sandpile         | sandpile        | Abelian sandpile toppling                    | Centre Pile / Critical Rain / Wandering Sources / Identity                                    | 10    |
+| Newton Basins            | newton          | Polynomial root-finding basins               | z³ − 1 / Wandering Roots / Halley / Nova / Roots of Unity                                     | 9     |
+| Fractal Flames           | flame           | Chaos-game iterated function systems         | Swirl / Sinusoidal / Spherical / Julia / Barnsley Fern / Heighway Dragon                      | 10    |
+| Aperiodic Tilings        | quasicrystal    | de Bruijn multigrid tilings                  | Penrose / Ammann–Beenker / Sevenfold / Twelvefold                                             | 8     |
+| Voronoi Cells            | voronoi         | Nearest-site partitions and Lloyd relaxation | Lloyd Relaxation / Metric Morph / Power Diagram / Delaunay Dual                               | 11    |
+| Ripple Tank              | ripple          | Discrete wave equation                       | Slits & Gratings / Raindrops / Lens / Phased Array                                            | 10    |
+| Langton's Ant            | turmite         | Generalised Langton ants                     | RL / LLRR / LRRRRRLLR / RRLLLRLLLRRR / RLR / LLRRRLRLRLLR                                     | 10    |
+| Indra's Pearls           | kleinian        | Möbius maps and circle inversions            | Apollonian / Schottky / Loxodromic Tunnel / Steiner Porism                                    | 11    |
+| Harmonograph             | harmonograph    | Coupled oscillator curves                    | Lissajous / Damped Harmonograph / Spirograph / Lissajous Knot                                 | 10    |
+| Wallpaper Groups         | wallpaper       | Symmetry-averaged periodic wave functions    | p1 / p2 / pm / pg / cm / pmm / pmg / pgg / cmm / p4 / p4m / p4g / p3 / p3m1 / p31m / p6 / p6m | 17    |
+| Truchet Tiles            | truchet         | Oriented tile networks                       | Smith Arcs / 10 PRINT / Hexagons / Log-polar Tunnel                                           | 10    |
+| Space-filling Curves     | hilbert         | Recursive space-filling curves               | Hilbert / Moore / Peano / Hilbert Locality                                                    | 9     |
+| Phyllotaxis              | phyllotaxis     | Golden-angle point placement                 | Sunflower / Angle Sweep / Fibonacci Sphere / Growth                                           | 9     |
+| Hopf Fibration           | hopf            | Stereographic Hopf fibres                    | Latitude Torus / Nested Tori / Loxodrome Fibres / Scattered Rings                             | 8     |
+| Chladni Figures          | chladni         | Resonant modes with nodal sand settling      | Square Plate / Mode Morph / Circular Drumhead / Faraday Hexagons                              | 8     |
+| Domain Colouring         | domain          | Complex-function domain colouring            | Rational / Riemann Zeta / Möbius Net / Iterated z² + c                                        | 9     |
 
 | Physarum Networks | physarum | Agent chemotaxis with a diffusing trail field | Free Foraging / Food Nodes / Food Ring / Moving Food Nodes | 8 |
 | Geometric Caustics | caustics | Snell refraction through a moving heightfield | Point Waves / Crossing Wave Banks / Lens Sheet | 8 |

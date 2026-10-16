@@ -194,6 +194,7 @@ test("rhythm ids, slots and the simulation contract are kept", () => {
       ["reaction-front", 0],
       ["chemical-band", 1],
       ["feed", 2],
+      ["signal-relay", 3],
     ],
   );
   assert.equal(mycelium.simulation.filter, "linear");
@@ -201,6 +202,27 @@ test("rhythm ids, slots and the simulation contract are kept", () => {
   assert.doesNotMatch(mycelium.simulation.fragment, /texture\(u_state/);
   assert.equal(mycelium.clocks.length, 4);
   for (const c of mycelium.clocks) assert.ok(c.period > 0);
+});
+
+test("signal relay has three full authored styles and uses the complete slot-3 contract", () => {
+  const effect = mycelium.rhythm.find((r) => r.slot === 3);
+  for (const style of ["restrained", "driving", "accented"]) {
+    const loop = effect.styles[style];
+    assert.ok(loop.steps.filter((s) => s > 0).length >= 2, style);
+    assert.ok(
+      loop.steps.some((s, i) => s > 0 && i % loop.division !== 0),
+      `${style} offbeat`,
+    );
+    assert.ok(loop.duration >= 1.8 && loop.strength <= 1);
+  }
+  assert.deepEqual(Object.values(mycelium.rhythmStyles), [
+    "Dormant threads",
+    "Root signals",
+    "Spore chorus",
+  ]);
+  for (const name of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
+    assert.ok(mycelium.geometry.fragment.includes(name), name);
+  assert.match(mycelium.geometry.vertex, /mySignal\(a3.x\)/);
 });
 
 test("development chemistry stays inside acid's stability clamps", () => {
