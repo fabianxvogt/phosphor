@@ -35,6 +35,9 @@ export const N = {
   swirl: 144, // circulation inside the surging cloud 10 s
   breath: 40, // cloud stretch 36 s
   pulse: 320, // automatic startle every 4.5 s
+  drift: 60, // off-centre framing drift 24 s
+  highDrift: 11, // high cloud wisps drift 131 s
+  lowDrift: 4, // low cloud banks drift 360 s
 };
 export const TAU_STARTLE = 1; // seconds of startle + refractory
 export const TILT = 0.43589; // sin of the formation tilt (cos = 0.9)
@@ -106,7 +109,7 @@ export function weights(dev) {
 export function anchor(clock) {
   return [
     3.2 * Math.sin(TAU * cycle(clock, N.anchorX)),
-    3.3 + 0.9 * Math.sin(TAU * cycle(clock, N.anchorY)),
+    2.8 + 0.6 * Math.sin(TAU * cycle(clock, N.anchorY)),
     2.4 * Math.sin(TAU * cycle(clock, N.anchorX * 2) + 1),
   ];
 }
@@ -139,7 +142,7 @@ export function cloud(key, u, v, h, clock, fold = 1) {
     1.65 * Math.sin(wave) +
       0.5 * Math.min(2, Math.max(0, fold)) * Math.sin(3 * t - flow) +
       width * (0.8 + 0.3 * Math.sin(br + t)),
-    1.6 * Math.sin(t) + (h - 0.5) * 0.5 + width * Math.cos(wave),
+    1.6 * Math.sin(t) + (h - 0.5) * 0.95 + width * Math.cos(wave),
   ];
   const yw = yaw(key, clock),
     cy = Math.cos(yw),
@@ -170,7 +173,7 @@ export function slot(key, u, v, h, clock, formation) {
     2.05 * Math.sin(curl) +
       0.35 * Math.sin(3 * th - roll) +
       width * Math.cos(th + roll),
-    1.4 * Math.sin(th) + width * Math.sin(th + roll) + (h - 0.5) * 0.22,
+    1.4 * Math.sin(th) + width * Math.sin(th + roll) + (h - 0.5) * 0.55,
   ];
   // Trefoil ribbon: birds flow along a twisted, knotted band.
   const s = TAU * (u + cycle(clock, N.circ / 2));
@@ -180,7 +183,7 @@ export function slot(key, u, v, h, clock, formation) {
   const bin = cross(tan, nrm);
   const tw = 2 * s + roll,
     w = (v - 0.5) * 1.3,
-    d = (h - 0.5) * 0.25;
+    d = (h - 0.5) * 0.5;
   const ribbon = add(
     k0,
     add(
@@ -190,9 +193,14 @@ export function slot(key, u, v, h, clock, formation) {
   );
   // Twister: two strands winding up a funnel.
   const strand = v < 0.5 ? 0 : Math.PI;
-  const y = (u - 0.5) * 6.4,
-    fr = 0.7 + 0.32 * (y + 3.2) + 0.45 * Math.sqrt(h);
-  const ta = TAU * 2.2 * u + circ + strand + TAU * (v % 0.5) * 0.35;
+  // Open strand ends fray into a seeded tail instead of a cut row.
+  const tail = smooth(0.75, 1, Math.abs(2 * u - 1));
+  const y = (u - 0.5) * 6.4 + Math.sign(u - 0.5) * tail * tail * 1.3 * h,
+    sv = 4 * (v % 0.5) - 1,
+    fr =
+      (0.7 + 0.32 * (y + 3.2) + 0.6 * h * h + 0.3 * sv * sv) * (1 - 0.3 * tail);
+  // Each strand is dense at its centre and frays at its angular edges.
+  const ta = TAU * 2.2 * u + circ + strand + 1.1 * (0.6 * sv ** 3 + 0.4 * sv);
   const twister = [fr * Math.cos(ta), y, fr * Math.sin(ta)];
   const shapes = [torus, ribbon, twister];
   const fm = ((formation % 3) + 3) % 3;
@@ -207,6 +215,20 @@ export function slot(key, u, v, h, clock, formation) {
     sy = Math.sin(yw);
   q = [q[0], 0.9 * q[1] + TILT * q[2], -TILT * q[1] + 0.9 * q[2]];
   return [cy * q[0] + sy * q[2], q[1] + 1.2, -sy * q[0] + cy * q[2]];
+}
+// Persistent per-bird home offset. Rows near the sheet's edges spread into a
+// ragged fringe and a seeded share of birds strays outside the sheet, so
+// density falls off instead of ending at a cut edge.
+export function jitter(key, id, v) {
+  const e = smooth(0.55, 1, Math.abs(2 * v - 1));
+  let j = [8, 9, 10].map(
+    (k) => (rnd(key, id, k) - 0.5) * (0.3 * (1 + 3 * e * e)),
+  );
+  if (rnd(key, id, 11) < 0.05 + 0.3 * e * e) {
+    const d = [12, 13, 14].map((k) => rnd(key, id, k) - 0.5);
+    j = add(j, mul(d, (0.5 + 1.2 * rnd(key, id, 15)) / Math.max(len(d), 1e-3)));
+  }
+  return j;
 }
 export const formationAt = (clock, formation, cycleRate, phase = null) =>
   formation +
@@ -249,14 +271,13 @@ export function birdStep(bird, nb, env, [w, h] = LATTICE) {
     u = x / w,
     vv = y / h,
     hh = rnd(key, id, 6);
+  // A fixed per-bird offset hides the lattice's rows and frays the edges.
+  const jit = jitter(key, id, vv);
   if (W.loose > 0) {
-    const jit = [8, 9, 10].map((k) => (rnd(key, id, k) - 0.5) * 0.16);
     const home = add(add(A, jit), cloud(key, u, vv, hh, clock, env.fold ?? 1));
     a = add(a, mul(sub(mul(sub(home, p), 0.8), mul(v, 0.35)), W.loose));
   }
   const strike = Math.min(2, Math.max(0, env.falcon ?? 1));
-  // A fixed per-bird offset hides the lattice's rows up close.
-  const jit = [8, 9, 10].map((k) => (rnd(key, id, k) - 0.5) * 0.16);
   const c1 = (clock + LOOK) >>> 0;
   if (W.surge > 0) {
     const at = [
@@ -327,7 +348,7 @@ export function initialBird(key, id, clock = 0, size = LATTICE) {
   const A = anchor(clock);
   return {
     p: add(
-      A,
+      add(A, jitter(key, id, Math.floor(id / size[0]) / size[1])),
       cloud(
         key,
         (id % size[0]) / size[0],
