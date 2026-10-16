@@ -4,11 +4,13 @@ State: production candidate; canonical branch `main`; [Vercel](https://phosphor-
 
 **Phosphor is the owner's VJ instrument for other people's DJ sets.** One MacBook Pro M3 Pro, Chrome, HDMI straight to whatever screen the venue has, 4–8-hour nights, generative visuals only. Reference: [docs](docs/README.md), [evidence log](docs/EVIDENCE.md).
 
-First show: **2026-12-17** (planning placeholder until a real date exists). Feature freeze two weeks before. The date is fixed; scope flexes.
+No show is planned (owner, 2026-10-16): the December placeholder date, feature freeze and Milestone 1 run dates are withdrawn. The show gate below stays the acceptance bar for any future gig.
 
 **Delivered 2026-10-16 — Worlds wave 5 and the 9/10 rework (INCREMENTAL):** ten new continuous worlds widen the library's materials: **Aurora Veil** (polar glow → curtains → overhead corona), **Thunderhead** (storm front → lit towers → supercell with strikes), **Prism Engine** (one prism → beam relays → glass cathedral), **Brass Orrery** (gear trains → planetary orrery → clockwork cathedral), **Impossible Stairs** (Penrose loop → three gravities → Droste spiral), **Silk Storm** (veil → banners → silk tornado), **Ink Bloom** (vortex ring → plumes → ink clouds in a backlit tank), **Soap Cathedral** (iridescent bubble → Plateau cluster → foam cathedral), **Dune Sea** (moonlit ripples → barchans → haboob and monoliths) and **Data Monolith** (voxel rain → monolith → cellular-automaton architecture). All 17 earlier worlds were reworked toward a 9/10 bar in L0-reviewed film rounds at no more than +5 % frame cost (several are cheaper). 27 worlds, 66 renderers, 540 looks. [Evidence](docs/EVIDENCE.md#worlds-wave-5-and-the-910-rework-2026-10-16). Next: owner review; Thunderhead, Ink Bloom and Moon Tide foam are the weakest (≈7/10).
 
 **Delivered 2026-10-15 — Worlds wave 4 and the world tour (INCREMENTAL):** five new continuous worlds open materials the library lacked: **Liquid Chrome** (ferrofluid mirror → Rosensweig spike crown → floating chrome sculpture), **Moon Tide** (moonlit Gerstner ocean → bioluminescent storm swell → glowing maelstrom), **Laser Grid** (vector horizon → laser skyline → laser tunnel in haze), **Magma Rift** (breathing basalt crust → Voronoi lava rivers → lava fountain and ash plume) and **Kinetic Rain** (9,216 suspended lights → wave choreographies → morphing sculpture). A fresh window now opens on **Liquid Chrome** in the Worlds view, and the new **World tour** (Autopilot inside worlds, on by default) plays every development of a world, then crossfades into the next. 17 worlds, 56 renderers, 460 looks. [Decision D71](docs/DECISIONS.md), [evidence](docs/EVIDENCE.md#worlds-wave-4-and-the-world-tour-2026-10-15). Next: owner review of the five films, 4K cost of Magma Rift and Moon Tide.
+
+**Parked by owner (2026-10-16) — Community research and launch plan (EXPLORATORY):** no community or launch work until the owner reopens it. five research lanes (VJ workflows, Berlin/techno club aesthetics, competitors, gig rig and sync, launch channels) and a proposed improvement round → launch assets → community waves. Seven owner decisions are open, including partial reversal of D35 (MIDI clock in, loop export). [Synthesis](docs/research/community-2026-10/README.md).
 
 **Delivered 2026-10-14 — Fresh windows open the newest release (INCREMENTAL):** an untouched, sole control window activates a newer cached release and reloads once; windows in use and open stages stay pinned and show **Update available**. Rhythm track names keep their first letter. [Evidence](docs/EVIDENCE.md#fresh-window-updates-and-rhythm-track-names-2026-10-14).
 
@@ -77,22 +79,13 @@ A live test and review found show bugs and a visual layer weaker than the platfo
 
 8. **Algorithm families and editorial order (D69):** done 2026-10-10 on branch `catalog` — 19 new families (#64–#82: Life, attractors, Mandelbrot, sandpile, Newton, flames, Penrose, Voronoi, ripple tank, Langton's ant, Indra's pearls, harmonograph, wallpaper groups, Truchet, space-filling curves, phyllotaxis, Hopf, Chladni, domain colouring), each with CPU tests of its signature mathematics; 304 looks in all; unrated looks ordered most interesting first. Owner ratings on the Mac decide which families get the signature-detail rework next.
 
-Then, in parallel family branches: structural energy gate and re-gating of the six (D60), Flight and Cathedral headliners (D62), Pulse and Interference reworks (D60). Evidence runs alongside (D63): CC-mix beat evaluation, output-measured blackout latency, first 8-hour external-display run by 2026-10-31, USB line check before the freeze. **Status 2026-10-09:** all six platform steps are on `main` and live. Headliners, Pulse (strobe geometry), Interference (layered moiré) and Tapestry (seed shape 3 energy growth, lifted midtones) reworked; every type of all six gated families scores ≥ 0.15 on the energy metric and times at p99 ≈ 17.6–17.7 ms on the rig. Open: owner art sign-off of the reworked families and palette keep/reject; Feedback rig re-timing with the corrected runner; output blackout measurement (needs Chrome's macOS Screen Recording permission); 8-hour external-display run; USB line check.
+Then, in parallel family branches: structural energy gate and re-gating of the six (D60), Flight and Cathedral headliners (D62), Pulse and Interference reworks (D60). Evidence runs alongside (D63): CC-mix beat evaluation, output-measured blackout latency (historical; dates withdrawn 2026-10-16), first 8-hour external-display run, USB line check. **Status 2026-10-09:** all six platform steps are on `main` and live. Headliners, Pulse (strobe geometry), Interference (layered moiré) and Tapestry (seed shape 3 energy growth, lifted midtones) reworked; every type of all six gated families scores ≥ 0.15 on the energy metric and times at p99 ≈ 17.6–17.7 ms on the rig. Open: owner art sign-off of the reworked families and palette keep/reject; Feedback rig re-timing with the corrected runner; output blackout measurement (needs Chrome's macOS Screen Recording permission); 8-hour external-display run; USB line check.
 
-## Milestone 1 — first show
+## Show readiness (no date)
 
-| Weeks | Dates         | Work                                                                                                                                                                                                                                                                         |
-| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | 8–14 Oct      | Review and merge `lane/test-harness`, `lane/image-pipeline`, `lane/app-core`. Owner provides 5–10 recorded mixes (outside the repo). Beat-tracker prototype.                                                                                                                 |
-| 2–3   | 15–28 Oct     | Output window becomes renderer and show owner; control window becomes a remote. Scene contract v3: energy curve, beat responses, types, any aspect. Remove linear score, keyframes, WebM/frame export, MIDI clock, manual audio routing. Measure beat tracking on the mixes. |
-| 4–5   | 29 Oct–11 Nov | Grid, keyboard map and pages; optional settings lock; shared controls and energy fader; crash recovery; preflight; bar-count autopilot. Group 1 families start in parallel.                                                                                                  |
-| 4–8   | 29 Oct–2 Dec  | Families in queue order, owner sign-off weekly. Auto beat tracking and build/drop autopilot if they meet their targets.                                                                                                                                                      |
-| 9     | 3–9 Dec       | Freeze. 8-hour run, fixes only.                                                                                                                                                                                                                                              |
-| 10    | 10–16 Dec     | Second 8-hour run if fixes landed; line check with a real DJ mixer feed.                                                                                                                                                                                                     |
+The dated Milestone 1 schedule (weeks 1–10, the 2026-11-11 checkpoint, the December freeze and 8-hour runs) was withdrawn on 2026-10-16: no show is planned. The requirements and gates below remain the acceptance bar for any future show.
 
-**Checkpoint 2026-11-11:** if fewer than three group 1 families have passed the family gate, group 2 leaves the first-show scope and Melt and Acid move up.
-
-### Required for the first show
+### Required for a show
 
 Output-window renderer; keyboard grid; optional settings lock; tap, downbeat and nudge; energy fader and shared beat responses; flash limiter (on by default, locked during a show); crash recovery; preflight; telemetry; every screen shape handled at least by cover-crop; bar-count autopilot. Minimum content: six families through the family gate, at least two strong at peak time.
 
@@ -109,7 +102,7 @@ Automatic beat tracking (lock within 8 beats of a tempo change, phase error < 20
 5. Julia Observatory, Fourth Dimension, Hyperbolic Loom (v6 ports)
 6. Magnetic and Phase reworks, then Aquarium (calm-only)
 
-v6 families are ported as ideas, not Canvas2D code: new GPU scenes on contract v3. Fractal Flight's manual flying becomes authored camera paths, one per type. Families after group 1 join the first show only if they pass the gate before the freeze; the rest continue in order after it.
+v6 families are ported as ideas, not Canvas2D code: new GPU scenes on contract v3. Fractal Flight's manual flying becomes authored camera paths, one per type. Families after group 1 join a show only once they pass the gate.
 
 ### Family gate
 
@@ -122,11 +115,11 @@ Every family below is a draft until it passes (D47). Packets: `docs/families/<id
 | Group | Family                                               | Status                                                                                                                  |
 | ----- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 1     | Feedback Chapel                                      | **passed** — [packet](docs/families/feedback.md); owner sign-off 2026-10-08                                             |
-| 1     | Causal Tapestry                                      | **passed** — [packet](docs/families/tapestry.md); owner accepted Cascade's cross-family near pairs (nearest Melt 0.138) |
-| 1     | Cathedrals of Error                                  | **passed**, reworked as headliner (D62) — [packet](docs/families/cathedral.md); awaiting owner sign-off of the new look |
-| 1     | Interference Rituals                                 | **passed**, reworked as layered moiré (D60) — [packet](docs/families/interference.md); awaiting owner sign-off          |
-| 2     | Pulse Geometry                                       | **passed**, reworked as strobe geometry (D60) — [packet](docs/families/pulse.md); awaiting owner sign-off               |
-| 2     | Fractal Flight                                       | **passed**, reworked as headliner (D62) — [packet](docs/families/flight.md); awaiting owner sign-off                    |
+| 1     | Causal Tapestry                                      | **passed** — [packet](docs/families/tapestry.md); owner sign-off 2026-10-08 (accepted Cascade's near pairs) |
+| 1     | Cathedrals of Error                                  | **passed**, reworked as headliner (D62) — [packet](docs/families/cathedral.md); owner sign-off 2026-10-08 |
+| 1     | Interference Rituals                                 | **passed**, reworked as layered moiré (D60) — [packet](docs/families/interference.md); owner sign-off 2026-10-08          |
+| 2     | Pulse Geometry                                       | **passed**, reworked as strobe geometry (D60) — [packet](docs/families/pulse.md); owner sign-off 2026-10-08               |
+| 2     | Fractal Flight                                       | **passed**, reworked as headliner (D62) — [packet](docs/families/flight.md); owner sign-off 2026-10-08                    |
 | 3     | Melt, Acid (+ garden type)                           | draft                                                                                                                   |
 | 4     | Light Beams, Particle Swarm                          | draft                                                                                                                   |
 | 5     | Julia Observatory, Fourth Dimension, Hyperbolic Loom | draft                                                                                                                   |
@@ -140,7 +133,7 @@ Eight hours unattended on the M3 Pro (mains power, Chrome, external display at n
 
 Platform changes go one at a time on `main`, because they change contracts every scene depends on. After contract v3, families run in parallel branches, one family per branch. Claude builds, tests and produces contact sheets, ladders and headless correctness; real-GPU family timing (`npm run timing -- --rig`) runs one family at a time on the rig; the owner provides mixes, art sign-off and show-gate rig runs. CI runs unit tests, synthetic click-track beat tests and a headless render smoke of shipped families; mixes, soaks and ladder sign-off run locally and never enter the repo.
 
-## After the first show
+## Later
 
 Remaining families in queue order. Optional families: Oscilloscope, Terrain. v6 set import only if the owner has v6 sets worth keeping.
 

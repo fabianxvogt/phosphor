@@ -2,6 +2,7 @@
 
 - [Performer guide](../README.md) · [Roadmap and gates](../ROADMAP.md) · [Decision log](DECISIONS.md) · [Evidence log](EVIDENCE.md)
 - Visual/rhythm direction agreed 2026-10-11: [plan and all-family audit](research/family-rhythm-audit-2026-10-11.md) · [new-algorithm research](research/visual-families-2026-10-11.md). Implemented: independent family/global rhythms, protected own patterns, catalog identities and three new algorithm families. See [gesture mappings](families/RHYTHM.md) and [verification](EVIDENCE.md#visual-rhythms-and-catalog-expansion-2026-10-11).
+- Community research and launch plan, 2026-10-14 (**parked by owner, 2026-10-16**): [synthesis and roadmap](research/community-2026-10/README.md) with five lane reports on VJ workflows, club aesthetics, competitors, gig/sync realities and launch channels.
 - Creative brief: `Development/docs/projects/GAMES_VISUALS_CREATIVE.md`, families 47–56.
 
 ## Classification
