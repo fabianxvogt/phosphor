@@ -104,6 +104,88 @@ try {
   await run({ name: "reversal", reverse: true, level: 0.85 });
   await run({ name: "late-12h", index: 2, late: true, level: 0.85 });
   assert.deepEqual(lab.errors, []);
+  // Freeze chemistry/camera and isolate each authored driving track through
+  // the real scheduler. These supplementary sheets expose causal travel and
+  // flex without mistaking ordinary wind/parallax for a rhythm response.
+  const isolated = await openLab(runtime.browser, server.url);
+  const sequences = await isolated.page.evaluate(async () => {
+    const { engine, scenes, presetSnapshot } = window.__phosphorLab;
+    const { defaultPattern, GLOBAL_EFFECTS } = await import("/rhythm.mjs");
+    const scene = scenes.find((s) => s.id === "afterglow");
+    const frame = () => new Promise(requestAnimationFrame);
+    engine.options.flashLimit = true;
+    engine.resize(960, 540);
+    engine.setLevel(0.85, 0);
+    engine.setRhythmFrame({ enabled: false, beat: 0 });
+    engine.load(presetSnapshot(scene, 2), 0);
+    if (!(await engine.ready(scene.id)))
+      throw Error("isolation compile failed");
+    while (engine.slots.at(-1).warmTicks > 0) engine.advance(0, true);
+    for (let i = 0; i < 240; i++) {
+      engine.advance(1 / 60, false);
+      await frame();
+    }
+    engine.slots.at(-1).time = 19;
+    const global = defaultPattern(GLOBAL_EFFECTS);
+    for (const track of global.tracks) track.muted = true;
+    const output = [];
+    for (const [effect, beat, duration] of [
+      ["vein-pulse", 8, 0.35],
+      ["petal-cohort", 1.5, 0.75],
+      ["pollen-rising", 7, 2.75],
+    ]) {
+      const pattern = defaultPattern(scene.rhythm);
+      for (const track of pattern.tracks) track.muted = track.effect !== effect;
+      const sheet = document.createElement("canvas");
+      sheet.width = 1440;
+      sheet.height = 540;
+      const ctx = sheet.getContext("2d");
+      const samples = [];
+      for (const [i, age] of [0, 0.12, 0.28, 0.46, 0.68, 1].entries()) {
+        engine.setRhythmFrame({
+          enabled: true,
+          beat: beat + age * duration,
+          origin: 0,
+          settings: { global, families: { afterglow: pattern } },
+        });
+        engine.advance(0, false);
+        for (let j = 0; j < 8; j++) {
+          engine.present();
+          await frame();
+        }
+        ctx.drawImage(
+          engine.canvas,
+          (i % 3) * 480,
+          Math.floor(i / 3) * 270,
+          480,
+          270,
+        );
+        samples.push({ age, values: [...engine.slots.at(-1).rhythm.values] });
+      }
+      output.push({
+        effect,
+        samples,
+        glError: engine.gl.getError(),
+        nonFinite:
+          engine.counters.nonFinite + window.__harness.nonFiniteUploads,
+        gpuErrors: engine.counters.gpuErrors,
+        flashLimiterEnabled: engine.options.flashLimit,
+        png: sheet.toDataURL().split(",")[1],
+      });
+    }
+    return output;
+  });
+  const isolationHealth = [];
+  for (const { png, ...health } of sequences) {
+    assert.equal(health.glError + health.nonFinite + health.gpuErrors, 0);
+    assert.equal(health.flashLimiterEnabled, true);
+    await writeFile(
+      join(out, `garden-${health.effect}.png`),
+      Buffer.from(png, "base64"),
+    );
+    isolationHealth.push(health);
+  }
+  assert.deepEqual(isolated.errors, []);
   // Fresh context compiles the production no-float-data path.
   const fallback = await openLab(runtime.browser, server.url);
   await fallback.page.evaluate(() => {
@@ -136,8 +218,11 @@ try {
   assert.deepEqual(fallback.errors, []);
   await writeFile(
     join(out, "health.json"),
-    JSON.stringify({ rows, fallbackHealth, errors: lab.errors }, null, 2) +
-      "\n",
+    JSON.stringify(
+      { rows, isolationHealth, fallbackHealth, errors: lab.errors },
+      null,
+      2,
+    ) + "\n",
   );
   console.log(
     `${rows.length} captures: zero GL/non-finite errors; all frames populated; reversal identity preserved; limiter enabled.`,

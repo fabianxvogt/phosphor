@@ -466,7 +466,7 @@ test("slot-3 pollen signature has three authored, distinct, bounded loops", () =
   }
 });
 
-test("r4 meadow keeps opaque grass, local motes and independent sap/flex signals", () => {
+test("meadow keeps opaque grass, local trails and independent sap/flex signals", () => {
   const parts = [];
   const template = flowerTemplate();
   for (let i = 0; i < template.length; i += 3) parts.push(template[i]);
@@ -478,11 +478,11 @@ test("r4 meadow keeps opaque grass, local motes and independent sap/flex signals
     assert.equal(parts.filter((p) => p === mote).length, 6);
   assert.match(
     afterglow.geometry.vertex,
-    /v_signal = vec3\(agPulse\(far\), pollen, cohort\)/,
+    /v_signal = vec3\(agSapSelection\(tone\), pollen, flex\)/,
   );
   assert.match(
     afterglow.geometry.fragment,
-    /u_primary \* v_signal.x \* \(margin/,
+    /u_primary \* v_signal.x \* \(veinTravel/,
   );
   assert.match(afterglow.geometry.fragment, /u_accent \* v_signal.y/);
   assert.match(afterglow.fragment, /packetRing/);
@@ -492,6 +492,47 @@ test("r4 meadow keeps opaque grass, local motes and independent sap/flex signals
   const width = (2 * 0.21 * 1.15) / Math.sqrt(0.88 ** 2 - 0.21 ** 2) / (16 / 9);
   assert.ok(width < 1 / 3, `patch width ${width}`);
   assert.match(afterglow.geometry.vertex, /agSmooth\(\.09, \.21/);
+});
+
+test("r5 sap is a bounded stem-to-vein-to-margin packet, never a full outline", () => {
+  const shader = afterglow.geometry.fragment;
+  assert.match(shader, /agSapPacket\(s \* \.40\)/);
+  assert.match(shader, /agSapPacket\(\.40 \+ v \* \.36\)/);
+  assert.match(shader, /agSapPacket\(\.76 \+ \(1\. - v\) \* \.24/);
+  assert.doesNotMatch(shader, /v_signal.x \* \(margin \*/);
+  const packet = (path, envelope) => {
+    const front = (1 - Math.max(0, Math.min(1, envelope))) * 1.75 - 0.42;
+    return Math.exp(-(((path - front) / 0.1) ** 2)) * smooth(0, 0.07, envelope);
+  };
+  // The same causal pulse passes these positions in this order, leaving dark
+  // tissue behind. Values are within the driving track's .76 amplitude.
+  for (const path of [0.1, 0.38, 0.6, 0.9]) {
+    const envelope = 1 - (path + 0.42) / 1.75;
+    assert.ok(envelope > 0 && envelope < 0.76);
+    assert.ok(packet(path, envelope) > 0.99);
+    assert.ok(packet(path - 0.3, envelope) < 0.001);
+    assert.ok(packet(path + 0.3, envelope) < 0.001);
+    assert.equal(packet(path, 0), 0);
+  }
+  assert.match(afterglow.geometry.vertex, /lean \+= R.xy \* flex/);
+  assert.match(afterglow.geometry.vertex, /float sapWidth = agSapPacket/);
+  assert.match(shader, /float pulseRib = exp/);
+  assert.match(
+    afterglow.geometry.vertex,
+    /petalLength \*= agSmooth\(0\., petalLength/,
+  );
+});
+
+test("r5 pollen reuses twelve quads as three bent trails with soft mote heads", () => {
+  const shader = afterglow.geometry.vertex;
+  assert.match(shader, /floor\(float\(part - 33\) \/ 4\.\)/);
+  assert.match(shader, /mod\(float\(part - 33\), 4\.\)/);
+  assert.match(shader, /far \* 4\.2 \/ \(min\(u_resolution/);
+  assert.match(shader, /phase \* 3\./);
+  assert.match(shader, /float emitter = agSmooth/);
+  assert.match(shader, /bool moteHead = piece > 2\.5/);
+  assert.match(afterglow.geometry.fragment, /\(v_part - 33\) % 4 != 3/);
+  assert.equal(TAIL_VERTICES, 90, "no new pass or additive vertices");
 });
 
 function smooth(a, b, x) {

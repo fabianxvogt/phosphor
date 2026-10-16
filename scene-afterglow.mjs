@@ -41,7 +41,7 @@ export const DETAIL_VERTICES =
   STEM_SEGMENTS * 6 + HEAD_AROUND * HEAD_ALONG * 6 + 6;
 export const SIMPLE_VERTICES = FAR_IMAGES.length * 12 + 36; // two three-segment grass blades
 export const ADDITIVE_FROM = DETAIL_VERTICES + SIMPLE_VERTICES;
-export const TAIL_VERTICES = 90; // halo, two fireflies, twelve curved drifting pollen motes
+export const TAIL_VERTICES = 90; // halo, two fireflies, three trails with soft mote heads
 export const FLOWER_VERTICES = ADDITIVE_FROM + TAIL_VERTICES;
 
 const smooth = (a, b, x) => {
@@ -201,8 +201,8 @@ uniform sampler2D u_state;
 uniform highp sampler2D u_precomputed;
 #endif`;
 
-// Wave of light (vein pulse): a front runs out from the near field through
-// the flowers to the horizon; flowers behind it keep a decaying afterglow.
+// Independent local gestures: travelling sap packets, flexing cohorts and
+// a camera-local pollen release. No whole-corolla contour switch.
 const pulse = `
 // Count selects a moving patch of the meadow, never the whole screen.
 vec2 agPollenFocus(vec2 eye, vec2 forward) {
@@ -222,7 +222,16 @@ float agPulse(float distanceFromEye) {
 // Petal cohort: a band of flowers selected per event opens fully and flares.
 float agCohort(float tone) {
   float pick = fract(u_rhythmCount.y * .618034);
-  return clamp(u_rhythm.y, 0., 1.) * (1. - agSmooth(.08, .16, abs(fract(tone - pick + .5) - .5)));
+  return clamp(u_rhythm.y, 0., 1.) * (1. - agSmooth(.045, .10, abs(fract(tone - pick + .5) - .5)));
+}
+float agSapSelection(float tone) {
+  float pick = fract(u_rhythmCount.x * .381966);
+  return 1. - agSmooth(.035, .10, abs(fract(tone - pick + .5) - .5));
+}
+float agSapPacket(float path) {
+  float age = 1. - clamp(u_rhythm.x, 0., 1.);
+  float front = age * 1.75 - .42;
+  return exp(-sq((path - front) / .10)) * agSmooth(0., .07, u_rhythm.x);
 }
 `;
 const sqHelper = `float sq(float x) { return x * x; }\n`;
@@ -451,7 +460,7 @@ layout(location=1) in vec2 a_cell;
 ${geometryUniforms}
 out vec3 v_world, v_normal;
 out vec4 v_surface; // (u, v, tone, openness)
-out vec4 v_event;   // (dividing, flare, fade, size)
+out vec4 v_event;   // (dividing, flare, fade, hero weight)
 out vec3 v_signal;  // (travelling sap, local pollen, petal flex)
 flat out int v_part;
 ${sqHelper}${common}${pulse}
@@ -548,9 +557,10 @@ void main() {
   float pollen = agPollen(base, eye.xy, F.xy);
   float feedCohort = (1. - agSmooth(.10, .23, abs(fract(tone - fract(u_rhythmCount.z * .618034) + .5) - .5))) * u_rhythm.z;
   float cohort = agCohort(tone);
-  float flare = .25 * agPulse(far) + .25 * cohort + .25 * feedCohort;
-  float openness = clamp(mix(.04, .38 + .30 * level, bloom) + .75 * cohort + .95 * pollen - .38 * dividing * bloom, 0., 1.);
-  v_signal = vec3(agPulse(far), pollen, cohort);
+  float flex = cohort * (1. - agSmooth(.55, .72, u_rhythm.y)) * 1.4;
+  float flare = .10 * flex + .25 * feedCohort;
+  float openness = clamp(mix(.04, .38 + .30 * level, bloom) + .9 * flex + .95 * pollen - .38 * dividing * bloom, 0., 1.);
+  v_signal = vec3(agSapSelection(tone), pollen, flex);
   // Height, lean in a travelling wind wave, and a bow away from the camera.
   float height = (.045 + .09 * n1 + .095 * hero) * agRelief() * grow * (.55 + .45 * size) * clearance * (1. + pollen * .20);
   vec2 wdir = normalize(vec2(.8, .6));
@@ -558,14 +568,21 @@ void main() {
   float wave = sin(AG_TAU * (2. * pf.x + 3. * pf.y) - u_time * 1.4) * .5 + .5;
   float gust = .4 + .6 * agSmooth(.3, .9, level);
   vec2 lean = wdir * agSway() * (.10 + .28 * wave) * gust + (vec2(n2, n3) - .5) * .5;
+  // Only the selected cohort bows and recovers; neighbours retain quiet wind.
+  lean += R.xy * flex * .85;
   vec2 away = base - eye.xy;
   float near = length(away);
   lean += away / max(near, 1e-3) * max(0., .16 - near) * 7. / max(height, .02) * .02;
   vec3 head = vec3(base + lean * height, height * (1. - .25 * dot(lean, lean)));
   vec3 axis = normalize(vec3(lean * 1.4 + (vec2(n3, n1) - .5) * .5, 1.));
   float petalLength = (.021 + .018 * n2 + .060 * hero) * (.6 + .7 * clamp(u_params[3], 0., 1.25)) * (.28 + .72 * grow) * (.5 + .5 * size) * clearance * (1. + pollen * .65);
+  // A crown retracts smoothly before its defining edge reaches the border.
+  vec3 headView = head - eye;
+  float headDepth = dot(headView, F);
+  float frameRoom = min(headDepth * agFit().x / (2. * agLens()) - abs(dot(headView, R)), headDepth * agFit().y / (2. * agLens()) - abs(dot(headView, U)));
+  petalLength *= agSmooth(0., petalLength * 1.5 + .015, frameRoom);
   v_surface = vec4(0., 0., tone, openness);
-  v_event = vec4(dividing * bloom, flare, fade, size);
+  v_event = vec4(dividing * bloom, flare, fade, hero);
   v_part = part;
   vec3 p, N = vec3(0., 0., 1.);
   vec3 toEye = normalize(eye - head);
@@ -575,7 +592,8 @@ void main() {
     vec3 c = vec3(base + lean * height * s * s, height * s * (1. - .25 * dot(lean, lean)));
     vec3 tangent = normalize(vec3(lean * height * 2. * s, height) + 1e-5);
     vec3 side = normalize(cross(tangent, normalize(eye - c)));
-    p = c + side * a_vertex.y * (.00065 + .00055 * size) * (1. - .68 * s);
+    float sapWidth = agSapPacket(s * .40) * v_signal.x * far * 1.8 / (min(u_resolution.x, u_resolution.y) * agLens());
+    p = c + side * a_vertex.y * ((.00065 + .00055 * size) * (1. - .68 * s) + sapWidth);
     N = normalize(eye - c);
     v_surface.xy = vec2(a_vertex.y, s);
   } else if (part >= 1 && part <= 6) {
@@ -639,20 +657,32 @@ void main() {
     p = head + axis * petalLength * .2 + (cx * a_vertex.y + cy * a_vertex.z) * r;
     v_surface.xy = a_vertex.yz;
   } else if (part >= 33) {
-    // Twelve soft motes travel on curved, spreading paths from one patch.
+    // Three curved trails, each ending in a substantial soft pollen mote.
     // Envelope supplies age/fade, count selects the patch, hit the launch.
-    if (pollen < .005) { hide(); return; }
-    float k = float(part - 33), s = a_vertex.z;
-    float lift = 1. - clamp(u_rhythm.w, 0., 1.);
-    float phase = clamp(lift * 1.15 + k * .025, 0., 1.4);
-    float az = AG_TAU * (n2 + k * .382);
-    float spread = (.018 + .065 * level) * phase * phase;
-    vec3 c = head + vec3(cos(az + phase * 3.) * spread + .035 * phase, sin(az + phase * 3.) * spread, .025 + (.18 + .04 * level) * phase);
-    vec3 side = normalize(cross(toEye, vec3(0., 0., 1.)) + 1e-5), up = cross(side, toEye);
-    float width = max(.002, far * 2.2 / (min(u_resolution.x, u_resolution.y) * agLens()));
-    p = c + (side * a_vertex.y + up * a_vertex.z) * width;
-    v_surface.xy = a_vertex.yz;
-    v_event.y = pollen * (.45 + .55 * sin(min(phase, 1.) * 3.14159));
+    float emitter = agSmooth(.42, .52, n3) * (1. - agSmooth(.66, .74, n3));
+    if (pollen * emitter < .005) { hide(); return; }
+    float k = floor(float(part - 33) / 4.);
+    float piece = mod(float(part - 33), 4.);
+    bool moteHead = piece > 2.5;
+    float along = moteHead ? 1. : (piece + a_vertex.z * .5 + .5) / 3.;
+    float age = 1. - clamp(u_rhythm.w, 0., 1.);
+    float phase = max(0., age * 1.05 + k * .07 + n1 * .10 - (1. - along) * .18);
+    float az = AG_TAU * (n2 + k * .382) + phase * 3.;
+    float spreadRate = .025 + .09 * level;
+    float spread = spreadRate * phase * phase;
+    vec3 c = head + vec3(cos(az) * spread + .04 * phase, sin(az) * spread, .018 + (.14 + .04 * level) * phase);
+    vec3 tangent = vec3(spreadRate * (2. * phase * cos(az) - 3. * phase * phase * sin(az)) + .04, spreadRate * (2. * phase * sin(az) + 3. * phase * phase * cos(az)), .14 + .04 * level);
+    vec3 side = normalize(cross(toEye, tangent) + 1e-5);
+    float width = max(.0022, far * 4.2 / (min(u_resolution.x, u_resolution.y) * agLens()));
+    if (moteHead) {
+      vec3 up = normalize(cross(side, toEye));
+      p = c + (side * a_vertex.y + up * a_vertex.z) * width * 1.1;
+      v_surface.xy = a_vertex.yz;
+    } else {
+      p = c + side * a_vertex.y * width * (.20 + .55 * along);
+      v_surface.xy = vec2(a_vertex.y, along);
+    }
+    v_event.y = pollen * emitter * (.5 + .5 * sin(min(phase, 1.) * 3.14159));
   } else {
     // Pollen motes rise from open flowers on fixed-rate whole cycles.
     float k = float(part - 31);
@@ -681,7 +711,7 @@ in vec4 v_surface, v_event;
 in vec3 v_signal;
 flat in int v_part;
 out vec4 outColor;
-${sqHelper}${common}
+${sqHelper}${common}${pulse}
 void main() {
   if (v_part < 0) discard;
   vec3 eye, R, U, F;
@@ -701,7 +731,7 @@ void main() {
   // Petals glow along the same blackbody-like palette ramp as the sky: hot
   // at the base, saturated mid-tones, deep secondary at the tips. Two kinds
   // of flower: warm ones reach primary, cool ones top out in the mid-tones.
-  float heatTop = mix(.64, .97, agSmooth(.34, .44, tone));
+  float heatTop = mix(.62, .89, agSmooth(.34, .44, tone));
   vec3 bloomColor = agRamp(heatTop * .86) * 1.15;
   vec3 rimColor = agRamp(.82);
   vec3 tissue = agSat(u_secondary, 1.1) * .035;
@@ -710,9 +740,9 @@ void main() {
   if (v_part == 0) {
     float s = v_surface.y;
     float roundStem = sqrt(max(0., 1. - sq(v_surface.x)));
-    float sap = exp(-sq((s - (1. - v_signal.x) * 1.2) / .22)) * v_signal.x;
+    float sap = agSapPacket(s * .40) * v_signal.x;
     color = tissue * (.5 + roundStem) + rimColor * (1. - roundStem) * back * .14 + bloomColor * .16 * pow(s, 4.) * glow;
-    color += u_primary * sap * .8;
+    color += u_primary * sap * 2.2;
   } else if (v_part >= 1 && v_part <= 6) {
     float u = v_surface.x, v = v_surface.y;
     // Petal outlines: a closed bud keeps only six notches at its tip, an
@@ -734,8 +764,15 @@ void main() {
     float diffuse = .80 + .20 * max(dot(N, L), 0.);
     color += body * (.60 + .85 * inner + veins * .65) * translucency * glow * (.85 + .15 * agGrow()) * diffuse;
     color += u_secondary * (1. - openness) * (.10 + .20 * margin);
-    color += agRamp(petalHeat + .07) * (grazing * .22 + margin * .20) * (.20 + .8 * back) * (.35 + .65 * v);
-    color += u_primary * v_signal.x * (margin * 1.3 + veins * .8) * 1.4;
+    color += agRamp(petalHeat + .07) * (grazing * .14 + margin * .08) * (.20 + .8 * back) * (.35 + .65 * v);
+    // One bounded packet: stem → midrib → a short segment of the margin.
+    float veinTravel = agSapPacket(.40 + v * .36);
+    float marginTravel = agSapPacket(.76 + (1. - v) * .24 + abs(u) * .10);
+    float pulseRib = exp(-sq(u / .11));
+    color += u_primary * v_signal.x * (veinTravel * (pulseRib * .9 + branches * .18) + marginTravel * margin * .7) * 2.;
+    color *= mix(.66, 1., v_event.w);
+    // Cool shadowed tissue remains visible beside the narrow warm throat.
+    color += u_secondary * (.035 + .065 * v_event.w) * sin(3.14159 * v) * (1. - .65 * margin) * glow;
     color += u_accent * v_signal.y * (.35 + margin * .9 + inner * .3);
     color += bloomColor * flare * inner * .3;
     color = mix(color, u_accent * (.85 + margin * .85 + inner * .5), min(1., v_signal.y * 1.25));
@@ -763,7 +800,7 @@ void main() {
       float lobes = mix(.72, .62 + .38 * pow(abs(cos(a * 3. + tone * 6.)), .6), openness);
       if (r > lobes) discard;
       float inner = exp(-r * 2.6);
-      color = tissue + bloomColor * (inner * .9 + .1) * glow * (.35 + .65 * agGrow()) + rimColor * back * .4 * r;
+      color = tissue + bloomColor * (inner * .6 + .08) * glow * (.35 + .65 * agGrow()) + rimColor * back * .12 * r;
       color += bloomColor * flare * .9 + mix(u_accent, vec3(1.), .1) * dividing * inner;
     }
   } else if (v_part == 30) {
@@ -773,8 +810,11 @@ void main() {
     color += u_accent * h * v_signal.y * .06;
   } else {
     vec2 q = v_surface.xy;
-    float h = exp(-dot(q, q) * 3.5) * (1. - smoothstep(.65, 1., length(q)));
-    color = mix(u_primary, u_accent, v_part >= 33 ? .85 : .12) * h * flare * (v_part >= 33 ? 2.4 : .8) * glow;
+    bool trail = v_part >= 33 && (v_part - 33) % 4 != 3;
+    float h = trail
+      ? exp(-sq(q.x) * 3.5) * agSmooth(0., .35, q.y)
+      : exp(-dot(q, q) * 3.5) * (1. - smoothstep(.65, 1., length(q)));
+    color = mix(u_primary, u_accent, v_part >= 33 ? .85 : .12) * h * flare * (v_part >= 33 ? 3.2 : .8) * glow;
   }
   color *= v_event.z;
   float fog = 1. - exp(-pow(dist / 5.5, 1.7));
