@@ -146,7 +146,7 @@ float hzRate(int i) {
        : i == 1 ? swirl * 0.3
        : i == 3 ? (0.35 + 0.9 * level) * 0.45
        : i == 4 ? 0.06 + 0.22 * level
-       : i == 5 ? swirl * 9. * 0.011180340 / 6.283185307   // Ω(20 M)
+       : i == 5 ? swirl * 9. * 0.015625 / 6.283185307      // Ω(16 M)
        : i == 6 ? swirl * 9. * 0.048686 / 6.283185307      // Ω(7.5 M)
        : 0.;
 }
@@ -172,7 +172,7 @@ const common = `
 const int STEP_CAP = 120;
 const float BC = 5.196152422706632; // critical impact parameter √27 M
 const float R_IN = 6.0;             // innermost stable circular orbit
-const float R_STAR = 20.0;          // orbit of the disrupted star
+const float R_STAR = 16.0;          // orbit of the disrupted star
 
 float unpack24(vec4 c) { vec3 b = floor(c.rgb * 255. + .5); return dot(b, vec3(65536., 256., 1.)) / 16777216.; }
 float hzPhase(int i) { return unpack24(texelFetch(u_state, ivec2(i, 0), 0)); }
@@ -313,20 +313,20 @@ vec2 hzJet(vec3 A, vec3 B) {
   vec2 closest = A.xz + D.xz * sStar;
   float rho2 = dot(closest, closest);
   // A collimated core inside a widening sheath; brightest near the base.
-  float sheathW = 0.5 + 0.11 * y, coreW = 0.16 + 0.02 * y;
+  float sheathW = 0.22 + 0.035 * y, coreW = 0.1 + 0.01 * y;
   // Most chords pass far from the axis: reject before any transcendentals.
-  if (y < 2.4 || y > 1.4 * gJetLen || dot(P.xz, P.xz) > 9.0 * sheathW * sheathW) return vec2(0.0);
+  if (y < 2.4 || y > 1.15 * gJetLen || dot(P.xz, P.xz) > 9.0 * sheathW * sheathW) return vec2(0.0);
   float lxz = sqrt(dd);
   float along = smoothstep(2.4, 4.5, y) * exp(-y / gJetLen) *
-    (1.0 - smoothstep(0.85 * gJetLen, 1.4 * gJetLen, y)) * (1.0 + 2.0 * exp(-(y - 2.4) / 3.5));
+    (1.0 - smoothstep(0.8 * gJetLen, 1.15 * gJetLen, y)) * (0.2 + 0.8 * smoothstep(3.8, 7.0, y));
   // Knots travel outward on integer harmonics of the knot phase.
   // Sharp knots; energy raises their contrast (activity), not the mean.
-  float knotWave = pow(0.5 + 0.5 * sin(0.42 * y - TAU * gKnot * 2.0), 3.0);
-  float knots = mix(1.0, 0.45 + 1.6 * knotWave, 0.35 + 0.6 * gLevel);
+  float knotWave = pow(0.5 + 0.5 * sin((1.1 + 0.3 * gLevel) * y - TAU * gKnot * 2.0), 3.0);
+  float knots = mix(0.45, 0.025 + 4.5 * knotWave, 0.45 + 0.5 * gLevel);
   knots *= 0.8 + 0.2 * sin(0.17 * y - TAU * gKnot + 1.3);
   // Gesture: one bright knot ejected along both jets.
-  float burstY = 4.5 + gJetLen * (1.0 - u_rhythm.z);
-  knots += 6.0 * u_rhythm.z * exp(-sq((y - burstY) / 1.6));
+  float burstY = 4.2 + gJetLen * (1.0 - u_rhythm.z);
+  knots += 7.0 * u_rhythm.z * exp(-sq((y - burstY) / 0.85));
   float span0 = sStar * lxz, span1 = (1.0 - sStar) * lxz;
   vec2 cover = vec2(
     (hzErf(span1 / coreW) + hzErf(span0 / coreW)) * 0.886 * coreW * exp(-rho2 / (coreW * coreW)),
@@ -354,7 +354,7 @@ float hzNoise(vec2 p, float period, float salt) {
 // Turbulent gas in material coordinates of one flow layer. lr = ln r,
 // angle0 = material angle, fl = pixel footprint in ln r.
 float hzTurbulence(float lr, float angle0, float fl, float salt, int octaves) {
-  float sum = 0.0, norm = 0.0, amp = 1.0, freq = 15.0, per = 12.0;
+  float sum = 0.0, norm = 0.0, amp = 1.0, freq = 3.0, per = 32.0;
   float decay = 0.62 + 0.12 * gLevel;
   for (int o = 0; o < 4; ++o) {
     if (o >= octaves) break;
@@ -392,7 +392,7 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   // Also test the next wrap outward, so the stream is continuous at j = 0.
   float trailB = max(trail - TAU, d0), offB = lrs + pitch * trailB;
   if (abs(offB) < abs(off)) { trail = trailB; off = offB; }
-  float width = mix(0.035, 0.12, gForm) + 0.5 * fl;
+  float width = mix(0.13, 0.19, gForm) + 0.5 * fl;
   float reach = mix(5.2, 12.0, smoothstep(0.0, 1.2, gDev));
   float stream = exp(-sq(off / width)) * (1.0 - smoothstep(0.55 * reach, reach, trail)) *
     smoothstep(R_IN - 0.5, R_IN + 2.0, r) * mix(0.9, 0.35, gBlaze) * min(1.0, 0.035 / width + 0.25) *
@@ -401,14 +401,16 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   // The star: a tidally stretched bright knot at the head of the stream.
   float dth = mod(th - gHeadAngle + PI, TAU) - PI;
   float headR = r - R_STAR, headS = R_STAR * dth;
-  float stretch = mix(0.9, 3.2, smoothstep(0.0, 0.9, gDev));
-  float head = exp(-sq(headR / 0.6) - sq(headS / stretch)) * (1.0 - smoothstep(0.5, 1.4, gDev));
-  head += 0.35 * exp(-sq(headR / 0.2) - sq(headS / 0.2)) * (1.0 - smoothstep(0.3, 0.9, gDev));
+  float stretch = mix(3.8, 6.5, smoothstep(0.0, 0.9, gDev));
+  // A sheared crescent, not a detached spherical light bulb.
+  float shear = headR + 0.055 * headS;
+  float head = exp(-sq(shear / 0.85) - sq(headS / stretch)) * (1.0 - smoothstep(0.5, 1.4, gDev));
+  head *= 0.65 + 0.35 * sin(1.5 * headS + 3.0 * headR);
 
   // The disk: Novikov–Thorne-like envelope with a sharp ISCO edge, faint
   // plunging gas inside it, turbulence and two slow density-wave arms.
-  float rOut = mix(mix(12.0, 15.0, gForm), 19.0, gBlaze);
-  float edge = 0.35 + 0.6 * fl * r;
+  float rOut = mix(mix(16.0, 18.0, gForm), 21.0, gBlaze);
+  float edge = 1.35 + 0.6 * fl * r;
   float env = smoothstep(R_IN - edge, R_IN + edge, r) * (1.0 - smoothstep(0.55 * rOut, rOut, r));
   env += 0.06 * smoothstep(2.4, R_IN, r) * (1.0 - smoothstep(R_IN - 0.3, R_IN + 0.3, r));
   // Spot of the hot-spot gesture (see below), needed for the early exit.
@@ -431,13 +433,14 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   }
   n /= sqrt(max(wsum, 1e-3));
 
-  stream *= 1.0 + 0.5 * gTurb * n;
-  float arms = 1.0 + 0.45 * gForm * sin(2.0 * th + 5.5 * lr + 1.7) * (1.0 - smoothstep(0.2, 0.8, fl * 6.0));
-  // Fine ringlets: concentric streaks sheared out of the turbulence.
-  float ringlets = 1.0 + 0.08 * gTurb * sin(lr * 42.0 + 5.0 * n) * (1.0 - smoothstep(0.02, 0.06, fl));
-  float turb = 0.85 + 1.65 * gTurb;
-  float disk = env * gMass * arms * ringlets * pow(max(0.0, 1.0 + turb * n), 3.0) * pow(R_IN / max(r, R_IN), 0.35);
-  disk *= mix(1.0, 0.75, smoothstep(0.0, 1.0, order - 1.0));
+  stream *= max(0.08, 1.0 + 1.8 * gTurb * n);
+  float arms = 0.75 + 0.65 * sin(th + 4.0 * lr + 1.7 + 0.35 * gBlaze) * (1.0 - smoothstep(0.2, 0.8, fl * 6.0));
+  // Broad torn plasma sheets separated by dark lanes. Only the physical
+  // photon image stays crisp; no decorative concentric ringlet carrier.
+  float turb = 0.7 + 1.4 * gTurb;
+  float cells = smoothstep(-0.48, 0.48, n);
+  float disk = env * gMass * arms * (0.14 + 1.9 * cells) * max(0.05, 1.0 + turb * n) * pow(R_IN / max(r, R_IN), 0.35);
+  disk *= exp(-0.65 * order);
 
   float density = disk + stream;
   // Temperature: T ∝ r^-3/4 (1 - √(r_in/r))^1/4, peak 1 at r = 49/36 r_in.
@@ -448,25 +451,33 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   float T = gHeat * profile * gb;
   // Colour is temperature: cool receding gas toward secondary, hot
   // approaching gas toward primary; the accent stays reserved.
-  float tone = smoothstep(0.9, 2.0, T + 0.45 * n);
+  float tone = smoothstep(0.95, 2.35, T + 0.25 * n);
   // Cool outer gas and hot inner gas remain distinct in every palette.
   // Only exceptional beamed peaks approach white; accent belongs to events.
   vec3 hue = mix(u_secondary, u_primary, tone);
-  hue = mix(hue, vec3(1.0), 0.28 * smoothstep(1.45, 2.2, T));
+  hue = mix(hue, vec3(1.0), 0.12 * smoothstep(1.6, 2.4, T));
   vec3 col = hue * density * pow(T, 2.1) * pow(gb, 1.6) * 0.65;
+  // Shock-heated inner edge: broken by material cells rather than traced
+  // as a constant contour. The cooler outer sheet stays broad and soft.
+  float innerShock = exp(-sq((r - 7.6 - 0.8 * n) / 1.2));
+  col += mix(u_secondary, u_primary, 0.65) * disk * innerShock * max(0.0, n + 0.15) * 0.6;
   float ember = smoothstep(0.32, 0.65, n) * smoothstep(1.05, 1.5, T);
   col += u_accent * disk * ember * 0.45;
   // Tidal debris glows by itself (shocked gas), so the stream reads before
   // the disk has heated: cool toward secondary, its inner wraps warmer.
-  col += mix(u_secondary, u_primary, 0.35 + 0.3 * smoothstep(R_STAR, R_IN, r)) * stream * 0.95 * pow(gb, 1.5) * (1.0 - 0.6 * gBlaze);
+  col += mix(u_secondary, u_primary, 0.35 + 0.3 * (1.0 - smoothstep(R_IN, R_STAR, r))) * stream * 0.95 * pow(gb, 1.5) * (1.0 - 0.6 * gBlaze);
   // The star glows with its own light, cooler than the hot inner disk.
-  col += mix(u_primary, vec3(1.0), 0.35) * head * 3.4 * (1.0 + 2.5 * u_rhythm.x * (1.0 - gMass)) * pow(gb, 1.5);
+  col += mix(u_secondary, u_primary, 0.35) * head * 1.6 * (1.0 + 2.5 * u_rhythm.x * (1.0 - gMass)) * pow(gb, 1.5);
 
   // Gesture: an orbiting hot spot flares in the inner disk (Sgr A*-style).
-  col += mix(u_primary, u_accent, 0.8) * spot * 6.0 * pow(gb, 3.0);
+  col += mix(u_primary, u_secondary, 0.5) * spot * 2.8 * pow(gb, 2.0);
 
-  float alpha = 1.0 - exp(-(disk * mix(0.8, 4.5, gBlaze) + stream * 0.6 + head * 2.0));
-  return vec4(col, alpha);
+  // Cold redshifted gas is translucent, not a black cut-out over the
+  // following lensed image. Heating builds the opaque near-side sheet.
+  float alpha = 1.0 - exp(-(disk * mix(0.25, 2.8, gBlaze) * smoothstep(0.1, 0.8, T) + stream * 0.25 + head * 0.8));
+  // A crossing footprint can widen the debris beyond its physical orbit;
+  // fade that unresolved tail before the conservative 34M rejection bound.
+  return vec4(col, alpha) * (1.0 - smoothstep(24.0, 34.0, r));
 }
 
 // -------------------------------------------------------------------- sky
@@ -530,8 +541,8 @@ vec3 hzSky(vec3 dir, float fp) {
   vec3 col = mix(u_secondary, mix(u_primary, u_secondary, 0.4), smoothstep(-0.1, 0.25, neb)) * glow * 0.055 * (0.4 + gStars);
   col += u_secondary * 0.006;
   float denser = 1.0 + 1.6 * band;
-  col += hzStars(d, 60.0, fp, 11.0, 0.32 * gStars, 0.45);
-  col += hzStars(d, 230.0, fp, 23.0, (0.05 + 0.2 * gStars) * min(1.0, 0.45 * denser), 0.16);
+  col += hzStars(d, 60.0, fp, 11.0, 0.32 * gStars, 0.23);
+  col += hzStars(d, 230.0, fp, 23.0, (0.05 + 0.2 * gStars) * min(1.0, 0.45 * denser), 0.08);
   return col;
 }
 
@@ -601,13 +612,13 @@ void main() {
   float az, pass;
   float radius = hzCameraRadius(dev, az, pass);
   // Finite luminous jet knots stay framed even on the closest pass.
-  gJetLen = min(gJetLen, radius * 0.25);
+  gJetLen = min(gJetLen, radius * 0.36);
   float phrase = u_beat / 32.0;
   float pk = floor(phrase);
   float wob = mix(hz01(seedHash(uint(int(pk)) ^ 0x2545f491u)),
                   hz01(seedHash(uint(int(pk) + 1) ^ 0x2545f491u)),
                   smoothstep(0.6, 1.0, fract(phrase))) * 2.0 - 1.0;
-  float incl = mix(0.42, 0.16, smoothstep(0.0, 2.0, dev)) + 0.9 * (u_params[6] - 0.35) + 0.045 * wob;
+  float incl = mix(0.34, 0.16, smoothstep(0.0, 2.0, dev)) + 0.9 * (u_params[6] - 0.35) + 0.045 * wob;
   incl = clamp(incl, 0.05, 1.25);
   incl = mix(incl, max(0.06, incl * 0.6), pass);
   vec3 eye = radius * vec3(cos(incl) * cos(az), sin(incl), cos(incl) * sin(az));
@@ -619,8 +630,8 @@ void main() {
   vec2 uv = rot2(roll) * (aspectUV() * (2.0 * u_resolution.y / shortSide));
   float kick = u_kick * smoothstep(0.15, 1.0, level);
   float aspectFit = mix(0.72, 1.0, smoothstep(1.0, 1.7, u_resolution.x / u_resolution.y));
-  float focal = mix(mix(1.95, 2.15, gForm), 2.1, gBlaze) * aspectFit * (1.0 - 0.04 * pass) * (1.0 + 0.025 * kick);
-  uv += vec2(0.07 * sin(az), 0.035 * cos(az));
+  float focal = mix(mix(2.3, 2.25, gForm), 2.2, gBlaze) * aspectFit * (1.0 - 0.04 * pass) * (1.0 + 0.025 * kick);
+  uv += vec2(0.22 * sin(az), 0.09 * cos(az));
   vec3 rd = normalize(fw * focal + rt * uv.x + up * uv.y);
   gPixelAngle = 2.0 / (focal * shortSide);
 
@@ -753,8 +764,8 @@ void main() {
   float fwB = fwidth(b);
 
   vec3 sheathCol = mix(u_primary, u_secondary, 0.4);
-  vec3 coreCol = mix(mix(u_primary, u_accent, 0.2 * u_rhythm.z), vec3(1.0), 0.35);
-  float jetGain = gJetAmt * 1.4;
+  vec3 coreCol = mix(mix(u_secondary, u_primary, 0.65), u_accent, 0.15 * u_rhythm.z);
+  float jetGain = gJetAmt * 2.0;
   #define HZ_JET(J) ((coreCol * (J).x * 0.7 + sheathCol * (J).y * 0.6) * jetGain)
 
   vec3 col = HZ_JET(J0);
@@ -784,7 +795,7 @@ void main() {
   float rimAngle = atan(dot(rd, up), dot(rd, rt));
   float rimSector = 0.35 + 0.65 * pow(0.5 + 0.5 * cos(rimAngle + az), 2.0);
   float ringAmt = (0.55 + 0.75 * gMass + 0.3 * gBlaze) * (1.0 + 2.2 * u_rhythm.y * rimSector);
-  col += T * (mix(u_secondary, u_primary, 0.65) * ring * rimSector * 1.15 + mix(u_primary, u_secondary, 0.3) * halo * gMass) * ringAmt;
+  col += T * (u_secondary * ring * rimSector * 0.45 + u_secondary * halo * gMass) * ringAmt;
 
   // Slot 3: a photon relay runs around the actual critical-impact rim.
   // Count chooses successive launch sectors; envelope travel leaves a soft
@@ -792,11 +803,14 @@ void main() {
   float relay = clamp(u_rhythm.w, 0.0, 1.0);
   float relayAngle = mod(u_rhythmCount.w, 8.0) * 2.39996323 - (1.0 - relay) * 2.6;
   float da = mod(rimAngle - relayAngle + PI, TAU) - PI;
-  float head = exp(-sq(da / (0.18 + 0.1 * u_rhythmHit.w)));
-  float wake = exp(-sq((da - 0.27) / 0.42));
-  float relayRim = exp(-sq((b - BC - 0.08) / max(0.16, 1.8 * fwB)));
-  col += mix(u_accent, u_primary, 0.12) * relay * (head * 4.5 + wake * 1.4) * relayRim;
-  col += u_accent * relay * head * exp(-sq((b - BC - 0.18) / 0.48)) * 0.8;
+  float head = exp(-sq(da / (0.095 + 0.035 * u_rhythmHit.w)));
+  float behind = mod(da, TAU);
+  float wake = exp(-behind / 0.65) * (1.0 - smoothstep(1.1, 1.65, behind));
+  float relayRim = exp(-sq((b - BC - 0.08) / max(0.22, 1.8 * fwB)));
+  float quietRim = exp(-sq((b - BC) / 0.65));
+  col *= 1.0 - 0.9 * relay * quietRim;
+  col += u_accent * relay * (head * 6.0 + wake * 2.5) * relayRim;
+  col += u_accent * relay * head * exp(-sq((b - BC - 0.12) / 0.3)) * 0.5;
 
   outColor = vec4(max(col, vec3(0.0)), 1.0);
 }

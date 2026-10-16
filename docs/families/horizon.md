@@ -24,9 +24,9 @@ All rays share one camera radius, so a geodesic depends only on its impact param
 
 The world uses `Tidal Star` (0), `Infall Spiral` (1) and `Blazing Horizon` (2): seed 8901, identical non-development parameters.
 
-- **0 · Star:** a star on a 20M orbit trails a long cool debris spiral around a larger lens. A faint pre-existing inner gas disk now makes the shadow legible throughout the breakdown.
+- **0 · Star:** a tidally sheared crescent on a 16M orbit feeds a broad cool debris spiral around the lens. A pre-existing inner gas sheet makes the shadow legible throughout the breakdown.
 - **1 · Infall:** the star dissolves; the same stream widens and winds inward into a turbulent, warming ring; the camera closes gently from 34M to 32M.
-- **2 · Horizon:** a full disk to 19M, opaque and Doppler-beamed, with cool outer filaments and small hot patches; energy builds short, finite jets. Camera radius is 30M, with an 8% close-pass modulation rather than the former 42% dive.
+- **2 · Horizon:** a full disk to 21M, opaque and Doppler-beamed, with broad turbulent sheets, dark channels and small hot inner patches; energy builds finite knot-bearing jets. Camera radius is 30M, with an 8% close-pass modulation rather than the former 42% dive.
 
 Development morphs density, temperature, stream width/reach, opacity, camera distance, inclination and jets; it never crossfades.
 
@@ -49,7 +49,7 @@ Five extra looks:
   - **Jet knot** (16-beat legacy default) ejects a stronger, narrower bright knot along both jets.
   - **Photon relay** (slot 3) circles the critical-impact rim with an accent flare and a soft wake. `u_rhythmCount.w` chooses one of eight launch sectors; the envelope drives travel, and the hit broadens only the leading edge. It remains visible at every development, without requiring jets.
 - **Kick:** a 2.5% FOV punch.
-- **Camera:** slow orbit about the spin axis. Inclination moves to a seeded value at every 8-bar phrase (`u_beat / 32`, smooth over the last 40%) and is clamped to 0.05–1.25 rad. Roll stays below 0.04 rad. The r3 camera stays above 26M and its development-driven radius range is below 24%; the former one-bar dive is removed. Short-side projection includes an additional square/portrait fit. Jet extent is capped at 0.25 camera radii; small continuous off-centre drift does not cut or reset.
+- **Camera:** slow orbit about the spin axis. Inclination moves to a seeded value at every 8-bar phrase (`u_beat / 32`, smooth over the last 40%) and is clamped to 0.05–1.25 rad. Roll stays below 0.04 rad. The r3 camera stays above 26M and its development-driven radius range is below 24%; the former one-bar dive is removed. Short-side projection includes an additional square/portrait fit. Jet scale is capped at 0.36 camera radii, with a 1.15-scale outer taper; small continuous off-centre drift does not cut or reset.
 
 ## Continuity and endlessness
 
@@ -99,7 +99,7 @@ Films: `PHOSPHOR_HEADLESS_RIG=1 node scripts/world-film.mjs --world horizon --ri
 - The camera is a static observer: orbital aberration is ignored.
 - Jets use straight chords between table samples (every 0.24 rad).
 - Near-critical rays are tabulated to 3.2π, and fourth and higher images are dropped (the photon ring glow stands in for them).
-- The thin disk still reads as smooth sheared filaments, not a full turbulent volume.
+- The r4 emitting sheet has broad turbulent cells and softened higher images, but remains an equatorial surface rather than a full turbulent volume.
 
 ## Wave 5 rework · 2026-10-15
 
@@ -154,4 +154,36 @@ ABBA pairing against main: p50 deltas **+3.7%, +7.1%, −2.9%** at 1080p; **+11.
 
 Final reviewer evidence: `artifacts/look-review/horizon-r3/horizon-{sheet,rhythm}.png`, `horizon.mp4`, `grids.md`. Iterations: sibling `horizon-r3-before`, `horizon-r3-round1`, `horizon-r3-round2`, `horizon-r3-round3`. Limiter-enabled ladders: `artifacts/stills/horizon-{energy,ember,glacier-portrait,late}/`; reverse: `artifacts/look-review/horizon-r3-reverse/`. Timing JSONs: `artifacts/performance/horizon-r3-{1080,4k,pair1080,pair4k}/profile.json`.
 
-**Remaining weaknesses / self-assessment:** L ≈7, not independent acceptance. Thin-disk emission still reads as polished filaments rather than thick turbulent plasma. Portrait has large sky margins, low-energy jets intentionally disappear, and the photon relay's local wake is clearer in motion than in a contact sheet. More physical thickness would need a separately budgeted renderer change; no such change is claimed here.
+**Historical r3 weaknesses / self-assessment:** L ≈7, not independent acceptance. Thin-disk emission still reads as polished filaments rather than thick turbulent plasma. Portrait has large sky margins, low-energy jets intentionally disappear, and the photon relay's local wake is clearer in motion than in a contact sheet. More physical thickness would need a separately budgeted renderer change; no such change is claimed here.
+
+## Round 4 · 2026-10-17 — openai-codex/gpt-6.1-sol
+
+Independent r3 review: L6.5, G8.5, E7, overall7. Must-fixes addressed in priority order:
+
+1. **Material:** removed decorative ringlets and cubic density spikes. Radial noise frequency 15→3, angular cells 12→32: wide, torn emitting sheets with dark gaps rather than concentric wires. Higher images attenuate exponentially; the ISCO transition is broader, inner shocks are cell-broken, and outer unresolved emission fades before the conservative 34M bound. Cold gas stays translucent. The exact geodesic/table calculation is unchanged.
+2. **Breakdown:** moved the star to 16M (including its integrated Keplerian phase rate), stretched it into a textured shear crescent, broadened its connected stream and increased initial disk radius 12→16M. Larger focal scale and asymmetric density waves give foreground/background scale separation. The stellar primary hotspot no longer outshines the lens; stars are quieter.
+3. **Relay:** a compact pink head leads a one-sided exponential wake extending 1.65 radians. The surrounding critical rim is locally suppressed during the event. Hotspot emission uses cool/primary rather than pink so it cannot masquerade as the relay. Only the physical photon edge stays crisp; relay broadening is local.
+4. **Peak:** disk radius grows to 21M with asymmetric broad sheets. Narrow finite jets have separated outward knots, a dim launch region and bounded tip fade. Energy changes knot spacing, contrast and flow detail independently of development. No new volume passes or geodesic iterations.
+
+IDs, schema, eight preset names/seeds, world states and rhythm placements are unchanged; no HISTORY migration is needed. Three required film rounds plus final refinement were captured and their sheets and 960×540 individual stills read. Final film: `artifacts/look-review/horizon-r4/`; rounds: `horizon-r4-round{1,2,3}`. The final `peak.png` and `relay.png` explicitly expose material and wake rather than relying on contact-sheet scale.
+
+The three grooves remain **Silent orbit / Photon waltz / Relativistic bloom**, **3.0 / 7.7 / 16.3 hits/bar**. Relay driving steps `[0,3,5,10,14]/16` at division 2 retain the six-beat hotspot counter-rhythm.
+
+### Verification and cost
+
+- `npm test`: **1006 pass / 21 skipped / 0 fail**. New family checks pin broad cells, finite jet extent, the soft outer bound and monotonic one-sided wake; all CPU geodesic, world-rhythm and pipeline-flash tests retained.
+- Typecheck, build, native-GPU DE/EN i18n and touched formatted source/docs checks pass. Initial software-browser i18n attempts timed out; supported `--native-gpu` completes both locales.
+- Limiter-enabled `verify-horizon`: **48** frames at development 0/0.5/1/1.5/2, energy 0.1/0.5/0.9, three palettes, 540×960 portrait and 43200s. Zero GL/GPU/non-finite errors; minimum lit fraction 10.6%. Reports/sheets: `artifacts/stills/horizon-r4-{energy,ember,portrait,late}/`.
+- Edge of Night 2→0 reversal: `artifacts/look-review/horizon-r4-reverse/`, no reset/cut; edge-on remains deliberately thin.
+
+Native synchronous throughput (40 frames/state; post included, not venue cadence):
+
+| State   | 1080p p50/p95 ms | 4K p50/p95 ms | ABBA Δ1080p / Δ4K |
+| ------- | ---------------- | ------------- | ----------------- |
+| Star    | 2.8 / 4.2        | 10.5 / 10.9   | +3.2% / +10.3%    |
+| Infall  | 3.9 / 5.8        | 11.2 / 11.8   | 0% / −1.0%        |
+| Horizon | 5.5 / 6.6        | 13.2 / 13.8   | +2.7% / +3.1%     |
+
+Absolute budgets pass. The Star 4K relative +5% target is missed (+10.3%): broader always-present gas shades more pixels. Other paired states pass. JSONs: `artifacts/performance/horizon-r4-{1080,4k,pair1080,pair4k}/profile.json`.
+
+**Self-assessment:** L7.5, E8–8.5, overall≈8, not independent acceptance. Remaining limitations: surface-based plasma, stylized axial knots and generous portrait sky. No limiter, engine or catalog-preview changes.

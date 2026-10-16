@@ -361,16 +361,16 @@ test("rework keeps a short-side camera, finite jets and footprint-filtered gas",
     horizon.fragment,
     /gPixelAngle = 2\.0 \/ \(focal \* shortSide\)/,
   );
-  assert.match(horizon.fragment, /gJetLen = min\(gJetLen, radius \* 0\.25\)/);
-  assert.match(horizon.fragment, /y > 1\.4 \* gJetLen/);
+  assert.match(horizon.fragment, /gJetLen = min\(gJetLen, radius \* 0\.36\)/);
+  assert.match(horizon.fragment, /y > 1\.15 \* gJetLen/);
   assert.match(
     horizon.fragment,
-    /1\.0 - smoothstep\(0\.85 \* gJetLen, 1\.4 \* gJetLen, y\)/,
+    /1\.0 - smoothstep\(0\.8 \* gJetLen, 1\.15 \* gJetLen, y\)/,
   );
   assert.match(horizon.fragment, /order < 0\.5 \? 3 : 2/);
   // Finite luminous jets project inside the short side even on close passes.
   for (let r = 15; r <= 48; r += 0.1)
-    assert.ok(((1.4 * Math.min(24, r * 0.25)) / r) * 2.15 < 0.83);
+    assert.ok(((1.15 * Math.min(24, r * 0.36)) / r) * 2.3 < 0.96);
 });
 
 test("slot-3 photon relay is local, count-addressed and authored in all styles", () => {
@@ -407,6 +407,26 @@ test("camera development is smooth and reversible without a close-pass lurch", (
     }
     assert.ok(cameraRadius(0, az) / cameraRadius(2, az) < 1.24);
   }
+});
+
+test("r4 plasma has broad cells, filtered higher images and a directional relay", () => {
+  assert.ok(!horizon.fragment.includes("float ringlets"));
+  assert.match(horizon.fragment, /freq = 3\.0, per = 32\.0/);
+  assert.match(horizon.fragment, /disk \*= exp\(-0\.65 \* order\)/);
+  assert.match(horizon.fragment, /float shear = headR \+ 0\.055 \* headS/);
+  assert.match(horizon.fragment, /1\.0 - smoothstep\(24\.0, 34\.0, r\)/);
+  assert.ok(!horizon.fragment.includes("smoothstep(R_STAR, R_IN"));
+  assert.match(horizon.fragment, /float behind = mod\(da, TAU\)/);
+  assert.match(horizon.fragment, /col \*= 1\.0 - 0\.9 \* relay \* quietRim/);
+  const wake = (a) => Math.exp(-a / 0.65) * (1 - smooth(1.1, 1.65, a));
+  for (let a = 0; a < 1.65; a += 0.01) {
+    assert.ok(wake(a) >= wake(a + 0.01));
+    assert.ok(wake(a) >= 0 && wake(a) <= 1);
+  }
+  assert.equal(wake(1.65), 0);
+  // Star shear follows its 16M Keplerian orbit without raw-time phases.
+  assert.match(horizon.simulation.fragment, /0\.015625/);
+  assert.match(horizon.fragment, /R_STAR = 16\.0/);
 });
 
 test("style limits: kick punch, roll, speed range and gesture periods", () => {
