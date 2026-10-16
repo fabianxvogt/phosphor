@@ -82,7 +82,7 @@ throughput including post, **not venue cadence**. Roots / Petals / Bloom:
 | 1920×1080  | 7.4 / 6.4 / 4.8    | 15.0 / 15.1 / 11.9 |
 | 3840×2160  | 12.6 / 14.6 / 11.3 | 18.3 / 19.6 / 21.2 |
 
-All p50 values meet 8/16 ms budgets. ABBA pairs against main `0e7f2de` reduce
+All p50 values meet 8/16 ms budgets. ABBA pairs against main `26e5f47` reduce
 contention bias: 1080p **2.4→3.3, 2.4→3.9, 2.5→4.2 ms**; 4K **6.2→8.0,
 6.1→9.4, 6.7→11.8 ms**. This conceptual geometry replacement is slower than
 the old terrain: **+38–68% / +29–76%**; the pair tool's +5% gate therefore
