@@ -81,6 +81,37 @@ At least three change→capture→read→critique film rounds, then final defaul
 
 - Round 4 (`garden-r5-round4`): read sheet + rhythm. Packet-local width makes distinct short luminous stem segments readable (S9 and R2/R15), then leaves dark stems; no return to a full neon margin band. Local pollen and blue hero hierarchy remain intact. Read limiter-enabled portrait, reversal, late-time and isolated sequences; no giant entry petals, ground wedges or empty breakdown. Final default/palette captures regenerated after this last shader change. Native DE/EN passed after correcting the i18n command to use its supported `--native-gpu` flag (the initial software run timed out).
 
+## r6
+
+Read independent r5 first: L7/G8.5/E7.5, overall 7.5. Reused r3/garden, merged main, preserved untracked garden-wip.patch. Read the earlier plan and retained r5 implementation/captures; the worktree's r5 addendum is preserved (the main-checkout plan lagged it).
+
+Priority responses before building:
+
+1. Foreground composition: look down slightly farther into the existing chemical meadow, increase near/mid crown scale and retain a readable near bud at low development. Use overlapping shaded lobes in the lower frame, not a brighter ground or extra distant flowers. Keep continuous camera/identity and portrait clearance.
+2. Petal material: replace the coarse three-strip pointed blades with smoothly sampled rounded overlapping lobes, rolled lateral edges, dark attachment/folds and soft blue transmission. Restrict lime to the throat; do not whiten crowns.
+3. Pollen event: remove the analytic ellipse completely. Use irregular chemistry/grain-modulated spill beneath the real opaque flowers. Replace disconnected three-segment sticks with finely sampled tapered continuous curves rooted at the same crown centre, with airborne heads and upward fade. Keep discrete count-selected local releases and recovery.
+4. Secondary rhythm: remove screen-width stem inflation/electric needles; bounded packets remain on curved stems and branch into petal veins. Broaden the visible opening/relaxation silhouette for count-selected crowns without global brightness pumping.
+
+Keep genuine buds→cups→crowns, perspective/overlap/haze/stable horizon, saturated blue/lime/local pink hierarchy and unchanged fuller 2/3/4-bar authored loops (6.5/10.3 driving/accented hits/bar). Three mandatory change/capture/read/critique rounds; inspect individual stills too. No shared engine/limiter/catalog-preview edits. Self-assessment is not acceptance.
+
+### r6 film critiques
+
+- Round 1 (`garden-r6-round1`): read sheet, rhythm and 960×540 peak. Ring gone and local rooted trails improved, but the downward pitch pushed the entire canopy to the top; foreground remained dark, giant tips hit the upper border, and petals still looked pointed/faceted. Rejected as a composition fix. Next: shallower pitch, lower near stems, fuller near lobes with genuinely rounded outer edges, permit shaded lower silhouette overlap and reduce luminous margin traces.
+
+- Round 2 (`garden-r6-round2`): read sheet/rhythm and individual peak. Lower foreground is finally occupied by overlapping near crowns, low buds are readable, and lobes have round edges. Still fails material/event: pollen-selected flowers flatten into oversized pink origami slabs; lime/pink core discs look like hanging beads. Next: smaller cores, gentler curl and bounded opening/size, preserve directional fold shading in pink instead of replacing with flat accent, lift visible pollen higher.
+
+- Round 3 (`garden-r6-round3`): read both sheets and individual peak. Foreground overlap and low buds retained; pink crowns no longer flatten, core beads reduced, ring absent. However the polar-sector petals still look like broad angular leaves on large pink heroes, and pollen stems are too straight at early ages. Next: true elliptical lamina around a curved midrib (not angular sectors), more longitudinal samples while reducing cross samples, stronger early curved drift. This is a material/topology change, not more glow.
+
+- Rounds 4/5 (`garden-r6-round4`, `garden-r6-round5`): read sheets/rhythm and full peak images. True lamina retains a flower identity and all foreground overlap, but the enormous pink crown still exposes pointed sampling and overly long petals. Final refinement: cosine-space 12 longitudinal samples, broaden overlapping cheeks, remove pollen size inflation and cap cohort bow. Preserve dark fold shading and blue transmission. Native preliminary 1080p p50 5.9–6.2 ms leaves room for this topology (not a free-cost claim).
+
+- Final candidate (`garden-r6`, then recaptured after secondary selection fix): read sheet/rhythm, peak, portrait, 12-hour and all three isolated sequences. The isolated cohort still missed nearby heroes because narrow chemical-tone selection can exclude the entire foreground. Replaced only the display selection with independent count-moving near patches, retaining envelope timing, structural identity and every authored step. This directly addresses must-fix 4 rather than claiming the invisible cohort passed. Final material is fuller/rounded with shaded folds; a few strongly tilted petals still appear leaf-like. No independent pass claimed.
+
+### r6 verification result
+
+Final default sheet/rhythm, full peak, Ember/Glacier sheets, portrait/12-hour and isolated gesture sequences read after the near-patch selection correction. Cohort opening/relaxation and branching vein packets now register in the foreground; no ring or lime hanging spikes. Five intermediate change/capture/read rounds plus final refinement and recapture. Remaining: strongly tilted petals can still look leaf-like, far cards repeat and fine pollen is subtle at thumbnail scale. Self-assessed L7.5–8, not independent acceptance.
+
+1001 tests passed, 21 opt-in skips, zero failures; typecheck/build/native DE/EN i18n passed. Verifier: 27 populated captures, zero GL/GPU/non-finite errors, reversal identity and no-float fallback valid, limiter enabled. Native 1080p p50 5.6/6.5/6.5 ms, p95 8.9/9.9/9.8; 4K p50 12.7/13/13, p95 14.5/17.7/14.4. Absolute budgets pass. ABBA against main 7c6257b: +50/+60.5/+56.4% at 1080p and +41/+42.9/+41.3% at 4K: relative gate fails, a real cost for denser curved topology and no reduced-resolution picture. `--rig` is unsupported by look-review-capture (it adds rig internally); subsequent capture commands used its supported options. Full report records the cost, not a passing relative-gate claim.
+
 ## Cost / checks
 
 Main risk: 4096 instances and detailed far images repeat expensive vertex work. Profile early, remove redundant per-vertex noise/integration work before reducing detail. Budgets 8 ms 1080p / 16 ms 4K p50; report pair delta under fleet load. Float-target fallback must keep a garden (not silently hide all flowers). Check low/mid/high energy, all looks, reversal, three palettes, portrait, late time, finite data, GL errors. Full tests/typecheck/i18n/format and family continuity/preset/slot-3 tests required.
