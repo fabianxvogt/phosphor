@@ -5,6 +5,8 @@ import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { catalogLooks } from "../catalog.mjs";
+import { defaultPattern, samplePattern, validatePattern } from "../rhythm.mjs";
+import { rhythmResponse } from "../engine-rhythm.mjs";
 
 const smooth = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -88,7 +90,7 @@ test("the camera stays inside free space for every development, opening and bloc
       const f = frame(dev, open);
       for (let s = 0; s < 6; s += 0.01) {
         const w = (s * 2 * Math.PI) / 6;
-        // The flight impulse may add up to 0.15 units of travel; x is free.
+        // The flight impulse changes forward rate, not free-core clearance.
         const ro = [s, f.ay * Math.sin(2 * w + 1.3), f.az * Math.sin(w)];
         const free = -narrowHall(f, ro);
         worst = Math.min(worst, free);
@@ -118,7 +120,9 @@ test("travel phase and wrap counter integrate without jumps", () => {
     wraps = 0;
   for (let tick = 0; tick < 60 * 600; tick++) {
     const dev = (tick / 6000) % 2;
-    const x = state[0] + ((1 / 60) * 0.8 * 0.85 * (1 + 0.55 * dev)) / 6;
+    const impulse = 0.5 + 0.5 * Math.sin(tick / 30);
+    const surge = 1 + 0.6 * impulse;
+    const x = state[0] + ((1 / 60) * 0.8 * 0.85 * (1 + 0.55 * dev) * surge) / 6;
     const w = Math.floor(x);
     const counter = Math.floor(state[1] * 65535 + 0.5);
     state = [pack(x - w), pack(((counter + w) % 65535) / 65535)];
@@ -172,37 +176,99 @@ test("constant-scale field preserves the full candidate order and suffix bound",
     return Math.min(Math.max(x, y), Math.max(y, z), Math.max(z, x)) - w;
   };
   const map = (p, dev, open, levels, stop) => {
-    const f = frame(dev, open), w = open / 3, w0 = w * mix(1, .6, smooth(1, 2, dev));
-    let holes = narrowHall(f, p), trap = -1;
+    const f = frame(dev, open),
+      w = open / 3,
+      w0 = w * mix(1, 0.6, smooth(1, 2, dev));
+    let holes = narrowHall(f, p),
+      trap = -1;
     for (let i = 0; i < 5 && i < levels; i++) {
       const sc = 3 ** i;
-      const q = p.map((v) => ((v * sc + 1) % 2 + 2) % 2 - 1);
+      const q = p.map((v) => ((((v * sc + 1) % 2) + 2) % 2) - 1);
       const c = cross(q, (i === 0 ? w0 : w) * Math.min(1, levels - i)) / sc;
-      if (c < holes) { holes = c; trap = i; }
+      if (c < holes) {
+        holes = c;
+        trap = i;
+      }
       if (stop && holes <= -w / (sc * 3)) break;
     }
     return [-holes, trap];
   };
   let rng = 9301;
-  const rand = () => ((rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+  const rand = () =>
+    (rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0) / 2 ** 32;
   for (let i = 0; i < 30000; i++) {
     const p = [rand() * 24 - 12, rand() * 40 - 20, rand() * 24 - 12];
-    const dev = rand() * 2, open = .75 + rand() * .45, levels = 2 + rand() * 3;
-    assert.deepEqual(map(p, dev, open, levels, true), map(p, dev, open, levels, false));
+    const dev = rand() * 2,
+      open = 0.75 + rand() * 0.45,
+      levels = 2 + rand() * 3;
+    assert.deepEqual(
+      map(p, dev, open, levels, true),
+      map(p, dev, open, levels, false),
+    );
   }
-  for (const sc of [1, 3, 9, 27, 81]) assert.ok(descent.fragment.includes(`p * ${sc}. + 1.0`));
+  for (const sc of [1, 3, 9, 27, 81])
+    assert.ok(descent.fragment.includes(`p * ${sc}. + 1.0`));
   assert.match(descent.fragment, /d \* 0\.97/);
   assert.match(descent.fragment, /gAoH = .*vec3\(0\.025, 0\.1, 0\.4\)/);
   assert.match(descent.fragment, /2\.0 \* u_resolution\.y \/ shortSide/);
 });
 
-test("descent rhythm gestures use periods 4, 8 and 16", () => {
+test("descent retains legacy gestures and adds authored slot-3 ignition", () => {
   assert.deepEqual(
-    descent.rhythm.map((r) => [r.slot, r.defaults.length]),
+    descent.rhythm.slice(0, 3).map((r) => [r.slot, r.defaults.length]),
     [
       [0, 4],
       [1, 8],
       [2, 16],
     ],
   );
+  const signature = descent.rhythm.find((r) => r.slot === 3);
+  assert.equal(signature.id, "ignition-wave");
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(descent.rhythm, style);
+    validatePattern(pattern, descent.rhythm);
+    const density = pattern.tracks.reduce(
+      (sum, t) =>
+        sum + (t.steps.filter((s) => s > 0).length * 4 * t.division) / t.length,
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density} >= ${minimum}`);
+    const loop = signature.styles[style];
+    assert.ok(loop.steps.filter((s) => s > 0).length >= 2);
+    assert.equal(loop.strength, 1);
+    assert.ok(loop.steps.every((s) => s === 0 || s === 1));
+    for (let beat = 0; beat < 64; beat += 0.125) {
+      const sample = samplePattern(pattern, descent.rhythm, beat, beat - 0.125);
+      for (const values of [sample.values, sample.hits, sample.counts])
+        assert.ok(values.every(Number.isFinite));
+    }
+  }
+  assert.match(descent.fragment, /u_rhythm\.w/);
+  assert.match(descent.fragment, /mod\(u_rhythmCount\.w, 2\.0\)/);
+  assert.match(
+    descent.simulation.fragment,
+    /1\.0 \+ 0\.6 \* clamp\(u_rhythm\.y/,
+  );
+  assert.doesNotMatch(descent.fragment, /state\.x \* 6\.0 \+ u_rhythm\.y/);
+});
+
+test("ignition front is finite, bounded and smoothly monotone at every energy", () => {
+  for (const level of [0, 0.1, 0.5, 0.85, 0.9, 1]) {
+    let previous = -1;
+    for (let i = 0; i <= 100; i++) {
+      const progress = i / 100;
+      const decay = 1 - progress;
+      const envelope = decay * decay * (3 - 2 * decay) * rhythmResponse(level);
+      const value = Math.min(1, Math.max(0, envelope / rhythmResponse(level)));
+      const front = 1 - value;
+      assert.ok(Number.isFinite(front) && front >= 0 && front <= 1);
+      assert.ok(front >= previous - 1e-12);
+      assert.ok(Math.abs(front - smooth(0, 1, progress)) < 1e-8);
+      previous = front;
+    }
+  }
 });
