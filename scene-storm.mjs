@@ -139,6 +139,7 @@ void stLoadState() {
   }
   for (int i = 0; i < 5; ++i) { stCell[i] = stData(128+i,0); stCellR[i] = stData(128+i,1).x; }
   stBase = stData(128,1).y;
+  stSig = stData(133,1).x;
 #else
   stCells(); stEvents();
 #endif
@@ -270,8 +271,6 @@ vec3 stMoonDisc(vec2 view, float pixel, float veil) {
   float crater = 1.0;
   return mix(u_secondary,vec3(1),0.8)*disc*limb*maria*crater*2.1*(1.0-0.55*veil);
 }
-// Far shore of the lake (world z of the waterline at x).
-float stShore(float x) { return -7.0+1.6*sin(x*0.11+0.7)+0.8*sin(x*0.29+2.1); }
 void main() {
   stCameraSetup(); stLoadState(); stCloudSetup();
   float shortSide = min(u_resolution.x, u_resolution.y);
@@ -293,7 +292,10 @@ void main() {
   vec3 moonTint = mix(stSat(u_secondary,1.3),vec3(1),0.3);
   vec3 skyLight = stSat(u_secondary,1.3)*0.12;
   vec3 townLight = stSat(mix(u_primary,u_accent,0.45),1.3)*0.12;
-  vec3 flashLight = mix(vec3(1),stSat(u_accent,1.3),0.65)*2.0;
+  // Ordinary discharges are cold white-violet with a hint of accent; the
+  // accent is kept for the signature strike (stSig), which floods the
+  // storm's interior with it.
+  vec3 flashLight = mix(mix(vec3(0.9,0.94,1.0),stSat(u_secondary,1.2),0.12),stSat(u_accent,1.1),0.18+0.42*stSig)*2.0;
   float phase0 = mix(stHG(0.72,mu),stHG(-0.25,mu),0.3);
   float phase1 = 0.35*mix(stHG(0.36,mu),stHG(-0.125,mu),0.3);
   float phase2 = 0.12*mix(stHG(0.18,mu),stHG(-0.0625,mu),0.3);
@@ -342,7 +344,7 @@ void main() {
         float lobe = stDetail(chart).x*0.68+(fine > 0.0 ? mix(0.5,stDetail(chart*2.47+vec3(1.3,2.9,0.7)).x,fine) : 0.5)*0.32;
         lobe = clamp((lobe-0.25)/0.5,0.0,1.0);
         float full = 3.2*u_params[3];
-        float erode = (1.0-lobe)*0.7*fade*(1.0-0.75*anvilW);
+        float erode = (1.0-lobe)*0.42*fade*(1.0-0.75*anvilW);
         if (anvilW > 0.01) {
           // Anvil: fibrous ice streamers stretched downstream, at output
           // resolution (no lattice steps on the thin sheet's edge).
@@ -351,7 +353,7 @@ void main() {
           erode = mix(erode,0.25+(1.0-fib)*0.95,anvilW*fade);
         }
         sigma = full*smoothstep(erode,erode+0.3,sigma/full);
-        crevice = mix(1.0,0.22+1.0*lobe,fade*(1.0-0.6*anvilW));
+        crevice = mix(1.0,0.5+0.7*smoothstep(0.0,1.0,lobe),fade*(1.0-0.6*anvilW));
       }
       if (sigma <= 0.0) { t += ds; continue; }
       float tau = o.y;
@@ -380,9 +382,11 @@ void main() {
   float level = clamp(u_level,0.0,1.0);
   float groundStrike = smoothstep(1.15,1.75,u_params[0]);
   // Only return strokes feed the broad term: one smooth pulse per event.
-  float broad = (stSlot[0].y+stSlot[1].y)*mix(0.35,1.0,groundStrike)+0.4*stSlot[3].y;
+  // The signature strike always reaches the ground (the lake), any state.
+  float sigGround = stSig > 0.001 ? 1.0 : groundStrike;
+  float broad = stSlot[0].y*mix(0.35,1.0,groundStrike)+stSlot[1].y*mix(0.35,1.0,sigGround)+0.4*stSlot[3].y;
   vec3 ink = mix(u_secondary,vec3(1),0.92);
-  vec3 flashTint = mix(mix(u_secondary,vec3(1),0.8),u_accent,0.32);
+  vec3 flashTint = mix(mix(u_secondary,vec3(1),0.8),u_accent,0.14+0.5*stSig);
   vec3 col = vec3(0), groundAll = vec3(0);
   // Ground, lake and rain are shaded after the march, so none of their
   // state is live inside the loop (register pressure).
@@ -420,27 +424,42 @@ void main() {
     vec3 warm = mix(u_primary,u_secondary,0.2);
     // Far away the lamps fall below a pixel and merge into the town glow.
     float far = smoothstep(0.3,1.5,max(fwidth(lg).x,fwidth(lg).y));
-    groundCol += warm*(pool*mix(0.06,0.3,far)+lights*2.2)*fade*near;
+    groundCol += warm*(pool*mix(0.06,0.3,far)+lights*2.2*(1.0-0.75*far))*fade*near;
     // Return strokes light the plain in a pool around the strike point.
     float flashGround = broad*0.03;
     for (int k = 0; k < 2; ++k) {
       vec2 q = g.xz-stBottom[k].xz;
-      flashGround += stSlot[k].x*groundStrike*2.0/(1.0+dot(q,q)*0.12);
+      flashGround += stSlot[k].x*(k == 1 ? sigGround : groundStrike)*2.0/(1.0+dot(q,q)*0.12);
     }
     groundCol += flashTint*flashGround*0.35*fields*near;
     // Lake from the camera to the far shore.
     water = near*(1.0-smoothstep(-0.25,0.25,g.z-stShore(g.x)));
+    float water0 = water;
     if (water > 0.0) {
       // Static ripple normals with a slow swell; energy raises the chop.
-      vec2 wq = g.xz*vec2(0.7,2.6);
-      vec4 n1 = stNoise(vec3(wq+0.8*vec2(cos(stPhase),sin(stPhase)),9.0));
-      vec4 n2 = vec4(0,0.35*cos(wq.x*2.7+wq.y*0.6+stPhase),0.35*cos(wq.y*2.3-wq.x*0.4-stPhase),0);
-      float chop = mix(0.004,0.022,level)*(1.0-smoothstep(10.0,40.0,dist)*0.6);
-      vec2 slope = (n1.yz*0.75+n2.yz*0.25*2.7)*chop*vec2(0.7,2.6);
+      // Smooth analytic swell: four long-crested wave trains, each faded
+      // out once its wavelength falls below a few pixels (no blocky noise).
+      vec2 slope = vec2(0);
+      float foot = max(fwidth(g.x),fwidth(g.z));
+      for (int w = 0; w < 4; ++w) {
+        float fw = float(w);
+        float ang = 1.35+0.55*(fw-1.5)+0.3*stRand(5,w);
+        vec2 dir = vec2(cos(ang),sin(ang));
+        float k = 1.1*pow(1.9,fw);
+        float ph = dot(g.xz,dir)*k+stTau*stRand(6,w)+stPhase*float(w+1);
+        slope += dir*k*pow(0.55,fw)*cos(ph)*(1.0-smoothstep(0.6,1.6,foot*k));
+      }
+      float chop = mix(0.006,0.02,level)*(1.0-smoothstep(10.0,40.0,dist)*0.6);
+      slope *= chop;
       waterN = normalize(vec3(-slope.x,1.0,-slope.y));
     }
     // Distance haze: the plain recedes into the horizon glow.
     groundCol = mix(groundCol,u_secondary*0.045+mix(u_primary,u_secondary,0.25)*0.01,1.0-exp(-dist/90.0));
+    // Low mist over the far plain, moonlit toward the moon side and warmed
+    // by the towns: the strip between lake and ridge has depth.
+    float mist = (1.0-water0)*smoothstep(2.0,14.0,dist);
+    float moonSide = 0.5+2.5*stHG(0.55,dot(normalize(vec3(rd.x,0.0,rd.z)),normalize(vec3(stMoon.x,0.0,stMoon.z))));
+    groundCol += (moonTint*0.022*moonSide+warm*0.012)*mist*(0.7+0.3*fields);
     groundAll = groundCol;
   }
   vec3 lakeCol = vec3(0);
@@ -522,9 +541,11 @@ void main() {
     float t0 = max(0.0,max(nn.x,max(nn.y,nn.z))), t1 = min(ff.x,min(ff.y,ff.z));
     if (t1 > t0) {
       float len = min(t1-t0,40.0);
-      vec4 o = stVolume(g+r*(t0+len*(0.35+0.3*stIGN(gl_FragCoord.xy))));
+      // Two taps along the chord, averaged: a soft silhouette whose edge
+      // the ripples bend smoothly instead of notching it.
+      vec4 o = 0.5*(stVolume(g+r*(t0+len*0.3))+stVolume(g+r*(t0+len*0.6)));
       float sigma = max(o.x,0.0);
-      lakeTrans = exp(-sigma*len*0.5);
+      lakeTrans = mix(1.0,exp(-sigma*len*0.4),0.88);
       vec3 S = moonTint*0.1*exp(-o.y)+skyLight*o.z*0.6+townLight*(1.0-o.z)*0.8+flashLight*o.w;
       float fresnel = 0.02+0.98*pow(1.0-clamp(-rd.y,0.0,1.0),5.0);
       lakeCol = lakeCol*lakeTrans+S*(1.0-lakeTrans)*fresnel;
@@ -561,6 +582,8 @@ void main() {
     int slot = i/30;
     float power = stSlot[slot].x;
     if (power <= 0.002) continue;
+    // The signature bolt: a thick white-hot core, full accent halo.
+    float sigK = slot == 1 ? stSig : 0.0;
     vec4 endpoints = stData(i,0);
     float len = length(endpoints.zw-endpoints.xy);
     float reach = max(width*9.0,halo);
@@ -571,6 +594,7 @@ void main() {
     int local = i % 30;
     float d = stBoltDistance(view,endpoints.xy,endpoints.zw,int(stSlot[slot].w),local);
     if (d > reach) continue;
+    d /= 1.0+0.45*sigK;
     vec4 a = stData(i,1), b = stData(i,2);
     float rank = local < 18 ? float(local)/18.0 : (4.0 + floor(float(local-18)/4.0)*4.0 + mod(float(local-18),4.0)) / 18.0;
     float grown = 1.0-smoothstep(stSlot[slot].z*1.02-0.04,stSlot[slot].z*1.02,rank);
@@ -585,13 +609,14 @@ void main() {
     float glow = exp(-sq(d / (width * 4.0*taper)));
     // Windowed inside the candidate reach: no disc edge at the cut-off.
     float wide = exp(-sq(2.0*d / (halo*mix(0.6,1.0,taper))))*(1.0-smoothstep(0.6*reach,reach,d));
-    vec3 light = ink*(core*7.0+glow*0.8)*clear + haloTint*wide*(0.35*occlusion+0.9*occlusion*(1.0-occlusion));
-    bolts += light * a.w * branch * power * grown;
+    vec3 hTint = mix(haloTint,stSat(u_accent,1.35),sigK);
+    vec3 light = ink*(core*7.0+glow*(0.8+0.6*sigK))*clear + hTint*(wide*(0.35*occlusion+0.9*occlusion*(1.0-occlusion))*(1.0+sigK)+glow*0.5*sigK*clear);
+    bolts += light * a.w * mix(branch,1.0,sigK) * power * grown;
     }
   }
   // Attachment flash where a ground strike meets the plain.
   for (int k = 0; k < 2; ++k) {
-    float power = stSlot[k].x*groundStrike;
+    float power = stSlot[k].x*(k == 1 ? sigGround : groundStrike);
     if (power <= 0.002 || stSlot[k].z < 0.98) continue;
     vec3 q = stBottom[k]-stEye;
     float qz = dot(q,stF);
@@ -599,7 +624,8 @@ void main() {
     vec2 pv = vec2(dot(q,stR),dot(q,stU))/qz;
     vec2 dv = view-pv;
     float dd = dot(dv,dv);
-    bolts += mix(ink,u_accent,0.35)*power*(exp(-dd/sq(width*3.0))*3.0+exp(-dd/sq(halo*0.8))*0.35);
+    float sk = k == 1 ? stSig : 0.0;
+    bolts += mix(ink,u_accent,0.35+0.3*sk)*power*(exp(-dd/sq(width*3.0))*3.0+exp(-dd/sq(halo*(0.8+0.5*sk)))*(0.35+0.15*sk));
   }
   // Mirrored channels in the lake (exact mirrored projections, rippled).
   if (water > 0.0) {
@@ -622,7 +648,7 @@ void main() {
         int i = channel*16+bit;
         if (!present || i >= 60) continue;
         int slot = i/30;
-        float power = stSlot[slot].x*groundStrike;
+        float power = stSlot[slot].x*(slot == 1 ? sigGround : groundStrike);
         if (power <= 0.002) continue;
         vec4 e = stMirror(i);
         float len = length(e.zw-e.xy);
@@ -641,6 +667,17 @@ void main() {
       }
     }
     lakeCol += mirror*0.75;
+    // The signature strike's attachment glow streaks down the water below
+    // it (local, ramps with the stroke).
+    if (stSig > 0.001 && stSlot[1].z > 0.98) {
+      vec3 q = stBottom[1]-stEye;
+      float qz = dot(q,stF);
+      if (qz > 0.5) {
+        vec2 dv = rv-vec2(dot(q,stR),dot(q,stU))/qz;
+        float streak = exp(-sq(dv.x/(0.012+0.02*abs(dv.y))))*exp(min(dv.y,0.0)/0.12)*step(dv.y,0.01);
+        lakeCol += mix(ink,stSat(u_accent,1.3),0.55)*stSlot[1].x*stSig*streak*1.6;
+      }
+    }
   }
   col = mix(col,lakeCol,water);
   col += bolts;
@@ -735,8 +772,8 @@ void main() {
     familyEffect(
       "branch-corona",
       1,
-      "Branch corona",
-      "A small ionisation glow expands around a persistent leader root.",
+      "Anvil crawler",
+      "Spider lightning creeps through the bank and along the anvil's underside.",
       { period: 8, strength: 0.6, duration: 2, steps: "X.......", styles: {
         restrained: { steps: "...x.... | .......X", division: 2, strength: 0.5, duration: 1.5 },
         driving: { steps: "...X.... | .......x | .....X.. | ........", division: 2, strength: 0.74, duration: 0.9 },
@@ -752,6 +789,20 @@ void main() {
         restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.55, duration: 2 },
         driving: { steps: "........ | ......x. | ........ | .......X", division: 2, strength: 0.8, duration: 1.2 },
         accented: { steps: "................ | ..............x. | ................ | .............X.X", division: 4, strength: 0.95, duration: 0.35 },
+      } },
+    ),
+    // Signature: a giant accent-coloured strike from the top of the storm
+    // into the lake. Full-strength steps only (the shader reads its time
+    // from the envelope at nominal 1); styles differ in placement and tail.
+    familyEffect(
+      "bolt-from-the-blue",
+      3,
+      "Bolt from the blue",
+      "On the accent a giant strike leaves the top of the storm, crosses clear air and lands in the lake, lighting the cloud from inside in the accent colour.",
+      { period: 16, strength: 1, duration: 1.4, steps: "......X. | ........ | ......X. | ....X.X.", division: 2, styles: {
+        restrained: { steps: "........ | ........ | ........ | ......X. | ........ | ........ | ....X... | ......X.", division: 2, strength: 1, duration: 1.8 },
+        driving: { steps: "......X. | ........ | ......X. | ....X.X.", division: 2, strength: 1, duration: 1.4 },
+        accented: { steps: "..............X. | ...X............ | ......X.......X. | ...........X..X.", division: 4, strength: 1, duration: 0.9 },
       } },
     ),
   ],

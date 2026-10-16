@@ -3,7 +3,9 @@
 //
 // Four discharge slots: 0 stepped return (rhythm z), 1 autonomous storm life
 // (beat grid, energy-driven), 2 crawler (rhythm y), 3 buried discharge
-// (rhythm x). Each event picks a seeded tree shape and a seeded site from
+// (rhythm x). Rhythm w (signature, "bolt from the blue") takes over slot 1
+// while its envelope runs: a giant strike from the anvil into the lake.
+// Each event picks a seeded tree shape and a seeded site from
 // (seed, slot, event index); development only moves the endpoints smoothly.
 export const stormData = `
 float stRise, stSuper, stPhase, stCamera, stFocal;
@@ -11,8 +13,12 @@ vec3 stEye, stF, stR, stU, stMoon, stLight;
 // x local brightness (stroke + restrikes), y broad flash (return stroke only),
 // z leader progress 0..1, w tree identity used by stRand.
 vec4 stSlot[4];
+// Signature strike envelope (rhythm w, 0..1) and its event flag.
+float stSig = 0.0, stSigOn = 0.0;
 vec3 stTop[4], stBottom[4], stSide[4], stDepth[4];
 const float stTau = 6.28318530718;
+// Far shore of the lake (world z of the waterline at x).
+float stShore(float x) { return -7.0+1.6*sin(x*0.11+0.7)+0.8*sin(x*0.29+2.1); }
 uint stHash(uint x) {
   x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16;
   return x;
@@ -84,7 +90,9 @@ void stEvent(int slot, float index, float u, float gain) {
   int id = int(mod(index,4096.0));
   float shape = floor(stRand(40+slot,id)*12.0);
   float restrikes = floor(stRand(50+slot,id)*3.0);
-  float ic = slot >= 2 ? 1.0 : 1.0-smoothstep(1.15,1.75,u_params[0]);
+  bool sig = slot == 1 && stSigOn > 0.5;
+  if (sig) restrikes = 2.0;
+  float ic = sig ? 0.0 : slot >= 2 ? 1.0 : 1.0-smoothstep(1.15,1.75,u_params[0]);
   vec3 s = stStroke(u,restrikes,slot==2 ? 1.0 : 0.0,ic,id,slot);
   stSlot[slot] = vec4(s.x*gain, s.y*gain, s.z, float(slot*16)+shape);
   // Site: a seeded convective cell, weighted toward the active towers.
@@ -113,6 +121,20 @@ void stEvent(int slot, float index, float u, float gain) {
     vec3 ground = vec3(root.x+lean, 0.0, root.z+lean*0.4-1.5*stSuper);
     stTop[slot] = root;
     stBottom[slot] = mix(inCloud,ground,smoothstep(1.15,1.75,u_params[0]));
+    if (sig) {
+      // Bolt from the blue: leaves the top of the storm's outer cell (the
+      // anvil's forward edge in the supercell), crosses clear air and lands
+      // in the lake in front of the storm, alternating sides per hit.
+      float side = mod(index,2.0) < 0.5 ? -1.0 : 1.0;
+      int edge = side < 0.0 ? 1 : 3;
+      vec4 e = stCell[edge];
+      vec3 cellTop = vec3(e.x+side*stCellR[edge]*0.4, e.z+(e.w-e.z)*0.8, e.y-stCellR[edge]*0.5);
+      vec3 anvilTop = vec3(-3.0+side*mix(5.0,7.0,stRand(93,id)), stCell[2].w*0.9-0.2, 4.5);
+      stTop[slot] = mix(cellTop,anvilTop,stSuper);
+      // Lands on the plain beside the storm, out in clear air; it doubles
+      // in the lake and its attachment glow streaks across the water.
+      stBottom[slot] = vec3(stTop[slot].x+side*mix(2.5,4.5,stRand(95,id)), 0.0, stTop[slot].z-mix(2.0,4.0,stRand(94,id)));
+    }
   } else if (slot == 2) {
     // Crawler: buried cloud-to-cloud inside the bank and towers, then
     // one-sided spider lightning across the anvil underside (a seeded
@@ -135,6 +157,10 @@ void stEvent(int slot, float index, float u, float gain) {
   vec3 side = cross(axis,slot==2 ? vec3(0,1,0) : vec3(0,0,1));
   side = dot(side,side) > 1e-6 ? normalize(side) : vec3(1,0,0);
   vec3 depth = normalize(cross(side,axis+vec3(0,1e-4,0)));
+  if (sig) {
+    side = normalize(vec3(stBottom[slot].z-stTop[slot].z,0.0,stTop[slot].x-stBottom[slot].x)+vec3(1e-4,0,0));
+    depth = normalize(cross(side,axis));
+  }
   if (slot <= 1) {
     // Horizontal jitter only: the trunk ends exactly on the ground.
     side = normalize(vec3(side.x,0.0,side.z)+vec3(1e-4,0,0));
@@ -169,6 +195,16 @@ void stEvents() {
   } else stEvent(3, u_rhythmCount.x, u3, 0.9);
   // 1: autonomous storm life on a one-beat grid; energy sets the rate
   // (rare strikes at 0.1, nearly every beat at 0.9 in the supercell).
+  // Rhythm w, the signature: while its envelope runs the slot carries the
+  // bolt from the blue instead.
+  float uw = stEnvelopeTime(u_rhythm.w,1.0);
+  if (uw < 1.0) {
+    stSig = 1.0-smoothstep(0.35,1.0,uw);
+    stSigOn = 1.0;
+    stEvent(1, 1024.0+mod(u_rhythmCount.w,1024.0), uw, 1.5);
+    stSigOn = 0.0;
+    return;
+  }
   float k = floor(u_beat);
   int id = int(mod(k,4096.0));
   float start = k + 0.25*stRand(30,id);
@@ -233,6 +269,7 @@ vec4 stState(int i, int row) {
   if (i < 128) { int k = i-124; return row == 0 ? vec4(stSide[k],0) : row == 1 ? vec4(stDepth[k],0) : vec4(0); }
   if (i < 133) { int k = i-128; return row == 0 ? stCell[k] : row == 1 ? vec4(stCellR[k],stBase,0,0) : vec4(0); }
   if (i == 133 && row == 0) return vec4(stShaftFlash(0),stShaftFlash(1),stShaftFlash(2),0);
+  if (i == 133 && row == 1) return vec4(stSig,0,0,0);
   return vec4(0);
 }
 vec2 stProject(vec3 p) {

@@ -560,11 +560,24 @@ test("eight complete bounded presets register one continuous three-state world",
       ["buried-discharge", 0, 4],
       ["branch-corona", 1, 8],
       ["stepped-return", 2, 16],
+      ["bolt-from-the-blue", 3, 32],
     ],
   );
   assert.match(stormData, /u_rhythm\.x/);
   assert.match(stormData, /u_rhythm\.y/);
   assert.match(stormData, /u_rhythm\.z/);
+  assert.match(stormData, /u_rhythm\.w/);
+  // Signature slot 3: every style is authored, has at least two hits, and
+  // uses full-strength steps only (the shader inverts its envelope at
+  // nominal 1, so the strike lands on the step).
+  const signature = storm.rhythm.find((r) => r.slot === 3);
+  for (const style of ["restrained", "driving", "accented"]) {
+    const loop = signature.styles[style];
+    assert.ok(loop, style);
+    const hits = loop.steps.filter((v) => v > 0);
+    assert.ok(hits.length >= 2, style);
+    assert.ok(hits.every((v) => v === 1) && loop.strength === 1, style);
+  }
 });
 
 test("cloud and camera clocks remain continuous at reversals and late energy changes", () => {
