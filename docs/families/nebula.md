@@ -17,6 +17,19 @@ Wave 5 was judged ~7/10 by L0, and ~6/10 by this lane's own review. Its gas was 
 - **Depth:** 1,536 near-field motes (an eighth of the dormant rows) form soft gas wisps and defocused star discs in a shell between the orbit and the form. Only those within about 3 units of the camera draw, so they pass with real parallax. The distant star field, per-star dust extinction and depth fog remain. Stars whose sight line passes behind the bulge or hot core are veiled, so they never shine through it.
 - **Palette:** primary = gas (web filaments, inter-arm glow, shell limb); secondary = young stars and arms, Nova filaments; primary→white = hot cores, bulge, pulsar; accent only for HII knots, the pulsar jets and the forward-shock rim. Warm (Ember) and cold (Glacier, Arctic) palettes both read as intentional.
 
+## Round 2 after L0 review (2026-10-16)
+
+L0 scored round 1 about 6.5/10. Dust read as a strip of scribbled sticks, the 0→1 morph as two pictures stacked, and Nova as a glass soap bubble with a straight line through it. Changes:
+
+- **Analytic filament web.** There are 36 seeded nodes; node 0 is the nucleus at the origin. Each node links to its nearest heavier node, giving a tree that drains into the nucleus (`webGraph`), and to its nearest other node that is neither its parent nor its child (loops). The simulation writes the links into spare state texels (x = 129 + 8i, last row). Each of the 70 edges is a cubic Bézier with two seeded control points, so filaments curve, often in an S.
+- **Filaments as particle line sprites.** The 7/8 of the dormant rows not used by motes draw 150 soft sprites per edge plus the 35 nodes, about 10.5k points. Each sprite has a core, a gas sheath at 8× the core width, a pixel floor, and a core that never narrows below the sprite spacing, so near filaments don't bead. Fog falls off with depth. Pulses run along each filament into its node, and the tracer particles stream along the same edges. An earlier per-pixel fragment loop over all edges cost about 15 ms at 1080p and was replaced.
+- **The grid now carries only the diffuse sheets** between the filaments, at low weight.
+- **Winding morph.** `webMorph` turns the inner web furthest, by up to `6e^(−0.8r) + 0.3` rad. The sense is the arms' sense (θ grows outward), and the web contracts by 0.62 and flattens. Each child end retracts toward its node while the filament colour shifts to the arm colour, so the web visibly winds up into the disk. The disk fades in over p = 0.15…0.85, and the filaments fade out over p = 0.35…1.
+- **Nova remnant.** The edge is thick and torn: its radius wanders with the direction map, and patches and holes break it up. The radial Rayleigh–Taylor fingers are in the secondary colour with accent knots and drift outward slowly. A mild bipolar elongation (0.22) persists at the top state. The interior synchrotron glow is in the primary colour (σ = 0.62 R). The pulsar jet is short and soft, about 0.13 R; jet stars only travel 0.39. The fresnel rim and the long line are gone, and the analytic Sedov–Taylor front is now faint.
+- **Spiral framing:** distance 2.3, elevation 0.9.
+- **Camera spring:** ω = 1.2/s, |v| ≤ 0.25/s. A test holds the view turn under ¼ short side per second and the dolly under 0.4 per second for 0→1, 1→2 and 2→0 at 1.5× motion speed.
+- **Jitter:** static interleaved-gradient jitter replaces the per-frame jitter, so there is no temporal shimmer on LED walls.
+
 ## Energy grammar
 
 Energy changes structure, not overall brightness:
@@ -61,11 +74,11 @@ Native headless Chrome / ANGLE Metal / Apple M3 Pro. `profile-rework-pair.mjs --
 
 | State | 1080p main → final p50 (ratio) | 4K main → final p50 (ratio) | Stock `profile-families` p50 1080p / 4K |
 | --- | --- | --- | --- |
-| Dust | 2.5 → **5.4 ms** (×2.16) | 6.1 → **11.3 ms** (×1.85) | 5.0 / 11.6 ms |
-| Spiral | 2.5 → **3.9 ms** (×1.56) | 5.6 → **10.0 ms** (×1.79) | 4.4 / 11.7 ms |
-| Nova | 2.2 → **4.9 ms** (×2.23) | 5.9 → **11.2 ms** (×1.90) | 4.9 / 9.7 ms |
+| Dust | 2.2 → **5.0 ms** (×2.27) | 5.5 → **11.5 ms** (×2.09) | 5.1 / 11.6 ms |
+| Spiral | 2.0 → **3.9 ms** (×1.95) | 5.0 → **8.8 ms** (×1.76) | 4.2 / 9.2 ms |
+| Nova | 2.0 → **4.3 ms** (×2.15) | 4.9 → **9.0 ms** (×1.84) | 4.5 / 9.3 ms |
 
-The load average was 65–90 during these runs, from four other lanes on the same GPU. On a quiet machine main measures about 1.9–2.0 ms at 1080p, so the ratios put the final at about 4–4.5 ms at 1080p and 10–11 ms at 4K. Targets were ≤ 5 ms at 1080p and ≤ 12 ms at 4K (16 ms ceiling). Optimisation steps, each A/B-measured against its predecessor:
+Round-2 numbers. The load average was about 33 during these runs, from four other lanes on the same GPU. On a quiet machine main measures about 1.9–2.0 ms at 1080p, so the ratios put the final at about 4–4.5 ms at 1080p and 10–11 ms at 4K. Targets were ≤ 5 ms at 1080p and ≤ 12 ms at 4K (16 ms ceiling). Optimisation steps, each A/B-measured against its predecessor:
 
 - mode table in state texels (pair ×0.65–0.9);
 - single read of the mode table per web texel;
@@ -77,7 +90,7 @@ The load average was 65–90 during these runs, from four other lanes on the sam
 
 ## Verification
 
-- `tests/nebula.test.mjs`: **17/17 pass**. The suite keeps the gradient, ellipse/crowding, identity, development and time continuity, ψ reversal, Sedov–Taylor, jets and exact dust-column tests. New CPU references cover:
+- `tests/nebula.test.mjs`: **18/18 pass** (round 2 adds the filament graph, Bézier edges, winding sense and sprite budget). The suite keeps the gradient, ellipse/crowding, identity, development and time continuity, ψ reversal, Sedov–Taylor, jets and exact dust-column tests. New CPU references cover:
   - the nucleus/pulsar at the seeded node for any clock;
   - the spare-texel layout of the mode table and camera spring;
   - bipolar-to-spherical shell growth, and no `ignite` term anywhere;
@@ -85,13 +98,13 @@ The load average was 65–90 during these runs, from four other lanes on the sam
   - a camera that stays outside web, disk and shell for every fader position;
   - tracer streaming that restarts only while dark;
   - atlas size, format and fallbacks.
-- **Full suite:** `npm test` 912 pass, 21 skipped, 1 failure. The failure is the expected stale baked preview of the re-authored looks, which is L0's rebake. Typecheck passes; i18n smoke passes de/en on the native GPU.
+- **Full suite:** `npm test` 913 pass, 21 skipped, 1 failure. The failure is the expected stale baked preview of the re-authored looks, which is L0's rebake. Typecheck passes; i18n smoke passes de/en on the native GPU.
 - **Time:** `check-time-wrap.mjs --families nebula` finds no seams at 3600 s, 4096 s or 12 h.
 - **Health:** every profile row reports glError, gpuErrors and nonFinite = 0.
 
 ## Honest limits
 
-- Dust filaments are soft at 4K close-ups, limited by the 96×48×96 atlas.
-- Jittered marching shows fine grain in stills; it averages in motion.
-- Nova is a convincing remnant bubble, but its silhouette is still a smooth sphere-like shell.
+- Dust filaments are a seeded node graph (schematic), not the Zel'dovich caustics themselves; the caustic field survives only as the diffuse sheets.
+- Static jitter shows as fine fixed grain in the diffuse gas.
+- Nova's fingers are mostly radial; it reads as a remnant, but it is less tangled than the Crab.
 - The 4K budget is tight under fleet load.
