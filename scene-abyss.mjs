@@ -85,12 +85,12 @@ DCam dCamera(float dev, float kick) {
   f = normalize(f * cos(pitch) + u * sin(pitch));
   // Narrow screens look slightly towards the sentinel rather than cropping it.
   float portrait = 1. - dSS(.65, 1.2, u_resolution.x / u_resolution.y);
-  float yaw = portrait * .2 * (dRnd(0u, 2u) < .5 ? -1. : 1.) * (1. - dSS(1., 2., dev));
+  float yaw = portrait * .1 * (dRnd(0u, 2u) < .5 ? -1. : 1.) * (1. - dSS(1., 2., dev));
   f = normalize(f * cos(yaw) + r * sin(yaw));
   c.r = normalize(cross(vec3(0., 1., 0.), f));
   c.u = cross(f, c.r);
   c.f = f;
-  c.F = 1.45 * (1. + .02 * kick);
+  c.F = 1.45 * (1. - .22 * portrait) * (1. + .02 * kick);
   return c;
 }
 vec4 dProject(DCam c, vec3 p) {
@@ -121,7 +121,7 @@ DJelly dJelly(int i, float dev, float Z, float swarmParam, float rhythmX) {
     bool lone = i < 5;
     // Five lanterns at distinct depths compose the sparse opening.
     float initial = float(dHash(u_seedBits)) * (D_PERIOD / 4294967296.);
-    float z = lone ? mod(initial + (i == 0 ? 9. : i == 1 ? 17. : i == 2 ? 25. : i == 3 ? 38. : 52.), D_PERIOD)
+    float z = lone ? mod(initial + (i == 0 ? 9. : i == 1 ? 11.5 : i == 2 ? 19.5 : i == 3 ? 38. : 52.), D_PERIOD)
       : fract(float(i) * .618034 + .37 + .05 * dRnd(id, 1u)) * D_PERIOD;
     float h5 = dRnd(id, 5u), h3 = dRnd(id, 3u);
     j.R = lone ? 1.25 + .2 * h5 : .3 + .45 * h5 * h5;
@@ -146,7 +146,7 @@ DJelly dJelly(int i, float dev, float Z, float swarmParam, float rhythmX) {
     float boost = clamp(swarmParam - .5, -.5, .5) * .5 * dSS(.7, 1.3, dev);
     j.reveal = dSS(birth - .12, birth + .05, dev + boost);
   }
-  j.L = j.R * (3.2 + 3. * dRnd(id, 7u));
+  j.L = j.R * (i < 5 ? 2.4 + 1.4 * dRnd(id, 7u) : 3.2 + 3. * dRnd(id, 7u));
   j.h = dRnd(id, 0u);
   float h = j.h;
   vec3 drift = vec3(.45 * dWave(S, 37u, h), .3 * dWave(S, 29u, h * 1.7), .7 * dWave(S, 23u, h * 2.3));
@@ -233,10 +233,10 @@ float dCaustic(vec2 p, uint S) {
 // Water colour seen along a direction: near-black depth, surface light far
 // above (Reef) and the reef's glow haze below the horizon.
 vec3 dWater(vec3 rd, float dev) {
-  vec3 deep = mix(u_secondary, u_primary, .3) * .009;
+  vec3 deep = mix(u_secondary, u_primary, .3) * .016;
   vec3 col = deep * (.8 + .9 * dSS(-.4, .7, rd.y));
   col += mix(u_secondary, u_primary, .5) * .012 * dSS(.3, 1.2, dev) * dSS(-.2, .9, rd.y);
-  float sun = dSS(.9, 1.9, dev);
+  float sun = .4 + .6 * dSS(.9, 1.9, dev);
   col += mix(u_secondary, vec3(1.), .3) * .04 * sun * pow(dSS(-.1, 1., rd.y), 1.8);
   col += mix(u_primary, u_secondary, .4) * .018 * dSS(1.1, 2., dev) * dSS(.08, -.25, rd.y) * dSS(-1., -.15, rd.y);
   return col;
@@ -269,13 +269,20 @@ float dWaveShell(vec3 p, float Z, float dev, float react, float width) {
 float dWaveLight(vec3 p, float Z, float dev, float react) { return dWaveShell(p, Z, dev, react, .55); }
 // Slot 3: a latched, finite-speed living-light relay, not a frame flash.
 // Age survives the short sequencer envelope; event count alternates its side.
-float dRelay(vec3 p) {
-  vec4 relay = texelFetch(u_state, ivec2(14, 0), 0);
+float dRelayFront(vec3 p, int slot) {
+  vec4 relay = texelFetch(u_state, ivec2(slot, 0), 0);
   float age = dUnpack16(relay.rg) * 3.;
   float side = relay.a < .5 ? -1. : 1.;
-  float front = -11. + 15. * age;
-  float x = (p.x * side + .18 * p.z - front) / 1.25;
-  return exp(-x * x) * relay.b * (1. - dSS(1.25, 2., age));
+  // A diagonal biological path climbs off the reef into the water column.
+  float front = -2. + 11. * age;
+  float path = .55 * p.x * side + 1.6 * (p.y - D_FLOOR) + .12 * p.z;
+  float x = (path - front) / .7;
+  float head = exp(-x * x);
+  float wake = .18 * exp(-pow((path - front + 1.6) / 1.8, 2.));
+  return (head + wake) * relay.b * (1. - dSS(1.5, 2.3, age));
+}
+float dRelay(vec3 p) {
+  return max(dRelayFront(p, 14), dRelayFront(p, 15));
 }
 // ---- plankton (simulation and particles share the placement) ----
 vec3 dPlankton(int idx, float dev, float Z, uint S) {
@@ -291,17 +298,27 @@ vec3 dPlankton(int idx, float dev, float Z, uint S) {
   // Slow swirl of the cloud around its centre.
   float sw = .5 * dWave(S, 11u, dRnd(cl, 4u));
   off.xz = mat2(cos(sw), -sin(sw), sin(sw), cos(sw)) * off.xz;
+  // Narrow sinuous currents leave water between clouds, not spherical confetti.
+  off.xy *= .32;
+  off.x += .5 * sin(off.z * 1.7 + dRnd(cl, 4u) * D_TAU);
+  off.y += .22 * sin(off.z * 2.1 + dRnd(cl, 2u) * D_TAU);
   vec3 p1 = cc + off;
   vec3 p2 = h6 < .45
     ? vec3(p1.x + (h1 - .5) * 3., 0., p1.z + (h3 - .5) * 3.)
     : cc + off * 1.35;
   if (h6 < .45) p2.y = dFloorY(p2.x, p2.z) + .25 + 1.4 * h2 * h2;
+  if (h6 > .82) {
+    // A seeded helical current physically joins the reef to the third lantern.
+    DJelly lantern = dJelly(2, dev, Z, .5, 0.);
+    float turn = h2 * D_TAU * 1.8 + dCycle(S, 11u) * D_TAU;
+    p2 = vec3(lantern.c.x + .7 * cos(turn), mix(D_FLOOR + .2, lantern.c.y, h2), lantern.c.z + .7 * sin(turn));
+  }
   vec3 p = mix(mix(p0, p1, dSS(.3, 1., dev)), p2, dSS(1.2, 1.9, dev));
   p += vec3(.25 * dWave(S, 43u, h1), .15 * dWave(S, 47u, h2), .25 * dWave(S, 41u, h3));
   p.z = dRel(p.z, Z);
   return p;
 }
-bool dIsPlankton(int idx) { return idx >= D_RESERVED + D_LURES && dRnd(uint(idx), 40u) >= .5; }
+bool dIsPlankton(int idx) { return idx >= D_RESERVED + D_LURES && dRnd(uint(idx), 40u) >= .78; }
 `;
 
 const meshUniforms = `
@@ -328,7 +345,7 @@ out vec3 v_q;
 out vec3 v_n;
 out vec4 v_l;
 out vec3 v_w;
-flat out vec4 v_i;
+out vec4 v_i;
 out float v_fade;
 const vec4 HIDDEN = vec4(0., 0., 2., 1.);
 float dGrow(float birth, float dev) {
@@ -397,14 +414,14 @@ void main() {
         vec3 top = root + up * H + bendDir * bendAmp * H;
         float k = a_l.x, t = a_l.y;
         float phi = D_TAU * k / 8. + yaw;
-        float open = .6 + .2 * dWave(S, 53u, rnd) + .3 * v_i.w;
+        float open = .6 + .2 * dWave(S, 53u, rnd) + .15 * v_i.w + .16 * sin(k * 13. + rnd * 71.);
         vec3 dk = vec3(cos(phi), 0., sin(phi));
         float Lp = (.1 + .12 * a_r.w) * g;
         vec3 dir = dk * sin(open) + up * cos(open);
-        p = top + dir * t * Lp - up * t * t * Lp * .4 * sin(open);
+        p = top + dir * t * Lp - up * t * t * Lp * .75 * sin(open) + bendDir * t * t * Lp * .25;
         vec3 tan = dir - up * 2. * t * .4 * sin(open);
         p.z += shift;
-        gl_Position = dRibbon(c, p, normalize(tan), a_l.z, .011, v_fade);
+        gl_Position = dRibbon(c, p, normalize(tan), a_l.z, .024 * (1. - .8 * t), v_fade);
         v_q = p - c.p;
         v_l = vec4(t, a_l.z, 0., 0.);
         return;
@@ -420,28 +437,30 @@ void main() {
           v_l = vec4(s, a_l.z, 0., 0.);
           return;
         }
-        float leaf = a_l.y, side = a_l.z, corner = a_l.w;
-        float ca = mod(corner, 2.), cb = floor(corner * .5);
-        float sj = .3 + .7 * (leaf + .5) / 12.;
+        float leaf = a_l.y, side = a_l.z;
+        float ca = a_l.x - 1., cb = a_l.w;
+        float irregular = sin(leaf * 17.3 + rnd * 93.);
+        float sj = .23 + .74 * (leaf + .5 + .23 * side * irregular) / 12.;
         vec3 base = root + up * sj * H + bendDir * bendAmp * H * sj * sj;
-        vec3 dir = normalize(pen * side + up * .55 + bendDir * .15 * bendAmp * 10.);
-        float ll = a_s.z * g * (.3 + .7 * sin(D_PI * (leaf + .5) / 12.));
+        vec3 dir = normalize(pen * side + up * (.3 + .32 * irregular) + bendDir * (.28 * sin(leaf * 2.7 + rnd * 51.) + bendAmp));
+        float ll = a_s.z * g * (.3 + .7 * sin(D_PI * (leaf + .5) / 12.)) * (.75 + .25 * irregular);
         float lw = .7 * H / 12.;
         p = base + dir * ll * ca + up * lw * (cb - .5) * (1. - .55 * ca);
-        v_n = normalize(cross(dir, up));
+        p += bendDir * .055 * H * sin(ca * D_PI) * sin(cb * D_PI + leaf);
+        v_n = normalize(cross(dir, up) + up * .35 * (cb - .5) + bendDir * .3 * ca);
         v_l = vec4(sj, ca, cb, leaf);
         v_i.x = 3.5; // leaf
       } else {
-        // Gorgonian fan: a sector of a disc, bending in the current.
-        float th = (a_l.x * 2. - 1.) * a_s.x, r = a_l.y * H;
-        vec3 right = vec3(cos(yaw), 0., sin(yaw)), nrm = vec3(-sin(yaw), 0., cos(yaw));
-        float cup = .22 * H * a_l.y * a_l.y * cos(th * 2.3 + rnd);
-        p = root + (right * sin(th) + up * cos(th)) * r + nrm * (bendAmp * 1.3 * H * a_l.y * a_l.y + cup);
-        v_n = normalize(nrm - (right * sin(th) + up * cos(th)) * .4 * a_l.y);
-        v_l = vec4(a_l.xy, a_s.x, H);
+        // Opaque branching tubes: real round backs and seeded depth excursions.
+        vec3 right = vec3(cos(yaw), 0., sin(yaw)), back = vec3(-sin(yaw), 0., cos(yaw));
+        p = root + (right * a_l.x + up * a_l.y + back * a_l.z) * H;
+        p += bendDir * bendAmp * H * a_l.y * a_l.y;
+        v_n = right * a_s.x + up * a_s.z + back * a_s.w;
+        v_l = vec4(a_l.y, a_l.w, a_k.y, H);
       }
     }
     p.z += shift;
+    if (kind > .5) v_i.w = max(v_i.w * .3, dRelay(p) * 1.8);
     v_q = p - c.p;
     gl_Position = dProject(c, p);
     return;
@@ -551,12 +570,12 @@ void main() {
   float u = a_l.x, v = a_l.y * D_TAU;
   p = dBell(j, u, v);
   float uu = max(u, .03);
-  vec3 du = dBell(j, min(uu + .02, 1.), v) - dBell(j, uu, v);
+  vec3 du = dBell(j, min(uu + .02, 1.), v) - dBell(j, max(uu - .02, .01), v);
   vec3 dv = dBell(j, uu, v + .03) - dBell(j, uu, v);
   vec3 n = normalize(cross(dv, du));
   if (dot(n, p - (j.c - j.ax * j.R * .6)) < 0.) n = -n;
   v_n = n;
-  v_l = vec4(u, a_l.y, dCon(j, .08 * u), flash);
+  v_l = vec4(u, a_l.y, dCon(j, .08 * u), max(flash * .25, dRelay(p) * 1.5));
   v_q = p - c.p;
   gl_Position = dProject(c, p);
 }`;
@@ -570,7 +589,7 @@ in vec3 v_q;
 in vec3 v_n;
 in vec4 v_l;
 in vec3 v_w;
-flat in vec4 v_i;
+in vec4 v_i;
 in float v_fade;
 out vec4 outColor;
 float h1(float x) { return fract(sin(x * 12.9898) * 43758.5453); }
@@ -607,8 +626,8 @@ void main() {
       // Tube worm: dark banded tube lit by its own crown.
       float s = v_l.x, H = v_l.y;
       float band = .75 + .25 * smoothstep(.3, .5, abs(fract(s * H * 16.) - .5));
-      col = mix(u_secondary, vec3(.7), .55) * .045 * band * (.35 + .65 * max(N.y + .5, 0.));
-      col += dPal(.62 + .3 * rnd) * (.03 + .4 * pow(s, 4.)) * v_i.z * glowP * (1. + 2. * v_i.w);
+      col = mix(u_secondary, u_primary, .3) * .055 * band * (.15 + .85 * max(dot(N, normalize(vec3(-.4, .7, -.5))), 0.));
+      col += dPal(.32 + .3 * rnd) * (.015 + .12 * pow(s, 4.)) * v_i.z * glowP * (1. + 2. * v_i.w);
       col += mix(u_secondary, vec3(1.), .4) * caust * .1 * max(N.y + .3, 0.);
       col += mix(u_secondary, vec3(1.), .3) * pow(1. - abs(dot(N, V)), 3.) * .12;
       col *= .35 + .65 * dSS(0., .15, s);
@@ -616,7 +635,8 @@ void main() {
       float t = v_l.x;
       vec3 cc = rnd < .09 ? mix(u_accent, vec3(1.), .12) : dPal(.55 + .35 * rnd);
       float flare = 1. + 2.2 * v_i.w;
-      col = cc * (.45 + 1.8 * t * t) * flare * glowP * (1. - v_l.y * v_l.y) * v_fade;
+      float barb = .45 + .55 * pow(.5 + .5 * sin(t * 91. + rnd * 37.), 3.);
+      col = cc * (.14 + .8 * t * t) * barb * flare * glowP * (1. - v_l.y * v_l.y) * v_fade;
     } else if (kind < 3.25) {
       // Sea pen stalk.
       col = dPal(.35 + .3 * rnd) * .2 * glowP * (1. - v_l.y * v_l.y) * v_fade;
@@ -627,9 +647,11 @@ void main() {
       float wave = exp(-pow((fract(sj * .8 - t + rnd) - .5) * 7., 2.));
       vec3 cc = dPal(.3 + .35 * rnd);
       float edge = pow(abs(v_l.z * 2. - 1.), 3.);
-      float polyp = (.24 + .65 * smoothstep(.55, .95, along)) * (.45 + .55 * edge);
+      float polyp = pow(.5 + .5 * sin(along * 45. + v_l.w * 7.3 + rnd * 31.), 16.) * edge;
+      float tissue = .08 + .24 * max(dot(N, normalize(vec3(-.4, .8, -.3))), 0.);
       polyp *= .65 + .35 * max(dot(N, normalize(vec3(-.4, .8, -.3))), 0.);
-      col = mix(cc, u_accent, .7 * clamp(v_i.w, 0., 1.)) * (.16 + 1.3 * wave + 2. * v_i.w) * polyp * v_i.z * glowP;
+      col = cc * tissue * dSS(.12, .3, sj);
+      col += mix(cc, u_accent, .7 * clamp(v_i.w, 0., 1.)) * (.3 + .4 * wave + 2. * v_i.w) * polyp * v_i.z * glowP;
       col += mix(u_secondary, vec3(1.), .4) * caust * .06;
     }
     col = mix(col, dWater(-V, dev), fog);
@@ -638,35 +660,18 @@ void main() {
   }
   float keep = 1. - fog;
   if (kind < 4.75) {
-    // ---- gorgonian fan (additive lace): binary-branching veins ----
+    // ---- gorgonian skeleton: opaque tissue, shaded back, isolated polyps ----
     vec3 N = normalize(v_n);
-    float x = v_l.x, r = v_l.y, alpha = v_l.z, H = v_l.w;
-    float pos = .5, w = 1.;
-    for (int L = 1; L <= 4; L++) {
-      float rl = .1 + .19 * float(L - 1) + .05 * h1(rnd * 17. + float(L));
-      if (r < rl) break;
-      w *= .5;
-      pos += (x < pos ? -1. : 1.) * w * .5 * dSS(rl, rl + .14, r);
-    }
-    pos += .025 * w * sin(r * 23. + rnd * 9.);
-    float worldX = abs(x - pos) * 2. * alpha * max(r, .05) * H;
-    float vw = .012 * (1.15 - .6 * r);
-    float fw = fwidth(worldX) + 1e-5;
-    float vein = 1. - smoothstep(vw, vw + fw * 1.5, worldX);
-    float ring = abs(fract(r * 11. + .2 * sin(x * 19. + rnd * 7.)) - .5) * H / 11.;
-    float rw = fwidth(ring) + 1e-5;
-    float link = (1. - smoothstep(.004, .004 + rw * 1.5, ring)) * dSS(.12, .3, r);
-    float polyps = pow(.5 + .5 * sin(r * 147. + rnd * 29. + x * 18.), 10.);
-    vein *= .4 + .6 * (.5 + .5 * sin(r * 27. + x * 12. + rnd * 31.));
-    float detail = dSS(2.5, .6, fw / max(vw, 1e-4));
-    float t = dCycle(S, 300u) * 2.;
-    float wave = exp(-pow((fract(r * .7 - t + rnd) - .5) * 5., 2.));
-    vec3 cc = dPal(.12 + .38 * rnd);
-    float fres = pow(1. - abs(dot(N, V)), 2.);
-    float key = .3 + .7 * max(dot(N, normalize(vec3(-.4, .7, -.5))), 0.);
-    col = mix(cc, u_accent, .75 * clamp(v_i.w, 0., 1.)) * (vein * (.28 + .7 * wave + .8 * polyps) * key + link * .035 * detail + .005 + .015 * fres + 2.4 * v_i.w * vein);
-    col *= glowP * v_i.z * dSS(0., .05, r);
-    outColor = vec4(col * keep, 1.);
+    float h = v_l.x, along = v_l.y, branch = v_l.z;
+    float key = max(dot(N, normalize(vec3(-.4, .7, -.5))), 0.);
+    float contact = dSS(0., .17, h);
+    float pore = pow(.5 + .5 * sin(along * 23. + branch * 7.3 + rnd * 91.), 14.);
+    float selected = step(.52, h1(branch + rnd * 77.));
+    vec3 tissue = dPal(.12 + .3 * rnd);
+    col = tissue * (.12 + .55 * key) * (.2 + .8 * contact);
+    col += mix(tissue, u_accent, clamp(v_i.w, 0., 1.)) * pore * selected * (.8 + 5.5 * v_i.w) * contact * glowP;
+    col *= v_i.z;
+    outColor = vec4(mix(col, dWater(-V, dev), fog), 1.);
     return;
   }
   if (kind < 5.5) {
@@ -825,6 +830,11 @@ void main() {
         direction = mod(u_rhythmCount.w, 2.);
       }
       outColor = vec4(pack16(age / 3.), strength, direction);
+    } else if (id == 15) {
+      // Retain the preceding front so a close fill never erases its transit.
+      vec4 prior = u_rhythmHit.w > .5 ? texelFetch(u_state, ivec2(14, 0), 0) : old;
+      float age = u_reset ? 3. : min(3., dUnpack16(prior.rg) * 3. + u_dt);
+      outColor = vec4(pack16(age / 3.), u_reset ? 0. : prior.b, prior.a);
     } else outColor = vec4(0.);
     return;
   }
@@ -846,7 +856,7 @@ void main() {
       // Conservative axial broad phase, before pulse/tilt/hash work. The
       // largest bell radius is 1.45 (others .75), with .7 axial drift.
       float initial = float(dHash(u_seedBits)) * (D_PERIOD / 4294967296.);
-      float jz = i < 5 ? mod(initial + (i == 0 ? 9. : i == 1 ? 17. : i == 2 ? 25. : i == 3 ? 38. : 52.), D_PERIOD)
+      float jz = i < 5 ? mod(initial + (i == 0 ? 9. : i == 1 ? 11.5 : i == 2 ? 19.5 : i == 3 ? 38. : 52.), D_PERIOD)
         : fract(float(i) * .618034 + .37 + .05 * dRnd(uint(i), 1u)) * D_PERIOD;
       float dz = abs(mod(jz - Z - p.z + D_PERIOD * .5, D_PERIOD) - D_PERIOD * .5);
       if (dz > (i < 5 ? 1.45 : .75) * 3. + .7) continue;
@@ -903,7 +913,7 @@ void main() {
     float edge = dSS(0., .06, yf) * dSS(1., .9, yf) * dSS(30., 18., zr) * dSS(13., 10., abs(p.x - c.p.x));
     float light = .065 + .2 * (1. - dSS(.3, 1.2, dev)) + .5 * dShaftReveal(dev) * min(dShaftLight(p, Z), 2.);
     light += .06 * dSS(1.2, 2., dev) * dSS(-1., -2.7, p.y);
-    col = mix(u_secondary, vec3(1.), .55) * light * edge;
+    col = mix(u_secondary, vec3(1.), .25) * light * edge * .45 * step(.45, h1);
     size = (.01 + .012 * h1) * (1. + .4 * (1. - dSS(.3, 1.2, dev)));
   } else {
     // Bioluminescent plankton: disturbance glow from the simulation.
@@ -911,7 +921,7 @@ void main() {
     float h7 = dRnd(uid, 60u), h8 = dRnd(uid, 54u);
     vec4 st = texelFetch(u_state, ivec2(id % ${SIZE[0]}, id / ${SIZE[0]}), 0);
     float g = unpack16(st.rg);
-    float base = .018 + .03 * (1. - dSS(.3, 1., dev)) + .057 * dSS(.5, 1.2, dev);
+    float base = .012 + .02 * (1. - dSS(.3, 1., dev));
     float blink = 0.;
     if (h7 < .05 + .15 * (1. - dSS(.3, 1.2, dev))) {
 #ifdef PHOSPHOR_LATE
@@ -924,8 +934,23 @@ void main() {
     }
     vec3 pc = dPal(.25 + .4 * h8);
     float spark = 1. - dSS(.3, 1.2, dev);
-    float e = base + 3.6 * g + (1.6 + 1.2 * spark) * blink;
-    col = pc * e + vec3(.45) * g * g;
+    float relay = dRelay(p);
+    float e = base + 1.5 * g + (.7 + .6 * spark) * blink;
+    col = mix(pc, u_accent, clamp(relay, 0., 1.)) * e;
+    // Dark water around the principal animals keeps canals/tentacles legible.
+    float gap = 1.;
+    float initial = float(dHash(u_seedBits)) * (D_PERIOD / 4294967296.);
+    for (int i = 0; i < 5; i++) {
+      float z = mod(initial + (i == 0 ? 9. : i == 1 ? 11.5 : i == 2 ? 19.5 : i == 3 ? 38. : 52.), D_PERIOD);
+      // 1.45 * 1.8 + .7 axial drift: exact rejection outside the dark gap.
+      if (abs(dRel(z, Z) - p.z) > 3.31) continue;
+      DJelly j = dJelly(i, dev, Z, u_params[3], 0.);
+      j.c.z = dRel(j.c.z, Z);
+      vec3 delta = p - j.c;
+      delta.y = max(delta.y, -j.L) * .32;
+      gap *= mix(.12, 1., dSS(j.R * 1.1, j.R * 1.8, length(delta)));
+    }
+    col *= gap * mix(1., .28, dSS(10., 30., p.z));
     col *= dSS(-D_BACK + .5, -D_BACK + 2., p.z) * dSS(46., 36., p.z);
     size = .011 + .03 * max(g, blink * (1. + .6 * spark));
   }
