@@ -47,6 +47,7 @@ import {
 } from "../nebula-model.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 const world = worldOf(3141);
 const sample = (count, stride = 97) =>
@@ -329,30 +330,66 @@ test("Nova freezes the record and Sedov–Taylor fronts expand as t^(2/5)", () =
 });
 
 test("dust extinction integrates only the finite emitter-to-eye column", () => {
-  assert.equal(nebula.particles.blend, undefined, "no screen-space absorber overlay");
-  assert.match(nebula.particles.vertex, /nbTransmission\(pos, cam.eye, twist, pattern\)/);
+  assert.equal(
+    nebula.particles.blend,
+    undefined,
+    "no screen-space absorber overlay",
+  );
+  assert.match(
+    nebula.particles.vertex,
+    /nbTransmission\(pos, cam.eye, twist, pattern\)/,
+  );
   assert.match(nebula.particles.vertex, /id >= 118784u/);
   assert.match(nebula.particles.vertex, /\.60138029 \/ h \* \(1\. - t \* t\)/);
-  assert.match(nebula.fragment, /nbColumn\(xa, xb, h\)/, "the volume integrates the same exact column");
-  assert.equal(dustColumn([0, .7, 0], [0, 3, 0]), 0, "foreground star is untouched");
-  assert.ok(dustColumn([0, -.7, 0], [0, 3, 0]) > .999, "background star sees the slab");
+  assert.match(
+    nebula.fragment,
+    /nbColumn\(xa, xb, h\)/,
+    "the volume integrates the same exact column",
+  );
+  assert.equal(
+    dustColumn([0, 0.7, 0], [0, 3, 0]),
+    0,
+    "foreground star is untouched",
+  );
+  assert.ok(
+    dustColumn([0, -0.7, 0], [0, 3, 0]) > 0.999,
+    "background star sees the slab",
+  );
   for (const [start, eye] of [
-    [[0, -.1, 0], [2, 1, 1]],
-    [[0, .01, 0], [1, 2, 0]],
-    [[0, -.03, 0], [3, .2, 1]],
-    [[0, .02, 0], [1, .02, 2]],
+    [
+      [0, -0.1, 0],
+      [2, 1, 1],
+    ],
+    [
+      [0, 0.01, 0],
+      [1, 2, 0],
+    ],
+    [
+      [0, -0.03, 0],
+      [3, 0.2, 1],
+    ],
+    [
+      [0, 0.02, 0],
+      [1, 0.02, 2],
+    ],
   ]) {
-    const len = dist(start, eye), steps = 20000;
+    const len = dist(start, eye),
+      steps = 20000;
     let integral = 0;
     for (let i = 0; i < steps; i++) {
-      const y = start[1] + (eye[1] - start[1]) * (i + .5) / steps;
-      integral += 1.20276058 / .07 / Math.cosh(1.20276058 * y / .035) ** 2 * len / steps;
+      const y = start[1] + ((eye[1] - start[1]) * (i + 0.5)) / steps;
+      integral +=
+        ((1.20276058 / 0.07 / Math.cosh((1.20276058 * y) / 0.035) ** 2) * len) /
+        steps;
     }
     assert.ok(Math.abs(dustColumn(start, eye) - integral) < 1e-5);
     assert.ok(Math.exp(-2.4 * dustColumn(start, eye)) >= 0);
   }
   // Reversal of the ray preserves its integrated column.
-  assert.equal(dustColumn([0, -.1, 0], [1, .3, 0]), dustColumn([1, .3, 0], [0, -.1, 0]));
+  assert.equal(
+    dustColumn([0, -0.1, 0], [1, 0.3, 0]),
+    dustColumn([1, 0.3, 0], [0, -0.1, 0]),
+  );
 });
 
 test("the web's densest node is the seeded nucleus and the pulsar, at every clock", () => {
@@ -360,50 +397,81 @@ test("the web's densest node is the seeded nucleus and the pulsar, at every cloc
   // there, and the linear overdensity Σ amp·(−cos) is maximal, for any
   // breathing of the amplitudes. The bulge and the pulsar sit at the same point.
   for (const clock of [0, 123456789, 3e9, TWO32 - 1]) {
-    for (const v of zeldovich(world, [0, 0, 0], clock)) assert.ok(Math.abs(v) < 1e-12);
+    for (const v of zeldovich(world, [0, 0, 0], clock))
+      assert.ok(Math.abs(v) < 1e-12);
     assert.equal(webDensity(world, [0, 0, 0], clock).node, 1);
     for (let i = 0; i < 300; i++) {
-      const x = [Math.sin(i * 1.7) * 1.6, Math.cos(i * 2.3) * 0.7, Math.sin(i * 0.9 + 1) * 1.6];
+      const x = [
+        Math.sin(i * 1.7) * 1.6,
+        Math.cos(i * 2.3) * 0.7,
+        Math.sin(i * 0.9 + 1) * 1.6,
+      ];
       const d = webDensity(world, x, clock);
       assert.ok(d.node < 1 && Number.isFinite(d.rho) && d.rho >= 0);
     }
   }
-  assert.match(nebula.particles.vertex, /float kk = max\(dot\(k, k\), 1e-3\), arg = dot\(k, q\) \+ NB_PI;/);
-  assert.match(nebula.fragment, /exp\(-impact \* impact \/ \.012\)/, "nucleus at the origin");
-  assert.match(nebula.fragment, /exp\(-coreR2 \/ \.0016\)/, "hot core and pulsar at the origin");
+  assert.match(
+    nebula.particles.vertex,
+    /float kk = max\(dot\(k, k\), 1e-3\), arg = dot\(k, q\) \+ NB_PI;/,
+  );
+  assert.match(
+    nebula.fragment,
+    /exp\(-impact \* impact \/ \.012\)/,
+    "nucleus at the origin",
+  );
+  assert.match(
+    nebula.fragment,
+    /exp\(-coreR2 \/ \.0016\)/,
+    "hot core and pulsar at the origin",
+  );
   // The analytic filament web drains into the same node: every node's
   // chain of heavier parents ends at node 0 (the nucleus at the origin).
   const g = world.graph;
   assert.deepEqual(g.pos[0], [0, 0, 0]);
   for (let i = 1; i < NODES; i++) {
-    let j = i, hops = 0;
+    let j = i,
+      hops = 0;
     while (j !== 0 && hops++ < NODES) {
       assert.ok(g.mass[g.parent[j]] > g.mass[j], "parents are heavier");
       j = g.parent[j];
     }
     assert.equal(j, 0, `node ${i} drains into the nucleus`);
     const nb = g.neighbour[i];
-    if (nb >= 0) assert.ok(nb !== g.parent[i] && g.parent[nb] !== i, "loop links never duplicate tree links");
+    if (nb >= 0)
+      assert.ok(
+        nb !== g.parent[i] && g.parent[nb] !== i,
+        "loop links never duplicate tree links",
+      );
   }
   // The mode table the simulation writes mirrors worldOf().
-  assert.match(nebula.simulation.fragment, /z \* \.85, r \* sin\(az\)\)\) \* \(5\. \+ 5\. \* nbRnd\(key, m, 902u\)\)/);
+  assert.match(
+    nebula.simulation.fragment,
+    /z \* \.85, r \* sin\(az\)\)\) \* \(5\. \+ 5\. \* nbRnd\(key, m, 902u\)\)/,
+  );
   assert.equal(world.modes.length, MODES);
-  for (const m of world.modes) assert.ok(m.kLen >= 5 && m.kLen <= 10 && m.phase === Math.PI);
+  for (const m of world.modes)
+    assert.ok(m.kLen >= 5 && m.kLen <= 10 && m.phase === Math.PI);
 });
 
 test("filaments: Bézier edges from child to node, wound into the arms' sense, tracers stream into the node", () => {
   for (let e = 0; e < EDGES; e++) {
     const E = webEdge(world.key, world.graph, e, 0);
     if (!E) continue;
-    const i = 1 + (e >> 1), j = e & 1 ? world.graph.neighbour[i] : world.graph.parent[i];
+    const i = 1 + (e >> 1),
+      j = e & 1 ? world.graph.neighbour[i] : world.graph.parent[i];
     assert.deepEqual(edgePoint(E, 0), world.graph.pos[i]);
-    for (let k = 0; k < 3; k++) assert.ok(Math.abs(edgePoint(E, 1)[k] - world.graph.pos[j][k]) < 1e-12);
+    for (let k = 0; k < 3; k++)
+      assert.ok(Math.abs(edgePoint(E, 1)[k] - world.graph.pos[j][k]) < 1e-12);
     // Smooth curve: consecutive samples never jump.
-    for (let k = 1; k <= 50; k++) assert.ok(dist(edgePoint(E, k / 50), edgePoint(E, (k - 1) / 50)) < 0.25);
+    for (let k = 1; k <= 50; k++)
+      assert.ok(dist(edgePoint(E, k / 50), edgePoint(E, (k - 1) / 50)) < 0.25);
   }
   // Winding: the inner web turns further than the outer web, in the sense
   // in which the arms' phase grows outward (θ = r·twist + c).
-  const turn = (r) => { const P = webMorph([r, 0, 0], 0.5); return Math.atan2(P[2], P[0]); };
+  const turn = (r) => {
+    const P = webMorph([r, 0, 0], 0.5);
+    return Math.atan2(P[2], P[0]);
+  };
   assert.ok(turn(0.4) < turn(1.2) && turn(1.2) < turn(2.4));
   assert.deepEqual(webMorph([1, 0.5, 0], 0), [1, 0.5, 0]);
   // Tracer streaming moves toward the node end of its filament.
@@ -411,13 +479,24 @@ test("filaments: Bézier edges from child to node, wound into the arms' sense, t
   const E = webEdge(world.key, world.graph, tracerEdge(world, id), 0);
   const end = E.pts[3];
   const clock = Math.round((0.2 / N.stream) * TWO32) - streamPhase(id, 0) * 0;
-  const s0 = streamPhase(id, clock), s1 = streamPhase(id, (clock + clockStep(1, 1)) >>> 0);
-  if (s1 > s0) assert.ok(dist(edgePoint(E, s1), end) < dist(edgePoint(E, s0), end) + 1e-9);
+  const s0 = streamPhase(id, clock),
+    s1 = streamPhase(id, (clock + clockStep(1, 1)) >>> 0);
+  if (s1 > s0)
+    assert.ok(dist(edgePoint(E, s1), end) < dist(edgePoint(E, s0), end) + 1e-9);
   // Filaments are particle line sprites: the 7/8 of the dormant rows not
   // used by motes cover every edge (150 sprites each) plus the nodes.
-  assert.match(nebula.particles.vertex, /if \(!nbEdgeEval\(key, e, p, E\)\) return;/);
-  assert.ok(EDGES * 150 + NODES - 1 <= (SIZE[0] * SIZE[1] - ABSORBERS) * 7 / 8);
-  assert.doesNotMatch(nebula.fragment, /for \(int e = 0; e < /, "no per-pixel filament loop");
+  assert.match(
+    nebula.particles.vertex,
+    /if \(!nbEdgeEval\(key, e, p, E\)\) return;/,
+  );
+  assert.ok(
+    EDGES * 150 + NODES - 1 <= ((SIZE[0] * SIZE[1] - ABSORBERS) * 7) / 8,
+  );
+  assert.doesNotMatch(
+    nebula.fragment,
+    /for \(int e = 0; e < /,
+    "no per-pixel filament loop",
+  );
   assert.match(nebula.fragment, /Static interleaved-gradient jitter/);
   assert.doesNotMatch(nebula.fragment, /u_tick/);
 });
@@ -433,7 +512,8 @@ test("mode table and camera spring use spare state texels only", () => {
   for (const id of [1, 2]) assert.notEqual(id & 3, 0, "never a ψ tracer");
   assert.match(nebula.simulation.fragment, /cell\.y == 255 && cell\.x < 128/);
   // Filament graph links: x = 129 + 8i on the last row, clear of the mode table.
-  for (let i = 0; i < NODES; i++) assert.ok(129 + 8 * i >= 128 && 129 + 8 * i < SIZE[0]);
+  for (let i = 0; i < NODES; i++)
+    assert.ok(129 + 8 * i >= 128 && 129 + 8 * i < SIZE[0]);
   assert.match(nebula.simulation.fragment, /cell\.x >= 129 && cell\.x < 417/);
 });
 
@@ -448,22 +528,39 @@ test("remnant breaks out of the disk as bipolar lobes and rounds into a sphere",
     assert.ok(pole >= eq);
     previous = eq;
   }
-  assert.ok(shellRadius(1.4, 1) > 1.25 * shellRadius(1.4, 0), "bipolar breakout");
+  assert.ok(
+    shellRadius(1.4, 1) > 1.25 * shellRadius(1.4, 0),
+    "bipolar breakout",
+  );
   const top = shellRadius(2, 1) / shellRadius(2, 0);
-  assert.ok(top > 1.15 && top < 1.3, "a mildly bipolar remnant at the top state");
+  assert.ok(
+    top > 1.15 && top < 1.3,
+    "a mildly bipolar remnant at the top state",
+  );
   assert.ok(Math.abs(shellRadius(1, 0) - 0.1 * SHELL) < 1e-12);
   // No development-locked flash: ignition is a steady structural state.
   assert.doesNotMatch(nebula.fragment + nebula.particles.vertex, /ignite/);
 });
 
 test("camera spring never lurches and settles without overshoot", () => {
-  for (const [from, to] of [[1, 2], [0, 2], [2, 0], [2, 1], [0, 1], [1, 0]]) {
+  for (const [from, to] of [
+    [1, 2],
+    [0, 2],
+    [2, 0],
+    [2, 1],
+    [0, 1],
+    [1, 0],
+  ]) {
     let state = { d: from, v: 0 },
       peak = 0;
     for (let k = 0; k < 60 * 14; k++) {
       state = followStep(state, to);
       peak = Math.max(peak, Math.abs(state.v));
-      assert.ok(state.d >= Math.min(from, to) - 1e-9 && state.d <= Math.max(from, to) + 1e-9, "no overshoot");
+      assert.ok(
+        state.d >= Math.min(from, to) - 1e-9 &&
+          state.d <= Math.max(from, to) + 1e-9,
+        "no overshoot",
+      );
     }
     assert.ok(peak <= FOLLOW.vmax + 1e-12);
     assert.ok(Math.abs(state.d - to) < 0.01, `settles ${from}→${to}`);
@@ -477,25 +574,39 @@ test("camera spring never lurches and settles without overshoot", () => {
     return v.map((x) => x / l);
   };
   for (const clock0 of [0, 1e9, 3e9])
-  for (const [from, to] of [[0, 1], [1, 2], [2, 0]]) {
-    let state = { d: from, v: 0 },
-      clock = clock0;
-    let prev = cameraFraming(state.d, clock);
-    for (let k = 0; k < 60 * 10; k++) {
-      state = followStep(state, to);
-      clock = (clock + step) >>> 0;
-      const next = cameraFraming(state.d, clock);
-      const a = dir(prev),
-        b = dir(next);
-      const turn = Math.acos(Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])) * 60;
-      assert.ok(turn < (0.25 * 2) / CAMERA.focal, `view turns ${turn.toFixed(3)} rad/s`);
-      // Size changes by under half per second: at ~80% of the short side its
-      // silhouette moves under a fifth of the short side per second.
-      assert.ok((Math.abs(next.distance - prev.distance) * 60) / next.distance < 0.4, "dolly rate");
-      prev = next;
+    for (const [from, to] of [
+      [0, 1],
+      [1, 2],
+      [2, 0],
+    ]) {
+      let state = { d: from, v: 0 },
+        clock = clock0;
+      let prev = cameraFraming(state.d, clock);
+      for (let k = 0; k < 60 * 10; k++) {
+        state = followStep(state, to);
+        clock = (clock + step) >>> 0;
+        const next = cameraFraming(state.d, clock);
+        const a = dir(prev),
+          b = dir(next);
+        const turn =
+          Math.acos(Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])) * 60;
+        assert.ok(
+          turn < (0.25 * 2) / CAMERA.focal,
+          `view turns ${turn.toFixed(3)} rad/s`,
+        );
+        // Size changes by under half per second: at ~80% of the short side its
+        // silhouette moves under a fifth of the short side per second.
+        assert.ok(
+          (Math.abs(next.distance - prev.distance) * 60) / next.distance < 0.4,
+          "dolly rate",
+        );
+        prev = next;
+      }
     }
-  }
-  assert.match(nebula.simulation.fragment, /vel = clamp\(vel \+ acc \* u_dt, -0\.25, 0\.25\)/);
+  assert.match(
+    nebula.simulation.fragment,
+    /vel = clamp\(vel \+ acc \* u_dt, -0\.25, 0\.25\)/,
+  );
 });
 
 test("camera stays outside the forms for every fader position", () => {
@@ -508,8 +619,15 @@ test("camera stays outside the forms for every fader position", () => {
             rxz = Math.hypot(c.eye[0], c.eye[2]);
           if (dev === 0) assert.ok(r > 1.95, "outside the web's dense core");
           if (dev >= 0.5 && dev <= 1.5)
-            assert.ok(rxz > 1.78 || Math.abs(c.eye[1]) > 0.12, "never inside the disk");
-          if (dev >= 1.5) assert.ok(r > shellRadius(dev, c.eye[1] / r) * 1.12, "outside the remnant");
+            assert.ok(
+              rxz > 1.78 || Math.abs(c.eye[1]) > 0.12,
+              "never inside the disk",
+            );
+          if (dev >= 1.5)
+            assert.ok(
+              r > shellRadius(dev, c.eye[1] / r) * 1.12,
+              "outside the remnant",
+            );
         }
 });
 
@@ -523,17 +641,72 @@ test("fixed particle budget; data atlas holds scalar fields, never a colour imag
     Math.max((WEB_GRID[1] / 8) * (WEB_GRID[2] + 2), DISK_MAP, OCTA),
   ]);
   // Direct fallbacks evaluate the same fields when no float target exists.
-  assert.match(nebula.fragment, /#else\s+return nbWebField\(x, clock, u_params\[2\]\);/);
-  assert.match(nebula.fragment, /#else\s+return nbShellData\(dn, clamp\(u_level, 0\., 1\.\), nbClock\(\)\);/);
+  assert.match(
+    nebula.fragment,
+    /#else\s+return nbWebField\(x, clock, u_params\[2\]\);/,
+  );
+  assert.match(
+    nebula.fragment,
+    /#else\s+return nbShellData\(dn, clamp\(u_level, 0\., 1\.\), nbClock\(\)\);/,
+  );
   assert.match(nebula.fragment, /#else\s+return nbDiskData\(/);
   assert.match(nebula.particles.vertex, /s.kind != 2 && \(id & 3u\) != 0u/);
-  assert.match(nebula.simulation.fragment, /id >= 118784u \|\| \(id & 3u\) != 0u/);
-  assert.match(nebula.particles.vertex, /if \(\(m & 7u\) != 0u\) \{/, "an eighth of the dormant rows are near-field motes");
+  assert.match(
+    nebula.simulation.fragment,
+    /id >= 118784u \|\| \(id & 3u\) != 0u/,
+  );
+  assert.match(
+    nebula.particles.vertex,
+    /if \(\(m & 7u\) != 0u\) \{/,
+    "an eighth of the dormant rows are near-field motes",
+  );
   const skies = sample(1000, 101).filter((s) => s.kind === 2);
-  const depths = skies.map((s) => Math.hypot(...position(world, s, { clock: 0, dev: 0 })));
+  const depths = skies.map((s) =>
+    Math.hypot(...position(world, s, { clock: 0, dev: 0 })),
+  );
   assert.ok(Math.min(...depths) >= 7 && Math.max(...depths) < 16);
-  assert.ok(Math.max(...depths) - Math.min(...depths) > 5, "real star-field depth");
+  assert.ok(
+    Math.max(...depths) - Math.min(...depths) > 5,
+    "real star-field depth",
+  );
   assert.equal(ABSORBERS, 118784);
+});
+
+test("Starfront occupies slot 3; all phrase styles have full, non-overlapping loops", () => {
+  const signature = nebula.rhythm.find((gesture) => gesture.slot === 3);
+  assert.equal(signature.id, "starfront");
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(nebula.rhythm, style);
+    const density = pattern.tracks.reduce((sum, track) => {
+      const hits = track.steps.flatMap((strength, i) =>
+        strength > 0 ? [i] : [],
+      );
+      assert.ok(hits.length >= 2 || track.effect === "shock-ripple");
+      const gap = Math.min(
+        ...hits.map(
+          (hit, i) =>
+            (hits[(i + 1) % hits.length] +
+              (i === hits.length - 1 ? track.length : 0) -
+              hit) /
+            track.division,
+        ),
+      );
+      assert.ok(track.duration < gap, `${style}/${track.effect} settles`);
+      return sum + (hits.length * 4 * track.division) / track.length;
+    }, 0);
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+    assert.ok(signature.styles[style].steps.filter(Boolean).length >= 2);
+  }
+  for (const source of [nebula.fragment, nebula.particles.vertex]) {
+    assert.match(source, /nbStarfront\(vec3 x\)/);
+    assert.match(source, /u_rhythm\.w/);
+    assert.match(source, /u_rhythmHit\.w/);
+    assert.match(source, /u_rhythmCount\.w/);
+  }
 });
 
 test("shader constants follow the CPU model", () => {

@@ -74,6 +74,18 @@ uint nbClock() { return nbWord(texelFetch(u_state, ivec2(0), 0)); }
 float nbCamDev() { return float(nbWord(texelFetch(u_state, ivec2(1, 0), 0))) * (2. / 4294967296.); }
 float nbCycle(uint clock, uint n) { return float(clock * n) * (1. / 4294967296.); }
 float nbSq(float x) { return x * x; }
+// Bounded outward starfront, addressed to a different angular sector per
+// event. It lights existing matter only: never a screen-space flash.
+float nbStarfront(vec3 x) {
+  float env = clamp(u_rhythm.w, 0., 1.);
+  if (env <= 0. && u_rhythmHit.w <= 0.) return 0.;
+  float radius = .65 + 1.4 * (1. - env);
+  float angle = 2.39996323 * mod(u_rhythmCount.w, 144.);
+  vec2 dir = x.xz / max(length(x.xz), 1e-4);
+  float sector = .18 + .82 * nbSq(nbSq(.5 + .5 * dot(dir, vec2(cos(angle), sin(angle)))));
+  return (env + .08 * clamp(u_rhythmHit.w, 0., 1.)) * sector
+    * exp(-nbSq((length(x) - radius) / .24));
+}
 float nbSmooth(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0., 1.); return t * t * (3. - 2. * t); }
 float nbGauss(float u1, float u2) { return sqrt(-2. * log(max(u1, 1e-7))) * cos(NB_TAU * u2); }
 struct NbStar { int kind; float rank, ang0, a, height, cz, layer, density, tone; vec3 q, shellDir; };
@@ -322,7 +334,7 @@ void main() {
   float growth = u_params[2], arms = u_params[3], light = u_params[4], shock = u_params[7];
   float level = clamp(u_level, 0., 1.);
   float p0 = nbSmooth(0., 1., dev), n0 = nbSmooth(1., 2., dev);
-  vec3 cGas = u_primary, cArm = u_secondary, cHot = mix(u_primary, vec3(1.), .7), cAcc = u_accent;
+  vec3 cGas = u_primary, cArm = u_secondary, cHot = mix(u_secondary, vec3(1.), .82), cAcc = u_accent;
   NbCam cam = nbCamera(clock, nbCamDev());
   float twist = 1.35 * (2.2 + .9 * nbRnd(key, 0u, 905u)) * arms;
   float pattern = NB_TAU * nbCycle(clock, ${N.pattern}u);
@@ -353,7 +365,10 @@ void main() {
         w = ((e & 1) == 1 ? .009 : .014) * (.55 + .6 * along) * (.75 + .5 * sin(along * len * 6. + float(e) * 1.7) * sin(along * len * 2.3 + float(e)));
         // Pulses run along the filament into its node.
         float pulse = .3 + .7 * nbSq(.5 + .5 * sin(NB_TAU * (along * len * 1.3 - 2. * nbCycle(clock, ${N.stream}u)) + float(e)));
-        I *= pulse;
+        // Broken, feathered cloud strands rather than uniform diagram wires.
+        float clump = .18 + .82 * nbSq(.5 + .5 * sin(along * len * 19. + float(e) * 2.7));
+        I *= pulse * clump * .55;
+        P += (.012 + .02 * loops) * sin(P.zxy * 27. + float(e)) * sin(along * NB_PI);
       } else {
         int i = 1 + f - ${EDGES * PER};
         if (i >= ${NODES}) return;
@@ -368,16 +383,17 @@ void main() {
       vec2 screen = vec2(dot(v, cam.right), dot(v, cam.up)) * cam.focal / z;
       gl_Position = vec4(screen * minSide / u_resolution, 0., 1.);
       float scale = cam.focal / z * minSide * .5;
-      // Sprite covers the gas sheath (8 core widths); its core is 1/8 of it.
+      // Sprite covers a feathered sheath (9 core widths); clumps break
+      // its longitudinal intensity rather than outlining the whole graph.
       float spacing = len / ${PER}. * scale;
       // The core never gets narrower than the sprite spacing: no beads.
       float corePx = max(max(w * scale, 1.2 * res), .8 * spacing);
-      float size = clamp(8. * corePx, 3. * res, 160. * res);
+      float size = clamp(9. * corePx, 3. * res, 160. * res);
       gl_PointSize = size;
       float fog = exp(-max(z - 1.6, 0.) / 2.4) * nbSmooth(.15, .7, z) * (1. - nbSmooth(150., 160., size / res));
       // Line intensity independent of sprite spacing and pixel floor.
       float lineGain = min(w * scale / corePx, 1.) * clamp(spacing / size, .02, 1.) * 9.;
-      vec3 hue = mix(mix(cGas, cArm, p), cHot, (e < ${EDGES} ? .3 * along : .8));
+      vec3 hue = mix(mix(cGas, cArm, .25 + .55 * nbRnd(key, uint(max(e, 0)), 938u)), cHot, (e < ${EDGES} ? .08 * along : .4));
       v_soft = e < ${EDGES} ? 2. + clamp(corePx / size, .02, 1.) : .5;
       v_color = hue * I * fade * fog * lineGain * light * (1. + .6 * u_rhythm.x);
       return;
@@ -522,7 +538,7 @@ void main() {
       pos = mix(pos * (1. - .62 * s1), shell, s2);
       vec3 rim = mix(cHot, cArm, .25), ejecta = mix(cArm, cGas, .3);
       vec3 novaHue = s.kind == 1 ? cHot : (s.layer < .6 ? rim : ejecta);
-      float novaB = s.kind == 1 ? .02 : (s.layer < .6 ? .02 + .014 * shellCompress * shellCompress : .012);
+      float novaB = s.kind == 1 ? .02 : (s.layer < .6 ? .008 + .005 * shellCompress * shellCompress : .006);
       novaHue = mix(novaHue, cAcc, .6 * clamp(front, 0., 1.));
       novaB += 1.1 * front;
       if (jet >= 0.) {
@@ -539,7 +555,10 @@ void main() {
     float pulse = exp(-nbSq((r3 - mix(.15, 1.8, 1. - u_rhythm.x)) / .18));
     bright += u_rhythm.x * .12 * pulse * (p * crest + (1. - p) * .5 + n * float(s.layer < .6));
     if (s.kind == 1) { bright *= 1. + 1.5 * u_rhythm.y; hue = mix(hue, cAcc, .5 * u_rhythm.y); }
-    bright += u_rhythm.z * .15 * exp(-nbSq((r3 - 2.6 * (1. - u_rhythm.z)) / .14));
+    bright += u_rhythm.z * .4 * exp(-nbSq((r3 - 2.6 * (1. - u_rhythm.z)) / .2));
+    float starfront = nbStarfront(pos);
+    bright += 1.4 * starfront;
+    hue = mix(hue, cAcc, clamp(starfront * 2., 0., .9));
     bright *= flowLight;
   }
   vec3 v = pos - cam.eye;
@@ -681,15 +700,16 @@ const shellData = `
 vec4 nbShellData(vec3 dn, float level, uint clock) {
   float a = nbGNoise(dn * 1.6 + 3.1, ivec3(14, 7, 14), 0x51a7u);
   float a2 = nbGNoise(dn * 3.2 + 6.2, ivec3(28, 14, 28), 0x9c3bu);
-  float s1 = nbGNoise(dn * 3.1 + 7.7 + .25 * (a - .5), ivec3(14, 7, 14), 0x51a7u);
-  vec3 c2 = nbRot * dn * 7.3 + 2.3;
+  // Fine ridged turbulence follows the same seeded directional identity.
+  float s1 = nbGNoise(dn * 7.1 + 7.7 + .8 * (a - .5), ivec3(28, 14, 28), 0x51a7u);
+  vec3 c2 = nbRot * dn * 14.6 + 2.3;
   float s2x = nbGNoise(c2, ivec3(14, 7, 14), 0x51a7u), s2y = nbGNoise(c2 * 2., ivec3(28, 14, 28), 0x9c3bu);
   float ridge = 1. - abs(2. * s1 - 1.), ridge2 = 1. - abs(2. * s2x - 1.);
-  float holes = nbSmooth(.42, .62, a + .3 * (s2y - .5));
+  float holes = nbSmooth(.3, .56, a + .3 * (s2y - .5));
   float bA = NB_TAU * nbCycle(clock, ${N.breathe}u), bB = NB_TAU * nbCycle(clock, ${N.breathe + 7}u);
   float lift = .032 * sin(dot(dn, vec3(3.1, 1.7, -2.3)) + bA) + .025 * sin(dot(dn, vec3(-3.2, 4.9, 2.2)) + bB)
     + .02 * sin(dot(dn, vec3(5.1, -6., 6.4)) - bA);
-  return vec4(pow(ridge, mix(18., 10., level)) * (.2 + 1.2 * ridge2 * ridge2) * holes, ridge2, a2, lift);
+  return vec4(pow(ridge, mix(32., 20., level)) * (.15 + 1.4 * pow(ridge2, 4.)) * holes, ridge2, a2, lift);
 }
 vec3 nbOctaDecode(vec2 uv) {
   vec2 p = uv * 2. - 1.;
@@ -711,7 +731,7 @@ vec4 nbDiskData(vec2 xz, float twist, float pattern, float gasPhase, float level
   float arm = exp(-nbSq(sin(ph + .35 * (nzx - .5))) / .18);
   float lane = exp(-nbSq(sin(ph - .28 + .3 * (nzx - .5) + .15 * (hfx - .5))) / (.01 + .018 * hfy)) * nbSmooth(.12, .32, rd);
   float inner = nbSmooth(.12, .42, rd);
-  float clumps = .2 + 1.6 * nbSq(nbSmooth(.3, .8, hfx)) + .5 * nzy;
+  float clumps = .06 + 3.2 * nbSq(nbSmooth(.4, .78, hfx)) + .25 * nzy;
   float spur = exp(-nbSq(sin(ph + 1.1 + 2.5 * (nzy - .5))) / .05) * .35;
   // Fine star-cloud grain resolves the arms at full output resolution.
   vec3 fc = nbRot * vec3(g.y, 0., g.x) * 26. + 4.2;
@@ -798,7 +818,7 @@ void main() {
   NbCam cam = nbCamera(clock, nbCamDev());
   vec2 screen = (v_uv * 2. - 1.) * u_resolution / min(u_resolution.x, u_resolution.y);
   vec3 ray = normalize(cam.fwd * cam.focal + cam.right * screen.x + cam.up * screen.y);
-  vec3 cGas = u_primary, cArm = u_secondary, cHot = mix(u_primary, vec3(1.), .7), cAcc = u_accent;
+  vec3 cGas = u_primary, cArm = u_secondary, cHot = mix(u_secondary, vec3(1.), .82), cAcc = u_accent;
   float wWeb = 1. - p, wDisk = nbSmooth(.15, .85, p) * (1. - nbSmooth(.45, 1., n)), wShell = n;
   float R0 = NB_SHELL * (.1 + .9 * n) * (1. + .03 * sin(NB_TAU * nbCycle(clock, ${N.dolly}u)));
   float lobe = .22 + .38 * (1. - nbSmooth(.3, 1., n));
@@ -829,7 +849,11 @@ void main() {
     vec2 hole = vec2(1e9, -1e9);
     if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .6));
     float skip = max(0., min(hole.y, t1) - max(hole.x, t0));
-    float steps = clamp(ceil((t1 - t0 - skip) / mix(.08, .16, k4)), wWeb + wShell > .001 ? mix(8., 4., k4) : 2., mix(24., 10., k4));
+    float detail = nbSmooth(.05, .3, wShell);
+    float stride = mix(mix(.08, .16, k4), mix(.055, .1, k4), detail);
+    float cap = mix(mix(24., 10., k4), mix(36., 18., k4), detail);
+    cap *= clamp(u_raySteps / 96., .42, 1.);
+    float steps = clamp(ceil((t1 - t0 - skip) / stride), wWeb + wShell > .001 ? mix(8., 4., k4) : 2., cap);
     float dt = (t1 - t0 - skip) / steps;
     uvec2 pix = uvec2(gl_FragCoord.xy);
     // Static interleaved-gradient jitter: no temporal shimmer on LED walls.
@@ -844,7 +868,7 @@ void main() {
     mat2 shellTurn = mat2(cos(shellPhase), -sin(shellPhase), sin(shellPhase), cos(shellPhase));
     float ejecta = nbCycle(clock, ${N.ejecta}u);
     float sharp = mix(.6, 1.35, level);
-    for (int i = 0; i < 24; i++) {
+    for (int i = 0; i < 36; i++) {
       if (t > hole.x && t < hole.y) t += hole.y - hole.x;
       if (float(i) >= steps || t > t1) break;
       vec3 x = cam.eye + ray * t;
@@ -875,7 +899,7 @@ void main() {
           float hot = max(web.x - 2.6, 0.) * sharp * env;
           float haze = env * fib * fib * .03;
           // Diffuse sheets and walls between the filaments: faint, broad.
-          e += wWeb * (cGas * (web.x * .09 * env + core * .18) + cArm * haze * 1.5);
+          e += wWeb * (mix(cGas, cArm, .3) * (web.x * .09 * env + core * .18) + cArm * haze * 1.5);
           if (u_rhythm.x > 0.) e += wWeb * cHot * dens * u_rhythm.x * .8 * exp(-nbSq((r - armPulse) / .25));
           sigma += wWeb * (dens * .25 + haze * 2.);
           matter += wWeb * dens * .3;
@@ -910,13 +934,17 @@ void main() {
         float Rs = R0 * (1. + lobe * d.y * d.y);
         // Filaments live on the sphere of directions, so the same fingers
         // ride outward with the shell; radial extent makes them RT fingers.
+        float u = r / Rs;
         vec3 dn = nbRot * vec3(shellTurn * d.xz, d.y).xzy;
+        // Oblique, curved ejecta sheets: the direction field winds through
+        // the shell thickness instead of extruding radial brush strokes.
+        dn = normalize(dn + (.9 * (u - .82) + .08 * sin(u * 17.))
+          * cross(dn, normalize(vec3(.3, 1., .6))));
         vec4 sh = nbShellAt(dn);
         float patchy = sh.z, lift = sh.w, ridge2 = sh.y;
-        float u = r / Rs;
         // A thick, torn edge: the outer radius wanders with the direction
         // map and the emitting layer breaks into patches and holes.
-        float edge = 1. + 1.6 * lift + .16 * (patchy - .5);
+        float edge = 1. + 2.6 * lift + .3 * (patchy - .5);
         float torn = nbSmooth(.3, .6, patchy + .25 * (ridge2 - .5));
         float limb = nbSmooth(edge - .2 - .08 * ridge2, edge - .05, u) * (1. - nbSmooth(edge - .03, edge + .05, u)) * torn;
         float reach = .68 + .14 * ridge2;
@@ -926,7 +954,11 @@ void main() {
         fil *= .8 + .2 * sin(NB_TAU * (u * 3. - ejecta) + 17. * ridge2);
         // Filaments in the secondary, their hottest knots in the accent; a
         // patchy, thick limb of shocked gas in the primary.
-        vec3 E = cGas * limb * (.1 + .9 * patchy * patchy) * .45 + cArm * fil * 4. + cAcc * fil * pow(ridge2, 6.) * 4.;
+        float face = .5 + .5 * dot(d, normalize(cam.eye));
+        vec3 filamentHue = mix(cGas, cArm, .2 + .8 * face);
+        vec3 E = mix(cGas, cArm, .35) * limb * (.1 + .9 * patchy * patchy) * .28
+          + filamentHue * fil * 11.
+          + mix(cArm, cHot, .25) * fil * pow(ridge2, 16.) * 4.;
         E += mix(cArm, cHot, .5) * fil * u_rhythm.x * 3.;
         // The breakout reaches full brightness early: an energetic young bubble.
         e += nbSmooth(0., .4, n) * E;
@@ -934,7 +966,8 @@ void main() {
         matter += wShell * (fil + limb * .5);
       }
       // Shock ripple: a ring of light runs out through whatever matter is there.
-      if (u_rhythm.z > 0.) e += cHot * matter * u_rhythm.z * 2.2 * exp(-nbSq((r - ripple) / .08));
+      if (u_rhythm.z > 0.) e += cArm * matter * u_rhythm.z * 5. * exp(-nbSq((r - ripple) / .15));
+      if (u_rhythm.w > 0.) e += cAcc * matter * 14. * nbStarfront(x);
       // The remnant's interior holds only smooth haze: stride through it.
       col += T * e * dt;
       if (t < along) Tcore = T;
@@ -966,7 +999,7 @@ void main() {
       : fw * 1.7725 * sqrt(2. * F / fw) * exp(-nbSq((impact - F) / fw));
     float front = u_params[7] * nbSmooth(0., .05, shockC) * (1. - shockC) * sphere * nbSmooth(.05, .3, F);
     // The analytic front stays faint: a breath of light, not a glass sphere.
-    col += Tcore * n * (mix(cGas, cHot, .2) * haze * .32 + mix(cGas, cHot, .5) * front * .08);
+    col += Tcore * n * (mix(cGas, cArm, .5) * haze * .12 + mix(cGas, cHot, .5) * front * .08);
   }
   // The densest web node, the future nucleus: a compact hot knot
   // (path-integrated Gaussian, analytic).
@@ -1040,13 +1073,62 @@ const schema = [
     step: 0.01,
     default: 0,
   },
-  { key: "speed", label: "Motion speed", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "web", label: "Cosmic web", min: 0.6, max: 2.6, step: 0.01, default: 1.8 },
-  { key: "arms", label: "Arm winding", min: 0.5, max: 1.6, step: 0.01, default: 1 },
-  { key: "light", label: "Starlight", min: 0.3, max: 1.6, step: 0.01, default: 1 },
-  { key: "distance", label: "Camera distance", min: 0.7, max: 1.4, step: 0.01, default: 1 },
-  { key: "height", label: "Camera height", min: 0, max: 1, step: 0.01, default: 0.66 },
-  { key: "shock", label: "Shock fronts", min: 0, max: 1.6, step: 0.01, default: 1 },
+  {
+    key: "speed",
+    label: "Motion speed",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "web",
+    label: "Cosmic web",
+    min: 0.6,
+    max: 2.6,
+    step: 0.01,
+    default: 1.8,
+  },
+  {
+    key: "arms",
+    label: "Arm winding",
+    min: 0.5,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "light",
+    label: "Starlight",
+    min: 0.3,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "distance",
+    label: "Camera distance",
+    min: 0.7,
+    max: 1.4,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "height",
+    label: "Camera height",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.66,
+  },
+  {
+    key: "shock",
+    label: "Shock fronts",
+    min: 0,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
 ];
 
 const look = (name, seed, development, overrides = {}) => ({
@@ -1077,54 +1159,169 @@ export default {
     look("Drifting Dust", 3141, 0),
     look("Grand Spiral", 3141, 1),
     look("Supernova Shell", 3141, 2),
-    look("Cosmic Web", 1618, 0, { web: 2.4, distance: 0.95, height: 0.8, speed: 1.2 }),
+    look("Cosmic Web", 1618, 0, {
+      web: 2.4,
+      distance: 0.95,
+      height: 0.8,
+      speed: 1.2,
+    }),
     look("Edge-on Lanes", 2718, 1, { height: 0.08, distance: 0.8, arms: 1.25 }),
-    look("Open Whirlpool", 577, 1, { height: 0.92, arms: 0.85, distance: 1.02 }),
-    look("Remnant Bloom", 4669, 2, { distance: 0.82, height: 0.35, shock: 1.3 }),
+    look("Open Whirlpool", 577, 1, {
+      height: 0.92,
+      arms: 0.85,
+      distance: 1.02,
+    }),
+    look("Remnant Bloom", 4669, 2, {
+      distance: 0.82,
+      height: 0.35,
+      shock: 1.3,
+    }),
   ],
   stage: ["speed", "web", "shock"],
   type: { key: "development", values: [0, 1, 2] },
-  energy: { speed: { mul: [0.6, 1.5] }, web: { mul: [0.85, 1.15] }, shock: { mul: [0.6, 1.3] } },
+  energy: {
+    speed: { mul: [0.6, 1.5] },
+    web: { mul: [0.85, 1.15] },
+    shock: { mul: [0.6, 1.3] },
+  },
   beat: { punch: 0.06, pulse: 0.1 },
   audio: [
     { param: "web", feature: "low", amount: 0.04 },
     { param: "shock", feature: "onset", amount: 0.08 },
     { param: "light", feature: "high", amount: 0.02 },
   ],
-  rhythmStyles: { restrained: "Distant embers", driving: "Spiral beacon", accented: "Pulsar crown" },
+  rhythmStyles: {
+    restrained: "Distant embers",
+    driving: "Spiral beacon",
+    accented: "Pulsar crown",
+  },
   rhythm: [
     familyEffect(
       "arm-light",
       0,
       "Arm light",
       "A pulse of light runs outward along the arm crests, the web's filaments or the remnant's filaments.",
-      { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
-        restrained: { steps: "X....... | ...x.... | ....X... | .....x..", division: 2, strength: 0.5, duration: 1.2 },
-        driving: { steps: "X...x.X. | ..X...x.", division: 2, strength: 0.76, duration: 0.8 },
-        accented: { steps: "X..x...X..x...X..x...X..", division: 4, strength: 0.9, duration: 0.55 },
-      } },
+      {
+        period: 4,
+        strength: 0.6,
+        duration: 1,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | ...x.... | ....X... | .....x..",
+            division: 2,
+            strength: 0.5,
+            duration: 1.2,
+          },
+          driving: {
+            steps: "X..x.... | .X..x... | X...x...",
+            division: 4,
+            strength: 0.88,
+            duration: 0.55,
+          },
+          accented: {
+            steps: "X..x...X..x...X..x...X..",
+            division: 4,
+            strength: 0.9,
+            duration: 0.55,
+          },
+        },
+      },
     ),
     familyEffect(
       "core-flare",
       1,
       "Core flare",
       "The bulge or the pulsar and its jets flare.",
-      { period: 8, strength: 0.6, duration: 1, steps: "X.......", styles: {
-        restrained: { steps: ".....x.. | .......X | ..x..... | ........", division: 2, strength: 0.48, duration: 1.3 },
-        driving: { steps: "...X.... | .x...X..", division: 2, strength: 0.74, duration: 1 },
-        accented: { steps: "..X...x...X. | ..x...X...x.", division: 4, strength: 0.88, duration: 0.7 },
-      } },
+      {
+        period: 8,
+        strength: 0.6,
+        duration: 1,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: ".....x.. | .......X | ..x..... | ........",
+            division: 2,
+            strength: 0.48,
+            duration: 1.3,
+          },
+          driving: {
+            steps: "...X.... | .x...X..",
+            division: 2,
+            strength: 0.74,
+            duration: 1,
+          },
+          accented: {
+            steps: "..X...x...X. | ..x...X...x.",
+            division: 4,
+            strength: 0.88,
+            duration: 0.7,
+          },
+        },
+      },
     ),
     familyEffect(
       "shock-ripple",
       2,
       "Shock ripple",
       "A ring of light runs outward through the gas, the disk or the shell.",
-      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | .....X..", division: 2, strength: 0.55, duration: 2.2 },
-        driving: { steps: "........ | .......x | ........ | ....X...", division: 2, strength: 0.8, duration: 1.5 },
-        accented: { steps: ".............x.. | ..........X...x. | ...............X", division: 4, strength: 0.95, duration: 0.6 },
-      } },
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | .....X..",
+            division: 2,
+            strength: 0.55,
+            duration: 2.2,
+          },
+          driving: {
+            steps: "........ | .......x | ........ | ....X...",
+            division: 2,
+            strength: 0.8,
+            duration: 1.5,
+          },
+          accented: {
+            steps: ".............x.. | ..........X...x. | ...............X",
+            division: 4,
+            strength: 0.95,
+            duration: 0.6,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "starfront",
+      3,
+      "Starfront",
+      "An asymmetric star flare sweeps outward through the arms and torn ejecta; successive fronts illuminate different sectors.",
+      {
+        period: 8,
+        strength: 0.9,
+        duration: 1.2,
+        styles: {
+          restrained: {
+            steps: "........ | ...X.... | ........ | .....X..",
+            division: 2,
+            strength: 0.72,
+            duration: 1.4,
+          },
+          driving: {
+            steps: "X....... | ....X... | ...X.... | ....X...",
+            division: 4,
+            strength: 0.94,
+            duration: 0.9,
+          },
+          accented: {
+            steps: "X....X.. | ...X.... | X....X.. | ....X...",
+            division: 4,
+            strength: 1,
+            duration: 0.65,
+          },
+        },
+      },
     ),
   ],
   fragment,
