@@ -2286,6 +2286,8 @@ export default {
   "A pulse of light runs outward along the arm crests, the web's filaments or the remnant's filaments.": "Ein Lichtpuls läuft entlang der Armkämme, der Filamente des Netzes oder der Filamente des Überrests nach außen.",
   "The bulge or the pulsar and its jets flare.": "Der Bulge oder der Pulsar und seine Jets leuchten auf.",
   "A ring of light runs outward through the gas, the disk or the shell.": "Ein Lichtring läuft durch das Gas, die Scheibe oder die Hülle nach außen.",
+  "Starfront": "Sternenfront",
+  "An asymmetric star flare sweeps outward through the arms and torn ejecta; successive fronts illuminate different sectors.": "Eine asymmetrische Sternenfackel läuft durch die Arme und zerrissenen Auswürfe nach außen; jede Front beleuchtet andere Sektoren.",
   "Distant embers": "Ferne Glut",
   "Spiral beacon": "Spiralfeuer",
   "Pulsar crown": "Pulsarkrone",

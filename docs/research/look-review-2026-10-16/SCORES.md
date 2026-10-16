@@ -9,11 +9,11 @@ One row per world; updated after every independent re-score. "Signature effect" 
 | World | id | Baseline | Latest | Round | L | G | E | Pass | Signature effect (slot 3) | Merged |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Living Mycelium | mycelium | 4.0 | 7.0 | [r4 (sol)](reviews/mycelium-r4.md) | 7.0 | 8.5 | 7.0 | no | Signal relay (localized; travel not yet legible) | 5f3b6bd |
-| Afterglow Garden | garden | 4.0 | 7.5 | [r4 (opus)](reviews/garden-r4.md) | 7.5 | 7.5 | 7.0 | no | Pollen rising (visible) | e7fce99 |
+| Afterglow Garden | garden | 4.0 | 7.5 | [r5 (sol)](reviews/garden-r5.md) | 7.0 | 8.5 | 7.5 | no | pollen-rising: clearly visible pink unfurling flowers and rising trails (rhythm 1–5, 15–19); bo… | e7fce99 |
 | Unfolding Garden | unfolding | 3.0 | 7.0 | [r3 (sol)](reviews/unfolding-r3.md) | 6.5 | 8.5 | 7.0 | no | **petal-flush:** visible pink/peach petal patches and changing curl (rhythm 8, 17, 24); botanic… | add6a57 |
 | Hopf Bloom | hopf-bloom | 5.0 | 7.0 | [r3 (sol)](reviews/hopf-bloom-r3.md) | 6.5 | 8.5 | 7.0 | no | **fibre-current:** localized pink fibre cohorts clearly visible (rhythm 1, 5, 7, 15, 21); fits … | — |
 | Crystal Cavern | cavern | 4.0 | 6.5 | [r3 (sol)](reviews/cavern-r3.md) | 6.0 | 8.5 | 6.5 | no | crystal-chime: localized pink cohorts clearly visible (rhythm 1, 6, 17–18, 21); circular travel… | ece7127 |
-| Spiral Nebula | nebula | 4.0 | — | baseline | — | — | — | no | — | — |
+| Spiral Nebula | nebula | 4.0 | 6.5 | [r3 (sol)](reviews/nebula-r3.md) | 6.0 | 8.5 | 7.0 | no | **starfront:** pink sectors clearly visible (rhythm 1, 3, 10, 13, 18, 20); fits stellar ejecta.… | — |
 | Endless Descent | descent | 3.0 | 7.0 | [r3 (sol)](reviews/descent-r3.md) | 6.5 | 8.5 | 7.0 | no | ignition-wave: localized floor bands visibly flare (rhythm 1–3, 13, 24); sequential floor-by-fl… | ece7127 |
 | Dusk Murmuration | murmuration | 3.5 | 6.0 | [r3 (opus)](reviews/murmuration-r3.md) | 6.0 | 7.5 | 6.0 | no | **wing-front**: partly visible. It shows as a thin vertical bright seam across the flock (rhyth… | 7075980 |
 | Origami Storm | origami | 4.0 | 6.5 | [r3 (sol)](reviews/origami-r3.md) | 6.0 | 8.5 | 6.5 | no | **crease-snap:** localized pink sectors visible (rhythm 16, 21); an actual hinge snap is not di… | — |
@@ -29,10 +29,10 @@ One row per world; updated after every independent re-score. "Signature effect" 
 | Brass Orrery | brass-orrery | 3.5 | 6.5 | [r3 (sol)](reviews/brass-orrery-r3.md) | 6.0 | 8.5 | 6.5 | no | escapement-strike: partly visible—localized pink/peach gear illumination, especially rhythm 19–… | ece7127 |
 | Thunderhead | thunderhead | 4.5 | 7.0 | [r3 (sol)](reviews/thunderhead-r3.md) | 6.5 | 7.5 | 8.0 | no | bolt-from-the-blue: clearly visible, especially rhythm 9–10 and 17–18; fits strongly. Large pin… | 0b5c815 |
 | Prism Engine | prism-engine | 4.5 | 6.5 | [r3 (sol)](reviews/prism-engine-r3.md) | 6.0 | 8.5 | 6.5 | no | spectral-relay: partly visible—pink prism edges, core flares and floor accents (rhythm 3, 8, 12… | — |
-| Impossible Stairs | impossible-stairs | 4.0 | — | baseline | — | — | — | no | — | — |
-| Silk Storm | silk-storm | 4.5 | — | baseline | — | — | — | no | — | — |
+| Impossible Stairs | impossible-stairs | 4.0 | 7.0 | [r3 (sol)](reviews/impossible-stairs-r3.md) | 6.5 | 8.5 | 7.0 | no | **lantern-ascent:** localized tread illumination clearly visible, especially rhythm 2–3, 6, 17–… | — |
+| Silk Storm | silk-storm | 4.5 | 7.0 | [r3 (sol)](reviews/silk-storm-r3.md) | 6.5 | 8.5 | 7.0 | no | **whip-crack:** partially visible—pink ribbon patches and changing creases, notably rhythm 7–8 … | — |
 | Ink Bloom | ink-bloom | 3.5 | 6.0 | [r3 (opus)](reviews/ink-bloom-r3.md) | 5.5 | 7.0 | 6.0 | no | **ink-burst**: visible, yes. It shows as a large magenta patch on strip frames 15–20 (bar 2 fil… | 37b5900 |
-| Soap Cathedral | soap-cathedral | 4.5 | — | baseline | — | — | — | no | — | — |
+| Soap Cathedral | soap-cathedral | 4.5 | 6.5 | [r3 (sol)](reviews/soap-cathedral-r3.md) | 6.0 | 8.5 | 6.5 | no | **film-shimmer:** localized pink film patches clearly visible (rhythm 1, 5, 9, 17, 20); fits so… | — |
 | Dune Sea | dune-sea | 4.0 | 6.5 | [r3 (sol)](reviews/dune-sea-r3.md) | 6.0 | 8.5 | 6.5 | no | **crest-veil:** localized pink crest patches visibly change, especially rhythm 3, 11–12, 17, 19… | — |
 | Data Monolith | data-monolith | 4.0 | 7.0 | [r3 (sol)](reviews/data-monolith-r3.md) | 6.5 | 8.5 | 7.0 | no | **memory-rewrite:** localized pink memory-port cohorts clearly visible (rhythm 2–4, 13, 17); fi… | — |
 

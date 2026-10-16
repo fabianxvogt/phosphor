@@ -2286,6 +2286,8 @@ export default {
   "A pulse of light runs outward along the arm crests, the web's filaments or the remnant's filaments.": "A pulse of light runs outward along the arm crests, the web's filaments or the remnant's filaments.",
   "The bulge or the pulsar and its jets flare.": "The bulge or the pulsar and its jets flare.",
   "A ring of light runs outward through the gas, the disk or the shell.": "A ring of light runs outward through the gas, the disk or the shell.",
+  "Starfront": "Starfront",
+  "An asymmetric star flare sweeps outward through the arms and torn ejecta; successive fronts illuminate different sectors.": "An asymmetric star flare sweeps outward through the arms and torn ejecta; successive fronts illuminate different sectors.",
   "Distant embers": "Distant embers",
   "Spiral beacon": "Spiral beacon",
   "Pulsar crown": "Pulsar crown",
