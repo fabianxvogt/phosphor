@@ -37,3 +37,7 @@ Tunnel at 4K was already 14.4 ms p50 in wave 5. Liquid sky is one plane (cheap).
 ## Outcome (end of round 3)
 
 Implemented 1–5 as planned; decisions recorded: the chase reuses the eight spokes (no new beams, bounds unchanged), `scene-laser-data.mjs` is treated as this family's geometry helper (owned), and a `scripts/verify-laser.mjs` compile probe was added. Self-assessment after four film rounds: L 7, G 8, E 7.5 → ≈ 7.5. Still weak: Tunnel remains a centred one-point-perspective composition; Horizon's lower third is a dark floor; mid-fold towers tilt like falling crates.
+
+## Addendum after the independent baseline review (L 4.5 · G 2 · E 3.5 → 4.0)
+
+Its weaknesses ("static wireframe outlines with no volumetric beams or haze; no floor reflection; no hero element") were answered with: 1.33× beam sheath scattering, a polished floor mirroring the scanner and eight spokes (tile-culled, chase colour included), and projector-lit structural lines instead of uniform outline glow. Rounds v5–v7. Self-assessment unchanged at ≈ 7.5 (L 7, G 8, E 7.5); pair cost vs main rose to ×1.43 / 1.32 / 1.12.

@@ -130,7 +130,7 @@ test("vector hierarchy and directional opaque-face lighting remain palette-only 
   assert.match(laser.fragment, /0\.35 \+ 0\.65 \* smoothstep\(-towerSize\.y, towerSize\.y, towerP\.y\)/);
   assert.match(laser.fragment, /float fog = exp\(-depth \* 0\.032\);/);
   assert.match(laser.fragment, /major \* fog \* mix\(0\.35, 0\.85, gFold\)/);
-  assert.match(laser.fragment, /core \* 0\.58 \+ volume \* haze \* phase \* 0\.27/);
+  assert.match(laser.fragment, /core \* 0\.58 \+ volume \* haze \* phase \* 0\.36/);
   // Shading is bounded independently of energy and retains black at depth.
   for (let h = -1; h <= 1; h += 0.01) {
     const gradient = 0.35 + 0.65 * smooth(-1, 1, h);

@@ -261,15 +261,18 @@ void main() {
   fog *= outerFade;
   vec3 col = mix(u_secondary, u_primary, 0.15) * (0.0015 + 0.035 * exp(-sq((gRay.y + 0.015) / 0.065)));
   if (depth < 129.0) {
-    col += mix(u_secondary, u_primary, 0.13) * grid * fog * key * 0.24;
-    col += mix(u_primary, u_secondary, 0.3) * major * fog * mix(0.35, 0.85, gFold);
-    col += u_primary * seam * fog * gRise * 0.7;
-    col += u_secondary * 0.009 * fog * key;
     // Light falloff from the projector: material near the source glows
-    // softly (the far floor before the vault, the tunnel walls after it).
+    // softly, and the structural lines are lit by it instead of glowing
+    // uniformly (near frame lines dim, the vanishing region brightest).
     vec3 hitP = gEye + gRay * depth;
     vec3 source = mix(vec3(0, 3.4, 65), vec3(0, 5.7, 55), gFold);
-    col += mix(u_secondary, u_primary, 0.4) * u_params[3] * 0.1 * exp(-length(hitP - source) / mix(14.0, 22.0, gFold)) * key;
+    float sourceGlow = exp(-length(hitP - source) / mix(14.0, 22.0, gFold));
+    float lineLight = 0.42 + 1.5 * sourceGlow;
+    col += mix(u_secondary, u_primary, 0.13) * grid * fog * key * 0.24;
+    col += mix(u_primary, u_secondary, 0.3) * major * fog * mix(0.35, 0.85, gFold) * lineLight;
+    col += u_primary * seam * fog * gRise * 0.7 * lineLight;
+    col += u_secondary * 0.009 * fog * key;
+    col += mix(u_secondary, u_primary, 0.4) * u_params[3] * 0.1 * sourceGlow * key;
     // The tunnel's travelling scan rings also sweep the vault material as
     // light gates moving towards the viewer (continuous, not rhythmic).
     if (gFold > 0.0) for (int k = 0; k < 3; ++k) {
@@ -379,7 +382,7 @@ void main() {
     float cosine = dot(axis.xyz, -gRay);
     float phaseBase = inversesqrt(1.09 - 0.6 * cosine);
     float phase = 0.91 * phaseBase * phaseBase * phaseBase;
-    col += ink * weight * (core * 0.58 + volume * haze * phase * 0.27);
+    col += ink * weight * (core * 0.58 + volume * haze * phase * 0.36);
     // Opaque-surface scattering: the beam leaves a hot, AA impact dot.
     float along = clamp(dot(surface - a, axis.xyz), 0.0, axis.w);
     vec3 off = surface - a - axis.xyz * along;
@@ -392,6 +395,29 @@ void main() {
     float splash = dot(off, off) / 0.64;
     if (splash < 12.0 && depth < 129.0)
       col += ink * weight * exp(-splash) * (0.12 + 0.5 * chase + 0.3 * address) * exp(-depth * 0.012);
+  }
+  // Polished floor: a blurred mirror image of the projector lasers (scanner
+  // plus the eight spokes). The reflected ray leaves the floor hit and uses
+  // the same closed-form sheath integral; no extra data or marching.
+  if (onSheet > 0.5 && abs(surface.y) < 0.05) {
+    vec3 mirrorRay = vec3(gRay.x, -gRay.y, gRay.z);
+    float gloss = 0.16 * mix(0.45, 1.0, pow(1.0 - abs(gRay.y), 4.0)) * fog;
+    // Tile bits 6..14 of the beam word (unused by the 21 direct beams).
+    uint mirrorMask = gloss > 0.004 ? candidates.w >> 6u : 0u;
+    for (int j = 0; j < 9; ++j) {
+      if ((mirrorMask & (1u << uint(j))) == 0u) continue;
+      int i = j == 0 ? 0 : j + 12;
+      vec4 source = lgData(i, 3), target = lgData(i, 4);
+      if (source.w < 0.001) continue;
+      vec3 axis = target.xyz - source.xyz;
+      float len = length(axis); axis /= len;
+      vec3 p = surface - 0.5 * (source.xyz + target.xyz);
+      float z = dot(p, axis);
+      float mirrored = lgBeam(mirrorRay, axis, len, p - z * axis, z, 0.45, 60.0, 0.03, true);
+      float chase = lgChase(i);
+      vec3 ink = mix(mix(u_primary, u_secondary, target.w), u_accent, min(1.0, 1.3 * chase));
+      col += ink * source.w * (1.0 + 2.6 * chase) * mirrored * gloss;
+    }
   }
   // Liquid sky: a finite scanning sheet ABOVE the eye, seen from below as a
   // rippling light ceiling; discrete fan rays sweep across it. Analytic
@@ -533,6 +559,27 @@ void main() {
         lgInsideTaper((lo + hi) * 0.5, p.xy, p.zw, metrics.zw + 0.03 + 0.088388348)) {
       if (i < 16) bits.z |= 1u << uint(i); else bits.w |= 1u << uint(i - 16);
     }
+  }
+  // Floor mirror images of the scanner and the eight spokes are the mirrored
+  // beams seen directly, so the same conservative taper applies (blurred
+  // width 0.45, six sigma R = 2.7). Stored in free bits 6..14 of w.
+  for (int j = 0; j < 9; ++j) {
+    int i = j == 0 ? 0 : j + 12;
+    vec4 src = lgDatum(i, 3);
+    if (src.w < 0.001) continue;
+    vec3 a = src.xyz * vec3(1, -1, 1), b = lgDatum(i, 4).xyz * vec3(1, -1, 1);
+    vec2 pa = lgProject(a), pb = lgProject(b);
+    vec2 depths = vec2(dot(a - gEye, gFw), dot(b - gEye, gFw));
+    bool keep = min(depths.x, depths.y) < 3.0;
+    if (!keep) {
+      float slope = max(length(pa), length(pb));
+      vec2 radii = 6.0 * 0.45 * (1.0 + slope) / (1.0 - 2.7 / min(depths.x, depths.y)) / depths;
+      float radius = max(radii.x, radii.y) + 0.03;
+      vec2 b0 = min(pa, pb) - radius, b1 = max(pa, pb) + radius;
+      keep = all(greaterThanEqual(b1, lo)) && all(lessThanEqual(b0, hi)) &&
+        lgInsideTaper((lo + hi) * 0.5, pa, pb, radii + 0.03 + 0.088388348);
+    }
+    if (keep) bits.w |= 1u << uint(6 + j);
   }
   outColor = vec4(bits);
 }`,

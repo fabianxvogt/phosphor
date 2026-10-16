@@ -64,13 +64,14 @@ The camera follows a slow closed lateral/dolly/crane path: x±1.1, z=−9±1.8, 
 
 ## Round 3 · 16 October 2026
 
-Lane `r3/laser-grid`; plan `.claude/world-polish/plans/laser-grid-r3.md`. Four filmed rounds (`artifacts/look-review/laser-grid-r3-before`, `-v1`…`-v4`, final `laser-grid-r3`). IDs, names, seeds, schema, presets, state count and the world definition are unchanged; no `HISTORY` entry needed.
+Lane `r3/laser-grid`; plan `.claude/world-polish/plans/laser-grid-r3.md`. Seven filmed rounds (`artifacts/look-review/laser-grid-r3-before`, `-v1`…`-v7`, final `laser-grid-r3`). IDs, names, seeds, schema, presets, state count and the world definition are unchanged; no `HISTORY` entry needed.
 
 What changed and why (baseline weaknesses: empty Horizon, grey haze smudge, transparent wire towers, small centred Tunnel starburst, invisible rhythm):
 
 - **Liquid sky ceiling.** The finite scanning sheet now sits 1.7 units above the eye (rising to ≥7.2 under the vault) and is seen from below: a rippling light ceiling with discrete fan rays sweeping across it (a finer second ray set fades in with energy). Grazing gain is capped and blended with a face-on floor, so it reads as laser light rather than grey haze. Ray lines fade out analytically by their screen footprint (no shimmer near the emitter).
 - **Horizon fan with spoke identity.** The eight cone spokes exist in every state: before the vault closes they fan out of the horizon projector over the audience (energy population 2 → 8, the fan plane tilts slowly between floor strikes and overhead); development folds the same eight beams into the tunnel cone. A small hot projector source and a polished-floor sheen below it anchor the vanishing point.
 - **Lit towers.** Seeded lit window cells per tower/row/column (energy lights more of them), darker roofs, crown-weighted edges; the wire skeleton is dimmer, so towers read as opaque occupied buildings. Every beam impact leaves a soft 0.8-unit splash on the material in addition to the hot dot.
+- **Volumetric beams and a polished floor** (after the independent baseline review: "static wireframe outlines, no volumetric beams or haze, no floor reflection"). Beam sheaths scatter 1.33× more; the floor mirrors the scanner and the eight spokes as blurred reflections (same closed-form sheath integral on the mirrored ray, width 0.45, grazing-angle Fresnel weight, chase colour included). Mirror candidates use free tile bits 6..14 of the beam word with the same conservative taper as direct beams. Structural lines are lit by the projector (0.42 + 1.5 × source glow) instead of glowing uniformly, so near frame lines dim and the vanishing region is brightest.
 - **Tunnel depth.** Three scan rings travel down the cone towards the viewer (integer harmonic of the wrapped sweep phase, continuous at 2π and through reversal); the same rings sweep the vault material as light gates. Material near the projector glows softly.
 
 ### Signature: Tunnel chase / Tunneljagd (slot 3)
@@ -93,11 +94,11 @@ Headless Chrome / ANGLE Metal / M3 Pro, shared with other lanes; `profile-famili
 
 | State | 1080p p50 / p95 | 4K p50 / p95 |
 | --- | --- | --- |
-| Horizon | 2.6 / 2.9 ms | 9.7 / 10.4 ms |
-| Towers | 3.6 / 3.9 ms | 13.5 / 14.0 ms |
-| Tunnel | 3.9 / 4.3 ms | 13.7 / 14.9 ms |
+| Horizon | 3.2 / 3.9 ms | 11.3 / 12.4 ms |
+| Towers | 4.1 / 4.7 ms | 15.5 / 16.1 ms |
+| Tunnel | 4.5 / 5.2 ms | 14.4 / 14.9 ms |
 
-Interleaved pair against the unchanged laser code of `26e5f47` (1080p, energy 0.95): Horizon 3.0 → 3.0 ms (×1.00), Towers 3.1 → 3.6 ms (×1.16), Tunnel 3.6 → 3.8 ms (×1.06). `main` itself could not serve as the pair reference because the reference loader swaps only `scene-*`/`*-model` files and main's new Mycelium geometry helper is missing from this branch's tree; laser files are identical on both.
+Interleaved pair against `main` (`profile-rework-pair --reference main`, 1080p, energy 0.95): Horizon 2.1 → 3.0 ms (×1.43), Towers 2.8 → 3.7 ms (×1.32), Tunnel 3.3 → 3.7 ms (×1.12). Most of the increase is the floor mirror (≈0.7–0.9 ms at 1080p); before it the pair was ×1.00 / 1.16 / 1.06. Towers at 4K is at the 16 ms edge on the shared GPU; if it needs trimming, lower the mirror candidate set (spokes only) first.
 
 ### Verification (round 3)
 
