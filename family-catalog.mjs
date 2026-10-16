@@ -49,8 +49,8 @@ export const FAMILY_CATALOG = {
     variants: ["Veil", "Banners", "Tornado"],
   },
   ink: {
-    algorithm: "Kelvin vortex rings and analytic marbled pigment transport",
-    description: "A falling drop rolls into a descending vortex ring, branches into colliding plumes and fills a backlit tank with marbled ink clouds.",
+    algorithm: "Kelvin vortex rings, Widnall lobes and Kaden roll-up",
+    description: "A falling drop rolls into a vortex ring whose Widnall lobes pinch off into a crown of daughter rings, each shedding silk bells in a dark tank.",
     styles: ["organic", "spatial"],
     variants: ["Drop", "Plumes", "Nebula"],
   },
