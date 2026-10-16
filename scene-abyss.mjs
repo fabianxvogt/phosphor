@@ -984,27 +984,40 @@ export default {
     { param: "pulse", feature: "low", amount: 0.05 },
     { param: "reactivity", feature: "high", amount: 0.06 },
   ],
+  rhythmStyles: { restrained: "Abyssal hush", driving: "Lantern drift", accented: "Reef awakening" },
   rhythm: [
     familyEffect(
       "bell-beat",
       0,
       "Bell beat",
       "Every jellyfish bell contracts together.",
-      { period: 4, strength: 0.7, duration: 0.5 },
+      { period: 4, strength: 0.7, duration: 0.5, steps: "X...", styles: {
+        restrained: { steps: "X....... | ...x.... | ......X. | ..x.....", division: 2, strength: 0.55, duration: 1.2 },
+        driving: { steps: "X....x.. | ..X...x.", division: 2, strength: 0.8, duration: 0.85 },
+        accented: { steps: "X......x........ | ....X......x.... | ..X......x......", division: 4, strength: 0.94, duration: 0.8 },
+      } },
     ),
     familyEffect(
       "plankton-wave",
       1,
       "Plankton wave",
       "A shell of light ripples outwards through the plankton.",
-      { period: 8, strength: 0.7, duration: 1 },
+      { period: 8, strength: 0.7, duration: 1, steps: "X.......", styles: {
+        restrained: { steps: ".....x.. | .......X | ........ | .....x..", division: 2, strength: 0.55, duration: 1.5 },
+        driving: { steps: "...X.... | .......x | .....X.. | ........", division: 2, strength: 0.8, duration: 1.25 },
+        accented: { steps: ".....X.......... | ...........x.... | .......X.....x.. | ..............X.", division: 4, strength: 0.94, duration: 1 },
+      } },
     ),
     familyEffect(
       "reef-cascade",
       2,
       "Reef cascade",
       "A front of light sweeps across the reef: crowns, sea pens and fans flare in turn.",
-      { period: 16, strength: 0.7, duration: 2 },
+      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | ....X...", division: 2, strength: 0.55, duration: 2.5 },
+        driving: { steps: "........ | .....x.. | ........ | ......X.", division: 2, strength: 0.82, duration: 1.6 },
+        accented: { steps: "............x... | .........X...x..", division: 4, strength: 0.96, duration: 0.8 },
+      } },
     ),
   ],
   fragment: background,

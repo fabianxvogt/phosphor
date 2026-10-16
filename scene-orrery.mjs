@@ -353,27 +353,40 @@ export default {
   type: { key: "development", values: [0, 1, 2] },
   energy: { speed: { mul: [0.65, 1.35] }, glide: { mul: [0.75, 1.4] } },
   beat: { punch: 0.035, pulse: 0.025 },
+  rhythmStyles: { restrained: "Sleeping gears", driving: "Brass escapement", accented: "Cathedral clock" },
   rhythm: [
     familyEffect(
       "escapement-tick",
       0,
       "Escapement tick",
       "The anchor rocks and the engaged involute tooth rims catch a local accent.",
-      { period: 4, duration: 0.65, strength: 0.65 },
+      { period: 4, duration: 0.65, strength: 0.65, steps: "X...", styles: {
+        restrained: { steps: "X...x... | ..X....x", division: 2, strength: 0.55, duration: 0.4 },
+        driving: { steps: "X.x.X.x.X.x.X.xx", division: 4, strength: 0.8, duration: 0.18 },
+        accented: { steps: "XxxxXx.xXxxxXxXx | Xx.xXxxxXxXxXxXX", division: 4, strength: 0.94, duration: 0.14 },
+      } },
     ),
     familyEffect(
       "ratio-cohort",
       1,
       "Ratio cohort",
       "A persistent shaft cohort catches a white glint without changing its meshing speed.",
-      { period: 8, duration: 2, strength: 0.7 },
+      { period: 8, duration: 2, strength: 0.7, steps: "X.......", styles: {
+        restrained: { steps: ".....x.. | .......X", division: 2, strength: 0.55, duration: 1.2 },
+        driving: { steps: "...X...x | ..X...x.", division: 2, strength: 0.82, duration: 0.65 },
+        accented: { steps: "...X.......x.... | ......X.......x. | .X.......x......", division: 4, strength: 0.94, duration: 0.6 },
+      } },
     ),
     familyEffect(
       "clockwork-wave",
       2,
       "Clockwork wave",
       "A bounded light wave follows tooth rims out through the cathedral.",
-      { period: 16, duration: 3.5, strength: 0.75 },
+      { period: 16, duration: 3.5, strength: 0.75, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.6, duration: 2.5 },
+        driving: { steps: "........ | .....x.. | ........ | .......X", division: 2, strength: 0.84, duration: 1.8 },
+        accented: { steps: "............x... | ..........X...x. | ................ | ............X..x", division: 4, strength: 0.98, duration: 0.5 },
+      } },
     ),
   ],
   // 56/24=7/3 and 56/40=7/5. A drive period of 30π completes

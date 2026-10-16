@@ -1380,27 +1380,40 @@ export default {
     { param: "embers", feature: "high", amount: 0.1 },
     { param: "flow", feature: "mid", amount: 0.08 },
   ],
+  rhythmStyles: { restrained: "Cooling seams", driving: "Lava channels", accented: "Cinder fountain" },
   rhythm: [
     familyEffect(
       "seam-pulse",
       0,
       "Seam pulse",
       "A ring of heat runs outward from the vent through every plate seam.",
-      { period: 4, strength: 0.6, duration: 1 },
+      { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
+        restrained: { steps: "X.....x. | ....X... | .......x | ........", division: 2, strength: 0.5, duration: 1.1 },
+        driving: { steps: "X.x.X..x | X.x..X.x", division: 2, strength: 0.76, duration: 0.35 },
+        accented: { steps: "X..x..X.x..X..xx | X.x..X..x.X..x.X", division: 4, strength: 0.9, duration: 0.2 },
+      } },
     ),
     familyEffect(
       "lava-surge",
       1,
       "Lava surge",
       "Fresh lava surges through the rivers; the crust skins thin and glow.",
-      { period: 8, strength: 0.6, duration: 1.5 },
+      { period: 8, strength: 0.6, duration: 1.5, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | ......X. | ..x..... | ........", division: 2, strength: 0.5, duration: 1.5 },
+        driving: { steps: "...X..x. | ..X...x.", division: 2, strength: 0.76, duration: 0.8 },
+        accented: { steps: "...X..x..X.. | x..X..x..X..", division: 4, strength: 0.9, duration: 0.5 },
+      } },
     ),
     familyEffect(
       "ejecta-volley",
       2,
       "Ejecta volley",
       "The fountain surges and the ejecta flare; embers burst from the field.",
-      { period: 16, strength: 0.7, duration: 2 },
+      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | ....X...", division: 2, strength: 0.55, duration: 2 },
+        driving: { steps: "........ | ......x. | ........ | .....x.X", division: 2, strength: 0.8, duration: 0.75 },
+        accented: { steps: "................ | ...........x..Xx | ................ | ........X..x.XXX", division: 4, strength: 0.96, duration: 0.18 },
+      } },
     ),
   ],
   fragment,
