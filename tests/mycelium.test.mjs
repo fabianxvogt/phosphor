@@ -9,10 +9,16 @@ import { catalogLooks } from "../catalog.mjs";
 import acid, { grayScottSimulation } from "../scene-acid.mjs";
 import mycelium, { CHEMISTRY } from "../scene-mycelium.mjs";
 import {
-  landscapeGeometry,
-  LANDSCAPE_VERTICES,
-  SPORE_COUNT,
-} from "../organic-landscape.mjs";
+  growNetwork,
+  myceliumMesh,
+  cordRadius,
+  shroomClearance,
+  pathDistance,
+  OPAQUE_VERTICES,
+  STRIDE,
+  KIND,
+  PERIOD,
+} from "../mycelium-geometry.mjs";
 
 const sha = (text) => createHash("sha256").update(text).digest("hex");
 const clips = (ids) =>
@@ -73,21 +79,159 @@ test("the Living Mycelium world is one continuous development of one field", () 
     }
 });
 
-test("the landscape is a persistent full-resolution mesh with depth-tested spores", () => {
-  const a = landscapeGeometry();
-  assert.deepEqual(a, landscapeGeometry());
-  assert.equal(a.length / 3, LANDSCAPE_VERTICES + SPORE_COUNT * 6);
-  assert.ok(LANDSCAPE_VERTICES < 520000);
-  assert.equal(mycelium.geometry.additiveFrom, LANDSCAPE_VERTICES);
-  for (let i = 0; i < LANDSCAPE_VERTICES * 3; i += 3) {
-    assert.ok(a[i] >= 0 && a[i] <= 1 && a[i + 1] >= 0 && a[i + 1] <= 1);
-    assert.equal(a[i + 2], 0);
+const net = growNetwork(211);
+
+test("the hyphal network is deterministic per seed and independent of development", () => {
+  const again = growNetwork(211);
+  assert.equal(again.count, net.count);
+  assert.deepEqual(
+    Array.from(again.px.slice(0, net.count)),
+    Array.from(net.px.slice(0, net.count)),
+  );
+  assert.notEqual(growNetwork(18).count, 0);
+  // The geometry entry point only receives the seed.
+  assert.equal(mycelium.geometry.create.length, 1);
+  assert.ok(net.count > 20000, `nodes ${net.count}`);
+  for (let i = 0; i < net.count; i++)
+    assert.ok(
+      Number.isFinite(net.px[i]) &&
+        Number.isFinite(net.py[i]) &&
+        Number.isFinite(net.pz[i]),
+    );
+});
+
+test("anastomosis closes loops: the graph has a positive cycle rank", () => {
+  // Union–find over growth-tree and fusion edges: rank = E − V + components.
+  const parent = Int32Array.from({ length: net.count }, (_, i) => i);
+  const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  let edges = 0;
+  const union = (a, b) => {
+    edges++;
+    parent[find(a)] = find(b);
+  };
+  for (let i = 0; i < net.count; i++)
+    if (net.parent[i] >= 0) union(i, net.parent[i]);
+  for (let f = 0; f < net.fusions.length; f += 2)
+    union(net.fusions[f], net.fusions[f + 1]);
+  let components = 0;
+  for (let i = 0; i < net.count; i++) components += find(i) === i;
+  const rank = edges - net.count + components;
+  assert.ok(rank > 500, `cycle rank ${rank}`);
+});
+
+test("pulse distances are true shortest paths (Bellman optimality on every edge)", () => {
+  const { dist, px, py, pz, delta } = net;
+  const len = (a, b) =>
+    Math.hypot(delta(px[a] - px[b]), delta(py[a] - py[b]), pz[a] - pz[b]);
+  const check = (a, b) => {
+    if (!Number.isFinite(dist[a]) && !Number.isFinite(dist[b])) return;
+    const w = len(a, b);
+    assert.ok(dist[a] <= dist[b] + w + 1e-6 && dist[b] <= dist[a] + w + 1e-6);
+  };
+  for (let i = 0; i < net.count; i++)
+    if (net.parent[i] >= 0) check(i, net.parent[i]);
+  for (let f = 0; f < net.fusions.length; f += 2)
+    check(net.fusions[f], net.fusions[f + 1]);
+  // The predecessor tree attains the distance exactly.
+  for (let i = 0; i < net.count; i += 97)
+    if (net.pred[i] >= 0)
+      assert.ok(
+        Math.abs(dist[i] - dist[net.pred[i]] - len(i, net.pred[i])) < 1e-5,
+      );
+});
+
+test("cords obey Murray's law: r³ is conserved at every junction of the transport tree", () => {
+  const children = new Map();
+  for (let i = 0; i < net.count; i++)
+    if (net.pred[i] >= 0) {
+      if (!children.has(net.pred[i])) children.set(net.pred[i], []);
+      children.get(net.pred[i]).push(i);
+    }
+  let junctions = 0;
+  for (const [node, kids] of children) {
+    if (kids.length < 2 || net.pred[node] < 0) continue;
+    junctions++;
+    // Flow into the parent edge = node demand + the children's flows.
+    const inflow = net.flow[node];
+    const out = kids.reduce((s, k) => s + net.flow[k], 0);
+    assert.ok(inflow >= out - 1e-9);
+    const r3 = cordRadius(inflow) ** 3,
+      sum = kids.reduce((s, k) => s + cordRadius(net.flow[k]) ** 3, 0);
+    assert.ok(r3 >= sum * (1 - 1e-9), `r³ ${r3} < Σ ${sum}`);
   }
-  assert.match(mycelium.geometry.vertex, /meshHeight\(p\.xy/);
-  assert.match(mycelium.geometry.fragment, /floor\(fract\(uv\)/);
+  assert.ok(junctions > 100);
+});
+
+test("the camera never enters a mushroom, at any development, scale or altitude", () => {
+  assert.ok(net.mushrooms.length >= 20, `mushrooms ${net.mushrooms.length}`);
+  for (const seed of [211, 101, 149, 41, 18, 73])
+    for (const m of growNetwork(seed).mushrooms)
+      assert.ok(shroomClearance(m) > 0.012, `seed ${seed} clearance`);
+  // Every stem stands off the camera line.
+  for (const m of net.mushrooms) assert.ok(pathDistance(m.x, m.y) > 0.03);
+});
+
+test("the mesh: fixed opaque head, finite attributes, segments shorter than the wrap", () => {
+  const { data, opaque, vertices } = myceliumMesh(211);
+  assert.equal(opaque, OPAQUE_VERTICES);
+  assert.equal(mycelium.geometry.additiveFrom, OPAQUE_VERTICES);
+  assert.equal(data.length, vertices * STRIDE);
+  assert.deepEqual(mycelium.geometry.attributes, [4, 4, 4, 4, 4, 4]);
+  for (let i = 0; i < data.length; i++) assert.ok(Number.isFinite(data[i]));
+  for (let v = opaque; v < vertices; v++) {
+    const o = v * STRIDE;
+    if (data[o + 23] >> 8 !== KIND.hypha) break;
+    const seg = Math.hypot(data[o] - data[o + 4], data[o + 1] - data[o + 5]);
+    assert.ok(seg < 0.03 && seg < PERIOD / 4);
+  }
+  assert.ok(vertices < 600000, `vertices ${vertices}`);
+});
+
+test("rhythm ids, slots and the simulation contract are kept", () => {
+  assert.deepEqual(
+    mycelium.rhythm.map((r) => [r.id, r.slot]),
+    [
+      ["reaction-front", 0],
+      ["chemical-band", 1],
+      ["feed", 2],
+      ["signal-relay", 3],
+    ],
+  );
   assert.equal(mycelium.simulation.filter, "linear");
   assert.match(mycelium.simulation.fragment, /texelFetch\(u_state/);
   assert.doesNotMatch(mycelium.simulation.fragment, /texture\(u_state/);
+  assert.equal(mycelium.clocks.length, 4);
+  for (const c of mycelium.clocks) assert.ok(c.period > 0);
+});
+
+test("signal relay has three full authored styles and uses the complete slot-3 contract", () => {
+  const effect = mycelium.rhythm.find((r) => r.slot === 3);
+  for (const style of ["restrained", "driving", "accented"]) {
+    const loop = effect.styles[style];
+    const hits = loop.steps.flatMap((s, i) => (s > 0 ? [i] : []));
+    assert.ok(hits.length >= 2, style);
+    for (const [i, hit] of hits.entries()) {
+      const next =
+        hits[(i + 1) % hits.length] + (i === hits.length - 1 ? loop.length : 0);
+      assert.ok(
+        loop.duration < (next - hit) / loop.division,
+        `${style} settles`,
+      );
+    }
+    assert.ok(
+      loop.steps.some((s, i) => s > 0 && i % loop.division !== 0),
+      `${style} offbeat`,
+    );
+    assert.ok(loop.duration >= 1.8 && loop.strength <= 1);
+  }
+  assert.deepEqual(Object.values(mycelium.rhythmStyles), [
+    "Dormant threads",
+    "Root signals",
+    "Spore chorus",
+  ]);
+  for (const name of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
+    assert.ok(mycelium.geometry.fragment.includes(name), name);
+  assert.match(mycelium.geometry.vertex, /mySignal\(a3.x\)/);
 });
 
 test("development chemistry stays inside acid's stability clamps", () => {

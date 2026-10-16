@@ -49,8 +49,8 @@ export const FAMILY_CATALOG = {
     variants: ["Veil", "Banners", "Tornado"],
   },
   ink: {
-    algorithm: "Kelvin vortex rings, Widnall lobes and Kaden roll-up",
-    description: "A falling drop rolls into a vortex ring whose Widnall lobes pinch off into a crown of daughter rings, each shedding silk bells in a dark tank.",
+    algorithm: "Characteristic-mapped Kelvin vortex dye, Widnall lobes and Kaden roll-up",
+    description: "A falling dye ring folds into hanging plumes and an outward crown, with translucent pigment bursts on musical fills.",
     styles: ["organic", "spatial"],
     variants: ["Drop", "Plumes", "Nebula"],
   },
@@ -181,9 +181,9 @@ export const FAMILY_CATALOG = {
     variants: ["Roots", "Petals", "Bloom"],
   },
   mycelium: {
-    algorithm: "Gray–Scott reaction–diffusion as a lit terrain",
+    algorithm: "Hyphal tip growth with anastomosis, geodesic nutrient pulses and Murray-law cords",
     description:
-      "One reaction–diffusion field becomes understory threads, tidal membranes and a luminous city while its chemistry keeps running.",
+      "A seeded fungal network grows, fuses into loops and carries nutrient pulses along its shortest paths, then fruits into a grove of glowing mushrooms.",
     styles: ["organic", "spatial"],
     variants: ["Understory", "Tide", "City"],
   },

@@ -1,87 +1,106 @@
 # Ink Bloom / Tintenblüte
 
-Family **112**, scene `ink`, world **`ink-bloom`**. World, look and preset ids, the eight preset names and seeds, the schema keys, states and rhythm ids are all unchanged. Tests select the world by id. Polish round 2026-10-16 (branch `polish/ink-bloom`), replacing the wave-5 bright-tank renderer.
+Family **112**, scene `ink`, world **`ink-bloom`**. Round 3 keeps all eight look names/seeds, schema keys, three state names and the three legacy rhythm ids. The previous world description is appended to `worlds.mjs` `HISTORY`.
 
-## Story and states
+## Concept and states
 
-A drop's vortex ring falls through a dark tank. Its rim develops a Widnall bending wave; the lobes neck and pinch off into daughter rings, and the necks dissolve as they pinch, so no string remains. At the peak, the cascade **blooms**: the daughters rise to the rim, travel outward and roll over, the primary's wake rounds into a mushroom cap, and each daughter sheds a small cap of its own. The primary ring and its cap remain the dominant form; daughters stay smaller.
+A falling dye ring develops seeded Widnall lobes. Small daughter rings descend from the same lobe positions, then rise and roll outward into a crown. Pigment is a **translucent volume**, not a carved opaque surface: thin scattering sheets overlap absorbing cores. A fill injects a local third-colour packet into the rolled rim.
 
-| State  | DE      | Development | Composition                                                              |
-| ------ | ------- | ----------- | ------------------------------------------------------------------------ |
-| Drop   | Tropfen | 0           | One wound ring with crisp, carved ink edges and its short scalloped wake |
-| Plumes | Fahnen  | 1           | Lobed rim, 5–7 free daughter rings below it (no threads)                 |
-| Nebula | Nebel   | 2           | Mushroom cap over the primary; a crown of outward-rolling daughter rings |
+| State  | DE      | Development | Composition                                            |
+| ------ | ------- | ----------- | ------------------------------------------------------ |
+| Drop   | Tropfen | 0           | Close wound ring, dark absorbing core, short torn wake |
+| Plumes | Fahnen  | 1           | Lobed parent with 5–7 hanging daughter plumes          |
+| Nebula | Nebel   | 2           | Wider parent, daughters rising and rolling outward     |
 
-The morph uses real geometry, not crossfades:
+The development schedule is continuous and reversible. Lobe amplitude and daughter size grow smoothly; daughters originate at the lobe peaks, not at an unrelated centre. Their azimuths and count `5 + (seed + 2) % 3` depend only on seed. Development changes neither seed identity nor either integrated clock. Camera centre/distance follow smooth bounded curves, never rhythmic event counts.
 
-- **0→1:** the Widnall wave grows (`gLobeAmp`). Daughters are born _at_ the lobe peaks (`inkCascade(0).daughterCentre == peak`), descend and tilt outward. The neck pinches from the core thickness and dissolves (`1 − smoothstep(0.45, 0.9, gPinch)`). At 0.5 the lobes are half-pinched teardrops.
-- **1→2:** the daughters rise (+0.25 and less fall), move outward (+0.95) and roll over (tilt +1.1 rad); the ring widens ×1.35. The wake bell blends into a rounded cap, a nested second bell appears from 0.45, and daughters grow caps and their own Widnall lobes (m = 3 or 4).
-- **Reversal** re-absorbs daughters into the rim along the same path. Lobe count `n = 5 + (seed+2) % 3` and lobe azimuths come from the seed, never from development (tested).
+## Mathematics and material
 
-## Mathematics
+- Kelvin's thin-ring speed `Γ/(4πR) · (ln(8R/a) − 1/4)` sets the transport clock. The exported streamfunction velocity and divergence reference are retained and CPU-tested.
+- The material atmosphere uses the regular Stokes function `Ψ = r²(k exp(−((r−R)²+y²)/a²) − U/2)`. Two finite-thickness sheet levels surround its separatrix. Wake pigment dilutes and tears above the ring instead of making an infinite axial tube.
+- Kaden's phase `c(ρ/a)^(−3/2) − θ + roll` modulates rolled folds, with tighter turns toward the mixed core. It is not an opaque isosurface.
+- Six seeded plane-wave vector potentials, including the exact envelope-gradient term in their curl, produce a divergence-free perturbation. Two fixed-duration backward RK2 steps transport the pigment coordinates. This is a bounded procedural characteristic map, **not** a Navier–Stokes simulation.
+- Coverage holes, meridian striation, broad folds and absorbing Gaussian cores provide a density hierarchy. Gaussian sheets are spatially filtered before caching. Native fibres are filtered along the ray to avoid high-contrast march slicing. No per-frame random grain.
+- The retained `inkCross()` export is a legacy mathematical reference; the renderer now integrates finite volumes rather than counting crossings.
 
-- **Kelvin ring speed:** `U = Γ/(4πR)[ln(8R/a) − 1/4]` drives the integrated transport clock: roll, wake rise and erosion drift. The axisymmetric streamfunction reference `inkVelocity()` and its derivative and divergence tests are retained.
-- **Kaden roll-up:** the sheets around each core follow `Φ = c·(ρ/a)^(−3/2) − θ + roll = 2πk`, i.e. `ρ/a = (c/θ)^(2/3)`, so turns tighten toward the mixed core. Energy winds more turns (`c = 4 + 5·energy`). Sheets narrower than their filtered width integrate to their mean.
-- **Widnall bending wave:** rim radius and height are `R(1 + 0.55·A·cos nφ)` and `−R·A·cos nφ`; lobe peaks move outward and down. The daughters' lobes use Chebyshev polynomials of `x/r`.
-- **Exact silk:** wherever consecutive samples change side of a bell, the step adds the sheet's optical depth `ρ·w·√π/|cos|` (CPU-verified against quadrature). Silk stays crisp at any step length and brightens edge-on.
+## Rendering and cost decisions
 
-## Rendering
+The initial round-3 map-only atlas left material evaluation inside every ray step. Profiling rejected it: peak 1080p/4K p50 **24.0/83.6 ms**. Three further film rounds replaced that repeated work with a **physical scalar-field atlas**:
 
-- **Body lattice (precompute, rgba16f, linear):** 96×128×96 nodes packed 16×6 into 1568×780 with one-node gutters, about 9.8 MB. Channels: R body density (computed only near ink), G optical depth toward the key, B conservative distance to any ink, A distance to silk alone.
-- **Crisp ink, not cotton:** per sample, `inkCarve()` erodes the cached field near its surface with 1–2 ridged octaves (footprint-faded, only where `0 < raw < 1.1`). A steep density → opacity curve around `INK_ISO = 0.2` gives sharp edges. Where a step enters the ink, three bisections locate the edge (no slice artefacts). A forward-difference normal there drives a thin backlit rim, toward the key and the silhouette, in the second hue.
-- **Second hue:** a third dye, `mix(secondary, primary, 0.85)`, colours silk, thin body edges and rims; cores keep the deep secondary. Every palette reads in two colours (lime/blue, cream/red, ice/blue).
-- **March:** skips by the cached distance minus a trilinear margin (`0.6 · cell diagonal`). Body steps are 2.3 cells, sparse ink 3.5 cells, longer as ink hides. Silk is evaluated analytically only where the A channel says it is near.
-- **Ray-step budget:** the step cap follows `u_raySteps` (96 → 64 → 40) and steps lengthen by 96/budget. With crisp edges the picture shifts more: at 40 steps, up to about 10 mean levels on Nebula.
-- **Fallback:** without float targets, `inkCell()` runs per sample (same function, slower; within 2.3 mean levels of the cache).
-- **Removed this round:** the drop's straight twin tail, the pinched-neck threads, the suspended motes and the per-step grain octave.
+- 96×128×96 nodes; 98×130 guttered tiles, packed 16×6 into **1568×780 rgba16f**, approximately 9.8 MB.
+- Channels: scattering dye concentration, absorbing-core concentration, accent-dye concentration, padded distance estimate. No palette colours, screen-space image or lighting image is cached.
+- The full-resolution visual pass integrates extinction, palette mixing, soft backlight, approximate core shadowing and filtered fine fibres. Early opacity termination and damped, padded distance skips avoid empty water.
+- At engine budget 96, the march uses 48 samples in Drop/Plumes and 44 at Nebula. It scales with `u_raySteps` at governor budgets 64/40. Step length covers the ray interval; a reduced budget cannot truncate the back of the volume.
+- No float target: the same physical field is evaluated analytically at each ray sample. This fallback is substantially slower; it is not venue-qualified.
 
-## Camera, motion, energy, rhythm
+## Camera, colour, energy, endlessness
 
-- **Camera:** a full orbit about the descent axis on the second integrated clock (`orbit · 0.09` rad/s). Elevation swings from above to slightly below. Distance and centre follow the cascade's extent and the finger parameter, never rhythm. At the peak the camera pulls back so the bloom spans about 75–85% of the width. Kick changes focal length by at most 2%. In portrait the bloom is width-limited and small.
-- **Descent:** the camera rides with the ring; erosion, wake streaks and roll drift with the transport clock (all integer clock coefficients).
-- **Energy** (0.1 → 0.9) changes structure, not brightness: Kaden turns 4.5 → 8.5, silk pleats 7 → 15 (blended integer harmonics), carving depth ×0.84 → 1.16, lobe and finger reach, transport ×0.65 → 1.3 and orbit ×0.8 → 1.25.
-- **Gestures:** `ring-roll` (4 beats) rolls the wound sheets and brightens rims ≤ 30%; `finger-reach` (8 beats) extends lobes and daughters ≤ 12%; `pigment-wave` (16 beats) sends a compact accent band down the cascade.
+Slow continuous orbit about the fall axis, with a small periodic elevation swing. A dark tank, overlapping translucent layers, soft backlight, absorbing cores and the orbit supply depth. Portrait uses a lower elevation and aspect-aware focal length; its composition remains weaker than landscape. Kick focal punch is at most 2%.
+
+Colour comes only from primary/secondary/accent palette uniforms. Thin dye is a saturated transformation of primary; dense dye deepens toward secondary. Accent pigment is local to wave/burst events; there is no full-screen white event. The shared flash limiter is unchanged.
+
+Energy changes Kaden turns (`1.6 + 2.4·level`), perturbation amplitude, material reach and native fibre contrast, plus transport ×0.65→1.3 and orbit ×0.8→1.25. Development still controls the same independent form schedule.
+
+Both clocks have period 2π. Every phase use is periodic, including background drift and plane-wave phases. No time reset, simulation saturation, reseed or accumulating density is needed. Native checks include 3600, 4096 and 43200 seconds.
+
+## Rhythm
+
+Main's **World rhythm presets** commit was merged before rhythm work. The three named presets retain authored first-three-track placements:
+
+| Style      | EN                | DE                  |
+| ---------- | ----------------- | ------------------- |
+| restrained | Suspended pigment | Schwebendes Pigment |
+| driving    | Vortex bloom      | Wirbelblüte         |
+| accented   | Widnall flourish  | Widnall-Arabeske    |
+
+- Slot 0 `ring-roll`: winds the existing folds and fibres, shader excursion 2.8 radians times envelope (previously 0.9).
+- Slot 1 `finger-reach`: extends lobe/daughter reach by up to 30% times envelope (previously 12%).
+- Slot 2 `pigment-wave`: wider travelling accent band in transported material coordinates, with local scattering density increased up to 80% times envelope.
+- **Slot 3 `ink-burst` / Tintenausbruch**: one facing rim sector ejects an expanding scalloped dye packet. Envelope controls spread/concentration, hit pinches the injection throat, event count selects among three rim sectors. It changes local material, not global brightness; it works at every development value.
+
+Signature loops use four bars. Zero-based hit steps:
+
+| Preset            | Division | Steps                  | Strength | Duration (beats) |
+| ----------------- | -------- | ---------------------- | -------- | ---------------- |
+| Suspended pigment | 2        | 14, 31                 | 0.70     | 2.4              |
+| Vortex bloom      | 2        | 13, 15, 28, 30, 31     | 0.90     | 1.6              |
+| Widnall flourish  | 4        | 26, 30, 58, 60, 62, 63 | 0.98     | 1.1              |
+
+The faster fills deliberately overlap packet envelopes; the latest event selects the active sector. German/English label and description are additive keys beside this family's existing rhythm descriptions.
 
 ## Looks
 
-| EN                 | DE                  | Seed (lobes) | Composition                                      |
-| ------------------ | ------------------- | ------------ | ------------------------------------------------ |
-| Drop               | Tropfen             | 11201 (6)    | State 0                                          |
-| Plumes             | Fahnen              | 11201 (6)    | State 1                                          |
-| Nebula             | Nebel               | 11201 (6)    | State 2                                          |
-| Quiet Infusion     | Stille Infusion     | 11202 (7)    | Close, slow, ring just starting to lobe          |
-| Twin Currents      | Zwillingsströmungen | 11203 (5)    | Wide spread daughters, strong curl, faster orbit |
-| Silken Tributaries | Seidene Nebenarme   | 11204 (6)    | Far-reaching daughters, light dilute bodies      |
-| Velvet Chamber     | Samtkammer          | 11205 (7)    | Dense full cascade                               |
-| Marbled Lantern    | Marmorierte Laterne | 11206 (5)    | Late bloom, wide spread, moving camera           |
+| EN                 | DE                  | Seed  | Character                             |
+| ------------------ | ------------------- | ----- | ------------------------------------- |
+| Drop               | Tropfen             | 11201 | State 0                               |
+| Plumes             | Fahnen              | 11201 | State 1                               |
+| Nebula             | Nebel               | 11201 | State 2                               |
+| Quiet Infusion     | Stille Infusion     | 11202 | Close, slow, dilute early ring        |
+| Twin Currents      | Zwillingsströmungen | 11203 | Wide daughters, strong curl and orbit |
+| Silken Tributaries | Seidene Nebenarme   | 11204 | Long, dilute fingers                  |
+| Velvet Chamber     | Samtkammer          | 11205 | Dense compact full cascade            |
+| Marbled Lantern    | Marmorierte Laterne | 11206 | Wide late crown and faster orbit      |
 
-The `curl` fader now scales erosion and grain (turbulent ragged edges). `spread` sets how far daughters travel; `fingers` sets lobe and finger reach.
+`curl` scales the characteristic perturbation; `spread` positions daughters; `fingers` controls reach. The first three looks still have identical non-development parameters and seed.
 
-## Cost (native Chrome, ANGLE Metal, M3 Pro, `PHOSPHOR_HEADLESS_RIG=1`)
+## Native performance
 
-Standard `profile-families --types` probe; paired `profile-rework-pair --reference main` (ABBA, level 0.95). Round 2 (crisp carving, bloom):
+Chrome / ANGLE Metal / Apple M3 Pro, native synchronous throughput including post, not venue cadence. Shared GPU load varied substantially. Final standard probes:
 
-| State  | 1080p p50 | 4K p50 (p95)   | Paired vs main, 1080p | Paired vs main, 4K     |
-| ------ | --------- | -------------- | --------------------- | ---------------------- |
-| Drop   | 3.3 ms    | 10.6 (11.8) ms | 3.0 → 4.5 ms (1.50×)  | 8.2 → 11.7 ms (1.43×)  |
-| Plumes | 3.0 ms    | 12.3 (12.7) ms | 4.9 → 4.1 ms (0.84×)  | 11.1 → 9.7 ms (0.87×)  |
-| Nebula | 3.8 ms    | 15.0 (16.8) ms | 4.4 → 5.2 ms (1.18×)  | 11.5 → 12.7 ms (1.10×) |
+| State  | 1080p p50 / p95 ms | 4K p50 / p95 ms | ABBA p50 delta vs main, 1080p / 4K |
+| ------ | ------------------ | --------------- | ---------------------------------- |
+| Drop   | 5.3 / 8.1          | 8.3 / 8.8       | −2.9% / −12.2%                     |
+| Plumes | 4.3 / 4.8          | 10.1 / 10.5     | +15.2% / +21.2%                    |
+| Nebula | 6.6 / 10.9         | 11.2 / 11.8     | 0.0% / −0.9%                       |
 
-These are within the hard budget (≤ 8 ms at 1080p, ≤ 16 ms p50 at 4K), but Nebula at 4K is tight (p95 above 16 ms in one run). The shared GPU was often contended; unpaired runs varied ±30%.
+All standard p50 values meet 8/16 ms budgets. **Plumes still regresses against main**, so both paired probes exit 1 at their 5% regression threshold; this is not a GL error. Profiles and ABBA samples are in worktree `artifacts/ink-r3-final-{performance,pair}-{1080,4k}/profile.json`.
 
-## Verification
+## Verification and review
 
-- `node --test tests/ink.test.mjs`: Kelvin speed and streamfunction; Kaden law and gradient; seeded Widnall identity independent of development; cascade continuity, reversal, dissolving necks and the outward bloom, mirrored in the shader; exact sheet integral against quadrature (threads asserted absent); lattice gutters and layout; integer clock coefficients and wraps; presets, world, gestures, step budget.
-- `PHOSPHOR_INK_GPU=1 node --test tests/browser/ink-sampling.test.mjs`: exact gutters; ray budgets 64/40 within 12 mean levels (measured 1.9–9.9).
-- `PHOSPHOR_INK_GPU=1 node --test tests/browser/ink-precompute.test.mjs`: formats, filtering, fallback (≤ 2.3 levels), restoration.
-- `scripts/check-time-wrap.mjs --families ink`: no seams at 3600 s, 4096 s or 43200 s.
-- Films (worktree `artifacts/films/`): round 2 in `round2/` (world, held states, `reversal/`, `portrait/`, palettes); round 1 (d75cbb5) in the top level; wave 5 in `baseline/`. Comparisons: `compare/before-after.png` (wave 5 vs d75cbb5) and `compare2/before-after.png` (d75cbb5 vs round 2).
+- `tests/ink.test.mjs`: Kelvin/Stokes/Kaden references, seed identity, continuous/reversible cascade, finite-sheet quadrature, atlas gutters, phase continuity, all presets, legacy ids and slot-3 styles/uniforms.
+- `tests/world-rhythm.test.mjs` and `tests/pipeline-flash.test.mjs`: pass. Shared limiter unchanged.
+- `scripts/verify-ink.mjs --rig`: 48 native frames: all eight looks at 0.1/0.5/0.9; Ember/Glacier/Acid Yellow; portrait; reverse development; late time. No GL errors or non-finite values. Lit coverage 24.5–41.4% (threshold max channel >12/255), including low energy.
+- Final `npm test`: **956 pass, 21 opt-in skips, zero failures** (977 total). Typecheck, build, native DE/EN i18n and Prettier checks on scene/test/verifier/family doc/plan pass. Targeted ink/world-rhythm/pipeline-flash run: **48 pass**. Existing opt-in legacy browser ink cache tests were not run; the family-specific native verifier is the round-3 evidence.
+- Final review film, 12-frame sheet, 24-frame rhythm sheet and grid dump: `artifacts/look-review/ink-bloom-r3/`. Earlier film/read iterations include `ink-bloom-r3-{before,look1,look2,look3,look4,round1,round2,round3,density1,density2,density3}`.
 
-## Assessment
-
-About **7/10**. No strings or cones remain, edges are crisp with lit rims and a second hue, and the top state blooms outward instead of hanging. Weak points:
-
-- The carved bodies can read as glossy plasticine rather than wet ink, especially the daughter rings.
-- The peak is a wide, low crown and is small in portrait.
-- Nebula is close to the 4K budget.
-- The descent cue is weaker since the motes were removed.
+**Self-assessment: look 7/10, not an independent pass.** The opaque clay is gone and fill bursts read immediately, but some sheets still resemble fabric, the small folds are soft, the wake remains axial, portrait is weaker, and Plumes is relatively costly. Independent ≥8 remains unproven.
