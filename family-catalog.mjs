@@ -545,9 +545,9 @@ export const FAMILY_CATALOG = {
   },
   magma: {
     algorithm:
-      "Raymarched Voronoi basalt crust with exact seams, flow-layer lava and ballistic ejecta",
+      "Raymarched Voronoi basalt crust with exact seams, a seed-only drainage tree, channel-frame lava and ballistic spray and ejecta",
     description:
-      "A volcanic field whose basalt plates breathe heat through their seams, split into lava rivers with drifting crust and embers, and open into a lava lake whose fountain throws glowing ejecta under an ash plume.",
+      "Hot fissures in a black basalt crust run out from the vent along one drainage tree, open into braided lava rivers and lead to a lake whose fountain throws incandescent spray and bombs under an ash umbrella lit from below.",
     styles: ["spatial", "organic"],
     variants: ["Crust", "Rivers", "Eruption"],
   },

@@ -1,121 +1,106 @@
 # Magma Rift · Magmariss
 
-**EXPLORATORY / EMPIRICAL**, worlds wave 4, round 2 (2026-10-15). Family `magma`, number **104**, world `magma-rift`.
+**EXPLORATORY / EMPIRICAL**, worlds wave 4 (2026-10-15), reworked in wave 5 and in the world-polish lane (2026-10-16). Family `magma`, number **104**, world `magma-rift`.
 
 ## Algorithm and signature
 
-A continuous volcanic field: the same basalt plates split into rivers and sink into an erupting lake. The signature is the raised, individually tilted Voronoi crust, flowing skins between its plates, and a towering incandescent curtain throwing ballistic ejecta beneath underlit ash.
+A continuous volcanic field. One seed-only **drainage tree** decides which seams of a Voronoi basalt crust glow, widen into braided lava rivers and lead to the vent. The vent then founders into a crusted lava lake that erupts. The signature is the exact Voronoi seams, the tree's heat front, and the exact ballistics of spray and bombs.
 
-- **Plates:** seeded sites jitter within `[0.1, 0.9]²` of their lattice cell. A cached 3×3 search finds the nearest site, then the minimum bisector distance `dot((a+b)/2, b-a)/length(b-a)`. This is the seam distance, not the usual F2−F1 approximation. Tests compare 60,000 probes against a 7×7 search. Sites, tilt and plate height never depend on development.
-- **Terrain:** a shield inside a layered caldera; a coarse Lipschitz march finds an upper surface, followed by bracketed Newton steps through the actual slab/lava field. Plate tops stay below the tested 0.18-unit bound. Seam widths grow preferentially along five meandering radial rivers with eight outer distributaries. Lake plates sink by site, as whole plates.
-- **Flow:** two advected material-coordinate layers, periodic around the vent, reseed only at zero weight. Ropy cooling skins visibly stream outward; the hotter liquid shows between them. The lake carries larger domain-warped floes on a slow rigid turn, with travelling thermal undulations between them.
-- **Curtain:** seven overlapping, smooth Gaussian jets, up to 9 units high at the world defaults, spread toward a 3.3-unit crown. Domain-warped billows travel upward; rare hotter patches carry the accent. Kernels taper smoothly to zero between 3.4 and 4 core widths. A conservative shared bound and per-jet width bounds skip invisible turbulence evaluations.
-- **Ejecta:** 14 large bombs and 32 spray candidates follow exact `p(t)=p₀+v₀t−½gt²ŷ`, with `g=7`. Large launch speeds are 8.5–11 vertical and 0.9–2.1 horizontal, scaled by √force; the cycle is 4.6 physical seconds. Every supported flight lands before its next launch. Three trail chords retain the parabola's shape. Conservative trail spheres include the `g Δt²/8` chord deviation; group spheres reject whole populations.
-- **Ash:** ten ray-cylinder/slab-bounded volume samples, with smooth billow density and palette light falling off upward from the lake/fountain. Integer phase harmonics replace two expensive reseeded noise layers. Limited spatial dither hides sampling bands without a temporal flicker.
-- **Embers:** bounded near-camera cell traversal. Embers rise, fade at the ends of their lives, and drift outward toward the orbiting camera. At peak, the layer extends above camera height.
-- **Heat shimmer:** a subtle, smooth refractive displacement over the hot field, not camera shake. Only a seeded subset of cracks receives an additional bounded kick flare.
+- **Plates:** seeded sites jitter within `[0.1, 0.9]²` of their lattice cell. A cached 3×3 search finds the nearest site, then the minimum bisector distance `dot((a+b)/2, b-a)/length(b-a)`. This is the exact seam distance, not the F2−F1 approximation. Tests compare 60,000 probes against a 7×7 search. Sites, tilt and plate height never depend on development.
+- **Drainage tree:** three meandering trunks leave the vent, and each throws two distributaries downstream. Curve k runs from origin `o` along unit `d` with meander `L(s) = A(sin(ws+p) − sin p + 0.35(sin(2.3ws+q) − sin q))`. Because `L(0) = 0`, every trunk starts at the vent and every branch starts on its trunk (CPU-tested). The distance is `|n − L(s)|/√(1+L'²)`, and the distance to the origin applies before `s = 0`. The tree yields a channel profile and an arrival coordinate (0 at the vent).
+- **Seams:** seam half-width is a continuous field: `w = wScale (0.22 + 3 R) (0.3 + 1.4 v²)` with `wScale = 0.03 + 0.056·split + 0.03·…`. `R` is the tree profile and `v` a per-corner variation, both bilinear over the lattice corners the 3×3 search already fetched. The tree therefore only *selects plate seams*; rivers are braided seams one or two plates wide. Nothing is drawn on top of the plates.
+- **Crust field and heat front:** every seam has one temperature, taken from both plates' cell data (tree profile and arrival at their lattice corners), so it is symmetric and constant along the seam: no half-hot stubs. Most seams are dull dark-red hairlines with a skewed hash distribution; some are warm, and a few lone seams breathe hot (more with energy). Crack widths vary per lattice corner (0.3–1.7×). Heat soaks softly into the slab beside a crack and reaches zero before the plate's medial axis, so there are no wedge seams. Seed-anchored thin-crust patches let a dull glow through from below. The tree's seams are hot behind `front = mix(0.56, 1.45, smoothstep(0, 0.95, dev)) + 0.14·energy` (arrival units). The front is a pure monotone function of development: forward, cracks spread out from the vent; back, the glow retreats inward and the seams narrow and darken.
+- **Terrain/march:** shield, caldera wall and slabs. An exact analytic start skips the empty slab above `FIELD_TOP = 0.92` inside r < 19. A coarse Lipschitz march follows; its hit tolerance only places the start. Then up to five bracketed Newton steps solve the real slab/lava height (the governor budget lowers this to 4 or 3). Lake plates sink by site, as whole plates.
+- **Lava:** two reseeded flow layers in each channel's own frame (along, across), cached per lattice corner, give skins that are long along the flow, with ropy folds, torn open by incandescent seams. A white-hot core runs along the tree's centreline and cools to deep red at the banks. Open channels spill a soft glow onto their banks and into the air above. A crack's bottom is its hottest part. Skins resolve only in channels several footprints wide (narrower ones use the skin/lava average); the crust's cracks skip the channel frame entirely.
+- **Lake:** a slow rigid turn carries few, large black crust floes. One coarse, angular crack net (ridges of bilinear value noise) has widths that vary along each crack; the cracks open where the fountain pushes the floes apart, and a faint finer net of new cracks lies between them. Ripples run out from the fountain's foot. There is no second Voronoi search.
+- **Fountain:** a white-hot molten root (40% of the height) tears apart into **spray**. The spray is four coaxial paraboloids `ρ² = r0² + c|y − yRef|`, which is the exact envelope of droplets leaving the crown with horizontal speed u (`Δy = gρ²/2u²`). Each paraboloid carries a lattice of motion-blurred streaks that rise (inner) or fall (outer umbrella). Their front and back sides give parallax.
+- **Bombs:** 14 big bombs and 12 spray sparks fly exact parabolas `p0 + v0 t − ½gt²ŷ` (g = 7) with exact curved tails. Launch speed grows with the eruption. Big bombs end in a local landing flare (0.55 s) inside their precomputed bound, and every flare finishes before the next launch.
+- **Ash:** a stem that spreads into an umbrella under the deck. It has 14 ray samples, a tightened per-ray chord, billow plus value-noise break-up, and light from below that also catches the umbrella's underside. A static interleaved-gradient offset hides banding without any temporal flicker.
+- **Sky:** an ash deck lit from below, which rolls slowly, plus a haze band at the horizon and distance haze lit by the field. The top of frame stays dark, but not dead.
 
-Colour is a temperature ramp through secondary, primary, rare accent and a white mix; there are no fixed volcanic RGB colours. Float emission feeds shared bloom. Phosphor, Ember and Glacier films were inspected.
+Colour is temperature on a blackbody-like curve in palette terms. The three palette colours are ordered by luminance and saturated (×1.35/1.25/1.1): near-black → deep dark colour (T 0.4) → saturated mid colour (0.78) → lightest colour (0.8–1.15) → at most 55% white above 1.22. With Ember this runs red → orange → cream, like real lava. With Phosphor it runs violet-blue → pink → lime, a deliberate palette-driven character change. Obsidian highlights take the secondary colour.
 
 ## Data pass and fallback
 
-A **128×129 RGBA32F** pass runs each frame. Row 0 contains ejecta/group bounds. Rows 1–128 contain seed-only plate hashes for cells `[-64,63]²`, indexed as `(cell.x+64, cell.y+65)`. This contains the whole finite terrain field, including neighbours at minimum plate size. Material cells outside the tile retain the procedural hash path. This is data, not a reduced-resolution picture or an approximation of geometry.
+A **128×257 RGBA32F** pass runs each frame:
 
-Hosts without float targets retain the procedural sites and ejecta path. A native 320×180 cached-versus-fallback comparison at all three states and energies 0.1/0.9 found tiny aggregate differences (mean ≤0.0083 of a byte level), but **not bit identity**: 9–40 pixels changed per frame, maximum channel difference 101 on isolated seam pixels. Separate shader compilation can affect floating-point near-ties. Both paths had zero GL errors/non-finite uploads. This is a known precision limit, not a strict image-identity claim.
+- **Row 0:** bomb and group bounds (texels 0–27), plus the nine tree curves (texels 96–122, three per curve).
+- **Rows 1–128:** seed-only plate hash and tree profile/arrival at each lattice corner, for cells `[-64, 63]²`.
+- **Rows 129–256:** the channel frame (offset across, distance along) at each corner.
+
+This is data, not a reduced-resolution picture. Hosts without float targets evaluate the tree arithmetically, once per plate search (exact instead of bilinear), so that path is not bit-identical to the cached one.
 
 ## States and looks
 
-World states share seed **10401** and all non-development parameters.
+World states share seed **10401** and all non-development parameters. IDs, names, seeds and preset values are unchanged in this pass.
 
-| Development | State EN / DE | Look EN / DE | Form |
-| --- | --- | --- | --- |
-| 0 | Crust / Kruste | Breathing Crust / Atmende Kruste | Raised dark basalt slabs; thin breathing seams, heat shimmer and occasional kick flares |
-| 1 | Rivers / Flüsse | Seam Rivers / Nahtflüsse | Wider channels carry liquid and drifting cooling skins between the same slabs |
-| 2 | Eruption / Ausbruch | Lava Fountain / Lavafontäne | Plates sink into a 6.2-unit-radius seething lake; a tall curtain, ballistic trails, ash and foreground embers |
-
-Five additional looks (no names changed in round 2):
-
-| Look EN / DE | Development | Composition |
+| Development | State EN / DE | Form |
 | --- | --- | --- |
-| Black Glass / Schwarzes Glas | 0.35 | Large plates, low camera, slow flow |
-| Ember Delta / Glutdelta | 1.3 | Fine channels, high view, many embers |
-| Night Fountain / Nachtfontäne | 2 | Stronger/taller curtain, low camera; force-aware crane-back keeps it framed |
-| Ash Column / Aschesäule | 1.75 | Broad plates, high orbit, cooler partial eruption |
-| Rift Lattice / Rissgitter | 0.9 | Small plates, high view, fast material flow |
+| 0 | Crust / Kruste | Black glass and ropy plates; a hot fissure path along the tree near the vent; breathing seams, hairline cracks and glints |
+| 1 | Rivers / Flüsse | The whole tree open: braided channels with streaming skins, hot centres and cooler distributaries |
+| 2 | Eruption / Ausbruch | Foundered vent lake with floe crust; spray fountain, bombs with landing flares, ash umbrella lit from below |
 
-Development changes widths, lava level, plate sinking, lake radius, curtain height and camera composition continuously. It neither changes seed nor resets any phase; reversal uses exactly the same field.
+Extra looks (unchanged parameters; each checked in stills): Black Glass (0.35, low obsidian view), Ember Delta (1.3, high view of the tree), Night Fountain (2, force 1.4, low), Ash Column (1.75, young eruption), Rift Lattice (0.9, small plates, high view of the whole tree).
 
 ## Energy, music and camera
 
-- Energy changes flow speed (×0.65–1.45), orbit speed (×0.75–1.4), ember population and ejecta population/rate. It is not a master-brightness control. State 0 remains a readable, dark breakdown at energy 0.1.
-- **Seam pulse**, 4 beats: an outward heat ring in the existing seams.
-- **Lava surge**, 8 beats: fresh liquid thins the cooling skins.
-- **Ejecta volley**, 16 beats: a bounded curtain surge, hotter existing ejecta and more embers.
-- Kick FOV punch is **2%**; roll is at most **0.03 rad**. Crack flares are local, never a full-screen flash.
-- Camera: slow endless orbit and a smooth 16-bar phrase-scale crane. Default radius grows from 7.6/8.6 to 12.8 units as the lake erupts. Above force 1, the peak radius increases by 12 units per additional force unit and the aim rises accordingly. It remains above the terrain and outside the large ejecta landing zone. Perspective, atmospheric depth, seam/lake lighting, grazing glass sheen and small embers provide scale cues.
+- Energy changes flow speed (×0.65–1.45), orbit speed (×0.75–1.4), how far the heat front reaches and how many lone seams glow, skin breakup, spray occupancy (0.32 → 0.8), big bombs (4 → 14), sparks (4 → 12) and embers. It is not a master brightness.
+- **Seam pulse** (4 beats): a crack-propagation flash runs out along the hot tree. **Lava surge** (8 beats): a surge front travels down the channels and the skins thin. **Ejecta volley** (16 beats): the fountain bursts, spray and bombs flare, and a bounded under-light swell reaches the ash.
+- Kick FOV punch 2%, roll ≤ 0.03 rad. Flares are local sprites; nothing flashes the full screen.
+- Camera: endless orbit and a 16-bar crane. During the eruption the vent swings toward a third of the frame and the lens lengthens by 20%, so the fountain fills the frame. Radius and force-aware crane-back are as before.
 
 ## Endlessness
 
-Three integrated engine clocks: orbit (2π), material flow (16 cycles) and eruption (64 cycles). Rate changes alter speed, not phase. All shader uses respect those periods, including the half-frequency ash harmonics and ember cohorts. Early authored time products remain behind the `PHOSPHOR_LATE` guard; late/rate-changing operation uses clocks. No simulation can go stale.
-
-Native seam checks passed 3600, 4096 and 43,200 seconds for Crust, Rivers, Eruption and Night Fountain. Source/CPU time tests also pass. This is a seam probe, not a 12-hour wall-clock soak.
+Three integrated clocks: orbit (2π), flow (16 cycles) and eruption (64 cycles). Every new use stays periodic: the spray lattices move by integer cells per eruption cycle (−26, 38), the lake ripples use `2·TAU·flow`, and the deck drift uses `TAU·flow/16`. `scripts/check-time-wrap.mjs --families magma` shows no seams at 3600, 4096 and 43,200 s, or at energy/nudge changes at 7200 s.
 
 ## Cost
 
-Native headless Chrome, ANGLE Metal, Apple M3 Pro; synchronous whole-frame throughput including post, 12 measured frames per state. Five workers shared the machine, so these are indicative, not venue cadence guarantees.
+- **Step budget:** magma reads the engine step budget (`u_raySteps`, which the governor lowers 96 → 64 → 40). It scales the coarse march limit, the Newton iterations (5/4/3) and the ash samples (14 → 8). Stills at budget 40 are nearly unchanged. However, the gain is small (0–6% at 4K): the cost is per-pixel shading, not step counts.
+- **Measurement conditions:** native M3 Pro, ANGLE Metal. Five lanes shared the GPU and absolute numbers swung up to 2× between runs, so only interleaved ABBA pairs against `main` (`profile-rework-pair.mjs`, 64 frames per candidate) are meaningful.
+- **Pair results, final build** (round 2 of this pass, final/main), interleaved ABBA, 64 frames per candidate. Two 1080p runs and one 4K run:
 
-| Resolution | Crust p50 / p95 | Rivers p50 / p95 | Eruption p50 / p95 |
-| --- | --- | --- | --- |
-| 1920×1080 | 4.9 / 5.4 ms | 5.8 / 6.1 ms | 6.4 / 6.5 ms |
-| 3840×2160 | 17.1 / 17.2 ms | 20.1 / 20.3 ms | 23.3 / 23.9 ms |
-
-1080p meets the 8 ms family budget in the final probe. **4K remains over 16.67 ms**; no downscaling or reduced-resolution visual cache is used. Earlier concurrently loaded probes were slower, up to 11.4 ms / 40.3 ms for Eruption before the final per-jet kernel cull.
-
-## Verification and review
-
-- `tests/magma.test.mjs`: Voronoi nearest sites/seams against brute force, seam continuity, identity under development, slab upper bound, exact ballistic motion and landing/cycle bounds, trail spheres, camera clearance, hash-tile addressing, conservative compact-support curtain bounds, ash periodicity, force-aware framing, presets, world continuity, clocks, palette/kick/style limits and three gestures.
-- `node --test tests/magma.test.mjs tests/time.test.mjs`, `npm run typecheck`, native `npm run test:i18n` pass.
-- Full root test suite: 668 pass, 9 opt-in skips, three expected failures only: missing baked magma previews and missing editorial curation coverage/order. L0 owns those generated/shared files; they were not edited.
-- Ladder: `artifacts/contact/magma-r2-ladder/index.html` (all eight looks × energies 0.1/0.5/0.9), zero GL/non-finite errors.
-- Final films/strips: `artifacts/films/magma-r2-final/` — `magma-rift`, `magma-rift-ember`, `magma-rift-glacier`, `magma-night-fountain-ember` (`.mp4` and `.png`). Default films are 960×540, 30 seconds.
-- Additional portrait/fallback/late-state evidence: `artifacts/checks/magma-r2/`.
-
-Review rounds: (1) replace the tiny central jet with a much taller multi-jet curtain and higher/longer ballistic trails; (2) widen the crown and lake, enlarge/warp the floes, reduce accent saturation and add conservative bounds; (3) remove hard chord/height seams, smooth the plume, lift the aim and frame high-force looks; (4) cache plate hashes and simplify/locally cull billows to recover the 1080p budget. Films and individual stills were opened after each main visual round.
-
-## Wave 5 rework · 15 October 2026
-
-All world/look IDs, names, seeds, schema keys and preset values are preserved. No world-definition/HISTORY or engine edits.
-
-Filmed rounds: (1) replaced the lake's second Voronoi web with advected pahoehoe material and reserved accent for hotter matter; (2) separated dense tapered liquid jets from darker billowing ash, tightened the jet support bound to 0.50 and broadened liquid tears; (3) refined lake fold scale/temperature and basalt key, and skipped nearest-site searches in the provably fully molten centre; (4) rejected the overly graphic zebra-like intermediate lake by breaking its folds with periodic advected scum and reducing thermal contrast. Final optimization skips plate data outside the finite basalt field (valid inert Plate, zero rock gradient), not geometry or visual resolution.
-
-The molten-centre proof uses maximum slab height `0.175 − 0.32 < 0.075`, maximum nearest-site offset `< 0.9√2 < 1.6` cells and a radius margin through the entire sinking transition. It applies **only when lake amount = 1**, never at a shore or during partial sinking. Shading still obtains real plate data when needed; it cannot reuse an unfilled record. CPU regression covers this proof and the new tapered width bound. Lake turn/flow remains 16-cycle-periodic; all original Voronoi/ballistic/identity tests remain.
-
-### Performance qualification
-
-The shared machine varied substantially (the known wave-4 ~23 ms Eruption became 36–46 ms during this lane). Standard required 30-frame probes were run before edits: 1080p **6.2/10.1/10.8**, 4K **30.4/33.3/45.6** ms. Sequential later probes were noisy enough to make unchanged Crust arithmetic vary by >20%; all raw reports are retained rather than claiming those differences as shader gains.
-
-An additional optional `scripts/profile-rework-pair.mjs` alternates baseline `deaaae1` and final in ABBA blocks, 64 measured frames/candidate, same Chrome/GPU, to control fleet contention. Final qualification:
-
-| State | Interleaved 1080p baseline → final p50 | Interleaved 4K baseline → final p50 |
+| State | 1080p | 4K |
 | --- | --- | --- |
-| Crust | 8.1 → 8.5 ms | 27.7 → 27.1 ms |
-| Rivers | 9.3 → 9.3 ms | 32.3 → 32.2 ms |
-| Eruption | 10.1 → 9.5 ms | 41.9 → 39.5 ms |
+| Crust | 1.05 / 1.04 | 1.01 |
+| Rivers | 0.97 / 0.98 | 0.94 |
+| Eruption | 0.98 / 0.91 | 0.97 |
 
-Every median is within +5%; Eruption is cheaper at both resolutions, not raised. This is a **relative throughput result, not a claim of ≤23 ms or venue cadence under current contention**. Final 4K p95 33.0/33.7/53.6 ms. No downsampling, extra loop populations or higher march caps.
+- **Earlier build** (674630f), absolute but contended (`profile-families.mjs`, 30 frames), p50 ms: 1080p 6.2 / 8.1 / 8.4, 4K 32.9 / 35.3 / 35.0. These numbers are inflated by the shared GPU.
+- **How round 2 paid for its crust field:** the crust's cracks skip the channel frame, one noise was dropped from the subsurface patches, and the Newton cap returned to 5.
 
-Evidence root: `/Users/fabian/Development/phosphor/.fleet/phosphor-worlds-wave5-20261015162322/workers/rework-wave4/output/magma/`. Baseline `baseline/magma-rift.{mp4,png}`, final `final/magma-rift.{mp4,png}`; Ember Night Fountain, Glacier reverse world, all-look ladder, full-size Eruption still, three-palette/portrait states and 4K still. The native verification script passes 60 intermediate-development/low/high-energy/12-hour cases, zero errors. Superseded films removed. Honest rating: **8/10** — improved material separation and performance, but the seven analytic jets and marbled lake still read stylised rather than physically convincing enough for 9.
+- **Where the savings came from:** the analytic slab skip, the looser coarse hit tolerance, the cached tree and channel frame (no per-step river trigonometry), 32 → 12 sparks, the tight ash chord, one ember per cell, and footprint LOD for skins and hairline cracks.
+- **Where the extra cost went:** the drainage tree, spray paraboloids, glints and the floe lake.
+- **4K:** at wave 4, uncontended 4K ran 17–23 ms on `main`. If the ratios hold, this build would run about 16.5–20 ms, but that was **not measured uncontended**. A 4K-safe path needs an engine render-scale for ray-marched worlds; this family does not reduce resolution itself.
 
-## Final wave-5 fountain correction
+## Verification
 
-The seven soft analytic jets are replaced by **one thick incandescent liquid column**. Its boundary has upward-travelling billow/edge structure, cooler molten margins and skins, a narrow white-hot core and a softly tapered exterior halo. The top is a rounded capsule crown, not a flat height cutoff. One billow sample replaces up to seven; no march, ash or particle cap increases.
+- `tests/magma.test.mjs` (21 tests): Voronoi exactness and continuity, identity under development, slab bound, exact ballistics and landing (including flares before relaunch and flare bounds), trail spheres, exact curved tails, camera clearance, clock periodicity (including spray speeds), molten-centre shortcut, tile addresses for both data tiles and the row-0 layout, conservative fountain-root, spray-paraboloid and ash bounds (including the paraboloid's ballistic identity), tree mirror (trunks at the vent, branches on their trunk, seed-only), monotone heat front and symmetric seam temperature, step-budget wiring, presets, world continuity and style limits.
+- `npm test` (914 pass, 21 skipped), `npm run typecheck`, `node scripts/test-i18n.mjs --native-gpu`: pass.
+- `scripts/verify-magma.mjs`: native stills at chosen development, energy, time, palette, aspect and step budget, with GL error, non-finite and black-frame checks. Default set: five developments × three energies, four palettes, portrait, 43,200 s; all pass with zero errors. Shader logs: `scripts/check-magma-compile.mjs`.
+- Films (local, not committed), under `artifacts/films/final/`: `magma-rift`, `magma-rift-ember`, `magma-rift-glacier`, `magma-lava-fountain` (reversal 2 → 0), `magma-night-fountain-ember`. Before/after stills at identical times: `artifacts/compare/`. Ladder: `artifacts/contact/magma-ladder-final/`.
 
-Large ejecta now launch with horizontal speed 1.8–2.8 times √force; the same exact gravity law still brings every bomb back inside the force-aware camera orbit before its next cycle. Their tails extend 1.26 seconds (fine spray retains two short chords over 0.2 seconds), enough to curve over the apex and visibly fall back. **Large-tail distance is evaluated on the exact parabola**, not three straight trail chords: projecting the quadratic perpendicular to the view ray yields a quartic squared distance; its stationary points are all real roots of a cubic. Cardano's one-/three-root branches plus both interval endpoints select the nearest point. A single Newton seed was filmed and rejected because it missed the other side of the apex. A new independent dense-search CPU regression checks those failure cases; the conservative bounding spheres still include the full `g Δt² / 8` curve deviation.
+## History
 
-The ash keeps its ten bounded volume samples, but has broader, firmer billows and stronger palette light from below, with dark dense cores and visible lit margins in the upper frame. Temperature is lower in cooling tails, preserving accent for hot heads and the core. The first revision's flat pink cylinder was rejected; the second adds a rounded, thermally separated turbulent column, and the final film validates the robust curved tails. All IDs/presets and the engine are unchanged. Final paired performance and honest rating are recorded in the delivery report under `output/final-round/`; earlier self-ratings above are historical, not the final assessment.
-
-Final paired qualification against `15fe8ef`, 256 frames/candidate/resolution, ABBA blocks: 1080p Crust **7.8→7.8**, Rivers **8.5→8.4**, Eruption **9.2→9.2** ms; 4K **27.4→27.5**, **32.4→32.2**, **35.5→35.8** ms. All states/resolutions are within +5%; Eruption +0.0%/+0.85%. Shared-machine synchronous throughput includes post, not venue cadence; 4K is still above the absolute new-world budget. Final honest rating: **7.8/10** — a stronger fountain, but still procedural/stylised, not a fluid simulation or a claimed 9.
+- **Wave 4:** Voronoi crust, flow-layer lava, seven-jet curtain, ballistic ejecta; 1080p met budget, 4K did not.
+- **Wave 5:** advected lake material; the jets became one dense molten column; exact curved tails; cached plate hashes. Rated 7.8/10 by the lane and about 7 by L0.
+- **World polish (this pass), round 1:**
+  - Phase 1 diagnosis, 5.5/10: a uniform neon honeycomb crust, starfish cos Kθ rivers with a pinch at the vent, a neon-tube fountain, a cross-hatched ash funnel, a dead upper third, and energy invisible in stills.
+  - The polish replaced the river layout with the seam-selecting drainage tree and added the heat front. It replaced the polar flow material, the lake marbling, the tube, the ash and the sky as described above.
+  - World and look definitions are unchanged, so there is no HISTORY entry.
+- **World polish, round 2 (after L0 review, about 6.5 overall):**
+  - Blackbody-like ramp in palette terms.
+  - Crust became a living field: per-seam temperatures, varied widths, soft heat soak and subsurface patches.
+  - River core-to-bank temperature profile and glow spill.
+  - Fewer, larger lake floes with irregular cracks.
 
 ## Remaining limits
 
-This is stylised volcanism, not a fluid/thermal simulation. The lake still exposes its cellular construction, and the curtain can read as palette-coloured fire rather than dense falling liquid. The broad ash deck may extend beyond the frame naturally. Volume dither remains visible in close stills; faint distant terrain can show small seam sparkles. 4K is not within a 60 Hz single-family budget. No venue or human art sign-off is claimed.
+Stylised volcanism, not a fluid simulation:
+
+- Spray droplets live on four surfaces, so the falling umbrella's outline can look like a cone.
+- The tree path is still the brightest structure in the crust.
+- Slab bevels can show faceted wedges.
+- Thin groove walls show slight Newton stepping at close range.
+- Distant distributaries cool to the dark colour.
+- With Phosphor the lava is pink with lime cores.
+- 4K has not been qualified within a 60 Hz single-family budget.
