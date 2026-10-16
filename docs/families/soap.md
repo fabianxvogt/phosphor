@@ -33,21 +33,26 @@ The phase reversal at the first interface makes integer orders `2 n d cos θt = 
 
 A cell-local thickness chart couples a compact Cartesian vortex to fine folded gravity-drainage layers. The vortex uses a smooth radius-dependent rotation, not a singular polar chart. Positive flow phase carries the fine layer waves downwards. Film thickness bottoms out at 6 nm in the black cap; continuous slow replenishment makes draining endless rather than drying out. `filmThickness()` and `filmPalettePosition()` expose CPU references for the shader's normalised chart and optical palette coordinate. Film thickness and every cell identity are deterministic functions of seed, development and three integrated phases. Development does not reset any phase or seed.
 
-Energy changes Marangoni-flow speed, camera-drift speed and the physical growth of peripheral cells (80–100% of their authored size), never a brightness multiplier. The main subject remains composed even at energy 0.1.
+Energy changes Marangoni-flow speed, camera-drift speed, fine drainage-fold amplitude (0.02–0.05 in the normalised chart) and the physical growth of peripheral cells (80–100% of their authored size), never a brightness multiplier. The main subject remains composed even at energy 0.1.
 
-Three bounded `familyEffect` tracks act directly on the signature:
+Four bounded `familyEffect` tracks act directly on the signature:
 
-- **Fringe order**, 4 beats: local thickness excursion of at most 7.5%, moving interference fringes.
-- **Border breath**, 8 beats: a regional grazing-light breath along existing Plateau borders; bounded kick contribution.
-- **Opal window**, 16 beats: a rare directional highlight on a narrow upper interference order.
+- **Fringe order**, legacy 4 beats: local thickness excursion of at most 16%, moving interference fringes.
+- **Border breath**, legacy 8 beats: stronger regional grazing-light breath along existing Plateau borders; bounded kick contribution.
+- **Opal window**, legacy 16 beats: a stronger but rare directional highlight on a narrow upper interference order.
+- **Film shimmer**, slot 3: an expanding capillary wave temporarily changes local thickness by at most 29.12% (including the one-frame hit term), with a saturated palette-accent catchlight. `u_rhythm.w` moves and fades the wave, `u_rhythmHit.w` marks the strike, and `u_rhythmCount.w` selects one of three persistent membrane cohorts. It neither pops geometry nor changes identity. Dormant/unaddressed waves skip their expensive chart evaluation.
 
-The camera is a closed, slow lateral float with a small vertical component and increased lateral travel between the near buttresses at the peak. Growth carries it into the nave without a cut. Bubble's unpunched projected diameter is 69.7% of the short side (previously 59.5%); Foam retains a clear central rose window with near peripheral cells leaving the sides as spatial framing. Portrait uses the same short-side composition. Kick focal motion is bounded to 1.8%.
+The named presets remain **Thin silence**, **Opal breathing**, **Iridescent bells**. Their family-only densities are **3.0 / 7.0 / 13.0 hits per bar**. Signature steps: restrained `[2,13]` in a 16-step eighth-note loop; driving `[0,3,6,9,12,14]` in a 16-step eighth-note loop; accented `[0,3,6,10,13,19,22,25]` in a 33-step sixteenth-note cycle. That last loop walks across the bar against the existing five-beat fringe figure. All four tracks settle before their next hit. DE/EN names and descriptions are included.
 
-Distance fog separates the near buttresses, central cluster and rear vault. An analytical focus approximation widens silhouette/clip coverage and border footprints away from the target distance, and attenuates interference contrast. It is not stochastic depth of field or an extra blur pass. Background practicals have world-space positions, visible bokeh and camera parallax. Their reflected studio-light counterpart is a bounded environment approximation, not recursive ray tracing. Rear films fade out toward Foam to avoid muddy optical layering; zero-weight rear intersections are rejected before power-plane clipping.
+The camera is a closed, slow lateral float with a small vertical component and increased lateral travel between the near buttresses at the peak. Growth carries it into the nave without a cut. Bubble's unpunched projected diameter is now 76.9% of the short side with a slightly off-axis composition (previously 69.7%); Foam retains a clear central rose window with near peripheral cells leaving the sides as spatial framing. Portrait uses the same short-side composition. Kick focal motion is bounded to 1.8%.
+
+Distance fog separates the near buttresses, central cluster and rear vault. An analytical focus approximation widens silhouette/clip coverage and border footprints away from the target distance, and attenuates interference contrast. It is not stochastic depth of field or an extra blur pass. Four faint world-space nave shafts provide camera parallax and a floor light pool supplies a height cue. They are a closed-form ray/beam scattering approximation, not a raymarched atmosphere. The distracting defocused bokeh practicals have been removed. Their reflected studio-light counterpart is a bounded environment approximation, not recursive ray tracing. Rear films fade out toward Foam to avoid muddy optical layering; zero-weight rear intersections are rejected before power-plane clipping.
 
 ## Resolution, cost and endlessness
 
 Sphere silhouettes use analytical impact-distance coverage. Shared faces and cap clipping retain a resolution-scaled AA margin. A conservative face-disc rejection includes that margin; it only removes impossible candidates. The unit-edge tetrahedron supplies an exact reused plane-normal length, avoiding repeated square roots. A dynamic six-plane array cache was measured slower and discarded.
+
+### Historical pre-r3 measurements
 
 Native headless Chrome / ANGLE Metal / Apple M3 Pro, synchronous full-frame throughput **including post**, energy 0.95; not venue cadence. Baseline is this revision's fresh measurement of `7d41bac`, 24 frames/state; final is 36 frames/state on the same shared rig:
 
@@ -69,4 +74,27 @@ The flow, camera and drainage phases use three `clocks`, each exactly `2π`-peri
 - This follow-up filmed a fresh baseline and **Liquid Chrome** reference, then five visual improvement rounds: larger cell-local full-palette films; projected studio window/bokeh; black cap and depth/focus/border lighting; finer folds and corrected single fog attenuation; compact vortex and higher-order reservoir. A sixth film verified the exact early rear-film rejection optimization.
 - Reviewed all eight looks at energy 0.1/0.5/0.9; full 30-second forward arcs in Phosphor and Ember; a 30-second fixed Opal Nave film in Glacier, 540×960 portrait. Inspected all three full-resolution 4K states and a 1:1 detail crop. A GPU sweep checked 130 forward/reverse frames at low/high energy with zero GL errors and non-finite uploads. Long-show seams/rate steps pass. Baseline, reference and final films/strips, comparison, ladder and measurements are retained with the lane report; superseded intermediate films were deleted.
 
-**Recalibrated artistic assessment: 8.5/10**, up from the independently assessed 7/10 baseline. The prior 9/10 self-rating was too generous. The enlarged Bubble, reflected room, flowing full-palette orders, crisp borders and focus separation are substantially improved. Against Liquid Chrome, the repeated tetrahedral arrangement and approximated transparency/focus still look more idealised; this does not claim the reference's 9/10 material realism.
+## Round 3 — 2026-10-16, openai-codex/gpt-6.1-sol
+
+The current independent baseline supersedes the older optimistic artistic claims: **L6 / G2 / E2, Overall 4.5**. Three change/capture/critique rounds plus a final optimisation pass addressed the isolated bubble, uniformly white Plateau seams and invisible rhythm. Directional interference-coloured borders replace the white outline bias; the reflected key is less white, distant films fade more strongly, and low states have a larger off-axis subject, nave shafts and a floor light pool. The exact Airy/Plateau construction, three states, eight preset names/seeds, schema and prior rhythm IDs remain unchanged. No world definition migration was needed.
+
+### Current cost
+
+Native ANGLE Metal / Apple M3 Pro, 36 synchronous frames per state including post, energy 0.95 (shared rig, not venue cadence):
+
+| State   | 1080p p50 / p95 |   4K p50 / p95 | ABBA p50 delta vs main, 1080p / 4K |
+| ------- | --------------: | -------------: | ---------------------------------: |
+| Bubble  |    2.5 / 2.6 ms |  8.9 / 10.1 ms |                     −20.0% / −3.3% |
+| Cluster |    2.8 / 3.3 ms | 10.2 / 11.2 ms |                     −8.3% / −31.3% |
+| Foam    |    5.4 / 5.8 ms | 17.9 / 18.8 ms |                     −4.2% / −12.6% |
+
+The 4K absolute Foam run **exceeds the 16 ms target**, despite improved interleaved throughput. Its paired final was 16.7 ms vs main 19.1 ms. An earlier contended run measured 20.8 ms at 4K and up to 10.3 ms at 1080p; both runs are retained, not silently discarded. Removing bokeh calculations and skipping unaddressed shimmer waves recovered the initial pair regression. Use supported `--families soap` on the profiler (it has no singular `--family` option).
+
+### Current verification / evidence
+
+- `npm test`: 985 passed, 21 optional browser cases skipped, zero failures (1006 total). Final targeted family/world-rhythm/flash suite: 49 passed.
+- Typecheck, build and native DE/EN i18n passed; touched formatted code passes Prettier. Shared i18n formatting is preserved to avoid unrelated reformatting.
+- `scripts/verify-soap.mjs --rig --port 48861`: 24 all-look energy-ladder stills (0.1/0.5/0.9), Ember/Glacier state stills, portrait peak, 243 forward/reverse frames, 3600/4096/43200-second native health checks, and 120 native RAF frames with the unmodified live limiter enabled. Zero GL/GPU/non-finite errors; no empty low-energy look. This is a bounded smoke test, not a photosensitivity certification or long-show temporal seam measurement.
+- Canonical reviewer evidence: `artifacts/look-review/soap-cathedral-r3/soap-cathedral-{sheet,rhythm}.png`, film and `grids.md`. Baseline and rounds 1–3 are retained alongside. Additional evidence: `artifacts/soap-r3-checks/`, profiles in `artifacts/soap-r3-perf/`.
+
+**Current look self-assessment: 7/10, not an independent pass.** The local pink capillary wave is plainly visible and materially appropriate; the scene still exposes repeated tetrahedral clusters, approximate additive transparency, very faint architecture at peak, and a restrained energy ladder. A genuinely spatial foam nave remains a better next step than claiming this is already an 8.
