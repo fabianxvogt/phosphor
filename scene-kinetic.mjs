@@ -81,7 +81,8 @@ float focal(){
  return (FOCAL+(${f(FOCAL_RISE)}+fit)*peak)*(1.+.02*clamp(u_kick,0.,1.));
 }
 vec3 tone(float h){
- return mix(mix(u_secondary,u_primary,sst(.05,.72,h)),mix(u_primary,vec3(1.),.28),sst(.8,1.,h)*.6);
+ // Saturated frosted glass body; only the narrow specular lobe goes hot.
+ return mix(u_secondary,u_primary,sst(.12,.88,h));
 }`;
 const vertex = `#version 300 es
 precision highp float;
@@ -93,7 +94,7 @@ uniform float u_time,u_kick,u_seed,u_level;
 uniform float u_clock[4];
 uniform vec2 u_resolution;
 uniform float u_params[8];
-uniform vec4 u_rhythm;
+uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 uniform vec3 u_primary,u_secondary,u_accent;
 ${common}
 out vec3 v_ray;
@@ -222,7 +223,7 @@ void main(){
   ns=cl>1e-9?cr/cl:vec3(0.,1.,0.);
   ps=CENTER+p+ns*ring*.6;
   if(ns.y<0.)ns=-ns;
-  rs=clamp(.55*sqrt(length(du)*length(dv)),.014,.055);
+  rs=clamp(.46*sqrt(length(du)*length(dv)),.014,.055);
   hs=clamp(.5+.34*p.y,0.,1.);
  }
  vec3 P=mix(pg,ps,sig);
@@ -254,6 +255,14 @@ void main(){
  // front readable even at breakdown energy. The launch still grows from 0.
  float gain=KSTR*(.12+.88*sst(0.,1.,u_level));
  float crest=max(rp,0.)*sst(0.,.06,kick/max(gain,1e-5));
+ // Narrow travelling front, not a full-surface brightness beat. At the
+ // ceiling it descends through index-depth; on the sculpture through height.
+ float drop=clamp(u_rhythm.w/(.96*(.12+.88*sst(0.,1.,u_level))),0.,1.);
+ float address=mix(a_cell.y/(N-1.),clamp((P.y-CENTER.y+2.5)/5.,0.,1.),sig);
+ float tilt=(mod(u_rhythmCount.w,2.)-.5)*.12*(a_cell.x/(N-1.)-.5);
+ float front=1.18*drop-.09;
+ float cascade=exp(-pow((address+tilt-front)*18.,2.))*sst(0.,.12,drop);
+ float launch=clamp(u_rhythmHit.w,0.,1.)*sst(.88,1.,address);
  float lattice=float(mod(a_cell.x,8.)<.5||mod(a_cell.y,8.)<.5)*clamp(u_rhythm.z,0.,1.);
  float q=(a_cell.x+a_cell.y)/(2.*N);
  float sweep=exp(-pow((q-(1.-clamp(u_rhythm.y,0.,1.)))*11.,2.))*min(1.,u_rhythm.y*4.);
@@ -276,13 +285,14 @@ void main(){
  // pin-specular work. Fade continuously to a cheap quadratic facing lobe.
  float body=facing*facing;
  if(!mirrored||sig<1.)body=mix(pow(facing,1.4),body,mirrored?sig:0.);
- vec3 emit=col*glow*(mix(.5,.12,sig)+mix(.55,.7,sig)*body+.5*sig*diffuse)*(.85+.15*max(s01,sig))*ao*sheen;
- emit+=mix(col,vec3(1.),.55)*glow*(1.6*glint+.6*glint2)*mix(1.,1.8,sig)*ao;
- emit+=mix(u_secondary,vec3(1.),.35)*rim*mix(.28,.78,sig)*glow*(.6+.4*max(s01,sig));
- emit+=mix(u_primary,vec3(1.),.55)*glow*crest*2.4;
+ vec3 emit=col*glow*(mix(.72,.17,sig)+mix(.65,.85,sig)*body+.6*sig*diffuse)*(.85+.15*max(s01,sig))*ao*sheen;
+ emit+=mix(col,vec3(1.),.32)*glow*(1.35*glint+.45*glint2)*mix(1.,1.5,sig)*ao;
+ emit+=u_secondary*rim*mix(.4,.9,sig)*glow*(.6+.4*max(s01,sig));
+ emit+=mix(u_primary,vec3(1.),.15)*glow*crest*2.4;
  emit=mix(emit,u_accent*glow*2.,crest*.35);
- emit+=u_accent*lattice*glow*1.2;
- emit+=mix(col,vec3(1.),.5)*sweep*glow*.9;
+ emit+=u_accent*lattice*glow*2.6;
+ emit+=mix(u_secondary,u_primary,.25)*sweep*glow*3.;
+ emit+=mix(u_accent,u_primary,.2)*(cascade*3.8+launch*.4)*glow;
  emit+=vec3(1.)*tw*glow*.35;
  float pixA=2./(Fk*min(u_resolution.x,u_resolution.y));
  v_info=vec4(a_kind,r,sig,crest);
@@ -377,7 +387,7 @@ void main(){
   vec3 nn=normalize(n+vec3(0.,0.,1e-6));
   float key=max(dot(nn,normalize(vec3(-.45,.65,-.6))),0.);
   vec3 col=v_col*(.32+.38*pow(mu,.6)+.3*key);
-  col+=mix(v_col,vec3(1.),.6)*pow(1.-mu,2.5)*.2;
+  col+=v_col*pow(1.-mu,2.5)*.18;
   col*=v_info.w;
   col=mix(fogC,col,exp(-t*FOGK));
   col=mix(fogC*.5,col,cover);
@@ -495,13 +505,62 @@ const schema = [
     step: 0.01,
     default: 0,
   },
-  { key: "speed", label: "Wave speed", min: 0.1, max: 2, step: 0.01, default: 1 },
-  { key: "amplitude", label: "Wave height", min: 0.3, max: 1.6, step: 0.01, default: 1 },
-  { key: "detail", label: "Ripple detail", min: 0, max: 1, step: 0.01, default: 0.4 },
-  { key: "glow", label: "Sphere glow", min: 0.4, max: 1.6, step: 0.01, default: 1 },
-  { key: "morph", label: "Choreography pace", min: 0.2, max: 2, step: 0.01, default: 1 },
-  { key: "orbit", label: "Camera orbit", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "size", label: "Sphere size", min: 0.6, max: 1.5, step: 0.01, default: 1 },
+  {
+    key: "speed",
+    label: "Wave speed",
+    min: 0.1,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "amplitude",
+    label: "Wave height",
+    min: 0.3,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "detail",
+    label: "Ripple detail",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.4,
+  },
+  {
+    key: "glow",
+    label: "Sphere glow",
+    min: 0.4,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "morph",
+    label: "Choreography pace",
+    min: 0.2,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "orbit",
+    label: "Camera orbit",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "size",
+    label: "Sphere size",
+    min: 0.6,
+    max: 1.5,
+    step: 0.01,
+    default: 1,
+  },
 ];
 const look = (name, seed, development, params = {}) => ({
   name,
@@ -530,16 +589,33 @@ export default {
     look("Still Ceiling", 1216, 0),
     look("Wave Choreography", 1216, 1),
     look("Floating Sculpture", 1216, 2),
-    look("Slow Tide", 377, 0.7, { speed: 0.55, amplitude: 1.35, detail: 0.2, orbit: 0.6 }),
+    look("Slow Tide", 377, 0.7, {
+      speed: 0.55,
+      amplitude: 1.35,
+      detail: 0.2,
+      orbit: 0.6,
+    }),
     look("Rain Curtain", 2048, 1.65, { morph: 0.6, size: 0.85, orbit: 0.7 }),
-    look("Dense Swell", 909, 1, { speed: 1.35, detail: 0.85, size: 0.8, morph: 1.4 }),
-    look("Möbius Drift", 6006, 2, { morph: 0.45, orbit: 0.55, size: 0.9, detail: 0.6 }),
+    look("Dense Swell", 909, 1, {
+      speed: 1.35,
+      detail: 0.85,
+      size: 0.8,
+      morph: 1.4,
+    }),
+    look("Möbius Drift", 6006, 2, {
+      morph: 0.45,
+      orbit: 0.55,
+      size: 0.9,
+      detail: 0.6,
+    }),
     look("Night Mirror", 63, 0.35, { glow: 0.85, orbit: 0.4, amplitude: 1.2 }),
   ],
   stage: ["speed", "amplitude", "glow"],
   type: { key: "development", values: [0, 1, 2] },
   energy: {
     speed: { mul: [0.6, 1.5] },
+    amplitude: { mul: [0.65, 1.25] },
+    size: { mul: [0.8, 1.08] },
     detail: [0, 0.5],
     morph: { mul: [0.8, 1.3] },
     orbit: { mul: [0.75, 1.5] },
@@ -549,40 +625,138 @@ export default {
     { param: "speed", feature: "low", amount: 0.05 },
     { param: "detail", feature: "high", amount: 0.06 },
   ],
-  rhythmStyles: { restrained: "Suspended drops", driving: "Pendulum rain", accented: "Lattice cascade" },
+  rhythmStyles: {
+    restrained: "Suspended drops",
+    driving: "Pendulum rain",
+    accented: "Lattice cascade",
+  },
   rhythm: [
     familyEffect(
       "kick-rings",
       0,
       "Kick rings",
       "A ring wave runs outwards through the sphere lattice from its centre.",
-      { period: 4, strength: KICK_STRENGTH, duration: 3.5, steps: "X...", styles: {
-        restrained: { steps: "X....... | ......x. | ........ | ...X....", division: 2, strength: 0.58, duration: 2.2 },
-        driving: { steps: "X....... | ....x... | ....X... | ....X...", division: 2, strength: 0.84, duration: 1.8 },
-        accented: { steps: "X.........x..... | ....X.......x...", division: 4, strength: 0.98, duration: 0.9 },
-      } },
+      {
+        period: 4,
+        strength: KICK_STRENGTH,
+        duration: 3.5,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | ......x. | ........ | ...X....",
+            division: 2,
+            strength: 0.58,
+            duration: 2.2,
+          },
+          driving: {
+            steps: "X....... | ....x... | ....X... | ....X...",
+            division: 2,
+            strength: 0.84,
+            duration: 1.8,
+          },
+          accented: {
+            steps: "X.........x..... | ....X.......x...",
+            division: 4,
+            strength: 0.98,
+            duration: 0.9,
+          },
+        },
+      },
     ),
     familyEffect(
       "index-sweep",
       1,
       "Index sweep",
       "A band of light sweeps diagonally across the lattice by sphere index, in every state.",
-      { period: 8, strength: 0.65, duration: 2, steps: "X.......", styles: {
-        restrained: { steps: "...x.... | ........ | .....X.. | .......x", division: 2, strength: 0.52, duration: 1.5 },
-        driving: { steps: "..X..x.. | ...X..x.", division: 2, strength: 0.78, duration: 0.8 },
-        accented: { steps: "..X..x..X..x..X..x..X...", division: 4, strength: 0.92, duration: 0.5 },
-      } },
+      {
+        period: 8,
+        strength: 0.65,
+        duration: 2,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | ........ | .....X.. | .......x",
+            division: 2,
+            strength: 0.52,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "..X..x.X | ...X.xX.",
+            division: 2,
+            strength: 0.88,
+            duration: 0.38,
+          },
+          accented: {
+            steps: "..X..x..X..x..X..x..X...",
+            division: 4,
+            strength: 0.92,
+            duration: 0.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "lattice-lines",
       2,
       "Lattice lines",
       "Every eighth row and column of spheres lights up, tracing the grid across the surface.",
-      { period: 16, strength: 0.7, duration: 2.5, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.55, duration: 2 },
-        driving: { steps: "........ | .......x | ........ | .....X.x", division: 2, strength: 0.82, duration: 0.7 },
-        accented: { steps: "...........x.... | ........X.x..Xxx", division: 4, strength: 0.96, duration: 0.18 },
-      } },
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2.5,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | ......X.",
+            division: 2,
+            strength: 0.55,
+            duration: 2,
+          },
+          driving: {
+            steps: "........ | .......x | ........ | .....X.x",
+            division: 2,
+            strength: 0.82,
+            duration: 0.7,
+          },
+          accented: {
+            steps: "...........x.... | ........X.x..Xxx",
+            division: 4,
+            strength: 0.96,
+            duration: 0.18,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "drop-cascade",
+      3,
+      "Drop cascade",
+      "A luminous ripple drops through suspended lamp heights, alternating its tilt on each launch and echoing in the mirror.",
+      {
+        period: 8,
+        strength: 0.96,
+        duration: 0.8,
+        styles: {
+          restrained: {
+            steps: "....X... | ........ | ......X. | ........",
+            division: 2,
+            strength: 0.72,
+            duration: 1.6,
+          },
+          driving: {
+            steps: "X...X... | X...X...",
+            division: 2,
+            strength: 0.96,
+            duration: 1.7,
+          },
+          accented: {
+            steps: "X...X...X....... | ..X...X...X.....",
+            division: 4,
+            strength: 0.96,
+            duration: 0.82,
+          },
+        },
+      },
     ),
   ],
   // Integrated phases (scene-time.mjs): every use is periodic in its period.
@@ -591,7 +765,7 @@ export default {
   // period is 4π), 3 camera orbit.
   clocks: [
     { rate: (p) => 0.75 * p[1], period: 2 * Math.PI },
-    { rate: (p) => p[5] / 14, period: 4 },
+    { rate: (p) => p[5] / 22, period: 4 },
     { rate: (p) => 0.12 * (0.5 + 0.5 * p[5]), period: 4 * Math.PI },
     { rate: (p) => 0.035 * p[6], period: 2 * Math.PI },
   ],

@@ -2567,6 +2567,8 @@ export default {
   "A band of light sweeps diagonally across the lattice by sphere index, in every state.": "Ein Lichtband läuft nach Kugelindex diagonal über das Gitter, in jedem Zustand.",
   "Lattice lines": "Gitterlinien",
   "Every eighth row and column of spheres lights up, tracing the grid across the surface.": "Jede achte Reihe und Spalte der Kugeln leuchtet auf und zeichnet das Gitter über die Fläche.",
+  "Drop cascade": "Tropfenkaskade",
+  "A luminous ripple drops through suspended lamp heights, alternating its tilt on each launch and echoing in the mirror.": "Eine leuchtende Welle fällt durch die Höhen der schwebenden Lampen, wechselt bei jedem Start ihre Neigung und klingt im Spiegel nach.",
   "Suspended drops": "Schwebende Tropfen",
   "Pendulum rain": "Pendelregen",
   "Lattice cascade": "Gitterkaskade",

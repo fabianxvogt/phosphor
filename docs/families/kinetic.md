@@ -19,11 +19,11 @@ A 0.68-radian tilt, slow vertical-axis turn and small travelling breathing wave 
 
 All three world states share seed 1216 and identical non-development parameters.
 
-| Development | EN / DE | Composition |
-| --- | --- | --- |
-| 0 | Ceiling / Decke | Low orbit beneath the seemingly endless level light ceiling; travelling sheen, dark tiled mirror, lit haze beneath the installation. |
-| 1 | Waves / Wellen | Crossing, radial, spiral and standing heightfield choreographies; bright kick fronts traverse the same grid. |
-| 2 | Sculpture / Skulptur | Thousands of pearls form one hero surface, continuously cycling sphere → torus → Möbius → saddle, reflected below. |
+| Development | EN / DE              | Composition                                                                                                                          |
+| ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 0           | Ceiling / Decke      | Low orbit beneath the seemingly endless level light ceiling; travelling sheen, dark tiled mirror, lit haze beneath the installation. |
+| 1           | Waves / Wellen       | Crossing, radial, spiral and standing heightfield choreographies; bright kick fronts traverse the same grid.                         |
+| 2           | Sculpture / Skulptur | Thousands of pearls form one hero surface, continuously cycling sphere → torus → Möbius → saddle, reflected below.                   |
 
 The gather uses a smooth radial delay, not a dissolve. In-between values retain the ceiling's outer wings while its centre becomes the sculpture.
 
@@ -68,11 +68,11 @@ CPU tests bound motor velocity to 3 world units/s, check camera clearance at eve
 
 Native headless Chrome 155 / ANGLE Metal / Apple M3 Pro, 12 synchronous samples per state including post-processing, energy 0.95:
 
-| State | 1080p p50 / p95 | 4K p50 / p95 |
-| --- | --- | --- |
-| Ceiling | 2.2 / 2.4 ms | 4.3 / 4.5 ms |
-| Waves | 2.1 / 2.4 ms | 4.6 / 4.9 ms |
-| Sculpture | 2.7 / 2.9 ms | 8.5 / 9.1 ms |
+| State     | 1080p p50 / p95 | 4K p50 / p95 |
+| --------- | --------------- | ------------ |
+| Ceiling   | 2.2 / 2.4 ms    | 4.3 / 4.5 ms |
+| Waves     | 2.1 / 2.4 ms    | 4.6 / 4.9 ms |
+| Sculpture | 2.7 / 2.9 ms    | 8.5 / 9.1 ms |
 
 Earlier shared-machine runs were 2.5–3.1 ms at 1080p and 4.9–8.7 ms at 4K. All eight look-start 4K probes were ≤8.7 ms p95. These are throughput measurements, not external-display cadence or a complete morph-cycle worst-case guarantee.
 
@@ -102,11 +102,11 @@ The previous camera test sampled only holds. The expanded CPU projection sweep s
 
 Standard 30-sample native probes: 1080p baseline **2.6/3.1/4.1** → final **2.3/2.4/2.4** ms; 4K baseline **6.5/8.6/11.8** → final **6.0/9.1/7.2** ms. Fleet contention caused the sequential Waves comparison to cross +5%, so the final 4K qualification uses the same optional ABBA interleaved baseline/final check as Magma (64 frames/candidate):
 
-| State | Interleaved 4K baseline → final p50 | Final p95 |
-| --- | --- | --- |
-| Ceiling | 7.2 → 6.7 ms | 8.0 ms |
-| Waves | 7.0 → 7.1 ms | 8.4 ms |
-| Sculpture | 9.8 → 7.2 ms | 9.9 ms |
+| State     | Interleaved 4K baseline → final p50 | Final p95 |
+| --------- | ----------------------------------- | --------- |
+| Ceiling   | 7.2 → 6.7 ms                        | 8.0 ms    |
+| Waves     | 7.0 → 7.1 ms                        | 8.4 ms    |
+| Sculpture | 9.8 → 7.2 ms                        | 9.9 ms    |
 
 Every paired median is within +5%; Sculpture gains headroom despite its stronger framing. Synchronous throughput includes post; not venue cadence. The earlier 1080p paired check was 2.6→2.5, 2.6→2.6, 4.0→2.6 ms before the final zero-weight-haze optimization.
 
@@ -127,6 +127,42 @@ Exact analytic differentials of all four blended surfaces replace four neighbour
 A conservative top-state mirror frustum rejection runs after one position evaluation and before differential evaluation/lighting. The side-plane sphere bound includes maximum ring motion, globe radius, reflected blur and the two-pixel impostor apron; only wholly invisible reflected impostors are rejected. It changes no visible population or geometry buffers. A final cost pass fades the second specular lobe and random twinkles out of Sculpture, leaving coherent key/rim light; its real mirrored globes replace the broad reflected-haze wash, so the second glow-ball integral is not needed across the downward-looking peak frame. The softened mirror keeps broad form light rather than computing duplicate pin-specular lobes; this fades in continuously, leaving the hero's exact differential key/rim material intact. Native culled/unculled image checks and final cost evidence are in the lane's `output/final-round/` directory. No engine changes. Three fresh improvement films were reviewed in addition to the baseline; the final delivery report supersedes the earlier self-rating and timing claims above.
 
 Final paired qualification against `15fe8ef`, 256 frames/candidate/resolution, ABBA blocks: 1080p Ceiling **2.7→2.6**, Waves **2.5→2.5**, Sculpture **2.5→2.6** ms; 4K **6.7→6.6**, **6.4→6.4**, **6.6→6.8** ms. Every final state is within +5%, Sculpture +4.0%/+3.0%. These include post-processing, not venue cadence. Earlier over-budget iterations are retained in the lane evidence, not used as final qualifications. Final rating: **8.2/10**, superseding the earlier 9/10 self-rating.
+
+## Round 3 · 16 October 2026
+
+**Implementer: openai-codex/gpt-6.1-sol.** This section supersedes the earlier self-ratings and cost claims; independent current-main baseline was L5 / G2 / E1.5 (overall3.5), not the earlier implementer's8.2. Current **self-assessed look:6.5/10**, not independent acceptance.
+
+Three filmed rounds retained every state, seed, preset name and schema key. Round1 added rhythm before look polish; round2 lifted the ceiling's saturated body/rim light, removed broad white-mixed pearl limbs and slowed the four-form clock from `morph/14` to `morph/22` so shapes hold longer; round3 separated sculpture pearls (spacing-derived radius coefficient0.55→0.46, mirrored in the CPU reference), reduced white in kick crests, and made energy change wave amplitude (×0.65–1.25) and globe size (×0.8–1.08), as well as the existing pace/detail grammar. No position/topology, camera, world-definition or engine changes. The eight existing looks and three states still share their original identities.
+
+### Four-track choreography
+
+- **Slot0 Kick rings:** retains sparse motor impulses and a more saturated luminous crest.
+- **Slot1 Index sweep:** stronger secondary-colour diagonal band; driving now has six off-beat hits per two bars, duration0.38 beats, leaving gaps.
+- **Slot2 Lattice lines:** stronger local accents on the persistent index grid, not a whole-frame pulse.
+- **Slot3 Drop cascade / Tropfenkaskade:** a narrow Gaussian front drops through lamp height, blending continuously to ceiling index-depth while the lamps flatten. Envelope `u_rhythm.w` moves the front; event count alternates its tilt; the hit uniform lights only upper launching lamps. Reflected lamps carry the same event. This is a light choreography, not additional motor displacement. The peak ring is crossed by a clearly visible pink band in the default palette.
+
+Presets are unchanged in name: **Suspended drops**, **Pendulum rain**, **Lattice cascade**. Restrained signature steps5/23 of32 eighth-note steps (two hits/four bars); driving1/5/9/13 of16 eighth-note steps (two hits/bar); accented1/5/9/19/23/27 of32 sixteenth-note steps (three hits/bar with a delayed second-bar answer). Total four-track density is **2.25 /6.75 /12.67 hits/bar**. All signature loops have recovery space before their next hit. The shared flash limiter was not edited; the family verifier explicitly asserts it remains enabled. Bright events are confined to lamp cohorts.
+
+### Native verification and cost
+
+Apple M3 Pro / ANGLE Metal,30 synchronous samples per state, post included, not venue cadence:
+
+| State     | 1080p p50/p95 ms | 4K p50/p95 ms |
+| --------- | ---------------- | ------------- |
+| Ceiling   | 2.3/2.8          | 5.6/6.0       |
+| Waves     | 2.2/2.8          | 5.6/6.4       |
+| Sculpture | 2.6/2.9          | 5.8/6.2       |
+
+ABBA pair against main: initial1080p median deltas−3.7%/+12.5%/−19.4%; repeat0%/**+16.0%**/−3.7%. Waves' extra local-light work is a measurable1080p regression, though all absolute budgets pass.4K pair0%/−1.9%/0%. Both1080p runs and all raw samples are retained, not selected away.
+
+- `npm test`:975 pass,21 opt-in skips,0 failures, including family continuity/presets, slot3/density, world rhythm and pipeline flash tests.
+- Typecheck and build pass; native German/English i18n smoke passes after building dist.
+- `scripts/verify-kinetic.mjs`:45 portrait cases across energy0.1/0.5/0.9, development0/0.7/1/1.65/2 and Ember/Glacier/Silver at43200 seconds, with limiter enabled. Zero GL/nonfinite errors; minimum lit coverage20.3%, minimum mean max-channel15.6/255. This is late-time rendering evidence, not12-hour runtime cadence.
+- Prettier passes owned scene/model/tests/verifier/docs. The shared dictionaries already fail whole-file formatting on main; only the two additive family keys were inserted, avoiding unrelated translation reformatting.
+
+Reviewer evidence: `artifacts/look-review/kinetic-rain-r3/kinetic-rain-{sheet,rhythm}.png`, `.mp4`, and `grids.md`. Additional warm/cool films in `palettes/`, Silver portrait reverse film in `portrait-reverse/`,45 late-time stills and health JSON in `verification/`, timings in `perf-1080/`, `perf-4k/`, `pair-1080/`, `pair-1080-repeat/`, `pair-4k/`. Before and each of three incremental film rounds remain in adjacent directories.
+
+Remaining visual weaknesses: early ceiling still reads as regular dot rows above a large dark floor; gathering midpoint has awkward outer wings; the peak's room is empty and some pearl rows merge into ribs at review-sheet resolution. The cascade reads much more clearly than the original gestures, but Ember/Silver have less colour separation than the default palette. No independent8/10 claim.
 
 ## Limits
 
