@@ -201,7 +201,7 @@ const AUTHORED = [
     id: "moon-tide",
     name: "Moon Tide",
     description:
-      "A glassy moon path gathers storm swells and living foam, then opens into a vast luminous maelstrom. The same ocean throughout.",
+      "A sparkling moon path, swells that break into glowing foam, then the same sea wound into a vast spiral that pours into a glowing eye. The same ocean throughout.",
     states: [
       { name: "Calm", look: "tide:Calm" },
       { name: "Swell", look: "tide:Swell" },

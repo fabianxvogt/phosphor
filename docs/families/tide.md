@@ -1,78 +1,96 @@
 # Moon Tide · Mondflut
 
-**EXPLORATORY / EMPIRICAL**, worlds wave 4, family **103**, renderer `tide`, world `moon-tide`. A new material: a dark, reflective ocean at night, not an underwater particle world. No engine changes.
+**INCREMENTAL / EMPIRICAL**, world-polish wave 6 (2026-10-16) over worlds wave 4/5, family **103**, renderer `tide`, world `moon-tide`. A dark, reflective ocean at night. The polish makes **bioluminescent breaking foam** the signature: it lights the Swell, and the same crests wind into the arms of the Maelstrom. No engine changes.
 
 ## Signature mathematics
 
-Six seeded, persistent directional Gerstner waves. For wave `i`, `ωᵢ = 0.35 nᵢ`, `n = [2,3,4,5,7,10]`, and **`kᵢ = ωᵢ² / 9.81`**. Longer waves travel faster: phase speed `ω/k`; group speed `ω/(2k)`. The speed control reparametrizes physical time; it does not replace the dispersion law with a shared phase velocity.
+Six seeded, persistent directional Gerstner waves. For wave `i`, `ωᵢ = 0.35 nᵢ`, `n = [2,3,4,5,7,10]`, and **`kᵢ = ωᵢ² / 9.81`**. Longer waves travel faster: phase speed `ω/k`; group speed `ω/(2k)`. The amplitudes `[0.8,0.4,0.24,0.16,0.085,0.035]` scale continuously from ×0.48 to ×2.35 with Calm → Swell and by the height fader (≤1.3). At the schema maximum, `Σ Q k A = 0.5530875468 < 1`, so the horizontal Gerstner map cannot fold. **Wave 6:** the long swell now runs away from the coastal camera, toward the moon (mode 0 at −90°, spread `[0,−.32,.38,−.55,.8,−1.05]` rad plus ±0.15 seeded jitter). Long crests therefore lie across the frame and the foam on their back slopes faces the viewer.
 
-The material surface is
+**Breaking foam (new).** The foam is driven by the analytic signal of the wind sea, `z = Σ cᵢ e^{iφᵢ}` over modes 1–4 (56, 31, 20, 10 m) with steepness weights `cᵢ = Aᵢ (nᵢ/5)²`. For a single mode, `arg z` is exactly the wave phase and `|z|` its amplitude; for the sum, `|z|` is the group envelope and `arg z` the local phase. The time since the crest passed is `age = π/2 − arg z (mod 2π)`. The foam left behind is the decaying sum of all earlier crest passages, `Σₘ e^{−(age+2πm)/κ}`. In closed form, after subtracting the floor that remains just before the next crest:
 
 ```
-X(q) = q + Σ Q Aᵢ dᵢ cos(kᵢ dᵢ·q + φᵢ)
-H(q) = Σ Aᵢ sin(kᵢ dᵢ·q + φᵢ), Q = 0.65
+F(age) = (e^{−age/κ} − e^{−2π/κ}) / (1 − e^{−2π/κ})     (1 at the crest, 0 before the next)
 ```
 
-The six amplitudes `[0.8,0.4,0.24,0.16,0.085,0.035]` scale continuously from ×0.48 to ×2.35 with Calm → Swell and by the height fader (≤1.3). At the **entire schema maximum**, `Σ Q k A = 0.5530875468 < 1`; the symmetric horizontal Jacobian has minimum eigenvalue ≥0.4469124532. Thus the horizontal map cannot fold or self-intersect. Development never alters wave IDs, seeded directions or initial phases.
+A gate decides where the sea breaks: `smoothstep(θ, θ+0.5, |z|/0.6242)`. The threshold θ = 1.45 → 0.65 falls with energy. The gate is also weighted by the long-swell crest (short waves break preferentially on swell crests) and, in the vortex, by distance to the funnel. Where `arg z` is undefined (`|z|→0`), the gate is exactly 0, so the foam stays continuous through phase dislocations; a CPU test refines every steep 3 cm step to 0.3 mm and finds no jump. Calm can never break: its full-schema envelope is ≤ 0.624, below the lowest threshold of 0.65. The front is one-sided, sharp ahead of the crest (0.035 rad) and longer behind it (0.14 rad), and widened by the phase footprint. The trailing foam is a soft streak texture in material coordinates (≈1.1 × 3 m streaks, combed along the travel direction), torn open as `F` decays and resolved to its mean when unresolved.
 
-Two Newton iterations invert `X(q)` for each exact world-space surface sample. The final wave-5 **data-only** precompute is 1024×513 RGBA32F, with two 512-wide banks. Row 0 holds six wave coefficients. The left bank remains **combined wave + bowl height, two analytic gradient components, and crest compression**; the right bank stores the **signed low-pass material slope** used to locate foam fronts (remaining channels zero). Intersection candidates and final normals interpolate the left bank rather than repeating 18 wave evaluations per solver step. The right bank avoids another material inversion and four cosine evaluations per output pixel. Lighting, line coverage, wake structure, spray and colour still run at full output resolution. The roughly 8 MiB table refreshes every frame, including paused edits; no reduced-resolution colour image is cached. Without float targets the exact analytic path remains available.
+**Vortex twist (new).** The maelstrom winds the *same* ocean: the waves are sampled at `y = R(φ(r)) x`, `φ = −3.5 · vortex · e^{−r²/900}`. The twist preserves radius, so it is a bijection; the heightfield stays single-valued and the no-fold bound is untouched. Gradients are pulled back exactly through `Jᵀ = Rᵀ + ∇φ (R J₉₀ x)ᵀ` (CPU finite-difference test). The twist's handedness matches the bowl's spiral ridges, so the Swell's crests and their foam visibly spiral into the funnel with development and unwind on reversal.
 
-The table covers −128…128 world units with explicit bilinear interpolation (spacing 0.501 m). The polar core (r≤6) and exterior remain analytic, with smooth transition bands at r=6…8 and |x/z|=126…127.5. Intersection and normal queries use the same transition, avoiding a tiny height discontinuity. A 27,000-point CPU sweep over three seeds, all development states and maximum wave height measures **0.02485 m height error and 0.01586 unit-normal error**; a separate bowl sweep retains its <3 cm / <0.025 normal bounds. This is a geometry approximation, not a bit-identical cache or cached colour image. The previous wave-4 GPU image-error figures applied only to the bowl cache and do not qualify the new combined table.
+Two Newton iterations invert `X(q)`. The data-only precompute is 1024×513 RGBA32F in two banks. The **left bank** holds wave + bowl height, two analytic gradient components and crest compression. The **right bank (new)** holds `(Im z, Re z, q)`: the swell's analytic signal and the material coordinate, so foam texture rides the water. The table covers −128…128 m (0.501 m spacing). The polar core r ≤ 6 and the table border stay on the exact path, with blends between them. Lighting, foam, glints and colour still run at full output resolution; no colour image is cached. Without float targets, the exact analytic path is used.
 
-A capped 15-step safeguarded **Illinois regula-falsi** intersection solves the water height. Conservative ray-specific slabs include the closest projected distance to the throat and the table cell diagonal; they avoid solving all outer-ocean rays against the deepest possible sea floor. Normals pull the material height gradient through the inverse horizontal Jacobian rather than repeating four height queries per pixel.
+A safeguarded **Illinois regula-falsi** solve finds the water height inside conservative ray-specific slabs. **Wave 6:** its iteration cap follows the engine step budget: `ceil(15 · u_raySteps/96)` gives 15 / 10 / 7 iterations for the governor's 96 / 64 / 40. The full budget is bit-identical to before. CPU residuals on the slab test are 0.046 / 0.046 / 0.17 m.
 
 ### The peak: Maelstrom
 
-The ocean's vertical coordinate develops into a **42-unit depression**, with a raised shoulder and five meandering, rotating spiral ridges. Its base is
+The vertical coordinate develops a **42 m depression** with a raised shoulder and five meandering, rotating spiral ridges. The base is `−42 e^{−r²/190} + 3.8 e^{−((r−23)/7)²}`, and the ridge phase is `5θ + 0.44r − 2f + 0.28 sin(3θ − 0.12r + f)`, with integer harmonics so the atan seam and the clock wrap are exact. This is an authored deformation, not a Navier–Stokes vortex.
 
-```
--42 exp(-r²/190) + 3.8 exp(-((r-23)/7)²)
-```
+## Light, colour and depth
 
-and the ridge phase is `5θ + 0.44r - 2f + 0.28 sin(3θ - 0.12r + f)`. An inner smooth window removes the angular singularity. All angular and clock harmonics are integers, so neither the atan seam nor phase wrapping jumps. Analytic radial/angular derivatives shade the bowl. Since this only adds height, it does not invalidate the Gerstner no-fold bound.
-
-**Choice:** the maelstrom gives a much larger peak silhouette and a dramatic crane reveal while remaining a reversible single-valued ocean. A breaking barrel would require overturning geometry, hidden surfaces and more fragile camera clearance; it would contradict this heightfield's deliberate no-fold guarantee. The bowl is an authored deformation, **not** a Navier–Stokes vortex solution.
-
-## Light and depth
-
-Fresnel sky reflection, a compact moon plus a rough moon-glitter path, faint lunar surface mottling, sparse stars, distant horizon haze, soft directional key, grazing rim and trough darkening. All colour comes from palette uniforms and white/black mixtures.
-
-**Final foam:** trace zeros of the directional material derivative of the four longest Gerstner modes, projected along the dominant swell direction. Actual six-mode crest compression suppresses troughs and flares the breaking sections. The two shortest modes remain in geometry/reflections but no longer corrugate foam edges. This replaces both gradient-noise lace and failed compression-isoline drafts (which outlined closed whitecap rings). Thin Gaussian crest lines carry bright continuous light; a broader one-sided Gaussian wake and a faint normal-weighted scattering pool soften the water behind/around them. Gaussian widening by `fwidth`, with inverse-width amplitude scaling, conserves integrated line flux. All coverage derivatives stay outside the divergent water branch. The signed-slope table's maximum CPU error is **0.00050431**, below one tenth of the intrinsic 0.006 line width.
-
-Living foam emits chiefly in secondary, with rare accent/primary hot knots. Broad flares travel along existing fronts; local kick ignition remains bounded to <1.4× its un-kicked value at a hot point, not a frame flash. Five inward spiral bands have crisp leading cores, soft one-sided tails and two broad rolling wake streaks. The streaks vary over metres, not per-pixel filaments. Low-frequency noise modulates only band intensity, never leading-edge position. Ordinary ocean foam fades out at r=26…40 so it cannot scribble across the funnel. Reflection falls exponentially down the throat; the tiny bottom pool is dimmer than before. Crest/core emission exceeds 1 before bloom. The previous 9.75/10.08 float maxima belonged to the earlier lace shader, not this final version.
-
-Sparse Gaussian spray points conserve integrated flux when widened by their pixel footprint and vanish before candidate-cell borders. Three water-occluded annular spindrift strata float 5.5 / 7.2 / 8.9 units above the vortex lip region, with independent periodic gusts and parallax. This is analytic suspended spray, not a particle or fluid simulation. The first wave-5 delivery filled the lace with aerated patches. L0 correctly identified that as a regression: the lobes read as camouflage near the camera. The follow-up below removes those filled lobes while preserving the combined surface-data speedup.
+- **Moonlight is cold** (secondary → white). The moon is larger (0.042 rad), with limb darkening, maria shaded only on the disc and a two-scale halo. A thin cloud bank sits near the horizon with silver edges near the moon. Stars are round.
+- **Glitter:** the old single capillary train striped the moon path. Wave 6 uses three crossing capillary trains in world coordinates, plus a micro-facet glint field: one tilted facet per 0.22 m cell of material coordinates, a Gaussian point that conserves its flux when subpixel and fades into the broad lobes. The result is a wide moon path of separate sparkles.
+- **Biolight is primary:** the breaking front glows hot and fades into the streak foam, with a soft scattering pool around each crest. The white-hot core sits on the brightest groups. **Accent** marks only the hottest breaking points and the eye core.
+- **Calm sparks:** rare plankton flashes where small crests compress (a crest-compression gate). These are also the glowing droplets thrown from breaking fronts. They are the first hint of the Swell's light.
+- **Throat:** reflected moonlight still falls off exponentially down the funnel. A glowing eye at (0, −36, 0) lights the walls from below (Lambert term × e^{−d/13} + rim), with an accent core and a primary glow at the bottom. Arms carry crisp cores, a broad one-sided glowing band and the white-hot core. Three spindrift strata orbit the lip at 1/2/3 whole turns per flow period, in the arms' sense of rotation, and are occluded by the water.
 
 ## States and looks
 
-States share **seed 10301 and all non-development parameters**.
+States share **seed 10301 and every non-development parameter** (moon elevation is now 0.20 so the moon sits inside the pitched frame).
 
 | EN | DE | Development | Character |
 | --- | --- | --- | --- |
-| Calm | Stille | 0 | Glassy low swell and moon path; no foam or spray |
-| Swell | Dünung | 1 | Tall crossing swells, wind detail, igniting crests |
-| Maelstrom | Mahlstrom | 2 | Vast luminous funnel; camera cranes above the shoulder |
-| Silver Passage | Silberpassage | 0.2 | Low moon, low viewpoint, long gentle waves |
-| Living Breakers | Lebendige Brecher | 1 | Maximum wave height, turbulent crests, low viewpoint |
-| Spiral Cathedral | Spiralkathedrale | 2 | High crane over the full vortex |
-| Far Lantern | Ferne Laterne | 0.65 | Higher moon and viewpoint, smaller swell |
-| Undertow | Sog | 1.7 | Low approach to the forming funnel, faster flow |
+| Calm | Stille | 0 | Low glassy swell, a wide sparkling moon path, silver cloud edges, rare biolight sparks |
+| Swell | Dünung | 1 | Crests across the frame break into glowing primary fronts with fading streak foam |
+| Maelstrom | Mahlstrom | 2 | Same crests wound into spiral arms that pour into a glowing eye |
+| Silver Passage | Silberpassage | 0.2 | Moon on the horizon behind cloud edges, camera near the water, rough glitter road |
+| Living Breakers | Lebendige Brecher | 1 | Highest waves, camera just above the crest envelope, heavy biolight |
+| Spiral Cathedral | Spiralkathedrale | 2 | Overhead crane (eye 1): a top-down spiral mandala around the eye |
+| Far Lantern | Ferne Laterne | 0.65 | Higher moon and viewpoint, smaller swell, first crests igniting |
+| Undertow | Sog | 1.7 | Low on the lip (eye 0), looking across the forming throat |
 
 ## Energy, rhythm and camera
 
-Energy is orthogonal: motion speed ×0.7–1.3 (1.86× range), wind-normal/foam detail, spindrift activity and camera drift rate. It does **not** multiply brightness, wave amplitudes or development. High audio contributes at most 0.06 to wind detail.
+Energy is orthogonal and visible in a still: breaking threshold (0.1: a few groups; 0.9: whitecaps across the sea), foam persistence κ 0.6 → 2.4 rad, spark/spray density, swirl speed (flow clock × (0.6 + 0.8·level)), wave speed ×0.7–1.3 and camera drift. It never changes brightness, amplitudes or development.
 
-- **Crest packet / Schaumwoge**, 4 beats: wakes a travelling packet on existing foam crests.
-- **Spiral ridge / Spiralgrat**, 8 beats: accents the existing spiral ridge locally.
-- **Incoming tide / Ankommende Flut**, 16 beats: a broad ring crosses the vortex shoulder.
+- **Crest packet / Schaumwoge**, 4 beats: a wave group whose envelope moves at the **group velocity of mode 3** (envelope wavenumber `2k₃/5` per unit clock, so `c = n/(2k)`). The crests overtake it while it lights the breaking fronts.
+- **Spiral ridge / Spiralgrat**, 8 beats: a surge of biolight runs down the arms into the eye, and the wall light swells.
+- **Incoming tide / Ankommende Flut**, 16 beats: a tide ring rolls out from the eye across the shoulder.
 
-The camera follows a slow closed coastal sway (±5 units horizontally, ±3 units in distance), then cranes continuously into a **full slow orbit** of the vortex at radius 43–47, closer than before. No roll. Minimum eye height starts at 4.8 and rises to 6.4 in Swell; the peak is 35 + 12×eye ±2 units high. Cartesian interpolation of the coastal and orbital paths stays periodic even at fractional development. CPU tests check the conservative clearance envelope, radius and intermediate-development wrap. The vortex fills roughly two-thirds of the short side in the review film. Kick FOV modulation remains bounded to **2.2%**.
+Kick: the field of view changes by at most 2.2%, and hot fronts brighten by at most 30%, locally.
+
+**Camera:** the coastal camera sits 0.5 + 2.6·eye m above the global crest envelope. It is pitched about 12° down so the horizon lies near the upper third and the sea fills about two thirds of the frame. It dollies ±12 m sideways with a slight yaw. The vortex crane and orbit are unchanged at eye 0.25–0.7. Eye above 0.7 cranes overhead (radius −20 m, +10 m); eye below 0.25 drops toward the lip (−22 m). No roll. CPU tests check clearance over development × eye × height × phase, the periodic wrap at intermediate development and the overhead clearance.
 
 ## Endless time
 
-Three integrated engine clocks: base wave phase (period 2π), camera phase (2π), spiral flow (2π). Rate-dependent terms read `u_clock` behind `PHOSPHOR_LATE`, declared in both the picture and data-pass shader. Every use is periodic in those exact periods, including capillary normal detail. No cumulative coordinates or growing sine arguments. Energy/fader changes change velocity, not phase. Development does not reset clocks or seed.
+Three integrated engine clocks: wave phase, camera phase and spiral flow, each with period 2π. The flow rate now includes energy, so it switches to the late clock on the first change. Every use is periodic in those exact periods: capillary harmonics 5/6/7, glint twinkle 3/4, spindrift turns 1/2/3, and the gesture envelope Ω = 1. Development never resets clocks or seed. GPU checks at 3600 / 4096 / 43 200 s pass (below).
 
-## Final round: coherent breaking fronts (supersedes the lace follow-up)
+## Wave-6 polish: evidence and cost
+
+Rounds (films under `.claude/worktrees/moon-tide/artifacts/films/`, worktree only):
+
+1. `r1`: twist, analytic-signal foam with a Voronoi lace. The lace read as **snakeskin/honeycomb** and was rejected.
+2. `r2`: mottle noise, which read as flat camouflage blobs (the wave-5 failure) and was rejected.
+3. `r4`: long streaks hung like a fringe. The real problem was that the foam signal was dominated by the 126 m swell, so the near field had no crests. Switched the signal to the 56–10 m wind sea with steepness weights.
+4. `r7`–`r9`: swell-crest modulation, calmer far water around the vortex, the overhead and lip looks, and stronger arms.
+5. `r10`: holds at development 0.5 / 1.5, a 2 → 0 reversal, Ember / Glacier / Ultraviolet palettes, 540×960 portrait, five extra-look films.
+6. `r14`–`final3`: cost cuts, a one-sided front, and capillaries moved from the table to world coordinates.
+
+Pop scan (blurred frame-difference peaks over all `r10` films): the only spikes are periodic every 4 beats, and difference images show they are the bounded kick zoom moving the moon rim and glints, not foam. No foam pops.
+
+**Before/after** at the same film times (3 s Calm, 15 s Swell, 27 s Maelstrom): `artifacts/films/before-after-t{3,15,27}.png`. The baseline film is `artifacts/films/moon-tide.mp4` and the final is `artifacts/films/final3/moon-tide.mp4`.
+
+**Cost.** The paired runs used `profile-rework-pair.mjs --reference main`, interleaved, while four other lanes were rendering on the same M3 Pro. Absolute numbers were 2–3× the quiet values and are not meaningful.
+
+| State | 1080p ratio | 4K ratio (three runs) |
+| --- | ---: | ---: |
+| Calm | 0.88 | 0.95 / 0.82 / 0.84 |
+| Swell | 0.88 | 0.95 / 0.95 / 0.94 |
+| Maelstrom | 1.02 | 1.04 / 1.18 / 1.03 |
+
+The savings come from skipping the moon-maria noise off the disc (it was evaluated three times per pixel), running spindrift only in the vortex, and gating glints and sparks. One rejected step: log-polar wall spindrift alone cost +22% in the 4K Maelstrom (likely register pressure) and was replaced by orbiting the existing strata. Quiet main was 12.4 ms p50 at 4K Maelstrom in wave 5; with a median ratio of ~1.04, the polish is estimated at about 13 ms. That is an estimate under the 16 ms budget, not a quiet measurement. Contended absolute probes: `artifacts/perf/final-{1080,2160}/`.
+
+**Accuracy.** Table-versus-exact CPU sweep over three seeds, development 0…2 and height 1.3: height error ≤ 0.046 m. The unit-normal error was 0.016 before the twist and is now 0.102 at development 2, where the twist compresses the 4 m mode near the throat. The breaking-front phase error is ≤ 0.025 rad on the open sea and 0.067 rad in the twisted peak. These are bounded by tests, not hidden.
+
+## Historical wave-5 final round: coherent breaking fronts (superseded by wave 6)
 
 Follow-up to `eb076589`, 2026-10-16. Moon Tide only; exact spectrum,
 geometry, clocks, camera, state/look/preset IDs, seeds and schema are unchanged.
@@ -207,15 +225,35 @@ Synchronous whole-frame throughput, **including post**, not display cadence. Sha
 
 Round-2 delivery probe: 48 samples/state at energy 0.95, including post, on the shared M3 Pro. 1080p meets the ≤8 ms family budget, including measured p95. Earlier un-cached peak probes were 8.0 / 8.8 ms at 1080p. **4K Maelstrom is not a 60 Hz two-world-crossfade budget**; the 4K probe deliberately exits 1 against its default 16.67 ms threshold. No resolution cap, engine downgrade or cached colour image is used. JSON: `artifacts/performance/tide-r2-final-{1080,4k}/profile.json`.
 
-## Verification
+## Verification (wave 6)
 
-- `node --test tests/tide.test.mjs tests/time.test.mjs`: 21 passing tests. Preserved exact dispersion/group velocity, full-schema Gerstner no-fold bound, two-step inverse and analytic normal checks; added gradient-lace C1/C2 seams, resolution filtering, HDR/local kick bounds, Gaussian flux, bowl-cache error, ray slabs, deeper bowl and orbital continuity. All eight presets still validate and retain continuous-world identity.
-- `PHOSPHOR_HEADLESS_RIG=1 node scripts/check-tide.mjs --rig --port 48331 --out artifacts/films/tide-r2-verification`: explicit early/late and no-precompute shader compilation, 1080p/4K/portrait, low energy, 3600 s and 43200 s, reverse sweep with unchanged seed/slot; zero GL errors/non-finite uniforms.
-- `PHOSPHOR_HEADLESS_RIG=1 node scripts/check-time-wrap.mjs --rig --families tide --port 48331`: no seams at 3600/4096/43200 s, no excessive energy or fader-rate departure at 2 h; actual late variant verified.
-- Final 30-second, 960×540 world film (Glacier) and extra-look film (Living Breakers / Ember), plus Phosphor world film: `artifacts/films/tide-r2-final/`. Contact strips, full-frame Swell/Maelstrom stills and the native 4K still were opened and reviewed. Earlier filmed revisions remain in `tide-r2-round1` through `tide-r2-round4`.
-- Eight-look energy ladder: `artifacts/contact/tide-final/index.html`; opened overview: `artifacts/films/tide-r2-verification/energy-ladder.png`.
-- `node --test tests/*.test.mjs`: 667 pass, 9 skip, 0 fail. `npm test`: 673 pass, 15 skip, 0 fail. `npm run typecheck` and DE/EN native browser i18n checks pass. No catalog preview/curation tests were edited.
+- `node --test tests/tide.test.mjs`: 19 pass. New CPU references:
+  - analytic-signal phase/amplitude identity;
+  - closed-form persistence against a 400-term decaying sum;
+  - foam continuity through dislocations and the crest wrap, with refinement;
+  - Calm never breaks over the full schema;
+  - twist bijection and exact pullback against finite differences;
+  - group-velocity gesture;
+  - foam-bank phase/material error;
+  - governor step budget 15/10/7 residuals;
+  - camera clearance over development × eye × height × phase.
+
+  Retained: dispersion, no-fold bound, inverse/normal, bowl seams, cache bounds, clocks, presets.
+- `npm test` (port 48346): 912 pass, 21 skip, **1 expected failure**. `catalog-palette` "every authored catalogue look has a matching baked preview" fails because the tide presets changed (moon 0.2, re-authored looks); previews are rebaked by L0 at integration. `npm run typecheck` passes. `scripts/test-i18n.mjs --native-gpu` passes DE/EN; the software-rendered run timed out on the busy machine.
+- `PHOSPHOR_HEADLESS_RIG=1 node scripts/check-tide.mjs --rig --port 48347 --out artifacts/films/tide-verification-final`:
+  - early, late and no-precompute fallback compile;
+  - Calm 1080p at energy 0.1 (lower half 100% lit, no black frame), Swell 1080p, Maelstrom 4K, portraits;
+  - Swell at 3600 s, Maelstrom at 43 200 s;
+  - time seams at 3600/4096/7200 s: none;
+  - zero GL errors, zero non-finite values.
+- Films: world (`final3`), holds at 0.5/1.5, reversal 2→0, three palettes, portrait, five extra looks (`r10`), energy ladders (`artifacts/contact/tide-r9`).
 
 ## Limits
 
-This is a small analytic spectrum, not an FFT sea. The heightfield cannot overturn. The vortex and foam remain stylized: smooth crest fronts and broad rolling wake bands avoid the previous hairy lace but still do not simulate photographic aerated whitewater. No refraction-through-water, multiple scattering, foam advection or airborne particle simulation. The mist consists of thin analytic strata. The sampled surface cache is not bit-identical to its analytic fallback, especially in narrow highlights. Regula-falsi is bounded and may not choose the very nearest root in steep overlapping silhouettes. Very distant foam becomes a band-limited average. Portrait crops the shoulder rather than shrinking the ocean. The moon leaves the frame during the peak crane. The wave-5 4K peak fits a single 60 Hz frame in the throughput probe, not necessarily a crossfade or display-cadence budget. No claim of venue qualification.
+- **Physics:** a small analytic spectrum, not an FFT sea. The heightfield cannot overturn, so there is no barrel. The vortex is authored, and the foam is a stylized bioluminescent model (exact persistence of an assumed decay, no foam advection, no spray particles).
+- **Swell framing:** foam patches are crest-scale; at a single instant the near field can sit between breaking groups.
+- **Foam colour:** the foam is a single primary hue; real whitewater would add more white scatter.
+- **Sky:** the cloud bank is subtle at 960 px.
+- **Specular artifacts:** far specular water shows a faint 0.5 m table-cell structure in the sharp moon lobe (the bilinear normals are only C0). This was present before; a footprint-widened lobe did not remove it.
+- **Funnel accuracy:** the twist raises the table normal error in the throat to about 0.10.
+- **Performance:** measured only under heavy fleet contention. The 4K peak cost is estimated at about 13 ms quiet from paired ratios, not measured quietly. The reduced governor budgets (64/40) are checked on the CPU only, not filmed. No venue qualification is claimed.
