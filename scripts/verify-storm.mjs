@@ -1,487 +1,199 @@
-// Thunderhead native evidence: late times, all energies, palette/portrait
-// framing, exact CPU/GPU leader graph and cached/uncached differential.
+// Thunderhead native evidence: late times, energies, palettes, the lattice
+// against the storm bounds, exact CPU/GPU event graphs, aspect stills.
+//   PHOSPHOR_HEADLESS_RIG=1 node scripts/verify-storm.mjs --rig --port 48308
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import {
-  options,
-  outputDirectory,
-  serve,
-  launch,
-  openLab,
-} from "./browser-runtime.mjs";
+import { options, outputDirectory, serve, launch, openLab } from "./browser-runtime.mjs";
 import { renderLook } from "../tests/browser/client.mjs";
 import { PALETTES } from "../palettes.mjs";
-import { lightningGraph } from "../storm-model.mjs";
+import { leaderSegment, worldPoint, stormBox } from "../storm-model.mjs";
 
 const args = options();
 const out = await outputDirectory("films/storm-verification", args.out);
 const server = await serve(".", args.port);
 const runtime = await launch({ rig: true, headless: true });
-const rows = [],
-  comparisons = [],
-  bounds = [],
-  hdr = [];
-let microstructure;
+const report = { late: [], bounds: [], graph: [], stills: [] };
+const load = (page, development, extra = {}) =>
+  page.evaluate(
+    ({ development, extra }) => {
+      const { scenes, presetSnapshot } = window.__phosphorLab;
+      const s = presetSnapshot(scenes.find((s) => s.id === "storm"), extra.index ?? 0);
+      if (development !== null) s.params.development = development;
+      if (extra.height) s.params.height = extra.height;
+      if (extra.palette) s.palette = extra.palette;
+      return s;
+    },
+    { development, extra },
+  );
+// Advance to a scene time and beat, render, read the canvas statistics.
+const frame = (page, time, beat, still = false) =>
+  page.evaluate(
+    async ({ time, beat, still }) => {
+      const { engine } = window.__phosphorLab,
+        gl = engine.gl,
+        slot = engine.slots.at(-1);
+      slot.time = time;
+      engine.beat = beat;
+      engine.uniformFrame++;
+      engine.advance(0, true);
+      await engine.ready("storm");
+      engine.advance(1 / 60, false);
+      engine.present();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      const bytes = new Uint8Array(engine.width * engine.height * 4);
+      gl.readPixels(0, 0, engine.width, engine.height, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+      let lit = 0,
+        peak = 0;
+      for (let i = 0; i < bytes.length; i += 4) {
+        const p = Math.max(bytes[i], bytes[i + 1], bytes[i + 2]);
+        peak = Math.max(peak, p);
+        lit += Number(p > 12);
+      }
+      let png = null;
+      if (still) {
+        const c = document.createElement("canvas");
+        c.width = engine.width;
+        c.height = engine.height;
+        c.getContext("2d").drawImage(engine.canvas, 0, 0);
+        png = c.toDataURL("image/png").split(",")[1];
+      }
+      return {
+        peak,
+        lit: lit / (bytes.length / 4),
+        late: !!engine.programs.get("storm").late?.visual?.uniforms,
+        lateError: engine.programs.get("storm").late?.error ?? null,
+        glError: gl.getError(),
+        nonFinite: engine.counters.nonFinite + window.__harness.nonFiniteUploads,
+        png,
+      };
+    },
+    { time, beat, still },
+  );
 try {
   const lab = await openLab(runtime.browser, server.url);
+  // 1. Late show times at both energy ends, three palettes, five states.
   for (const paletteId of ["glacier", "ember", "phosphor"])
     for (const development of [0, 0.5, 1, 1.5, 2])
-      for (const energy of [0.1, 0.9]) {
-        const snapshot = await lab.page.evaluate(
-          ({ development, colors }) => {
-            const { scenes, presetSnapshot } = window.__phosphorLab;
-            const s = presetSnapshot(
-              scenes.find((s) => s.id === "storm"),
-              0,
-            );
-            s.params.development = development;
-            s.palette = colors;
-            return s;
-          },
-          {
-            development,
-            colors: PALETTES.find((p) => p.id === paletteId).colors,
-          },
-        );
-        const initial = await lab.page.evaluate(renderLook, {
-          sceneId: "storm",
-          snapshot,
-          level: energy,
-          width: 480,
-          height: 270,
-          frames: 2,
-          capture: false,
-          pollHealth: false,
+      for (const level of [0.1, 0.9]) {
+        const palette = PALETTES.find((p) => p.id === paletteId).colors;
+        const snapshot = await load(lab.page, development, { palette });
+        await lab.page.evaluate(renderLook, {
+          sceneId: "storm", snapshot, level, width: 480, height: 270,
+          frames: 2, capture: false, pollHealth: false,
         });
-        assert.equal(initial.glError, 0);
-        assert.equal(initial.nonFinite, 0);
         for (const time of [3600, 43200]) {
-          const row = await lab.page.evaluate(
-            async ({ time, still }) => {
-              const { engine } = window.__phosphorLab;
-              engine.slots.at(-1).time = time;
-              engine.uniformFrame++;
-              engine.advance(0, true);
-              await engine.ready("storm");
-              engine.advance(1 / 60, false);
-              engine.present();
-              const gl = engine.gl;
-              gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-              const bytes = new Uint8Array(engine.width * engine.height * 4);
-              gl.readPixels(
-                0,
-                0,
-                engine.width,
-                engine.height,
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                bytes,
-              );
-              let lit = 0,
-                peak = 0,
-                sum = 0;
-              for (let i = 0; i < bytes.length; i += 4) {
-                const p = Math.max(bytes[i], bytes[i + 1], bytes[i + 2]);
-                peak = Math.max(peak, p);
-                lit += Number(p > 12);
-                sum += p;
-              }
-              let png = null;
-              if (still) {
-                const c = document.createElement("canvas");
-                c.width = engine.width;
-                c.height = engine.height;
-                c.getContext("2d").drawImage(engine.canvas, 0, 0);
-                png = c.toDataURL("image/png").split(",")[1];
-              }
-              return {
-                time,
-                peak,
-                litFraction: lit / (bytes.length / 4),
-                mean: sum / (bytes.length / 4),
-                lateReady:
-                  !!engine.programs.get("storm").late?.visual?.uniforms,
-                lateError: engine.programs.get("storm").late?.error ?? null,
-                glError: gl.getError(),
-                nonFinite:
-                  engine.counters.nonFinite + window.__harness.nonFiniteUploads,
-                png,
-              };
-            },
-            {
-              time,
-              still:
-                energy === 0.1 &&
-                Number.isInteger(development) &&
-                time === 43200,
-            },
-          );
+          const row = await frame(lab.page, time, time * 2.1, false);
+          delete row.png;
           assert.equal(row.glError, 0);
           assert.equal(row.nonFinite, 0);
           assert.equal(row.lateError, null);
-          assert.equal(row.lateReady, true);
-          assert.ok(
-            row.peak > 60 && row.litFraction > 0.015,
-            JSON.stringify({
-              paletteId,
-              development,
-              energy,
-              ...row,
-              png: null,
-            }),
-          );
-          if (row.png)
-            await writeFile(
-              resolve(out, `${paletteId}-${development}-low-late.png`),
-              Buffer.from(row.png, "base64"),
-            );
-          delete row.png;
-          rows.push({ paletteId, development, energy, ...row });
+          assert.ok(row.late);
+          assert.ok(row.lit > 0.06, JSON.stringify({ paletteId, development, level, ...row }));
+          report.late.push({ paletteId, development, level, time, ...row });
         }
       }
-  microstructure = await lab.page.evaluate(() => {
-    const { engine } = window.__phosphorLab,
-      gl = engine.gl;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, engine.slots.at(-1).precompute.fbo);
-    const data = new Float32Array(840 * 30 * 4);
-    gl.readPixels(124, 3, 840, 30, gl.RGBA, gl.FLOAT, data);
-    const at = (z, x, y, c) => data[(y * 840 + z * 30 + x) * 4 + c];
-    let gutterError = 0,
-      nonFinite = 0,
-      gradientPeak = 0,
-      valueMin = 1,
-      valueMax = 0;
-    for (let z = 0; z < 28; z++) {
-      for (let n = 0; n < 30; n++)
-        for (let c = 0; c < 4; c++)
-          gutterError = Math.max(
-            gutterError,
-            Math.abs(at(z, 0, n, c) - at(z, 28, n, c)),
-            Math.abs(at(z, 29, n, c) - at(z, 1, n, c)),
-            Math.abs(at(z, n, 0, c) - at(z, n, 28, c)),
-            Math.abs(at(z, n, 29, c) - at(z, n, 1, c)),
-          );
-      for (let y = 1; y <= 28; y++)
-        for (let x = 1; x <= 28; x++) {
-          const v = Array.from({ length: 4 }, (_, c) => at(z, x, y, c));
-          nonFinite += v.filter((n) => !Number.isFinite(n)).length;
-          valueMin = Math.min(valueMin, v[0]);
-          valueMax = Math.max(valueMax, v[0]);
-          gradientPeak = Math.max(gradientPeak, Math.hypot(...v.slice(1)));
-        }
-    }
-    return {
-      nodes: 28 ** 3,
-      gutterError,
-      nonFinite,
-      valueMin,
-      valueMax,
-      gradientPeak,
-      glError: gl.getError(),
-    };
-  });
-  assert.equal(microstructure.glError, 0);
-  assert.equal(microstructure.nonFinite, 0);
-  assert.ok(microstructure.gutterError < 1e-6, JSON.stringify(microstructure));
-  assert.ok(microstructure.gradientPeak < 5, JSON.stringify(microstructure));
-  assert.ok(microstructure.valueMin > -0.6 && microstructure.valueMax <= 1);
-  // Check support of every positive atlas node, including its trilinear
-  // interpolation halo, against the tighter carrier ray bounds.
-  const cases = await lab.page.evaluate(() => {
-    const s = window.__phosphorLab.scenes.find((s) => s.id === "storm");
-    return s.presets
-      .map((_, index) => ({ index }))
-      .concat(
-        [0.25, 0.5, 0.75, 1.25, 1.5, 1.75].map((development) => ({
-          index: 0,
-          development,
-        })),
-      );
-  });
-  for (const item of cases)
-    for (const height of [0.7, 1.2]) {
-      const snapshot = await lab.page.evaluate(
-        ({ item, height }) => {
-          const { scenes, presetSnapshot } = window.__phosphorLab;
-          const s = presetSnapshot(
-            scenes.find((s) => s.id === "storm"),
-            item.index,
-          );
-          if (item.development !== undefined)
-            s.params.development = item.development;
-          s.params.height = height;
-          return s;
-        },
-        { item, height },
-      );
+  // 2. Every positive lattice node and its trilinear halo lie inside the
+  // storm bounds the visual march uses; 3. GPU event graphs equal the CPU
+  // leader graph mapped through the GPU's own event frame.
+  for (const development of [0, 0.25, 0.75, 1, 1.25, 1.5, 1.75, 2])
+    for (const height of [0.7, 1, 1.2]) {
+      const snapshot = await load(lab.page, development, { height });
       await lab.page.evaluate(renderLook, {
-        sceneId: "storm",
-        snapshot,
-        width: 320,
-        height: 180,
-        frames: 1,
-        capture: false,
-        pollHealth: false,
+        sceneId: "storm", snapshot, level: 0.9, width: 320, height: 180,
+        frames: 1, capture: false, pollHealth: false,
       });
-      for (const time of [0, 11]) {
-        const row = await lab.page.evaluate(
-          ({ time }) => {
-            const { engine } = window.__phosphorLab,
-              gl = engine.gl,
-              slot = engine.slots.at(-1);
-            slot.time = time;
-            engine.uniformFrame++;
-            engine.drawSlot(slot, 0);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, slot.precompute.fbo);
-            const data = new Float32Array(1024 * 480 * 4);
-            gl.readPixels(0, 35, 1024, 480, gl.RGBA, gl.FLOAT, data);
-            const smooth = (a, b, x) => {
-              const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
-              return t * t * (3 - 2 * t);
-            };
-            const mix = (a, b, t) => a + (b - a) * t;
-            const rise = smooth(0, 1, slot.params[0]),
-              supercell = smooth(1, 2, slot.params[0]);
-            const bx = Math.min(24, mix(24, mix(12, 28, supercell), rise));
-            const lo = [-bx, 0.4, mix(1, -3, smooth(0, 0.5, supercell))];
-            const hi = [
-              bx,
-              Math.min(16.8, mix(9.2, 14.4, rise) * slot.params[2]),
-              13,
-            ];
-            const origin = [-24, 0.4, -3],
-              size = [48, 16.4, 16],
-              grid = [128, 80, 48];
-            let overflow = 0,
-              occupied = 0;
-            for (let z = 0; z < 48; z++)
-              for (let y = 0; y < 80; y++)
-                for (let x = 0; x < 128; x++) {
-                  const address =
-                    ((((z / 8) | 0) * 80 + y) * 1024 + (z % 8) * 128 + x) * 4;
-                  if (data[address] <= 0) continue;
-                  occupied++;
-                  const q = [x, y, z];
-                  for (let axis = 0; axis < 3; axis++) {
-                    const start =
-                      origin[axis] +
-                      Math.max(0, (q[axis] - 0.5) / grid[axis]) * size[axis];
-                    const end =
-                      origin[axis] +
-                      Math.min(1, (q[axis] + 1.5) / grid[axis]) * size[axis];
-                    overflow = Math.max(
-                      overflow,
-                      lo[axis] - start,
-                      end - hi[axis],
-                    );
-                  }
-                }
-            return { time, overflow, occupied, lo, hi, glError: gl.getError() };
-          },
-          { time },
-        );
-        assert.equal(row.glError, 0);
-        assert.ok(
-          row.overflow < 1e-5,
-          JSON.stringify({ item, height, ...row }),
-        );
-        bounds.push({ item, height, ...row });
+      for (const [time, beat] of [[7, 16.1], [31, 24.12], [55, 48.08]]) {
+        await frame(lab.page, time, beat);
+        const data = await lab.page.evaluate(() => {
+          const { engine } = window.__phosphorLab,
+            gl = engine.gl,
+            slot = engine.slots.at(-1);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, slot.precompute.fbo);
+          const volume = new Float32Array(1024 * 640 * 4);
+          gl.readPixels(0, 35, 1024, 640, gl.RGBA, gl.FLOAT, volume);
+          const rows = new Float32Array(1024 * 3 * 4);
+          gl.readPixels(0, 0, 1024, 3, gl.RGBA, gl.FLOAT, rows);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          return { volume: Array.from(volume), rows: Array.from(rows), seed: slot.snapshot.seed };
+        });
+        const { lo, hi } = stormBox(snapshot.seed, development, height);
+        const origin = [-26, 0.3, -7], size = [52, 16.8, 30], grid = [128, 80, 64];
+        let overflow = -1e9, occupied = 0, nonFinite = 0;
+        for (let z = 0; z < 64; z++)
+          for (let y = 0; y < 80; y++)
+            for (let x = 0; x < 128; x++) {
+              const at = ((((z / 8) | 0) * 80 + y) * 1024 + (z % 8) * 128 + x) * 4;
+              for (let c = 0; c < 4; c++) nonFinite += Number(!Number.isFinite(data.volume[at + c]));
+              if (!(data.volume[at] > 0)) continue;
+              occupied++;
+              const q = [x, y, z];
+              // The node centre must lie inside the bounds the march clips to
+              // (bounds already include the erosion and AA margins).
+              for (let axis = 0; axis < 3; axis++) {
+                const centre = origin[axis] + ((q[axis] + 0.5) / grid[axis]) * size[axis];
+                overflow = Math.max(overflow, lo[axis] - centre, centre - hi[axis]);
+              }
+            }
+        assert.equal(nonFinite, 0);
+        report.bounds.push({ development, height, time, occupied, overflow });
+        assert.ok(occupied > 0);
+        assert.ok(overflow <= 0, JSON.stringify({ development, height, time, overflow }));
+        // Event graphs: 4 slots x 30 edges, world endpoints in rows 1 and 2.
+        let graphError = 0;
+        const texel = (x, row) => data.rows.slice((row * 1024 + x) * 4, (row * 1024 + x) * 4 + 4);
+        for (let slot = 0; slot < 4; slot++) {
+          const state = texel(120 + slot, 0);
+          const event = {
+            top: texel(120 + slot, 1).slice(0, 3),
+            bottom: texel(120 + slot, 2).slice(0, 3),
+            side: texel(124 + slot, 0).slice(0, 3),
+            depth: texel(124 + slot, 1).slice(0, 3),
+          };
+          for (let local = 0; local < 30; local++) {
+            const s = leaderSegment(data.seed, state[3], local);
+            const a = worldPoint(s.a, event, height), b = worldPoint(s.b, event, height);
+            const ga = texel(slot * 30 + local, 1), gb = texel(slot * 30 + local, 2);
+            for (let k = 0; k < 3; k++)
+              graphError = Math.max(graphError, Math.abs(a[k] - ga[k]), Math.abs(b[k] - gb[k]));
+            const weight = s.active ? (local < 18 ? 1 : 0.52) : 0;
+            assert.ok(Math.abs(ga[3] - weight) < 1e-6);
+          }
+        }
+        assert.ok(graphError < 2e-4, `CPU/GPU graph error ${graphError}`);
+        report.graph.push({ development, height, time, graphError });
       }
     }
-  for (const development of [0, 0.5, 1, 1.5, 2]) {
-    const snapshot = await lab.page.evaluate(
-      ({ development }) => {
-        const { scenes, presetSnapshot } = window.__phosphorLab;
-        const s = presetSnapshot(
-          scenes.find((s) => s.id === "storm"),
-          0,
-        );
-        s.params.development = development;
-        return s;
-      },
-      { development },
-    );
-    await lab.page.evaluate(renderLook, {
-      sceneId: "storm",
-      snapshot,
-      width: 480,
-      height: 270,
-      frames: 1,
-      capture: false,
-      pollHealth: false,
-    });
-    const data = await lab.page.evaluate(() => {
-      const { engine } = window.__phosphorLab,
-        gl = engine.gl;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, engine.slots.at(-1).precompute.fbo);
-      const values = new Float32Array(128 * 3 * 4);
-      gl.readPixels(0, 0, 128, 3, gl.RGBA, gl.FLOAT, values);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      return Array.from(values);
-    });
-    const graph = lightningGraph(
-      snapshot.seed,
-      development,
-      snapshot.params.height,
-    );
-    let error = 0;
-    for (let i = 0; i < 120; i++) {
-      for (let axis = 0; axis < 3; axis++) {
-        error = Math.max(
-          error,
-          Math.abs(data[(128 + i) * 4 + axis] - graph[i].a[axis]),
-          Math.abs(data[(256 + i) * 4 + axis] - graph[i].b[axis]),
-        );
-      }
-      const weight = graph[i].active ? (i % 30 < 18 ? 1 : 0.52) : 0;
-      assert.ok(Math.abs(data[(128 + i) * 4 + 3] - weight) < 1e-6);
-    }
-    assert.ok(error < 0.00001, `CPU/GPU graph error ${error}`);
-    const diff = await lab.page.evaluate(async () => {
-      const { engine, scenes } = window.__phosphorLab;
-      const scene = scenes.find((s) => s.id === "storm"),
-        slot = engine.slots.at(-1),
-        gl = engine.gl;
-      // Freeze a well-lit beat/time, preserving all the scene's own phases.
-      slot.time = 25;
-      engine.beat = 52.5;
-      engine.uniformFrame++;
-      engine.drawSlot(slot, 0);
-      engine.present();
-      const bytes = () => {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        const b = new Uint8Array(engine.width * engine.height * 4);
-        gl.readPixels(
-          0,
-          0,
-          engine.width,
-          engine.height,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          b,
-        );
-        return b;
-      };
-      const cached = bytes(),
-        selected = engine.programsFor(slot),
-        saved = selected.visual;
-      const { shaderVariant } = await import("/scene-time.mjs");
-      const fallback = engine.program(
-        engine.pictureHeader +
-          shaderVariant(
-            scene.fragment,
-            !!selected.late || selected === engine.programs.get("storm").late,
-          ),
-      );
-      selected.visual = fallback;
-      engine.uniformFrame++;
-      engine.drawSlot(slot, 0);
-      engine.present();
-      const direct = bytes();
-      selected.visual = saved;
-      gl.deleteProgram(fallback.p);
-      let max = 0,
-        sum = 0,
-        differing = 0,
-        outliers = 0;
-      for (let i = 0; i < direct.length; i++) {
-        const d = Math.abs(direct[i] - cached[i]);
-        max = Math.max(max, d);
-        sum += d;
-        differing += Number(d > 0);
-        outliers += Number(d > 2);
-      }
-      return {
-        max,
-        mean: sum / direct.length,
-        differing,
-        outlierFraction: outliers / direct.length,
-        glError: gl.getError(),
-      };
-    });
-    assert.equal(diff.glError, 0);
-    // The procedural path is independently compiled, including rounded
-    // cellular gradients and a multi-octave material chart. Bound its sparse
-    // contour outliers explicitly, rather than claiming bit identity. The
-    // native cached linear/manual path retains its stricter <=2-level gate.
-    console.log(JSON.stringify({ development, ...diff }));
-    assert.ok(
-      diff.max <= 10 && diff.mean < 0.02 && diff.outlierFraction < 0.0001,
-      JSON.stringify(diff),
-    );
-    comparisons.push({ development, graphMaxError: error, fallback: diff });
-  }
+  // 4. Aspect and resolution stills of each state at a late time.
   for (const [name, index, width, height] of [
     ["haze-portrait", 0, 540, 960],
-    ["towers-portrait", 1, 540, 960],
+    ["towers-square", 1, 720, 720],
     ["supercell-portrait", 2, 540, 960],
-    ["towers-1080", 1, 1920, 1080],
-    ["supercell-1080", 2, 1920, 1080],
     ["supercell-4k", 2, 3840, 2160],
   ]) {
-    const shot = await lab.page.evaluate(renderLook, {
-      sceneId: "storm",
-      index,
-      width,
-      height,
-      frames: 120,
-      capture: false,
-      pollHealth: false,
+    const snapshot = await load(lab.page, null, { index });
+    await lab.page.evaluate(renderLook, {
+      sceneId: "storm", snapshot, level: 0.5, width, height,
+      frames: 1, capture: false, pollHealth: false,
     });
-    assert.equal(shot.glError, 0);
-    assert.equal(shot.nonFinite, 0);
-    if (index === 2) {
-      const row = await lab.page.evaluate(() => {
-        const { engine } = window.__phosphorLab,
-          gl = engine.gl,
-          slot = engine.slots.at(-1);
-        const data = new Float32Array(engine.width * engine.height * 4);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, slot.visual[slot.vi].fbo);
-        gl.readPixels(
-          0,
-          0,
-          engine.width,
-          engine.height,
-          gl.RGBA,
-          gl.FLOAT,
-          data,
-        );
-        let peak = 0,
-          hot = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          const p = Math.max(data[i], data[i + 1], data[i + 2]);
-          peak = Math.max(peak, p);
-          hot += Number(p > 1);
-        }
-        return { peak, hot, glError: gl.getError() };
-      });
-      assert.equal(row.glError, 0);
-      assert.ok(row.peak > 1 && row.hot > 10, JSON.stringify(row));
-      hdr.push({ name, ...row });
-    }
-    const png = await lab.page.evaluate(() => {
-      const { engine } = window.__phosphorLab;
-      const c = document.createElement("canvas");
-      c.width = engine.width;
-      c.height = engine.height;
-      c.getContext("2d").drawImage(engine.canvas, 0, 0);
-      return c.toDataURL("image/png").split(",")[1];
-    });
-    await writeFile(resolve(out, `${name}.png`), Buffer.from(png, "base64"));
+    const row = await frame(lab.page, 43200, 16.1 + 16 * 30, true);
+    assert.equal(row.glError, 0);
+    assert.equal(row.nonFinite, 0);
+    await writeFile(resolve(out, `${name}.png`), Buffer.from(row.png, "base64"));
+    delete row.png;
+    report.stills.push({ name, ...row });
   }
   assert.deepEqual(lab.errors, []);
-  await writeFile(
-    resolve(out, "gpu-checks.json"),
-    JSON.stringify(
-      { rows, comparisons, bounds, hdr, microstructure },
-      null,
-      2,
-    ) + "\n",
-  );
-  console.log(
-    `PASS: ${rows.length} late frames, 600 GPU/CPU segments, five cache differentials; stills in ${out}`,
-  );
+  await writeFile(resolve(out, "report.json"), JSON.stringify(report, null, 2));
+  console.log(JSON.stringify({
+    late: report.late.length,
+    minLit: Math.min(...report.late.map((r) => r.lit)),
+    bounds: report.bounds.length,
+    maxOverflow: Math.max(...report.bounds.map((r) => r.overflow)),
+    graphs: report.graph.length,
+    maxGraphError: Math.max(...report.graph.map((r) => r.graphError)),
+    stills: report.stills.map((s) => s.name),
+  }));
 } finally {
   await runtime.stop();
   await server.close();

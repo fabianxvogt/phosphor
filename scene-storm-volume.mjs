@@ -1,6 +1,12 @@
-// Camera-independent 3D density and optical coefficients, not a colour image.
-// The atlas caches these scalars; the fallback evaluates the same lattice.
+// Camera-independent 3D optical field, not a colour image. Each lattice node
+// stores extinction (or, outside the cloud, a negative conservative distance
+// for empty-space skipping), moonlight optical depth, sky visibility and the
+// lightning irradiance of the current frame. The fallback evaluates the same
+// function directly.
 export const stormVolume = `
+const vec2 stAtlas = vec2(1024,675);
+const vec3 stVolumeLo = vec3(-26.0,0.3,-7.0);
+const vec3 stVolumeSize = vec3(52.0,16.8,30.0);
 vec4 stHash4(vec4 n) {
   n = fract(n * 0.1031); n *= n + 33.33; n *= n + n;
   return fract(n);
@@ -45,7 +51,7 @@ vec4 stBillowCore(vec3 p, float period) {
   return vec4(1.0-d/1.1,gradient);
 }
 vec4 stBillow(vec3 p) { return stBillowCore(p,0.0); }
-// Periodic analytic microstructure occupies unused topology-atlas columns.
+// Periodic lobe microstructure occupies unused topology-atlas columns.
 // Each 28² slice has a one-node wrap gutter, so filtering cannot leak slices.
 vec4 stDetailNode(ivec3 q) {
   q = ivec3(mod(vec3(q),28.0));
@@ -60,8 +66,8 @@ vec4 stDetail(vec3 p) {
   ivec3 a = ivec3(floor(q)); vec3 f = fract(q);
 #ifdef PRECOMPUTED_LINEAR
   vec2 xy = vec2(125.5,4.5)+q.xy;
-  vec2 uv0 = (xy+vec2(float(a.z)*30.0,0))/vec2(1024,515);
-  vec2 uv1 = (xy+vec2(float((a.z+1)%28)*30.0,0))/vec2(1024,515);
+  vec2 uv0 = (xy+vec2(float(a.z)*30.0,0))/stAtlas;
+  vec2 uv1 = (xy+vec2(float((a.z+1)%28)*30.0,0))/stAtlas;
   return mix(texture(u_precomputed,uv0),texture(u_precomputed,uv1),f.z);
 #else
   return mix(mix(mix(stDetailNode(a),stDetailNode(a+ivec3(1,0,0)),f.x),
@@ -70,138 +76,206 @@ vec4 stDetail(vec3 p) {
                  mix(stDetailNode(a+ivec3(0,1,1)),stDetailNode(a+ivec3(1,1,1)),f.x),f.y),f.z);
 #endif
 }
-vec3 stCentres[5], stInverse[5];
-vec3 stPuffs[9], stPuffInverse[9];
-float stScale[5], stPuffScale[9];
+vec3 stAnvil; float stAnvilR, stAnvilT, stDomeR;
 mat2 stRotation;
+const vec3 stMoon = vec3(-0.4246,0.3639,0.8291);
+const vec3 stFill = vec3(-0.4364,0.7758,-0.4558);
 void stCloudSetup() {
-  vec3 centres[5]; vec3 radii[5];
-  centres[0] = vec3(0, mix(3.7,6.0,stRise), 5.8);
-  radii[0] = mix(vec3(8.5,2.5,3.7), mix(vec3(3.8,4.0,3.8),vec3(13.0,3.9,6.0),stSuper), stRise);
-  centres[1] = vec3(mix(-12.5,-5.2,stRise), mix(4.1,6.6,stRise), 6.8);
-  radii[1] = mix(vec3(6.4,3.1,3.0), vec3(3.1,4.8,3.1), stRise);
-  centres[2] = vec3(mix(11.5,4.8,stRise), mix(4.6,7.8,stRise), 7.0);
-  radii[2] = mix(vec3(7.2,3.6,3.1), vec3(3.0,5.0,3.4), stRise);
-  centres[3] = vec3(-1.2, mix(3.8,11.1,stRise), 6.8);
-  radii[3] = vec3(mix(3.0,22.0,stSuper), mix(0.75,1.8,stRise), mix(2.0,5.0,stSuper));
-  centres[4] = vec3(0.0, mix(2.5,3.6,stSuper), 2.4);
-  radii[4] = vec3(mix(0.4,6.5,stSuper), mix(0.3,1.8,stSuper), mix(0.4,4.8,stSuper));
-  for (int j = 0; j < 5; ++j) {
-    stCentres[j] = centres[j]; stInverse[j] = 1.0/radii[j];
-    stScale[j] = 0.5*min(radii[j].x,radii[j].y);
-  }
-  for (int j = 0; j < 9; ++j) {
-    int parent = j<6 ? j : (j-6)*2;
-    float x = -6.6+float(parent)*2.65;
-    float y = 8.7+1.1*stRand(2,parent+220)+1.2*sin(float(parent)*0.8);
-    float radius = mix(1.1,1.25+stRand(3,parent+240)*0.6,stRise);
-    vec3 centre = vec3(x*mix(2.5,mix(1.0,2.0,stSuper),stRise),mix(5.0+stRand(1,parent+250)*1.8,y,stRise)-stSuper*0.5,4.7);
-    if (j>=6) {
-      centre += vec3((stRand(0,j+290)-0.5)*2.0,0.75,-1.1)*stRise;
-      radius *= 0.55;
-      float a = float(parent)*1.0471975512;
-      vec3 scud = vec3(cos(a)*4.2,2.6+0.25*sin(a*2.0),2.4+sin(a)*2.8);
-      centre = mix(centre,scud,stSuper);
-      radius = mix(radius,0.7+0.2*stRand(1,j+330),stSuper);
-    }
-    stPuffs[j] = centre;
-    vec3 r = vec3(radius*mix(1.0,1.7,stSuper),radius*mix(1.0,0.65,stSuper),radius);
-    stPuffInverse[j] = 1.0/r; stPuffScale[j] = r.y*0.5;
-  }
+  vec4 main = stCell[2];
+  stAnvil = vec3(mix(main.x,-3.0,stSuper), main.w*mix(0.92,0.9,stSuper), mix(main.y,7.0,stSuper));
+  stAnvilR = mix(0.6*stCellR[2],19.0,stSuper);
+  stAnvilT = mix(0.9,0.85,stSuper);
+  stDomeR = 2.5*stSuper;
   stRotation = rot2(stPhase);
 }
-float stShape(vec3 p, out vec3 normal) {
-  p.y /= u_params[2];
-  float field = -100.0; normal = vec3(0,1,0);
-  for (int j = 0; j < 5; ++j) {
-    vec3 offset = p-stCentres[j];
-    if (j==4) offset.xz = stRotation*offset.xz;
-    vec3 q = offset*stInverse[j];
-    float v = (1.0-dot(q,q))*stScale[j];
-    float blend = clamp(0.5 + 0.5 * (v - field) / 0.7,0.0,1.0);
-    field = mix(field,v,blend) + 0.7 * blend * (1.0 - blend);
-    vec3 gradient = 2.0*q*stInverse[j]*stScale[j];
-    if (j==4) gradient.xz = transpose(stRotation)*gradient.xz;
-    normal = mix(normal,gradient,blend);
+// Conservative axis-aligned bounds of the whole storm (towers with their
+// lean, widening, erosion and striations; the anvil and dome), world units.
+void stStormBox(out vec3 lo, out vec3 hi) {
+  float minX = 1e3, maxX = -1e3, minZ = 1e3, maxZ = -1e3, top = 0.0;
+  for (int i = 0; i < 5; ++i) {
+    float r = stCellR[i]*1.25+2.0+0.15*(stCell[i].w-stCell[i].z);
+    minX = min(minX,stCell[i].x-r); maxX = max(maxX,stCell[i].x+r);
+    minZ = min(minZ,stCell[i].y-r); maxZ = max(maxZ,stCell[i].y+r);
+    top = max(top,stCell[i].w);
   }
-  for (int j = 0; j < 9; ++j) {
-    vec3 q = (p-stPuffs[j])*stPuffInverse[j];
-    float v = (1.0-dot(q,q))*stPuffScale[j];
-    float blend = clamp(0.5+0.5*(v-field)/0.45,0.0,1.0);
-    field = mix(field,v,blend)+0.45*blend*(1.0-blend);
-    normal = mix(normal,2.0*q*stPuffInverse[j]*stPuffScale[j],blend);
+  float ra = stAnvilR+2.0;
+  minX = min(minX,stAnvil.x-ra); maxX = max(maxX,stAnvil.x+ra);
+  minZ = min(minZ,stAnvil.z-ra); maxZ = max(maxZ,stAnvil.z+ra);
+  lo = vec3(max(minX,stVolumeLo.x),stVolumeLo.y,max(minZ,stVolumeLo.z));
+  hi = vec3(min(maxX,stVolumeLo.x+stVolumeSize.x),
+    min(stVolumeLo.y+stVolumeSize.y,top+stDomeR+2.0)*u_params[2],
+    min(maxZ,stVolumeLo.z+stVolumeSize.z));
+}
+float stSmin(float a, float b, float k) {
+  float h = clamp(0.5+0.5*(b-a)/k,0.0,1.0);
+  return mix(b,a,h)-k*h*(1.0-h);
+}
+// Signed distance (positive outside) of the meteorological carrier: rounded
+// convective towers with a flat base, the supercell's striated rotating
+// updraft, an anvil that spreads from the main crown and an overshooting dome.
+vec2 stParts;
+float stCarrier(vec3 p, bool fine, out vec2 parts) {
+  float field = 1e3;
+  for (int i = 0; i < 5; ++i) {
+    vec4 c = stCell[i];
+    vec2 d = p.xz-c.xy;
+    // Seeded lean: towers shear slightly with height instead of standing
+    // as identical upright pillars.
+    d.x -= (p.y-c.z)*(stRand(8,i)-0.5)*0.3*stRise*(1.0-0.6*stSuper);
+    float rad = length(d);
+    float R = stCellR[i]*(0.82+0.26*smoothstep(c.z,c.z+0.5*(c.w-c.z),p.y));
+    if (i == 2 && stSuper > 0.0) {
+      // Mesocyclone: narrower stacked base, helical striation terraces.
+      float low = 1.0-smoothstep(c.z+3.0,c.z+6.5,p.y);
+      float theta = atan(d.y,d.x+1e-5);
+      R *= mix(1.0,0.7+0.3*smoothstep(c.z,c.z+5.0,p.y),stSuper*low);
+      R += stSuper*low*0.55*sin(stTau*p.y*0.7+theta-2.0*stPhase);
+    }
+    float halfH = 0.5*(c.w-c.z)+0.5;
+    float ym = c.z-0.5+halfH;
+    float rr = min(R,halfH)*0.85;
+    vec2 q = vec2(rad-R+rr, abs(p.y-ym)-halfH+rr);
+    float sd = min(max(q.x,q.y),0.0)+length(max(q,0.0))-rr;
+    if (i == 2) parts.x = sd;
+    field = stSmin(field,sd,1.3);
   }
-  normal.y /= u_params[2];
+  // Anvil: elliptical wedge, thick at the core, thin and lifted at the edge.
+  vec2 a = (p.xz-stAnvil.xz)*vec2(1.0,mix(1.4,2.0,stSuper));
+  // Downstream (screen right, -x) the anvil streams far; upstream it is short.
+  a.x *= a.x > 0.0 ? mix(1.0,1.7,stSuper) : 1.0;
+  float k = clamp(length(a)/stAnvilR,0.0,1.0);
+  float thick = stAnvilT*(1.0-0.65*k*k);
+  float centre = stAnvil.y+0.5*k*k;
+  float under = centre-thick;
+  if (fine && stSuper > 0.0 && abs(p.y-under) < 1.6 && k > 0.2 && k < 0.98) {
+    // Mammatus: rounded pouches hang from the anvil underside.
+    float pouch = clamp((stBillow(vec3(p.x*0.6,7.0,p.z*0.6)).x-0.25)/0.5,0.0,1.0);
+    under -= stSuper*1.6*pouch*pouch*smoothstep(0.2,0.45,k)*(1.0-smoothstep(0.8,0.98,k));
+  }
+  float sa = max(length(a)-stAnvilR, max(p.y-centre-thick, under-p.y));
+  parts.y = sa;
+  field = stSmin(field,sa,1.0);
+  if (stDomeR > 0.0) {
+    vec3 dome = vec3(stCell[2].x, stCell[2].w+0.2, stCell[2].y);
+    field = stSmin(field,length(p-dome)-stDomeR,0.8);
+  }
   return field;
 }
-float stDensity(vec3 p, out vec3 normal) {
-  float shape = stShape(p,normal);
-  if (shape < -1.5) return 0.0;
-  vec3 adv = p * 0.73 + vec3(0.35 * sin(stPhase),0.14 * cos(stPhase),0.25 * cos(stPhase));
-  float twist = stSuper * p.y * 0.12;
-  adv.xz = stRotation * vec2(adv.x + twist*adv.z,adv.z-twist*adv.x) * inversesqrt(1.0+twist*twist);
-  // Broad rounded billows at the top, smaller crisp lobes around their crowns.
-  vec4 coarse = stNoise(adv);
-  vec3 warp = coarse.yzw*0.32;
-  vec4 medium = stBillow(adv*1.45+warp);
-  vec4 fine = stNoise(adv*5.8+warp);
-  float billow = coarse.x*0.5 + medium.x*0.36 + fine.x*0.14;
-  float radius = length(p.xz - vec2(0,3.5));
-  float angle = atan(p.z-3.5,p.x+0.00001);
-  float shelf = sin(radius*0.8 + p.y*2.7 + 2.0*angle - stPhase*2.0);
-  float base = 1.0-smoothstep(4.0,7.0,p.y/u_params[2]);
-  billow += 0.3*stSuper*shelf*base;
-  float sculpt = mix(1.9,1.1,base);
-  vec3 bump = (coarse.yzw*0.5+medium.yzw*0.522+fine.yzw*0.812)*0.73*sculpt;
-  bump.xz = transpose(stRotation)*bump.xz;
-  normal = normalize(normal-bump*0.8+vec3(0,0.00001,0));
-  float floorHeight = mix(1.8,3.0,stRise)-stSuper*1.2*exp(-sq(radius/4.5));
-  floorHeight += stSuper*0.16*sin(radius*3.0+angle*3.0-stPhase*2.0);
-  float flatBase = smoothstep(floorHeight-0.18,floorHeight+0.35,p.y/u_params[2]);
-  return max(0.0,shape+(billow-0.46)*sculpt-0.08)*u_params[3]*5.0*flatBase;
+// Erosion amplitude: billowy crowns, smoother bases, laminar mesocyclone.
+float stErosion(vec3 p) {
+  float e = mix(1.0,2.5,smoothstep(stBase+0.4,stBase+4.0,p.y));
+  vec2 d = p.xz-stCell[2].xy;
+  float core = exp(-dot(d,d)/36.0)*(1.0-smoothstep(stBase+3.0,stBase+6.5,p.y));
+  e *= 1.0-0.8*stSuper*core;
+  float anvil = smoothstep(stAnvil.y-2.5,stAnvil.y-0.5,p.y)*stSuper;
+  return e*(1.0-0.6*anvil);
 }
-float stDensity(vec3 p) { vec3 n; return stDensity(p,n); }
+// Extinction at p. detail 0 is the light-transport estimate (one billow
+// octave); detail 1 adds the second octave. sd returns the carrier distance.
+float stDensityAt(vec3 p, int detail, out float sd) {
+  p.y /= u_params[2];
+  sd = stCarrier(p,detail > 0,stParts);
+  float e = stErosion(p);
+  if (sd > 0.5*e+0.05) return 0.0;
+  float floorHeight = stBase-stSuper*0.75*exp(-dot(p.xz-stCell[2].xy,p.xz-stCell[2].xy)/6.0);
+  float base = smoothstep(floorHeight-0.1,floorHeight+0.3,p.y)*3.2*u_params[3];
+  // Light-transport estimate: the carrier alone, eroded by its mean.
+  if (detail < 0) return smoothstep(0.0,1.0,-sd)*base;
+  vec3 q = p+vec3(0.5*sin(stPhase),0.35*cos(stPhase),0.4*cos(stPhase));
+  vec2 d = q.xz-stCell[2].xy;
+  float spin = stSuper*exp(-dot(d,d)/50.0)*(1.0-smoothstep(stBase+4.0,stBase+8.0,p.y));
+  q.xz = mix(q.xz,stCell[2].xy+stRotation*d,spin);
+  float billow = stBillow(q*0.34).x*0.62;
+  // Second octave stays below the lattice Nyquist rate (no aliasing blocks).
+  billow += detail > 0 ? stBillow(q*0.68+vec3(3.1,1.7,5.3)).x*0.38 : 0.17;
+  billow = clamp((billow-0.18)/0.55,0.0,1.0);
+  float v = -sd+e*(billow-0.5);
+  // The ramp spans more than two lattice nodes: interpolation cannot print
+  // the lattice; full-resolution erosion restores crisp edges.
+  return smoothstep(0.0,0.55,v)*base;
+}
+float stDensityAt(vec3 p) { float sd; return stDensityAt(p,0,sd); }
+float stDensityLight(vec3 p) { float sd; return stDensityAt(p,-1,sd); }
+float stChannelDistance(vec3 p, int slot, out vec3 c) {
+  vec3 a = stTop[slot], b = mix(stTop[slot],stBottom[slot],stSlot[slot].z);
+  a.y *= u_params[2]; b.y *= u_params[2];
+  vec3 v = b-a;
+  c = a+v*clamp(dot(p-a,v)/max(dot(v,v),1e-4),0.0,1.0);
+  return length(p-c);
+}
+// Lightning irradiance with in-cloud attenuation along the path to the
+// channel: a flash reveals lobes and gaps instead of fogging a round blob.
+float stFlashLight(vec3 p, bool occlude) {
+  float light = 0.0;
+  for (int k = 0; k < 4; ++k) {
+    float power = stSlot[k].x;
+    if (power <= 0.002) continue;
+    // Buried discharges spend their light inside the cloud.
+    power *= (k == 3 ? 1.8 : k == 2 ? 1.2 : mix(1.5,0.8,smoothstep(1.15,1.75,u_params[0])))*mix(3.0,1.0,stRise);
+    vec3 c;
+    float d = stChannelDistance(p,k,c);
+    float g = power/pow(1.0+d*d*0.06,1.5);
+    if (g < 0.004) continue;
+    if (occlude) {
+      // Two taps along the path to the channel (cheap carrier density).
+      float tau = stDensityLight(mix(p,c,0.3))+stDensityLight(mix(p,c,0.65));
+      g *= exp(-tau*d*0.333*0.16);
+    }
+    light += g;
+  }
+  return light;
+}
 vec4 stOptical(vec3 p) {
-  vec3 normal;
-  float density = stDensity(p,normal);
-  if (density <= 0.0) return vec4(0);
-  vec3 moonLight = normalize(vec3(-0.75,0.9,-0.45));
-  // Bounded quadrature of optical depth, evaluated once per volume lattice.
-  float tau = density*0.35 + stDensity(p+moonLight*1.5)*2.5;
-  float moon = exp(-tau*0.7)*pow(max(0.0,dot(normal,moonLight)),1.5)*smoothstep(0.05,0.5,normal.y);
-  // Visible front hemisphere: storing x/y avoids octahedral seams when
-  // normals are trilinearly interpolated. The visual pass reconstructs -z.
-  return vec4(density,moon,normal.xy);
+  float sd;
+  float density = stDensityAt(p,1,sd);
+  vec2 parts = stParts;
+  // Conservative empty-space distance: the carrier SDF is 1-Lipschitz and
+  // erosion moves the boundary outward by at most 0.5·max erosion.
+  // Divide by the local Lipschitz bound of whichever part is nearest: the
+  // anvil's elliptical scaling and mammatus, the striated updraft.
+  float wM = stSuper*(1.0-smoothstep(0.0,2.0,parts.x-sd));
+  float wA = 1.0-smoothstep(0.0,2.0,parts.y-sd);
+  float lip = mix(1.55,1.15,stRise)+wA*mix(0.45,2.2,stSuper)+3.0*wM;
+  float skip = max(1e-4,(sd-1.3)*0.8/lip)*min(1.0,u_params[2]);
+  if (density <= 0.0 && sd > 2.2) return vec4(-skip,0.0,1.0,stFlashLight(p,false));
+  // Nodes near the boundary carry the same transport as interior nodes, so
+  // interpolation across the surface cannot print lattice cells.
+  float tau = 0.0, last = 0.0;
+  for (int j = 0; j < 5; ++j) {
+    float s = 0.25*pow(2.0,float(j))*1.1;
+    tau += (j < 2 ? stDensityAt(p+stMoon*s) : stDensityLight(p+stMoon*s))*(s-last);
+    last = s;
+  }
+  // Sky fill from above the camera side models the visible faces.
+  float up = stDensityAt(p+stFill*0.7)*0.7+stDensityLight(p+stFill*2.0)*1.3;
+  return vec4(density > 0.0 ? density : -skip,tau,exp(-up*0.35),stFlashLight(p,true));
 }
-const vec3 stVolumeLo = vec3(-24.0,0.4,-3.0);
-const vec3 stVolumeSize = vec3(48.0,16.4,16.0);
-const vec3 stGrid = vec3(128,80,48);
+const vec3 stGrid = vec3(128,80,64);
 // The first 35 atlas rows remain exact lightning topology and tile masks.
 ivec2 stVoxelAddress(ivec3 p) {
   return ivec2((p.z%8)*128+p.x,35+(p.z/8)*80+p.y);
 }
-vec4 stVoxel(ivec3 p) {
-  p = clamp(p,ivec3(0),ivec3(stGrid)-1);
-#ifdef PRECOMPUTED
-  return texelFetch(u_precomputed,stVoxelAddress(p),0);
-#else
-  return stOptical(stVolumeLo+(vec3(p)+0.5)/stGrid*stVolumeSize);
-#endif
-}
 vec4 stVolume(vec3 p) {
+#ifdef PRECOMPUTED
   vec3 q = clamp((p-stVolumeLo)/stVolumeSize*stGrid-0.5,vec3(0),stGrid-1.001);
   ivec3 a = ivec3(floor(q)); vec3 f = fract(q);
 #ifdef PRECOMPUTED_LINEAR
-  vec2 xy = clamp(q.xy,vec2(0),stGrid.xy-1.0)+0.5;
-  vec2 uv0 = (vec2((a.z%8)*128,35+(a.z/8)*80)+xy)/vec2(1024,515);
-  int z1 = min(a.z+1,47);
-  vec2 uv1 = (vec2((z1%8)*128,35+(z1/8)*80)+xy)/vec2(1024,515);
+  vec2 xy = q.xy+0.5;
+  vec2 uv0 = (vec2((a.z%8)*128,35+(a.z/8)*80)+xy)/stAtlas;
+  int z1 = min(a.z+1,int(stGrid.z)-1);
+  vec2 uv1 = (vec2((z1%8)*128,35+(z1/8)*80)+xy)/stAtlas;
   return mix(texture(u_precomputed,uv0),texture(u_precomputed,uv1),f.z);
 #else
-  return mix(mix(mix(stVoxel(a),stVoxel(a+ivec3(1,0,0)),f.x),
-                 mix(stVoxel(a+ivec3(0,1,0)),stVoxel(a+ivec3(1,1,0)),f.x),f.y),
-             mix(mix(stVoxel(a+ivec3(0,0,1)),stVoxel(a+ivec3(1,0,1)),f.x),
-                 mix(stVoxel(a+ivec3(0,1,1)),stVoxel(a+ivec3(1,1,1)),f.x),f.y),f.z);
+  #define stVoxel(o) texelFetch(u_precomputed,stVoxelAddress(min(a+o,ivec3(stGrid)-1)),0)
+  return mix(mix(mix(stVoxel(ivec3(0,0,0)),stVoxel(ivec3(1,0,0)),f.x),
+                 mix(stVoxel(ivec3(0,1,0)),stVoxel(ivec3(1,1,0)),f.x),f.y),
+             mix(mix(stVoxel(ivec3(0,0,1)),stVoxel(ivec3(1,0,1)),f.x),
+                 mix(stVoxel(ivec3(0,1,1)),stVoxel(ivec3(1,1,1)),f.x),f.y),f.z);
+  #undef stVoxel
+#endif
+#else
+  // No float targets: evaluate the same optical function at the sample.
+  return stOptical(clamp(p,stVolumeLo,stVolumeLo+stVolumeSize));
 #endif
 }
 `;
