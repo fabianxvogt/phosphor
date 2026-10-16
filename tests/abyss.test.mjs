@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 import {
   ATTRIBUTES,
   DRIFT,
@@ -68,6 +69,37 @@ test("abyss is a registered continuous world with three authored states", () => 
   );
   assert.equal(scene.geometry.additiveFrom, OPAQUE_VERTICES);
   assert.equal(scene.particles.depth, true);
+});
+
+test("living relay occupies slot 3 with three full, distinct authored presets", () => {
+  const relay = scene.rhythm.find((effect) => effect.slot === 3);
+  assert.equal(relay.id, "living-relay");
+  const signatures = new Set();
+  for (const [style, target] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const tracks = defaultPattern(scene.rhythm, style).tracks;
+    const density = tracks.reduce(
+      (sum, track) =>
+        sum +
+        ((track.steps.filter((x) => x > 0).length * track.division) /
+          track.length) *
+          4,
+      0,
+    );
+    assert.ok(density >= target, `${style}: ${density} hits/bar`);
+    assert.ok(relay.styles[style].steps.filter((x) => x > 0).length >= 2);
+    signatures.add(JSON.stringify(tracks.map((t) => t.steps)));
+  }
+  assert.equal(signatures.size, 3);
+  assert.match(scene.simulation.fragment, /u_rhythmHit\.w > .5/);
+  assert.match(scene.simulation.fragment, /u_rhythmCount\.w/);
+  assert.match(scene.simulation.fragment, /strength = max\(.5, u_rhythm\.w\)/);
+  assert.match(scene.geometry.vertex, /dRelay\(rootRel\)/);
+  assert.match(scene.geometry.vertex, /dRelay\(j.c\)/);
+  assert.match(scene.simulation.fragment, /dRelay\(p\)/);
 });
 
 test("geometry is deterministic, finite, seed-dependent and split at a fixed opaque count", () => {
@@ -254,16 +286,26 @@ test("camera clearance: the glide never enters the reef, a medusa or a chain", (
 
 test("foreground sentinel is seeded ahead and axial broad phase cannot reject a disturbance", () => {
   for (const seed of [61, 1709, 433, 2203, 877, 3301]) {
-    const initialZ = hash32(seed) / 4294967296 * PERIOD;
-    assert.ok(Math.abs((jelly(seed, 0).anchor[2] - initialZ + PERIOD) % PERIOD - 12) < 1e-10);
+    const initialZ = (hash32(seed) / 4294967296) * PERIOD;
+    for (const [i, ahead] of [9, 17, 25, 38, 52].entries())
+      assert.ok(
+        Math.abs(
+          ((jelly(seed, i).anchor[2] - initialZ + PERIOD) % PERIOD) - ahead,
+        ) < 1e-10,
+      );
     for (let i = 0; i < NJ; i++) {
-      const j = jelly(seed, i), bound = (i < 5 ? 1.45 : .75) * 3 + DRIFT[2];
+      const j = jelly(seed, i),
+        bound = (i < 5 ? 1.45 : 0.75) * 3 + DRIFT[2];
       // A glowing point is at most 3R from the drifted centre. Triangle
       // inequality bounds its axial distance to the un-drifted anchor.
       assert.ok(j.R * 3 + DRIFT[2] <= bound);
     }
   }
-  assert.ok(scene.simulation.fragment.includes("if (dz > (i < 5 ? 1.45 : .75) * 3. + .7) continue;"));
+  assert.ok(
+    scene.simulation.fragment.includes(
+      "if (dz > (i < 5 ? 1.45 : .75) * 3. + .7) continue;",
+    ),
+  );
 });
 
 test("shader and CPU agree on the reserved state layout and counts", () => {

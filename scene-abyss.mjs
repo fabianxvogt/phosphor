@@ -83,6 +83,10 @@ DCam dCamera(float dev, float kick) {
   vec3 r = normalize(cross(vec3(0., 1., 0.), f)), u = cross(f, r);
   float pitch = .03 - .33 * dSS(1., 2., dev) + .22 * clamp(u_params[7], -1., 1.);
   f = normalize(f * cos(pitch) + u * sin(pitch));
+  // Narrow screens look slightly towards the sentinel rather than cropping it.
+  float portrait = 1. - dSS(.65, 1.2, u_resolution.x / u_resolution.y);
+  float yaw = portrait * .2 * (dRnd(0u, 2u) < .5 ? -1. : 1.) * (1. - dSS(1., 2., dev));
+  f = normalize(f * cos(yaw) + r * sin(yaw));
   c.r = normalize(cross(vec3(0., 1., 0.), f));
   c.u = cross(f, c.r);
   c.f = f;
@@ -115,12 +119,13 @@ DJelly dJelly(int i, float dev, float Z, float swarmParam, float rhythmX) {
   j.swarm = i >= D_NJ;
   if (!j.swarm) {
     bool lone = i < 5;
-    // A seeded foreground sentinel is already ahead when this water loads.
-    float z = i == 0 ? mod(float(dHash(u_seedBits)) * (D_PERIOD / 4294967296.) + 12., D_PERIOD)
+    // Five lanterns at distinct depths compose the sparse opening.
+    float initial = float(dHash(u_seedBits)) * (D_PERIOD / 4294967296.);
+    float z = lone ? mod(initial + (i == 0 ? 9. : i == 1 ? 17. : i == 2 ? 25. : i == 3 ? 38. : 52.), D_PERIOD)
       : fract(float(i) * .618034 + .37 + .05 * dRnd(id, 1u)) * D_PERIOD;
     float h5 = dRnd(id, 5u), h3 = dRnd(id, 3u);
     j.R = lone ? 1.25 + .2 * h5 : .3 + .45 * h5 * h5;
-    float side = dRnd(id, 2u) < .5 ? -1. : 1.;
+    float side = lone ? (dRnd(0u, 2u) < .5 ? -1. : 1.) * (i % 2 == 0 ? 1. : -1.) : (dRnd(id, 2u) < .5 ? -1. : 1.);
     float gap = 1.9 + j.R + (lone ? .55 + 1.2 * h3 : 4.5 * h3 * sqrt(h3));
     anchor = vec3(dCamX(z) + side * gap, dSettle(lone ? .6 + .9 * dRnd(id, 4u) : -1.3 + 4. * dRnd(id, 4u), dev), z);
     birth = lone ? -1. : .3 + .65 * dRnd(id, 6u);
@@ -228,7 +233,7 @@ float dCaustic(vec2 p, uint S) {
 // Water colour seen along a direction: near-black depth, surface light far
 // above (Reef) and the reef's glow haze below the horizon.
 vec3 dWater(vec3 rd, float dev) {
-  vec3 deep = mix(u_secondary, u_primary, .3) * .007;
+  vec3 deep = mix(u_secondary, u_primary, .3) * .009;
   vec3 col = deep * (.8 + .9 * dSS(-.4, .7, rd.y));
   col += mix(u_secondary, u_primary, .5) * .012 * dSS(.3, 1.2, dev) * dSS(-.2, .9, rd.y);
   float sun = dSS(.9, 1.9, dev);
@@ -262,6 +267,16 @@ float dWaveShell(vec3 p, float Z, float dev, float react, float width) {
   return best;
 }
 float dWaveLight(vec3 p, float Z, float dev, float react) { return dWaveShell(p, Z, dev, react, .55); }
+// Slot 3: a latched, finite-speed living-light relay, not a frame flash.
+// Age survives the short sequencer envelope; event count alternates its side.
+float dRelay(vec3 p) {
+  vec4 relay = texelFetch(u_state, ivec2(14, 0), 0);
+  float age = dUnpack16(relay.rg) * 3.;
+  float side = relay.a < .5 ? -1. : 1.;
+  float front = -11. + 15. * age;
+  float x = (p.x * side + .18 * p.z - front) / 1.25;
+  return exp(-x * x) * relay.b * (1. - dSS(1.25, 2., age));
+}
 // ---- plankton (simulation and particles share the placement) ----
 vec3 dPlankton(int idx, float dev, float Z, uint S) {
   uint id = uint(idx);
@@ -296,6 +311,7 @@ uniform highp sampler2D u_state;
 uniform highp uint u_seedBits;
 uniform vec3 u_primary, u_secondary, u_accent;
 uniform vec4 u_rhythm;
+uniform vec4 u_rhythmHit, u_rhythmCount;
 uniform float u_level;
 `;
 
@@ -366,6 +382,7 @@ void main() {
       vec3 rootRel = vec3(root.x, root.y, root.z + shift);
       float fx = (length(rootRel - c.p) - front) / 2.5;
       v_i.w = max(u_rhythm.z * exp(-fx * fx), dWaveLight(rootRel, c.Z, dev, clamp(u_params[4], 0., 2.5)));
+      v_i.w = max(v_i.w, dRelay(rootRel) * 1.8);
       // Caustic light at the root (tubes and sea-pen leaves; ribbons overwrite v_fade).
       float shaftsV = dShaftReveal(dev);
       v_fade = shaftsV > .001 ? dCaustic(root.xz * .55 + root.y * vec2(.12, .05), S) * shaftsV : 0.;
@@ -418,8 +435,9 @@ void main() {
         // Gorgonian fan: a sector of a disc, bending in the current.
         float th = (a_l.x * 2. - 1.) * a_s.x, r = a_l.y * H;
         vec3 right = vec3(cos(yaw), 0., sin(yaw)), nrm = vec3(-sin(yaw), 0., cos(yaw));
-        p = root + (right * sin(th) + up * cos(th)) * r + nrm * bendAmp * 1.3 * H * a_l.y * a_l.y;
-        v_n = nrm;
+        float cup = .22 * H * a_l.y * a_l.y * cos(th * 2.3 + rnd);
+        p = root + (right * sin(th) + up * cos(th)) * r + nrm * (bendAmp * 1.3 * H * a_l.y * a_l.y + cup);
+        v_n = normalize(nrm - (right * sin(th) + up * cos(th)) * .4 * a_l.y);
         v_l = vec4(a_l.xy, a_s.x, H);
       }
     }
@@ -484,12 +502,14 @@ void main() {
   // Before they bloom, large medusae glow faintly in the distance and go
   // dark as the camera nears (distant life in the Sparks breakdown).
   float ghost = (j.swarm ? .7 : .9) * dSS(5., 11., length(j.c - c.p));
-  float shown = max(j.reveal, ghost);
+  float viewDepth = dot(j.c - c.p, c.f);
+  float nearFade = dSS(j.swarm ? .5 : 3., j.swarm ? 1.5 : 7., viewDepth);
+  float shown = max(j.reveal, ghost) * nearFade;
   if (shown < .002) { gl_Position = HIDDEN; return; }
   uint id = uint(ji);
-  float accent = (!j.swarm && dRnd(id, 11u) < .25) ? 1. : 0.;
+  float accent = (!j.swarm && (ji == 0 || dRnd(id, 11u) < .25)) ? 1. : 0.;
   v_i = vec4(kind, j.h, shown, accent * 4. + j.beat);
-  float flash = dWaveLight(j.c, c.Z, dev, clamp(u_params[4], 0., 2.5));
+  float flash = max(dWaveLight(j.c, c.Z, dev, clamp(u_params[4], 0., 2.5)), dRelay(j.c) * 1.5);
   if (kind < 9.5) {
     float s = a_l.y, side = a_l.z;
     vec3 base, dir, rad;
@@ -606,8 +626,10 @@ void main() {
       float t = dCycle(P, 20u) + dCycle(S, 300u);
       float wave = exp(-pow((fract(sj * .8 - t + rnd) - .5) * 7., 2.));
       vec3 cc = dPal(.3 + .35 * rnd);
-      float polyp = .5 + .5 * smoothstep(.55, .95, along);
-      col = cc * (.16 + 1.3 * wave + 2. * v_i.w) * polyp * v_i.z * glowP;
+      float edge = pow(abs(v_l.z * 2. - 1.), 3.);
+      float polyp = (.24 + .65 * smoothstep(.55, .95, along)) * (.45 + .55 * edge);
+      polyp *= .65 + .35 * max(dot(N, normalize(vec3(-.4, .8, -.3))), 0.);
+      col = mix(cc, u_accent, .7 * clamp(v_i.w, 0., 1.)) * (.16 + 1.3 * wave + 2. * v_i.w) * polyp * v_i.z * glowP;
       col += mix(u_secondary, vec3(1.), .4) * caust * .06;
     }
     col = mix(col, dWater(-V, dev), fog);
@@ -634,12 +656,15 @@ void main() {
     float ring = abs(fract(r * 11. + .2 * sin(x * 19. + rnd * 7.)) - .5) * H / 11.;
     float rw = fwidth(ring) + 1e-5;
     float link = (1. - smoothstep(.004, .004 + rw * 1.5, ring)) * dSS(.12, .3, r);
+    float polyps = pow(.5 + .5 * sin(r * 147. + rnd * 29. + x * 18.), 10.);
+    vein *= .4 + .6 * (.5 + .5 * sin(r * 27. + x * 12. + rnd * 31.));
     float detail = dSS(2.5, .6, fw / max(vw, 1e-4));
     float t = dCycle(S, 300u) * 2.;
     float wave = exp(-pow((fract(r * .7 - t + rnd) - .5) * 5., 2.));
     vec3 cc = dPal(.12 + .38 * rnd);
     float fres = pow(1. - abs(dot(N, V)), 2.);
-    col = cc * (vein * (.32 + .9 * wave) + link * .14 * detail + .004 + .035 * fres + 1.4 * v_i.w * vein);
+    float key = .3 + .7 * max(dot(N, normalize(vec3(-.4, .7, -.5))), 0.);
+    col = mix(cc, u_accent, .75 * clamp(v_i.w, 0., 1.)) * (vein * (.28 + .7 * wave + .8 * polyps) * key + link * .035 * detail + .005 + .015 * fres + 2.4 * v_i.w * vein);
     col *= glowP * v_i.z * dSS(0., .05, r);
     outColor = vec4(col * keep, 1.);
     return;
@@ -677,7 +702,7 @@ void main() {
   // ---- medusae ----
   float accent = v_i.w > 2. ? 1. : 0., beatLock = v_i.w - 4. * accent;
   vec3 jc = dPal(.12 + .5 * rnd);
-  vec3 rimC = mix(jc, vec3(1.), .35);
+  vec3 rimC = mix(jc, vec3(1.), .12);
   if (kind < 9.5) {
     float s = v_l.x, side = v_l.y;
     float prof = (1. - side * side);
@@ -702,16 +727,16 @@ void main() {
   float fres = pow(1. - nv, 3.);
   float margin = exp(-pow((1. - u) * 11., 2.));
   float lights = pow(.5 + .5 * cos(vv * 16.), 10.) * dSS(.9, 1., u);
-  float canals = pow(abs(cos(vv * 2.)), 40.) * dSS(.15, .5, u) * (1. - margin);
+  float canals = pow(abs(cos(vv * 4. + .08 * sin(u * 19. + rnd * 7.))), 48.) * dSS(.15, .5, u) * (1. - margin);
   float lobes = pow(.5 + .5 * cos(vv * 4.), 3.) * exp(-pow((u - .32) * 6., 2.));
   float ring = exp(-pow((u - con) * 7., 2.)) * con;
   vec3 core = accent > .5 ? mix(u_accent, vec3(1.), .1) : mix(jc, vec3(1.), .2);
   float key = max(dot(N, normalize(vec3(-.4, .8, -.3))), 0.);
   // Thin mesoglea: a dark transparent body, raking key and living canals.
   // Keep the broad fresnel below the narrow emissive margin.
-  col = jc * (.012 + .022 * u + .035 * key) + rimC * fres * .24 + rimC * margin * .85 + mix(rimC, vec3(1.), .3) * lights * 1.5;
-  col += jc * canals * .7 + core * lobes * (accent > .5 ? .8 : .35) + rimC * ring * .5;
-  col += rimC * (fres + margin) * 1.6 * v_l.w;
+  col = jc * (.012 + .022 * u + .035 * key) + rimC * fres * .14 + rimC * margin * .65 + mix(rimC, vec3(1.), .2) * lights * 1.5;
+  col += jc * canals * 1.1 + core * lobes * (accent > .5 ? 1.5 : .35) + rimC * ring * .35;
+  col += mix(rimC, u_accent, .8) * (canals + lobes + margin * .6) * 2.4 * v_l.w;
   // Beat-locked swarms flash as they contract.
   col *= v_i.z * glowP * (1. + .9 * con * beatLock);
   outColor = vec4(col * keep, 1.);
@@ -790,6 +815,16 @@ void main() {
       float env = u_reset ? 0. : latch.r * exp(-u_dt * 5.);
       if (edge) env = 1.;
       outColor = vec4(env, 0., float(trigger ? (slot + 1) % 4 : slot) / 3., float(beatNow) / 255.);
+    } else if (id == 14) {
+      float age = u_reset ? 3. : min(3., dUnpack16(old.rg) * 3. + u_dt);
+      float strength = u_reset ? 0. : old.b;
+      float direction = old.a;
+      if (!u_reset && u_rhythmHit.w > .5) {
+        age = 0.;
+        strength = max(.5, u_rhythm.w);
+        direction = mod(u_rhythmCount.w, 2.);
+      }
+      outColor = vec4(pack16(age / 3.), strength, direction);
     } else outColor = vec4(0.);
     return;
   }
@@ -810,7 +845,8 @@ void main() {
     for (int i = 0; i < D_NJ; i++) {
       // Conservative axial broad phase, before pulse/tilt/hash work. The
       // largest bell radius is 1.45 (others .75), with .7 axial drift.
-      float jz = i == 0 ? mod(float(dHash(u_seedBits)) * (D_PERIOD / 4294967296.) + 12., D_PERIOD)
+      float initial = float(dHash(u_seedBits)) * (D_PERIOD / 4294967296.);
+      float jz = i < 5 ? mod(initial + (i == 0 ? 9. : i == 1 ? 17. : i == 2 ? 25. : i == 3 ? 38. : 52.), D_PERIOD)
         : fract(float(i) * .618034 + .37 + .05 * dRnd(uint(i), 1u)) * D_PERIOD;
       float dz = abs(mod(jz - Z - p.z + D_PERIOD * .5, D_PERIOD) - D_PERIOD * .5);
       if (dz > (i < 5 ? 1.45 : .75) * 3. + .7) continue;
@@ -826,6 +862,7 @@ void main() {
   }
   // Light waves: expanding shells from points ahead of the camera.
   g = max(g, dWaveLight(p, Z, dev, react) * min(1., .55 + .35 * react));
+  g = max(g, dRelay(p) * .85);
   outColor = vec4(pack16(clamp(g, 0., 1.)), 0., 1.);
 }`;
 
@@ -929,13 +966,62 @@ const schema = [
     step: 0.01,
     default: 0,
   },
-  { key: "current", label: "Current speed", min: 0.1, max: 2.5, step: 0.01, default: 1 },
-  { key: "pulse", label: "Bell pulse rate", min: 0.2, max: 2.5, step: 0.01, default: 1 },
-  { key: "swarm", label: "Swarm density", min: 0, max: 1, step: 0.01, default: 0.5 },
-  { key: "reactivity", label: "Plankton reactivity", min: 0, max: 2.5, step: 0.01, default: 1 },
-  { key: "glow", label: "Bioluminescence", min: 0.3, max: 1.8, step: 0.01, default: 1 },
-  { key: "sway", label: "Current sway", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "gaze", label: "Gaze up / down", min: -1, max: 1, step: 0.01, default: 0 },
+  {
+    key: "current",
+    label: "Current speed",
+    min: 0.1,
+    max: 2.5,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "pulse",
+    label: "Bell pulse rate",
+    min: 0.2,
+    max: 2.5,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "swarm",
+    label: "Swarm density",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.5,
+  },
+  {
+    key: "reactivity",
+    label: "Plankton reactivity",
+    min: 0,
+    max: 2.5,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "glow",
+    label: "Bioluminescence",
+    min: 0.3,
+    max: 1.8,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "sway",
+    label: "Current sway",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "gaze",
+    label: "Gaze up / down",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    default: 0,
+  },
 ];
 const look = (name, seed, development, params = {}) => ({
   name,
@@ -964,11 +1050,37 @@ export default {
     look("First Sparks", 61, 0),
     look("Medusa Bloom", 61, 1),
     look("Lantern Reef", 61, 2),
-    look("Siphonophore Drift", 1709, 0.85, { current: 0.6, pulse: 0.8, gaze: 0.35, sway: 1.3 }),
-    look("Midnight Swarm", 433, 1.55, { swarm: 0.9, pulse: 1.3, reactivity: 1.4, gaze: 0.15 }),
-    look("Sea Pen Meadow", 2203, 1.9, { current: 0.7, glow: 1.2, gaze: -0.45, swarm: 0.3 }),
-    look("Ghost Bells", 877, 1.15, { glow: 0.95, pulse: 0.6, current: 0.5, reactivity: 0.6, gaze: 0.2 }),
-    look("Abyssal Storm", 3301, 2, { current: 1.6, reactivity: 1.8, swarm: 1, pulse: 1.4 }),
+    look("Siphonophore Drift", 1709, 0.85, {
+      current: 0.6,
+      pulse: 0.8,
+      gaze: 0.35,
+      sway: 1.3,
+    }),
+    look("Midnight Swarm", 433, 1.55, {
+      swarm: 0.9,
+      pulse: 1.3,
+      reactivity: 1.4,
+      gaze: 0.15,
+    }),
+    look("Sea Pen Meadow", 2203, 1.9, {
+      current: 0.7,
+      glow: 1.2,
+      gaze: -0.45,
+      swarm: 0.3,
+    }),
+    look("Ghost Bells", 877, 1.15, {
+      glow: 0.95,
+      pulse: 0.6,
+      current: 0.5,
+      reactivity: 0.6,
+      gaze: 0.2,
+    }),
+    look("Abyssal Storm", 3301, 2, {
+      current: 1.6,
+      reactivity: 1.8,
+      swarm: 1,
+      pulse: 1.4,
+    }),
   ],
   stage: ["current", "pulse", "reactivity"],
   type: { key: "development", values: [0, 1, 2] },
@@ -984,40 +1096,140 @@ export default {
     { param: "pulse", feature: "low", amount: 0.05 },
     { param: "reactivity", feature: "high", amount: 0.06 },
   ],
-  rhythmStyles: { restrained: "Abyssal hush", driving: "Lantern drift", accented: "Reef awakening" },
+  rhythmStyles: {
+    restrained: "Abyssal hush",
+    driving: "Lantern drift",
+    accented: "Reef awakening",
+  },
   rhythm: [
     familyEffect(
       "bell-beat",
       0,
       "Bell beat",
       "Every jellyfish bell contracts together.",
-      { period: 4, strength: 0.7, duration: 0.5, steps: "X...", styles: {
-        restrained: { steps: "X....... | ...x.... | ......X. | ..x.....", division: 2, strength: 0.55, duration: 1.2 },
-        driving: { steps: "X....x.. | ..X...x.", division: 2, strength: 0.8, duration: 0.85 },
-        accented: { steps: "X......x........ | ....X......x.... | ..X......x......", division: 4, strength: 0.94, duration: 0.8 },
-      } },
+      {
+        period: 4,
+        strength: 0.7,
+        duration: 0.5,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | ...x.... | ......X. | ..x.....",
+            division: 2,
+            strength: 0.7,
+            duration: 1.2,
+          },
+          driving: {
+            steps: "X....x.. | ..X...x.",
+            division: 2,
+            strength: 0.95,
+            duration: 0.85,
+          },
+          accented: {
+            steps: "X......x........ | ....X......x.... | ..X......x......",
+            division: 4,
+            strength: 1,
+            duration: 0.8,
+          },
+        },
+      },
     ),
     familyEffect(
       "plankton-wave",
       1,
       "Plankton wave",
       "A shell of light ripples outwards through the plankton.",
-      { period: 8, strength: 0.7, duration: 1, steps: "X.......", styles: {
-        restrained: { steps: ".....x.. | .......X | ........ | .....x..", division: 2, strength: 0.55, duration: 1.5 },
-        driving: { steps: "...X.... | .......x | .....X.. | ........", division: 2, strength: 0.8, duration: 1.25 },
-        accented: { steps: ".....X.......... | ...........x.... | .......X.....x.. | ..............X.", division: 4, strength: 0.94, duration: 1 },
-      } },
+      {
+        period: 8,
+        strength: 0.7,
+        duration: 1,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: ".....x.. | .......X | ........ | .....x..",
+            division: 2,
+            strength: 0.55,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "...X.... | .......x | .....X.. | ........",
+            division: 2,
+            strength: 0.8,
+            duration: 1.25,
+          },
+          accented: {
+            steps:
+              ".....X.......... | ...........x.... | .......X.....x.. | ..............X.",
+            division: 4,
+            strength: 0.94,
+            duration: 1,
+          },
+        },
+      },
     ),
     familyEffect(
       "reef-cascade",
       2,
       "Reef cascade",
       "A front of light sweeps across the reef: crowns, sea pens and fans flare in turn.",
-      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | ....X...", division: 2, strength: 0.55, duration: 2.5 },
-        driving: { steps: "........ | .....x.. | ........ | ......X.", division: 2, strength: 0.82, duration: 1.6 },
-        accented: { steps: "............x... | .........X...x..", division: 4, strength: 0.96, duration: 0.8 },
-      } },
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "..X...x. | ...X..x.",
+            division: 2,
+            strength: 0.65,
+            duration: 0.65,
+          },
+          driving: {
+            steps: "..X.x..x | .X..x.X.",
+            division: 2,
+            strength: 0.9,
+            duration: 0.4,
+          },
+          accented: {
+            steps: "..X.x..x.X..x.X. | .X..x.X..x.X.x.X",
+            division: 4,
+            strength: 1,
+            duration: 0.2,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "living-relay",
+      3,
+      "Living relay",
+      "A bioluminescent fill travels across reef polyps, bell canals and plankton, alternating sides.",
+      {
+        period: 8,
+        strength: 0.9,
+        duration: 0.9,
+        steps: "...X.... | ......X.",
+        styles: {
+          restrained: {
+            steps: "........ | ......X. | ........ | ....x...",
+            division: 2,
+            strength: 0.65,
+            duration: 1.4,
+          },
+          driving: {
+            steps: "...X..........X. | ......X.......X.",
+            division: 4,
+            strength: 0.95,
+            duration: 0.9,
+          },
+          accented: {
+            steps: "..X.....X.....X. | ....X.....X...X.",
+            division: 4,
+            strength: 1,
+            duration: 0.8,
+          },
+        },
+      },
     ),
   ],
   fragment: background,

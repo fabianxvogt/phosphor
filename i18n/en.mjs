@@ -2499,6 +2499,8 @@ export default {
   "A shell of light ripples outwards through the plankton.": "A shell of light ripples outwards through the plankton.",
   "Reef cascade": "Reef cascade",
   "A front of light sweeps across the reef: crowns, sea pens and fans flare in turn.": "A front of light sweeps across the reef: crowns, sea pens and fans flare in turn.",
+  "Living relay": "Living relay",
+  "A bioluminescent fill travels across reef polyps, bell canals and plankton, alternating sides.": "A bioluminescent fill travels across reef polyps, bell canals and plankton, alternating sides.",
   "Abyssal hush": "Abyssal hush",
   "Lantern drift": "Lantern drift",
   "Reef awakening": "Reef awakening",

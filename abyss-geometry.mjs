@@ -108,10 +108,15 @@ export function jelly(seed, i) {
   if (i < NJ) {
     const h = (k) => rnd(seed, i, k);
     const lone = i < 5;
-    const z = i === 0 ? (hash32(seed) / 4294967296 * PERIOD + 12) % PERIOD
-      : (((i * 0.618034 + 0.37 + 0.05 * h(1)) % 1) + 1) % 1 * PERIOD;
+    const z = lone
+      ? ((hash32(seed) / 4294967296) * PERIOD + [9, 17, 25, 38, 52][i]) % PERIOD
+      : ((((i * 0.618034 + 0.37 + 0.05 * h(1)) % 1) + 1) % 1) * PERIOD;
     const R = lone ? 1.25 + 0.2 * h(5) : 0.3 + 0.45 * h(5) * h(5);
-    const side = h(2) < 0.5 ? -1 : 1;
+    const side = lone
+      ? (rnd(seed, 0, 2) < 0.5 ? -1 : 1) * (i % 2 === 0 ? 1 : -1)
+      : h(2) < 0.5
+        ? -1
+        : 1;
     const gap = 1.9 + R + (lone ? 0.55 + 1.2 * h(3) : 4.5 * h(3) ** 1.5);
     const y = lone ? 0.6 + 0.9 * h(4) : -1.3 + 4 * h(4);
     return {
@@ -142,7 +147,7 @@ export function jelly(seed, i) {
 }
 export function swarmGroup(seed, g) {
   const h = (k) => rnd(seed, 1000 + g, k);
-  const z = (((g * 0.618034 + 0.11) % 1) + 1) % 1 * PERIOD;
+  const z = ((((g * 0.618034 + 0.11) % 1) + 1) % 1) * PERIOD;
   const radius = 1.2 + 0.8 * h(3);
   const side = h(1) < 0.5 ? -1 : 1;
   const gap = 2.1 + radius + 4.5 * h(2);
@@ -154,7 +159,7 @@ export function swarmGroup(seed, g) {
 // Shader mirror: siphonophore chain k (anchor, unit direction, length).
 export function chain(seed, k) {
   const h = (n) => rnd(seed, 2000 + k, n);
-  const z = (((k * 0.618034 + 0.77) % 1) + 1) % 1 * PERIOD;
+  const z = ((((k * 0.618034 + 0.77) % 1) + 1) % 1) * PERIOD;
   const side = h(1) < 0.5 ? -1 : 1;
   const gap = 3.6 + 5 * h(2);
   const d = [0.35 * (h(3) - 0.5), 0.15 * (h(4) - 0.5), 1];
@@ -180,8 +185,14 @@ export function settleY(y, development) {
 }
 // Reveal of a medusa (light-up and scale) with the swarm-density boost.
 export function jellyReveal(j, development, swarm = 0.5) {
-  if (!j.swarm) return j.birth < 0 ? 1 : smooth(j.birth - 0.25, j.birth + 0.05, development);
-  const boost = Math.min(0.5, Math.max(-0.5, swarm - 0.5)) * 0.5 * smooth(0.7, 1.3, development);
+  if (!j.swarm)
+    return j.birth < 0
+      ? 1
+      : smooth(j.birth - 0.25, j.birth + 0.05, development);
+  const boost =
+    Math.min(0.5, Math.max(-0.5, swarm - 0.5)) *
+    0.5 *
+    smooth(0.7, 1.3, development);
   return smooth(j.birth - 0.12, j.birth + 0.05, development + boost);
 }
 
@@ -286,7 +297,8 @@ export function vertexCounts() {
     TENTACLES.big[0] * TENTACLES.big[1] * 6 +
     ARMS[0] * ARMS[1] * 6;
   const smallJelly =
-    BELL.small[0] * BELL.small[1] * 6 + TENTACLES.small[0] * TENTACLES.small[1] * 6;
+    BELL.small[0] * BELL.small[1] * 6 +
+    TENTACLES.small[0] * TENTACLES.small[1] * 6;
   const additive =
     NP * fan +
     NSH * SHAFT_SEGMENTS * 6 +
@@ -357,7 +369,16 @@ function build(seed) {
         w += g;
         wb += g * p.birth;
       }
-      grid.push([x, y, z, Math.min(1.5, w), -dx / l, 1 / l, -dz / l, w > 1e-4 ? wb / w : 1]);
+      grid.push([
+        x,
+        y,
+        z,
+        Math.min(1.5, w),
+        -dx / l,
+        1 / l,
+        -dz / l,
+        w > 1e-4 ? wb / w : 1,
+      ]);
     }
   const rand = random((seed ^ 0x9e3779b9) >>> 0);
   for (let j = 0; j < GZ; j++) {
@@ -367,7 +388,12 @@ function build(seed) {
       for (const [di, dj] of QUAD) {
         const g = grid[(j + dj) * (GX + 1) + i + di];
         // The last ring repeats the first one a whole period further on.
-        v([KIND.floor, anchor, rn, 0], [0, 0, 0, 0], g.slice(0, 4), g.slice(4, 8));
+        v(
+          [KIND.floor, anchor, rn, 0],
+          [0, 0, 0, 0],
+          g.slice(0, 4),
+          g.slice(4, 8),
+        );
       }
     }
   }
@@ -387,11 +413,22 @@ function build(seed) {
           );
   }
   for (let n = 0; n < NSH; n++)
-    strip([KIND.shaft, n, 0, 0], SHAFT_SEGMENTS, (j, side) => [j / SHAFT_SEGMENTS, side, 0, 0]);
+    strip([KIND.shaft, n, 0, 0], SHAFT_SEGMENTS, (j, side) => [
+      j / SHAFT_SEGMENTS,
+      side,
+      0,
+      0,
+    ]);
   for (let c = 0; c < NCH; c++) {
-    strip([KIND.chain, c, 0, 0], CHAIN_SEGMENTS, (j, side) => [j / CHAIN_SEGMENTS, side, 0, 0]);
+    strip([KIND.chain, c, 0, 0], CHAIN_SEGMENTS, (j, side) => [
+      j / CHAIN_SEGMENTS,
+      side,
+      0,
+      0,
+    ]);
     for (let b = 0; b < BEADS; b++)
-      for (const [a, d] of QUAD) v([KIND.bead, c, 0, 0], [b, a * 2 - 1, d * 2 - 1, 0]);
+      for (const [a, d] of QUAD)
+        v([KIND.bead, c, 0, 0], [b, a * 2 - 1, d * 2 - 1, 0]);
   }
   for (let i = 0; i < NJ + NS; i++) {
     const big = i < NJ;
@@ -400,12 +437,20 @@ function build(seed) {
       strip([KIND.tentacle, i, 0, 0], TS, (j, side) => [t, j / TS, side, NT]);
     if (big)
       for (let a = 0; a < ARMS[0]; a++)
-        strip([KIND.arm, i, 0, 0], ARMS[1], (j, side) => [a, j / ARMS[1], side, 0]);
+        strip([KIND.arm, i, 0, 0], ARMS[1], (j, side) => [
+          a,
+          j / ARMS[1],
+          side,
+          0,
+        ]);
     const [rings, segments] = big ? BELL.big : BELL.small;
     for (let j = 0; j < rings; j++)
       for (let s = 0; s < segments; s++)
         for (const [di, dj] of QUAD)
-          v([KIND.bell, i, 0, 0], [(j + dj) / rings, (s + di) / segments, 0, 0]);
+          v(
+            [KIND.bell, i, 0, 0],
+            [(j + dj) / rings, (s + di) / segments, 0, 0],
+          );
   }
   if (o !== data.length) throw new Error("abyss: vertex count");
   return data;
