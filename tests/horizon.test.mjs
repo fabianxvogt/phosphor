@@ -5,6 +5,7 @@ import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { catalogLooks } from "../catalog.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 // CPU mirror of the shader's geodesic integrator (M = 1): the Binet
 // equation u'' = -u + 3u² in the orbit angle. The flat part is an exact
@@ -269,15 +270,15 @@ function cameraRadius(dev, az) {
     blaze = smooth(1, 2, dev);
   const pass = blaze * Math.pow(0.5 + 0.5 * Math.cos(az - 1.9), 6);
   return (
-    mix(mix(46, 34, form), 27, blaze) *
-    (1 - 0.42 * pass) *
+    mix(mix(34, 32, form), 30, blaze) *
+    (1 - 0.08 * pass) *
     (1 + 0.025 * Math.sin(3 * az))
   );
 }
 test("the camera never enters the horizon or the photon sphere", () => {
   for (const line of [
     "pass = blaze * pow(0.5 + 0.5 * cos(az - 1.9), 6.0);",
-    "return mix(mix(46.0, 34.0, form), 27.0, blaze) * (1.0 - 0.42 * pass) *\n    (1.0 + 0.025 * sin(3.0 * az));",
+    "return mix(mix(34.0, 32.0, form), 30.0, blaze) * (1.0 - 0.08 * pass) *\n    (1.0 + 0.025 * sin(3.0 * az));",
     "incl = clamp(incl, 0.05, 1.25);",
   ])
     assert.ok(horizon.fragment.includes(line), line);
@@ -356,14 +357,56 @@ test("horizon declares a continuous three-state world and strong extra looks", (
 
 test("rework keeps a short-side camera, finite jets and footprint-filtered gas", () => {
   assert.match(horizon.fragment, /2\.0 \* u_resolution\.y \/ shortSide/);
-  assert.match(horizon.fragment, /gPixelAngle = 2\.0 \/ \(focal \* shortSide\)/);
-  assert.match(horizon.fragment, /gJetLen = min\(gJetLen, radius \* 0\.38\)/);
+  assert.match(
+    horizon.fragment,
+    /gPixelAngle = 2\.0 \/ \(focal \* shortSide\)/,
+  );
+  assert.match(horizon.fragment, /gJetLen = min\(gJetLen, radius \* 0\.25\)/);
   assert.match(horizon.fragment, /y > 1\.4 \* gJetLen/);
-  assert.match(horizon.fragment, /1\.0 - smoothstep\(0\.85 \* gJetLen, 1\.4 \* gJetLen, y\)/);
+  assert.match(
+    horizon.fragment,
+    /1\.0 - smoothstep\(0\.85 \* gJetLen, 1\.4 \* gJetLen, y\)/,
+  );
   assert.match(horizon.fragment, /order < 0\.5 \? 3 : 2/);
   // Finite luminous jets project inside the short side even on close passes.
-  for (let r = 15; r <= 48; r += .1)
-    assert.ok(1.4 * Math.min(24, r * .38) / r * 1.55 < .83);
+  for (let r = 15; r <= 48; r += 0.1)
+    assert.ok(((1.4 * Math.min(24, r * 0.25)) / r) * 2.15 < 0.83);
+});
+
+test("slot-3 photon relay is local, count-addressed and authored in all styles", () => {
+  const relay = horizon.rhythm.find((r) => r.slot === 3);
+  assert.equal(relay.id, "photon-relay");
+  for (const style of ["restrained", "driving", "accented"]) {
+    const pattern = defaultPattern(horizon.rhythm, style);
+    const hits = pattern.tracks.reduce(
+      (sum, t) =>
+        sum + (t.steps.filter((v) => v > 0).length * t.division * 4) / t.length,
+      0,
+    );
+    assert.ok(hits >= { restrained: 2, driving: 6, accented: 8 }[style]);
+    const track = relay.styles[style];
+    assert.ok(track.steps.filter((v) => v > 0).length >= 2);
+    assert.ok(track.duration > 0 && track.strength <= 1);
+  }
+  for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
+    assert.ok(horizon.fragment.includes(uniform));
+  assert.match(horizon.fragment, /relayRim = exp\(-sq\(\(b - BC/);
+  assert.ok(
+    !horizon.fragment.includes("u_time"),
+    "integrated phases are late-time safe",
+  );
+});
+
+test("camera development is smooth and reversible without a close-pass lurch", () => {
+  for (let az = 0; az < Math.PI * 2; az += 0.08) {
+    for (let dev = 0; dev <= 2; dev += 0.01) {
+      const r = cameraRadius(dev, az);
+      const next = cameraRadius(Math.min(2, dev + 0.01), az);
+      assert.ok(Number.isFinite(r) && r > 26);
+      assert.ok(Math.abs(next - r) < 0.075);
+    }
+    assert.ok(cameraRadius(0, az) / cameraRadius(2, az) < 1.24);
+  }
 });
 
 test("style limits: kick punch, roll, speed range and gesture periods", () => {
@@ -377,6 +420,7 @@ test("style limits: kick punch, roll, speed range and gesture periods", () => {
       [0, 4],
       [1, 8],
       [2, 16],
+      [3, 8],
     ],
   );
 });
