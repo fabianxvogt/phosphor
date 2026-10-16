@@ -2488,6 +2488,8 @@ export default {
   "The photon ring at √27 M brightens once.": "Der Photonenring bei √27 M leuchtet einmal auf.",
   "Jet knot": "Jetknoten",
   "One bright knot is ejected along both relativistic jets.": "Ein heller Knoten wird entlang beider relativistischer Jets ausgestoßen.",
+  "Photon relay": "Photonenstaffel",
+  "An accent flare circles the photon rim with a trailing wake; successive hits launch from new sectors.": "Ein Akzentleuchten umkreist den Photonenrand mit einer Lichtspur; aufeinanderfolgende Schläge starten in neuen Sektoren.",
   "Silent orbit": "Stille Umlaufbahn",
   "Photon waltz": "Photonenwalzer",
   "Relativistic bloom": "Relativistische Blüte",
