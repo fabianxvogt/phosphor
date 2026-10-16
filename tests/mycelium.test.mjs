@@ -208,7 +208,16 @@ test("signal relay has three full authored styles and uses the complete slot-3 c
   const effect = mycelium.rhythm.find((r) => r.slot === 3);
   for (const style of ["restrained", "driving", "accented"]) {
     const loop = effect.styles[style];
-    assert.ok(loop.steps.filter((s) => s > 0).length >= 2, style);
+    const hits = loop.steps.flatMap((s, i) => (s > 0 ? [i] : []));
+    assert.ok(hits.length >= 2, style);
+    for (const [i, hit] of hits.entries()) {
+      const next =
+        hits[(i + 1) % hits.length] + (i === hits.length - 1 ? loop.length : 0);
+      assert.ok(
+        loop.duration < (next - hit) / loop.division,
+        `${style} settles`,
+      );
+    }
     assert.ok(
       loop.steps.some((s, i) => s > 0 && i % loop.division !== 0),
       `${style} offbeat`,

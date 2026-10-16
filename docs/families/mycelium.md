@@ -1,76 +1,75 @@
 # Living Mycelium
 
-**EXPLORATORY / EMPIRICAL**, reworked 2026-10-16 (world-polish lane). The `mycelium` family (number 99) is the continuous world **Living Mycelium**. It is artistic biology, not a calibrated fungal model. The earlier Gray–Scott terrain (2026-10-14/15) is described in git history.
+**EXPLORATORY / EMPIRICAL**, round-3 rework, 2026-10-16. Family `mycelium`, number 99. Artistic fungal biology, not a calibrated model. World, states, preset names, seeds and parameter values remain compatible; the previous world description is appended to `HISTORY` in `worlds.mjs`.
 
-## Algorithm and signature detail
+## Algorithm and signature
 
-[mycelium-network.mjs](../../mycelium-network.mjs) grows one seeded network on the CPU in `geometry.create(seed)`, on a 2.4 m periodic forest floor:
+[`mycelium-geometry.mjs`](../../mycelium-geometry.mjs) builds one deterministic network per seed on a 2.4 m periodic forest floor:
 
-- **Tip growth.** Hyphal tips extend by about 6 mm per step. Their heading is a correlated random walk (slow meandering arcs) with negative autotropism (they turn away from other hyphae within 1.7 cm) and an outward colony bias. Branching is lateral (order-dependent probability), plus apical dichotomy at the fringe. Eight colonies each start from a germination disc beside the camera line. Surface hyphae drape over the leaves and twigs, and about a quarter run 3–15 mm below the soil surface.
-- **Anastomosis.** A tip that comes within 6.5 mm of a different lineage at a similar height fuses and stops. This closes loops (about 2.5k fusions per seed; the cycle rank is tested).
-- **Geodesic transport.** Multi-source Dijkstra over the looped graph gives each vertex its shortest-path distance to the colonies (and to three single colonies, for the rhythm wave).
-- **Murray-law cords.** Mushroom sites and free tips draw demand. The flow is routed back along the shortest-path tree, and the cord radius is r = 1.1 mm · Q^{1/3}, so r³ is conserved at every junction of the transport tree (tested).
-- **Fruiting.** Clusters rise from one base at cord ends beside the camera line. Each cluster mixes five cap forms (conical, bell, umbonate, convex, small bell). Every mushroom passes a CPU clearance test against the camera over development 1–2, both cap scales and the altitude range of the looks.
+- Correlated hyphal tip growth, negative autotropism, lateral branching and apical dichotomy create wandering fans rather than straight connectors. Eight inocula seed the band beside the camera path.
+- Anastomosis fuses nearby unrelated tips. Seed 211 has 31,780 nodes and 2,399 fusion edges.
+- Multi-source Dijkstra supplies true shortest-path nutrient distances through the looped graph. Sink demand routed back along that tree gives Murray-law cord radii, `r³ ∝ flow`.
+- Fruiting sites at those cords grow five cap forms. The seed-211 grove has 45 mushrooms; all six look seeds pass camera-clearance tests over development, cap scale and altitude.
+- The unchanged bounded Gray–Scott substrate modulates thread activity and soil glow. Its chemistry, spore-rain recovery and continuity token `gray-scott-uv16-v1` remain intact.
 
-The signature detail is the **nutrient pulses**. They are trains with a soft head and a trailing streak, travelling along the geodesic distance. They split at every branch and cancel where two fronts meet in a loop (the cut locus of the metric). In the top state they arrive at the cord ends, and the caps flare.
+The hero is transport: soft-headed nutrient trains split through the actual branching metric and light the caps when they reach fruiting sites. This replaces the former isolined heightfield; it does not stack a mushroom picture over the old terrain.
 
-The Gray–Scott field still runs unchanged (acid's step, chemistry band, spore rain, continuity `gray-scott-uv16-v1`). It is now the living **substrate**: it modulates thread activity and the faint soil glow, and the `feed` gesture injects into it.
+## Rendering and development
 
-## Rendering
+One fixed opaque mesh head (leaves, twigs, stems and caps) precedes an additive tail (hyphae, spores, glow). Two instances supply threads and their ground light pools; the second instance hides non-thread primitives. No engine changes.
 
-Everything is one mesh with a fixed opaque head plus an additive tail. Instancing ×2 draws threads (instance 0) and their light pools on the soil (instance 1). There is no engine change.
+Shared-tangent ribbon strips avoid beaded joints. Minimum core radius is 0.78 px at 1080p (1.56 px diameter), scaled with resolution, with coverage attenuation. Hierarchical widths, dim felt, fuzzy young margins, braided cords, buried threads and local pools replace uniform glowing outlines. Caps have dim crowns, saturated translucent margins and bright radial gills; palette colours alone determine the material. Static floor texture, fog, leaf/twig occlusion, distant trunks, parallax and mixed mushroom scale supply depth.
 
-- **Threads** are polyline strips with shared averaged tangents, so joints have no beads. Width is max(true radius, 0.78 px × resolution scale) with coverage-scaled intensity. Each thread has a soft halo. Cords show braided strands with flowing streaks along the arc length. Young hyphae carry fine slanted side hairs (the fuzzy margin), faded before they alias. Tips glow at the moving growth front. Threads below the surface are attenuated through the soil and shift toward secondary.
-- **Mushrooms** have a translucent cap: a dim thick crown, a glowing thin margin and radial striations. The gills from below are the brightest structure. Stems are slender and translucent. Caps tilt slightly back toward the camera line. Lantern glow sprites and spore streams fall from the gills.
-- **Litter.** Dark leaves glow faintly through the lamina where hyphae run beneath and have a network-lit rim. Bark twigs are lit from below.
-- **Backdrop.** The soil plane has a crumb texture and a faint substrate glow. A ground mist band at the horizon is lit by the network. Faint trunks and moonbeams show at the top state.
-- **Wrap.** Every primitive wraps to the copy nearest the camera by its own centre (segment midpoint or object centre). Fog closes by 1.14 m, inside the 1.2 m seam, and culling is per segment, so there are no stretched triangles.
+| State        | Structure                                                                   | Camera                              |
+| ------------ | --------------------------------------------------------------------------- | ----------------------------------- |
+| 0 Understory | Partially revealed fans, runners, growing tips, dark litter                 | 15 cm high, looking down            |
+| 1 Tide       | Full looped web; swelling transport cords and crossing nutrient trains      | Approximately 10.6 cm high, oblique |
+| 2 City       | Fine felt dims while the same cord ends fruit, unfurl gills and shed spores | 4.6 cm high, slightly upward        |
 
-## Development (one key, no reset)
+Development only changes uniforms: growth, reveal, hierarchy, fruiting and camera. It never regenerates the graph or resets chemistry. Forward and reverse trajectories use the same geometry. Camera laps are closed, with gentle yaw and a 1.5% maximum kick lens response. Fast development changes still crane the camera; there is no spring.
 
-| State        | Picture                                                                                                 | Camera                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 0 Understory | Growth fronts at 56 % of the growth keys: runner hyphae and young fans, fine laterals dim, tips glowing | 15 cm high, 27° down; the floor fills about 90 %            |
-| 1 Tide       | The whole looped web, cords swelling, several pulse trains                                              | about 9.5 cm, 16° down; the horizon becomes a lit mist band |
-| 2 City       | Fine hyphae pruned, bright cords converging on stems, mushroom grove with gills overhead, spores        | 4.6 cm, level                                               |
+## Looks and energy
 
-The camera height and pitch are nearly linear in development (`crane = 0.7d + 0.3d²` with d = dev/2). A one-bar 0 → 2 drop therefore cranes at about 14°/s on average and about 19°/s at most. There is no state spring.
+State looks: **Hyphal Understory**, **Tidal Lamellae**, **Lantern City** (seed 211). Extra looks retain their original parameter values and seeds: **Spore Floor** (101), **Night Membrane** (149), **Tide Turning** (41), **Street Plan** (18), **Bloom Quarter** (73). They vary felt/cord hierarchy, foraging, cap opening, density and camera height. Schema keys/ranges are unchanged; labels now describe the new renderer.
 
-## Looks
+Energy adds second/third geodesic trains, raises foraging excursion and rate, changes cord hierarchy, increases spore density and speeds the flight rather than applying a global gain. Four integrated periodic clocks drive flight, nutrient travel, streaming and foraging. Fixed-rate camera sway and spore phases remain periodic at late times. At energy 0.1, raw pixels above 0.04 in any channel occupy 19.4% / 56.5% / 71.4% of the three state frames: none is blank.
 
-The world states are Hyphal Understory, Tidal Lamellae and Lantern City (seed 211). Extra looks: Spore Floor (101, low skim at 0.35, spore-floor morphology), Night Membrane (149, felt morphology at 1), Tide Turning (41, high oblique at 1.5, fan morphology), Street Plan (18, high camera at 2, cord morphology, small caps) and Bloom Quarter (73, cluster morphology at 1.8, large caps). Schema keys are unchanged. The labels are now Pulse and flight speed, Substrate feed, Mycelium morphology, Fruiting body scale and Cord hierarchy.
+## Rhythm
 
-## Energy, rhythm, clocks
+Merged `main` including **World rhythm presets** before rhythm work. Three named presets remain:
 
-- **Energy changes structure, not gain.** It adds a second and third pulse train (λ = ½ and ⅓ m), shortens the tails, adds foraging amplitude and rate to the childless fine laterals, raises spore density and speeds the camera up to about 1.7×. Base thread intensity scales by 1.25 → 0.8, so mean frame brightness stays put: 10.4 → 11.1 (Understory), 18.1 → 18.8 (Tide) and 23.5 → 20.9 (City) from energy 0.1 to 0.9.
-- **Clocks:** camera laps (period 1), pulse metres (period 1, so λ ∈ {1, ½, ⅓}), cord streaming, foraging phase (2π).
-- **Rhythm (ids, slots and periods unchanged):**
-  - x `reaction-front`: hyphal tip flare plus a glint running back down each thread.
-  - y `chemical-band`: a nutrient wave from colony `count mod 3` across the whole network, over 4 beats.
-  - z `feed`: the bounded Gray–Scott feed (simulation), plus a spore puff from cluster `count mod 15`.
+- **Dormant threads:** sparse tip syncopation, unhurried waves and phrase-end feed.
+- **Root signals:** busier tips, independent colony waves and relayed cord signals.
+- **Spore chorus:** sixteenth-note tip fills, stronger waves and spore answers.
+
+Existing gesture IDs/slots stay: x `reaction-front` lights growing tips and a returning glint; y `chemical-band` sends a selected-colony wave; z `feed` injects bounded substrate feed and puffs spores from a selected cluster. Local amplitudes are stronger. Envelopes settle before subsequent hits, including the loop seam.
+
+**Slot 3, `signal-relay` / Signal relay (Signalstaffel):** an accent-coloured soft head and comet tail races through graph distance, splits at branches and flares arriving mushroom gills. Shader code consumes `u_rhythm.w`, `u_rhythmHit.w` and `u_rhythmCount.w`. EN/DE labels and descriptions are additive dictionary entries.
+
+All relay loops span four bars. Zero-based sixteenth positions: restrained **0, 30** (strength 0.65, duration 3 beats); driving **0, 36, 54** (0.9, 2.2 beats); accented **0, 30, 40, 54** (1, 1.8 beats). Events are spatially local, never full-screen white; the shared limiter is unchanged. The family verifier leaves it enabled.
 
 ## Cost and verification
 
-- **GPU.** About 360k vertices (thread vertices run twice for the pools); the mesh is about 35 MB and is rebuilt only on a seed change. Interleaved pair against `main` on a heavily shared GPU (load average 115–270):
-  - 1080p p50 3.7 / 3.7 / 4.0 ms against 2.9 / 2.9 / 3.1 ms.
-  - 4K p50 14.6 / 11.5 / 14.0 ms against 7.5 / 7.4 / 7.7 ms.
-  - The quiet-GPU estimate is about 10–12.5 ms at 4K. The standalone probes on the same machine are contention-dominated and are not quoted.
-- **CPU.** Growth + Dijkstra + mesh in Chrome takes about 80–120 ms per new seed (`scripts/mycelium-gen-timing.mjs`). The hot loops are small top-level functions, because one giant function compiled too slowly and ran unoptimised.
-- **Tests** in `tests/mycelium.test.mjs`:
-  - determinism and development independence
-  - positive cycle rank (anastomosis)
-  - Bellman optimality of the pulse distances on every edge
-  - Murray r³ conservation at junctions
-  - camera clearance for all mushrooms of all six look seeds
-  - mesh layout and finiteness
-  - rhythm ids and simulation contract
-  - Gray–Scott chemistry clamps, survival under state jumps, and the HISTORY upgrade
-- **Stills.** `scripts/mycelium-stills.mjs` renders stills and scans the float target for NaN, Inf and negative values. The rework fixed a 0·Inf NaN (rhythm wave) and NaN normals at cap apices.
+Seed 211: **501,402 stored vertices**, **48.1 MB** mesh, fixed opaque head 268,320 vertices, two instances (about one million vertex invocations before culling). Generation occurs only on a seed change; CPU cold-generation latency remains a risk. Full-resolution halo/pool overdraw is the main GPU cost.
 
-## Known limits
+ANGLE Metal / Apple M3 Pro, native synchronous whole-frame throughput including post, shared GPU, milliseconds (not venue cadence):
 
-- There is no true depth of field (an engine feature). Near leaves are only darkened.
-- The fuzzy margin is a shader texture, not geometry.
-- Gills read well only on caps above the eye line.
-- The 4K pair delta is about +4–7 ms; the main costs are halo/pool fill and glow sprites.
-- Catalogue previews need a rebake (L0).
+| State      | 1080p p50 / p95 | 4K p50 / p95 | ABBA 1080p p50 main → final | ABBA 4K p50 main → final |
+| ---------- | --------------- | ------------ | --------------------------- | ------------------------ |
+| Understory | 4.1 / 4.7       | 9.5 / 10.3   | 2.9 → 4.1 (+41%)            | 5.9 → 10.2 (+73%)        |
+| Tide       | 7.4 / 11.1      | 9.8 / 10.4   | 2.7 → 4.0 (+48%)            | 5.6 → 9.0 (+61%)         |
+| City       | 4.4 / 14.8      | 11.1 / 12.3  | 2.8 → 4.2 (+50%)            | 6.0 → 10.1 (+68%)        |
+
+Both absolute p50 budgets pass. Pair probes correctly return nonzero for a regression over 5%; the new geometry costs +1.2–1.4 ms at 1080p and +3.4–4.3 ms at 4K versus the simpler old terrain.
+
+Verification in `.claude/worktrees/mycelium-r3/artifacts/`:
+
+- `npm test`: **962 pass, 21 opt-in skips, 0 failures**. Includes family CPU determinism, shortest-path optimality, cycle rank, Murray flow, finite mesh, camera clearance, continuous development, preset validation, slot-3 style/spacing and Gray–Scott survival.
+- Explicit world-rhythm, pipeline-flash and family tests: **51/51 pass**.
+- Typecheck and native-GPU DE/EN i18n: pass. Build: pass. Family files pass Prettier; shared registries retain existing main formatting to keep merges narrow.
+- `scripts/verify-mycelium.mjs --rig --port 48460`: **25 frames pass**, all state energies 0.1/0.5/0.9, five extra looks, three portrait states, three 43,200-second states and reversal. Zero GL errors, non-finite uploads or non-finite float-target pixels. Mesh identity persists through reversal. Limiter enabled throughout.
+- Three film iterations: `look-review/mycelium-r3-round{1,2,3}/`; final film/sheets/grids: `look-review/mycelium-r3/`; three palette films: `look-review/mycelium-r3-palettes/`; reverse film: `look-review/mycelium-r3-reversal/`.
+
+## Remaining weaknesses
+
+Self-assessed look **7.5/10**, not independent acceptance. The fungus is now legible and has an actual travelling signature, but near caps remain slightly faceted and umbrella-like, Understory is wire-like on small screens, portrait has generous dark headroom, and diffuse spores are subtle. Gills read most strongly above eye level. No true depth of field. Catalogue images still need L0's rebake after integration; this lane does not touch `catalog-previews.mjs`.
