@@ -8,8 +8,8 @@ One row per world; updated after every independent re-score. "Signature effect" 
 
 | World | id | Baseline | Latest | Round | L | G | E | Pass | Signature effect (slot 3) | Merged |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Living Mycelium | mycelium | 4.0 | 6.0 | r3 | 6 | 7.5 | 5.5 | no | Signal relay (partly visible) | 09e0ba2 |
-| Afterglow Garden | garden | 4.0 | — | baseline | — | — | — | no | — | — |
+| Living Mycelium | mycelium | 4.0 | 7.0 | r4 (gpt-6.1-sol reviewer) | 7 | 8.5 | 7 | no | Signal relay (localized; travel not yet legible) | 5f3b6bd |
+| Afterglow Garden | garden | 4.0 | 6.5 | r3 | 6.5 | 7.5 | 6 | no | Pollen rising (visible; reads as hairlines) | 010103b |
 | Unfolding Garden | unfolding | 3.0 | — | baseline | — | — | — | no | — | — |
 | Hopf Bloom | hopf-bloom | 5.0 | — | baseline | — | — | — | no | — | — |
 | Crystal Cavern | cavern | 4.0 | — | baseline | — | — | — | no | — | — |

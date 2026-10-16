@@ -351,7 +351,7 @@ const AUTHORED = [
 // previous definition here so existing sets upgrade instead of diverging.
 const withoutParams = (w) => ({
   ...w,
-  states: w.states.map(({ params, ...state }) => state),
+  states: w.states.map(({ params: _params, ...state }) => state),
 });
 // Ink Bloom before the 2026-10-16 dark-tank rework (same ids and looks).
 const INK_BLOOM_BACKLIT = {
