@@ -14,6 +14,7 @@ import { catalogLooks } from "../catalog.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { advanceClocks } from "../scene-time.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 const TAU = 2 * Math.PI;
 const near = (a, b, e = 1e-10) =>
@@ -48,8 +49,11 @@ function frames(seed, development) {
     (frame === 0
       ? stairIdentity(seed)
       : Array.from({ length: 12 }, (_, id) => ({
-          id, side: frame, centre: [(id - 5.5) * 0.25, (id - 5.5) * 0.13, 0],
-        }))).map((tread) => {
+          id,
+          side: frame,
+          centre: [(id - 5.5) * 0.25, (id - 5.5) * 0.13, 0],
+        }))
+    ).map((tread) => {
       let p = [...tread.centre];
       if (frame === 1) [p[0], p[1]] = rotate([p[0], p[1]], (Math.PI / 2) * rel);
       if (frame === 2)
@@ -274,7 +278,7 @@ test("shader is pinned to the tested covering chart, exact intersections and cou
     "abs(perpendicular - edge) > 0.62 && abs(pierPerpendicular - edge) > 1.02",
     "float flightAt = 5.5 - 5.5 * cos(id * 6.28318530718 / 48.0);",
     "depth > -0.24 && depth < 0.0",
-    "vec3 ivory = mix(vec3(1.0), u_primary, 0.035);",
+    "vec3 ivory = mix(u_secondary, vec3(1.0), 0.56);",
     "uv *= exp(gInf * 0.14 * sin(gCamera));",
     "esShadow(p + n * 0.008, key)",
     "1.0 + 0.018 * u_kick",
@@ -287,10 +291,51 @@ test("shader is pinned to the tested covering chart, exact intersections and cou
   assert.doesNotMatch(identity, /gDev|gRel|gInf|u_time|u_params|u_level/);
   assert.deepEqual(
     escher.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16],
+    [4, 8, 16, 16],
   );
-  for (const axis of ["x", "y", "z"])
+  for (const axis of ["x", "y", "z", "w"])
     assert.ok(escher.fragment.includes(`u_rhythm.${axis}`));
+});
+
+test("slot-three lantern ascent has full world-specific grooves and bounded local addressing", () => {
+  const signature = escher.rhythm.find((effect) => effect.slot === 3);
+  assert.equal(signature.id, "lantern-ascent");
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(escher.rhythm, style);
+    const hitsPerBar = pattern.tracks.reduce(
+      (sum, t) =>
+        sum + (t.steps.filter((v) => v > 0).length * 4 * t.division) / t.length,
+      0,
+    );
+    assert.ok(hitsPerBar >= minimum, `${style}: ${hitsPerBar} < ${minimum}`);
+    const loop = signature.styles[style];
+    const hits = loop.steps.flatMap((v, i) => (v > 0 ? [i] : []));
+    assert.ok(hits.length >= 2);
+    const gaps = hits.map(
+      (v, i) =>
+        (hits[(i + 1) % hits.length] +
+          (i === hits.length - 1 ? loop.length : 0) -
+          v) /
+        loop.division,
+    );
+    assert.ok(loop.duration < Math.min(...gaps));
+  }
+  for (const span of [12, 48])
+    for (let count = 0; count < 1000; count++) {
+      const head = (count * 3) % span;
+      assert.ok(head >= 0 && head < span);
+      for (let tread = 0; tread < span; tread++) {
+        const behind = (head - tread + span) % span;
+        const wake = Math.exp(-behind * 0.48);
+        assert.ok(Number.isFinite(wake) && wake >= 0 && wake <= 1);
+      }
+    }
+  for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
+    assert.ok(escher.fragment.includes(uniform));
 });
 
 test("integrated clocks survive rate changes and have exact shader periods for twelve hours", () => {
@@ -323,7 +368,8 @@ test("integrated clocks survive rate changes and have exact shader periods for t
 // Independent exhaustive ray/box reference, versus the shader's finite
 // projected candidate set. Test camera and fader extrema, not just one view.
 function boxHit(ro, rd, c, b) {
-  let lo = 0, hi = Infinity;
+  let lo = 0,
+    hi = Infinity;
   for (let axis = 0; axis < 3; axis++) {
     if (Math.abs(rd[axis]) < 1e-12) {
       if (Math.abs(ro[axis] - c[axis]) > b[axis]) return Infinity;
@@ -340,43 +386,84 @@ function boxHit(ro, rd, c, b) {
 test("projected tread/pier candidates equal exhaustive analytic visibility", () => {
   const centres = stairIdentity(11001).map((t) => t.centre);
   let rays = 0;
-  for (const width of [0.7, 1.4]) for (const depth of [0.3, 1.2])
-    for (const [sway, view] of [[-1, -1], [0, 0], [1, 1]]) {
-      const dir = normalize([direction[0] + 0.012 * sway + 0.009 * view, direction[1], direction[2] - 0.008 * sway]);
-      const rd = scale(dir, -1), R = normalize(cross(rd, [0, 1, 0])), U = cross(R, rd);
-      for (let y = -20; y <= 20; y++) for (let x = -26; x <= 26; x++) {
-        const ro = dir.map((v, axis) => v * 9 + R[axis] * x * 0.14 + U[axis] * y * 0.14);
-        const atPlane = (h) => [0, 2].map((axis) => ro[axis] + rd[axis] * ((h - ro[1]) / rd[1]));
-        const tc = atPlane(-0.17), pc = atPlane(-0.55 * depth);
-        const candidates = new Set();
-        for (let side = 0; side < 4; side++) {
-          const odd = side % 2;
-          const component = (p) => side === 0 ? p[0] : side === 1 ? p[1] : side === 2 ? -p[0] : -p[1];
-          const edge = [-1.5, 1.5, 1.5, -1.5][side];
-          if (Math.abs(tc[odd ? 0 : 1] - edge) > 0.62 && Math.abs(pc[odd ? 0 : 1] - edge) > 1.02) continue;
-          const address = Math.floor((component(tc) + 1.5) * 4);
-          const pier = Math.floor(((component(pc) + 1.5) * 4 - 0.5) / 3 + 0.5) * 3;
-          for (let j = -1; j <= 1; j++) {
-            candidates.add(side * 12 + Math.max(0, Math.min(11, address + j)));
-            candidates.add(144 + side * 12 + Math.max(0, Math.min(9, pier + j * 3)));
+  for (const width of [0.7, 1.4])
+    for (const depth of [0.3, 1.2])
+      for (const [sway, view] of [
+        [-1, -1],
+        [0, 0],
+        [1, 1],
+      ]) {
+        const dir = normalize([
+          direction[0] + 0.012 * sway + 0.009 * view,
+          direction[1],
+          direction[2] - 0.008 * sway,
+        ]);
+        const rd = scale(dir, -1),
+          R = normalize(cross(rd, [0, 1, 0])),
+          U = cross(R, rd);
+        for (let y = -20; y <= 20; y++)
+          for (let x = -26; x <= 26; x++) {
+            const ro = dir.map(
+              (v, axis) => v * 9 + R[axis] * x * 0.14 + U[axis] * y * 0.14,
+            );
+            const atPlane = (h) =>
+              [0, 2].map((axis) => ro[axis] + rd[axis] * ((h - ro[1]) / rd[1]));
+            const tc = atPlane(-0.17),
+              pc = atPlane(-0.55 * depth);
+            const candidates = new Set();
+            for (let side = 0; side < 4; side++) {
+              const odd = side % 2;
+              const component = (p) =>
+                side === 0
+                  ? p[0]
+                  : side === 1
+                    ? p[1]
+                    : side === 2
+                      ? -p[0]
+                      : -p[1];
+              const edge = [-1.5, 1.5, 1.5, -1.5][side];
+              if (
+                Math.abs(tc[odd ? 0 : 1] - edge) > 0.62 &&
+                Math.abs(pc[odd ? 0 : 1] - edge) > 1.02
+              )
+                continue;
+              const address = Math.floor((component(tc) + 1.5) * 4);
+              const pier =
+                Math.floor(((component(pc) + 1.5) * 4 - 0.5) / 3 + 0.5) * 3;
+              for (let j = -1; j <= 1; j++) {
+                candidates.add(
+                  side * 12 + Math.max(0, Math.min(11, address + j)),
+                );
+                candidates.add(
+                  144 + side * 12 + Math.max(0, Math.min(9, pier + j * 3)),
+                );
+              }
+            }
+            let exhaustive = Infinity,
+              selected = Infinity;
+            for (let id = 0; id < 48; id++)
+              for (const pier of [false, true]) {
+                if (pier && id % 3) continue;
+                const h = pier ? 0.55 * depth : 0.17;
+                let b = pier
+                  ? [0.065, h, 0.19 * width]
+                  : [0.139, h, 0.24 * width];
+                if (Math.floor(id / 12) % 2) b = [b[2], b[1], b[0]];
+                const c = centres[id].map(
+                  (v, axis) => v - (axis === 1 ? h : 0),
+                );
+                const t = boxHit(ro, rd, c, b);
+                exhaustive = Math.min(exhaustive, t);
+                if (candidates.has(id + (pier ? 144 : 0)))
+                  selected = Math.min(selected, t);
+              }
+            assert.ok(
+              selected === exhaustive || Math.abs(selected - exhaustive) < 1e-9,
+              `candidate miss ${width}/${depth}/${sway}/${view} at ${x},${y}: ${selected} vs ${exhaustive}`,
+            );
+            rays++;
           }
-        }
-        let exhaustive = Infinity, selected = Infinity;
-        for (let id = 0; id < 48; id++) for (const pier of [false, true]) {
-          if (pier && id % 3) continue;
-          const h = pier ? 0.55 * depth : 0.17;
-          let b = pier ? [0.065, h, 0.19 * width] : [0.139, h, 0.24 * width];
-          if (Math.floor(id / 12) % 2) b = [b[2], b[1], b[0]];
-          const c = centres[id].map((v, axis) => v - (axis === 1 ? h : 0));
-          const t = boxHit(ro, rd, c, b);
-          exhaustive = Math.min(exhaustive, t);
-          if (candidates.has(id + (pier ? 144 : 0))) selected = Math.min(selected, t);
-        }
-        assert.ok(selected === exhaustive || Math.abs(selected - exhaustive) < 1e-9,
-          `candidate miss ${width}/${depth}/${sway}/${view} at ${x},${y}: ${selected} vs ${exhaustive}`);
-        rays++;
       }
-    }
   assert.equal(rays, 26076);
 });
 
@@ -388,23 +475,38 @@ test("gravity stair frames are clean orthogonal flights, not overlapping ring co
     const flight = p.filter((t) => Math.floor(t.id / 48) === frame);
     assert.equal(flight.length, 12);
     for (let i = 1; i < flight.length; i++)
-      near(Math.hypot(...subtract(flight[i].centre, flight[i - 1].centre)), Math.hypot(0.25, 0.13));
+      near(
+        Math.hypot(...subtract(flight[i].centre, flight[i - 1].centre)),
+        Math.hypot(0.25, 0.13),
+      );
   }
   assert.match(escher.fragment, /esStraight\(esFrame\(p, float\(frame\)\)\)/);
 });
 
 test("one nearest column per wall is an exact conservative candidate", () => {
-  for (const sway of [-1, 0, 1]) for (const view of [-1, 1]) {
-    const rd = normalize([direction[0] + 0.012 * sway + 0.009 * view, direction[1], direction[2] - 0.008 * sway]);
-    for (const wallAxis of [0, 2]) {
-      // The column's projected half-width is smaller than half one bay;
-      // hence no farther column can beat the rounded nearest address.
-      const projectedRadius = 0.15 * Math.hypot(rd[0], rd[2]) / Math.abs(rd[wallAxis]);
-      assert.ok(projectedRadius < 0.8);
+  for (const sway of [-1, 0, 1])
+    for (const view of [-1, 1]) {
+      const rd = normalize([
+        direction[0] + 0.012 * sway + 0.009 * view,
+        direction[1],
+        direction[2] - 0.008 * sway,
+      ]);
+      for (const wallAxis of [0, 2]) {
+        // The column's projected half-width is smaller than half one bay;
+        // hence no farther column can beat the rounded nearest address.
+        const projectedRadius =
+          (0.15 * Math.hypot(rd[0], rd[2])) / Math.abs(rd[wallAxis]);
+        assert.ok(projectedRadius < 0.8);
+      }
     }
-  }
-  assert.match(escher.fragment, /float i = floor\(\(\(wall == 0 \? onPlane.x : onPlane.z\) - 0.8\) \/ 1.6 \+ 0.5\);/);
-  assert.match(escher.fragment, /framing \*= mix\(1.4, 1.0, smoothstep\(0.65, 1.2, u_resolution.x \/ u_resolution.y\)\);/);
+  assert.match(
+    escher.fragment,
+    /float i = floor\(\(\(wall == 0 \? onPlane.x : onPlane.z\) - 0.8\) \/ 1.6 \+ 0.5\);/,
+  );
+  assert.match(
+    escher.fragment,
+    /framing \*= mix\(1.4, 1.0, smoothstep\(0.65, 1.2, u_resolution.x \/ u_resolution.y\)\);/,
+  );
 });
 
 test("recursive dolly and lantern traversals loop at the camera/procession clock wraps", () => {
@@ -413,7 +515,8 @@ test("recursive dolly and lantern traversals loop at the camera/procession clock
     const a = i * 0.173;
     near(zoom(a), zoom(a + TAU));
     assert.ok(zoom(a) > 0.86 && zoom(a) < 1.16);
-    const walk = (phase) => 5.5 - 5.5 * Math.cos((i * 5.5 + phase * 3) * TAU / 48);
+    const walk = (phase) =>
+      5.5 - 5.5 * Math.cos(((i * 5.5 + phase * 3) * TAU) / 48);
     near(walk(a), walk(a + 48));
     assert.ok(walk(a) >= 0 && walk(a) <= 11);
   }

@@ -1,83 +1,90 @@
 # Prism Engine · Prismenmaschine (#108)
 
-One continuous optical world: **Shard / Splitter → Array / Anordnung → Kaleidoscope / Kaleidoskop**. A glass prism splits a white beam, grows eight optical relays and four biconvex lenses, then opens into a seven-bay pointed-glass cathedral. Ten upper prisms form a large optical rose; their physically refracted spectra cross its centre. The camera glides from an exterior studio view into the nave. World id, eight preset names, seeds, schema and rhythm ids are unchanged.
+**Shard / Splitter → Array / Anordnung → Kaleidoscope / Kaleidoskop** is one continuous optical world. The same prism splits an incident beam, grows eight relays and four biconvex lenses, then opens into a seven-bay pointed glass nave with a ten-prism optical rose. World/family ids, state/preset names, seeds, schema keys and the original three rhythm ids are unchanged.
 
-## Signature mathematics
+## Round 3 — 2026-10-16
 
-`prism-model.mjs` is the independent CPU reference. Wavelengths are micrometres, 0.38–0.78. Cauchy's law remains:
+Executing model: **openai-codex/gpt-6.1-sol**. Independent baseline: L6/G2/E2, Overall4.5 (main SCORES.md), not the earlier implementer's optimistic 8.5.
 
-```
+- Quieted white bevels, studio cards and architectural reflections; added restrained palette-bound face gradients.
+- Opened the rose: radius 2.7, centre height 4.5; smaller, deeper peak hero; lenses move laterally instead of blocking the rose. CPU poses match GLSL and retain the original continuity bound.
+- Reduced peak camera lateral/dolly excursion and reframed the nave. Stable up; kick focal change remains at most 2%.
+- Raised finite floor fold-caustics and made diffuse beam width energy-dependent.
+- Added slot-3 **Spectral relay / Spektralstaffel**, three authored loops and DE/EN strings; strengthened address, incident steering and receiver gestures.
+- Rejected a broad 41-layer haze revision after capture/profile: overlap desaturated the picture and nearly doubled peak cost. Diffuse scattering now uses **one median-ray sheath per relay**, normalized to the former sample power. All 41 physical spectral fan/receiver traces remain intact.
+
+## Mathematics and rendering
+
+`prism-model.mjs` is the independent CPU reference. Wavelengths are micrometres, 0.38–0.78:
+
+```text
 n(λ) = 1.48 + 0.012 · dispersion / λ²
-δmin = 2 asin(n sin(α/2)) − α,  α = π/3
+δmin = 2 asin(n sin(α/2)) − α, α = π/3
 ```
 
-Five half-spaces define the equilateral prism (inradius 0.5; depth ±0.65). The vertex shader intersects the incident ray, applies vector Snell refraction at both interfaces, and follows a bounded TIR branch when needed. CPU tests independently minimize the scalar two-interface solution and compare it to the vector trace, check tangential momentum, critical angle, face membership and wavelength ordering.
+Five half-spaces define each equilateral prism (inradius 0.5, depth ±0.65). Vertex intersections apply vector Snell refraction at both interfaces, with bounded total internal reflection. Forty-one wavelengths define forty connected fan strips sampling the full shared palette gradient. A lower-power secondary branch reflects at the first exit face and takes another real Snell interface; invalid transmitted primitives remain finite and are suppressed.
 
-**Forty-one wavelengths** define forty adjoining fan strips. Adjacent strip boundaries use the same physical wavelength trace; wavelength interpolates across each triangle and samples the **entire** shared palette gradient, including its accent endpoint. Geometry retains the true Cauchy angular spread: there is no artificial RGB rainbow or decorative bend. A separate soft billboard sheath scatters light around the fan. Cores exceed 1.0 before shared bloom/tonemapping.
+Four biconvex lenses use paraboloids `z = ±(0.22 − 0.19r²)`. Five aperture rays per wavelength take exact quadratic exit intersections and two Snell interfaces. Tests cover convergence, chromatic focus, rotational symmetry, critical angle, tangential momentum, minimum deviation and wavelength order.
 
-A secondary, lower-power fan follows energy reflected at the first exit face, intersects the next real face and applies Snell refraction again. At a critical wavelength, invalid transmitted primitives are suppressed while their vertices remain on a finite limiting tangent, never at a distant clip origin. The secondary branch has an authored, bounded power rather than a full polarization-dependent Fresnel solver.
+Each arch satisfies `(|x| + w)² + (y − 2.3)² = (2w)²`, with `w = 3.3 · spacing`. Seven bays contain 98 rib/column pieces, 18 rails and 72 roof panes. Tests cover connected crowns, positive dimensions and reversible poses.
 
-The four lenses use paraboloids `z = ±(0.22 − 0.19 r²)`. Five aperture rays per wavelength undergo two Snell interfaces, with an exact quadratic intersection at the second surface. Tests check convergence, rotational symmetry and chromatic focal shift.
+One fixed **72,840-vertex** mesh, opaque/additive split at **25,344**: glass, mirrors, lenses, arches, spectral sheets, diffuse sheaths and caustic receivers. No new pass, framebuffer, simulation, raymarch, resolution cap or engine modification. All colour comes from palette anchors and black/white mixtures.
 
-The cathedral's two equal circular arch halves satisfy
+Glass uses Schlick Fresnel, two-interface analytic environment refraction, thickness absorption, studio reflections and derivative-filtered bevels. Closest-approach integration exposes internal optical paths through front surfaces. Floor mirrors, contact darkening, finite caustics, gallery slots and bounded haze establish depth.
 
-```
-(|x| + w)² + (y − 2.3)² = (2w)²,  w = 3.3 · spacing
-```
+Approximations: view rays sample an analytic environment, not recursively refracted neighbours; lens view thickness is approximate although beam intersections are exact; artistic fold caustics supplement exact receivers; diffuse haze is not volumetric transport. Near arches may extend beyond the border; the rose and hero remain visible in portrait.
 
-They meet at `x = 0`, `y = 2.3 + √3w`. Seven identical, persistent bays have 98 faceted rib/column pieces, 18 longitudinal rails and 72 thin glass roof panes. CPU references check symmetry, circle membership, crown continuity, positive dimensions, rail spans and exact development reversal.
+## States, looks and energy
 
-## Rendering
+The first three looks share seed **10801** and identical non-development parameters.
 
-- One fixed **72,840-vertex** mesh: 19 optical prisms and their floor mirrors; four lenses; cathedral ribs, rails, mirrored supports and panes; primary and reflected spectral sheets; volumetric sheaths and caustic receivers. Opaque/additive split at vertex **25,344**. Geometry is rebuilt only when the seed changes.
-- Glass: Schlick Fresnel, two-interface background refraction, thickness absorption, finite studio-card reflections, soft key/rim lighting, derivative-filtered polished bevels. Nonuniform architectural rods transform exit normals back into world space before refraction.
-- Internal light: closest approach between the view segment through the glass and the actual refracted segment, plus the next reflected segment. The front surface therefore transmits the interior paths instead of hiding them behind its depth write.
-- Ground: mirror geometry, contact darkening, restrained tile seams, smooth receiver spill, narrow exact spectral footprints and animated fold-caustic support. The distant cyclorama, gallery slots, floor sheen and bounded palette haze establish studio depth rather than a pure-black void.
-- All colour is the shared palette gradient or palette anchors mixed with black/white. No engine change, new framebuffer, simulation or volume-march pass.
+| Look                                     | Development | Composition                                            |
+| ---------------------------------------- | ----------: | ------------------------------------------------------ |
+| Shard / Splitter                         |           0 | Glass hero, incident beam, spectrum, mirrored caustics |
+| Array / Anordnung                        |           1 | Eight relays, four focusing lenses and spectral fans   |
+| Kaleidoscope / Kaleidoskop               |           2 | Enclosing nave and open ten-prism rose                 |
+| Flint Nocturne / Flintglas-Nachtstück    |           0 | Close, low, slow, strongly dispersive                  |
+| Spectral Cloister / Spektraler Kreuzgang |         1.6 | Compressed elevated growing nave                       |
+| Long Exposure / Langzeitbelichtung       |         0.6 | Elevated slow array                                    |
+| Cauchy Vault / Cauchy-Gewölbe            |           2 | Wider, lower, faster cathedral                         |
+| Quiet Optics / Stille Optik              |           1 | Spacious low-dispersion array                          |
 
-### Deliberate approximations
+Stage: dispersion, spacing, haze. Energy changes spectral-bundle population, diffuse width and integrated optical/camera speed, not whole-frame brightness. Two integrated 2π clocks preserve phase through rate changes and 12-hour operation. Maximal topology and seed identity survive reversal.
 
-Glass view rays sample analytic gallery/studio/floor radiance, not recursively refracted neighbouring solids. Lens **beam** intersections are exact for the authored paraboloids; lens **view-ray** thickness is approximate. Exact finite ray footprints are supplemented by an artistic analytic fold-caustic field, not a photon-mapped irradiance solution. Haze uses finite camera-facing Gaussian sheaths and bounded spatial scattering, not a heterogeneous volumetric transport solve. The closest arches intentionally pass beyond the frame to establish an enclosing room; the central prism and optical rose remain composed.
+## Rhythm
 
-## Looks and development
+| Slot | Gesture          | Mapping                                                                                                                                 |
+| ---- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | Spectral address | Accents a real ray bundle from the currently grown population; ≤2 hits/bar                                                              |
+| 1    | Snell breath     | Bounded 0.042-radian incident-angle steering; ≤2 hits/bar                                                                               |
+| 2    | Caustic sweep    | A stronger local wavelength band crosses spectral receivers                                                                             |
+| 3    | Spectral relay   | A finite packet travels along existing optical segments; counts alternate relay cohorts, with a hero pulse and coloured receiver answer |
 
-The first three presets retain seed **10801** and identical non-development parameters.
+Slot 3 reads `u_rhythm.w`, `u_rhythmHit.w`, `u_rhythmCount.w`. Muting zeros its contribution; geometry and camera are unaffected. No full-screen white; the shared flash limiter is unmodified and enabled in native verification. Standard review films use the repository harness's documented deterministic capture behaviour, not live safety certification.
 
-| Look | Development | Composition |
-| --- | ---: | --- |
-| Shard / Splitter | 0 | Isolated glass hero, white incident path, full-gradient spectrum and floor caustics |
-| Array / Anordnung | 1 | Eight relays, four focusing lenses and mirrored spectral fans |
-| Kaleidoscope / Kaleidoskop | 2 | Enclosing pointed nave, large ten-prism optical rose and crossing spectra |
-| Flint Nocturne / Flintglas-Nachtstück | 0 | Close, low, slow, strongly dispersive study |
-| Spectral Cloister / Spektraler Kreuzgang | 1.6 | Compressed elevated nave during its growth |
-| Long Exposure / Langzeitbelichtung | 0.6 | Elevated, slowly developing array |
-| Cauchy Vault / Cauchy-Gewölbe | 2 | Wider, lower, faster cathedral |
-| Quiet Optics / Stille Optik | 1 | Spacious, low-dispersion optical array |
+| Preset            | Family hits/bar | Signature steps (1-based, whole loop)                              |
+| ----------------- | --------------: | ------------------------------------------------------------------ |
+| Sleeping spectrum |            2.75 | Eighth-note loop, 16 steps: 3, 14                                  |
+| Refracted paths   |            8.25 | Eighth-note loop, 16 steps: 1, 4, 6, 10, 12, 15                    |
+| Caustic choir     |            14.0 | Sixteenth-note loop, 32 steps: 1, 4, 7, 11, 14, 19, 22, 25, 28, 31 |
 
-Stage: **dispersion**, **spacing**, **haze**. Energy changes integrated optical/camera speed and the population of spectral bundles, never whole-picture brightness. The kick changes focal length by at most 2%.
+Original tracks retain independent off-beats, three-bar address figures, sparse steering and a six-beat caustic loop. Signature envelopes settle before their next event in every style.
 
-## Rhythm, camera and endlessness
+## Cost and verification
 
-Unchanged signature gestures: **Spectral address** (4 beats), **Snell breath** (8 beats, actual incident-angle excursion), **Caustic sweep** (16 beats, wavelength-band receiver emphasis). No full-frame flash or reseed.
+Native ANGLE Metal / Apple M3 Pro, energy 0.95, normal post chain and full output resolution. Twelve measured frames/state; short shared-GPU synchronous throughput, **not sustained venue cadence**.
 
-The continuous camera moves into the nave on development, with closed slow lateral/dolly motion and stable up. Two engine-integrated 2π clocks preserve phase through energy/fader changes and 12-hour operation. Persistent ids, maximal topology and reverse-development poses are deterministic. The portrait composition preserves the central optical subject; peripheral relays and near structural ribs can meet the border.
+| State        | 1080p p50 / p95 |  4K p50 / p95 | ABBA p50 Δ vs main |
+| ------------ | --------------: | ------------: | -----------------: |
+| Shard        |    2.1 / 2.2 ms |  5.9 / 6.0 ms |              −4.3% |
+| Array        |    2.6 / 2.9 ms |  8.5 / 9.6 ms |              −3.0% |
+| Kaleidoscope |    2.9 / 3.3 ms | 9.0 / 10.2 ms |             −20.0% |
 
-## Cost and verification — next-round revision
+ABBA reference main `ece71270d42f613514e941010660445f7382bb15`, 1080p, 64 samples/candidate. All states meet 8 ms / 16 ms p50 budgets; zero GL/non-finite errors. Profiling uses supported `--families prism` (the brief's singular `--family` is not implemented).
 
-Native ANGLE Metal / Apple M3 Pro; full-resolution picture and normal post chain, energy 0.95, 12 measured frames/state. No resolution shortcut. Timings are short shared-machine throughput probes, not sustained venue-cadence guarantees.
+- Family tests: optics, topology/metadata, seed continuity/reversal, all presets, slot 3, density floors, packet spacing, median-only diffuse skip and 12-hour clocks.
+- `scripts/verify-prism.mjs --rig --port 48801`: 63 limiter-enabled cases; all eight presets at energy 0.1/0.5/0.9, default/Ember/Glacier, portrait, 3600/4096/43200 seconds, signature on/muted and one-slot reversal. Minimum lit fraction 21.5%; maximum near-white fraction 0.145%; zero GL/non-finite/GPU/browser errors. Muting changes 2.5–10.8% of pixels at sampled signature phases.
+- Full tests, typecheck, build, native DE/EN i18n and touched-file formatting: exact current totals/logs in the worker report and `artifacts/verification/prism-r3/`.
+- Before and three film rounds: `artifacts/look-review/prism-engine-r3-*`. Final reviewer evidence, default/Ember/Glacier films and grids: `artifacts/look-review/prism-engine-r3/`.
 
-| State | Baseline 1080p p50 | Final 1080p p50 / p95 | Baseline 4K p50 | Final 4K p50 / p95 |
-| --- | ---: | ---: | ---: | ---: |
-| Shard | 1.8 ms | 2.6 / 2.8 ms | 4.6 ms | 6.3 / 6.5 ms |
-| Array | 1.9 ms | 3.2 / 3.5 ms | 5.2 ms | 8.5 / 8.8 ms |
-| Kaleidoscope | 1.7 ms | 3.8 / 4.2 ms | 5.0 ms | 11.0 / 11.5 ms |
-
-Every state remains below **8 ms at 1080p / 16 ms at 4K**. Additional geometry and richer light transport increase Array/Kaleidoscope cost; no baseline-plus-5% claim is made. All measured states have zero GL/GPU errors and non-finite uploads.
-
-- `node --test tests/prism.test.mjs tests/time.test.mjs`: optics, secondary branch, connected full-spectrum sheets, triangle-metadata regression, architectural mathematics/continuity, eight valid presets and 12-hour clocks. World lookup is by `w.id === "prism-engine"`, never registry position.
-- Native late-time seam/rate checks: 3600, 4096, 43200 seconds; zero seams/errors.
-- Baseline, Liquid Chrome reference and seven next-round visual revisions; strips and full-size stills reviewed. A rejected overbright reflected-fan topology revision is explicitly retained as a strip.
-- Final default/Glacier/Ember films, portrait, Spectral Cloister film and all-eight-look 0.1/0.5/0.9 energy ladder.
-- Typecheck, build and DE/EN browser localization pass. Full CPU suite has only the three expected integration-owned preview/curation failures.
-
-**Honest visual assessment: 8.5/10**, improved from the independent ~7/10 baseline. The enclosing composition and spectrum are substantially stronger, but the analytic glass environment and restrained haze do not yet equal Liquid Chrome's material richness. Absolute films, strips, raw timings and logs are in the fleet lane report.
+**Still weak:** Shard remains a familiar isolated prism study; analytic glass sometimes reads as outlined geometry; genuine sequential relay-to-relay propagation is approximated by independently addressed paths. Fuller rhythm and an open rose do not by themselves establish an independent L≥8 pass.

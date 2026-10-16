@@ -8,33 +8,33 @@ One row per world; updated after every independent re-score. "Signature effect" 
 
 | World | id | Baseline | Latest | Round | L | G | E | Pass | Signature effect (slot 3) | Merged |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Living Mycelium | mycelium | 4.0 | 7.0 | [r4 (sol)](reviews/mycelium-r4.md) | 7.0 | 8.5 | 7.0 | no | Signal relay (localized; travel not yet legible) | 5f3b6bd |
-| Afterglow Garden | garden | 4.0 | 7.5 | [r4 (opus)](reviews/garden-r4.md) | 7.5 | 7.5 | 7.0 | no | Pollen rising (visible) | e7fce99 |
+| Living Mycelium | mycelium | 4.0 | 7.0 | [r4 (sol)](reviews/mycelium-r4.md) | 7.0 | 8.5 | 7.0 | no | Signal relay (localized; travel not yet legible) | e5c17b0 |
+| Afterglow Garden | garden | 4.0 | 7.5 | [r5 (sol)](reviews/garden-r5.md) | 7.0 | 8.5 | 7.5 | no | pollen-rising: clearly visible pink unfurling flowers and rising trails (rhythm 1–5, 15–19); bo… | e7fce99 |
 | Unfolding Garden | unfolding | 3.0 | 7.0 | [r3 (sol)](reviews/unfolding-r3.md) | 6.5 | 8.5 | 7.0 | no | **petal-flush:** visible pink/peach petal patches and changing curl (rhythm 8, 17, 24); botanic… | add6a57 |
-| Hopf Bloom | hopf-bloom | 5.0 | — | baseline | — | — | — | no | — | — |
-| Crystal Cavern | cavern | 4.0 | — | baseline | — | — | — | no | — | — |
-| Spiral Nebula | nebula | 4.0 | — | baseline | — | — | — | no | — | — |
-| Endless Descent | descent | 3.0 | — | baseline | — | — | — | no | — | — |
-| Dusk Murmuration | murmuration | 3.5 | 6.0 | [r3 (opus)](reviews/murmuration-r3.md) | 6.0 | 7.5 | 6.0 | no | **wing-front**: partly visible. It shows as a thin vertical bright seam across the flock (rhyth… | 7075980 |
-| Origami Storm | origami | 4.0 | — | baseline | — | — | — | no | — | — |
-| Attractor Ribbons | attractor-ribbons | 3.0 | 6.0 | [r3 (sol)](reviews/attractor-ribbons-r3.md) | 5.0 | 8.5 | 6.5 | no | ribbon-relay: localized pink highlights visible; tail-to-head travel/wake not established by th… | 6c9792f |
-| Event Horizon | horizon | 4.0 | — | baseline | — | — | — | no | — | — |
-| Abyssal Bloom | deep-sea | 4.5 | — | baseline | — | — | — | no | — | — |
-| Liquid Chrome | liquid-chrome | 3.0 | 6.0 | [r3 (opus)](reviews/liquid-chrome-r3.md) | 6.0 | 7.5 | 6.0 | no | **magnetic-strike**: partly visible. On the beat frames (rhythm 1, 3, 9, 11, plus the syncopate… | d7bdc67 |
-| Moon Tide | moon-tide | 3.5 | — | baseline | — | — | — | no | — | — |
-| Laser Grid | laser-grid | 4.0 | 6.5 | [r3 (sol)](reviews/laser-grid-r3.md) | 6.0 | 8.5 | 7.0 | no | tunnel-chase: hot pink individual shots clearly visible; sequential eight-laser chase unresolve… | 5e35c8b |
-| Magma Rift | magma-rift | 5.0 | — | baseline | — | — | — | no | — | — |
-| Kinetic Rain | kinetic-rain | 3.5 | — | baseline | — | — | — | no | — | — |
-| Aurora Veil | aurora-veil | 4.0 | — | baseline | — | — | — | no | — | — |
-| Brass Orrery | brass-orrery | 3.5 | — | baseline | — | — | — | no | — | — |
-| Thunderhead | thunderhead | 4.5 | 7.0 | [r3 (sol)](reviews/thunderhead-r3.md) | 6.5 | 7.5 | 8.0 | no | bolt-from-the-blue: clearly visible, especially rhythm 9–10 and 17–18; fits strongly. Large pin… | 0b5c815 |
-| Prism Engine | prism-engine | 4.5 | — | baseline | — | — | — | no | — | — |
-| Impossible Stairs | impossible-stairs | 4.0 | — | baseline | — | — | — | no | — | — |
-| Silk Storm | silk-storm | 4.5 | — | baseline | — | — | — | no | — | — |
-| Ink Bloom | ink-bloom | 3.5 | 6.0 | [r3 (opus)](reviews/ink-bloom-r3.md) | 5.5 | 7.0 | 6.0 | no | **ink-burst**: visible, yes. It shows as a large magenta patch on strip frames 15–20 (bar 2 fil… | 37b5900 |
-| Soap Cathedral | soap-cathedral | 4.5 | — | baseline | — | — | — | no | — | — |
-| Dune Sea | dune-sea | 4.0 | — | baseline | — | — | — | no | — | — |
-| Data Monolith | data-monolith | 4.0 | — | baseline | — | — | — | no | — | — |
+| Hopf Bloom | hopf-bloom | 5.0 | 7.0 | [r3 (sol)](reviews/hopf-bloom-r3.md) | 6.5 | 8.5 | 7.0 | no | **fibre-current:** localized pink fibre cohorts clearly visible (rhythm 1, 5, 7, 15, 21); fits … | e5c17b0 |
+| Crystal Cavern | cavern | 4.0 | 6.5 | [r3 (sol)](reviews/cavern-r3.md) | 6.0 | 8.5 | 6.5 | no | crystal-chime: localized pink cohorts clearly visible (rhythm 1, 6, 17–18, 21); circular travel… | e5c17b0 |
+| Spiral Nebula | nebula | 4.0 | 6.5 | [r3 (sol)](reviews/nebula-r3.md) | 6.0 | 8.5 | 7.0 | no | **starfront:** pink sectors clearly visible (rhythm 1, 3, 10, 13, 18, 20); fits stellar ejecta.… | e5c17b0 |
+| Endless Descent | descent | 3.0 | 7.0 | [r3 (sol)](reviews/descent-r3.md) | 6.5 | 8.5 | 7.0 | no | ignition-wave: localized floor bands visibly flare (rhythm 1–3, 13, 24); sequential floor-by-fl… | e5c17b0 |
+| Dusk Murmuration | murmuration | 3.5 | 6.0 | [r3 (opus)](reviews/murmuration-r3.md) | 6.0 | 7.5 | 6.0 | no | **wing-front**: partly visible. It shows as a thin vertical bright seam across the flock (rhyth… | e5c17b0 |
+| Origami Storm | origami | 4.0 | 6.5 | [r3 (sol)](reviews/origami-r3.md) | 6.0 | 8.5 | 6.5 | no | **crease-snap:** localized pink sectors visible (rhythm 16, 21); an actual hinge snap is not di… | e5c17b0 |
+| Attractor Ribbons | attractor-ribbons | 3.0 | 6.0 | [r3 (sol)](reviews/attractor-ribbons-r3.md) | 5.0 | 8.5 | 6.5 | no | ribbon-relay: localized pink highlights visible; tail-to-head travel/wake not established by th… | e5c17b0 |
+| Event Horizon | horizon | 4.0 | 7.0 | [r3 (sol)](reviews/horizon-r3.md) | 6.5 | 8.5 | 7.0 | no | photon-relay: localized pink rim flare clearly visible, changing sectors in rhythm 1–3, 6–8, 19… | e5c17b0 |
+| Abyssal Bloom | deep-sea | 4.5 | 7.0 | [r3 (sol)](reviews/deep-sea-r3.md) | 6.5 | 8.5 | 7.0 | no | **living-relay:** localized pink reef/bell illumination is visible; alternating cross-organism … | e5c17b0 |
+| Liquid Chrome | liquid-chrome | 3.0 | 6.0 | [r3 (opus)](reviews/liquid-chrome-r3.md) | 6.0 | 7.5 | 6.0 | no | **magnetic-strike**: partly visible. On the beat frames (rhythm 1, 3, 9, 11, plus the syncopate… | e5c17b0 |
+| Moon Tide | moon-tide | 3.5 | 6.5 | [r3 (sol)](reviews/moon-tide-r3.md) | 6.0 | 8.5 | 7.0 | no | moon-roller: purple shoulder bands visibly change (rhythm 1–3, 19–24); inward travel cannot be … | e5c17b0 |
+| Laser Grid | laser-grid | 4.0 | 6.5 | [r3 (sol)](reviews/laser-grid-r3.md) | 6.0 | 8.5 | 7.0 | no | tunnel-chase: hot pink individual shots clearly visible; sequential eight-laser chase unresolve… | e5c17b0 |
+| Magma Rift | magma-rift | 5.0 | 7.0 | [r3 (sol)](reviews/magma-rift-r3.md) | 6.5 | 8.5 | 7.5 | no | **rift-pressure:** hot yellow ejecta packet visibly changes height (rhythm 7–9, 21–24); strongl… | e5c17b0 |
+| Kinetic Rain | kinetic-rain | 3.5 | 6.5 | [r3 (sol)](reviews/kinetic-rain-r3.md) | 5.5 | 8.5 | 7.0 | no | drop-cascade: pink lamp cohorts and mirrored accents clearly visible (rhythm 8, 12, 20, 24); do… | e5c17b0 |
+| Aurora Veil | aurora-veil | 4.0 | 7.0 | [r3 (sol)](reviews/aurora-veil-r3.md) | 6.5 | 8.5 | 7.0 | no | **curtain-surge:** localized pink/peach excitation and reflected colour are visible (rhythm 3, … | e5c17b0 |
+| Brass Orrery | brass-orrery | 3.5 | 6.5 | [r3 (sol)](reviews/brass-orrery-r3.md) | 6.0 | 8.5 | 6.5 | no | escapement-strike: partly visible—localized pink/peach gear illumination, especially rhythm 19–… | e5c17b0 |
+| Thunderhead | thunderhead | 4.5 | 7.0 | [r3 (sol)](reviews/thunderhead-r3.md) | 6.5 | 7.5 | 8.0 | no | bolt-from-the-blue: clearly visible, especially rhythm 9–10 and 17–18; fits strongly. Large pin… | e5c17b0 |
+| Prism Engine | prism-engine | 4.5 | 6.5 | [r3 (sol)](reviews/prism-engine-r3.md) | 6.0 | 8.5 | 6.5 | no | spectral-relay: partly visible—pink prism edges, core flares and floor accents (rhythm 3, 8, 12… | e5c17b0 |
+| Impossible Stairs | impossible-stairs | 4.0 | 7.0 | [r3 (sol)](reviews/impossible-stairs-r3.md) | 6.5 | 8.5 | 7.0 | no | **lantern-ascent:** localized tread illumination clearly visible, especially rhythm 2–3, 6, 17–… | e5c17b0 |
+| Silk Storm | silk-storm | 4.5 | 7.0 | [r3 (sol)](reviews/silk-storm-r3.md) | 6.5 | 8.5 | 7.0 | no | **whip-crack:** partially visible—pink ribbon patches and changing creases, notably rhythm 7–8 … | e5c17b0 |
+| Ink Bloom | ink-bloom | 3.5 | 6.0 | [r3 (opus)](reviews/ink-bloom-r3.md) | 5.5 | 7.0 | 6.0 | no | **ink-burst**: visible, yes. It shows as a large magenta patch on strip frames 15–20 (bar 2 fil… | e5c17b0 |
+| Soap Cathedral | soap-cathedral | 4.5 | 6.5 | [r3 (sol)](reviews/soap-cathedral-r3.md) | 6.0 | 8.5 | 6.5 | no | **film-shimmer:** localized pink film patches clearly visible (rhythm 1, 5, 9, 17, 20); fits so… | e5c17b0 |
+| Dune Sea | dune-sea | 4.0 | 6.5 | [r3 (sol)](reviews/dune-sea-r3.md) | 6.0 | 8.5 | 6.5 | no | **crest-veil:** localized pink crest patches visibly change, especially rhythm 3, 11–12, 17, 19… | e5c17b0 |
+| Data Monolith | data-monolith | 4.0 | 7.0 | [r3 (sol)](reviews/data-monolith-r3.md) | 6.5 | 8.5 | 7.0 | no | **memory-rewrite:** localized pink memory-port cohorts clearly visible (rhythm 2–4, 13, 17); fi… | e5c17b0 |
 
 ## Baseline (commit 55cb7cc)
 
