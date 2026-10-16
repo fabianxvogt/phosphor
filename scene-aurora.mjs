@@ -407,27 +407,40 @@ export default {
   type: { key: "development", values: [0, 1, 2] },
   energy: { travel: { mul: [0.75, 1.35] }, detail: [0, 0.15] },
   beat: { punch: 0.08, pulse: 0.08 },
+  rhythmStyles: { restrained: "Polar silence", driving: "Curtain signals", accented: "Magnetic midnight" },
   rhythm: [
     familyEffect(
       "ray-packet",
       0,
       "Ray packet",
       "A local cohort of persistent field-aligned rays catches a travelling pulse.",
-      { period: 4, strength: 0.6, duration: 1.5 },
+      { period: 4, strength: 0.6, duration: 1.5, steps: "X...", styles: {
+        restrained: { steps: "X....... | .......x | ...X.... | ........", division: 2, strength: 0.5, duration: 1.8 },
+        driving: { steps: "X.....x. | ..X...x.", division: 2, strength: 0.76, duration: 0.9 },
+        accented: { steps: "X........x...... | .....X.......x.. | ...X.......x....", division: 4, strength: 0.9, duration: 0.85 },
+      } },
     ),
     familyEffect(
       "upward-fold",
       1,
       "Upward fold",
       "A soft excitation travels upward along the existing magnetic curtain.",
-      { period: 8, strength: 0.65, duration: 2.5, kind: "motion" },
+      { period: 8, strength: 0.65, duration: 2.5, kind: "motion", steps: "X.......", styles: {
+        restrained: { steps: ".....x.. | ........ | ......X. | ........", division: 2, strength: 0.52, duration: 2 },
+        driving: { steps: "...X.... | .......x | .....X.. | ........", division: 2, strength: 0.78, duration: 1.75 },
+        accented: { steps: ".......X........ | ............x... | .....X.......... | ..........x.....", division: 4, strength: 0.92, duration: 1.5 },
+      } },
     ),
     familyEffect(
       "polar-hem",
       2,
       "Polar hem",
       "A few folds on the lower auroral edge receive a rare accent.",
-      { period: 16, strength: 0.65, duration: 3 },
+      { period: 16, strength: 0.65, duration: 3, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | ...X....", division: 2, strength: 0.52, duration: 2.5 },
+        driving: { steps: "........ | ......x. | ........ | ....X...", division: 2, strength: 0.78, duration: 2 },
+        accented: { steps: ".............x.. | ........X....... | ............X...", division: 4, strength: 0.92, duration: 1.5 },
+      } },
     ),
   ],
   // All uses of phase are integer multiples inside sin/cos. Development

@@ -287,27 +287,40 @@ export default {
     { param: "tumble", feature: "low", amount: 0.05 },
     { param: "beads", feature: "onset", amount: 0.08 },
   ],
+  rhythmStyles: { restrained: "Quiet fibres", driving: "Linked circles", accented: "Meridian braid" },
   rhythm: [
     familyEffect(
       "fibre-chase",
       0,
       "Fibre chase",
       "A cohort of whole fibres lights up and a comet runs once around each circle.",
-      { period: 4, strength: 0.65, duration: 1 },
+      { period: 4, strength: 0.65, duration: 1, steps: "X...", styles: {
+        restrained: { steps: "X....... | .....x.. | ..X.....", division: 2, strength: 0.55, duration: 1.5 },
+        driving: { steps: "X....x.. | ..X...x.", division: 2, strength: 0.78, duration: 0.8 },
+        accented: { steps: "X........x........X.....", division: 4, strength: 0.92, duration: 0.8 },
+      } },
     ),
     familyEffect(
       "torus-shell",
       1,
       "Torus shell",
       "One latitude torus of Villarceau circles glows along its edges.",
-      { period: 8, strength: 0.6, duration: 1.5 },
+      { period: 8, strength: 0.6, duration: 1.5, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | .......X | ......x.", division: 2, strength: 0.5, duration: 1.5 },
+        driving: { steps: "...X....x...", division: 2, strength: 0.74, duration: 1 },
+        accented: { steps: ".....X..........x...", division: 4, strength: 0.88, duration: 0.75 },
+      } },
     ),
     familyEffect(
       "meridian-link",
       2,
       "Meridian link",
       "Fibres over one meridian glow through every nested torus at once.",
-      { period: 16, strength: 0.7, duration: 2 },
+      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ......X. | ........", division: 2, strength: 0.55, duration: 2 },
+        driving: { steps: "........ | .......x | ........ | ......X.", division: 2, strength: 0.8, duration: 1.5 },
+        accented: { steps: ".............x.. | ......X......x.. | ...........X....", division: 4, strength: 0.94, duration: 0.75 },
+      } },
     ),
   ],
   fragment: `${shared}
