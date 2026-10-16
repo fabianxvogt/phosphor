@@ -47,7 +47,7 @@ float avNoise(vec2 p){
 float avRidge(float az){
  return .045+.035*sin(az*3.+avSeed()*6.)+.033*abs(sin(az*9.+.4))+.018*sin(az*23.)+.008*sin(az*61.);
 }
-float avShore(vec2 p){return 3.5+abs(p.y)*.24+2.*sin(p.y*.12)+sin(p.y*.39);}
+float avShore(vec2 p){return 15.+abs(p.y)*.42+2.*sin(p.y*.12)+sin(p.y*.39);}
 // Nearest two seeded frozen floes. Their bisectors form a non-repeating
 // pressure-crack network rather than three families of sinusoidal grid lines.
 vec2 avFloe(vec2 p){
@@ -90,7 +90,7 @@ void main(){
 `;
 const surface = `#version 300 es
 precision highp float;
-uniform float u_seed,u_kick,u_level;
+uniform float u_seed,u_kick,u_level,u_beat;
 uniform float u_params[8];
 uniform float u_clock[4];
 uniform vec2 u_resolution;
@@ -108,14 +108,20 @@ void main(){
  // Sub-quad kinks travel along the lower emission boundary. This contour
  // is evaluated per fragment so the fine hem never follows mesh facets.
  float hem=.005+mix(1.,.5,crown)*(.0014*sin(u*61.-3.*phase+v_sheet)+.0008*sin(u*137.+2.*phase));
+ hem+=.022*avNoise(vec2(u*19.+v_sheet*7.,.3*sin(phase)));
  h-=hem;
  vec3 floorP=vec3(0.);float frost=1.;
  if(v_mirror>.5){
   vec3 mp=vec3(v_world.x,-v_world.y,v_world.z);
   float t=eye.y/(eye.y-mp.y);floorP=mix(eye,mp,t);
-  float rough=avNoise(floorP.xz*.7);
-  u+=(rough-.5)*.065;h+=.025*(rough-.5);
-  frost=.38+.56*smoothstep(.24,.85,rough);
+  // Long horizontal capillary wavelets, not isotropic frosted relief.
+  float rough=avNoise(vec2(floorP.x*.23,floorP.z*3.));
+  float wavePhase=floorP.z*11.+rough*4.+2.*sin(floorP.x*.39)+phase;
+  float wave=sin(wavePhase);
+  u+=wave*.014;h+=.012*(rough-.5);
+  float wavelets=pow(.5+.5*wave,3.);
+  wavelets=mix(wavelets,.3125,smoothstep(.4,2.,fwidth(wavePhase)));
+  frost=(.10+.90*wavelets)*smoothstep(.16,.75,rough);
  }
  // Field-aligned ray density. Footprint filters the finest rays, not a
  // pixel-sized random texture: stable at 4K and during the overhead tilt.
@@ -129,7 +135,7 @@ void main(){
  float rayWidth=max(.38,rayFoot*.8);
  float rayCore=exp(-pow(rayDistance/rayWidth,2.))*.55/rayWidth;
  rayCore=mix(rayCore,.1185,smoothstep(1.,3.,rayFoot));
- rayCore=mix(rayCore,.1185,v_mirror*.8);
+ rayCore=mix(rayCore,.1185,v_mirror);
  float midPhase=u*113.+3.*sin(u*19.+phase)+v_sheet*5.;
  float midFoot=fwidth(midPhase);
  float midRay=pow(.5+.5*cos(midPhase),6.);
@@ -147,15 +153,21 @@ void main(){
  density=mix(density,(.025+rays*.65+folds*.085)*gaps,crown);
  density*=.65+.35*sin(u*27.+.7*sin(h*9.+u*6.)-phase);
  // Fine vertical excitation travels inside stable field-aligned filaments.
- float shimmer=(.80+.20*sin(h*83.+u*19.-3.*phase+6.*sin(u*93.)))
-  *(.55+.45*pow(.5+.5*sin(u*11.+sin(u*3.-phase)+h*17.-phase),2.));
- density*=shimmer;
+ // Excitation is discontinuous along each field line: soft packets of
+ // different heights leave real air, not a uniformly lit pleated surface.
+ float packet=avNoise(vec2(u*17.+v_sheet*13.,h*15.-1.5*sin(phase)));
+ float cloud=avNoise(vec2(u*32.+sin(phase),h*3.+v_sheet*7.));
+ float shimmer=(.65+.35*sin(h*53.+u*19.-3.*phase+6.*sin(u*93.)))
+  *mix(.04,1.,smoothstep(.20,.76,packet));
+ density*=shimmer*(.35+cloud)*exp(-max(h,0.)*3.2);
+ float softBody=pow(cloud,3.)*exp(-h*6.)*gaps;
+ density+=softBody*.48;
  float tip=.48+.25*sin(u*7.-phase)+.15*sin(u*19.+phase);
  float reach=(.72+.28*sin(u*11.+1.7*sin(u*3.-phase)+v_sheet))*mix(.55,1.,u_level);
  float heightFade=exp(-max(h,0.)*(mix(3.8,1.5,crown)+1.8*(1.-reach)))*(1.-smoothstep(tip*reach,1.,h));
- float hemWidth=max(.0018,fwidth(h)*.85);
+ float hemWidth=max(.004+v_sheet*.003,fwidth(h)*.85);
  float edge=exp(-pow((h-.0025)/hemWidth,2.))*.0025/hemWidth;
- float baseFade=smoothstep(-fwidth(h),max(.003,fwidth(h)),h);
+ float baseFade=smoothstep(-fwidth(h),max(.018+v_sheet*.012,fwidth(h)),h);
  float facing=abs(dot(normalize(v_normal),normalize(eye-v_world)));
  float optical=min(1.9,1./max(facing,.52));
  float cohort=exp(-pow((sin(u-u_rhythmCount.x*.73-v_sheet)*4.),2.))*u_rhythm.x;
@@ -163,8 +175,8 @@ void main(){
  float foldPulse=exp(-pow(sin(u*2.-u_rhythmCount.z*.41)*5.,2.))*u_rhythm.z;
  vec3 ink=mix(u_primary,u_secondary*1.7,smoothstep(.012,.12,h));
  float endFade=smoothstep(0.,.08,v_uv.x)*(1.-smoothstep(.92,1.,v_uv.x));
- float lowerGlow=exp(-max(h,0.)*36.)*(.18+.48*folds)*gaps;
- vec3 col=ink*(density*heightFade*(1.65-rise*.2)+lowerGlow+edge*.10)*baseFade*optical*endFade*.8;
+ float lowerGlow=exp(-max(h,0.)*18.)*(.12+.40*folds)*gaps*(.4+.9*cloud);
+ vec3 col=ink*(density*heightFade*(1.65-rise*.2)+lowerGlow+edge*.025)*baseFade*optical*endFade*.8;
  col+=ink*rays*heightFade*cohort*1.8*endFade;
  // A broad emission layer under the filaments reads as ionised air,
  // not just a set of electric wires. Its lower edge remains the hero.
@@ -174,26 +186,40 @@ void main(){
  col+=u_accent*(edge*.7+lowerGlow*2.)*foldPulse*endFade*baseFade;
  // A count-addressed excitation rolls through the persistent material,
  // not the whole framebuffer. Strong second-bar crests share the lake mirror.
- float surgeAge=1.-clamp(u_rhythm.w,0.,1.);
- float surgeAngle=mod(u_rhythmCount.w*.79,AV_TAU);
- float surgeDelta=sin((u-surgeAngle-surgeAge*.8)*.5);
- float surge=exp(-pow(surgeDelta/.21,2.))*u_rhythm.w;
- float surgeFront=exp(-pow((h-.025-surgeAge*.38)/.10,2.));
- col+=mix(u_secondary,u_accent,.8)*surge*(lowerGlow*3.+(density+.16)*heightFade*surgeFront*4.)*endFade*baseFade;
+ // One ordered two-bar scan in world bearing, shared with the mirror.
+ // Beat position supplies travel; scheduled envelopes supply ALL emission,
+ // so a muted signature never leaves a free-running accent behind.
+ float phrase=fract(u_beat/8.);
+ float bearing=atan(v_world.x-eye.x,v_world.z-eye.z);
+ float crest=-1.25+2.5*phrase;
+ float behind=bearing-crest;
+ float front=exp(-pow(behind/.075,2.));
+ float wake=exp(-pow((behind+.16)/.24,2.))*.30;
+ float arrival=mix(.65,2.,smoothstep(.42,.62,phrase));
+ float surge=(front+wake)*u_rhythm.w*arrival;
+ float surgeFront=exp(-pow((h-.065-.08*phrase)/.16,2.));
+ col+=mix(u_secondary,u_accent,.85)*surge*(lowerGlow*5.+(density+.12)*heightFade*surgeFront*5.)*endFade*baseFade;
  col+=u_accent*edge*surge*u_rhythmHit.w*.12*endFade*baseFade;
- col+=u_accent*edge*.025*endFade*baseFade;
- col+=u_primary*rays*edge*.42*(1.+.25*u_kick)*endFade;
+ // Count only changes the tiny ray comb inside the moving crest.
+ col+=u_accent*front*surge*.08*(.5+.5*sin(u*71.+u_rhythmCount.w))*heightFade*baseFade*endFade;
+ // Sharp excitation belongs to sparse addressed packets, not every hem.
+ col+=u_primary*rays*edge*.10*cohort*(1.+.25*u_kick)*endFade*baseFade;
  // An almost edge-on triangle is an unresolved slice of the sheet.
  // Fade only that vanishing footprint rather than sparkling at its edge.
  float coverage=1.-smoothstep(.006,.035,fwidth(v_uv.x));
  col*=exp(-length(v_world-eye)*mix(.006,.002,crown))*coverage;
  // Distant sheets are dimmer; overlapping folds therefore read
  // as separate curtains rather than a single printed radial gradient.
- col*=1.-v_sheet*.13;
+ // The far curtains lose resolved detail and contrast; only a few near
+ // tangencies retain a bright edge. Patchy extinction separates returning
+ // folds without turning an optically thin aurora into opaque fabric.
+ float depthAir=exp(-v_sheet*.68);
+ float transmission=mix(1.,.35+.65*cloud,smoothstep(.3,1.,v_sheet));
+ col*=depthAir*transmission;
  if(v_mirror>.5){
   vec3 mp=vec3(v_world.x,-v_world.y,v_world.z);
   float fres=.30+.65*pow(1.-abs(normalize(mp-eye).y),3.);
-  col*=avIce(floorP.xz)*frost*fres*u_params[7]*1.8*exp(-length(floorP.xz)*.003);
+  col*=avIce(floorP.xz)*frost*fres*u_params[7]*5.*exp(v_sheet*.45)*exp(-length(floorP.xz)*.003);
  }
  outColor=vec4(max(col,vec3(0.)),0.);
 }
@@ -264,19 +290,19 @@ void main(){
   float width=max(fwidth(floe.y)*.7,.006);
   float lines=1.-smoothstep(width,width*2.,floe.y);
   float crack=lines*(.3+.7*drift)*exp(-t*.035)*ice;
-  col+=mix(mix(u_secondary,u_primary,.35),vec3(1.),.28)*crack*.19;
-  col*=1.-.35*exp(-floe.y*45.)*ice*fog;
-  col+=u_primary*(.012+.028*grain*resolved)*ice*exp(-pow(p.x/16.,2.))*fog;
+  // Open water between the snow banks: no luminous pressure-ridge mound.
+  col+=mix(u_secondary,u_primary,.35)*crack*.018;
+  col+=skyInk*(.014+.022*ripples)*ice*fog;
   float frost=pow(avNoise(p.xz*1.8),3.)*resolved;
   float needlePhase=p.x*39.+p.z*21.+drift*11.;
   float needles=pow(.5+.5*sin(needlePhase),12.);
   needles=mix(needles,.1612,smoothstep(.5,2.,fwidth(needlePhase)));
   float sparkle=pow(grain,12.)*needles*resolved;
-  col+=mix(u_secondary,vec3(1.),.45)*(frost*.22+sparkle*.8)*ice*fog;
+  col+=u_secondary*(frost*.014+sparkle*.035)*ice*fog;
   // Frosted pressure ridges catch grazing curtain light; the smooth patches
   // between them keep the actual mirrored mesh's specular image.
   float etched=pow(avNoise(p.xz*vec2(3.,9.)),7.);
-  col+=mix(u_primary,vec3(1.),.22)*etched*.038*ice*fog*resolved;
+  col+=u_primary*etched*.008*ice*fog*resolved;
  }
  outColor=vec4(max(col,vec3(0.)),1.);
 }

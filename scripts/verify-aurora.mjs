@@ -257,6 +257,58 @@ try {
     };
   });
   assert.deepEqual(frozen, { changed: 0, sameMesh: true, glError: 0 });
+  // Force only the material clock uniform across its 2π seam while keeping
+  // geometry/camera/beat/history fixed. This catches non-periodic noise inputs.
+  const clockSeam = await lab.page.evaluate(() => {
+    const { engine } = window.__phosphorLab;
+    const original = engine.sceneClocks;
+    let phase = 0;
+    engine.sceneClocks = function (slot) {
+      const values = original.call(this, slot);
+      values[0] = phase;
+      values[1] = 0.7;
+      return values;
+    };
+    const read = () => {
+      engine.uniformFrame++;
+      engine.advance(0, true);
+      const gl = engine.gl,
+        slot = engine.slots.at(-1);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, slot.visual[slot.vi].fbo);
+      const pixels = new Float32Array(engine.width * engine.height * 4);
+      gl.readPixels(
+        0,
+        0,
+        engine.width,
+        engine.height,
+        gl.RGBA,
+        gl.FLOAT,
+        pixels,
+      );
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return pixels;
+    };
+    try {
+      const before = read();
+      phase = 2 * Math.PI;
+      const after = read();
+      let max = 0,
+        mean = 0;
+      for (let i = 0; i < before.length; i++) {
+        const delta = Math.abs(before[i] - after[i]);
+        max = Math.max(max, delta);
+        mean += delta;
+      }
+      return { max, mean: mean / before.length, glError: engine.gl.getError() };
+    } finally {
+      engine.sceneClocks = original;
+    }
+  });
+  assert.equal(clockSeam.glError, 0);
+  assert.ok(
+    clockSeam.max < 0.01 && clockSeam.mean < 0.00001,
+    JSON.stringify(clockSeam),
+  );
   const limiter = await lab.page.evaluate(async () => {
     const { engine } = window.__phosphorLab;
     engine.resize(960, 540);
@@ -294,6 +346,7 @@ try {
         portraitStates: 3,
         reversal,
         frozen,
+        clockSeam,
         hdr,
         limiter,
         errors: lab.errors,
