@@ -76,7 +76,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Density Waves](families/nebula.md) | nebula | Feathered cosmic web, clumpy density-wave arms and torn ejecta with a sector-addressed Starfront | Dust / Spiral / Nova | 7 |
 | [Starling Flock](families/murmuration.md) | murmuration | Ragged topological flock over layered dusk; silver banking fronts and falcon scatter through dark folds | Loose / Surge / Formation | 7 |
 | [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |
-| [Event Horizon](families/horizon.md) | horizon | Schwarzschild null geodesics (Binet equation, Encke RK4) with a thin Doppler-beamed disk | Star / Infall / Horizon | 8 |
+| [Event Horizon](families/horizon.md) | horizon | Schwarzschild lensing with torn plasma sheets, a sheared stellar stream and photon-relay wakes | Star / Infall / Horizon | 8 |
 | [Laser Grid](families/laser.md) | laser | Hinged vector skyline, closed-form Gaussian lasers and liquid-sky cones | Horizon / Towers / Tunnel | 8 |
 | [Living Mycelium](families/mycelium.md) | mycelium | Hyphal tip growth with anastomosis, geodesic nutrient pulses and Murray-law cords | Understory / Tide / City | 8 |
 | [Attractor Ribbons](families/ribbons.md) (world Attractor Ribbons) | ribbons | Fixed-step RK4 trajectories in three flows, drawn as lit ribbons | Wings / Vortex / Labyrinth | 8 |
