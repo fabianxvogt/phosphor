@@ -708,7 +708,7 @@ void main() {
     vec2 hole = vec2(1e9, -1e9);
     if (wShell > .999 && wWeb + wDisk < .001) hole = nbEllipsoid(cam.eye, ray, vec3(R0 * .72));
     float skip = max(0., min(hole.y, t1) - max(hole.x, t0));
-    float steps = clamp(ceil((t1 - t0 - skip) / mix(.08, .16, k4)), wWeb + wShell > .001 ? mix(8., 5., k4) : 2., mix(24., 12., k4));
+    float steps = clamp(ceil((t1 - t0 - skip) / mix(.08, .16, k4)), wWeb + wShell > .001 ? mix(8., 4., k4) : 2., mix(24., 10., k4));
     float dt = (t1 - t0 - skip) / steps;
     uvec2 pix = uvec2(gl_FragCoord.xy);
     // The jitter changes every frame: at 60 Hz the eye averages it like
