@@ -37,7 +37,7 @@ function hash(x, y) {
   return fract((p[0] + p[1]) * p[2]);
 }
 const SPREAD = [0, -0.32, 0.38, -0.55, 0.8, -1.05];
-const TWIST = -3.5;
+const TWIST = -1.8;
 // The maelstrom's coordinate twist y = R(phi(r)) x, phi = TWIST v e^{-r²/900}.
 function twistAngle(x, dev) {
   return TWIST * smooth(1, 1.6, dev) * Math.exp(-(x[0] ** 2 + x[1] ** 2) / 900);
@@ -72,9 +72,13 @@ function waves(seed, dev, height = 1, clock = 0) {
       amplitude:
         WAVE_AMPLITUDES[i] *
         height *
-        (0.48 + (2.35 - 0.48) * smooth(0, 1, dev)),
+        ((i === 0 ? 1.35 : 0.48) +
+          (2.35 - (i === 0 ? 1.35 : 0.48)) * smooth(0, 1, dev)) *
+        (1 - 0.45 * smooth(1.2, 2, dev)),
       phase:
-        -((clock * n) % (2 * Math.PI)) + 2 * Math.PI * hash(i + 71, seed % 991),
+        -((clock * n) % (2 * Math.PI)) +
+        2 * Math.PI * hash(i + 71, seed % 991) -
+        (i === 0 ? 2 : 0),
     };
   });
 }
@@ -123,13 +127,13 @@ function bowl(p, dev, flow = 0) {
     (env * 2 * (r - 20)) / 289;
   let dr = (-depression * 2 * r) / 190 - (lip * 2 * (r - 23)) / 49;
   dr +=
-    0.8 *
+    0.3 *
     (env * (0.44 - 0.0336 * Math.cos(m)) * Math.cos(phase) +
       derivative * Math.sin(phase));
-  const da = 0.8 * (5 + 0.84 * Math.cos(m)) * Math.cos(phase) * env;
+  const da = 0.3 * (5 + 0.84 * Math.cos(m)) * Math.cos(phase) * env;
   const v = smooth(1.2, 2, dev);
   return {
-    h: v * (depression + lip + 0.8 * Math.sin(phase) * env),
+    h: v * (depression + lip + 0.3 * Math.sin(phase) * env),
     gradient: [
       v * ((dr * p[0]) / r - (da * p[1]) / (r * r)),
       v * ((dr * p[1]) / r + (da * p[0]) / (r * r)),
@@ -167,7 +171,7 @@ test("six exact directional identities obey deep-water dispersion and group velo
   assert.match(tide.fragment, /float k = omega \* omega \/ 9\.81;/);
   assert.match(
     tide.fragment,
-    /float amp=amplitude\*u_params\[2\]\*mix\(\.48,2\.35,swell\);/,
+    /float amp=amplitude\*u_params\[2\]\*mix\(quiet,2\.35,swell\);/,
   );
   for (const v of waves(10301, 1)) {
     assert.ok(Math.abs(v.omega ** 2 - GRAVITY * v.k) < 1e-14);
@@ -181,7 +185,7 @@ test("six exact directional identities obey deep-water dispersion and group velo
 });
 
 test("Gerstner steepness bound: no horizontal fold over the complete schema", () => {
-  const max = waves(10301, 2, 1.3).reduce(
+  const max = waves(10301, 1, 1.3).reduce(
     (s, w) => s + GERSTNER_Q * w.k * w.amplitude,
     0,
   );
@@ -481,7 +485,7 @@ test("the vortex twist is a radius-preserving bijection with an exact pullback",
   assert.match(tide.fragment, /float a=gTwist\*exp\(-dot\(x,x\)\/900\.\)/);
   assert.match(
     tide.fragment,
-    /gTwist=-3\.5\*smoothstep\(1\.,1\.6,u_params\[0\]\)/,
+    /gTwist=-1\.8\*smoothstep\(1\.,1\.6,u_params\[0\]\)/,
   );
   assert.match(tide.fragment, /gVortex=smoothstep\(1\.2,2\.,u_params\[0\]\)/);
   const field = (y) =>
@@ -857,13 +861,13 @@ function camera(dev, phase, eyeParam = 0.4, height = 1, camDev = dev) {
   const radius =
     (54 + 3 * Math.cos(phase)) * (1 - v) +
     (45 + 2 * Math.cos(2 * phase) - 20 * high) * v;
-  const coastal = upper + 4.6 * bowlWeight + 0.5 + 2.6 * eyeParam;
+  const coastal = upper + 4.6 * bowlWeight + 1.8 + 2.6 * eyeParam;
   return {
     upper: upper + 4.6 * bowlWeight,
     position: [
       12 * Math.sin(phase) * (1 - v) + radius * Math.sin(phase) * v,
       coastal * (1 - v) +
-        (27 + 15 * eyeParam + 12 * high - 14 * low + 2 * Math.sin(phase)) * v,
+        (20 + 12 * eyeParam + 24 * high - 10 * low + 2 * Math.sin(phase)) * v,
       radius * (1 - v) + radius * Math.cos(phase) * v,
     ],
   };
@@ -872,7 +876,7 @@ function camera(dev, phase, eyeParam = 0.4, height = 1, camDev = dev) {
 test("camera remains above the sea; kick bounded; energy never changes development", () => {
   assert.match(
     tide.fragment,
-    /coastal=gWaveHeight\+4\.6\*gVortex\+\.5\+2\.6\*eye/,
+    /coastal=gWaveHeight\+4\.6\*gVortex\+1\.8\+2\.6\*eye/,
   );
   assert.match(tide.fragment, /crane=smoothstep\(1\.1,1\.9,tdCamDev\(\)\)/);
   assert.match(
@@ -882,7 +886,7 @@ test("camera remains above the sea; kick bounded; energy never changes developme
   assert.match(tide.fragment, /mix\(radius,radius\*cos\(orbit\),crane\)/);
   assert.match(
     tide.fragment,
-    /27\.\+15\.\*eye\+12\.\*high-14\.\*lowEye\+2\.\*sin\(orbit\)/,
+    /20\.\+12\.\*eye\+24\.\*high-10\.\*lowEye\+2\.\*sin\(orbit\)/,
   );
   for (let dev = 0; dev <= 2; dev += 0.01)
     for (const eyeParam of [0, 0.1, 0.25, 0.4, 0.7, 1])
@@ -1124,6 +1128,92 @@ test("Moon Tide presets fill the panel without rushing the roller", () => {
     assert.equal(pattern.tracks.length, 4);
     // Only local lighting accents become busy; the six-beat roller stays slow.
     assert.ok(pattern.tracks[3].duration >= 6);
+  }
+});
+
+test("r4 water material, horizon composition and irregular roller remain continuous", () => {
+  assert.match(
+    tide.fragment,
+    /amp\*=mix\(1\.,\.55,smoothstep\(1\.2,2\.,u_params\[0\]\)\)/,
+  );
+  assert.match(tide.fragment, /float spiral=\.3\*sin\(phase\)\*envelope/);
+  assert.match(tide.fragment, /float seaBend=7\.\*sin/);
+  assert.match(tide.fragment, /rollGain\*=crestCatch\*wetGaps/);
+  assert.match(tide.fragment, /whitewater=smoothstep/);
+  assert.match(tide.fragment, /normal=normalize\(mix\(normal,farNormal/);
+  assert.match(tide.fragment, /moonForward=normalize\(target.xz-ro.xz/);
+  assert.ok(!tide.fragment.includes("float moonTurn=orbit*crane"));
+  // Fractional development must wrap too, not just the three integer states.
+  const moon = (dev, phase) => {
+    const ro = camera(dev, phase).position,
+      crane = smooth(1.1, 1.9, dev);
+    const target = [(1 - crane) * 0.5 * ro[0], (1 - crane) * (ro[2] - 84)];
+    const forward = [target[0] - ro[0] + 1e-4, target[1] - ro[2]];
+    const length = Math.hypot(...forward);
+    return forward.map((v) => v / length);
+  };
+  for (const dev of [0, 1, 1.2, 1.5, 1.8, 2]) {
+    const a = moon(dev, -1e-7),
+      b = moon(dev, 2 * Math.PI - 1e-7);
+    assert.ok(Math.hypot(...a.map((v, i) => v - b[i])) < 1e-9);
+  }
+  // Default peak pitch plus the moon elevation stays inside vertical FOV,
+  // including the entire disc and maximum kick; every orbit phase is tested.
+  const focal = 1.25 * 1.022;
+  const halfFov = Math.atan(1 / focal);
+  for (let orbit = 0; orbit < 2 * Math.PI; orbit += 0.01) {
+    const ro = camera(2, orbit).position;
+    const pitch = Math.atan2(ro[1] - 9, Math.hypot(ro[0], ro[2]));
+    const moonElevation = Math.atan2(0.2, Math.hypot(0.27, 1));
+    assert.ok(pitch + moonElevation + 0.068 < halfFov);
+  }
+  // Less long-wave relief at peak reduces petal silhouettes without changing
+  // mode identities or the swell's maximal steepness bound.
+  const swell = waves(10301, 1),
+    peak = waves(10301, 2);
+  peak.forEach((w, i) =>
+    assert.ok(Math.abs(w.amplitude / swell[i].amplitude - 0.55) < 1e-12),
+  );
+});
+
+test("r5 foam rafts and both rollers are attached to water, not repeated dashes", () => {
+  assert.match(tide.fragment, /vec2 foamAt=q\*\.065/);
+  assert.match(tide.fragment, /foamAt\+=vec2\(foamWarp,-foamWarp\)\*1\.8/);
+  assert.match(tide.fragment, /foamBranches=foamChannels\*gVortex/);
+  assert.match(tide.fragment, /churn=gVortex\*exp\(-sq\(\(r-23\.\)\/7\.\)\)/);
+  assert.match(
+    tide.fragment,
+    /tdFoamStreaks\(q,foamFill,footprint\)\*\(1\.-gVortex\)/,
+  );
+  assert.ok(!tide.fragment.includes("sin(3.7*r+2.*sin(armPhase)"));
+  assert.match(tide.fragment, /tideRing\*tideCatch\*glow/);
+  assert.match(
+    tide.fragment,
+    /crestCatch=\.1\+\.9\*smoothstep\(-\.025,\.17,surface.w\)/,
+  );
+  assert.match(
+    tide.fragment,
+    /tipWidth=\(\.65\+\.018\*gRollScale\)\*\(\.5\+1\.4\*wetGrain\)/,
+  );
+  // Material advection is periodic even at intermediate vortex weights;
+  // no fractional clock turn or event count is added to a noise lattice.
+  const at = (flow) => [Math.cos(flow) * 0.6, Math.sin(flow) * 0.6];
+  for (const t of [0, 0.7, 2.9, 6.1])
+    assert.ok(
+      Math.hypot(...at(t).map((v, i) => v - at(t + 2 * Math.PI)[i])) < 1e-14,
+    );
+});
+
+test("r5 quiet swell remains below Swell bounds and shares identity through reversal", () => {
+  assert.match(tide.fragment, /quiet=i==0\?1\.35:\.48/);
+  assert.match(tide.fragment, /quietShoulder=exp/);
+  const quiet = waves(10301, 0),
+    full = waves(10301, 1);
+  assert.equal(quiet[0].amplitude, 0.8 * 1.35);
+  for (let i = 0; i < quiet.length; i++) {
+    assert.ok(quiet[i].amplitude <= full[i].amplitude);
+    assert.equal(quiet[i].phase, full[i].phase);
+    if (i > 0) assert.equal(quiet[i].amplitude, WAVE_AMPLITUDES[i] * 0.48);
   }
 });
 
