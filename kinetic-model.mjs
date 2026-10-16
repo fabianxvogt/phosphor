@@ -17,7 +17,10 @@ export const SURFACE_COLS = 192;
 export const SURFACE_ROWS = (N * N) / SURFACE_COLS;
 export function sculptureUV(i, j) {
   const index = j * N + i;
-  return [((index % SURFACE_COLS) + 0.5) / SURFACE_COLS, (Math.floor(index / SURFACE_COLS) + 0.5) / SURFACE_ROWS];
+  return [
+    ((index % SURFACE_COLS) + 0.5) / SURFACE_COLS,
+    (Math.floor(index / SURFACE_COLS) + 0.5) / SURFACE_ROWS,
+  ];
 }
 export const RADIUS = 0.038; // sphere radius on the ceiling lattice
 export const HALF = ((N - 1) / 2) * SPACING; // lattice half extent
@@ -31,11 +34,15 @@ export const SADDLE_FIT = 1.1;
 export const HERO_DISTANCE = 4.9;
 export const HERO_PARALLAX = 0.45;
 export function focalLength(dev, kick = 0, M = 0, seed = 0) {
-  const w = chorus(M + (Number(seed) % 8192) % 4);
-  const fit = w.reduce((s, x, i) => s + x * FRAME_GAIN[i], 0) +
+  const w = chorus(M + ((Number(seed) % 8192) % 4));
+  const fit =
+    w.reduce((s, x, i) => s + x * FRAME_GAIN[i], 0) +
     MORPH_FIT * (1 - w.reduce((s, x) => s + x * x, 0)) +
     SADDLE_FIT * w[3] * (1 - w[3]);
-  return (FOCAL + (FOCAL_RISE + fit) * smoothstep(1, 2, dev)) * (1 + 0.02 * clamp(kick, 0, 1));
+  return (
+    (FOCAL + (FOCAL_RISE + fit) * smoothstep(1, 2, dev)) *
+    (1 + 0.02 * clamp(kick, 0, 1))
+  );
 }
 export const RING = { reach: 13, width: 1.8, amp: 0.16, wave: 1.9, grow: 8 };
 export const FORM = {
@@ -66,7 +73,10 @@ const fract = (x) => x - Math.floor(x);
 // Seed-derived identity: choreography direction and camera start.
 export function seedAngles(seed) {
   const s = Number(seed) % 8192;
-  return { wave: TAU * fract(s * 0.6180339887), camera: TAU * fract(s * 0.7548776662) };
+  return {
+    wave: TAU * fract(s * 0.6180339887),
+    camera: TAU * fract(s * 0.7548776662),
+  };
 }
 
 // Partition of unity over the four choreographies / forms at phase M ∈ [0, 4):
@@ -105,13 +115,15 @@ export function waveHeight(x, z, W, w, Phi, detail, base) {
     0.17 * Math.sin(1.25 * (d1x * x + d1z * z) - 2 * W) +
     0.17 * Math.sin(1.05 * (d2x * x + d2z * z) - 2 * W);
   const h1 = 0.27 * Math.sin(1.15 * rho - 2 * W);
-  const h2 = 0.25 * Math.sin(0.95 * rho + 3 * th - 2 * W) * smoothstep(0.4, 2.6, rho);
+  const h2 =
+    0.25 * Math.sin(0.95 * rho + 3 * th - 2 * W) * smoothstep(0.4, 2.6, rho);
   const h3 =
     0.32 *
     Math.sin(0.85 * (d1x * x + d1z * z)) *
     Math.sin(0.85 * (-d1z * x + d1x * z)) *
     Math.cos(2 * W);
-  const fine = 0.06 * detail * Math.sin(2.9 * (d2x * x + d2z * z) + 1.7 * rho - 3 * W);
+  const fine =
+    0.06 * detail * Math.sin(2.9 * (d2x * x + d2z * z) + 1.7 * rho - 3 * W);
   return w[0] * h0 + w[1] * h1 + w[2] * h2 + w[3] * h3 + fine;
 }
 
@@ -128,7 +140,9 @@ export function ringProfile(rho, kick, level) {
   const kn = clamp(kick / (KICK_STRENGTH * rhythmGain(level)), 0, 1);
   const front = RING.reach * (1 - kn),
     x = (rho - front) / RING.width;
-  return smoothstep(0, RING.grow, front) * Math.exp(-x * x) * Math.cos(RING.wave * x);
+  return (
+    smoothstep(0, RING.grow, front) * Math.exp(-x * x) * Math.cos(RING.wave * x)
+  );
 }
 export const ringHeight = (rho, kick, level) =>
   RING.amp * kick * ringProfile(rho, kick, level);
@@ -143,7 +157,11 @@ export function formSphere(u, v) {
   const th = TAU * u,
     ph = Math.PI * v,
     R = FORM.sphere;
-  return [R * Math.sin(ph) * Math.cos(th), R * Math.cos(ph), R * Math.sin(ph) * Math.sin(th)];
+  return [
+    R * Math.sin(ph) * Math.cos(th),
+    R * Math.cos(ph),
+    R * Math.sin(ph) * Math.sin(th),
+  ];
 }
 export function formTorus(u, v) {
   const th = TAU * u,
@@ -196,45 +214,96 @@ export function sculpture(u, v, w, W, Phi, detail) {
     z = st * p[1] + ct * p[2];
   const c = Math.cos(Phi),
     s = Math.sin(Phi);
-  return [(c * p[0] - s * z) * shimmer, y * shimmer, (s * p[0] + c * z) * shimmer];
+  return [
+    (c * p[0] - s * z) * shimmer,
+    y * shimmer,
+    (s * p[0] + c * z) * shimmer,
+  ];
 }
 
 // Analytic differential, in the same lattice-step units as the old
 // centred differences. Position/identity is untouched; normals and local
 // pearl spacing no longer need four additional complete surface samples.
-export function sculptureDerivatives(u, v, w, W, Phi, detail, p = sculpture(u, v, w, W, Phi, detail)) {
-  const th = TAU * u, c = Math.cos(th), s = Math.sin(th);
-  const du = [0, 0, 0], dv = [0, 0, 0];
-  const add = (a, b, k) => { for (let i = 0; i < 3; i++) a[i] += b[i] * k; };
+export function sculptureDerivatives(
+  u,
+  v,
+  w,
+  W,
+  Phi,
+  detail,
+  p = sculpture(u, v, w, W, Phi, detail),
+) {
+  const th = TAU * u,
+    c = Math.cos(th),
+    s = Math.sin(th);
+  const du = [0, 0, 0],
+    dv = [0, 0, 0];
+  const add = (a, b, k) => {
+    for (let i = 0; i < 3; i++) a[i] += b[i] * k;
+  };
   if (w[0] > 0) {
-    const sp = Math.sin(Math.PI * v), cp = Math.cos(Math.PI * v);
+    const sp = Math.sin(Math.PI * v),
+      cp = Math.cos(Math.PI * v);
     add(du, [-s, 0, c], w[0] * TAU * FORM.sphere * sp);
     add(dv, [cp * c, -sp, cp * s], w[0] * Math.PI * FORM.sphere);
   }
   if (w[1] > 0) {
-    const ps = Math.PI / 2 - TAU * v, sp = Math.sin(ps), cp = Math.cos(ps);
+    const ps = Math.PI / 2 - TAU * v,
+      sp = Math.sin(ps),
+      cp = Math.cos(ps);
     add(du, [-s, 0, c], w[1] * TAU * (FORM.torusR + FORM.torusr * cp));
     add(dv, [sp * c, -cp, sp * s], w[1] * TAU * FORM.torusr);
   }
   if (w[2] > 0) {
-    const m = FORM.mobiusW * (1 - 2 * v), ch = Math.cos(th / 2), sh = Math.sin(th / 2);
-    const r = FORM.mobiusR + m * ch, dr = -0.5 * TAU * m * sh;
-    add(du, [dr * c - TAU * r * s, 0.5 * TAU * m * ch, dr * s + TAU * r * c], w[2]);
+    const m = FORM.mobiusW * (1 - 2 * v),
+      ch = Math.cos(th / 2),
+      sh = Math.sin(th / 2);
+    const r = FORM.mobiusR + m * ch,
+      dr = -0.5 * TAU * m * sh;
+    add(
+      du,
+      [dr * c - TAU * r * s, 0.5 * TAU * m * ch, dr * s + TAU * r * c],
+      w[2],
+    );
     add(dv, [ch * c, sh, ch * s], w[2] * -2 * FORM.mobiusW);
   }
   if (w[3] > 0) {
-    const r = FORM.saddleR * Math.sqrt(0.02 + 0.98 * v), a = 2.6 * r - 2 * W;
-    const dr = 0.49 * FORM.saddleR ** 2 / r;
-    add(du, [-r * s, -2 * FORM.saddleK * r * r * Math.sin(2 * th), r * c], w[3] * TAU);
-    add(dv, [c, 2 * FORM.saddleK * r * Math.cos(2 * th) + FORM.saddleWave * (Math.sin(a) + 2.6 * r * Math.cos(a)), s], w[3] * dr);
+    const r = FORM.saddleR * Math.sqrt(0.02 + 0.98 * v),
+      a = 2.6 * r - 2 * W;
+    const dr = (0.49 * FORM.saddleR ** 2) / r;
+    add(
+      du,
+      [-r * s, -2 * FORM.saddleK * r * r * Math.sin(2 * th), r * c],
+      w[3] * TAU,
+    );
+    add(
+      dv,
+      [
+        c,
+        2 * FORM.saddleK * r * Math.cos(2 * th) +
+          FORM.saddleWave * (Math.sin(a) + 2.6 * r * Math.cos(a)),
+        s,
+      ],
+      w[3] * dr,
+    );
   }
-  const ct = Math.cos(TILT), st = Math.sin(TILT), cp = Math.cos(Phi), sp = Math.sin(Phi);
-  const phase = TAU * (5 * u + 3 * v) - 2 * W, a = 0.01 + 0.02 * detail;
-  const sh = 1 + a * Math.sin(phase), ds = a * Math.cos(phase) * TAU;
+  const ct = Math.cos(TILT),
+    st = Math.sin(TILT),
+    cp = Math.cos(Phi),
+    sp = Math.sin(Phi);
+  const phase = TAU * (5 * u + 3 * v) - 2 * W,
+    a = 0.01 + 0.02 * detail;
+  const sh = 1 + a * Math.sin(phase),
+    ds = a * Math.cos(phase) * TAU;
   return [du, dv].map((d, axis) => {
-    const y = ct * d[1] - st * d[2], z = st * d[1] + ct * d[2];
+    const y = ct * d[1] - st * d[2],
+      z = st * d[1] + ct * d[2];
     const rot = [cp * d[0] - sp * z, y, sp * d[0] + cp * z];
-    return rot.map((x, i) => (x * sh + p[i] * ds * (axis === 0 ? 5 : 3) / sh) / (axis === 0 ? SURFACE_COLS : SURFACE_ROWS));
+    return rot.map(
+      (x, i) =>
+        (x * sh + (p[i] * ds * (axis === 0 ? 5 : 3)) / sh) /
+        (axis === 0 ? SURFACE_COLS : SURFACE_ROWS),
+    );
   });
 }
 
@@ -253,7 +322,18 @@ const normalize = (a) => {
 // level, detail, amp, size, seed }. Returns position, surface normal, radius,
 // palette coordinate and the sphere's sculpture weight.
 export function ball(i, j, state) {
-  const { dev, W, M, Phi, kick = 0, level = 0.5, detail = 0, amp = 1, size = 1, seed = 0 } = state;
+  const {
+    dev,
+    W,
+    M,
+    Phi,
+    kick = 0,
+    level = 0.5,
+    detail = 0,
+    amp = 1,
+    size = 1,
+    seed = 0,
+  } = state;
   const base = seedAngles(seed).wave;
   const d = clamp(dev, 0, 2);
   const gx = (i - (N - 1) / 2) * SPACING,
@@ -263,7 +343,7 @@ export function ball(i, j, state) {
     s12 = clamp(d - 1, 0, 1);
   const sig = smoothstep(0, 1, s12 * (1 + STAGGER) - (STAGGER * rho) / RMAX);
   // The seed picks the first form / choreography (whole steps: a hold).
-  const w = chorus(M + (Number(seed) % 8192) % 4);
+  const w = chorus(M + ((Number(seed) % 8192) % 4));
   const ring = ringHeight(rho, kick, level) * amp;
   let pg = [0, 0, 0],
     ng = [0, 1, 0],
@@ -271,7 +351,9 @@ export function ball(i, j, state) {
   if (sig < 1) {
     const h = (x, z) =>
       rippleHeight(x, z, W) +
-      s01 * (waveHeight(x, z, W, w, Phi, detail, base) * amp - rippleHeight(x, z, W));
+      s01 *
+        (waveHeight(x, z, W, w, Phi, detail, base) * amp -
+          rippleHeight(x, z, W));
     const y = h(gx, gz),
       y0 = rippleHeight(gx, gz, W),
       e = SPACING * 0.5;
@@ -301,7 +383,7 @@ export function ball(i, j, state) {
     ns = no[1] < 0 ? [-no[0], -no[1], -no[2]] : no;
     // Local lattice spacing on the surface sets the sphere size, so dense
     // regions (poles, the disc centre) read as one surface, not a clump.
-    rs = clamp(0.55 * Math.sqrt(len(du) * len(dv)), 0.014, 0.055);
+    rs = clamp(0.46 * Math.sqrt(len(du) * len(dv)), 0.014, 0.055);
     hs = clamp(0.5 + 0.34 * p[1], 0, 1);
   }
   const p = [
@@ -329,19 +411,35 @@ export function camera(dev, alpha, Phi = 0, M = 0) {
   const s2 = smoothstep(1, 2, clamp(dev, 0, 2));
   const radius = 6.0 + 0.4 * Math.sin(2 * alpha);
   const height = 0.75 + 0.1 * Math.sin(3 * alpha);
-  const c = Math.cos(Phi), s = Math.sin(Phi), ca = Math.cos(alpha), sa = Math.sin(alpha);
-  const ct = Math.cos(TILT), st = Math.sin(TILT), d = HERO_DISTANCE, q = HERO_PARALLAX;
-  const hero = [-d * st * s + q * (c * ca - ct * s * sa),
-    CENTER[1] + d * ct - q * st * sa, d * st * c + q * (s * ca + ct * c * sa)];
+  const c = Math.cos(Phi),
+    s = Math.sin(Phi),
+    ca = Math.cos(alpha),
+    sa = Math.sin(alpha);
+  const ct = Math.cos(TILT),
+    st = Math.sin(TILT),
+    d = HERO_DISTANCE,
+    q = HERO_PARALLAX;
+  const hero = [
+    -d * st * s + q * (c * ca - ct * s * sa),
+    CENTER[1] + d * ct - q * st * sa,
+    d * st * c + q * (s * ca + ct * c * sa),
+  ];
   const start = [radius * ca, height, radius * sa];
   // Wait for the outer lattice to clear the crane's path; rise before
   // dollying inward. A direct lerp crossed the gathering spheres.
-  const crane = smoothstep(1.75, 1.97, dev), dolly = smoothstep(1.85, 2, dev);
-  const eye = start.map((x, i) => x + (hero[i] - x) * (i === 1 ? crane : dolly));
+  const crane = smoothstep(1.75, 1.97, dev),
+    dolly = smoothstep(1.85, 2, dev);
+  const eye = start.map(
+    (x, i) => x + (hero[i] - x) * (i === 1 ? crane : dolly),
+  );
   const side = 0.9 * (1 - s2);
   const s01 = smoothstep(0, 1, clamp(dev, 0, 1));
   const aim = 0.25 * s2 * chorus(M)[2];
-  const target = [-Math.sin(alpha) * side + aim * c, 2.2 - 0.3 * s01 + 0.05 * s2, Math.cos(alpha) * side + aim * s];
+  const target = [
+    -Math.sin(alpha) * side + aim * c,
+    2.2 - 0.3 * s01 + 0.05 * s2,
+    Math.cos(alpha) * side + aim * s,
+  ];
   return { eye, target };
 }
 
@@ -354,7 +452,8 @@ export function hazeLayer(o, d, t0, t1, h, sA, sB, F) {
   const y0 = o - h;
   const seg = (c, a, u0, u1) => {
     if (!(u1 > u0)) return 0;
-    if (Math.abs(a) < 1e-6) return (u1 - u0) * Math.exp(c + a * 0.5 * (u0 + u1));
+    if (Math.abs(a) < 1e-6)
+      return (u1 - u0) * Math.exp(c + a * 0.5 * (u0 + u1));
     return (Math.exp(c + a * u1) - Math.exp(c + a * u0)) / a;
   };
   const above = (u0, u1) => seg(-y0 / sA, -d / sA - 1 / F, u0, u1);
@@ -390,7 +489,8 @@ export function columnSpan(ox, oz, dx, dz, e, T) {
 
 // Deterministic per-sphere randomness (twinkle phase); development-free.
 function hash(seed, i) {
-  let h = (Math.imul(seed | 0, 0x9e3779b1) ^ Math.imul(i + 1, 0x85ebca6b)) >>> 0;
+  let h =
+    (Math.imul(seed | 0, 0x9e3779b1) ^ Math.imul(i + 1, 0x85ebca6b)) >>> 0;
   h ^= h >>> 15;
   h = Math.imul(h, 0x2c1b3c6d) >>> 0;
   h ^= h >>> 12;

@@ -2578,6 +2578,8 @@ export default {
   "A band of light sweeps diagonally across the lattice by sphere index, in every state.": "A band of light sweeps diagonally across the lattice by sphere index, in every state.",
   "Lattice lines": "Lattice lines",
   "Every eighth row and column of spheres lights up, tracing the grid across the surface.": "Every eighth row and column of spheres lights up, tracing the grid across the surface.",
+  "Drop cascade": "Drop cascade",
+  "A luminous ripple drops through suspended lamp heights, alternating its tilt on each launch and echoing in the mirror.": "A luminous ripple drops through suspended lamp heights, alternating its tilt on each launch and echoing in the mirror.",
   "Suspended drops": "Suspended drops",
   "Pendulum rain": "Pendulum rain",
   "Lattice cascade": "Lattice cascade",
