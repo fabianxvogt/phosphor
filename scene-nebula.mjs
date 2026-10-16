@@ -17,6 +17,8 @@ import {
   WEB_BOX,
   WEB_GRID,
   OCTA,
+  DISK_MAP,
+  DISK_EXTENT,
 } from "./nebula-model.mjs";
 export { SIZE };
 
@@ -36,7 +38,10 @@ export { SIZE };
 
 const f = (x) => (Number.isInteger(x) ? `${x}.` : `${x}`);
 const v3 = (a) => `vec3(${a.map(f).join(", ")})`;
-const ATLAS = [8 * (WEB_GRID[0] + 2), (WEB_GRID[1] / 8) * (WEB_GRID[2] + 2)];
+const SLICES = [8 * (WEB_GRID[0] + 2), (WEB_GRID[1] / 8) * (WEB_GRID[2] + 2)];
+// Atlas: web slices | disk map to their right; the remnant direction map
+// reuses the slice region while the web is not shown.
+const ATLAS = [SLICES[0] + DISK_MAP, Math.max(SLICES[1], DISK_MAP, OCTA)];
 const common = `
 const float NB_TAU = 6.283185307179586;
 const float NB_PI = 3.141592653589793;
@@ -534,14 +539,16 @@ vec2 nbWebField(vec3 x, uint clock, float growth) {
 // Remnant filaments on the sphere of directions: x = finger strength,
 // y = second ridge (hot filament cores).
 const shellData = `
-vec2 nbShellData(vec3 dn, float level) {
+// x = finger strength, y = second ridge (hot cores), zw = broad patchiness.
+vec4 nbShellData(vec3 dn, float level) {
   float a = nbGNoise(dn * 1.6 + 3.1, ivec3(14, 7, 14), 0x51a7u);
+  float a2 = nbGNoise(dn * 3.2 + 6.2, ivec3(28, 14, 28), 0x9c3bu);
   float s1 = nbGNoise(dn * 3.1 + 7.7 + .25 * (a - .5), ivec3(14, 7, 14), 0x51a7u);
   vec3 c2 = nbRot * dn * 7.3 + 2.3;
   float s2x = nbGNoise(c2, ivec3(14, 7, 14), 0x51a7u), s2y = nbGNoise(c2 * 2., ivec3(28, 14, 28), 0x9c3bu);
   float ridge = 1. - abs(2. * s1 - 1.), ridge2 = 1. - abs(2. * s2x - 1.);
   float holes = nbSmooth(.35, .65, a + .3 * (s2y - .5));
-  return vec2(pow(ridge, mix(24., 13., level)) * (.3 + 1.1 * ridge2 * ridge2 * ridge2) * holes, ridge2);
+  return vec4(pow(ridge, mix(24., 13., level)) * (.3 + 1.1 * ridge2 * ridge2 * ridge2) * holes, ridge2, a, a2);
 }
 vec3 nbOctaDecode(vec2 uv) {
   vec2 p = uv * 2. - 1.;
@@ -549,11 +556,30 @@ vec3 nbOctaDecode(vec2 uv) {
   if (d.y < 0.) d.xz = (1. - abs(d.zx)) * vec2(d.x >= 0. ? 1. : -1., d.z >= 0. ? 1. : -1.);
   return normalize(d);
 }
+// Disk map at a world point of the plane: x = arm crest, y = clumpy arm
+// light, z = lane optical depth, w = HII knots. Arms follow the pattern;
+// their texture rides with the gas.
+vec4 nbDiskData(vec2 xz, float twist, float pattern, float gasPhase, float level) {
+  float rd = length(xz);
+  vec2 g = mat2(cos(gasPhase), -sin(gasPhase), sin(gasPhase), cos(gasPhase)) * xz;
+  float nzx = nbGNoise(vec3(g.x * 2.4 + 9.7, 9.7, g.y * 2.4 + 9.7), ivec3(14, 7, 14), 0x51a7u);
+  float nzy = nbGNoise(vec3(g.x * 4.8 + 3.1, 3.1, g.y * 4.8 + 3.1), ivec3(28, 14, 28), 0x9c3bu);
+  vec3 hc = nbRot * vec3(g.x, 0., g.y) * 7.5 + 1.3;
+  float hfx = nbGNoise(hc, ivec3(14, 7, 14), 0x51a7u), hfy = nbGNoise(hc * 2., ivec3(28, 14, 28), 0x9c3bu);
+  float ph = nbArmPhase(xz, twist, pattern);
+  float arm = exp(-nbSq(sin(ph + .35 * (nzx - .5))) / .2);
+  float lane = exp(-nbSq(sin(ph - .28 + .3 * (nzx - .5) + .15 * (hfx - .5))) / (.02 + .035 * hfy)) * nbSmooth(.12, .32, rd);
+  float inner = nbSmooth(.12, .42, rd);
+  float clumps = .2 + 1.6 * nbSq(nbSmooth(.3, .8, hfx)) + .5 * nzy;
+  float spur = exp(-nbSq(sin(ph + 1.1 + 2.5 * (nzy - .5))) / .05) * .35;
+  float armLight = (arm * clumps + spur * hfy) * inner;
+  float knots = nbSmooth(.72 - .1 * level, .9, hfy) * arm * arm * nbSmooth(.22, .45, rd);
+  return vec4(arm, armLight, lane * (1.6 + 2.4 * nzy) * inner, knots);
+}
 `;
 
-// Atlas: ${WEB_GRID[1]} y-slices of (${WEB_GRID[0]}+2)×(${WEB_GRID[2]}+2) texels, 8 per row.
-// r,g: web density and streaming fibres (clamped box, cloud frame);
-// b,a: periodic value noise, 8 and 4 texels per lattice cell.
+// Web slices: ${WEB_GRID[1]} y-slices of (${WEB_GRID[0]}+2)×(${WEB_GRID[2]}+2) texels, 8 per
+// row (r: web density, g: streaming fibres; clamped box, cloud frame).
 const atlas = `
 const vec3 NB_BOX = ${v3(WEB_BOX)};
 const vec3 NB_GRID = ${v3(WEB_GRID)};
@@ -573,27 +599,22 @@ vec2 nbWebAt(vec3 x, uint clock) {
   return nbWebField(x, clock, u_params[2]);
 #endif
 }
-vec2 nbShellAt(vec3 dn) {
+vec4 nbShellAt(vec3 dn) {
 #ifdef PRECOMPUTED
   vec3 d = dn / (abs(dn.x) + abs(dn.y) + abs(dn.z));
   if (d.y < 0.) d.xz = (1. - abs(d.zx)) * vec2(d.x >= 0. ? 1. : -1., d.z >= 0. ? 1. : -1.);
   vec2 c = clamp((d.xz * .5 + .5) * ${f(OCTA)}, .5, ${f(OCTA - 0.5)});
-  return texture(u_precomputed, c / NB_ATLAS).xy;
+  return texture(u_precomputed, c / NB_ATLAS);
 #else
   return nbShellData(dn, clamp(u_level, 0., 1.));
 #endif
 }
-// Two periodic noises from one lookup: x = coarse (cell units ×1),
-// y = fine (the same coordinate at twice the lattice density).
-vec2 nbNoise2(vec3 cells) {
+vec4 nbDiskAt(vec2 xz, float twist, float pattern, float gasPhase) {
 #ifdef PRECOMPUTED
-  vec3 c = mod(cells * 8., NB_GRID);
-  float s = floor(c.y);
-  vec2 a = texture(u_precomputed, (nbSlice(s) + c.xz + 1.5) / NB_ATLAS).zw;
-  vec2 b = texture(u_precomputed, (nbSlice(mod(s + 1., NB_GRID.y)) + c.xz + 1.5) / NB_ATLAS).zw;
-  return mix(a, b, c.y - s);
+  vec2 c = clamp((xz / ${f(DISK_EXTENT)} * .5 + .5) * ${f(DISK_MAP)}, .5, ${f(DISK_MAP - 0.5)});
+  return texture(u_precomputed, (c + vec2(${f(SLICES[0])}, 0.)) / NB_ATLAS);
 #else
-  return vec2(nbGNoise(cells, ivec3(14, 7, 14), 0x51a7u), nbGNoise(cells * 2., ivec3(28, 14, 28), 0x9c3bu));
+  return nbDiskData(xz, twist, pattern, gasPhase, clamp(u_level, 0., 1.));
 #endif
 }
 `;
@@ -671,13 +692,12 @@ void main() {
       if (float(i) >= steps || t > t1) break;
       vec3 x = cam.eye + ray * t;
       float r = length(x);
-      vec3 xc = vec3(toCloud * x.xz, x.y).xzy;
       vec3 e = vec3(0.);
       float sigma = 0., matter = 0.;
       if (wWeb > .001) {
         // The web's pre-image: wound, contracted and flattened toward the
         // disk as it condenses (geometry, not a dissolve).
-        vec3 w = xc;
+        vec3 w = vec3(toCloud * x.xz, x.y).xzy;
         float rr = length(w.xz), a = p * 2.4 * exp(-rr * .7);
         w.xz = mat2(cos(a), -sin(a), sin(a), cos(a)) * w.xz * mix(1., 1.2, p);
         w.y /= flatten;
@@ -699,28 +719,23 @@ void main() {
       }
       if (wDisk > .001) {
         float rd = length(x.xz);
-        vec2 nz = nbNoise2(xc * vec3(2.4, 3., 2.4) + 9.7);
-        vec2 hf = nbNoise2(nbRot * vec3(xc.x, xc.y * 3., xc.z) * 7.5 + 1.3);
-        float ph = nbArmPhase(x.xz, twist, pattern);
-        float arm = exp(-nbSq(sin(ph + .35 * (nz.x - .5))) / .2);
-        float lane = exp(-nbSq(sin(ph - .28 + .3 * (nz.x - .5) + .15 * (hf.x - .5))) / (.02 + .035 * hf.y)) * nbSmooth(.12, .32, rd);
+        vec4 dk = nbDiskAt(x.xz, twist, pattern, cloudPhase);
+        float arm = dk.x, armLight = dk.y, laneK = dk.z, knots = dk.w;
         float surface = exp(-rd / .52) * (1. - nbSmooth(1.2, 1.75, rd));
         float clear = n > 0. ? nbSmooth(R0 * .85, R0 * 1.05, r) : 1.;
         float h = .022 + .018 * rd;
-        float column = nbColumn(x - ray * dt * .5, x + ray * dt * .5, h) / dt;
-        float knots = nbSmooth(.72 - .1 * level, .9, hf.y) * arm * arm * nbSmooth(.22, .45, rd);
-        float young = pow(hf.x, 5.) * arm;
-        // Arms: clumpy star-forming gas with spurs; inner arms fade into the bulge.
-        float inner = nbSmooth(.12, .42, rd);
-        float clumps = .2 + 1.6 * nbSq(nbSmooth(.3, .8, hf.x)) + .5 * nz.y;
-        float spur = exp(-nbSq(sin(ph + 1.1 + 2.5 * (nz.y - .5))) / .05) * .35;
-        float armLight = (arm * clumps + spur * hf.y) * inner;
+        vec3 xa = x - ray * dt * .5, xb = x + ray * dt * .5;
+        float column = nbColumn(xa, xb, h) / dt;
+        // Star-forming knots sit in a thinner layer than the stellar disk.
+        float knotColumn = nbColumn(xa, xb, .012) / dt;
+        // Arms: clumpy star-forming gas; the brightest clumps go white-hot.
+        float hotC = nbSmooth(1.1, 2.4, armLight);
         // Lanes are cold, opaque dust: they stop emitting and hide what is behind.
-        float dark = exp(-lane * (2. + 3. * nz.y) * inner);
-        vec3 E = surface * dark * (cGas * (.05 + .1 * nz.y) * (.5 + arm) + cArm * armLight * 1.8 + cHot * young * 3.5 * inner)
-          + cAcc * knots * surface * 16. * dark;
+        float dark = exp(-laneK * 1.25);
+        vec3 E = surface * dark * (cGas * .1 * (.5 + arm) + cArm * armLight * 1.8 * (1. - .4 * hotC) + cHot * hotC * 2.2);
         E += cArm * arm * surface * u_rhythm.x * 3. * exp(-nbSq((rd - armPulse) / .15));
-        float K = surface * (lane * (1.6 + 2.4 * nz.y) * 3.2 * inner + .3 * arm);
+        float K = surface * (laneK * 3.2 + .3 * arm);
+        e += wDisk * clear * cAcc * knots * surface * 16. * dark * knotColumn * 2.;
         e += wDisk * clear * E * column * 2.;
         sigma += wDisk * clear * K * column;
         matter += wDisk * clear * surface * column * (1. + arm) * .5;
@@ -734,8 +749,8 @@ void main() {
         // Filaments live on the sphere of directions, so the same fingers
         // ride outward with the shell; radial extent makes them RT fingers.
         vec3 dn = nbRot * vec3(shellTurn * d.xz, d.y).xzy;
-        vec2 sh = nbShellAt(dn);
-        vec2 s0 = nbNoise2(dn * 1.6 + 3.1);
+        vec4 sh = nbShellAt(dn);
+        vec2 s0 = sh.zw;
         float u = r / Rs;
         // Smooth, slowly breathing corrugation: no lattice facets on the silhouette.
         float lift = .032 * sin(dot(dn, vec3(3.1, 1.7, -2.3)) + breatheA) + .025 * sin(dot(dn, vec3(-3.2, 4.9, 2.2)) + breatheB)
@@ -796,24 +811,37 @@ void main() {
 `;
 
 const precompute = `${common}
+${lanes}
 ${fields}
 ${shellData}
 void main() {
   ivec2 px = ivec2(gl_FragCoord.xy);
+  float dev = clamp(u_params[0], 0., 2.), level = clamp(u_level, 0., 1.);
+  uint clock = nbClock(), key = nbKey();
+  outColor = vec4(0.);
+  if (px.x >= ${SLICES[0]}) {
+    // Disk map, only while the disk is shown.
+    if (dev > 0. && dev < 2. && px.y < ${DISK_MAP}) {
+      vec2 xz = ((vec2(px - ivec2(${SLICES[0]}, 0)) + .5) / ${f(DISK_MAP)} * 2. - 1.) * ${f(DISK_EXTENT)};
+      outColor = nbDiskData(xz, 1.35 * (2.2 + .9 * nbRnd(key, 0u, 905u)) * u_params[3],
+        NB_TAU * nbCycle(clock, ${N.pattern}u), NB_TAU * nbCycle(clock, ${N.cloud}u), level);
+    }
+    return;
+  }
+  if (dev >= 1.) {
+    // Remnant direction map while the web is not shown.
+    if (px.x < ${OCTA} && px.y < ${OCTA})
+      outColor = nbShellData(nbOctaDecode((vec2(px) + .5) / ${f(OCTA)}), level);
+    return;
+  }
+  // Web slices with a clamped duplicate gutter; the box corners stay empty.
   ivec2 blk = px / ivec2(${WEB_GRID[0] + 2}, ${WEB_GRID[2] + 2});
   ivec2 loc = px - blk * ivec2(${WEB_GRID[0] + 2}, ${WEB_GRID[2] + 2}) - 1;
   int slice = blk.y * 8 + blk.x;
-  // Web data: clamped duplicate gutter. Noise: wrapped gutter (periodic).
+  if (slice >= ${WEB_GRID[1]}) return;
   ivec3 cc = ivec3(clamp(loc.x, 0, ${WEB_GRID[0] - 1}), slice, clamp(loc.y, 0, ${WEB_GRID[2] - 1}));
   vec3 x = (vec3(cc) / ${v3(WEB_GRID.map((g) => g - 1))} * 2. - 1.) * ${v3(WEB_BOX)};
-  vec2 web = vec2(0.);
-  if (u_params[0] >= 1.) {
-    // Remnant direction map while the web is not shown.
-    if (px.x < ${OCTA} && px.y < ${OCTA})
-      web = nbShellData(nbOctaDecode((vec2(px) + .5) / ${f(OCTA)}), clamp(u_level, 0., 1.));
-  } else if (length(x.xz) < 2.05 && abs(x.y) < 1.) web = nbWebField(x, nbClock(), u_params[2]);
-  vec3 wc = vec3((loc.x + ${WEB_GRID[0]}) % ${WEB_GRID[0]}, slice, (loc.y + ${WEB_GRID[2]}) % ${WEB_GRID[2]});
-  outColor = vec4(web, nbGNoise(wc / 8., ivec3(14, 7, 14), 0x51a7u), nbGNoise(wc / 4., ivec3(28, 14, 28), 0x9c3bu));
+  if (length(x.xz) < 2.05 && abs(x.y) < 1.) outColor = vec4(nbWebField(x, clock, u_params[2]), 0., 0.);
 }`;
 
 const schema = [
