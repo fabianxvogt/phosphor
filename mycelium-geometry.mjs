@@ -12,7 +12,7 @@ export const MAX_NODES = 40000;
 export const COLONIES = 8;
 export const LEAVES = 56;
 export const TWIGS = 18;
-export const MUSHROOMS = 60;
+export const MUSHROOMS = 100;
 export const SPORES_PER_MUSHROOM = 60;
 export const FREE_SPORES = 1100;
 export const STRIDE = 24; // floats per vertex: six vec4 attributes
@@ -354,14 +354,14 @@ const sstep = (a, b, x) => {
 export function eyeHeight(dev, altitude = 1) {
   const d = Math.max(0, Math.min(2, dev)) / 2,
     crane = 0.7 * d + 0.3 * d * d;
-  return (0.15 + (0.046 - 0.15) * crane) * altitude;
+  return (0.17 + (0.14 - 0.17) * crane) * altitude;
 }
 const TALL = [1.75, 1.45, 1.05, 0.85, 1.45],
   FLAT = [1.25, 0.85, 0.62, 0.52, 0.85];
 export function shroomShape(m, dev, scale = 1, openBias = 0) {
   const st = m.stagger;
-  const prim = sstep(1.02 + st, 1.38 + st, dev),
-    g = sstep(1.2 + st, 1.96, dev);
+  const prim = sstep(0.82 + st, 1.28 + st, dev),
+    g = sstep(1.02 + st, 1.96, dev);
   const h = m.height * scale * (0.05 + 0.95 * Math.pow(g, 1.2));
   const rc = m.cap * scale * (0.28 + 0.72 * g) * (0.45 + 0.55 * prim);
   const open = Math.min(1, sstep(0.3, 1, g) + openBias * g);
@@ -692,14 +692,14 @@ export function growNetwork(seed = 1) {
     const d = pathLateral(px[i], py[i]);
     if (d > 0.04 && d < 0.3) candidates.push(i);
   }
-  for (let tries = 0; tries < 8000 && sites.length < 22; tries++) {
+  for (let tries = 0; tries < 10000 && sites.length < 36; tries++) {
     if (!candidates.length) break;
     const i = candidates[Math.floor(random() * candidates.length)];
     // Half of the clusters stand right beside the line, to arch over it.
     if (sites.length % 2 === 0 && pathLateral(px[i], py[i]) > 0.12) continue;
     if (
       sites.every(
-        (s) => Math.hypot(delta(px[s] - px[i]), delta(py[s] - py[i])) > 0.17,
+        (s) => Math.hypot(delta(px[s] - px[i]), delta(py[s] - py[i])) > 0.105,
       ) &&
       pathDistance(px[i], py[i]) > 0.04
     )
@@ -707,7 +707,7 @@ export function growNetwork(seed = 1) {
   }
   for (let s = 0; s < sites.length && mushrooms.length < MUSHROOMS; s++) {
     const site = sites[s];
-    const members = 1 + Math.floor(random() * 3.6);
+    const members = 3 + Math.floor(random() * 3);
     const spin = random() * TAU;
     // Lean away from the camera line so caps fan outwards.
     const away = Math.atan2(
@@ -726,7 +726,7 @@ export function growNetwork(seed = 1) {
         m === 0
           ? away + Math.PI + 0.35 * gauss()
           : away * 0.5 + spin + (TAU * m) / members + 0.4 * gauss();
-      const height = cap * (2.0 + 1.4 * random()) * (m === 0 ? 1.12 : 1);
+      const height = cap * (2.6 + 1.6 * random()) * (m === 0 ? 1.12 : 1);
       const candidate = {
         node: site,
         site: s,
@@ -743,13 +743,17 @@ export function growNetwork(seed = 1) {
             : Math.min(0.9, (cap * 1.15) / height + 0.1 * random()),
         stagger: 0.2 * random(),
         species,
-        tilt: 0.06 + 0.2 * random(),
+        tilt: 0.38 + 0.1 * random(),
         hash: random(),
         d: all.dist[site],
       };
       // Keep only mushrooms the camera can never touch (it may pass below
       // tall caps: gills overhead are the point of the top state).
-      if (shroomClearance(candidate) > 0.014) mushrooms.push(candidate);
+      if (
+        pathDistance(candidate.x, candidate.y) > 0.035 &&
+        shroomClearance(candidate) > 0.032
+      )
+        mushrooms.push(candidate);
     }
   }
   // Flow: each mushroom draws its size, each free tip a little; routed along
@@ -810,7 +814,7 @@ export function growNetwork(seed = 1) {
 }
 
 // Murray radius of a transport edge from its flow: r³ ∝ Q.
-export const CORD_RADIUS = 0.0011; // radius at unit flow (one mean cap)
+export const CORD_RADIUS = 0.0017; // radius at unit flow (one mean cap)
 export const HAIR_RADIUS = 0.00022;
 export const cordRadius = (q) => CORD_RADIUS * Math.cbrt(Math.max(0, q));
 

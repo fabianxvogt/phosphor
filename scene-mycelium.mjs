@@ -103,8 +103,8 @@ void myCamera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float altitude=clamp(u_params[5],.7,1.4);
  // Nearly linear in development: a one-bar drop cranes at ≲ 20°/s.
  float d=myDev()*.5,crane=.7*d+.3*d*d;
- float h=mix(.15,.046,crane)*altitude;
- float pitch=mix(-.48,.065,crane)+.05*(1.-altitude);
+ float h=mix(.17,.14,crane)*altitude;
+ float pitch=mix(-.53,-.42,crane)+.05*(1.-altitude);
  eye=vec3(MY_L*ph,myPathY(ph),h);
  vec2 hd=vec2(cos(yaw),sin(yaw));
  F=vec3(hd*cos(pitch),sin(pitch));
@@ -137,11 +137,11 @@ float myTrain(float d,float lambda,float off,float tail){
 // trains, and the hit marks only the tiny source region on the first frame.
 float mySignal(float distanceToSource){
  float e=clamp(u_rhythm.w,0.,1.);
- float phase=mod(u_rhythmCount.w,3.)*.035;
+ float phase=mod(u_rhythmCount.w,3.)*.012;
  float d=distanceToSource+phase;
- float front=(1.-e)*.82;
- float head=exp(-pow((d-front)/.052,2.));
- float tail=step(d,front)*exp(-max(0.,front-d)/.12)*.32;
+ float front=(1.-sqrt(e))*.85;
+ float head=exp(-pow((d-front)/.014,2.));
+ float tail=step(d,front)*exp(-max(0.,front-d)/.055)*.35;
  float gate=smoothstep(0.,.12,e);
  float source=clamp(u_rhythmHit.w,0.,1.)*.06*exp(-d/.06);
  return (head+tail)*gate+source;
@@ -189,8 +189,8 @@ Shroom myShroom(vec4 p1,vec4 p2,vec4 p4){
  Shroom s;
  float st=p2.w,dev=myDev();
  s.species=int(p4.y+.5);
- s.prim=smoothstep(1.02+st,1.38+st,dev);
- s.g=smoothstep(1.2+st,1.96,dev);
+ s.prim=smoothstep(.82+st,1.28+st,dev);
+ s.g=smoothstep(1.02+st,1.96,dev);
  float k=myCapScale();
  s.h=p2.x*k*(.05+.95*pow(s.g,1.2));
  s.rc=p1.w*k*(.28+.72*s.g)*mix(.45,1.,s.prim);
@@ -204,7 +204,7 @@ Shroom myShroom(vec4 p1,vec4 p2,vec4 p4){
  s.rs=p1.w*k*.045*mix(2.6,1.,s.g);
  s.base=p1.xyz;s.lean=vec2(cos(p2.y),sin(p2.y));s.bend=p2.z;
  s.top=s.base+vec3(s.lean*s.bend*s.h,s.h);
- s.axis=vec3(s.lean.y,-s.lean.x,0.);s.tilt=-p4.z*s.g;
+ s.axis=vec3(0.,-1.,0.);s.tilt=-p4.z*s.g;
  return s;
 }
 vec3 myRotate(vec3 v,vec3 k,float a){return v*cos(a)+cross(k,v)*sin(a)+k*dot(k,v)*(1.-cos(a));}
@@ -223,8 +223,8 @@ vec3 myCap(Shroom s,float w,float a){
   else if(s.species==3){rho=s.rc*pow(sin(q*1.5708),.6);z=s.zApex-s.capH*pow(q,2.6);}
   else{rho=s.rc*pow(sin(q*1.5708),.72);z=s.zApex-s.capH*pow(q,mix(2.3,1.5,s.open));}
   // A slightly wavy, translucent margin.
-  rho*=1.+.035*q*q*sin(a*7.+s.rc*900.);
-  z+=s.rc*.018*q*q*sin(a*28.);
+  rho*=1.+q*(.045*sin(a*5.+s.rc*900.)+.025*sin(a*9.+2.));
+  z+=s.rc*q*(.025*sin(a*7.+1.)+.012*sin(a*17.));
  }else{float q=(w-.62)/.38;rho=mix(s.rc*.98,s.rs,q);z=mix(s.zApex-s.capH*.97,s.zApex-s.capH*.34,pow(q,.8));
   z-=s.rc*.035*sin(3.14159*q)*(.5+.5*cos(a*28.));}
  return s.top+myRotate(vec3(cos(a)*rho,sin(a)*rho,z),s.axis,s.tilt);
@@ -244,7 +244,7 @@ vec3 eye,R,U,F;
 vec4 project(vec3 p){
  vec3 q=p-eye;float depth=dot(q,F);
  vec2 xy=vec2(dot(q,R),dot(q,U))*myLens()*2./myFit();
- const float n=.004,fa=4.;
+ const float n=.008,fa=4.;
  return vec4(xy,depth*(fa+n)/(fa-n)-2.*fa*n/(fa-n),depth);
 }
 vec2 wrapOffset(vec2 centre){return MY_L*floor((eye.xy-centre)/MY_L+.5);}
@@ -262,7 +262,7 @@ void main(){
  int flags=int(a5.w+.5),kind=flags>>8;
  v_kind=kind;v_a=vec4(0.);v_b=vec4(0.);v_c=vec4(0.);v_normal=vec3(0.,0.,1.);
  bool pool=a_instance>.5;
- if(pool&&kind!=0){hide();return;}
+ if(pool){hide();return;}
  float scale=u_resolution.y/1080.,lv=clamp(u_level,0.,1.);
  vec2 off=wrapOffset(a5.xy);
  int morph=myMorph();
@@ -272,7 +272,7 @@ void main(){
   float hh=a4.w;
   // Reveal: growth fronts (iteration keys) advance with development; fine
   // childless laterals forage (extend and retract) at an energy-rate clock.
-  float reveal=mix(.56,1.02,myTide());
+  float reveal=mix(.67+.35*lv,1.02,myTide());
   float forage=(order>=2&&childless)?(.004+.02*lv)*sin(u_clock[3]+hh*MY_TAU):0.;
   float rh=reveal+forage;
   float qE=rh-a2.x,qO=rh-a2.z;
@@ -287,8 +287,8 @@ void main(){
   P.xy+=off;Q.xy+=off;
   vec3 q=P-eye;float depth=dot(q,F),dist=length(q);
   float cordGain=(morph==0?1.35:morph==1||morph==4?.6:1.)*clamp(u_params[6],.7,1.9)/1.2;
-  float cordGrow=(.25+.75*smoothstep(.1,1.4,myDev()))*cordGain*(1.+.25*myCity());
-  float rTrue=max(${f(HAIR_RADIUS)}*(order==0?1.7:order==1?1.25:1.),a1.w*cordGrow*.85);
+  float cordGrow=(1.2+.35*smoothstep(.1,1.4,myDev())+.35*lv)*cordGain;
+  float rTrue=min(.0028,max(${f(HAIR_RADIUS)}*(order==0?1.7:order==1?1.25:1.),a1.w*cordGrow*.85));
   float cord=smoothstep(.0005,.0026,rTrue);
   // Brightness is a field: dim felt, younger margin brighter, cords and
   // substrate-rich regions brighter; pruning dims fine hyphae toward City.
@@ -297,9 +297,9 @@ void main(){
   float young=smoothstep(rh-.22,rh,a2.x);
   float fineGain=morph==4?1.6:morph==1?1.35:morph==0?.7:1.;
   float vary=.3+1.2*sq(fract(hh*7.31+float(order)*.37));
-  float I=(.36+.95*young)*vary*(order==0?1.25:1.)*fineGain;
-  if(order>=2)I*=mix(mix(.3,1.,young),1.,myTide());
-  I*=mix(1.,.38,myCity()*(1.-cord));
+  float I=(.8+.95*young)*vary*(order==0?1.25:1.)*fineGain;
+  if(order>=2)I*=mix(mix(.55,1.,young),1.,myTide())*smoothstep(hh-.12,hh+.12,.24+.8*lv);
+  I*=mix(1.,.8,myCity()*(1.-cord));
   I+=cord*(.45+.5*myCity())*cordGain;
   I*=act*mix(1.25,.8,lv);
   float under=max(0.,-P.z);
@@ -323,10 +323,10 @@ void main(){
   vec2 dir=s2-s1;dir=length(dir)>1e-4?normalize(dir):vec2(1.,0.);
   vec2 perp=vec2(-dir.y,dir.x);
   float pxPerM=myLens()*res.y/(myFit().y*depth);
-  float rPx=rTrue*pxPerM,minR=.78*scale;
+  float rPx=min(rTrue*pxPerM,(4.5+3.*exp(-dist*12.))*scale),minR=.9*scale;
   float rCore=max(rPx,minR),coverage=min(1.,rPx/minR);
   float spread=1.+under*90.;
-  float W=(rCore*3.2+5.*scale)*spread;
+  float W=(rCore*3.+6.*scale)*spread;
   C.xy+=perp*side*W*2./res*C.w;
   gl_Position=C;
   float near=smoothstep(.01,.045,depth);
@@ -387,7 +387,17 @@ void main(){
   vec3 c=part<.5?s.base+vec3(s.lean*s.bend*s.h*w*w,s.h*w):s.top+myRotate(vec3(0.,0.,s.zApex-s.capH*.5),s.axis,s.tilt);
   if(dot(N,P-c)<0.)N=-N;
   gl_Position=project(P);
-  float flare=myPulses(a3.x,a3.x)*1.4+mySignal(a3.x)*3.5;
+  float flare=myPulses(a3.x,a3.x)*.12;
+  // Transport continues from the root along the moist stem, then radiates
+  // from its attachment across the underside rather than tinting the cap.
+  float travel=part<.5?s.h*w:s.h+(1.-clamp((w-.62)/.38,0.,1.))*s.rc;
+  float relay=mySignal(a3.x+travel);
+  if(part>1.5){
+   float e=clamp(u_rhythm.w,0.,1.),front=(1.-sqrt(e))*.85;
+   float age=front-a3.x-travel;
+   relay+=smoothstep(-.015,.015,age)*exp(-max(0.,age)/.23)*smoothstep(0.,.08,e);
+  }
+  flare+=relay*(part>1.5?4.:part<.5?4.:.4);
   float hitSite=float(abs(a3.y-mod(u_rhythmCount.z,15.))<.5)*u_rhythm.z;
   v_a=vec4(a0.x,w,part,s.g);
   v_b=vec4(flare+hitSite*1.5,s.prim,a4.w,float(s.species));
@@ -464,7 +474,8 @@ void main(){
   float wave=(exp(-sq((v_b.z-front)/.075))+.35*step(v_b.z,front)*exp(-max(0.,front-v_b.z)/.12))*smoothstep(0.,.1,e)*(.8+1.5*cord);
   float I=v_a.z;
   float signal=mySignal(v_b.x);
-  float P=pulse*2.2+wave*3.+signal*(2.8+2.*cord);
+  float P=pulse*.65+wave*.6;
+  signal*=smoothstep(.1,.7,cord);
   if(v_c.w>.5){
    // Light pool on the soil.
    float g=exp(-3.5*v_a.x*v_a.x)*(1.-smoothstep(.75,1.,abs(v_a.x)));
@@ -474,7 +485,7 @@ void main(){
   float x=abs(v_a.x),r=v_a.y;
   float core=1.-smoothstep(r-.7,r+.7,x);
   float tube=sqrt(max(0.,1.-sq(x/max(r,1.))));
-  float halo=exp(-x/(r*.8+2.2*u_resolution.y/1080.));
+  float halo=exp(-x/(r*1.1+3.5*u_resolution.y/1080.));
   // Braided rhizomorph strands with cytoplasmic streaming along the cord.
   float fibre=1.;
   if(r>2.4){
@@ -483,18 +494,18 @@ void main(){
    float stream=.65+.35*sin(MY_TAU*40.*(along-u_clock[2]));
    fibre=mix(1.,(.18+.9*clamp(braid,0.,1.2))*stream,smoothstep(2.4,7.,r));
   }
-  float profile=core*(.22+.78*tube)*fibre+halo*.25;
+  float profile=core*(.12+.88*tube)*fibre+halo*.4;
   // Growing tips and finished apices.
   float tip=exp(-sq(v_c.x/.0035))+smoothstep(.75,1.,v_c.y);
   float flareX=clamp(u_rhythm.x/.6,0.,1.);
   float glint=exp(-sq((v_c.x-(1.-flareX)*.03)/.004))*flareX;
-  float tipI=(tip*(.9+2.6*flareX)+glint*1.2)*v_a.z/max(.06,v_a.z)*.55;
+  float tipI=(tip*(.3+.8*flareX)+glint*.6)*sqrt(max(0.,v_a.z))*.12;
   // Palette ramp: dim felt leans secondary, lit threads primary.
   vec3 base=mix(u_secondary,u_primary,smoothstep(.05,.32,I))*I;
   vec3 c=base*profile;
   // Fuzzy margin: fine slanted side hairs on young hyphae, faded before aliasing.
   float young=v_normal.y,mpp=v_b.w;
-  float acrossM=x*mpp,hp=v_b.x*700.-acrossM*900.;
+  float acrossM=x*mpp,hp=v_b.x*350.-acrossM*650.;
   float fw=fwidth(hp);
   if(young>.02){
    float fr=abs(fract(hp)-.5);
@@ -506,7 +517,7 @@ void main(){
   // the hottest core.
   float heat=smoothstep(1.6,3.2,P);
   c+=mix(mix(u_primary,vec3(1.),.15),u_accent,heat*.6)*(.1+I)*P*profile*1.2;
-  c+=u_accent*signal*profile*(.3+I)*1.2;
+  c+=u_accent*signal*profile*(.5+I)*8.;
   c+=mix(u_primary,u_accent,.5)*tipI*core*1.6+u_accent*tipI*halo*.2;
   // Seen through translucent soil: dimmer, wider, cooler with depth.
   float soil=v_normal.x;
@@ -548,8 +559,9 @@ void main(){
   vec3 N=normalize(v_normal+vec3(0.,0.,1e-5)),V=-rd;
   float ndv=abs(dot(N,V));
   float rim=pow(1.-ndv,3.);
-  float glowLevel=(.45+.55*g)*(.35+.65*prim)*(1.+flare);
-  float gillN=28.+8.*floor(v_b.z*3.);
+  float glowLevel=(.65+.35*g)*(.35+.65*prim)*(1.+flare);
+  float gillN=27.+7.*floor(v_b.z*3.);
+  a+=.018*sin(a*7.+v_b.z*9.)+.009*sin(a*13.);
   float gw=fwidth(a*gillN);
   float ridge=mix(.5+.5*cos(a*gillN),.5,smoothstep(.4,1.2,gw));
   ridge=ridge*ridge;
@@ -559,7 +571,8 @@ void main(){
    // Slender translucent stem, brighter at the base where cords arrive.
    // Slender translucent stem: dim core, glowing silhouette edges.
    float key=max(0.,dot(N,normalize(vec3(-.35,.45,.8))));
-   c=capColour*(.028+.085*key)+capColour*pow(1.-ndv,2.)*.3+u_primary*.28*exp(-w*14.);
+   float fibre=.65+.35*sin(a*19.+w*8.);
+   c=capColour*(.035+.1*key)*fibre+capColour*pow(1.-ndv,5.)*.35+u_primary*.3*exp(-w*14.);
   }else if(part<1.5){
    // Bell cap: thin translucent margin glows, gills show through it.
    float q=w/.62,thin=smoothstep(.2,1.,q);
@@ -568,20 +581,22 @@ void main(){
    // Thick flesh at the crown is dim; the thin margin transmits the gill glow.
    float stri=.5+.5*cos(a*gillN+q*3.);
    float key=max(0.,dot(N,normalize(vec3(-.35,.45,.8))));
-   c=flesh*(.08+.12*key+.72*pow(thin,2.2))*(.65+.35*stri*thin);
-   c+=capColour*rim*(.08+.65*thin);
-   c+=u_primary*smoothstep(.92,1.,q)*.35;
+   float mottling=.8+.2*sin(a*3.+q*8.+v_b.z*13.);
+   c=flesh*(.09+.12*key+.26*pow(thin,3.))*mottling;
+   c+=capColour*rim*(.06+.3*thin);
+   c+=u_primary*smoothstep(.96,1.,q)*.2;
   }else{
    // Gills from below: the brightest structure, ridged lamellae.
    float q=(w-.62)/.38;
    float attachment=1.-.7*smoothstep(.65,1.,q);
-   c=capColour*(.45+1.8*ridge)*(.65+.35*(1.-q))*attachment;
+   c=capColour*(.65+1.4*ridge)*(.65+.35*(1.-q))*attachment;
    c+=u_primary*.25*pow(1.-q,4.);
   }
   c*=glowLevel;
   c=mix(c,mix(c,u_accent*dot(c,vec3(.4)),.5),clamp(flare*.4,0.,.45));
   c=c/(1.+.35*max(max(c.r,c.g),c.b));
   c+=u_primary*(1.-smoothstep(.0,.35,g))*prim*.4;
+  c+=u_accent*flare*(part>1.5?.32:part<.5?.15:.015);
   float fg=myFog(dist);
   outColor=vec4(mix(myMist(rd),c,fg),1.);return;
  }
@@ -798,13 +813,14 @@ export default {
             duration: 0.8,
           },
           driving: {
-            steps: "X.x.X..x | X.x.X.x.",
-            division: 2,
+            steps: "X.x.xX.x.xXx",
+            // Three beats against the four-bar relay phrase.
+            division: 4,
             strength: 0.9,
-            duration: 0.45,
+            duration: 0.18,
           },
           accented: {
-            steps: "X..x..x.X..x.x.. | X.x..x..X..x..xx",
+            steps: "Xxxx.xXxXx.xXxxx | XxXxxx.xXxxx.xXx",
             division: 4,
             strength: 1,
             duration: 0.18,
@@ -897,14 +913,14 @@ export default {
             steps: "X....... | ........ | ..X..... | ...x....",
             division: 2,
             strength: 0.9,
-            duration: 2.2,
+            duration: 2.4,
           },
           accented: {
             steps:
               "X............... | ..............x. | ........X....... | ......X.........",
             division: 4,
             strength: 1,
-            duration: 1.8,
+            duration: 2.3,
           },
         },
       },
@@ -914,7 +930,7 @@ export default {
   geometry: {
     create: (seed) => myceliumMesh(seed).data,
     attributes: [4, 4, 4, 4, 4, 4],
-    instances: { create: () => new Float32Array([0, 1]), attributes: [1] },
+    instances: { create: () => new Float32Array([0]), attributes: [1] },
     additiveFrom: OPAQUE_VERTICES,
     vertex,
     fragment,
