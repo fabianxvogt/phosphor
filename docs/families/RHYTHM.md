@@ -51,6 +51,42 @@ The three new families add nine gestures: Physarum carrier cohorts/trail ridges/
 
 The default first track accents each beat. Most secondary accents have a three-beat loop, intentionally walking across 4/4. Structural events typically have 8–32-beat loops; ant renewal waits 64 beats and Chladni modes 32 beats. Authored styles are derived in `rhythm.mjs`; manually locked patterns retain their placement.
 
+## World rhythm presets (2026-10-16)
+
+All 27 world families name three phrase styles in `rhythmStyles` and author independent `styles.restrained`, `styles.driving` and `styles.accented` loops on each of their three existing gestures using `familyEffect` compact step notation. The driving loop is the default; the Rhythm menu exposes the world-specific names, autopilot rotates styles by phrase, and manually locked patterns retain their placement. Loops vary placement, division, length, strength and duration, with envelopes ending before the next hit and structural, motion, simulation and count-selected cohort gestures limited to two hits per bar across the full repeating cycle.
+
+Compatibility: explicit base `steps` retain the historical descriptor `defaults` (4/8/16 steps and original bounds), which existing family tests and legacy consumers inspect; `defaultPattern` and the live scheduler select the authored driving style instead. The world gate checks the actual scheduled loops, their default selection, distinct placement, spacing and full-family coverage.
+
+| World (family) | Restrained | Driving | Accented | Feel |
+| --- | --- | --- | --- | --- |
+| Mycelium (`mycelium`) | Dormant threads | Root signals | Spore chorus | Thread syncopations over unhurried concentration changes and phrase-end feeds. |
+| Garden (`afterglow`) | Sleeping petals | Nectar paths | Midnight flowering | Staggered petal light, three-bar cohort turns and rare chemical seeds. |
+| Unfolding (`metamorphosis`) | Folded seed | Opening whorl | Golden emergence | Six-beat ancestry figures open around soft membrane breaths. |
+| Hopf Bloom (`fibration`) | Quiet fibres | Linked circles | Meridian braid | Six-beat fibre cycles and five-beat shell addresses interlace slowly. |
+| Cavern (`crystal`) | Hidden facets | Quartz steps | Prismatic chime | Five-beat facet chimes climb into short beacon fills. |
+| Nebula (`nebula`) | Distant embers | Spiral beacon | Pulsar crown | Six-beat arm pulses orbit independent core flares and shock rings. |
+| Descent (`descent`) | Empty avenues | Window procession | Recursive rush | Measured window addresses, late camera impulses and bright seam runs. |
+| Murmuration (`murmuration`) | Dusk wings | Turning flock | Falcon shadow | Wing glints flutter quickly; startles and falcon strikes leave recovery space. |
+| Origami (`fold`) | Paper hush | Crease dance | Thousand cranes | Clipped edge figures fold around slow hinges and end-of-phrase flares. |
+| Attractor Ribbons (`ribbons`) | Loose strands | Braided current | Attractor weave | Twelve-beat cohort braids cross five-beat light runs and head sparks. |
+| Horizon (`horizon`) | Silent orbit | Photon waltz | Relativistic bloom | A six-beat orbit rubs against photon syncopations and spaced jet knots. |
+| Deep Sea (`abyss`) | Abyssal hush | Lantern drift | Reef awakening | Slow bell contractions, separated plankton launches and reef answers. |
+| Liquid Chrome (`ferro`) | Still mercury | Magnetic breath | Chrome resonance | Low magnetic swells and long satellite excursions, never a jittering sculpture. |
+| Moon Tide (`tide`) | Slack water | Rolling swell | Spring tide | Long surges crest off the beat; tide rings arrive late in the phrase. |
+| Laser Grid (`laser`) | Dark aperture | Beam relay | Vault chase | Measured beam selection above straight sixteenth grid-rib chases. |
+| Magma Rift (`magma`) | Cooling seams | Lava channels | Cinder fountain | Hot seam syncopations, six-beat lava runs and explosive final-bar volleys. |
+| Kinetic Rain (`kinetic`) | Suspended drops | Pendulum rain | Lattice cascade | Spaced ring launches meet diagonal sweeps and clipped lattice fills. |
+| Aurora Veil (`aurora`) | Polar silence | Curtain signals | Magnetic midnight | Long upward excitations under drifting, three-bar ray addresses. |
+| Brass Orrery (`orrery`) | Sleeping gears | Brass escapement | Cathedral clock | Tight sixteenth escapement ticks and sparse shaft glints. |
+| Thunderhead (`storm`) | Distant rumble | Charged silence | Forked sky | Sudden syncopated doubles emerge from charged gaps, with rare return strokes. |
+| Prism Engine (`prism`) | Sleeping spectrum | Refracted paths | Caustic choir | Slow prism addresses and steering frame six-beat spectral sweeps. |
+| Impossible Stairs (`escher`) | Empty landings | Lantern steps | Endless ascent | Twelve-beat tread processions cross gravity lights and lantern flourishes. |
+| Silk Storm (`silk`) | Still selvedge | Satin current | Vortex brocade | Five-beat sheen figures pass slow hem cohorts and broad spiral fronts. |
+| Ink Bloom (`ink`) | Suspended pigment | Vortex bloom | Widnall flourish | Rolls and finger reaches stay calm; pigment bursts gather into phrase-end fills. |
+| Soap Cathedral (`soap`) | Thin silence | Opal breathing | Iridescent bells | Five-beat thickness bells, soft border breaths and occasional opal windows. |
+| Dune Sea (`dunes`) | Leeward hush | Saltation trails | Haboob drums | Five-beat grain trails and slipface answers over a rare dust-wall gust. |
+| Data Monolith (`voxel`) | Idle registers | Address march | Midnight overflow | Deliberate address changes, quick scan syncopations and late row glitches. |
+
 ## Variant and state handling
 
 - Newton root excursions exclude Nova, whose parameter plane has a different interpretation.

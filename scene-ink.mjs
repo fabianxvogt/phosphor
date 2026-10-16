@@ -680,27 +680,40 @@ void main() {
     { rate: (p) => p[1] * INK_SPEED, period: 2 * Math.PI },
     { rate: (p) => p[6] * 0.09, period: 2 * Math.PI },
   ],
+  rhythmStyles: { restrained: "Suspended pigment", driving: "Vortex bloom", accented: "Widnall flourish" },
   rhythm: [
     familyEffect(
       "ring-roll",
       0,
       "Ring roll",
       "The wound sheets of every vortex core roll a step further and catch the light.",
-      { period: 4, strength: 0.55, duration: 1.5, kind: "motion" },
+      { period: 4, strength: 0.55, duration: 1.5, kind: "motion", steps: "X...", styles: {
+        restrained: { steps: "X....... | ......x. | ...X.... | ........", division: 2, strength: 0.48, duration: 1.7 },
+        driving: { steps: "X.....x. | ...X.... | .x....X. | .....x..", division: 2, strength: 0.7, duration: 0.9 },
+        accented: { steps: "X........x...... | ....X.......x... | ..X.......x..... | ......X.......x.", division: 4, strength: 0.84, duration: 0.4 },
+      } },
     ),
     familyEffect(
       "finger-reach",
       1,
       "Finger reach",
       "The Widnall lobes and daughter rings stretch a little further from the rim.",
-      { period: 8, strength: 0.6, duration: 2.5, kind: "motion" },
+      { period: 8, strength: 0.6, duration: 2.5, kind: "motion", steps: "X.......", styles: {
+        restrained: { steps: "....x... | ........ | .......X | ........", division: 2, strength: 0.5, duration: 2 },
+        driving: { steps: "....X... | .......x | ........ | .....X..", division: 2, strength: 0.72, duration: 1.5 },
+        accented: { steps: ".......X........ | .............x.. | .....X.......... | ...........x...X", division: 4, strength: 0.86, duration: 0.8 },
+      } },
     ),
     familyEffect(
       "pigment-wave",
       2,
       "Pigment wave",
       "A narrow backlit pigment band travels down the cascade, generation by generation.",
-      { period: 16, strength: 0.6, duration: 3 },
+      { period: 16, strength: 0.6, duration: 3, steps: "X...............", styles: {
+        restrained: { steps: "........ | .....x.. | ........ | ..X.....", division: 2, strength: 0.5, duration: 1.8 },
+        driving: { steps: "........ | .....x.X | ........ | ....x.xX", division: 2, strength: 0.76, duration: 0.4 },
+        accented: { steps: "................ | ..........x.X.xx | ................ | .........X.x.XXX", division: 4, strength: 0.92, duration: 0.18 },
+      } },
     ),
   ],
 };

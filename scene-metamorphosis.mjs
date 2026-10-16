@@ -209,27 +209,40 @@ export default {
     { param: "sway", feature: "low", amount: 0.06 },
     { param: "light", feature: "high", amount: 0.025 },
   ],
+  rhythmStyles: { restrained: "Folded seed", driving: "Opening whorl", accented: "Golden emergence" },
   rhythm: [
     familyEffect(
       "ancestry-glow",
       0,
       "Ancestry glow",
       "Light travels from the same persistent centres.",
-      { period: 4, strength: 0.65, duration: 1 },
+      { period: 4, strength: 0.65, duration: 1, steps: "X...", styles: {
+        restrained: { steps: "X....... | ...x.... | ......X. | .....x..", division: 2, strength: 0.55, duration: 1.3 },
+        driving: { steps: "X..x..X. | ..X..x..", division: 2, strength: 0.78, duration: 0.65 },
+        accented: { steps: "X..x..X..x..X..x..X.....", division: 4, strength: 0.92, duration: 0.5 },
+      } },
     ),
     familyEffect(
       "membrane-edge",
       1,
       "Membrane edge",
       "A soft accent traces the living surface edges.",
-      { period: 8, strength: 0.55, duration: 1 },
+      { period: 8, strength: 0.55, duration: 1, steps: "X.......", styles: {
+        restrained: { steps: "..x..... | ......X. | ...x.... | ......X.", division: 2, strength: 0.48, duration: 1.3 },
+        driving: { steps: "..x...X. | .x....X.", division: 2, strength: 0.72, duration: 0.9 },
+        accented: { steps: "..X.....x....... | ....X......x....", division: 4, strength: 0.86, duration: 0.8 },
+      } },
     ),
     familyEffect(
       "golden-centres",
       2,
       "Golden centres",
       "The connected centres glow together.",
-      { period: 16, strength: 0.7, duration: 2 },
+      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | .......x | ........ | .....X..", division: 2, strength: 0.55, duration: 2 },
+        driving: { steps: "........ | .....x.X", division: 2, strength: 0.8, duration: 0.75 },
+        accented: { steps: "............x... | ........X..x..X.", division: 4, strength: 0.96, duration: 0.4 },
+      } },
     ),
   ],
   fragment: `${camera}void main(){

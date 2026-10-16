@@ -709,27 +709,40 @@ export default {
       period: 2 * Math.PI,
     },
   ],
+  rhythmStyles: { restrained: "Slack water", driving: "Rolling swell", accented: "Spring tide" },
   rhythm: [
     familyEffect(
       "crest-packet",
       0,
       "Crest packet",
       "A wave group at the true group velocity lights the breaking crests it passes.",
-      { period: 4, strength: 0.55, duration: 1.3 },
+      { period: 4, strength: 0.55, duration: 1.3, steps: "X...", styles: {
+        restrained: { steps: "X....... | .....x.. | ........ | ..X.....", division: 2, strength: 0.48, duration: 2 },
+        driving: { steps: "X....x.. | .X...x..", division: 2, strength: 0.74, duration: 1.1 },
+        accented: { steps: "X.........x..... | ......X......x.. | ....X.......x...", division: 4, strength: 0.88, duration: 0.9 },
+      } },
     ),
     familyEffect(
       "spiral-ridge",
       1,
       "Spiral ridge",
       "A surge of biolight runs down the spiral arms into the glowing eye.",
-      { period: 8, strength: 0.5, duration: 2 },
+      { period: 8, strength: 0.5, duration: 2, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | ........ | ......X. | ........", division: 2, strength: 0.45, duration: 2.5 },
+        driving: { steps: "...X.... | ......x. | ..X..... | .......x", division: 2, strength: 0.7, duration: 1.5 },
+        accented: { steps: ".....X......x... | ...X......x..... | .......X......x.", division: 4, strength: 0.84, duration: 1.2 },
+      } },
     ),
     familyEffect(
       "incoming-tide",
       2,
       "Incoming tide",
       "A tide ring rolls out from the glowing eye across the maelstrom's shoulder.",
-      { period: 16, strength: 0.6, duration: 3 },
+      { period: 16, strength: 0.6, duration: 3, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | .......X", division: 2, strength: 0.5, duration: 3 },
+        driving: { steps: "........ | .....x.. | ........ | .......X", division: 2, strength: 0.76, duration: 2.5 },
+        accented: { steps: "................ | ..........X..... | ................ | .........x....X.", division: 4, strength: 0.92, duration: 1 },
+      } },
     ),
   ],
   fragment,

@@ -1091,27 +1091,40 @@ export default {
     { param: "shock", feature: "onset", amount: 0.08 },
     { param: "light", feature: "high", amount: 0.02 },
   ],
+  rhythmStyles: { restrained: "Distant embers", driving: "Spiral beacon", accented: "Pulsar crown" },
   rhythm: [
     familyEffect(
       "arm-light",
       0,
       "Arm light",
       "A pulse of light runs outward along the arm crests, the web's filaments or the remnant's filaments.",
-      { period: 4, strength: 0.6, duration: 1 },
+      { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
+        restrained: { steps: "X....... | ...x.... | ....X... | .....x..", division: 2, strength: 0.5, duration: 1.2 },
+        driving: { steps: "X...x.X. | ..X...x.", division: 2, strength: 0.76, duration: 0.8 },
+        accented: { steps: "X..x...X..x...X..x...X..", division: 4, strength: 0.9, duration: 0.55 },
+      } },
     ),
     familyEffect(
       "core-flare",
       1,
       "Core flare",
       "The bulge or the pulsar and its jets flare.",
-      { period: 8, strength: 0.6, duration: 1 },
+      { period: 8, strength: 0.6, duration: 1, steps: "X.......", styles: {
+        restrained: { steps: ".....x.. | .......X | ..x..... | ........", division: 2, strength: 0.48, duration: 1.3 },
+        driving: { steps: "...X.... | .x...X..", division: 2, strength: 0.74, duration: 1 },
+        accented: { steps: "..X...x...X. | ..x...X...x.", division: 4, strength: 0.88, duration: 0.7 },
+      } },
     ),
     familyEffect(
       "shock-ripple",
       2,
       "Shock ripple",
       "A ring of light runs outward through the gas, the disk or the shell.",
-      { period: 16, strength: 0.7, duration: 2 },
+      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | .....X..", division: 2, strength: 0.55, duration: 2.2 },
+        driving: { steps: "........ | .......x | ........ | ....X...", division: 2, strength: 0.8, duration: 1.5 },
+        accented: { steps: ".............x.. | ..........X...x. | ...............X", division: 4, strength: 0.95, duration: 0.6 },
+      } },
     ),
   ],
   fragment,
