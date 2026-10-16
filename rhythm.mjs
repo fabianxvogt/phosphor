@@ -156,6 +156,21 @@ export function validatePattern(value, definitions = []) {
     seen.add(result.effect);
     return result;
   });
+  // Automatic patterns follow the authored presets of the current release:
+  // a set saved before the family re-authored its loops plays the new ones.
+  // Edited (locked) patterns stay exactly as the performer left them;
+  // unknown effects remain as dormant tracks.
+  if (value.mode === "auto" && definitions.length) {
+    const known = new Set(definitions.map((definition) => definition.id));
+    return {
+      mode: "auto",
+      style,
+      tracks: [
+        ...definitions.map((definition) => styledTrack(definition, style)),
+        ...tracks.filter((track) => !known.has(track.effect)),
+      ].slice(0, MAX_TRACKS),
+    };
+  }
   // A newly added effect is available on older sets with its authored
   // default. Muting an effect is explicit; leaving out a track is not mute.
   for (const definition of definitions) {
@@ -169,6 +184,15 @@ export function validatePattern(value, definitions = []) {
 }
 
 function styledTrack(definition, style) {
+  // A family may author each phrase style as its own loop (a rhythm preset);
+  // otherwise the style is derived from the default loop.
+  const authored = definition.styles?.[style];
+  if (authored)
+    return validateTrack({
+      ...definition.defaults,
+      ...authored,
+      effect: definition.id,
+    });
   const base = validateTrack({ ...definition.defaults, effect: definition.id });
   if (style === "restrained") {
     base.strength *= 0.68;

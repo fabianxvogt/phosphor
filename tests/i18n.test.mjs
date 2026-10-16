@@ -62,6 +62,7 @@ test("every family, built-in look, parameter, palette and rhythm effect has copy
       scene.name,
       ...scene.schema.map((d) => d.label),
       ...effectDefinitions(scene).flatMap((d) => [d.label, d.description]),
+      ...Object.values(scene.rhythmStyles ?? {}),
     ]),
     ...GLOBAL_EFFECTS.flatMap((d) => [d.label, d.description]),
     ...PALETTES.map((p) => p.name),

@@ -465,14 +465,19 @@ export class RhythmPanel {
     group.mode.className = `rhythm-mode ${pattern.mode === "locked" ? "protected" : ""}`;
     group.auto.ariaPressed = String(pattern.mode === "auto");
     group.lock.ariaPressed = String(pattern.mode === "locked");
+    // A family may name its three authored presets after its own world.
+    const styleName = (style) => {
+      const named = scope === "family" && target?.scene?.rhythmStyles?.[style];
+      return named ? tr(named) : tr("rhythm.style." + style);
+    };
+    for (const option of group.style.options)
+      option.textContent = styleName(option.value);
     if (this.document.activeElement !== group.style)
       group.style.value = pattern.style;
     group.note.textContent =
       pattern.mode === "auto"
         ? tr("Authored patterns · {value1} phrase", {
-            value1: tr(
-              "rhythm.style." + (status?.rhythm?.style ?? pattern.style),
-            ),
+            value1: styleName(status?.rhythm?.style ?? pattern.style),
           })
         : tr("Your steps stay fixed. Energy changes intensity.");
     group.override.hidden = scope !== "family" || !target?.own;
