@@ -6,413 +6,176 @@ import { defaultPattern } from "../rhythm.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import {
   ATTRIBUTES,
-  CAMERA,
-  FIELD,
-  KIND,
-  STORM,
-  MAX_DEPTH,
   STRIDE,
-  SWIRL_PERIOD,
-  TEMPLATES,
-  arrangement,
-  cameraPose,
+  PANELS,
+  BANDS,
+  CAMERA,
   createGeometry,
-  foldPoint,
-  foldProgress,
-  liftProgress,
-  netOverlaps,
-  paperNormal,
-  shardFrame,
-  rotateAbout,
-  shardOrbit,
-  shardProgress,
-  shadowPoint,
+  paperPoint,
+  snapAmount,
+  cameraPose,
 } from "../fold-geometry.mjs";
-
 const scene = scenes.find((s) => s.id === "fold");
-const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-
-test("fold is a registered continuous world with three authored states", () => {
-  assert.ok(scene);
+const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
+test("fold preserves continuous world, authored looks, seeds and schema", () => {
   assert.equal(scene.number, 91);
-  assert.equal(scene.development, "development");
-  const world = defaultWorlds(
+  const w = defaultWorlds(
     scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`)),
   ).find((w) => w.id === "origami");
   assert.deepEqual(
-    world.states.map((s) => s.name),
+    w.states.map((s) => s.name),
     ["Sheet", "Fold", "Shards"],
   );
-  const clips = world.states.map((state) => ({
+  assert.deepEqual(
+    scene.presets.slice(0, 3).map((p) => p.seed),
+    [527, 527, 527],
+  );
+  const clips = w.states.map((s) => ({
     snapshot: presetSnapshot(
       scene,
-      scene.presets.findIndex((p) => `fold:${p.name}` === state.look),
+      scene.presets.findIndex((p) => `fold:${p.name}` === s.look),
     ),
   }));
-  assert.deepEqual(continuousDevelopment(clips, scene)?.positions, [0, 1, 2]);
-  assert.ok(scene.presets.length >= 6);
-  for (const preset of scene.presets)
-    for (const field of scene.schema) {
-      const value = preset.params[field.key];
+  assert.deepEqual(continuousDevelopment(clips, scene).positions, [0, 1, 2]);
+  assert.equal(scene.presets.length, 8);
+  for (const p of scene.presets)
+    for (const f of scene.schema)
       assert.ok(
-        value >= field.min && value <= field.max,
-        `${preset.name}.${field.key}`,
+        p.params[f.key] >= f.min && p.params[f.key] <= f.max,
+        `${p.name}.${f.key}`,
       );
-    }
   assert.equal(
-    ATTRIBUTES.reduce((a, b) => a + b),
+    ATTRIBUTES.reduce((s, n) => s + n),
     STRIDE,
   );
 });
-
-test("Platonic nets are flat, non-overlapping spanning trees with short hinge chains", () => {
-  assert.deepEqual(
-    TEMPLATES.map((t) => t.faces.length),
-    [4, 6, 8, 12, 20],
-  );
-  for (const t of TEMPLATES) {
-    assert.ok(!netOverlaps(t), `template ${t.id} overlaps`);
-    assert.equal(t.parent.filter((p) => p < 0).length, 1, "one root");
-    assert.ok(t.maxDepth <= MAX_DEPTH);
-    for (const face of t.flat)
-      for (const v of face) assert.ok(Math.abs(v[1]) < 1e-12);
-    // Every unfolded edge has unit length.
-    t.flat.forEach((face) =>
-      face.forEach((v, i) =>
-        assert.ok(Math.abs(dist(v, face[(i + 1) % face.length]) - 1) < 1e-9),
-      ),
-    );
+test("connected paper topology includes shared median, chevrons and folded-back hems", () => {
+  const mesh = createGeometry(527);
+  assert.equal(mesh.length / STRIDE, PANELS * BANDS * 4 * 2 * 6 + 6);
+  const points = new Map();
+  for (let i = 0; i < mesh.length; i += STRIDE) {
+    assert.ok([...mesh.subarray(i, i + STRIDE)].every(Number.isFinite));
+    if (mesh[i + 3] !== 1) continue;
+    const [s, v, b] = mesh.subarray(i, i + 3),
+      key = `${s},${v},${b}`;
+    points.set(key, (points.get(key) ?? 0) + 1);
   }
-});
-
-test("hinge chains close every solid exactly (CPU reference of the shader)", () => {
-  for (const t of TEMPLATES) {
-    let worst = 0;
-    t.faces.forEach((face, f) =>
-      face.forEach((vertex, k) => {
-        const folded = foldPoint(t, f, t.flat[f][k]);
-        worst = Math.max(worst, dist(folded, t.folded[vertex]));
-        assert.ok(folded[1] >= -1e-9, "solid stands on the sheet");
-      }),
-    );
-    assert.ok(worst < 1e-9, `template ${t.id}: ${worst}`);
-    // All copies of one solid vertex coincide, so no face is left open.
-    const copies = new Map();
-    t.faces.forEach((face, f) =>
-      face.forEach((v, k) =>
-        copies.set(v, [
-          ...(copies.get(v) ?? []),
-          foldPoint(t, f, t.flat[f][k]),
-        ]),
-      ),
-    );
-    for (const list of copies.values())
-      for (const p of list) assert.ok(dist(p, list[0]) < 1e-9);
-  }
-});
-
-test("folding is rigid at every intermediate development", () => {
-  const t = TEMPLATES[4];
-  for (const development of [0, 0.3, 0.55, 0.81, 1]) {
-    t.faces.forEach((face, f) => {
-      const pts = t.flat[f].map((p) =>
-        foldPoint(t, f, p, (g) => foldProgress(development, 0.4, t.depth[g])),
-      );
-      pts.forEach((p, i) =>
-        assert.ok(Math.abs(dist(p, pts[(i + 1) % pts.length]) - 1) < 1e-9),
-      );
-    });
-  }
-});
-
-test("development is continuous, reversible and staged sheet → fold → shards", () => {
-  for (const birth of [0, 0.5, 1])
-    for (const depth of [0, 2, 5]) {
-      assert.ok(
-        Math.abs(foldProgress(0, birth, depth) - 0.14) < 1e-12,
-        "readable pre-creases at Sheet",
-      );
-      assert.equal(foldProgress(1, birth, depth), 1, "closed at Fold");
-      assert.equal(foldProgress(2, birth, depth), 1);
-      assert.equal(liftProgress(0, birth), 0);
-      assert.equal(liftProgress(1, birth), 1);
-      let last = foldProgress(0, birth, depth);
-      for (let i = 1; i <= 20000; i++) {
-        const next = foldProgress(i / 10000, birth, depth);
-        assert.ok(Math.abs(next - last) < 0.002);
-        last = next;
+  // Every internal cross-section and the centre crease are reused, never
+  // independent triangle rotations that could open cracks.
+  for (let b = 0; b < BANDS; b++)
+    for (let s = 1; s < PANELS; s++) {
+      for (const v of [-0.92, 0, 0.92]) {
+        const fv = Math.fround(v);
+        assert.ok(points.get(`${s},${fv},${b}`) >= 4);
       }
     }
-  for (const order of [0, 0.5, 1]) {
-    assert.equal(shardProgress(1, order), 0, "solids intact at Fold");
-    assert.equal(shardProgress(2, order), 1, "all shards free at Shards");
-  }
+  assert.deepEqual(createGeometry(527), mesh);
+  assert.notDeepEqual(createGeometry(777), mesh);
 });
-
-test("nets and solids stay in their field; expanded vortex phases wrap without jumps", () => {
-  const camera = CAMERA.radius - CAMERA.sway;
-  for (const seed of [527, 1931, 88, 3307]) {
-    const items = arrangement(seed);
-    assert.ok(items.length > 40);
-    for (const it of items) {
-      const t = TEMPLATES[it.t];
-      // A lifted solid tumbles about its centre: it stays inside the field.
-      const centre = Math.hypot(t.solidCentre[0], t.solidCentre[2]) * it.scale;
-      assert.ok(
-        Math.hypot(it.x, it.z) + centre + t.solidRadius * it.scale <= FIELD,
-      );
-      assert.ok(Math.hypot(it.x, it.z) + it.r <= FIELD);
-      for (const face of it.shards)
-        for (const shard of face) {
-          assert.ok(Number.isInteger(shard.turns) && shard.turns >= 1);
-          const a = shardOrbit(shard, 0),
-            b = shardOrbit(shard, 1);
-          assert.ok(dist(a, b) < 1e-9, "integer turns: phase wrap is seamless");
-          assert.ok(a[1] > 0.2);
-        }
-    }
+test("shadow topology matches the exact surface mesh", () => {
+  const m = createGeometry();
+  let count = 0;
+  for (let i = 0; i < m.length - STRIDE * 12; i += STRIDE * 6) {
+    if (m[i + 3] !== 1) continue;
+    const j = i + STRIDE * 6;
+    assert.equal(m[j + 3], 2);
+    for (let v = 0; v < 6; v++)
+      for (let k = 0; k < STRIDE; k++)
+        if (k !== 3) assert.equal(m[i + v * STRIDE + k], m[j + v * STRIDE + k]);
+    count++;
   }
-  assert.ok(SWIRL_PERIOD > 0);
-  assert.ok(camera > FIELD + 1.5, "early camera stays outside the paper field");
+  assert.equal(count, PANELS * BANDS * 4);
 });
-
-test("low camera is inside the storm canopy, outside every peak shard and streak", () => {
-  const peak = cameraPose(2, 0.25);
-  assert.ok(Math.hypot(peak.eye[0], peak.eye[2]) < FIELD);
-  assert.ok(peak.target[1] > peak.eye[1] + 3);
-  // Bound actual triangle extents in their orthonormal shard frame. Taking
-  // worst bob, camera sway and height independently covers every phase.
+test("all phases, development values and snaps are finite, bounded and reversible", () => {
   for (const seed of [527, 1931, 88, 3307, 777, 4096])
-    for (const item of arrangement(seed)) {
-      const t = TEMPLATES[item.t];
-      t.flat.forEach((face, f) => {
-        const c = [0, 1, 2].map(
-          (k) => face.reduce((s, p) => s + p[k], 0) / face.length,
-        );
-        face.forEach((a, i) => {
-          const b = face[(i + 1) % face.length],
-            pts = [c, a, b];
-          const tc = [0, 1, 2].map(
-            (k) => pts.reduce((s, p) => s + p[k], 0) / 3,
-          );
-          const shard = item.shards[f][i],
-            sa = shard.shardAngle;
-          const scale = Math.min(item.scale, 0.8) * 1.1;
-          const offsets = pts.map((p) => {
-            const x = (p[0] - tc[0]) * scale,
-              y = (p[2] - tc[2]) * scale * 0.6;
-            const ox = x * Math.cos(sa) - y * Math.sin(sa),
-              oy = x * Math.sin(sa) + y * Math.cos(sa);
-            return [ox * (ox < 0 ? 1 + 2 * STORM.stretch : 1), oy];
-          });
-          const mx = Math.max(...offsets.map((o) => Math.abs(o[0]))),
-            my = Math.max(...offsets.map((o) => Math.abs(o[1])));
-          const bank = 0.38 * Math.cos(sa),
-            len = Math.hypot(bank, 1);
-          const radialMax = Math.hypot(
-            shard.radius * STORM.radius + (Math.abs(bank) * my) / len,
-            mx,
-          );
-          const yMin = STORM.height * (shard.height - 0.35) - my / len;
-          for (const crane of [0, 0.25, 0.5, 0.75, 1]) {
-            const cameraR = CAMERA.peakRadius - CAMERA.sway + 3.5 * crane;
-            const cameraY = CAMERA.peakHeight + 0.18 + 3.5 * crane;
-            assert.ok(
-              radialMax < cameraR - 0.1 || yMin > cameraY + 0.1,
-              `shard/camera overlap seed ${seed}, crane ${crane}: r ${radialMax}, y ${yMin}`,
-            );
-          }
-        });
-      });
-    }
-  for (const dev of [0, 0.8, 1.4, 1.7, 2]) {
-    const a = cameraPose(dev, 0.37),
-      b = cameraPose(dev, 1.37);
-    assert.ok(dist(a.eye, b.eye) < 1e-12);
+    for (const dev of [0, 0.2, 0.5, 0.9, 1, 1.4, 1.8, 2])
+      for (const phase of [0, 0.37, 1])
+        for (const snap of [0, 0.5, 1])
+          for (let b = 0; b < BANDS; b++)
+            for (const s of [0, 1, 9, 17, 18])
+              for (const v of [-1.06, 0, 1.06]) {
+                const p = paperPoint(s, v, b, dev, phase, snap, seed, 2);
+                assert.ok(p.every(Number.isFinite));
+                assert.ok(
+                  Math.hypot(p[0], p[2]) < 9.5,
+                  "outside camera clearance",
+                );
+                assert.ok(p[1] > -0.2 && p[1] < 10.5);
+                assert.ok(
+                  dist(p, paperPoint(s, v, b, dev, phase + 1, snap, seed, 2)) <
+                    1e-11,
+                  "phase wrap",
+                );
+                const next = paperPoint(
+                  s,
+                  v,
+                  b,
+                  dev + 1e-5,
+                  phase,
+                  snap,
+                  seed,
+                  2,
+                );
+                assert.ok(dist(p, next) < 0.001, "no development jump");
+                assert.deepEqual(
+                  p,
+                  paperPoint(s, v, b, dev, phase, snap, seed, 2),
+                );
+              }
+});
+test("crease snap closes a coherent connected band, with a hold independent of colour", () => {
+  assert.equal(snapAmount(0), 0);
+  assert.equal(snapAmount(0.4), 1);
+  assert.equal(snapAmount(1), 1);
+  assert.ok(snapAmount(0.25) > 0.4);
+  let moved = 0;
+  for (let s = 0; s <= PANELS; s++) {
+    const a = paperPoint(s, 1, 0, 2, 0.2, 0),
+      b = paperPoint(s, 1, 0, 2, 0.2, 1);
+    moved += dist(a, b);
   }
-});
-
-test("cast shadows reuse exact hinge attributes and project in the key direction", () => {
-  const data = createGeometry(527);
-  let pairs = 0;
-  for (let i = 0; i < data.length; i += STRIDE * 3) {
-    if (data[i + 5] !== KIND.face || data[i + 10] < 0.45) continue;
-    const next = i + STRIDE * 3;
-    assert.equal(data[next + 5], KIND.shadow);
-    for (let v = 0; v < 3; v++)
-      for (let k = 0; k < STRIDE; k++) {
-        if (k !== 5)
-          assert.equal(data[i + v * STRIDE + k], data[next + v * STRIDE + k]);
-      }
-    pairs++;
-  }
-  assert.ok(pairs > 300, "all hero nets carry actual triangle shadows");
-  const p = [1, 2, -3],
-    q = shadowPoint(p),
-    h = p[1] + 0.22;
-  assert.ok(Math.abs((q[0] - p[0]) / h - 0.75 / 0.6) < 1e-12);
-  assert.ok(Math.abs((q[2] - p[2]) / h - 0.42 / 0.6) < 1e-12);
-  assert.equal(q[1], -0.185);
-});
-
-test("analytic paper normals match differences; banked shards stay rigid and periodic", () => {
-  const wave = (x, z, a, p) =>
-    a *
-    (Math.sin(0.55 * x + 4 * Math.PI * p) *
-      Math.sin(0.47 * z - 6 * Math.PI * p) +
-      0.5 * Math.sin(0.31 * (x + z) + 10 * Math.PI * p));
-  const e = 1e-5;
-  for (const x of [-9, -0.2, 3, 12])
-    for (const z of [-7, 0, 5])
-      for (const p of [0, 0.37, 1]) {
-        const dx =
-          (wave(x + e, z, 0.12, p) - wave(x - e, z, 0.12, p)) / (2 * e);
-        const dz =
-          (wave(x, z + e, 0.12, p) - wave(x, z - e, 0.12, p)) / (2 * e);
-        const q = [-dx, 1, -dz],
-          len = Math.hypot(...q),
-          n = paperNormal(x, z, 0.12, p);
-        assert.ok(
-          dist(
-            n,
-            q.map((v) => v / len),
-          ) < 1e-9,
-        );
-        assert.ok(dist(n, paperNormal(x, z, 0.12, p + 1)) < 1e-12);
-      }
-  for (const item of arrangement(527))
-    for (const face of item.shards)
-      for (const shard of face) {
-        const f = shardFrame(shard, 0.37),
-          wrapped = shardFrame(shard, 1.37);
-        for (const v of Object.values(f))
-          assert.ok(Math.abs(Math.hypot(...v) - 1) < 1e-12);
-        assert.ok(
-          Math.abs(f.tangent.reduce((s, v, i) => s + v * f.across[i], 0)) <
-            1e-12,
-        );
-        assert.ok(dist(f.normal, wrapped.normal) < 1e-12);
-      }
-  assert.deepEqual(
-    scene.presets.map((p) => p.seed),
-    [527, 527, 527, 1931, 88, 3307, 777, 4096],
-  );
-});
-
-test("geometry is deterministic, finite and bounded", () => {
-  const a = createGeometry(527),
-    b = createGeometry(528);
-  assert.deepEqual(a, createGeometry(527));
-  assert.notDeepEqual(a.subarray(0, 2000), b.subarray(0, 2000));
-  assert.ok(a.every(Number.isFinite));
-  assert.equal(a.length % (STRIDE * 3), 0);
   assert.ok(
-    a.length / STRIDE < 30000,
-    "floor tessellation must not dominate vertex work",
+    moved / (PANELS + 1) > 1,
+    "structural fold moves over one world unit",
   );
-  // Rodrigues sanity: a quarter turn about +y maps +x to -z.
-  const r = rotateAbout([1, 0, 0], [0, 0, 0], [0, 1, 0], Math.PI / 2);
-  assert.ok(dist(r, [0, 0, -1]) < 1e-12);
+  assert.match(scene.geometry.vertex, /mod\(u_rhythmCount\.w,3\.\)/);
+  assert.match(scene.geometry.vertex, /ss\(\.12,\.38,max\(u_rhythm\.w/);
 });
-
-test("four authored gestures include a bounded slot-3 crease snap and full grids", () => {
+test("camera remains outside all paper and has only bounded development movement", () => {
+  for (const dev of [0, 0.5, 1, 1.5, 2])
+    for (const phase of [0, 0.17, 0.65]) {
+      const p = cameraPose(dev, phase);
+      assert.equal(Math.hypot(p.eye[0], p.eye[2]), CAMERA.radius);
+      assert.ok(dist(p.eye, cameraPose(dev, phase + 1).eye) < 1e-11);
+      assert.ok(
+        dist(p.eye, cameraPose(2 - dev, phase).eye) < 1e-11,
+        "no dolly lurch",
+      );
+    }
+});
+test("every preset owns four distinct gestures with full driving/accented grids", () => {
   assert.deepEqual(
     scene.rhythm.map((g) => g.slot),
     [0, 1, 2, 3],
   );
   assert.equal(scene.rhythm[3].id, "crease-snap");
-  for (const [style, minimum] of [
+  for (const [style, min] of [
     ["restrained", 2],
     ["driving", 6],
     ["accented", 8],
   ]) {
-    const tracks = defaultPattern(scene.rhythm, style).tracks;
-    const density = tracks.reduce(
-      (sum, t) =>
-        sum + (t.steps.filter((v) => v > 0).length * 4 * t.division) / t.length,
-      0,
-    );
-    assert.ok(density >= minimum, `${style}: ${density}`);
-    const snap = tracks.find((t) => t.effect === "crease-snap");
-    assert.ok(snap.steps.filter((v) => v > 0).length >= 2);
-    assert.ok(snap.strength <= 1 && snap.duration <= 0.9);
+    let density = 0;
+    for (const g of scene.rhythm) {
+      const p = defaultPattern([g], style).tracks[0],
+        hits = p.steps.filter((x) => x > 0).length;
+      assert.ok(hits >= (g.slot === 3 ? 2 : 1), `${style}/${g.id}`);
+      density += hits / (p.length / p.division / 4);
+    }
+    assert.ok(density >= min, `${style}: ${density}`);
   }
-  assert.match(scene.geometry.vertex, /u_rhythm\.w/);
-  assert.match(scene.geometry.vertex, /u_rhythmHit\.w/);
-  assert.match(scene.geometry.vertex, /u_rhythmCount\.w/);
-});
-
-test("median-split paper keeps exact barycentrics, shared creases and rigid wings", () => {
-  const data = createGeometry(527);
-  let halves = 0;
-  for (let i = 0; i < data.length; i += STRIDE * 3) {
-    if (data[i + 5] !== KIND.face) continue;
-    halves++;
-    const side = data[i + 4];
-    assert.ok(side === 1 || side === -1);
-    const points = [0, 1, 2].map((v) =>
-      Array.from(data.subarray(i + v * STRIDE, i + v * STRIDE + 3)),
-    );
-    for (let v = 0; v < 3; v++) {
-      const base = i + v * STRIDE;
-      assert.equal(data[base + 4], side);
-      const a = data[base + 26],
-        b = data[base + 27];
-      assert.ok(a >= 0 && b >= 0 && a + b <= 1);
-    }
-    // Shared median runs from original face-centre to edge midpoint.
-    const midpoint = side === 1 ? points[2] : points[1];
-    const root = points[0],
-      delta = midpoint.map((v, k) => v - root[k]);
-    const len = Math.hypot(...delta),
-      axis = delta.map((v) => v / len);
-    for (const angle of [0, 0.38, 1.41]) {
-      const bent = points.map((p) => rotateAbout(p, root, axis, side * angle));
-      for (let v = 0; v < 3; v++)
-        assert.ok(
-          Math.abs(
-            dist(bent[v], bent[(v + 1) % 3]) -
-              dist(points[v], points[(v + 1) % 3]),
-          ) < 1e-9,
-        );
-      assert.ok(
-        dist(rotateAbout(midpoint, root, axis, angle), midpoint) < 1e-9,
-      );
-    }
-  }
-  assert.ok(halves > 2000);
-});
-
-test("all crease angles stay within a conservative peak camera clearance sphere", () => {
-  for (const seed of [527, 1931, 88, 3307, 777, 4096])
-    for (const item of arrangement(seed)) {
-      const t = TEMPLATES[item.t];
-      t.flat.forEach((face, f) => {
-        const c = [0, 1, 2].map(
-          (k) => face.reduce((s, p) => s + p[k], 0) / face.length,
-        );
-        face.forEach((a, i) => {
-          const pts = [c, a, face[(i + 1) % face.length]];
-          const tc = [0, 1, 2].map(
-            (k) => pts.reduce((s, p) => s + p[k], 0) / 3,
-          );
-          const shard = item.shards[f][i];
-          // An orthonormal shard basis plus rotation about a median through
-          // tc preserves this bound for every rhythm angle and bank.
-          const extent =
-            Math.max(...pts.map((p) => dist(p, tc))) *
-            Math.min(item.scale, 0.8) *
-            1.1 *
-            1.5;
-          const radialMax = shard.radius * STORM.radius + extent;
-          const yMin = STORM.height * (shard.height - 0.35) - extent;
-          for (const crane of [0, 0.25, 0.5, 0.75, 1])
-            assert.ok(
-              radialMax < CAMERA.peakRadius - CAMERA.sway + 3.5 * crane - 0.1 ||
-                yMin > CAMERA.peakHeight + 0.18 + 3.5 * crane + 0.1,
-              `folded-wing clearance: seed ${seed}, crane ${crane}`,
-            );
-        });
-      });
-    }
+  assert.deepEqual(Object.values(scene.rhythmStyles), [
+    "Paper hush",
+    "Crease dance",
+    "Thousand cranes",
+  ]);
 });

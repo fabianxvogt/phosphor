@@ -2427,6 +2427,9 @@ export default {
   "Crease snap": "Falzschlag",
   "A sector of paper snaps into a new fold on the accent.":
     "Ein Papiersektor schnappt auf dem Akzent in eine neue Falte.",
+  "Connected pleated sheets curl into open coils and sweep around a dark cavity. Crease strikes close whole paper bands.": "Zusammenhängende, gefaltete Papierbögen rollen sich auf und umkreisen einen dunklen Hohlraum. Falzschläge schließen ganze Papierbänder.",
+  "Connected pleated paper sheets fold into open coils, then sweep around a dark storm cavity. A crease strike closes a whole paper band.": "Zusammenhängende Papierbögen falten sich zu offenen Spiralen und umkreisen einen dunklen Sturmhohlraum. Ein Falzschlag schließt ein ganzes Papierband.",
+  "Connected chevron-pleated paper with shared section hinges": "Zusammenhängendes Zickzack-Faltpapier mit gemeinsamen Querschnittsfalzen",
   "Paper hush": "Papierstille",
   "Crease dance": "Falzentanz",
   "Thousand cranes": "Tausend Kraniche",
