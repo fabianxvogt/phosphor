@@ -14,67 +14,86 @@ export const VISUAL_STYLES = [
 export const FAMILY_CATALOG = {
   aurora: {
     algorithm: "Folded rayed sheets along parallel magnetic field lines",
-    description: "Folded curtains of field-aligned light travel over a frozen lake, then gather into an overhead magnetic corona. The same rays throughout.",
+    description:
+      "Folded curtains of field-aligned light travel over a frozen lake, then gather into an overhead magnetic corona. The same rays throughout.",
     styles: ["spatial", "waves"],
     variants: ["Glow", "Curtains", "Corona"],
   },
   orrery: {
-    algorithm: "Beveled involute gears with exact integer-tooth meshing and orbital ratios",
-    description: "Involute gears open into an exact-ratio planetary machine and a vast clockwork cathedral.",
+    algorithm:
+      "Beveled involute gears with exact integer-tooth meshing and orbital ratios",
+    description:
+      "Involute gears open into an exact-ratio planetary machine and a vast clockwork cathedral.",
     styles: ["spatial", "geometric"],
     variants: ["Gears", "Orrery", "Clockwork"],
   },
   storm: {
-    algorithm: "Volumetric cumulonimbus lit from inside by seeded stepped-leader discharges",
-    description: "A distant bank flickering with heat lightning grows into towering cumulonimbus and a supercell with a streaming anvil. Every discharge lights the cloud from inside; strikes fall from the anvil to the plain.",
+    algorithm:
+      "Volumetric cumulonimbus lit from inside by seeded stepped-leader discharges",
+    description:
+      "A distant bank flickering with heat lightning grows into towering cumulonimbus and a supercell with a streaming anvil. Every discharge lights the cloud from inside; strikes fall from the anvil to the plain.",
     styles: ["spatial", "organic"],
     variants: ["Haze", "Towers", "Supercell"],
   },
   prism: {
-    algorithm: "Snell refraction through triangular glass with Cauchy dispersion",
-    description: "A turning glass prism disperses a white beam, grows an optical array and opens into a cathedral of glass and spectral caustics.",
+    algorithm:
+      "Snell refraction through triangular glass with Cauchy dispersion",
+    description:
+      "A turning glass prism disperses a white beam, grows an optical array and opens into a cathedral of glass and spectral caustics.",
     styles: ["spatial", "geometric"],
     variants: ["Shard", "Array", "Kaleidoscope"],
   },
   escher: {
-    algorithm: "Projective Penrose stair covering space and exact log-polar Droste recursion",
-    description: "A white plaster staircase climbs into its own beginning, opens to three gravities and spirals into an endless recursive atrium.",
+    algorithm:
+      "Projective Penrose stair covering space and exact log-polar Droste recursion",
+    description:
+      "A white plaster staircase climbs into its own beginning, opens to three gravities and spirals into an endless recursive atrium.",
     styles: ["spatial", "geometric", "fractal"],
     variants: ["Stair", "Relativity", "Infinity"],
   },
   silk: {
-    algorithm: "Strouhal travelling-wave cloth and unit-speed conical ribbon helices",
-    description: "One billowing silk veil separates into wind-tossed banners and winds into a towering ribbon vortex. The same fabric throughout.",
+    algorithm:
+      "Strouhal travelling-wave cloth and unit-speed conical ribbon helices",
+    description:
+      "One billowing silk veil separates into wind-tossed banners and winds into a towering ribbon vortex. The same fabric throughout.",
     styles: ["spatial", "waves", "organic"],
     variants: ["Veil", "Banners", "Tornado"],
   },
   ink: {
     algorithm: "Kelvin vortex rings, Widnall lobes and Kaden roll-up",
-    description: "A falling drop rolls into a vortex ring whose Widnall lobes pinch off into a crown of daughter rings, each shedding silk bells in a dark tank.",
+    description:
+      "A falling drop rolls into a vortex ring whose Widnall lobes pinch off into a crown of daughter rings, each shedding silk bells in a dark tank.",
     styles: ["organic", "spatial"],
     variants: ["Drop", "Plumes", "Nebula"],
   },
   soap: {
     algorithm: "Airy thin-film interference and tetrahedral Plateau foam",
-    description: "One iridescent bubble gathers draining films and Plateau junctions, then grows into a vaulted cathedral of luminous foam.",
+    description:
+      "One iridescent bubble gathers draining films and Plateau junctions, then grows into a vaulted cathedral of luminous foam.",
     styles: ["spatial", "organic"],
     variants: ["Bubble", "Cluster", "Foam"],
   },
   dunes: {
-    algorithm: "Barchan heightfields, angle-of-repose slip faces and ballistic saltation",
-    description: "Moonlit ripples rise into crescent dunes before a rolling haboob reveals dark monoliths.",
+    algorithm:
+      "Barchan heightfields, angle-of-repose slip faces and ballistic saltation",
+    description:
+      "Moonlit ripples rise into crescent dunes before a rolling haboob reveals dark monoliths.",
     styles: ["spatial", "waves"],
     variants: ["Ripples", "Dunes", "Storm"],
   },
   voxel: {
-    algorithm: "Additive 3D cellular automaton over GF(2) with Morton-ordered assembly",
-    description: "Persistent digital matter falls through a dark grid hall, assembles into a scanned monolith and unfolds into a fractal parity architecture above a mirror floor.",
+    algorithm:
+      "Additive 3D cellular automaton over GF(2) with Morton-ordered assembly",
+    description:
+      "Persistent digital matter falls through a dark grid hall, assembles into a scanned monolith and unfolds into a fractal parity architecture above a mirror floor.",
     styles: ["spatial", "geometric", "fractal"],
     variants: ["Rain", "Assembly", "Unfold"],
   },
   ferro: {
-    algorithm: "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
-    description: "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",
+    algorithm:
+      "Raymarched ferrofluid with a Rosensweig hexagonal spike lattice",
+    description:
+      "A black mirror pool grows a hexagonal crown of ferrofluid spikes, then lifts into a floating chrome sculpture with orbiting droplets. Palette light strips reflect in the dark metal.",
     styles: ["spatial", "organic"],
     variants: ["Pool", "Crown", "Sculpture"],
   },
@@ -87,7 +106,8 @@ export const FAMILY_CATALOG = {
   },
   laser: {
     algorithm: "Hinged vector planes and closed-form Gaussian beam scattering",
-    description: "A vector plane raises wireframe towers, then folds into a vaulted laser cathedral. Crisp material grid lines and sweeping laser fans inhabit analytically integrated scattering haze.",
+    description:
+      "A vector plane raises wireframe towers, then folds into a vaulted laser cathedral. Crisp material grid lines and sweeping laser fans inhabit analytically integrated scattering haze.",
     styles: ["geometric", "spatial"],
     variants: ["Horizon", "Towers", "Tunnel"],
   },
@@ -144,7 +164,8 @@ export const FAMILY_CATALOG = {
     variants: ["Corridor", "Cavern", "City"],
   },
   horizon: {
-    algorithm: "Schwarzschild null geodesics (Binet equation, Encke RK4) with a thin Doppler-beamed disk",
+    algorithm:
+      "Schwarzschild null geodesics (Binet equation, Encke RK4) with a thin Doppler-beamed disk",
     description:
       "A black hole traced ray by ray: the sky lenses around the shadow, a tidally stretched star feeds a spiral that heats into a blazing disk whose far side arches over and under the photon ring, with relativistic jets at the peak.",
     styles: ["spatial"],
@@ -181,9 +202,10 @@ export const FAMILY_CATALOG = {
     variants: ["Roots", "Petals", "Bloom"],
   },
   mycelium: {
-    algorithm: "Gray–Scott reaction–diffusion as a lit terrain",
+    algorithm:
+      "Hyphal tip growth with anastomosis, geodesic nutrient pulses and Murray-law cords",
     description:
-      "One reaction–diffusion field becomes understory threads, tidal membranes and a luminous city while its chemistry keeps running.",
+      "A seeded fungal network grows, fuses into loops and carries nutrient pulses along its shortest paths, then fruits into a grove of glowing mushrooms.",
     styles: ["organic", "spatial"],
     variants: ["Understory", "Tide", "City"],
   },

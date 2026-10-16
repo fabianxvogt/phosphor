@@ -58,7 +58,7 @@ const AUTHORED = [
     id: "mycelium",
     name: "Living Mycelium",
     description:
-      "One living field grows from understory threads into tidal membranes and a luminous city. Play every stage in between.",
+      "Branching hyphae carry nutrient signals through a living forest floor, then fruit into a luminous mushroom city. Play every stage in between.",
     states: [
       { name: "Understory", look: "mycelium:Hyphal Understory" },
       { name: "Tide", look: "mycelium:Tidal Lamellae" },
@@ -255,7 +255,8 @@ const AUTHORED = [
   {
     id: "brass-orrery",
     name: "Brass Orrery",
-    description: "Involute gears open into an exact-ratio planetary machine and a vast clockwork cathedral.",
+    description:
+      "Involute gears open into an exact-ratio planetary machine and a vast clockwork cathedral.",
     states: [
       { name: "Gears", look: "orrery:Gears" },
       { name: "Orrery", look: "orrery:Orrery" },
@@ -276,7 +277,8 @@ const AUTHORED = [
   {
     id: "prism-engine",
     name: "Prism Engine",
-    description: "One glass prism splits a white beam into spectral light, multiplies into an optical array and builds a luminous glass cathedral. The same prisms throughout.",
+    description:
+      "One glass prism splits a white beam into spectral light, multiplies into an optical array and builds a luminous glass cathedral. The same prisms throughout.",
     states: [
       { name: "Shard", look: "prism:Shard" },
       { name: "Array", look: "prism:Array" },
@@ -286,7 +288,8 @@ const AUTHORED = [
   {
     id: "impossible-stairs",
     name: "Impossible Stairs",
-    description: "A white plaster staircase climbs into its own beginning, opens to three gravities and spirals into an endless recursive atrium.",
+    description:
+      "A white plaster staircase climbs into its own beginning, opens to three gravities and spirals into an endless recursive atrium.",
     states: [
       { name: "Stair", look: "escher:Stair" },
       { name: "Relativity", look: "escher:Relativity" },
@@ -296,7 +299,8 @@ const AUTHORED = [
   {
     id: "silk-storm",
     name: "Silk Storm",
-    description: "One billowing silk veil separates into wind-tossed banners and winds into a towering ribbon vortex. The same fabric throughout.",
+    description:
+      "One billowing silk veil separates into wind-tossed banners and winds into a towering ribbon vortex. The same fabric throughout.",
     states: [
       { name: "Veil", look: "silk:Veil" },
       { name: "Banners", look: "silk:Banners" },
@@ -317,7 +321,8 @@ const AUTHORED = [
   {
     id: "soap-cathedral",
     name: "Soap Cathedral",
-    description: "One iridescent bubble gathers draining films and Plateau junctions, then grows into a vaulted cathedral of luminous foam.",
+    description:
+      "One iridescent bubble gathers draining films and Plateau junctions, then grows into a vaulted cathedral of luminous foam.",
     states: [
       { name: "Bubble", look: "soap:Bubble" },
       { name: "Cluster", look: "soap:Cluster" },
@@ -327,7 +332,8 @@ const AUTHORED = [
   {
     id: "dune-sea",
     name: "Dune Sea",
-    description: "A low moon grazes wind ripples, a sea of crescent dunes and a towering dust front that reveals dark monoliths. The same desert throughout.",
+    description:
+      "A low moon grazes wind ripples, a sea of crescent dunes and a towering dust front that reveals dark monoliths. The same desert throughout.",
     states: [
       { name: "Ripples", look: "dunes:Ripples" },
       { name: "Dunes", look: "dunes:Dunes" },
@@ -337,7 +343,8 @@ const AUTHORED = [
   {
     id: "data-monolith",
     name: "Data Monolith",
-    description: "Falling digital matter assembles into a scanned monolith and unfolds into a deterministic cellular architecture. Every voxel keeps its address.",
+    description:
+      "Falling digital matter assembles into a scanned monolith and unfolds into a deterministic cellular architecture. Every voxel keeps its address.",
     states: [
       { name: "Rain", look: "voxel:Rain" },
       { name: "Assembly", look: "voxel:Assembly" },
@@ -371,6 +378,18 @@ const HISTORY = [
   GARDEN_EVOLUTION,
   withoutParams(GARDEN_EVOLUTION),
   INK_BLOOM_BACKLIT,
+  // Living Mycelium before the seeded-network renderer (round 3).
+  {
+    id: "mycelium",
+    name: "Living Mycelium",
+    description:
+      "One living field grows from understory threads into tidal membranes and a luminous city. Play every stage in between.",
+    states: [
+      { name: "Understory", look: "mycelium:Hyphal Understory" },
+      { name: "Tide", look: "mycelium:Tidal Lamellae" },
+      { name: "City", look: "mycelium:Lantern City" },
+    ],
+  },
 ];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const untouched = (w) =>
