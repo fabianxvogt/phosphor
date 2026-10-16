@@ -176,7 +176,7 @@ export const FAMILY_CATALOG = {
   afterglow: {
     algorithm: "Gray–Scott morphogens as a night garden",
     description:
-      "One morphogen field grows glowing roots, translucent petals and emissive crowns while the camera rises from a low flight to an overhead view.",
+      "A living morphogen meadow grows from glowing roots through lantern buds into open flowers at dusk.",
     styles: ["organic", "spatial"],
     variants: ["Roots", "Petals", "Bloom"],
   },

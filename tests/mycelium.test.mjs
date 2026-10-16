@@ -163,10 +163,11 @@ test("cords obey Murray's law: r³ is conserved at every junction of the transpo
 });
 
 test("the camera never enters a mushroom, at any development, scale or altitude", () => {
-  assert.ok(net.mushrooms.length >= 20, `mushrooms ${net.mushrooms.length}`);
+  assert.ok(net.mushrooms.length >= 80, `mushrooms ${net.mushrooms.length}`);
+  assert.ok(new Set(net.mushrooms.map((m) => m.site)).size >= 25);
   for (const seed of [211, 101, 149, 41, 18, 73])
     for (const m of growNetwork(seed).mushrooms)
-      assert.ok(shroomClearance(m) > 0.012, `seed ${seed} clearance`);
+      assert.ok(shroomClearance(m) > 0.032, `seed ${seed} clearance`);
   // Every stem stands off the camera line.
   for (const m of net.mushrooms) assert.ok(pathDistance(m.x, m.y) > 0.03);
 });
@@ -184,7 +185,9 @@ test("the mesh: fixed opaque head, finite attributes, segments shorter than the 
     const seg = Math.hypot(data[o] - data[o + 4], data[o + 1] - data[o + 5]);
     assert.ok(seg < 0.03 && seg < PERIOD / 4);
   }
-  assert.ok(vertices < 600000, `vertices ${vertices}`);
+  // Larger clustered canopy, but only one mesh instance (no flat pools).
+  assert.ok(vertices < 720000, `vertices ${vertices}`);
+  assert.deepEqual(Array.from(mycelium.geometry.instances.create()), [0]);
 });
 
 test("rhythm ids, slots and the simulation contract are kept", () => {
@@ -231,7 +234,32 @@ test("signal relay has three full authored styles and uses the complete slot-3 c
   ]);
   for (const name of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
     assert.ok(mycelium.geometry.fragment.includes(name), name);
-  assert.match(mycelium.geometry.vertex, /mySignal\(a3.x\)/);
+  assert.match(mycelium.geometry.vertex, /mySignal\(a3.x\+travel\)/);
+  assert.match(mycelium.geometry.vertex, /s\.h\*w/);
+  assert.match(mycelium.geometry.vertex, /exp\(-max\(0\.,age\)\/\.23\)/);
+});
+
+test("r4 keeps a floor-facing continuous crane and energy-dependent fine branching", () => {
+  const shader = mycelium.geometry.vertex;
+  assert.match(shader, /pitch=mix\(-\.53,-\.42,crane\)/);
+  assert.match(shader, /h=mix\(\.17,\.14,crane\)/);
+  assert.match(shader, /smoothstep\(hh-\.12,hh\+\.12,\.24\+\.8\*lv\)/);
+  const tip = mycelium.rhythm[0].styles.driving;
+  assert.equal(tip.length / tip.division, 3, "three beats against four");
+  for (const [style, minimum] of [
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const density = mycelium.rhythm.reduce((total, effect) => {
+      const loop = effect.styles[style];
+      return (
+        total +
+        (loop.steps.filter((x) => x > 0).length * 4 * loop.division) /
+          loop.length
+      );
+    }, 0);
+    assert.ok(density >= minimum, `${style}: ${density}`);
+  }
 });
 
 test("development chemistry stays inside acid's stability clamps", () => {
