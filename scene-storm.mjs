@@ -353,7 +353,7 @@ void main() {
           erode = mix(erode,0.25+(1.0-fib)*0.95,anvilW*fade);
         }
         sigma = full*smoothstep(erode,erode+0.3,sigma/full);
-        crevice = mix(1.0,0.5+0.7*smoothstep(0.0,1.0,lobe),fade*(1.0-0.6*anvilW));
+        crevice = mix(1.0,0.68+0.45*smoothstep(0.0,1.0,lobe),fade*(1.0-0.6*anvilW));
       }
       if (sigma <= 0.0) { t += ds; continue; }
       float tau = o.y;
@@ -361,7 +361,7 @@ void main() {
       float height = clamp((p.y/u_params[2]-stBase)/9.0,0.0,1.0);
       float powder = mix(0.45,1.0,1.0-exp(-2.0*sigma));
       vec3 S = (moonTint*ms*1.5*powder + skyLight*o.z*(0.3+0.7*height)
-        + townLight*sq(sq(1.0-height))*(0.4+1.2*(1.0-o.z)))*crevice + flashLight*o.w*mix(1.0,crevice,0.6);
+        + townLight*sq(sq(1.0-height))*(0.4+1.2*(1.0-o.z)))*crevice + flashLight*o.w;
       float stepT = exp(-sigma*ds);
       cloud += trans*S*(1.0-stepT);
       trans *= stepT;
@@ -462,16 +462,16 @@ void main() {
     groundCol += (moonTint*0.022*moonSide+warm*0.012)*mist*(0.7+0.3*fields);
     groundAll = groundCol;
   }
-  vec3 lakeCol = vec3(0);
+  vec3 lakeCol = vec3(0), lakeGlint = vec3(0);
   vec3 r = reflect(rd,waterN);
   if (water > 0.0) {
     r.y = max(r.y,0.002);
     float fresnel = 0.02+0.98*pow(1.0-clamp(-rd.y,0.0,1.0),5.0);
-    float v2 = 0.0;
     vec3 sky = stSkyLite(r);
     vec3 mq = stMoon;
     float glint = pow(max(dot(r,mq),0.0),900.0)*6.0+pow(max(dot(r,mq),0.0),120.0)*0.25;
-    lakeCol = (sky+mix(u_secondary,vec3(1),0.8)*glint*(1.0-0.5*v2))*fresnel + u_secondary*0.003;
+    lakeCol = sky*fresnel + u_secondary*0.003;
+    lakeGlint = mix(u_secondary,vec3(1),0.8)*glint*fresnel;
   }
 
   // Rain shafts below the convective cells: soft wind-bent shafts that
@@ -550,6 +550,8 @@ void main() {
       float fresnel = 0.02+0.98*pow(1.0-clamp(-rd.y,0.0,1.0),5.0);
       lakeCol = lakeCol*lakeTrans+S*(1.0-lakeTrans)*fresnel;
     }
+    // The moon path is only dimmed, not cut, by the reflected storm edge.
+    lakeCol += lakeGlint*(0.45+0.55*lakeTrans);
   }
 
   // Lightning channels: tile-culled seeded edges, occluded by the cloud in
@@ -594,7 +596,6 @@ void main() {
     int local = i % 30;
     float d = stBoltDistance(view,endpoints.xy,endpoints.zw,int(stSlot[slot].w),local);
     if (d > reach) continue;
-    d /= 1.0+0.45*sigK;
     vec4 a = stData(i,1), b = stData(i,2);
     float rank = local < 18 ? float(local)/18.0 : (4.0 + floor(float(local-18)/4.0)*4.0 + mod(float(local-18),4.0)) / 18.0;
     float grown = 1.0-smoothstep(stSlot[slot].z*1.02-0.04,stSlot[slot].z*1.02,rank);
@@ -610,7 +611,7 @@ void main() {
     // Windowed inside the candidate reach: no disc edge at the cut-off.
     float wide = exp(-sq(2.0*d / (halo*mix(0.6,1.0,taper))))*(1.0-smoothstep(0.6*reach,reach,d));
     vec3 hTint = mix(haloTint,stSat(u_accent,1.35),sigK);
-    vec3 light = ink*(core*7.0+glow*(0.8+0.6*sigK))*clear + hTint*(wide*(0.35*occlusion+0.9*occlusion*(1.0-occlusion))*(1.0+sigK)+glow*0.5*sigK*clear);
+    vec3 light = ink*(core*(7.0+5.0*sigK)+glow*0.8)*clear + hTint*(wide*(0.35*occlusion+0.9*occlusion*(1.0-occlusion))*(1.0+1.5*sigK)+glow*0.6*sigK*clear);
     bolts += light * a.w * mix(branch,1.0,sigK) * power * grown;
     }
   }

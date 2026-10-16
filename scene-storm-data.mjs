@@ -129,11 +129,11 @@ void stEvent(int slot, float index, float u, float gain) {
       int edge = side < 0.0 ? 1 : 3;
       vec4 e = stCell[edge];
       vec3 cellTop = vec3(e.x+side*stCellR[edge]*0.4, e.z+(e.w-e.z)*0.8, e.y-stCellR[edge]*0.5);
-      vec3 anvilTop = vec3(-3.0+side*mix(5.0,7.0,stRand(93,id)), stCell[2].w*0.9-0.2, 4.5);
+      vec3 anvilTop = vec3(-2.0+side*mix(3.5,5.5,stRand(93,id)), stCell[2].w*0.9-0.2, 4.5);
       stTop[slot] = mix(cellTop,anvilTop,stSuper);
       // Lands on the plain beside the storm, out in clear air; it doubles
       // in the lake and its attachment glow streaks across the water.
-      stBottom[slot] = vec3(stTop[slot].x+side*mix(2.5,4.5,stRand(95,id)), 0.0, stTop[slot].z-mix(2.0,4.0,stRand(94,id)));
+      stBottom[slot] = vec3(stTop[slot].x+side*mix(2.0,3.5,stRand(95,id))*mix(1.0,0.7,stSuper), 0.0, stTop[slot].z-mix(2.0,4.0,stRand(94,id)));
     }
   } else if (slot == 2) {
     // Crawler: buried cloud-to-cloud inside the bank and towers, then
@@ -183,7 +183,7 @@ void stEvents() {
     float on0 = stRand(35,id0) < chance0 ? 1.0 : 0.0;
     stEvent(0, 2048.0+mod(k0,2048.0), on0 > 0.5 ? (u_beat-start0)/1.4 : 1.0, 0.85);
   } else stEvent(0, u_rhythmCount.z, u0, 1.0);
-  stEvent(2, u_rhythmCount.y, stEnvelopeTime(u_rhythm.y,0.6), 1.0);
+  stEvent(2, u_rhythmCount.y, stEnvelopeTime(u_rhythm.y,0.6), 1.3);
   // 3: the buried rhythm discharge; between its events the slot carries
   // autonomous intra-cloud flicker on a one-beat grid (energy sets the rate).
   float u3 = stEnvelopeTime(u_rhythm.x,0.6);
@@ -227,12 +227,15 @@ void stCameraSetup() {
   float grow = 0.55*stRise+0.45*stSuper;
   // Overlook: low and close (0) to high and far (1).
   float eye = u_params[5]-0.45;
-  float z = mix(-21.0,-14.0,grow)-eye*7.0;
+  float z = mix(-21.0,mix(-14.0,-12.0,stSuper),grow)-eye*7.0;
   float y = mix(1.5,0.6,grow)+eye*(eye < 0.0 ? 0.8 : 1.4);
   float ty = mix(3.0,mix(4.8,8.4,stSuper),stRise)*u_params[2];
   float tz = mix(14.0,8.0,grow);
-  stEye = vec3(2.2*sin(stCamera), y+0.08*sin(2.0*stCamera), z+0.6*cos(stCamera));
-  vec3 target = vec3(0.6*sin(stCamera), ty, tz);
+  // The supercell's anvil streams to the right: pan with it so the storm
+  // sits centred instead of leaving the left third empty.
+  float pan = 2.2*stSuper;
+  stEye = vec3(pan+2.2*sin(stCamera), y+0.08*sin(2.0*stCamera), z+0.6*cos(stCamera));
+  vec3 target = vec3(pan+0.6*sin(stCamera), ty, tz);
   stF = normalize(target - stEye);
   stR = normalize(cross(stF, vec3(0,1,0))); stU = cross(stR, stF);
   stFocal = mix(mix(2.2,2.25,stRise),1.6,stSuper);
