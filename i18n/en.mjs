@@ -2157,6 +2157,8 @@ export default {
   "A soft accent traces the living surface edges.": "A soft accent traces the living surface edges.",
   "Golden centres": "Golden centres",
   "The connected centres glow together.": "The connected centres glow together.",
+  "Petal flush": "Petal flush",
+  "A coloured sap front runs out through a whorl and releases its curled petals.": "A coloured sap front runs out through a whorl and releases its curled petals.",
   "Folded seed": "Folded seed",
   "Opening whorl": "Opening whorl",
   "Golden emergence": "Golden emergence",

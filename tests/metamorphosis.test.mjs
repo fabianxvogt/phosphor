@@ -9,6 +9,7 @@ import {
 } from "../metamorphosis-geometry.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { continuousDevelopment } from "../worlds.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 test("Unfolding Garden preserves all look names, seeds, schema and continuous identity", () => {
   assert.deepEqual(
@@ -87,6 +88,61 @@ test("filaments fill adjacent sectors into one membrane and reverse without chan
       }
 });
 
+test("slot-3 flush is authored, full, local and continuous at membrane seams", () => {
+  assert.deepEqual(
+    scene.rhythm.map((g) => g.slot),
+    [0, 1, 2, 3],
+  );
+  assert.equal(scene.rhythm[3].id, "petal-flush");
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(scene.rhythm, style);
+    let density = 0;
+    for (const track of pattern.tracks) {
+      const hits = track.steps.flatMap((v, i) => (v > 0 ? [i] : []));
+      density += (hits.length * 4 * track.division) / track.length;
+      const gaps = hits.map(
+        (h, i) =>
+          (hits[(i + 1) % hits.length] +
+            (i === hits.length - 1 ? track.length : 0) -
+            h) /
+          track.division,
+      );
+      assert.ok(track.duration < Math.min(...gaps));
+    }
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+    assert.ok(
+      scene.rhythm[3].styles[style].steps.filter((v) => v > 0).length >= 2,
+    );
+  }
+  const node = organism(112)[1];
+  for (let p = 0; p < node.petals; p++) {
+    for (const count of [0, 3, 50000]) {
+      const opts = { sway: 0, flush: 1, count };
+      const a = petalPoint(node, p, 0.75, 1, 1, opts);
+      const b = petalPoint(node, (p + 1) % node.petals, 0.75, -1, 1, opts);
+      assert.ok(Math.hypot(...a.map((v, i) => v - b[i])) < 1e-12);
+      for (const d of [0, 0.5, 1, 1.5, 2]) {
+        const a = petalPoint(node, p, 0.8, 0.3, d, opts);
+        const b = petalPoint(node, p, 0.8, 0.3, d + 1e-5, opts);
+        assert.ok(a.every(Number.isFinite));
+        assert.ok(Math.hypot(...a.map((v, i) => v - b[i])) < 1e-4);
+      }
+    }
+  }
+  for (const source of [scene.geometry.vertex, scene.geometry.fragment]) {
+    assert.match(source, /u_rhythm\.w/);
+    assert.match(source, /u_rhythmCount\.w/);
+  }
+  assert.match(scene.geometry.fragment, /u_rhythmHit\.w/);
+  const low = petalPoint(node, 0, 0.7, 0.3, 0, { level: 0.1 });
+  const high = petalPoint(node, 0, 0.7, 0.3, 0, { level: 0.9 });
+  assert.ok(Math.hypot(...low.map((v, i) => v - high[i])) > 0.03);
+});
+
 test("background blossoms keep the mesh bounded and the landscape hero fills 60–80% vertically", () => {
   for (const seed of [112, 847, 2451]) {
     const nodes = organism(seed),
@@ -143,6 +199,10 @@ test("the top blossom is larger than its membrane and the hero fits landscape an
                   phase: time % 150,
                   sway: 2,
                   edgeGesture: 1,
+                  flush: 1,
+                  count:
+                    (hero.angle + (p / hero.petals) * Math.PI * 2) / 2.39996,
+                  level: 0.9,
                 });
                 const [x, y, z] = projectPoint(q, time, aspect, 1);
                 assert.ok(z > 0.1 && z < 12);

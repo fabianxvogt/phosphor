@@ -2157,6 +2157,8 @@ export default {
   "A soft accent traces the living surface edges.": "Ein sanfter Akzent zeichnet die Ränder der lebendigen Flächen nach.",
   "Golden centres": "Goldene Zentren",
   "The connected centres glow together.": "Die verbundenen Zentren leuchten gemeinsam.",
+  "Petal flush": "Blütenwelle",
+  "A coloured sap front runs out through a whorl and releases its curled petals.": "Eine farbige Saftwelle durchläuft einen Blattquirl und öffnet seine eingerollten Blütenblätter.",
   "Folded seed": "Gefalteter Keim",
   "Opening whorl": "Sich öffnender Wirtel",
   "Golden emergence": "Goldenes Erwachen",
