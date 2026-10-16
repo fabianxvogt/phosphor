@@ -1,5 +1,10 @@
 import { familyEffect } from "./family-rhythm.mjs";
-import { cameraGLSL, createGeometry, layerGLSL, LAYERS } from "./fibration-geometry.mjs";
+import {
+  cameraGLSL,
+  createGeometry,
+  layerGLSL,
+  LAYERS,
+} from "./fibration-geometry.mjs";
 
 // Hopf Bloom (#96): the Hopf fibration of the 3-sphere as lit tubes in
 // space. Every tube is one exact fibre (a great circle of S³ over one point
@@ -22,6 +27,13 @@ void main() {
   int i = int(gl_FragCoord.x);
   float phase = unpack24(texelFetch(u_state, ivec2(i, 0), 0));
   float seed = fract(u_seed * (0.0137 + 0.0071 * float(i)));
+  // A single-use signature hit restarts a bounded travel clock. Muting the
+  // track cannot launch a pulse; the display also gates it by its envelope.
+  if (i == 4) {
+    float age = u_reset ? .99999 : u_rhythmHit.w > 0. ? 0. : min(.99999, phase + u_dt / .72);
+    outColor = pack24(age);
+    return;
+  }
   float rate = i == 0 ? u_params[3] * 0.0105
              : i == 1 ? u_params[1] * 0.075
              : i == 2 ? (0.25 + 0.75 * u_params[2]) * 0.011
@@ -132,7 +144,10 @@ void main() {
   // Latitude sets the shell's tone (inner shells warmer), longitude
   // shades around each torus, so nested tori read as separate layers.
   float lon = .5 - .5 * cos(phi), lat = clamp(theta / 2.1, 0., 1.);
-  v_color = palette(.1 + .4 * (1. - lat) + .2 * (lon - .5) + .06);
+  // Avoid grey halfway mixtures of complementary palette colours. Outer
+  // fibres carry secondary, inner latitudes primary, with longitude inlays.
+  float ink = max(1. - smoothstep(.35, .65, lat), smoothstep(.78, .98, lon));
+  v_color = mix(u_secondary, u_primary, .04 + .92 * ink);
   v_color *= .82 + .3 * lon;
   if (theta < .01) v_color = mix(u_accent, u_primary, .3);
   v_shell = shellOut;
@@ -165,6 +180,7 @@ in float v_s, v_core, v_fog, v_glow, v_cohort, v_u, v_shell, v_cover, v_heart;
 flat in float v_layer, v_phi;
 uniform float u_params[8];
 uniform float u_level;
+uniform vec4 u_rhythm, u_rhythmCount;
 uniform vec2 u_resolution;
 uniform vec3 u_primary, u_secondary, u_accent;
 uniform sampler2D u_state;
@@ -186,31 +202,44 @@ void main() {
   // Outer shells are glassy (rim-lit, dim body) so inner tori show through.
   float body = 1. - .3 * v_shell;
   float back = max(0., dot(N, normalize(vec3(.6, -.1, -.7))));
-  vec3 color = base * (.03 + (.74 * diffuse + .14 * wrap) * ao * body);
-  color += mix(base, u_secondary, .55) * back * .13 * body;
-  vec3 rim = mix(mix(u_secondary, vec3(1.), .3), u_accent, .08);
-  color += rim * fresnel * (.48 + .5 * v_shell) * (.55 + .45 * ao);
-  color += mix(base, vec3(1.), .55) * spec * .85 * ao * body;
+  vec3 color = base * (.045 + (.48 * diffuse + .1 * wrap) * ao * body);
+  color += mix(base, u_secondary, .55) * back * .1 * body;
+  vec3 rim = mix(base, u_secondary, .55);
+  color += rim * fresnel * (.52 + .35 * v_shell) * (.55 + .45 * ao);
+  // Optical fibres, not white plastic: a saturated internal light and a
+  // restrained narrow key reflection give the circular section its volume.
+  color += base * pow(nv, 8.) * (.52 + .3 * ao);
+  color += mix(base, vec3(1.), .12) * spec * .32 * ao * body;
   // The circle action: light beads flow along every fibre at once.
   float flow = unpack24(texelFetch(u_state, ivec2(1, 0), 0));
   // Bead count rises with detail; the next bead fades in, never jumps.
-  float n = 1. + 3. * u_params[5], n0 = floor(n);
+  float n = 1. + 7. * u_params[5], n0 = floor(n);
   float arg = v_s - TAU * flow;
-  // A filtered light window, rather than two expensive high-exponent
-  // lobes per foreground pixel. The next bead still enters continuously.
-  float bead = mix(smoothstep(.973, 1., .5 + .5 * cos(n0 * arg + v_phi * 2.)),
-                   smoothstep(.973, 1., .5 + .5 * cos((n0 + 1.) * arg + v_phi * 2.)), smoothstep(.2, .8, n - n0));
-  color += (mix(base, u_accent, .3) * 1.1 + .2) * bead * .7;
+  // Smooth light packets, not hard rectangular glints. The next packet
+  // enters continuously; energy adds detail without raising body brightness.
+  float bead = mix(pow(.5 + .5 * cos(n0 * arg + v_phi * 2.), 16.),
+                   pow(.5 + .5 * cos((n0 + 1.) * arg + v_phi * 2.), 16.), smoothstep(.2, .8, n - n0));
+  color += base * bead * .95;
   // The core circle (all fibres over the north pole) is the one accent ring.
   if (v_layer > 7.5) color += u_accent * (.35 + .5 * wrap);
   // The innermost shells are the focus: a faint inner light.
   color += base * v_heart * (.12 + .45 * wrap);
-  color += mix(base, u_accent, .6) * v_glow * (.35 + .9 * fresnel);
+  color += mix(base, u_accent, .45) * v_glow * (.8 + .8 * fresnel);
   if (v_cohort > .001) {
     float chase = pow(.5 + .5 * cos(v_s - TAU * flow * 3. - v_phi), 8.);
     color = mix(color, mix(base * 1.5, u_accent, .15) * (.5 + .9 * diffuse), .5 * v_cohort);
-    color += mix(u_accent, vec3(1.), .4) * v_cohort * 1.1 * chase;
+    color += mix(u_accent, base, .4) * v_cohort * 1.9 * chase;
   }
+  // Fibre current (slot 3): a head and trailing wake move along the exact
+  // circle parameter. Event count selects a longitude braid, never geometry.
+  float age = unpack24(texelFetch(u_state, ivec2(4, 0), 0));
+  float address = .5 + .5 * cos(v_phi - u_rhythmCount.w * 2.399963);
+  float braid = smoothstep(.65, .9, address);
+  float currentPhase = v_s - TAU * age - .32 * v_layer;
+  float head = smoothstep(.89, .99, .5 + .5 * cos(currentPhase));
+  float wake = smoothstep(.5, .95, .5 + .5 * cos(currentPhase + .65));
+  float current = u_rhythm.w * braid;
+  color += (u_accent * head * 3.8 + base * wake * .85) * current * (.45 + .55 * nv);
   color *= v_cover;
   // Atmosphere: distance fades towards the ground; silhouettes soften into
   // it over about a pixel, which keeps thin tubes from shimmering.
@@ -232,12 +261,54 @@ const schema = [
     default: 0,
   },
   { key: "flow", label: "Fibre flow", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "tumble", label: "4D tumble", min: 0, max: 1, step: 0.01, default: 0.6 },
-  { key: "orbit", label: "Camera orbit", min: -1, max: 1, step: 0.01, default: 0.4 },
-  { key: "thickness", label: "Tube thickness", min: 0.5, max: 1.6, step: 0.01, default: 1 },
-  { key: "beads", label: "Light beads", min: 0, max: 1, step: 0.01, default: 0.4 },
-  { key: "elevation", label: "Camera elevation", min: 0, max: 1, step: 0.01, default: 0.35 },
-  { key: "distance", label: "Camera distance", min: 0.85, max: 1.3, step: 0.01, default: 1 },
+  {
+    key: "tumble",
+    label: "4D tumble",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.6,
+  },
+  {
+    key: "orbit",
+    label: "Camera orbit",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    default: 0.4,
+  },
+  {
+    key: "thickness",
+    label: "Tube thickness",
+    min: 0.5,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "beads",
+    label: "Light beads",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.4,
+  },
+  {
+    key: "elevation",
+    label: "Camera elevation",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.35,
+  },
+  {
+    key: "distance",
+    label: "Camera distance",
+    min: 0.85,
+    max: 1.3,
+    step: 0.01,
+    default: 1,
+  },
 ];
 
 const look = (name, seed, development, params = {}) => ({
@@ -268,11 +339,42 @@ export default {
     look("Linked Torus", 9601, 0),
     look("Nested Shells", 9601, 1),
     look("Full Bundle", 9601, 2),
-    look("Cyclide Swing", 9602, 0, { tumble: 1, orbit: -0.3, thickness: 1.3, beads: 0.2, elevation: 0.08 }),
-    look("Glass Nest", 9603, 1, { flow: 0.6, thickness: 0.7, beads: 0.75, distance: 1.12, elevation: 0.95 }),
-    look("Bundle Weather", 9604, 2, { flow: 1.6, orbit: 0.7, thickness: 0.8, beads: 0.9, elevation: 0.55 }),
-    look("Half Bloom", 9605, 1.5, { tumble: 0.8, orbit: -0.5, distance: 0.92, elevation: 0.15 }),
-    look("Slow Core", 9606, 2, { flow: 0.35, tumble: 0.3, orbit: 0.2, thickness: 1.4, beads: 0.1, distance: 0.88, elevation: 0.75 }),
+    look("Cyclide Swing", 9602, 0, {
+      tumble: 1,
+      orbit: -0.3,
+      thickness: 1.3,
+      beads: 0.2,
+      elevation: 0.08,
+    }),
+    look("Glass Nest", 9603, 1, {
+      flow: 0.6,
+      thickness: 0.7,
+      beads: 0.75,
+      distance: 1.12,
+      elevation: 0.95,
+    }),
+    look("Bundle Weather", 9604, 2, {
+      flow: 1.6,
+      orbit: 0.7,
+      thickness: 0.8,
+      beads: 0.9,
+      elevation: 0.55,
+    }),
+    look("Half Bloom", 9605, 1.5, {
+      tumble: 0.8,
+      orbit: -0.5,
+      distance: 0.92,
+      elevation: 0.15,
+    }),
+    look("Slow Core", 9606, 2, {
+      flow: 0.35,
+      tumble: 0.3,
+      orbit: 0.2,
+      thickness: 1.4,
+      beads: 0.1,
+      distance: 0.88,
+      elevation: 0.75,
+    }),
   ],
   stage: ["flow", "tumble", "orbit"],
   type: { key: "development", values: [0, 1, 2] },
@@ -287,45 +389,145 @@ export default {
     { param: "tumble", feature: "low", amount: 0.05 },
     { param: "beads", feature: "onset", amount: 0.08 },
   ],
-  rhythmStyles: { restrained: "Quiet fibres", driving: "Linked circles", accented: "Meridian braid" },
+  rhythmStyles: {
+    restrained: "Quiet fibres",
+    driving: "Linked circles",
+    accented: "Meridian braid",
+  },
   rhythm: [
     familyEffect(
       "fibre-chase",
       0,
       "Fibre chase",
       "A cohort of whole fibres lights up and a comet runs once around each circle.",
-      { period: 4, strength: 0.65, duration: 1, steps: "X...", styles: {
-        restrained: { steps: "X....... | .....x.. | ..X.....", division: 2, strength: 0.55, duration: 1.5 },
-        driving: { steps: "X....x.. | ..X...x.", division: 2, strength: 0.78, duration: 0.8 },
-        accented: { steps: "X........x........X.....", division: 4, strength: 0.92, duration: 0.8 },
-      } },
+      {
+        period: 4,
+        strength: 0.65,
+        duration: 1,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | .....x.. | ..X.....",
+            division: 2,
+            strength: 0.55,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "X....x.. | ..X...x.",
+            division: 2,
+            strength: 0.86,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "X........x........X.....",
+            division: 4,
+            strength: 0.92,
+            duration: 0.8,
+          },
+        },
+      },
     ),
     familyEffect(
       "torus-shell",
       1,
       "Torus shell",
       "One latitude torus of Villarceau circles glows along its edges.",
-      { period: 8, strength: 0.6, duration: 1.5, steps: "X.......", styles: {
-        restrained: { steps: "...x.... | .......X | ......x.", division: 2, strength: 0.5, duration: 1.5 },
-        driving: { steps: "...X....x...", division: 2, strength: 0.74, duration: 1 },
-        accented: { steps: ".....X..........x...", division: 4, strength: 0.88, duration: 0.75 },
-      } },
+      {
+        period: 8,
+        strength: 0.6,
+        duration: 1.5,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | .......X | ......x.",
+            division: 2,
+            strength: 0.5,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "...X....x...",
+            division: 2,
+            strength: 0.84,
+            duration: 1,
+          },
+          accented: {
+            steps: ".....X..........x...",
+            division: 4,
+            strength: 0.88,
+            duration: 0.75,
+          },
+        },
+      },
     ),
     familyEffect(
       "meridian-link",
       2,
       "Meridian link",
       "Fibres over one meridian glow through every nested torus at once.",
-      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ......X. | ........", division: 2, strength: 0.55, duration: 2 },
-        driving: { steps: "........ | .......x | ........ | ......X.", division: 2, strength: 0.8, duration: 1.5 },
-        accented: { steps: ".............x.. | ......X......x.. | ...........X....", division: 4, strength: 0.94, duration: 0.75 },
-      } },
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ......X. | ........",
+            division: 2,
+            strength: 0.55,
+            duration: 2,
+          },
+          driving: {
+            steps: "........ | .......x | ........ | ......X.",
+            division: 2,
+            strength: 0.8,
+            duration: 1.5,
+          },
+          accented: {
+            steps: ".............x.. | ......X......x.. | ...........X....",
+            division: 4,
+            strength: 0.94,
+            duration: 0.75,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "fibre-current",
+      3,
+      "Fibre current",
+      "A luminous head and soft wake travel along a braid of linked circles.",
+      {
+        period: 4,
+        strength: 0.9,
+        duration: 0.65,
+        steps: "X..x..X.",
+        division: 2,
+        styles: {
+          restrained: {
+            steps: "..X..... | .....x..",
+            division: 2,
+            strength: 0.74,
+            duration: 0.9,
+          },
+          driving: {
+            steps: "..X.x..X | .x..X.x.",
+            division: 2,
+            strength: 0.95,
+            duration: 0.45,
+          },
+          accented: {
+            steps: "X..x.X.x | ..X.x..X | .x.X..x. | X.x.X.x.",
+            division: 4,
+            strength: 1,
+            duration: 0.38,
+          },
+        },
+      },
     ),
   ],
   fragment: `${shared}
 void main() { outColor = vec4(ground(gl_FragCoord.xy), 1.); }`,
-  simulation: { fragment: simulation, size: [4, 1], steps: 1 },
+  simulation: { fragment: simulation, size: [5, 1], steps: 1 },
   geometry: {
     create: createGeometry,
     attributes: [2],
