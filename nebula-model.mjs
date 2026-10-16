@@ -24,24 +24,43 @@ export const RMAX = 1.6; // galaxy radius (world units)
 export const SIZE = [512, 256];
 export const ABSORBERS = SIZE[0] * (SIZE[1] - 24);
 export const CLOUD = 1.9; // dust cloud radius
-export const MODES = 8; // Zel'dovich potential modes
+export const MODES = 16; // Zel'dovich potential modes
 export const N = {
   cloud: 4, // rigid cloud turn: 360 s per revolution
   pattern: 9, // spiral pattern speed: 160 s per revolution
-  drift: 2, // potential phase drift
+  breathe: 36, // web mode amplitudes breathe: 40 s (+3 cycles per mode)
   shock: 120, // shock fronts every 12 s at speed 1
-  yaw: 5, // gentle camera orbit 288 s
+  yaw: 10, // camera orbit 144 s
   lift: 9, // camera height swing 160 s
   dolly: 6, // camera distance 240 s
   wobble: 80, // dust turbulence 18 s
   jet: 240, // pulsar jet flow 6 s
+  crane: 24, // camera crane 60 s
+  frame: 15, // off-centre framing drift 96 s
+  flow: 288, // web streaming: one flow-noise cycle per 5 s
+  stream: 72, // tracer streaming into nodes: 20 s per particle cycle
+  ejecta: 360, // ejecta pulses stream out along the fingers: 4 s
 };
+// Camera framing per state (Dust, Spiral, Nova), blended by the smoothed
+// camera development. crane: elevation swing; offset: look-at drift.
 export const CAMERA = {
-  distance: [3.95, 2.9, 3.7],
-  elevation: [.18, 1.18],
-  lift: .07,
+  distance: [3.0, 2.6, 4.0],
+  elevation: [.32, .72, .34],
+  crane: [.1, .3, .12],
+  offset: [.3, .36, .14],
+  craneDolly: .12,
+  heightGain: 1.1,
+  lift: .03,
   focal: 1.85,
 };
+// Camera development follows the show's development through a critically
+// damped spring: a one-bar drop never lurches the camera.
+export const FOLLOW = { omega: 1.8, vmax: .6 };
+// Zel'dovich web data box (cloud frame) and its sampling grid.
+export const WEB_BOX = [2.2, 1.1, 2.2];
+export const WEB_GRID = [112, 56, 112];
+export const OCTA = 512; // remnant direction map (octahedral), texels per side
+export const MODULATION = .3; // web mode amplitude breathing depth
 export const ORBIT_V = 0.22; // flat rotation curve speed
 export const ORBIT_CORE = 0.26; // solid-body core radius
 export const RELAX = 0.55; // ψ relaxation rate (1/s) when dispersing
@@ -49,8 +68,8 @@ export const RELAX = 0.55; // ψ relaxation rate (1/s) when dispersing
 // Normalised sech² dust slab: rho(y) = k/(2h) sech²(ky/h).
 // Exact line integral on a finite segment. A foreground star does not
 // include the dust behind it; a grazing ray has a finite parallel limit.
-export function dustColumn(start, eye) {
-  const h = .035, k = 1.20276058;
+export function dustColumn(start, eye, h = .035) {
+  const k = 1.20276058;
   const dy = eye[1] - start[1];
   const len = Math.hypot(...eye.map((v, i) => v - start[i]));
   if (Math.abs(dy) < .0001) {
@@ -116,15 +135,18 @@ export function worldOf(seed) {
     const z = rnd(key, m, 900) * 2 - 1,
       az = rnd(key, m, 901) * 2 * Math.PI,
       r = Math.sqrt(1 - z * z);
-    const dir = [r * Math.cos(az), z * 0.55, r * Math.sin(az)];
+    const dir = [r * Math.cos(az), z * 0.85, r * Math.sin(az)];
     const len = Math.hypot(...dir);
-    const k = 2.4 + 2.4 * rnd(key, m, 902);
+    const k = 5 + 5 * rnd(key, m, 902);
     modes.push({
       k: dir.map((v) => (v / len) * k),
       kLen: k,
       amp: 0.22 + 0.2 * rnd(key, m, 903),
-      phase: 2 * Math.PI * rnd(key, m, 904),
-      drift: 1 + (m % N.drift),
+      // Every mode crests at the origin (phase π in the potential): the
+      // seed's densest web node is the future nucleus and pulsar.
+      phase: Math.PI,
+      breathe: 2 * Math.PI * rnd(key, m, 904),
+      drift: N.breathe + 3 * m,
     });
   }
   return {
@@ -206,13 +228,16 @@ export function psiRate(world, ident, dev, psi) {
   return p * (1 - n) * spin - (1 - p) * RELAX * wrapped;
 }
 
+// Breathing mode amplitude: the phases stay fixed, so the node stays put.
+export const modeAmp = (m, clock) =>
+  m.amp * (1 + MODULATION * Math.sin(2 * Math.PI * cycle(clock, m.drift) + m.breathe));
+
 // Zel'dovich displacement S(q) = −∇Φ, Φ = Σ amp/|k|² cos(k·q + φ).
 export function zeldovich(world, q, clock) {
   const s = [0, 0, 0];
   for (const m of world.modes) {
-    const ph = m.phase + 2 * Math.PI * cycle(clock, m.drift);
-    const arg = m.k[0] * q[0] + m.k[1] * q[1] + m.k[2] * q[2] + ph;
-    const f = (m.amp / (m.kLen * m.kLen)) * Math.sin(arg);
+    const arg = m.k[0] * q[0] + m.k[1] * q[1] + m.k[2] * q[2] + m.phase;
+    const f = (modeAmp(m, clock) / (m.kLen * m.kLen)) * Math.sin(arg);
     s[0] += f * m.k[0];
     s[1] += f * m.k[1];
     s[2] += f * m.k[2];
@@ -222,10 +247,9 @@ export function zeldovich(world, q, clock) {
 export function potential(world, q, clock) {
   let phi = 0;
   for (const m of world.modes) {
-    const ph = m.phase + 2 * Math.PI * cycle(clock, m.drift);
     phi +=
-      (m.amp / (m.kLen * m.kLen)) *
-      Math.cos(m.k[0] * q[0] + m.k[1] * q[1] + m.k[2] * q[2] + ph);
+      (modeAmp(m, clock) / (m.kLen * m.kLen)) *
+      Math.cos(m.k[0] * q[0] + m.k[1] * q[1] + m.k[2] * q[2] + m.phase);
   }
   return phi;
 }
@@ -304,43 +328,77 @@ export function position(world, ident, env) {
 // modes, sampled on the sphere, gather the shell into filaments (tangential
 // Zel'dovich caustics) and Rayleigh–Taylor fingers (radial). Sedov–Taylor
 // fronts F = 2.35·c^(2/5) run through it every cycle c.
-export const SHELL = 1.45;
+export const SHELL = 1.55;
 
-// CPU reference for the unresolved radiance carrier (not a sampled volume).
-// The closest point in an ellipsoidal metric continuously flattens the
-// diffuse cloud into a thin emitting disk. The shell is a finite radial
-// carrier with spherical support and turbulent emitting thickness, bounded
-// before noise is read. No angular lobes or polygonal silhouette.
-export function radianceCloudPoint(eye, ray, dev) {
-  const p = smooth(0, 1, dev), thickness = .65 + (.035 - .65) * p;
-  const metric = [1, 1 / thickness, 1];
-  const er = ray.map((v, i) => v * metric[i]);
-  const eo = eye.map((v, i) => v * metric[i]);
-  const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0);
-  const t = Math.max(0, -dot(er, eo) / dot(er, er));
-  return { point: eye.map((v, i) => v + ray[i] * t), t, thickness };
+// Radiance shell: the bubble breaks out of the disk first (bipolar lobes
+// along ±y), then rounds into a sphere. Smooth in development; no flash.
+export function shellRadius(dev, dirY = 0) {
+  const n = smooth(1, 2, dev);
+  const lobe = .6 * (1 - smooth(.3, 1, n));
+  return SHELL * (.1 + .9 * n) * (1 + lobe * dirY * dirY);
 }
-export function radianceShellRadius(dev) {
-  return SHELL * (.25 + .75 * smooth(1, 2, dev));
+
+// CPU mirror of the shader's Zel'dovich web data (cloud frame): one
+// fixed-point inversion q = x − D·S(x) of the map x = q + D·S(q), the
+// caustic density 1/|det(I + D·∂S/∂q)| and the linear-overdensity node term.
+export function webDensity(world, x, clock, growth = 1.8) {
+  const S = zeldovich(world, x, clock);
+  const q = x.map((v, i) => v - growth * S[i]);
+  const H = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  let f = 0, total = 0;
+  for (const m of world.modes) {
+    const a = modeAmp(m, clock);
+    const arg = m.k[0] * q[0] + m.k[1] * q[1] + m.k[2] * q[2] + m.phase;
+    const w = (a / (m.kLen * m.kLen)) * Math.cos(arg) * growth;
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) H[i][j] += w * m.k[i] * m.k[j];
+    f += a * Math.cos(arg);
+    total += a;
+  }
+  const det = Math.abs(
+    H[0][0] * (H[1][1] * H[2][2] - H[1][2] * H[2][1]) -
+    H[0][1] * (H[1][0] * H[2][2] - H[1][2] * H[2][0]) +
+    H[0][2] * (H[1][0] * H[2][1] - H[1][1] * H[2][0]));
+  const caustic = Math.min(1 / Math.max(det, .07), 9);
+  const node = Math.max(0, -f / total); // 1 exactly where all modes crest
+  const env = Math.exp(-((Math.hypot(x[0], x[2]) / 1.8) ** 4)) * Math.exp(-((x[1] / .8) ** 2));
+  return { caustic, node, env, rho: (Math.max(caustic - .8, 0) * .9 + .14 * caustic + 3 * node ** 6) * env };
 }
-export function radianceShellEnvelope(dev, impact, noise0 = .5, noise1 = .5) {
-  const R = radianceShellRadius(dev);
-  return {
-    cover: 1 - smooth(R * .94, R * 1.16, impact),
-    limb: Math.exp(-(((impact - R * (.87 + .07 * (noise0 - .5))) /
-      (R * (.085 + .07 * noise1) + .001)) ** 2)),
-  };
+
+// One fixed 1/60 s step of the camera-development spring (semi-implicit).
+export function followStep({ d, v }, target, dt = 1 / 60) {
+  const w = FOLLOW.omega;
+  const a = w * w * (target - d) - 2 * w * v;
+  const nv = Math.max(-FOLLOW.vmax, Math.min(FOLLOW.vmax, v + a * dt));
+  return { d: Math.max(0, Math.min(2, d + nv * dt)), v: nv };
 }
-export function cameraFraming(dev, clock, { distance = 1, height = .66 } = {}) {
-  const p = smooth(0, 1, dev), n = smooth(1, 2, dev);
-  return {
-    distance: distance * (CAMERA.distance[0] + (CAMERA.distance[1] - CAMERA.distance[0]) * p +
-      (CAMERA.distance[2] - CAMERA.distance[1]) * n) *
-      (1 + .04 * Math.sin(2 * Math.PI * cycle(clock, N.dolly))),
-    elevation: CAMERA.elevation[0] + (CAMERA.elevation[1] - CAMERA.elevation[0]) *
-      Math.min(1, Math.max(0, height)) + CAMERA.lift * Math.sin(2 * Math.PI * cycle(clock, N.lift)),
-    focal: CAMERA.focal,
-  };
+
+const norm = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+// Camera of the GLSL nbCamera(): per-state framing blended by the smoothed
+// camera development, a slow orbit, a crane over the disk edge in Spiral
+// and an off-centre look-at drift on phrase scale.
+export function cameraFraming(camDev, clock, { distance = 1, height = .66, seed = 3141 } = {}) {
+  const key = seedKey(seed);
+  const p = smooth(0, 1, camDev), n = smooth(1, 2, camDev);
+  const w = [1 - p, p * (1 - n), n];
+  const mix3 = (v) => v[0] * w[0] + v[1] * w[1] + v[2] * w[2];
+  const h = Math.min(1, Math.max(0, height));
+  const crane = Math.sin(2 * Math.PI * (cycle(clock, N.crane) + rnd(key, 0, 908)));
+  const craneAmp = mix3(CAMERA.crane) * smooth(0, .5, h);
+  const elevation = Math.min(1.35, Math.max(-.05, mix3(CAMERA.elevation) +
+    CAMERA.heightGain * (h - .66) + craneAmp * crane +
+    CAMERA.lift * Math.sin(2 * Math.PI * cycle(clock, N.lift))));
+  const yaw = 2 * Math.PI * (cycle(clock, N.yaw) + rnd(key, 0, 907));
+  const dist = distance * mix3(CAMERA.distance) * (1 + CAMERA.craneDolly * w[1] * crane) *
+    (1 + .03 * Math.sin(2 * Math.PI * cycle(clock, N.dolly)));
+  const eye = [dist * Math.cos(elevation) * Math.sin(yaw), dist * Math.sin(elevation),
+    dist * Math.cos(elevation) * Math.cos(yaw)];
+  const f0 = norm(eye.map((v) => -v));
+  const r0 = norm(cross(f0, [0, 1, 0]));
+  const fr = 2 * Math.PI * (cycle(clock, N.frame) + rnd(key, 0, 909));
+  const off = mix3(CAMERA.offset);
+  const target = [0, 1, 2].map((i) => off * (r0[i] * Math.sin(fr) + (i === 1 ? .3 * Math.cos(fr) : 0)) - (i === 1 ? .04 : 0));
+  return { eye, target, distance: dist, elevation, focal: CAMERA.focal };
 }
 
 export function shockFront(R, clock, shock = 1) {
@@ -403,9 +461,9 @@ export function fingerField(world, q, clock) {
   let f = 0,
     total = 0;
   for (const m of world.modes) {
-    const ph = m.phase + 2 * Math.PI * cycle(clock, m.drift);
-    f += m.amp * Math.cos(m.k[0] * q[0] + m.k[1] * q[1] + m.k[2] * q[2] + ph);
-    total += m.amp;
+    const a = modeAmp(m, clock);
+    f += a * Math.cos(m.k[0] * q[0] + m.k[1] * q[1] + m.k[2] * q[2] + m.phase);
+    total += a;
   }
   return (2 * f) / total;
 }

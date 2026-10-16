@@ -20,7 +20,7 @@ const sources = new Map();
 const baselineBrowser = {
   newContext: async options => {
     const context = await runtime.browser.newContext(options);
-    await context.route(/\/(scene-[^/]+|kinetic-model)\.mjs$/, route => {
+    await context.route(/\/(scene-[^/]+|[a-z]+-model)\.mjs$/, route => {
       const file = new URL(route.request().url()).pathname.slice(1);
       if (!sources.has(file)) sources.set(file, execFileSync("git", ["show", `${reference}:${file}`], { encoding: "utf8" }));
       return route.fulfill({ contentType: "text/javascript", body: sources.get(file) });
