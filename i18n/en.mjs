@@ -117,6 +117,8 @@ export default {
   "A soft stage light reveals the three stair orientations.": "A soft stage light reveals the three stair orientations.",
   "Recursive lantern": "Recursive lantern",
   "The walking lanterns breathe together through every recursive level.": "The walking lanterns breathe together through every recursive level.",
+  "Lantern ascent": "Lantern ascent",
+  "Lanterns ignite three treads higher on each hit, carrying a luminous wake through every impossible gravity.": "Lanterns ignite three treads higher on each hit, carrying a luminous wake through every impossible gravity.",
   "Empty landings": "Empty landings",
   "Lantern steps": "Lantern steps",
   "Endless ascent": "Endless ascent",

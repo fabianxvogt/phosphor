@@ -91,7 +91,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Thunderhead](families/storm.md) (world Thunderhead / Gewitterzelle) | storm | Volumetric cumulonimbus (meteorological carrier, Beer–Lambert march, multiple-scattering octaves) lit from inside by seeded stepped-leader events | Haze / Towers / Supercell | 8 |
 
 | [Prism Engine](families/prism.md) (Prismenmaschine) | prism | Two-interface Snell refraction, Cauchy dispersion and total internal reflection in persistent triangular glass | Shard / Array / Kaleidoscope | 8 |
-| [Impossible Stairs](families/escher.md) (Unmögliche Treppen) | escher | Raymarched projective Penrose stair cover, three gravity frames and exact log-polar Droste recursion | Stair / Relativity / Infinity | 8 |
+| [Impossible Stairs](families/escher.md) (Unmögliche Treppen) | escher | Analytic projective Penrose stair cover, three gravity frames, log-polar Droste recursion and count-addressed lantern ascent | Stair / Relativity / Infinity | 8 |
 | [Silk Storm](families/silk.md) (Seidensturm) | silk | Strouhal travelling-wave silk, near-inextensible tangent integration and persistent conical ribbon helices | Veil / Banners / Tornado | 8 |
 | [Ink Bloom / Tintenblüte](families/ink.md) | ink | Characteristic-mapped vortex dye with seeded Widnall daughters, translucent Kaden folds, absorbing cores and local ink-burst fills in a dark tank | Drop / Plumes / Nebula | 8 |
 | [Soap Cathedral](families/soap.md) (Seifenkathedrale) | soap | Airy thin-film interference on clipped spherical cells and tetrahedral Plateau films | Bubble / Cluster / Foam | 8 |
