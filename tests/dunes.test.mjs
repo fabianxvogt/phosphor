@@ -118,10 +118,11 @@ function surface(x, z, seed, dev, height = 1) {
   ];
   const leading = leadingRidge(x, z) * (1 - growth);
   if (leading > result[0]) {
-    const centre = -2 + 4.8 * Math.sin(.065 * z) + 1.2 * Math.sin(.13 * z);
-    const cz = .312 * Math.cos(.065 * z) + .156 * Math.cos(.13 * z);
-    const d = x - centre, w = Math.max(0, 1 - (d / 9) ** 2);
-    const dx = d < 0 ? -4 * 3.4 * w * d / 81 : -REPOSE_SLOPE;
+    const centre = -2 + 4.8 * Math.sin(0.065 * z) + 1.2 * Math.sin(0.13 * z);
+    const cz = 0.312 * Math.cos(0.065 * z) + 0.156 * Math.cos(0.13 * z);
+    const d = x - centre,
+      w = Math.max(0, 1 - (d / 9) ** 2);
+    const dx = d < 0 ? (-4 * 3.4 * w * d) / 81 : -REPOSE_SLOPE;
     return [leading, dx * (1 - growth), -dx * cz * (1 - growth)];
   }
   return result;
@@ -158,15 +159,25 @@ test("barchan crescent has downwind horns and a 34 degree slip face", () => {
 
 test("height-only hot path equals the full differentiable profile", () => {
   for (let i = 0; i < 10000; i++) {
-    const q = [Math.sin(i * .71) * 15, Math.cos(i * 1.37) * 30];
-    const h = 3.2 + (i % 121) / 100, repose = .4 + (i % 65) / 100;
-    const v = q[0] / 11, capHeight = h * Math.max(0, (1 - v * v) * (1 + .6 * v * v));
+    const q = [Math.sin(i * 0.71) * 15, Math.cos(i * 1.37) * 30];
+    const h = 3.2 + (i % 121) / 100,
+      repose = 0.4 + (i % 65) / 100;
+    const v = q[0] / 11,
+      capHeight = h * Math.max(0, (1 - v * v) * (1 + 0.6 * v * v));
     const d = q[1] - (-3 + 13 * v * v);
     const w = Math.max(0, 1 - (d / (14 - 8 * v * v)) ** 2);
-    const height = Math.abs(v) >= 1 ? 0 : d < 0 ? capHeight * w * w : Math.max(0, capHeight - repose * d);
+    const height =
+      Math.abs(v) >= 1
+        ? 0
+        : d < 0
+          ? capHeight * w * w
+          : Math.max(0, capHeight - repose * d);
     assert.ok(Math.abs(height - cap(q, h, repose)[0]) < 1e-14);
   }
-  assert.match(dunes.fragment, /float dsProfile\(vec2 q, float h, float repose\)/);
+  assert.match(
+    dunes.fragment,
+    /float dsProfile\(vec2 q, float h, float repose\)/,
+  );
 });
 
 test("mature slip angle survives site scale and authored height changes", () => {
@@ -213,12 +224,13 @@ test("tile joins close without cracks and development keeps every material ident
     for (let k = -3; k <= 3; k++) {
       // Every row boundary has zero support at its edge.
       for (const x of [-25, -9, 0, 8, 23]) {
-        for (const dev of [0, .25, .75, 1]) assert.ok(
-          Math.abs(
-            surface(x, k * 32 + 16 - 1e-7, seed, dev)[0] -
-              surface(x, k * 32 + 16 + 1e-7, seed, dev)[0],
-          ) < 1e-6,
-        );
+        for (const dev of [0, 0.25, 0.75, 1])
+          assert.ok(
+            Math.abs(
+              surface(x, k * 32 + 16 - 1e-7, seed, dev)[0] -
+                surface(x, k * 32 + 16 + 1e-7, seed, dev)[0],
+            ) < 1e-6,
+          );
       }
     }
     for (let i = 0; i <= 200; i++) {
@@ -260,22 +272,30 @@ test("wind ripples are asymmetric, bounded and exactly phase-periodic", () => {
   }
   assert.match(dunes.fragment, /filter2=filter1\*filter1\*filter1\*filter1/);
   assert.match(dunes.fragment, /rippleRelief=mix\(\.32,0\.,gGrowth\)/);
-  assert.doesNotMatch(dunes.fragment.split('float dsIntersect')[1].split('float dsShadow')[0], /dsRipple/);
-  for (const width of [0, .1, .5, 1, 2, 4, 8]) {
+  assert.doesNotMatch(
+    dunes.fragment.split("float dsIntersect")[1].split("float dsShadow")[0],
+    /dsRipple/,
+  );
+  for (const width of [0, 0.1, 0.5, 1, 2, 4, 8]) {
     assert.ok(rippleFilter(width) >= 0 && rippleFilter(width) <= 1);
-    assert.ok(Math.abs(rippleFilter(width * 2) - rippleFilter(width) ** 4) < 1e-15);
+    assert.ok(
+      Math.abs(rippleFilter(width * 2) - rippleFilter(width) ** 4) < 1e-15,
+    );
     // Fourier response of a Gaussian pixel kernel, independently integrated.
-    let integral = 0, weight = 0;
+    let integral = 0,
+      weight = 0;
     for (let i = -800; i <= 800; i++) {
-      const x = i / 100, w = Math.exp(-x * x / 2);
-      integral += w * Math.cos(width * x); weight += w;
+      const x = i / 100,
+        w = Math.exp((-x * x) / 2);
+      integral += w * Math.cos(width * x);
+      weight += w;
     }
     assert.ok(Math.abs(integral / weight - rippleFilter(width)) < 1e-14);
   }
   assert.equal(rippleFilter(0), 1);
-  assert.ok(rippleFilter(4) < .00034);
-  const derivatives = dunes.fragment.indexOf('vec2 footprintX=dFdx');
-  assert.ok(derivatives < dunes.fragment.indexOf('if(t>0. &&'));
+  assert.ok(rippleFilter(4) < 0.00034);
+  const derivatives = dunes.fragment.indexOf("vec2 footprintX=dFdx");
+  assert.ok(derivatives < dunes.fragment.indexOf("if(t>0. &&"));
 });
 
 test("saltation is ballistic, lands once per cycle and conserves grain identity", () => {
@@ -318,51 +338,79 @@ test("dust noise gradients are exact", () => {
     assert.ok(Math.abs(dy - analytic[2]) < 2e-7);
     assert.ok(analytic[0] >= 0 && analytic[0] <= 1);
   }
-  assert.match(dunes.fragment, /litNormal=normalize\(normal\+vec3\(-detail.y,-detail.z,0\.\)/);
+  assert.match(
+    dunes.fragment,
+    /litNormal=normalize\(normal\+vec3\(-detail.y,-detail.z,0\.\)/,
+  );
 });
 
 test("exact ellipsoid crown intervals and soft unions stay continuous", () => {
   for (let i = 0; i < 2000; i++) {
-    const r = 3 + (i % 13), stretch = i % 2 ? 1 : 1.25;
-    const x = Math.sin(i * .7) * r * .5, y = Math.cos(i * 1.3) * r * .4;
-    const origin = [x, y, 40], direction = [0, 0, -1];
+    const r = 3 + (i % 13),
+      stretch = i % 2 ? 1 : 1.25;
+    const x = Math.sin(i * 0.7) * r * 0.5,
+      y = Math.cos(i * 1.3) * r * 0.4;
+    const origin = [x, y, 40],
+      direction = [0, 0, -1];
     const local = [origin[0], origin[1] / stretch, origin[2]];
-    const a = 1, b = -40, c = local.reduce((s, v) => s + v * v, 0) - r * r;
-    const root = Math.sqrt(b * b - a * c), near = (-b - root) / a, far = (-b + root) / a;
+    const a = 1,
+      b = -40,
+      c = local.reduce((s, v) => s + v * v, 0) - r * r;
+    const root = Math.sqrt(b * b - a * c),
+      near = (-b - root) / a,
+      far = (-b + root) / a;
     assert.ok(near > 0 && far >= near);
     for (const t of [near, far]) {
-      const p = origin.map((v, j) => (v + direction[j] * t) / (j === 1 ? stretch : 1));
+      const p = origin.map(
+        (v, j) => (v + direction[j] * t) / (j === 1 ? stretch : 1),
+      );
       assert.ok(Math.abs(Math.hypot(...p) - r) < 1e-12);
     }
     const smoothMin = (u, v) => {
-      const h = clamp(.5 + .5 * (u - v) / 16, 0, 1);
+      const h = clamp(0.5 + (0.5 * (u - v)) / 16, 0, 1);
       return u + (v - u) * h - 16 * h * (1 - h);
     };
     assert.ok(smoothMin(near, far) <= near + 1e-12);
-    assert.ok(Math.abs(smoothMin(near, far) - smoothMin(near + 1e-7, far)) < 2e-7);
+    assert.ok(
+      Math.abs(smoothMin(near, far) - smoothMin(near + 1e-7, far)) < 2e-7,
+    );
   }
   assert.match(dunes.fragment, /discriminant=b\*b-a\*c/);
   assert.match(dunes.fragment, /smoothstep\(-aa,aa,discriminant\)/);
   // Homogeneous Beer–Lambert integration is invariant to sample subdivision.
-  for (const density of [.1, .5, 1]) for (const length of [0, 1, 10, 30]) {
-    const alpha = 1 - Math.exp(-density * length / 2);
-    assert.ok(Math.abs((1 - alpha) ** 2 - Math.exp(-density * length)) < 1e-15);
-  }
+  for (const density of [0.1, 0.5, 1])
+    for (const length of [0, 1, 10, 30]) {
+      const alpha = 1 - Math.exp((-density * length) / 2);
+      assert.ok(
+        Math.abs((1 - alpha) ** 2 - Math.exp(-density * length)) < 1e-15,
+      );
+    }
   assert.match(dunes.fragment, /end=min\(depth,hit.y\)/);
   assert.match(dunes.fragment, /glyph\*1\.4\+halo\*\.12/);
   // A hard on/off base candidate or replacing its exit interval produces
   // circular seams and a horizontal shading cut across the crown.
   for (const y of [19, 22, 25]) {
-    const a = 1 - smooth(19, 24, y - 1e-7), b = 1 - smooth(19, 24, y + 1e-7);
+    const a = 1 - smooth(19, 24, y - 1e-7),
+      b = 1 - smooth(19, 24, y + 1e-7);
     assert.ok(Math.abs(a - b) < 1e-6);
   }
-  for (const blend of [0, .1, .5, 1]) {
-    const baseExit = 100, sphereExit = 80;
-    assert.equal(baseExit + (Math.max(baseExit, sphereExit) - baseExit) * blend, baseExit);
+  for (const blend of [0, 0.1, 0.5, 1]) {
+    const baseExit = 100,
+      sphereExit = 80;
+    assert.equal(
+      baseExit + (Math.max(baseExit, sphereExit) - baseExit) * blend,
+      baseExit,
+    );
   }
   assert.match(dunes.fragment, /baseCoverage=1\.-smoothstep/);
-  assert.match(dunes.fragment, /mix\(hit.y,max\(hit.y,\(-b\+root\)\/a\),blend\)/);
-  assert.match(dunes.fragment, /shoulder=smoothstep\(-aa,max\(aa,radius\*3\.\),discriminant\)/);
+  assert.match(
+    dunes.fragment,
+    /mix\(hit.y,max\(hit.y,\(-b\+root\)\/a\),blend\)/,
+  );
+  assert.match(
+    dunes.fragment,
+    /shoulder=smoothstep\(-aa,max\(aa,radius\*3\.\),discriminant\)/,
+  );
 });
 
 test("upward-ray rejection bounds every dune and the continuous leading ridge", () => {
@@ -377,15 +425,35 @@ test("upward-ray rejection bounds every dune and the continuous leading ridge", 
       dev,
       height,
     );
-    assert.ok(s[0] >= 0 && s[0] <= Math.max(4.4 * relief, 3.4 * (1 - smooth(0, 1, dev))) + 1e-12);
+    assert.ok(
+      s[0] >= 0 &&
+        s[0] <= Math.max(4.4 * relief, 3.4 * (1 - smooth(0, 1, dev))) + 1e-12,
+    );
   }
-  assert.match(dunes.fragment, /float ceiling=max\(4.4\*gRelief,3.4\*\(1\.-gGrowth\)\)/);
+  assert.match(
+    dunes.fragment,
+    /float ceiling=max\(4.4\*gRelief,3.4\*\(1\.-gGrowth\)\)/,
+  );
   assert.match(dunes.fragment, /if\(leading.x>4.4\*gRelief\)return leading/);
   assert.match(dunes.fragment, /if\(rd.y>=0\. && p.y>ceiling\)break/);
+  assert.match(dunes.fragment, /if\(l.y>0\. && q.y>ceiling\)break/);
+  for (const lightY of [0.12, 0.22, 0.55]) {
+    for (const height of [1, 3.4, 5.72]) {
+      const above = height + 0.01;
+      for (const advance of [0, 1, 20, 100])
+        assert.ok(
+          above + lightY * advance > height,
+          "rising shadow ray stays above the bound",
+        );
+    }
+  }
   assert.match(dunes.fragment, /hi=-ro.y\/rd.y/);
   // World-space leading ridge must not inherit the staggered tile offset.
   assert.match(dunes.fragment, /leading=dsLeading\(world\)/);
-  assert.ok(dunes.fragment.indexOf('leading=dsLeading(world)') < dunes.fragment.indexOf('vec2 p=world'));
+  assert.ok(
+    dunes.fragment.indexOf("leading=dsLeading(world)") <
+      dunes.fragment.indexOf("vec2 p=world"),
+  );
 });
 
 test("data prepass packs exact corner hashes, persistent dune sites and crown records", () => {
@@ -403,12 +471,17 @@ test("data prepass packs exact corner hashes, persistent dune sites and crown re
   assert.match(dunes.fragment, /#ifdef PRECOMPUTED/);
   assert.match(dunes.fragment, /data=dsDuneData\(cell\)/, "analytic fallback");
   assert.match(dunes.precompute.fragment, /dsHash\(p\+vec2\(0,1\)\)/);
-  for (let id = -16; id < 16; id++) for (let kind = 0; kind < 4; kind++) {
-    const x = (id + 16) * 4 + kind;
-    assert.equal(Math.floor(x / 4) - 16, id);
-    assert.equal(x % 4, kind);
-  }
-  assert.match(dunes.fragment, /return dsDustData\(id,kind\)/, "uncached crown fallback");
+  for (let id = -16; id < 16; id++)
+    for (let kind = 0; kind < 4; kind++) {
+      const x = (id + 16) * 4 + kind;
+      assert.equal(Math.floor(x / 4) - 16, id);
+      assert.equal(x % 4, kind);
+    }
+  assert.match(
+    dunes.fragment,
+    /return dsDustData\(id,kind\)/,
+    "uncached crown fallback",
+  );
 });
 
 test("three exact state snapshots form one continuous world, followed by five extra looks", () => {
@@ -454,13 +527,47 @@ test("three exact state snapshots form one continuous world, followed by five ex
   assert.equal(continuousDevelopment(changed, dunes), null);
 });
 
+test("energy raises grain population and veil height without resetting identity", () => {
+  assert.match(
+    dunes.fragment,
+    /airborne=smoothstep\(\.02,\.16,u_level-dsHash\(c\+113\.\)\*\.65\)/,
+  );
+  assert.match(dunes.fragment, /gVeil\*\(\.25\+\.75\*u_level\)/);
+  for (let i = 0; i < 100; i++) {
+    const identity = hash(i, 113);
+    const population = (energy) => smooth(0.02, 0.16, energy - identity * 0.65);
+    assert.ok(population(0.1) <= population(0.5));
+    assert.ok(population(0.5) <= population(0.9));
+    assert.equal(population(0.9), 1);
+  }
+});
+
 test("bounded rhythm and rendering use palette-only light and integrated clocks", () => {
-  assert.equal(dunes.rhythm.length, 3);
+  assert.equal(dunes.rhythm.length, 4);
+  const veil = dunes.rhythm.find((r) => r.slot === 3);
+  assert.equal(veil.id, "crest-veil");
+  for (const style of ["restrained", "driving", "accented"]) {
+    assert.ok(veil.styles[style].steps.filter((v) => v > 0).length >= 2);
+    const hitsPerBar = dunes.rhythm.reduce((total, effect) => {
+      const track = effect.styles[style];
+      return (
+        total +
+        (track.steps.filter((v) => v > 0).length * 4 * track.division) /
+          track.length
+      );
+    }, 0);
+    assert.ok(
+      hitsPerBar >= { restrained: 2, driving: 6, accented: 8 }[style],
+      `${style}: ${hitsPerBar} hits/bar`,
+    );
+  }
+  assert.match(dunes.fragment, /u_rhythmHit\.w/);
+  assert.match(dunes.fragment, /u_rhythmCount\.w/);
   assert.deepEqual(
     dunes.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16],
+    [4, 8, 16, 16],
   );
-  for (const channel of ["x", "y", "z"])
+  for (const channel of ["x", "y", "z", "w"])
     assert.ok(dunes.fragment.includes(`u_rhythm.${channel}`));
   assert.equal(dunes.clocks.length, 3);
   for (const clock of dunes.clocks) {
@@ -479,5 +586,9 @@ test("bounded rhythm and rendering use palette-only light and integrated clocks"
   );
   assert.match(dunes.fragment, /for\(int i=0;i<36;i\+\+\)/);
   assert.match(dunes.fragment, /for\(int i=0;i<2;i\+\+\)/);
-  assert.match(dunes.fragment, /end=min\(depth,hit.y\)/, "dust respects opaque depth");
+  assert.match(
+    dunes.fragment,
+    /end=min\(depth,hit.y\)/,
+    "dust respects opaque depth",
+  );
 });

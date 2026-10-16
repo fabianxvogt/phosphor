@@ -234,6 +234,8 @@ export default {
   "A second sand stream grazes the persistent slip faces.": "A second sand stream grazes the persistent slip faces.",
   "Haboob roll": "Haboob roll",
   "A slow gust lifts crest grains and lights one rolling fold inside the dust wall.": "A slow gust lifts crest grains and lights one rolling fold inside the dust wall.",
+  "Crest veil": "Crest veil",
+  "An accent gust peels a curling sand veil off the persistent dune crests.": "An accent gust peels a curling sand veil off the persistent dune crests.",
   "Leeward hush": "Leeward hush",
   "Saltation trails": "Saltation trails",
   "Haboob drums": "Haboob drums",
