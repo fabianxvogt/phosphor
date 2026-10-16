@@ -1,71 +1,74 @@
 # Living Forms — Unfolding Garden
 
-**INCREMENTAL / EMPIRICAL**, updated 2026-10-16 (r3). Connected parametric surface choreography, not a biological growth model. The earlier self-rating of 8.5 did not survive independent baseline review (L4/G2/E2, overall 3); it is not an acceptance claim for this revision.
+**INCREMENTAL / EMPIRICAL**, r5 (2026-10-17). Fixed parametric membrane choreography, not biological simulation. Independent r4 review: L7/G8.5/E8, overall 7.5. r5 **self-assessment**: L7.5/G8.5/E8, rounded overall 8; independent acceptance remains unverified.
 
-## Algorithm and identity
+## Development and identity
 
-`metamorphosis-geometry.mjs` creates fourteen seeded centres, their curved branching ancestry, radial surface sectors and seed-head meshes. Eight foreground centres and six distant forms retain identity across development, reversal and energy. The hero is centre 1. Mesh allocation depends only on seed; changing development never rebuilds it.
+`metamorphosis-geometry.mjs` generates fourteen seeded centres, individually rooted curved stalks, seed heads and separate radial membrane strips. The static mesh has **88,320 vertices**, one geometry draw plus background. Development never rebuilds geometry, changes the seed, resets time or moves the camera.
 
-Each sector continuously deforms through three states:
+- **Filaments (0):** substantial rolled membranes stand around the persistent seed centre. Their tips turn inward; gaps expose shaded undersides.
+- **Membrane (1):** those same strips extend into separate cupped membranes. The cup remains deep instead of closing into a continuous radial saucer.
+- **Blossom (2):** the membranes broaden and release into an irregularly extended crown, retaining veins and a small accent seed head.
 
-- **Filaments** (0): curved, rounded leaf-like ribbons with a visible pinwheel silhouette. Broader than the former needle spokes, but deliberately sparse.
-- **Membrane** (1): adjacent sector edges meet exactly into a ribbed, shallow cupped surface. The slot-3 pressure wave also preserves these seams.
-- **Blossom** (2): the same sectors separate into asymmetrically curled petals around a textured centre.
+The former exact adjoining-sector seam requirement is deliberately retired: separated membranes are the visual identity, not an intermediate disc. Tip reach increases monotonically across development; reverse sweeps are the same memoryless deformation.
 
-All preset names, seeds, schema keys, world/state IDs and rhythm IDs are unchanged. The three seed-112 state looks are **First Filaments**, **Pearl Membranes**, **Open Blossom**. Additional arrangements are **Wandering Threads** (847), **Silver Canopy** (847) and **Evening Blossom** (2451). Thus `worlds.mjs`, its migration HISTORY and the existing CATALOG algorithm description need no changes.
+All six look names/seeds, state names/IDs, schema keys and rhythm IDs remain intact: **First Filaments**, **Pearl Membranes**, **Open Blossom** (112), **Wandering Threads**, **Silver Canopy** (847), **Evening Blossom** (2451). The previous authored world definition is appended to `worlds.mjs` HISTORY because the description/state appearance changed.
 
-## r3 visual work
+## Material, space and energy
 
-Five filmed iterations followed the before capture. Stronger palette-coloured diffuse/back transmission replaces the dim white-mixed material. Longitudinal ribs, blue/secondary contact folds, restrained specular reflection and rare accent-coloured sap fronts articulate the surface rather than outline it. Textured seed heads replace smooth beads. Petal roots narrow to reduce intersections; the two nearest rear flowers move away from the hero's petal volume.
+Saturated secondary-colour interiors transition into primary-colour tips. Palette-derived pigments replace broad olive/white wax; directional back-transmission, wavering midribs, branching side veins and fine static fibres suggest thin tissue. Dark roots and overlap folds remain. Specular is reduced; bright grazing light is selected by fold orientation rather than outlining every petal. Rose is restricted to seed heads and travelling sap.
 
-Peripheral blossoms are larger, provide scale and fill the landscape; distance haze, a soft receiver/mist field and an edge fade keep them subordinate. Stems are tapered curved paths, though their shared root still reads geometrically in some views. The camera is a closed, fixed-rate arc with perspective/parallax; its lower elevation makes the crown more dimensional. It never depends on development. The lens is aspect-aware (3.54 landscape, 2.30 square/portrait) to retain margins during maximum local opening, sway and kick. Kick lens change remains 1.5%.
+The same fourteen plants now form overlapping rear clusters with distance haze, a middle layer and one nearer three-membrane curled framing form. Distant surfaces omit fine veins and lose contrast; this is analytic atmosphere, **not depth-of-field blur**. Individual rooted stalks, varied tilt and petal count remain. Screen-margin attenuation avoids hard bright border cuts.
 
-## Energy and motion grammar
-
-Living sway, Surface light and Motion speed remain the three live faders. Energy changes the ribbon bend, sway and vein frequency; it does not multiply material brightness. Surface light remains a manual gain. Development controls form independently of energy. Existing integrated speed clock 0 (period 50π) continues to drive sway and vein motion, with the first-hour/late shader paths intact. No frame-random grain, simulation resets, new passes or engine changes.
+Energy changes lateral membrane bend, sway and vein frequency, never material gain. Living sway, Surface light and Motion speed remain the live faders. Integrated clock 0 (period 50π) and its late variant preserve speed continuity. Camera remains the closed, development-independent arc; landscape lens 3.35, portrait/square 2.30, kick punch 1.5%. CPU bounds retain 60–80% peak landscape hero occupancy.
 
 ## Rhythm
 
-Four independent authored tracks:
+| Slot | Gesture                       | Action                                                                                                                 |
+| ---- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 0    | Ancestry glow                 | A local sap illumination travels through stalks and tissue.                                                            |
+| 1    | Membrane edge                 | Soft margin light and bounded tip flex.                                                                                |
+| 2    | Golden centres                | Small seed heads expand and illuminate locally.                                                                        |
+| 3    | **Petal flush / Blütenwelle** | A vein-led coloured front travels centre → tip, uncurling a count-selected whorl behind it, with a decaying vein wake. |
 
-| Slot | Gesture                       | Visible action                                                                                                                      |
-| ---- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | Ancestry glow                 | Local sap band travels outward along branches and radial tissue.                                                                    |
-| 1    | Membrane edge                 | Surface margins brighten and curled tips flex upward, bounded to 0.10 node radii.                                                   |
-| 2    | Golden centres                | Local seed heads swell by at most 25% and emit accent light.                                                                        |
-| 3    | **Petal flush / Blütenwelle** | A count-selected angular whorl flushes from its centre to its tips; membranes bulge and curled petals extend/release, then recover. |
+The signature's position is `1.12 - 1.25 * envelope - veinDelay`; continuous angle harmonics and transverse vein offsets stagger individual membranes. Both deformation and colour use that delay. The front is strongest along an irregular midrib, not an annular stripe. Release extends at most 0.22 node radii and lowers tips by at most 0.34; it smoothly recovers as the envelope ends. Count selects the responding whorl; hit adds only a small seed-head accent. No event is development-triggered.
 
-The signature consumes `u_rhythm.w`, `u_rhythmCount.w` and a small seed-head response to `u_rhythmHit.w`. The moving band is local, not a whole-frame tint. Release extends a tip at most 0.15 radii and lowers it at most 0.22 radii. It works at held development and is not a development-threshold event. Both languages have label/description keys.
+| Preset           | Family hits/bar | Signature steps (zero-based native grid)     |
+| ---------------- | --------------- | -------------------------------------------- |
+| Folded seed      | 3.0             | 12, 30 / 32, division 2; 1.4 beats           |
+| Opening whorl    | 6.5             | 4, 13 / 16, division 2; 1.5 beats            |
+| Golden emergence | 11.2            | 0, 6, 12, 20, 26 / 32, division 4; 0.7 beats |
 
-| Preset           | Family hits/bar | Signature placement (zero-based, native step grid)            |
-| ---------------- | --------------- | ------------------------------------------------------------- |
-| Folded seed      | 3.0             | Steps 12 and 30 of 32 at division 2; soft 1.4-beat release.   |
-| Opening whorl    | 6.5             | Steps 4 and 13 of 16 at division 2; 0.9-beat release.         |
-| Golden emergence | 11.2            | Steps 0, 6, 12, 20, 26 of 32 at division 4; 0.7-beat release. |
+All placements, syncopation, the accented three-beat ancestry loop and bilingual gesture copy are preserved. Final rhythm 1→2, 8→9 and 17→18 show localized root/vein-to-tip responses and changed curl. The shared limiter is untouched; no full-screen white.
 
-Existing six-beat ancestry figures interlock with the whorl accents. All tracks settle before the next hit. The shared flash limiter is untouched; no full-screen white events.
+## Film rounds
 
-## Cost and verification
+1. Retire the disc and cluster satellites; the first capture is too dark, seed strips too narrow, far clusters become black silhouettes.
+2. Broaden seed membranes and restore saturated lighting. The arc reads, but smooth green faces still suggest wax.
+3. Add fine fibres, thinner pleats and secondary-lit interiors. Large still reveals grey mixing between complementary palette colours.
+4. Nonlinear pigment shaping retains saturated blue interiors/green tips (red interiors in Ember); retain restrained highlights. Final refinement increases the local vein front slightly and gives far haze directional shading.
 
-Static mesh remains **93,504 vertices**; fixed tessellation, one geometry draw plus the existing background. Native ANGLE Metal/M3 Pro synchronous throughput, 64 measured frames/type (not display cadence):
+Read each round's sheet/rhythm plus large hero/membrane stills; also read final default, Ember/Glacier sheets, all 54 matrix cells, portrait reversal and 12-hour square/portrait captures.
 
-| Development | 1080p p50 / p95 | 4K p50 / p95 |
-| ----------- | --------------- | ------------ |
-| Filaments   | 1.9 / 2.8 ms    | 4.7 / 5.2 ms |
-| Membrane    | 1.9 / 2.6 ms    | 4.9 / 5.2 ms |
-| Blossom     | 1.9 / 2.8 ms    | 5.0 / 5.6 ms |
+## Native cost
 
-Night-continuation profiles above are retained under `artifacts/verification/unfolding-r3/resume/`. The required shared ABBA pair against main yielded p50 deltas **+8%, +12.5%, −12.5%** at 1080p (reference `5e35c8b`) and **+2.2%, +6.7%, +2.1%** at 4K (`acfdd9d`). Both pairs exit nonzero on their +5% gate despite absolute cost staying far below budget. Earlier retained pairs measured +30%/+5.3%/0% and 0%/+2.2%/−8.8%, respectively. Shared GPU contention produces large tails; no failed samples were discarded. The stock pair routes scene source, not `metamorphosis-geometry.mjs`, so both candidates use the new centre layout: these are shader comparisons, not a complete historical-layout comparison. CLI correction: the profiler supports `--families`, not the brief's `--family`.
+ANGLE Metal / Apple M3 Pro; 64 measured frames/state, synchronous whole-frame throughput including post, **not display cadence**:
 
-Verification after preserving the dirty continuation and merging main: `npm test -- --test-concurrency=2` **971 pass / 21 opt-in skipped / 0 fail**; typecheck; build and DE/EN native-GPU i18n test; Prettier on owned formatted code/docs; refreshed final review film/grids. The initial unbounded-concurrency test rerun hit the 120-second harness timeout; the complete bounded rerun took 382 seconds. Family tests cover seeded identity/preset validation, reversible continuity, exact membrane seams including maximum flush, all four gesture slots/styles, density and spacing, structural energy, top-state size and maximum-gesture portrait/landscape bounds through 43,200 seconds. The preserved `verify-metamorphosis.mjs` run checks all six looks × three energies × own/Ember/Glacier palettes, square/portrait reversals with unchanged mesh/time, and late geometry compilation: 56 cases, zero GL errors/non-finite values. No family rendering source changed during continuation; current native profiles also report zero GL/non-finite errors.
+| State     | 1080p p50/p95 | 4K p50/p95   |
+| --------- | ------------- | ------------ |
+| Filaments | 2.1 / 3.7 ms  | 5.1 / 8.9 ms |
+| Membrane  | 2.2 / 5.1 ms  | 6.1 / 9.2 ms |
+| Blossom   | 2.1 / 4.4 ms  | 6.0 / 9.7 ms |
 
-Final evidence in the worktree:
+Absolute p50 budgets pass. Required ABBA pair against main: 1080p **0 / +5.6 / 0%**; 4K **+2.2 / 0 / +8.7%**. Both narrowly fail the +5% relative gate; all raw samples retained. Fleet contention affects tails. The stock pair routes historical scene modules but not `metamorphosis-geometry.mjs`, so both candidates use current geometry: this comparison isolates shaders, not the old complete layout.
 
-- `artifacts/look-review/unfolding-r3/`: default film, 12-frame sheet, 24-frame rhythm sheet, `grids.md`.
-- `artifacts/look-review/unfolding-r3-{ember,glacier}/`: alternate palette films/sheets.
-- `artifacts/look-review/unfolding-r3-portrait-reverse/`: Evening Blossom reversal.
-- `artifacts/verification/unfolding-r3/`: matrix/late images, health JSON, test/build logs and raw profiles.
+## Verification and paths
 
-## Remaining limitations
+- Full suite: **1001 pass, 21 opt-in skipped, 0 fail**. Eight family tests cover fixed identity/presets, smooth reversal, separated membranes, monotonic release/cup depth, rooted stalks, all four gestures/styles/densities, directional release/recovery and maximum-gesture landscape/portrait bounds through 43,200 s. Flash-pipeline tests pass in the full suite.
+- Typecheck, build, native DE/EN i18n and owned formatted-source checks pass. Shared catalogs retain pre-existing formatting outside the owned entries.
+- Native matrix: six looks × three energies × own/Ember/Glacier, square/portrait unchanged-mesh reversal and late variants at 12 h; zero GL/GPU/non-finite/browser errors. Additional **180 limiter-enabled RAF frames** pass. Deterministic films disable asynchronous flash approval and do not establish venue photosensitivity compliance.
+- Final reviewer evidence: `artifacts/look-review/unfolding-r5/` (film, sheet, rhythm, grids, large hero).
+- Iterations/palettes/reversal: `artifacts/look-review/unfolding-r5-{round1,round2,round3,round4,ember,glacier,portrait-reverse}/`.
+- Tests, matrix, profiles, pairs: `artifacts/verification/unfolding-r5/`.
 
-No inter-petal ray-traced shadows or physical scattering. Early states still resemble pinwheels; secondary crowns repeat the hero's vocabulary; stems can read as a diagram and portrait retains empty vertical margins. Ember is more metallic/beige than botanical. The revision is a substantial improvement, **not a claim of independent ≥8 acceptance**. Native full-night endurance and venue display cadence remain unmeasured.
+Remaining limitations: approximate transmission/contact shading rather than physical scattering/self-shadowing; far forms can read as simplified silhouettes; portrait has generous vertical negative space. Full-night venue cadence remains unmeasured. No engine, limiter, other-family or preview-generation changes.

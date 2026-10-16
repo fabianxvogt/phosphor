@@ -2181,6 +2181,8 @@ export default {
   "The connected centres glow together.": "Die verbundenen Zentren leuchten gemeinsam.",
   "Petal flush": "Blütenwelle",
   "A coloured sap front runs out through a whorl and releases its curled petals.": "Eine farbige Saftwelle durchläuft einen Blattquirl und öffnet seine eingerollten Blütenblätter.",
+  "Rolled seed membranes release into layered cups and luminous veined blossoms, with a vein-led sap flush in a receding garden.": "Eingerollte Keimmembranen öffnen sich zu gestaffelten Kelchen und leuchtenden, geäderten Blüten. Eine Saftwelle folgt den Adern durch den räumlich gestaffelten Garten.",
+  "Curled seed membranes release into layered cups and luminous blossoms in a receding garden. Play every stage in between.": "Eingerollte Keimmembranen öffnen sich zu gestaffelten Kelchen und leuchtenden Blüten in einem räumlich gestaffelten Garten. Spiele jede Zwischenstufe.",
   "Folded seed": "Gefalteter Keim",
   "Opening whorl": "Sich öffnender Wirtel",
   "Golden emergence": "Goldenes Erwachen",

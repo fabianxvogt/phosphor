@@ -80,7 +80,7 @@ const AUTHORED = [
     id: "unfolding",
     name: "Unfolding Garden",
     description:
-      "The same branching form fills with membranes and opens into blossoms. Play every stage in between.",
+      "Curled seed membranes release into layered cups and luminous blossoms in a receding garden. Play every stage in between.",
     states: [
       { name: "Filaments", look: "metamorphosis:First Filaments" },
       { name: "Membrane", look: "metamorphosis:Pearl Membranes" },
@@ -406,6 +406,18 @@ const HISTORY = [
       { name: "Roots", look: "afterglow:Glowing Roots" },
       { name: "Petals", look: "afterglow:Opening Petals" },
       { name: "Bloom", look: "afterglow:Crowns at Dusk" },
+    ],
+  },
+  // Unfolding Garden before the rolled-membrane development (r5).
+  {
+    id: "unfolding",
+    name: "Unfolding Garden",
+    description:
+      "The same branching form fills with membranes and opens into blossoms. Play every stage in between.",
+    states: [
+      { name: "Filaments", look: "metamorphosis:First Filaments" },
+      { name: "Membrane", look: "metamorphosis:Pearl Membranes" },
+      { name: "Blossom", look: "metamorphosis:Open Blossom" },
     ],
   },
 ];
