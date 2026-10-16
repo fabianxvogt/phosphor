@@ -134,13 +134,39 @@ try {
     delete result.png;
     rows.push({ width, height, ...result });
   }
+  // Unlike deterministic films/renderLook, allow the unmodified asynchronous
+  // limiter to approve real RAF presentation. This is a smoke, not venue certification.
+  const live = await lab.page.evaluate(async () => {
+    const { engine } = window.__phosphorLab;
+    engine.resize(960, 540);
+    engine.setLevel(0.9, 0);
+    engine.options.flashLimit = true;
+    for (let i = 0; i < 180; i++) {
+      engine.beat = 100 + (i * 2.1) / 60;
+      engine.advance(1 / 60, false);
+      engine.present();
+      await new Promise(requestAnimationFrame);
+    }
+    return {
+      frames: 180,
+      limiter: engine.options.flashLimit,
+      glError: engine.gl.getError(),
+      nonFinite: engine.counters.nonFinite + window.__harness.nonFiniteUploads,
+      gpuErrors: engine.counters.gpuErrors,
+    };
+  });
+  assert.equal(live.limiter, true);
+  assert.equal(live.glError, 0);
+  assert.equal(live.nonFinite, 0);
+  assert.equal(live.gpuErrors, 0);
   assert.deepEqual(lab.errors, []);
   await writeFile(
     resolve(out, "health.json"),
-    JSON.stringify({ renderer, rows, errors: lab.errors }, null, 2) + "\n",
+    JSON.stringify({ renderer, rows, live, errors: lab.errors }, null, 2) +
+      "\n",
   );
   console.log(
-    `PASS: ${rows.length} cases, 54 palette/energy/seed images, square/portrait reversal and 12h mesh, zero GL/non-finite errors`,
+    `PASS: ${rows.length} cases, 54 palette/energy/seed images, square/portrait reversal and 12h mesh, 180 limiter-enabled RAF frames, zero GL/non-finite errors`,
   );
 } finally {
   await runtime.stop();

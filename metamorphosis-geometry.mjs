@@ -8,13 +8,13 @@ function random(seed) {
 export function organism(seed) {
   const rand = random(seed),
     base = [
-      [-1.4, -0.55, 0.62],
+      [-1.15, -0.65, 0.82],
       [0.06, -0.05, 1.22], // hero; all other centres are persistent scale cues
       [-1.15, 1.55, 0.58],
       [1.1, 1.5, 0.52],
       [-1.85, 0.48, 0.48],
-      [1.5, -0.63, 0.58],
-      [-0.84, -1.24, 0.36],
+      [1.32, -0.85, 0.7],
+      [-0.6, -1.18, 0.5],
       [1.9, 0.45, 0.46],
       [-1.8, 1.6, 0.45],
       [0.1, 1.9, 0.5],
@@ -28,7 +28,7 @@ export function organism(seed) {
     y: y + (rand() - 0.5) * 0.24,
     size: size * (0.9 + 0.2 * rand()),
     angle: rand() * Math.PI * 2,
-    petals: 7 + (i % 2),
+    petals: i === 1 ? 8 : 5 + (i % 5),
     id: i,
   }));
 }
@@ -62,20 +62,8 @@ export function mesh(nodes) {
         i,
       );
     grid(i === 1 ? 12 : 8, i === 1 ? 16 : 12, n.x, n.y, n.size, 0, 2, i);
-    // A connected tree, retained throughout the entire transformation.
-    const parent = i < 3 ? { x: 0, y: -1.25 } : nodes[i % 3];
-    const dx = n.x - parent.x,
-      dy = n.y - parent.y;
-    grid(
-      i === 1 ? 34 : 24,
-      i === 1 ? 8 : 6,
-      parent.x,
-      parent.y,
-      Math.hypot(dx, dy),
-      Math.atan2(dy, dx),
-      1,
-      i,
-    );
+    // Independent rooted stalks: never draw a graph between flower centres.
+    grid(i === 1 ? 34 : 24, i === 1 ? 8 : 6, n.x, n.y, n.size, n.angle, 1, i);
   });
   return new Float32Array(a);
 }
@@ -118,32 +106,31 @@ export function petalPoint(
     (0.5 +
       0.5 * Math.cos(sector + (angle - sector) * flower - count * 2.39996)) **
     3;
-  const release = flush * (0.25 + 0.75 * cohort) * (0.35 + 0.65 * flower);
-  const filament = [
-    radial[0] * t * 0.7 +
-      side[0] *
-        (v * 0.038 * envelope +
-          0.2 * Math.sin(t * Math.PI) * (0.65 + 0.35 * level)),
-    radial[1] * t * 0.7 +
-      side[1] *
-        (v * 0.038 * envelope +
-          0.2 * Math.sin(t * Math.PI) * (0.65 + 0.35 * level)),
-  ];
-  const sheet = [Math.cos(sector), Math.sin(sector)].map(
-    (x) => x * (t * 0.7 + 0.04 * release * t * t),
+  const front = 1.12 - 1.25 * flush;
+  const released =
+    (1 - smooth((t - (front - 0.13)) / 0.25)) * smooth(flush / 0.22);
+  const release = released * (0.25 + 0.75 * cohort) * (0.35 + 0.65 * flower);
+  const filament = radial.map(
+    (r, i) =>
+      r * (t * 0.73 - 0.21 * t ** 3) +
+      side[i] *
+        (v * 0.15 * (8 / node.petals) * envelope +
+          0.16 * Math.sin(t * Math.PI) * (0.65 + 0.35 * level)),
   );
-  const pet = [
-    radial[0] *
-      (t * (0.99 + 0.045 * Math.sin(angle * 3 + node.id)) -
-        0.16 * t * t * t +
-        0.15 * release * t * t) +
-      side[0] * v * 0.34 * envelope * Math.sqrt(t),
-    radial[1] *
-      (t * (0.99 + 0.045 * Math.sin(angle * 3 + node.id)) -
-        0.16 * t * t * t +
-        0.15 * release * t * t) +
-      side[1] * v * 0.34 * envelope * Math.sqrt(t),
-  ];
+  const sheet = [Math.cos(sector), Math.sin(sector)].map(
+    (x) =>
+      x *
+      (t * (0.7 + 0.055 * Math.sin(sector * 3 + node.id)) +
+        0.04 * release * t * t),
+  );
+  const pet = radial.map(
+    (r, i) =>
+      r *
+        (t * (0.99 + 0.1 * Math.sin(angle * 3 + node.id)) -
+          0.16 * t ** 3 +
+          0.22 * release * t * t) +
+      side[i] * v * 0.34 * (8 / node.petals) * envelope * Math.sqrt(t),
+  );
   const mix = (a, b, w) => a + (b - a) * w;
   const drift =
     0.012 *
@@ -160,22 +147,47 @@ export function petalPoint(
   );
   const sheetRise =
     node.size *
-    ((0.14 + 0.045 * release) * Math.sin(t * Math.PI) +
-      0.025 * Math.sin(sector * node.petals) * t * t);
+    ((0.25 + 0.045 * release) * Math.sin(t * Math.PI) +
+      (0.025 * Math.sin(sector * node.petals) +
+        0.08 * Math.sin(sector * 3 + node.id)) *
+        t *
+        t);
   const petalRise =
     node.size *
     ((0.63 + 0.07 * Math.sin(angle * 3 + node.id)) * t * t -
       0.12 * Math.sin(t * Math.PI) +
       0.032 * Math.cos(v * Math.PI * 2) * envelope +
       0.1 * v * v * envelope * Math.sqrt(t) +
-      (0.1 * edgeGesture - 0.22 * release) * t * t);
+      (0.1 * edgeGesture - 0.34 * release) * t * t);
   const filamentRise =
     node.size *
-    (0.14 * t * t + 0.035 * Math.sqrt(Math.max(0, 1 - v * v)) * envelope);
+    (0.48 * t * t + 0.1 * Math.sin(t * Math.PI) + 0.09 * v * v * envelope);
   const z =
     mix(mix(filamentRise, sheetRise, membrane), petalRise, flower) +
     0.025 * sway * Math.sin(phase * 0.52 + node.id + t * 4) * t;
-  return [...p, z];
+  return orientPoint(node, [...p, z]);
+}
+
+// Common rigid frame preserves exact seams and all centre identities.
+export function orientPoint(node, point) {
+  const tx = node.id === 1 ? 0.1 : 0.75 * Math.sin(node.id * 2.3);
+  const ty = node.id === 1 ? -0.08 : 0.65 * Math.cos(node.id * 1.7);
+  let [x, y, z] = point.map(
+    (v, i) => v - (i === 0 ? node.x : i === 1 ? node.y : 0),
+  );
+  [y, z] = [
+    Math.cos(tx) * y - Math.sin(tx) * z,
+    Math.sin(tx) * y + Math.cos(tx) * z,
+  ];
+  [x, z] = [
+    Math.cos(ty) * x - Math.sin(ty) * z,
+    Math.sin(ty) * x + Math.cos(ty) * z,
+  ];
+  return [
+    x + node.x,
+    y + node.y,
+    z + (node.id === 1 ? 0.02 : 0.12 * Math.sin(node.id * 2.1)),
+  ];
 }
 
 export function projectPoint(point, time, aspect = 16 / 9, kick = 0) {
@@ -185,7 +197,7 @@ export function projectPoint(point, time, aspect = 16 / 9, kick = 0) {
     const l = Math.hypot(...v);
     return v.map((x) => x / l);
   };
-  const F = norm(eye.map((x, i) => (i === 2 ? 0.18 : 0) - x));
+  const F = norm(eye.map((x, i) => (i === 2 ? 0.3 : 0) - x));
   const R = norm([F[1], -F[0], 0]);
   const U = [R[1] * F[2], -R[0] * F[2], R[0] * F[1] - R[1] * F[0]];
   const q = point.map((x, i) => x - eye[i]),
@@ -193,7 +205,7 @@ export function projectPoint(point, time, aspect = 16 / 9, kick = 0) {
   const fit = Math.max(0, Math.min(1, (aspect - 1) / 0.5));
   const depth = dot(F),
     lens =
-      (2.3 + 1.24 * fit * fit * (3 - 2 * fit)) *
+      (2.3 + 1.05 * fit * fit * (3 - 2 * fit)) *
       (1 + 0.015 * Math.max(0, Math.min(1, kick)));
   return [
     (dot(R) * lens) / (Math.max(1, aspect) * depth),
