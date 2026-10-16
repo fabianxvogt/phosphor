@@ -94,9 +94,12 @@ test("living relay occupies slot 3 with three full, distinct authored presets", 
     signatures.add(JSON.stringify(tracks.map((t) => t.steps)));
   }
   assert.equal(signatures.size, 3);
-  assert.match(scene.simulation.fragment, /u_rhythmHit\.w > .5/);
+  assert.match(scene.simulation.fragment, /u_rhythmHit\.w > 0\./);
   assert.match(scene.simulation.fragment, /u_rhythmCount\.w/);
-  assert.match(scene.simulation.fragment, /strength = max\(.5, u_rhythm\.w\)/);
+  assert.match(
+    scene.simulation.fragment,
+    /strength = clamp\(u_rhythmHit\.w, 0\., 1\.\)/,
+  );
   assert.match(scene.geometry.vertex, /dRelay\(rootRel\)/);
   assert.match(scene.geometry.vertex, /dRelay\(j.c\)/);
   assert.match(scene.simulation.fragment, /dRelay\(p\)/);

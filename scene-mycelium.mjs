@@ -258,7 +258,7 @@ vec4 project(vec3 p){
 }
 vec2 wrapOffset(vec2 centre){return MY_L*floor((eye.xy-centre)/MY_L+.5);}
 void hide(){gl_Position=vec4(2.,2.,2.,1.);v_kind=-1;v_a=v_b=v_c=vec4(0.);v_world=vec3(0.);v_normal=vec3(0.,0.,1.);}
-float leafWidth(float u,float lobes){float s=sin(3.14159265*clamp(u,0.,1.));return pow(s,.75)*(1.+.12*lobes*sin(u*5.*3.14159265));}
+float leafWidth(float u,float lobes){float s=max(0.,sin(3.14159265*clamp(u,0.,1.)));return pow(s,.75)*(1.+.12*lobes*sin(u*5.*3.14159265));}
 vec3 leafPoint(float u,float vv){
  float w=leafWidth(u,a2.w)*a1.w*.32,across=vv*w;
  float z=a1.z+a2.y*across*across*9.+.004*a1.w*10.*sin(3.14159265*u)*.25;

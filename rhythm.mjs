@@ -161,22 +161,19 @@ export function validatePattern(value, definitions = []) {
   // Edited (locked) patterns stay exactly as the performer left them;
   // unknown effects remain as dormant tracks.
   if (value.mode === "auto" && definitions.length) {
-    const known = new Set(definitions.map((definition) => definition.id));
-    return {
-      mode: "auto",
-      style,
-      tracks: [
-        ...definitions.map((definition) => styledTrack(definition, style)),
-        ...tracks.filter((track) => !known.has(track.effect)),
-      ].slice(0, MAX_TRACKS),
-    };
+    const byId = new Map(
+      definitions.map((definition) => [definition.id, definition]),
+    );
+    for (let i = 0; i < tracks.length; i++) {
+      const definition = byId.get(tracks[i].effect);
+      if (definition) tracks[i] = styledTrack(definition, style);
+    }
   }
-  // A newly added effect is available on older sets with its authored
-  // default. Muting an effect is explicit; leaving out a track is not mute.
+  // New defaults use spare capacity only. A release adding a gesture must
+  // not drop dormant tracks or make a formerly valid locked set unloadable.
+  // At capacity the new gesture waits until the performer frees a track.
   for (const definition of definitions) {
-    if (seen.has(definition.id)) continue;
-    if (tracks.length >= MAX_TRACKS)
-      throw new Error(tr("Too many rhythm tracks"));
+    if (seen.has(definition.id) || tracks.length >= MAX_TRACKS) continue;
     tracks.push(styledTrack(definition, style));
     seen.add(definition.id);
   }

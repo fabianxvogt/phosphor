@@ -819,9 +819,9 @@ void main() {
       float age = u_reset ? 3. : min(3., dUnpack16(old.rg) * 3. + u_dt);
       float strength = u_reset ? 0. : old.b;
       float direction = old.a;
-      if (!u_reset && u_rhythmHit.w > .5) {
+      if (!u_reset && u_rhythmHit.w > 0.) {
         age = 0.;
-        strength = max(.5, u_rhythm.w);
+        strength = clamp(u_rhythmHit.w, 0., 1.);
         direction = mod(u_rhythmCount.w, 2.);
       }
       outColor = vec4(pack16(age / 3.), strength, direction);
