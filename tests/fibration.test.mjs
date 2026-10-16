@@ -26,6 +26,7 @@ import {
 } from "../fibration-geometry.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
 import { defaultWorlds, continuousDevelopment } from "../worlds.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 const TAU = 2 * Math.PI;
 const near = (a, b, eps, label) =>
@@ -147,32 +148,48 @@ test("projected geometry stays bounded at every development and tumble", () => {
 test("immersive camera enters the projection ball but clears every swept tube envelope", () => {
   assert.ok(scene.geometry.vertex.includes(cameraGLSL()));
   const bound = 1 / Math.tan(MARGIN / 2);
-  const tube = .036 * 1.6 * 1.14 * Math.pow(.5 + .5 * bound * bound, .2);
-  assert.ok(tube < .11);
+  const tube = 0.036 * 1.6 * 1.14 * Math.pow(0.5 + 0.5 * bound * bound, 0.2);
+  assert.ok(tube < 0.11);
   // Exact vertical bound, maximizing over longitude and fibre phase:
   // max |p.y| = sin(eta)/(cos(eta)-|sin(a)|). Either this slab or
   // the projection ball excludes the eye (all elevations and distances).
   for (let i = 0; i <= 200; i++) {
-    const dev = i / 100, a = safeTumble(dev);
-    const ymax = Math.max(...LAYERS.filter(l => dev > l.a).map(l => {
-      const eta = layerTheta(LAYERS.indexOf(l), dev) / 2;
-      return Math.sin(eta) / (Math.cos(eta) - Math.sin(a));
-    }));
-    for (let j = 0; j < 80; j++) for (const elevation of [0, .35, 1]) {
-      const pose = cameraPose(dev, .17, j / 80, { distance: .85, elevation });
-      assert.ok(Math.max(pose.distance - bound, Math.abs(pose.eye[1]) - ymax) > tube,
-        `camera intersects envelope at ${dev}/${j}/${elevation}`);
-      assert.ok(pose.focal > 0 && pose.eye.every(Number.isFinite));
-    }
+    const dev = i / 100,
+      a = safeTumble(dev);
+    const ymax = Math.max(
+      ...LAYERS.filter((l) => dev > l.a).map((l) => {
+        const eta = layerTheta(LAYERS.indexOf(l), dev) / 2;
+        return Math.sin(eta) / (Math.cos(eta) - Math.sin(a));
+      }),
+    );
+    for (let j = 0; j < 80; j++)
+      for (const elevation of [0, 0.35, 1]) {
+        const pose = cameraPose(dev, 0.17, j / 80, {
+          distance: 0.85,
+          elevation,
+        });
+        assert.ok(
+          Math.max(pose.distance - bound, Math.abs(pose.eye[1]) - ymax) > tube,
+          `camera intersects envelope at ${dev}/${j}/${elevation}`,
+        );
+        assert.ok(pose.focal > 0 && pose.eye.every(Number.isFinite));
+      }
   }
-  const peak = cameraPose(2, .17, .2);
-  assert.ok(peak.distance < bound, "the climax must no longer be a distant overview");
-  const before = cameraPose(1.6 - 1e-6, .17, .2), after = cameraPose(1.6 + 1e-6, .17, .2);
+  const peak = cameraPose(2, 0.17, 0.2);
+  assert.ok(
+    peak.distance < bound,
+    "the climax must no longer be a distant overview",
+  );
+  const before = cameraPose(1.6 - 1e-6, 0.17, 0.2),
+    after = cameraPose(1.6 + 1e-6, 0.17, 0.2);
   assert.ok(Math.hypot(...before.eye.map((v, i) => v - after.eye[i])) < 1e-4);
-  for (const dev of [0, .8, 1.4, 2]) {
-    const a = cameraPose(dev, .17, .37), b = cameraPose(dev, 1.17, 1.37);
-    assert.ok(Math.hypot(...a.eye.map((v, i) => v - b.eye[i])) < 1e-12,
-      "all camera drift harmonics must complete whole turns at the phase wrap");
+  for (const dev of [0, 0.8, 1.4, 2]) {
+    const a = cameraPose(dev, 0.17, 0.37),
+      b = cameraPose(dev, 1.17, 1.37);
+    assert.ok(
+      Math.hypot(...a.eye.map((v, i) => v - b.eye[i])) < 1e-12,
+      "all camera drift harmonics must complete whole turns at the phase wrap",
+    );
   }
 });
 
@@ -278,17 +295,68 @@ test("looks validate; the three world states differ only in development", () => 
 });
 
 test("rework keeps saved look identities and a bounded circle tessellation", () => {
-  assert.deepEqual(scene.presets.map(({ name, seed }) => [name, seed]), [
-    ["Linked Torus", 9601], ["Nested Shells", 9601], ["Full Bundle", 9601],
-    ["Cyclide Swing", 9602], ["Glass Nest", 9603], ["Bundle Weather", 9604],
-    ["Half Bloom", 9605], ["Slow Core", 9606],
-  ]);
+  assert.deepEqual(
+    scene.presets.map(({ name, seed }) => [name, seed]),
+    [
+      ["Linked Torus", 9601],
+      ["Nested Shells", 9601],
+      ["Full Bundle", 9601],
+      ["Cyclide Swing", 9602],
+      ["Glass Nest", 9603],
+      ["Bundle Weather", 9604],
+      ["Half Bloom", 9605],
+      ["Slow Core", 9606],
+    ],
+  );
   assert.equal(SIDES, 8);
-  assert.ok(FIBRES * PER_FIBRE < 650000, "fund the immersive camera without raising cost");
+  assert.ok(
+    FIBRES * PER_FIBRE < 650000,
+    "fund the immersive camera without raising cost",
+  );
   // Reference uniform-circle sagitta (the S³ parameter is not arclength);
   // close-range stereographic tessellation is also reviewed at native 4K.
-  const sagitta = (1 / Math.tan(MARGIN / 2)) * (1 - Math.cos(Math.PI / SEGMENTS));
-  assert.ok(sagitta < .0026);
+  const sagitta =
+    (1 / Math.tan(MARGIN / 2)) * (1 - Math.cos(Math.PI / SEGMENTS));
+  assert.ok(sagitta < 0.0026);
+});
+
+test("fibre current is a bounded slot-3 signature with full authored grids", () => {
+  const effect = scene.rhythm.find((effect) => effect.slot === 3);
+  assert.equal(effect.id, "fibre-current");
+  assert.deepEqual(scene.simulation.size, [5, 1]);
+  assert.match(scene.simulation.fragment, /u_rhythmHit\.w/);
+  assert.match(scene.geometry.fragment, /u_rhythmCount\.w/);
+  assert.match(scene.geometry.fragment, /u_rhythm\.w \* braid/);
+  assert.match(
+    scene.simulation.fragment,
+    /min\(\.99999, phase \+ u_dt \/ \.72\)/,
+  );
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const tracks = defaultPattern(scene.rhythm, style).tracks;
+    const density = tracks.reduce(
+      (sum, track) =>
+        sum +
+        (track.steps.filter((value) => value > 0).length * track.division * 4) /
+          track.length,
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+    const signature = effect.styles[style];
+    const hits = signature.steps.flatMap((value, i) => (value > 0 ? [i] : []));
+    assert.ok(hits.length >= 2);
+    for (let i = 0; i < hits.length; i++) {
+      const gap =
+        (hits[(i + 1) % hits.length] +
+          (i === hits.length - 1 ? signature.length : 0) -
+          hits[i]) /
+        signature.division;
+      assert.ok(signature.duration < gap, `${style} settles between hits`);
+    }
+  }
 });
 
 test("stereographic projection sends the pole fibre through infinity only", () => {

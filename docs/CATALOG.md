@@ -70,10 +70,10 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | Geometric Caustics | caustics | Snell refraction through a moving heightfield | Point Waves / Crossing Wave Banks / Lens Sheet | 8 |
 | Space Colonization | colonization | Nearest-branch attraction and reached-point removal | Canopy / Root Fan / Coral Arbor | 8 |
 | [Living Forms](families/metamorphosis.md) | metamorphosis | Connected parametric surface deformation | Filaments / Membrane / Blossom | 6 |
-| [Linked Fibres](families/fibration.md) (world Hopf Bloom) | fibration | Stereographic Hopf fibres as lit tube meshes | Torus / Nest / Bundle | 8 |
+| [Linked Fibres](families/fibration.md) (world Hopf Bloom) | fibration | Exact linked Hopf tubes with travelling fibre currents | Torus / Nest / Bundle | 8 |
 | [Crystal Habit](families/crystal.md) | crystal | Lattice-aligned growth of faceted hexagonal prisms | Seeds / Lattice / Hall | 8 |
-| [Polyhedral Folding](families/fold.md) | fold | Rigid folding of polyhedral nets along hinge chains | Sheet / Fold / Shards | 8 |
-| [Density Waves](families/nebula.md) | nebula | Zel'dovich web, density-wave orbits and Sedov–Taylor shells on one star population | Dust / Spiral / Nova | 7 |
+| [Polyhedral Folding](families/fold.md) | fold | Dyed paper nets close along exact hinges, then form a V-folded storm with sector crease snaps | Sheet / Fold / Shards | 8 |
+| [Density Waves](families/nebula.md) | nebula | Feathered cosmic web, clumpy density-wave arms and torn ejecta with a sector-addressed Starfront | Dust / Spiral / Nova | 7 |
 | [Starling Flock](families/murmuration.md) | murmuration | Topological-neighbour flock with a fold field, startle waves and formations | Loose / Surge / Formation | 7 |
 | [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |
 | [Event Horizon](families/horizon.md) | horizon | Schwarzschild null geodesics (Binet equation, Encke RK4) with a thin Doppler-beamed disk | Star / Infall / Horizon | 8 |
@@ -86,17 +86,17 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Liquid Chrome](families/ferro.md) | ferro | Rippling chrome mirror grows a Rosensweig crown and floating sculpture; graduated silver reflections and alternating-pole magnetic strikes | Pool / Crown / Sculpture | 8 |
 | [Kinetic Rain](families/kinetic.md) (world Kinetic Rain) | kinetic | 9,216 persistent lit spheres: travelling-wave ceiling, kick rings and morphing sphere / torus / Möbius / saddle above a mirror floor | Ceiling / Waves / Sculpture | 8 |
 | [Magma Rift](families/magma.md) | magma | Raymarched Voronoi basalt seams heated along one seed-only drainage tree, channel-frame lava skins, a floe-crust lake, spray cones and ballistic bombs under an ash umbrella lit from below | Crust / Rivers / Eruption | 8 |
-| [Aurora Veil / Polarlicht-Schleier](families/aurora.md) | aurora | Folded rayed sheets along parallel magnetic field lines, zenith convergence and a frozen mirror | Glow / Curtains / Corona | 8 |
+| [Aurora Veil / Polarlicht-Schleier](families/aurora.md) | aurora | Layered field-aligned curtains above a frozen mirror, saturated upper rays and local travelling curtain surges | Glow / Curtains / Corona | 8 |
 | [Brass Orrery](families/orrery.md) (world Brass Orrery / Messing-Orrery) | orrery | Beveled involute gear trains with exact integer-tooth meshing and planetary orbital ratios | Gears / Orrery / Clockwork | 8 |
 | [Thunderhead](families/storm.md) (world Thunderhead / Gewitterzelle) | storm | Volumetric cumulonimbus (meteorological carrier, Beer–Lambert march, multiple-scattering octaves) lit from inside by seeded stepped-leader events | Haze / Towers / Supercell | 8 |
 
 | [Prism Engine](families/prism.md) (Prismenmaschine) | prism | Two-interface Snell refraction, Cauchy dispersion and total internal reflection in persistent triangular glass | Shard / Array / Kaleidoscope | 8 |
-| [Impossible Stairs](families/escher.md) (Unmögliche Treppen) | escher | Raymarched projective Penrose stair cover, three gravity frames and exact log-polar Droste recursion | Stair / Relativity / Infinity | 8 |
+| [Impossible Stairs](families/escher.md) (Unmögliche Treppen) | escher | Analytic projective Penrose stair cover, three gravity frames, log-polar Droste recursion and count-addressed lantern ascent | Stair / Relativity / Infinity | 8 |
 | [Silk Storm](families/silk.md) (Seidensturm) | silk | Strouhal travelling-wave silk, near-inextensible tangent integration and persistent conical ribbon helices | Veil / Banners / Tornado | 8 |
 | [Ink Bloom / Tintenblüte](families/ink.md) | ink | Characteristic-mapped vortex dye with seeded Widnall daughters, translucent Kaden folds, absorbing cores and local ink-burst fills in a dark tank | Drop / Plumes / Nebula | 8 |
 | [Soap Cathedral](families/soap.md) (Seifenkathedrale) | soap | Airy thin-film interference on clipped spherical cells and tetrahedral Plateau films | Bubble / Cluster / Foam | 8 |
-| [Dune Sea / Dünenmeer](families/dunes.md) | dunes | Moonlit barchan and star-dune heightfields, 34° slip faces, ballistic saltation and a depth-correct rolling haboob | Ripples / Dunes / Storm | 8 |
-| [Data Monolith](families/voxel.md) (Datenmonolith) | voxel | 1,296 persistent instanced cubes: GF(2) six-neighbour 3D CA, Morton-ordered assembly, recursive live-cell bridges and mirror floor | Rain / Assembly / Unfold | 8 |
+| [Dune Sea / Dünenmeer](families/dunes.md) | dunes | Palette-lit barchan and star-dune heightfields, 34° slip faces, ballistic saltation, rhythm-lifted crest veils and a depth-correct rolling haboob | Ripples / Dunes / Storm | 8 |
+| [Data Monolith](families/voxel.md) (Datenmonolith) | voxel | 1,296 persistent silicon memory modules: GF(2) six-neighbour 3D CA, Morton assembly, recursive vault, mirror floor and travelling memory-rewrite planes | Rain / Assembly / Unfold | 8 |
 
 Tapestry's views combine with its Wolfram rule; Life's Cyclic variant additionally distinguishes 313, R1/T2/C5, Griffeath CCA and R3/T5/C8. Phase's Gather, Launch and Return are scores on one Kuramoto lattice. Fractal Flight paths are camera views through one Menger geometry. These names are explanatory presentation choices, not claims that each view adds a new algorithm.
 

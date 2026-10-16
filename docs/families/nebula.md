@@ -2,6 +2,49 @@
 
 Family **87**, renderer/world ID **`nebula`**. Continuous **Dust → Spiral → Nova**. A bounded volumetric raymarch carries the unresolved gas; one persistent seed-derived particle population carries resolved stars, tracers, ejecta and near-field motes. This is astronomical choreography, not hydrodynamics or an N-body solver.
 
+## Round 3 — Starfront (2026-10-16, openai-codex/gpt-6.1-sol)
+
+The independent baseline was L5 / G2 / E2.5, overall4. The fresh before capture reproduced its diagram-like Dust and soft radial Nova. Three look film iterations plus an early M4 capture are in `artifacts/look-review/nebula-r3-{before,m4,look1,look2,look3}`. Final reviewer evidence is `artifacts/look-review/nebula-r3/`.
+
+- **Dust:** break the particle-line intensity into seeded clumps, add small static transverse deviations, feather the sheath and lower its uniform core. Filaments now use a primary/secondary mixture rather than predominantly white-green wires. The diffuse volume also carries some secondary colour. Same graph, nodes and tracer identities.
+- **Spiral:** stronger cloud contrast breaks up the continuous arm outline; hot cores are a secondary-to-white ramp. Existing cold extinction lanes remain.
+- **Nova:** finer ridged directional turbulence, less empty directional masking, larger torn-radius variation and oblique curvature through the shell thickness replace radial brush strokes with curved ejecta veils. Front/back palette weighting adds depth; lower particle and interior-haze weights reveal the gas filaments. These are illustrative ejecta, not a hydrodynamics claim.
+- **Energy:** fixed tracer cohorts and camera spring remain unchanged. More/thicker directional ridges appear at high energy (ridge exponent32→20), and the established knot/mote/speed controls still apply. Development continues to wind the same web into arms and collapse into the same remnant. No state/preset/schema/seed changes, so no world HISTORY migration.
+- **Slot3 Starfront / Sternenfront:** an asymmetric outward flare lights **existing matter only**, in particles and volume. `u_rhythm.w` sets travel and envelope, `.w` count addresses successive sectors by the golden angle, and `.w` hit adds a small bounded local ignition. No full-screen quad, camera impulse, new clock or development-locked event. Existing shock ripple is wider/stronger, and arm-light has a denser authored local pattern.
+
+Three presets keep their names. Zero-indexed signature steps (not sixteenth-normalized):
+
+| Style      | Name           | Starfront loop         | Signature steps | All four tracks, hits/bar |
+| ---------- | -------------- | ---------------------- | --------------- | ------------------------- |
+| restrained | Distant embers | 32 eighths / 4 bars    | 11,29           | 2.5                       |
+| driving    | Spiral beacon  | 32 sixteenths / 2 bars | 0,12,19,28      | 8.0                       |
+| accented   | Pulsar crown   | 32 sixteenths / 2 bars | 0,5,11,16,21,28 | 13.0                      |
+
+All gesture envelopes finish before the next hit. Structural shock stays sparse; local light fills the grid.
+
+### Cost and verification
+
+Same 512×256 particle population and scalar RGBA16F atlas. Dust/disk retain the original 24/10 step caps; Nova uses36/18 at1080p/4K. The shared `u_raySteps` governor scales the cap (96→64→40); no engine or limiter changes.
+
+Native ANGLE Metal / M3 Pro, concurrent fleet load; milliseconds p50/p95, state order Dust / Spiral / Nova:
+
+| Probe                         | Dust      | Spiral    | Nova      |
+| ----------------------------- | --------- | --------- | --------- |
+| stock1080p                    | 5.8/13.0  | 7.0/10.9  | 9.9/13.2  |
+| stock4K                       | 13.0/20.4 | 10.0/15.9 | 16.9/22.0 |
+| paired1080p final             | 5.6/7.8   | 4.2/8.0   | 5.9/7.2   |
+| paired1080p p50 delta vs main | +5.7%     | +10.5%    | +31.1%    |
+| paired4K final                | 11.6/26.3 | 8.8/9.5   | 12.6/16.0 |
+| paired4K p50 delta vs main    | +3.6%     | 0.0%      | +40.0%    |
+
+The stock Nova budget is exceeded under contention; paired final medians meet8/16ms but its extra detail genuinely costs31–40%. The paired harness exits1 for regressions above5%; this is a reported cost increase, not a clean performance pass. Raw reports: `artifacts/nebula-r3/final-{perf,pair}-{1080,4k}/profile.json`. The CLI uses `--families` (the brief's singular `--family` is not supported).
+
+Verification: full suite986 pass /21 opt-in skipped /0 fail; typecheck, build, native DE/EN i18n and owned code/docs Prettier pass;19 family tests include preset/continuity/slot3/density/spacing; world-rhythm and flash tests pass. `scripts/verify-nebula.mjs --rig --port <lane-port>` verifies27 palette×state×energy cases (Glacier/Ember/Arctic,0.1/0.5/0.9), seven low-energy portrait looks, reversal and a quantised12h metadata-clock sample. No GL errors or non-finite uploads. Minimum lit fraction across the27 landscape cases is above2.5%; no black frames. The late sample is not a12h soak.
+
+Limiter-enabled native1080p RAF smoke:240 frames, p50/p9516.7/16.8ms, no exemption, zero errors,17 allocated/live textures. Film evidence uses the repository's deterministic capture harness and is **not** live photosensitivity certification.
+
+**Still weak:** Dust retains some schematic graph structure; Nova can read as a feathered shell rather than tangled Crab gas; static raymarch grain is visible in close/portrait views. Self-assessed look6.5/10, not an independent acceptance claim.
+
 ## Polish round 2026-10-16 (wave 6)
 
 Wave 5 was judged ~7/10 by L0, and ~6/10 by this lane's own review. Its gas was 2D value noise read at one point in a flattened slab, so Dust looked like cotton and Nova like a flat camouflage ring. The ignition was invisible, energy barely changed the picture and every palette collapsed to one colour. This round replaced the radiance and the camera. The algorithms, presets, seeds, state names and look IDs are unchanged.
@@ -72,11 +115,11 @@ Steps follow the bounded chord (step .08 at 1080p, .16 at 4K). Caps are 24/12, a
 
 Native headless Chrome / ANGLE Metal / Apple M3 Pro. `profile-rework-pair.mjs --reference main` (ABBA, level .95) under fleet load:
 
-| State | 1080p main → final p50 (ratio) | 4K main → final p50 (ratio) | Stock `profile-families` p50 1080p / 4K |
-| --- | --- | --- | --- |
-| Dust | 2.2 → **5.0 ms** (×2.27) | 5.5 → **11.5 ms** (×2.09) | 5.1 / 11.6 ms |
-| Spiral | 2.0 → **3.9 ms** (×1.95) | 5.0 → **8.8 ms** (×1.76) | 4.2 / 9.2 ms |
-| Nova | 2.0 → **4.3 ms** (×2.15) | 4.9 → **9.0 ms** (×1.84) | 4.5 / 9.3 ms |
+| State  | 1080p main → final p50 (ratio) | 4K main → final p50 (ratio) | Stock `profile-families` p50 1080p / 4K |
+| ------ | ------------------------------ | --------------------------- | --------------------------------------- |
+| Dust   | 2.2 → **5.0 ms** (×2.27)       | 5.5 → **11.5 ms** (×2.09)   | 5.1 / 11.6 ms                           |
+| Spiral | 2.0 → **3.9 ms** (×1.95)       | 5.0 → **8.8 ms** (×1.76)    | 4.2 / 9.2 ms                            |
+| Nova   | 2.0 → **4.3 ms** (×2.15)       | 4.9 → **9.0 ms** (×1.84)    | 4.5 / 9.3 ms                            |
 
 Round-2 numbers. The load average was about 33 during these runs, from four other lanes on the same GPU. On a quiet machine main measures about 1.9–2.0 ms at 1080p, so the ratios put the final at about 4–4.5 ms at 1080p and 10–11 ms at 4K. Targets were ≤ 5 ms at 1080p and ≤ 12 ms at 4K (16 ms ceiling). Optimisation steps, each A/B-measured against its predecessor:
 

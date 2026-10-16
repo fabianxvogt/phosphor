@@ -4,17 +4,17 @@
 
 ## Algorithm and signature detail
 
-The five Platonic solids are built as convex hulls and unfolded once into flat nets: a spanning tree of faces (breadth- or depth-first from some root, choosing the shallowest tree whose flat polygons do not overlap). Every non-root face stores the edge it shares with its parent as a hinge (point, unit direction, fold angle) in the net's flat coordinates. A point on face *f* folds by applying the hinge rotations of *f*, its parent, its grandparent and so on up to the root, each by `angle × progress` (Rodrigues rotation). At progress 1 this composition equals the rigid map of the original solid, so every copy of a solid vertex meets exactly and the solid closes. Chains are at most 5 hinges deep (icosahedron); the 50 hinges are seed-independent and are emitted as GLSL constant arrays from [fold-geometry.mjs](../../fold-geometry.mjs).
+The five Platonic solids are built as convex hulls and unfolded once into flat nets: a spanning tree of faces (breadth- or depth-first from some root, choosing the shallowest tree whose flat polygons do not overlap). Every non-root face stores the edge it shares with its parent as a hinge (point, unit direction, fold angle) in the net's flat coordinates. A point on face _f_ folds by applying the hinge rotations of _f_, its parent, its grandparent and so on up to the root, each by `angle × progress` (Rodrigues rotation). At progress 1 this composition equals the rigid map of the original solid, so every copy of a solid vertex meets exactly and the solid closes. Chains are at most 5 hinges deep (icosahedron); the 50 hinges are seed-independent and are emitted as GLSL constant arrays from [fold-geometry.mjs](../../fold-geometry.mjs).
 
 The signature detail is the visibly exact fold: nets with glowing crease and outline edges close into watertight solids along their hinges, then the same faces leave as shards.
 
 ## States (world Origami Storm, seed 527)
 
-| Development | State | Form |
-| --- | --- | --- |
-| 0 | Sheet | Paper-white, palette-tinted nets with soft face shading, quiet creases, and directional cast shadows on a dark shallow-relief floor. High camera, narrow lens; outlines no longer dominate the faces. |
-| 1 | Fold | Nets fold in birth order (deeper faces slightly later), close, rise and tumble above the sheet; a light core rises in the centre. |
-| 2 | Shards | Every fan triangle leaves its solid for a vortex orbit: a towering funnel (1.7× height, 1.3× radius) of lit paper shards. The low camera approaches under the canopy; near shards pass the lens and the top extends beyond the frame. |
+| Development | State  | Form                                                                                                                                                                                                                                  |
+| ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0           | Sheet  | Paper-white, palette-tinted nets with soft face shading, quiet creases, and directional cast shadows on a dark shallow-relief floor. High camera, narrow lens; outlines no longer dominate the faces.                                 |
+| 1           | Fold   | Nets fold in birth order (deeper faces slightly later), close, rise and tumble above the sheet; a light core rises in the centre.                                                                                                     |
+| 2           | Shards | Every fan triangle leaves its solid for a vortex orbit: a towering funnel (1.7× height, 1.3× radius) of lit paper shards. The low camera approaches under the canopy; near shards pass the lens and the top extends beyond the frame. |
 
 Fold progress, lift and shard release are pure functions of development (`foldProgress`, `liftProgress`, `shardProgress` mirror the shader), so reversal retraces the forward motion. Between Fold and Shards each shard blends position and orientation from its place on the tumbling solid to a velocity-aligned frame on its orbit; its trailing vertices stretch with `streak` and fade, which reads as a motion streak.
 
@@ -60,6 +60,42 @@ Tests compare analytic normals with independent central differences, and check b
 L0 rated the previous final around 7/10: opening nets still looked like a diagram and the storm was a small cone. Two filmed revisions: (1) lit off-white paper with palette tint, diffuse fill, soft crease shading and actual projected hero-net triangle shadows; enlarge the cone and dolly low underneath it; (2) lift the paper pigment further, reduce floor relief, separate the shadow/floor surfaces to avoid depth fighting and remove false fan-triangulation shadow seams. A filmed safety/cost correction delays the close dolly until the release is advanced, backs raised-crane looks away, reduces streak stretch 3.2 → 1.8, and reduces the floor 32×96 → 24×64 to pay for hero-net shadows. Exact hinge chains, rigid faces, identity, presets, seeds and schemas are unchanged.
 
 Evidence: fleet worker `rework-geometry/output/final-round/fold/` (before/final films, revision strips, glacier portrait, three-palette native 1080p and native 4K stills). CPU tests cover shadow/face attribute correspondence, the directional projection, camera periodicity and peak clearance. Native paused reversal is exact and retains the same mesh buffer. **Honest revised rating: 8/10**: materially stronger opening and immersive climax, though the middle-state composition remains modest and shadows are an inexpensive approximation.
+
+## Round 3 — dyed paper and crease snaps (2026-10-16)
+
+This section supersedes the older paper-white material, long-tail storm, 3.5% breath and rhythm/cost descriptions above. Model: **openai-codex/gpt-6.1-sol**. Independent baseline: L5/G2/E2, Overall4. Three filmed iterations are retained in `artifacts/look-review/origami-r3-round{1,2,3}/`, with the original in `origami-r3-before/` and final reviewer evidence in `origami-r3/`.
+
+### Look and geometry
+
+Sheet starts with readable 14% pre-creases, saturated palette-derived front/back pigment, diffuse shading and a quiet seam, not grey flat stars. Fold uses a 2.0 focal scale rather than 1.45, making the same solids larger without moving the camera. Each solid face has coherent pigment instead of random colours on its fan triangles. Shards no longer stretch into metallic needles: each original fan triangle is split along its median into two **rigid hinged wings**. They are coplanar until release, then bank into a V-fold. The wing angle has a slow continuous breath plus independently scheduled accents; exact original hinge chains still close every Platonic solid at development 1 with rhythm at rest. No seed, look name, schema, state identity or world definition changed.
+
+The median passes through the original shard centroid, so both wings share exactly the same axis. A local rigid rotation supplies position and normal; no normal-only fake crease. Original triangle barycentrics remain continuous across the split and shade an antialiased valley. Tails are now a bounded 1–1.5× aspect stretch. Double-sided raking light and restrained transmitted core light replace metallic white speculars. Peak camera path is retained for verified clearance; rapid one-bar state sweeps can still reveal its large development-dependent dolly.
+
+### Four gestures and authored grids
+
+- Slot 0 **Edge flash**: count-selected local edge-light cohort, not every edge flashing together. Driving uses clipped eighth-note syncopation; accented has interleaved sixteenth-note figures.
+- Slot 1 **Fold breath**: 16% hinge opening and a 0.24-radian wing breath after release. Structural placements remain sparse.
+- Slot 2 **Core flare**: local palette-lit source and reflected pool, never a full-screen flash.
+- Slot 3 **Crease snap / Falzschlag** (`crease-snap`): the golden-angle count selects a spatial sector of the rotating paper storm. Its envelope adds up to 0.65 radians to the actual median fold and catches the crease in accent light. Reads `u_rhythm.w`, `u_rhythmHit.w` and `u_rhythmCount.w`. No simulation reset or camera impulse. Every preset has at least two signature events.
+
+Presets retain **Paper hush**, **Crease dance**, **Thousand cranes**. Family-only densities are **3.75 / 8 / 15 hits per bar**. Slot-3 positions: restrained, 32 eighth steps, indices **6,20**; driving, 16 eighth steps, **2,13**; accented, 32 sixteenth steps, **2,10,22,30** (all zero-based). Durations 0.9/0.65/0.45 beats; strengths 0.6/0.95/1. The same geometry and colour vocabulary persists across energies: density, orbit/swirl rates and bounded paper aspect change rather than master brightness.
+
+### Verification and cost
+
+Seed 527: **23,184 vertices**, up from 16,200; the floor is unchanged. Tests cover the original exact closure/continuity/identity, shared median barycentrics, rigid wings, four-track presets and density, and a conservative sphere bounding **all crease angles** against peak camera clearance for six seeds and five crane settings.
+
+Native M3 Pro, synchronous full-frame throughput including post (not display cadence), states Sheet/Fold/Shards:
+
+| Resolution | p50 (ms)        | p95 (ms)        |
+| ---------- | --------------- | --------------- |
+| 1920×1080  | 1.8 / 1.7 / 1.7 | 1.9 / 1.8 / 1.9 |
+| 3840×2160  | 5.0 / 5.2 / 4.7 | 5.1 / 5.5 / 4.9 |
+
+The required shared paired probe ran but does **not** route `fold-geometry.mjs` from main; it is not a full geometry regression comparison. Its p50 deltas were −5.6/−4.8/+5.3%, with the last just above its 5% exit gate. `scripts/verify-fold.mjs --pair --reference main` corrects this within the family-owned script by routing both scene and geometry: 1080p **+5.0/+12.1/+11.1%**, 4K **−1.8/+4.1/0%**. Paired p95 spikes (up to 34.1 ms) demonstrate shared-GPU contention; do not mistake the short independent probes for venue guarantees. Geometry expansion has a real vertex cost; absolute p50 remains well below both budgets.
+
+`npm test`: **980 passed, 21 skipped, 0 failed**; family test 13/13; world-rhythm and pipeline-flash pass; typecheck, build and native DE/EN i18n pass. The native family verifier exercises 45 palette × development × energy cases at time 43,200, a 241-frame reversal without slot reset, portrait/square/4K captures, a frozen signature off/on comparison, and 120 limiter-enabled RAF frames. Zero GL errors and non-finite uploads; every low-energy case exceeds 2.5% lit pixels. The shared limiter is untouched. Offline sheets are aesthetic evidence only, not photosensitivity certification.
+
+**Self-assessment L6.5, not an independent pass.** Stronger material and folds, but Sheet remains diagram-like, the central cyclone composition is familiar, and colour separation is modest in monochromatic palettes. The sector accent is readable in the final rhythm strip; individual fold motion remains small at contact-sheet scale. No claim of L8 or external 4K/long-run acceptance.
 
 ## Limits
 

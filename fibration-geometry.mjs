@@ -45,19 +45,44 @@ export const CAMERA = {
   distance: [6.0, 6.3, 4.2],
   focal: [2.7, 1.45, 1.35],
 };
-export function cameraPose(development, yawPhase, driftPhase, { distance = 1, elevation = .35, tumble = 0 } = {}) {
-  const bloom = smoothstep(0, 2, development), full = smoothstep(1, 2, development);
-  const yaw = 2 * Math.PI * yawPhase, drift = 2 * Math.PI * driftPhase;
-  const pitch0 = mix(.3, .5, bloom) + .56 * full + 1.15 * (elevation - .35)
-    + mix(.17, .12, full) * Math.sin(drift) + .05 * Math.sin(2 * drift + 1);
-  const pitch = Math.min(1.32, Math.max(mix(-.3, 1.03, smoothstep(.6, 1.6, development)), pitch0));
-  const d = distance * mix(mix(...CAMERA.distance.slice(0, 2), bloom), CAMERA.distance[2], full)
-    * (1 + .04 * Math.sin(2 * drift));
+export function cameraPose(
+  development,
+  yawPhase,
+  driftPhase,
+  { distance = 1, elevation = 0.35, tumble = 0 } = {},
+) {
+  const bloom = smoothstep(0, 2, development),
+    full = smoothstep(1, 2, development);
+  const yaw = 2 * Math.PI * yawPhase,
+    drift = 2 * Math.PI * driftPhase;
+  const pitch0 =
+    mix(0.3, 0.5, bloom) +
+    0.56 * full +
+    1.15 * (elevation - 0.35) +
+    mix(0.17, 0.12, full) * Math.sin(drift) +
+    0.05 * Math.sin(2 * drift + 1);
+  const pitch = Math.min(
+    1.32,
+    Math.max(mix(-0.3, 1.03, smoothstep(0.6, 1.6, development)), pitch0),
+  );
+  const d =
+    distance *
+    mix(mix(...CAMERA.distance.slice(0, 2), bloom), CAMERA.distance[2], full) *
+    (1 + 0.04 * Math.sin(2 * drift));
   return {
-    eye: [d * Math.cos(pitch) * Math.cos(yaw), d * Math.sin(pitch), d * Math.cos(pitch) * Math.sin(yaw)],
-    target: [.8 * Math.tan(tumble), mix(-.1, -.3, bloom) + .25 * full, 0],
+    eye: [
+      d * Math.cos(pitch) * Math.cos(yaw),
+      d * Math.sin(pitch),
+      d * Math.cos(pitch) * Math.sin(yaw),
+    ],
+    target: [
+      0.8 * Math.tan(tumble) + 0.22 * Math.sin(drift),
+      mix(-0.1, -0.3, bloom) + 0.25 * full + 0.1 * Math.cos(drift),
+      0.18 * Math.cos(drift),
+    ],
     focal: mix(mix(...CAMERA.focal.slice(0, 2), bloom), CAMERA.focal[2], full),
-    pitch, distance: d,
+    pitch,
+    distance: d,
   };
 }
 export const cameraGLSL = () => `
@@ -67,7 +92,7 @@ void cameraAt(float dev, float yaw, float drift, float a, out vec3 eye, out vec3
   pitch = clamp(pitch, mix(-.3, 1.03, smoothstep(.6, 1.6, dev)), 1.32);
   dist = u_params[7] * mix(mix(${CAMERA.distance[0].toFixed(2)}, ${CAMERA.distance[1].toFixed(2)}, bloom), ${CAMERA.distance[2].toFixed(2)}, full) * (1. + .04 * sin(2. * drift));
   eye = dist * vec3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw));
-  target = vec3(.8 * tan(a), mix(-.1, -.3, bloom) + .25 * full, 0.);
+  target = vec3(.8 * tan(a) + .22 * sin(drift), mix(-.1, -.3, bloom) + .25 * full + .1 * cos(drift), .18 * cos(drift));
   focal = mix(mix(${CAMERA.focal[0].toFixed(2)}, ${CAMERA.focal[1].toFixed(2)}, bloom), ${CAMERA.focal[2].toFixed(2)}, full) * (1. + .022 * u_kick);
 }
 `;
@@ -98,7 +123,7 @@ function random(seed) {
 // Where a fibre starts growing around its circle; derived from its identity
 // so the shader needs no extra attribute.
 export const arcStart = (phi, layer) =>
-  Math.PI * 2 * (((phi * 5.137 + layer * 0.31) % 1) + 1) % (Math.PI * 2);
+  (Math.PI * 2 * (((phi * 5.137 + layer * 0.31) % 1) + 1)) % (Math.PI * 2);
 // Seed identity: longitude twist per layer, the sweep direction of growth and
 // a small longitude jitter.
 export function fibres(seed) {
@@ -166,7 +191,12 @@ export function tumble([x1, y1, x2, y2], a, b) {
     sa = Math.sin(a),
     cb = Math.cos(b),
     sb = Math.sin(b);
-  return [ca * x1 - sa * y2, cb * y1 - sb * x2, sb * y1 + cb * x2, sa * x1 + ca * y2];
+  return [
+    ca * x1 - sa * y2,
+    cb * y1 - sb * x2,
+    sb * y1 + cb * x2,
+    sa * x1 + ca * y2,
+  ];
 }
 export const untumble = (q, a, b) => {
   const [x1, y1, x2, y2] = q,
@@ -174,7 +204,12 @@ export const untumble = (q, a, b) => {
     sa = Math.sin(a),
     cb = Math.cos(b),
     sb = Math.sin(b);
-  return [ca * x1 + sa * y2, cb * y1 + sb * x2, -sb * y1 + cb * x2, -sa * x1 + ca * y2];
+  return [
+    ca * x1 + sa * y2,
+    cb * y1 + sb * x2,
+    -sb * y1 + cb * x2,
+    -sa * x1 + ca * y2,
+  ];
 };
 // Stereographic projection from the pole y2 = 1.
 export const stereo = ([x1, y1, x2, y2]) => [

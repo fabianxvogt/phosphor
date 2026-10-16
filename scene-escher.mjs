@@ -432,13 +432,14 @@ vec4 esHall(vec3 ro, vec3 rd) {
 vec3 esPlaster(vec3 p, vec3 n, vec3 rd, float shadow, float ao, float t) {
   vec3 key = normalize(vec3(-0.45, 1.0, 0.65));
   float diffuse = max(dot(n, key), 0.0);
-  vec3 ivory = mix(vec3(1.0), u_primary, 0.035);
-  vec3 col = ivory * (0.055 + 1.45 * diffuse * shadow) * ao;
-  col += u_secondary * 0.17 * max(dot(n, normalize(vec3(1.0, 0.2, -0.5))), 0.0) * ao;
-  col += mix(u_primary, vec3(1.0), 0.6) * pow(1.0 - abs(dot(n, rd)), 4.0) * 0.065;
-  col += u_primary * 0.3 * exp(-length(p - vec3(-2.2, -1.8, -2.5)) * 0.65);
-  col += u_secondary * 0.24 * exp(-length(p - vec3(2.0, -1.8, 0.0)) * 0.7);
-  return mix(col, u_secondary * 0.025, 1.0 - exp(-max(0.0, t - 6.0) * 0.055));
+  vec3 ivory = mix(u_secondary, vec3(1.0), 0.56);
+  float stone = 0.94 + 0.04 * sin(p.x * 37.0 + p.z * 19.0) * sin(p.y * 29.0);
+  vec3 col = ivory * (0.035 + 1.06 * diffuse * shadow) * ao * stone;
+  col += u_secondary * 0.30 * max(dot(n, normalize(vec3(1.0, 0.2, -0.5))), 0.0) * ao;
+  col += u_primary * pow(1.0 - abs(dot(n, rd)), 4.0) * 0.09;
+  col += u_primary * 0.12 * exp(-length(p - vec3(-2.2, -1.8, -2.5)) * 0.65);
+  col += u_secondary * 0.12 * exp(-length(p - vec3(2.0, -1.8, 0.0)) * 0.7);
+  return mix(col, u_secondary * 0.012, 1.0 - exp(-max(0.0, t - 6.0) * 0.075));
 }
 void main() {
   gDev = clamp(u_params[0], 0.0, 2.0);
@@ -488,12 +489,12 @@ void main() {
       shade = esShadow(p + n * 0.012, normalize(vec3(-0.45, 1.0, 0.65)));
     float corner = n.y > 0.5 ? min(abs(p.x + 3.4), abs(p.z + 3.4)) : min(p.y + 2.15, n.z > 0.5 ? abs(p.x + 3.4) : abs(p.z + 3.4));
     float ao = 0.4 + 0.6 * smoothstep(0.0, 0.7, corner);
-    col = esPlaster(p, n, rd, shade, ao, hall.x);
+    col = esPlaster(p, n, rd, shade, ao, hall.x) * 0.52;
     if (n.y > 0.5) {
       vec2 tile = abs(fract(p.xz * 0.8) - 0.5);
       float grout = smoothstep(0.475, 0.49, max(tile.x, tile.y));
       col *= (0.12 + 0.055 * (1.0 - grout));
-      col += u_primary * 0.12 * exp(-dot(p.xz, p.xz) * 0.12);
+      col += u_secondary * 0.08 * exp(-dot(p.xz, p.xz) * 0.12);
     } else {
       float h = p.y + 2.15, bay = mod((n.z > 0.5 ? p.x : p.z) + 0.8, 1.6) - 0.8;
       float radius = length(vec2(bay, h - 1.35));
@@ -505,6 +506,14 @@ void main() {
       // Restrained string courses and carved stone joints, resolution-safe.
       float course = exp(-sq((h - 2.9) / 0.055));
       col *= 1.0 - 0.32 * course;
+      // Recessed door lanterns are sparse scale cues, not glowing outlines.
+      float sconce = length(vec2(abs(bay) - 0.65, h - 0.96));
+      float lampAA = max(gPixel * framing * 1.5, 0.008);
+      float lens = 1.0 - smoothstep(0.022, 0.022 + lampAA, sconce);
+      float door = floor(((n.z > 0.5 ? p.x : p.z) + 0.8) / 1.6);
+      float inhabited = smoothstep(0.75 - 0.42 * u_level, 0.82 - 0.42 * u_level, fract(door * 0.618034 + 0.3));
+      vec3 flame = mix(u_primary, u_accent, 0.85);
+      col += flame * inhabited * (lens * 2.5 + 0.16 * exp(-sconce * 5.0));
       if (abs(n.x) > 0.02 && abs(n.z) > 0.02 && abs(n.y) < 0.01)
         col *= 0.88 + 0.12 * cos(atan(n.z, n.x) * 16.0);
     }
@@ -522,8 +531,24 @@ void main() {
     col = esPlaster(p, n, rd, shadow, ao, t);
     float tread = mod(field.y, 48.0);
     float packet = exp(-sq((tread - mod(gPhase * 5.0 + u_rhythmCount.x * 3.0, 48.0)) / 2.1));
-    col += u_primary * packet * u_rhythm.x * 0.55 * max(n.y, 0.0);
-    col += u_secondary * u_rhythm.y * 0.18 * pow(max(0.0, dot(n, -rd)), 3.0);
+    col += u_primary * packet * u_rhythm.x * 1.8 * max(n.y, 0.0);
+    col += u_secondary * u_rhythm.y * 0.65 * pow(max(0.0, dot(n, -rd)), 3.0);
+    // Counted lanterns climb actual tread addresses, including both gravity
+    // flights. No time-driven impostor pulse and no development-locked event.
+    float frame = floor(mod(field.y, 144.0) / 48.0);
+    float span = frame < 0.5 ? 48.0 : 12.0;
+    float head = mod(u_rhythmCount.w * 3.0 + frame * 4.0, span);
+    float behind = mod(head - tread + span, span);
+    float ascent = exp(-behind * 0.48) * u_rhythm.w;
+    vec3 local = frame < 0.5 ? p - esCentre(tread) : esFrame(p, frame) - esFlightCentre(tread);
+    if (frame < 0.5 && mod(floor(tread / 12.0), 2.0) > 0.5) local.xz = local.zx;
+    float inset = 1.0 - smoothstep(0.10, 0.125, abs(local.x));
+    float lamp = exp(-sq((abs(local.z) - 0.19 * gWidth) / 0.035)) * inset;
+    float enabled = field.y < 144.0 && tread < (frame < 0.5 ? 48.0 : 12.0) ? 1.0 : 0.0;
+    float permanent = smoothstep(0.86 - 0.40 * u_level, 0.91 - 0.40 * u_level, fract(tread * 0.381966)) * 0.32;
+    vec3 fire = mix(u_primary, u_accent, 0.85);
+    col += fire * enabled * (lamp * (permanent + ascent * 4.2) + ascent * 0.24);
+    col += fire * enabled * lamp * min(u_rhythmHit.w, 1.0) * 0.08;
     col *= exp(-max(0.0, t - 7.0) * 0.055);
   }
   // Small persistent lights walk the lifted stair chart under each gravity.
@@ -553,7 +578,39 @@ void main() {
       float nearest = clamp(-dot(projected, stem) / max(dot(stem, stem), 0.000001), 0.0, 1.0);
       float stemDistance = length(projected + stem * nearest);
       float body = 1.0 - smoothstep(0.006 * sc, 0.006 * sc + gPixel * framing * 1.5, stemDistance);
-      col += mix(u_primary, u_accent, 0.75) * (core * 4.0 + halo * 0.32 + body * 1.15) * visibility * (1.0 + 0.3 * u_rhythm.z);
+      float cohort = i < 2 ? 1.0 : smoothstep(0.2, 0.85, u_level - float(i - 2) * 0.12);
+      col += mix(u_primary, u_accent, 0.75) * (core * 4.0 + halo * 0.48 + body * 1.5) * visibility * cohort * (1.0 + 1.4 * u_rhythm.z);
+    }
+  }
+  // One physical lantern head per gravity, with a surface-light tail. The
+  // head moves three addresses per scheduled hit, independently of walkers.
+  // Keep only the leading head analytic: the four-tread tail is shaded above.
+  if (u_rhythm.w > 0.001) for (int frame = 0; frame < 3; ++frame) {
+    if (frame > 0 && gRel < 0.001) break;
+    float sc = frame == 0 ? 1.0 : gRel;
+    float span = frame == 0 ? 48.0 : 12.0;
+    float head = mod(u_rhythmCount.w * 3.0 + float(frame) * 4.0, span);
+    {
+      float id = head;
+      vec3 c = frame == 0 ? esCentre(id) : esFlightCentre(id);
+      c.y += 0.11;
+      vec3 gravity = vec3(0.0, 1.0, 0.0);
+      if (frame == 1) { c.xy = rot2(-1.57079632679 * gRel) * c.xy; gravity.xy = rot2(-1.57079632679 * gRel) * gravity.xy; c *= sc; c += vec3(-1.45, 0.0, -0.8) * gRel; }
+      if (frame == 2) { c.yz = rot2(1.57079632679 * gRel) * c.yz; gravity.yz = rot2(1.57079632679 * gRel) * gravity.yz; c *= sc; c += vec3(1.2, 0.55, -1.3) * gRel; }
+      vec3 delta = c - ro;
+      float along = dot(delta, rd);
+      vec3 projected = delta - along * rd;
+      float dist = length(projected);
+      if (dist > 0.20 * sc || along > t + 0.025) continue;
+      float aa = gPixel * framing * 1.5;
+      float core = 1.0 - smoothstep(0.025 * sc, 0.025 * sc + aa, dist);
+      float halo = exp(-sq(dist / max(0.001, 0.075 * sc)));
+      vec3 stem = -gravity * 0.09 * sc;
+      stem -= rd * dot(stem, rd);
+      float at = clamp(-dot(projected, stem) / max(dot(stem, stem), 0.000001), 0.0, 1.0);
+      float body = 1.0 - smoothstep(0.007 * sc, 0.007 * sc + aa, length(projected + stem * at));
+      float flame = u_rhythm.w;
+      col += mix(u_accent, u_primary, 0.12) * flame * (core * 4.0 + halo * 0.65 + body * 1.2);
     }
   }
   // The infinitely small levels converge below the pixel footprint, rather
@@ -581,40 +638,138 @@ export default {
     { rate: (p) => p[1] * 0.12, period: 48 },
     { rate: () => 0.035, period: 2 * Math.PI },
   ],
-  rhythmStyles: { restrained: "Empty landings", driving: "Lantern steps", accented: "Endless ascent" },
+  rhythmStyles: {
+    restrained: "Empty landings",
+    driving: "Lantern steps",
+    accented: "Endless ascent",
+  },
   rhythm: [
     familyEffect(
       "tread-procession",
       0,
       "Tread procession",
       "A local light packet climbs the same persistent impossible treads.",
-      { period: 4, strength: 0.55, duration: 1.25, steps: "X...", styles: {
-        restrained: { steps: "X....... | .....x.. | ....X...", division: 2, strength: 0.48, duration: 1.5 },
-        driving: { steps: "X....x.. | ...X.... | .x....X.", division: 2, strength: 0.72, duration: 0.9 },
-        accented: { steps: "X.........x..... | .X.........x.... | ..X.........x...", division: 4, strength: 0.86, duration: 0.6 },
-      } },
+      {
+        period: 4,
+        strength: 0.55,
+        duration: 1.25,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | .....x.. | ....X...",
+            division: 2,
+            strength: 0.48,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "X....x.. | ...X.... | .x....X.",
+            division: 2,
+            strength: 0.72,
+            duration: 0.9,
+          },
+          accented: {
+            steps: "X.........x..... | .X.........x.... | ..X.........x...",
+            division: 4,
+            strength: 0.86,
+            duration: 0.6,
+          },
+        },
+      },
     ),
     familyEffect(
       "gravity-light",
       1,
       "Gravity light",
       "A soft stage light reveals the three stair orientations.",
-      { period: 8, strength: 0.45, duration: 2, steps: "X.......", styles: {
-        restrained: { steps: "...x.... | .......X | ..x.....", division: 2, strength: 0.4, duration: 1.4 },
-        driving: { steps: "...X..x. | .X...x..", division: 2, strength: 0.65, duration: 0.8 },
-        accented: { steps: "...X..x...X..x.. | .....X..x..X..x.", division: 4, strength: 0.8, duration: 0.5 },
-      } },
+      {
+        period: 8,
+        strength: 0.45,
+        duration: 2,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | .......X | ..x.....",
+            division: 2,
+            strength: 0.4,
+            duration: 1.4,
+          },
+          driving: {
+            steps: "...X..x. | .X...x..",
+            division: 2,
+            strength: 0.65,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "...X..x...X..x.. | .....X..x..X..x.",
+            division: 4,
+            strength: 0.8,
+            duration: 0.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "recursive-lantern",
       2,
       "Recursive lantern",
       "The walking lanterns breathe together through every recursive level.",
-      { period: 16, strength: 0.6, duration: 2.5, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ......X. | ........", division: 2, strength: 0.5, duration: 2.5 },
-        driving: { steps: "........ | ......x. | ........ | .....X.x", division: 2, strength: 0.74, duration: 0.8 },
-        accented: { steps: "............x... | .........X..x.XX", division: 4, strength: 0.9, duration: 0.18 },
-      } },
+      {
+        period: 16,
+        strength: 0.6,
+        duration: 2.5,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ......X. | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 2.5,
+          },
+          driving: {
+            steps: "........ | ......x. | ........ | .....X.x",
+            division: 2,
+            strength: 0.74,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "............x... | .........X..x.XX",
+            division: 4,
+            strength: 0.9,
+            duration: 0.18,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "lantern-ascent",
+      3,
+      "Lantern ascent",
+      "Lanterns ignite three treads higher on each hit, carrying a luminous wake through every impossible gravity.",
+      {
+        period: 8,
+        strength: 0.95,
+        duration: 0.42,
+        styles: {
+          restrained: {
+            steps: "X....... | ...x.... | ......X. | ....x...",
+            division: 2,
+            strength: 0.72,
+            duration: 0.9,
+          },
+          driving: {
+            steps: "X.x.X.x. | X..X.X.x",
+            division: 2,
+            strength: 0.95,
+            duration: 0.42,
+          },
+          accented: {
+            steps: "X..x..X.x...X... | ..X.x.X..x..X.x.",
+            division: 4,
+            strength: 1,
+            duration: 0.2,
+          },
+        },
+      },
     ),
   ],
   fragment,
