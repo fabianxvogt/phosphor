@@ -6,6 +6,7 @@ import magma, {
   CYCLE_SECONDS,
   BIG_CAP,
   SPRAY_CAP,
+  FLARE_SECONDS,
 } from "../scene-magma.mjs";
 import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
@@ -93,10 +94,11 @@ function* points(n, span = 120, seed = 7) {
 test("shader keeps the mirrored Voronoi search and seam distance", () => {
   for (const line of [
     `const float JIT = ${PLATE_JITTER.toFixed(2)};`,
-    "return mrH22(c + gSeedOff);", "return texelFetch(u_precomputed, ivec2(c) + ivec2(64, 65), 0).xy;",
+    "return vec4(mrH22(c + gSeedOff), 0.0, 0.0);", "return texelFetch(u_precomputed, ivec2(c) + ivec2(64, 65), 0);",
+    "return vec4(mrH22(c + gSeedOff), mrChannel(c * gS).xy);",
     "vec2 mrSite(vec2 h) { return 0.5 + JIT * (h - 0.5); }",
     "return fract((p3.xx + p3.yz) * p3.zy);",
-    "if (d < best) { best = d; mr = r[k]; hA = h; oA = o; }",
+    "if (d < best) { best = d; mr = r[k]; hA = cd.xy; oA = o; }",
     "float b = dot(0.5 * (mr + r[k]), dr) * inversesqrt(dd);",
     "if (b < border) { border = b; rB = r[k]; }",
     "P.gap = border - width;",
@@ -211,12 +213,21 @@ test("shader keeps the mirrored ballistic ejecta", () => {
     "float vh = (big ? mix(1.8, 2.8, hb.y) : mix(0.1, 1.1, hb.y)) * kf;",
     "tf = (vy + sqrt(vy * vy + 2.0 * G_ACC * 0.35)) / G_ACC;",
     "tt = tau * CYCLE;",
-    "return on > 0.0 && tt < tf;",
+    "return on > 0.0 && tt < tf + (big ? FLARE : 0.0);",
     "float id = mod(floor(u), 64.0);",
   ])
     assert.ok(src.includes(line), line);
   assert.match(src, new RegExp(`const int BIG_CAP = ${BIG_CAP};`));
   assert.match(src, new RegExp(`const int SPRAY_CAP = ${SPRAY_CAP};`));
+  assert.match(src, new RegExp(`const float FLARE = ${FLARE_SECONDS.toFixed(2)};`));
+  // A big bomb's landing flare finishes before its next launch, and the
+  // flare sprite (σ ≤ 0.67, ring ≤ 0.6 + its width) stays in its bound.
+  const { vy } = launch(1, 1, 1.5);
+  assert.ok(flight(vy) + FLARE_SECONDS < CYCLE_SECONDS);
+  assert.match(src, /const float FLARE_R = 2\.1;/);
+  assert.match(src, /float sigF = max\(0\.12 \+ 0\.55 \* a, gPix \* tq \* 1\.5\);/);
+  assert.ok(3 * (0.12 + 0.55) < 2.1 && 0.6 + 3 * 0.05 < 2.1);
+  assert.match(src, /if \(tt >= tf\) return vec4\(mrBomb\(p0, v0, tf\), FLARE_R\);/);
 });
 
 test("ejecta follow exact parabolas and land before their next launch", () => {
@@ -399,16 +410,19 @@ test("clocks are the authored products and every use is periodic", () => {
   for (const use of azUses) assert.match(use, /^(sin|cos)\(az( \* 2\.0)?( \+ 0\.7)?\)$/, use);
   // Flow (period 16): sin(TAU·φ), the lake turn TAU·φ/16, fract and floor mod 16.
   for (const use of src.match(/[^\n]*gFlow[^\n]*/g).filter((l) => !/gFlow = |float gDev/.test(l)))
-    assert.match(use, /sin\(TAU \* gFlow|TAU \* gFlow \/ 16\.0|gFlow \+ 0\.5 \* float\(k\)|sin\(r \* 4\.0 - TAU \* gFlow\)|float foldPhase = .* - TAU \* gFlow;/, use);
+    assert.match(use, /sin\(TAU \* gFlow|TAU \* gFlow \/ 16\.0|gFlow \+ 0\.5 \* float\(k\)|sin\(r \* 3\.0 - TAU \* gFlow\)|sin\(r \* 2\.6 - TAU \* gFlow \* 2\.0\)/, use);
   assert.match(src, /float id = mod\(floor\(ph\), 16\.0\);/);
   // Eruption (period 64): integer fountain harmonics and ash ×0.5, embers ×0.5/0.75.
   for (const use of src.match(/[^\n]*gErPh[^\n]*/g).filter((l) => !/gErPh = |float gDev/.test(l)))
     assert.match(
       use,
-      /TAU \* gErPh|TAU \* \(gErPh \* 8\.0\)|gErPh \+ fract|gErPh \* \(0\.5 \+ floor\(h\.z \* 2\.0\) \* 0\.25\)/,
+      /TAU \* gErPh|TAU \* \(gErPh \* 8\.0\)|gErPh \+ fract|gErPh \* \(0\.5 \+ floor\(h\.z \* 2\.0\) \* 0\.25\)|speed \* gErPh/,
       use,
     );
-  assert.match(src, /mrBillow\(p \* 0\.95 \+ vec3\(gSeedOff, 0\.0\), TAU \* gErPh \* 0\.5\)/);
+  assert.match(src, /mrBillow\(p \* \(0\.95 - 0\.4 \* umb\) \+ vec3\(gSeedOff, 0\.0\), TAU \* gErPh \* 0\.5\)/);
+  // Spray lattices move by whole cells per eruption cycle (period 64).
+  assert.match(src, /float speed = fall \? -26\.0 : 38\.0;/);
+  for (const speed of [-26, 38]) assert.ok(Number.isInteger(64 * speed));
   for (const m of [8, 5, 1, 0.5, 0.75]) assert.ok(Number.isInteger(64 * m));
 });
 
@@ -433,41 +447,166 @@ test("the molten-centre shortcut excludes every plate and never reuses an unfill
     }
   // The lake no longer performs a second nearest/bisector lattice search.
   const lake = src.slice(src.indexOf("float la = TAU"), src.indexOf("// Sinking plates"));
-  assert.doesNotMatch(lake, /mrBorder|mrPlates/);
-  assert.match(lake, /mix\(folds, scum, 0\.75\)/);
+  assert.doesNotMatch(lake, /mrBorder|mrPlates|mrChannel/);
+  assert.match(lake, /float ridge1 = abs\(2\.0 \* c1 - 1\.0\)/);
 });
 
 test("plate hash tile addresses are exact and contain every terrain site", () => {
-  assert.deepEqual(magma.precompute.size, [128, 129]);
+  assert.deepEqual(magma.precompute.size, [128, 257]);
   assert.match(magma.precompute.fragment, /floor\(gl_FragCoord\.xy\) - vec2\(64\.0, 65\.0\)/);
-  assert.match(magma.precompute.fragment, /outColor = vec4\(mrH22\(c \+ gSeedOff\), 0\.0, 1\.0\);/);
+  assert.match(magma.precompute.fragment, /outColor = mrCellCalc\(c\);/);
+  // Second tile: the channel frame at each lattice corner, rows 129..256.
+  assert.match(magma.precompute.fragment, /floor\(gl_FragCoord\.xy\) - vec2\(64\.0, 193\.0\)/);
+  assert.match(src, /ivec2 b = ivec2\(ic\) \+ ivec2\(64, 193\);/);
+  assert.match(src, /lessThan\(ic, vec2\(63\.0\)\)/); // ic + 1 stays in the tile
   for (let y = -64; y < 64; y++)
     for (let x = -64; x < 64; x++) {
       const texel = [x + 64, y + 65];
       assert.ok(texel[0] >= 0 && texel[0] < 128 && texel[1] >= 1 && texel[1] < 129);
       assert.deepEqual([texel[0] - 64, texel[1] - 65], [x, y]);
+      const frame = [x + 64, y + 193];
+      assert.ok(frame[1] >= 129 && frame[1] < 257);
     }
+  // Row 0: bombs and groups (texels 0..BOMB_CAP+1) never meet the curves.
+  assert.ok(BIG_CAP + SPRAY_CAP + 2 <= 96 && 96 + 3 * 9 <= 128);
   // At the smallest plate size, even the outermost detailed terrain and
   // its neighbouring cells fit. Lake material uses the checked fallback.
   assert.ok(Math.ceil(21 / (1.1 * 0.6)) + 1 < 64);
   assert.match(src, /all\(greaterThanEqual\(c, vec2\(-64\.0\)\)\) && all\(lessThan\(c, vec2\(64\.0\)\)\)/);
 });
 
-test("dense column has a turbulent liquid edge and a conservatively bounded soft halo", () => {
+test("fountain root, spray cones and ash stay inside their conservative bounds", () => {
+  // Molten root: at most 1.05 · (0.55 + 0.85 · max billow) · 1.13 · 1.125.
   const maxBillow = 0.5 + 0.28 * (1 + 0.6 + 0.3);
-  const maxWidth = 1.05 * (0.55 + 0.85 * maxBillow) * 1.13;
-  assert.ok(maxWidth < 1.7 && 2.5 < 7.2);
-  assert.match(src, /float width = \(1\.05 - 0\.38 \* hy\) \* \(0\.55 \+ 0\.85 \* billow\)/);
+  const maxWidth = 1.05 * (0.55 + 0.85 * maxBillow) * 1.13 * (0.75 + 0.25 * 1.5);
+  assert.ok(maxWidth < 2.1, `root width ${maxWidth}`);
+  assert.match(src, /float width = \(1\.05 - 0\.85 \* hy\) \* \(0\.55 \+ 0\.85 \* billow\) \* \(0\.75 \+ 0\.25 \* gForce\);/);
   assert.match(src, /smoothstep\(width - aa, width \+ aa, cs\.x\)/);
-  assert.match(src, /mrHeat\(1\.68 - 0\.1 \* hy\) \* core/);
   assert.match(src, /1\.0 - smoothstep\(2\.1, 2\.5, cs\.x\)/);
   assert.match(src, /max\(7\.2, 3\.3 \+ 6\.0 \* gPix \* 80\.0\)/);
-  assert.doesNotMatch(src, /j < 7/);
-  // Maximum radial plume extent includes the drifting axis and is inside
-  // the ray-cylinder bound; no new samples or march/population caps.
-  assert.ok(1.3 + 0.5 * 12.75 + Math.hypot(0.16, 0.07) * 12.75 + 0.36 < 10.5);
-  assert.match(src, /const int PLUME_STEPS = 10/);
+  // Spray paraboloids rho² = r0² + c·|y − yRef| reach their widest radius
+  // r1 at the far end; the widest cone (falling, i = 3) at force 1.5 plus
+  // its widest streak stays inside the 7.2 curtain bound.
+  assert.match(src, /float r1 = \(fall \? 3\.2 \+ 1\.4 \* \(fi - 2\.0\) : 0\.9 \+ 0\.7 \* fi\) \* fs;/);
+  assert.match(src, /float fs = 0\.7 \+ 0\.35 \* gForce;/);
+  const fs = 0.7 + 0.35 * 1.5;
+  assert.ok((3.2 + 1.4) * fs + 3 * 0.028 < 7.2);
+  // The paraboloid is exact ballistics: a droplet leaving the crown with
+  // horizontal speed u has fallen g ρ² / (2u²) at radius ρ.
+  for (const u of [1, 2.5, 4])
+    for (const rho of [0.5, 1, 2, 3]) {
+      const tFall = rho / u;
+      assert.ok(Math.abs(0.5 * GRAVITY * tFall * tFall - (GRAVITY * rho * rho) / (2 * u * u)) < 1e-12);
+    }
+  assert.match(src, /const int SHELLS = 4;/);
+  // Ash: stem + umbrella radius and drifting axis stay inside Rc = 12 up
+  // to the top of the slab (hy < 14, where the shape vanishes).
+  assert.match(src, /float rad = 1\.0 \+ 0\.36 \* hy \+ 4\.0 \* umb;/);
+  assert.match(src, /vec2 axis = vec2\(0\.08, 0\.035\) \* hy \+ 0\.25 \* vec2\(sin\(hy \* 0\.35 \+ 1\.0\), cos\(hy \* 0\.3\)\);/);
+  assert.ok(1 + 0.36 * 14 + 4 + Math.hypot(0.08, 0.035) * 14 + 0.25 * Math.SQRT2 < 12);
+  assert.match(src, /float Rc = 12\.0;/);
+  // The tighter per-ray chord uses the same monotone radius at the highest
+  // clipped height, plus the axis drift and a margin.
+  assert.match(src, /float Rh = 1\.0 \+ 0\.36 \* hMax \+ 4\.0 \* smoothstep\(6\.5, 12\.0, hMax\) \+ length\(vec2\(0\.08, 0\.035\)\) \* max\(hMax, 0\.0\) \+ 0\.36 \+ 0\.3;/);
+  assert.ok(0.25 * Math.SQRT2 < 0.36);
+  assert.match(src, /const int PLUME_STEPS = 14/);
   assert.match(src, /const int MARCH_CAP = 110/);
+});
+
+// ------------------------------------------------------------- tree
+// Mirror of mrH3 and the drainage-tree curves (world units).
+function h3(x, y, z) {
+  let p = [fract(x * 0.1031), fract(y * 0.103), fract(z * 0.0973)];
+  const d = p[0] * (p[1] + 33.33) + p[1] * (p[0] + 33.33) + p[2] * (p[2] + 33.33);
+  p = p.map((v) => v + d);
+  return [fract((p[0] + p[1]) * p[2]), fract((p[0] + p[0]) * p[1]), fract((p[1] + p[0]) * p[0])];
+}
+function curve(k, rotA = 0.7) {
+  const trunk = k < 3 ? k : Math.floor((k - 3) / 2);
+  const ht = h3(trunk + 0.5 + seedOff[0], 5.3 + seedOff[1], 1.7);
+  const th = rotA + (2 * Math.PI * trunk) / 3 + 0.8 * (ht[0] - 0.5);
+  const dt = [Math.cos(th), Math.sin(th)];
+  const mt = [0.8 + 0.8 * ht[1], 0.2 + 0.1 * ht[2], 2 * Math.PI * ht[0], 2 * Math.PI * fract(ht[1] * 7.1)];
+  if (k < 3) return { o: [0, 0], d: dt, m: mt, s0: 0 };
+  const hb = h3(k + 0.5 + seedOff[0], 9.1 + seedOff[1], 4.2);
+  const sb = 3 + 5.5 * hb[0] + 2 * ((k - 3) % 2);
+  const nt = [-dt[1], dt[0]];
+  const L = meander(mt, sb), Lp = meanderSlope(mt, sb);
+  let tg = [dt[0] + nt[0] * Lp, dt[1] + nt[1] * Lp];
+  const n = Math.hypot(...tg);
+  tg = tg.map((v) => v / n);
+  const a = ((k - 3) % 2 === 0 ? 1 : -1) * (0.45 + 0.4 * hb[1]);
+  return {
+    o: [dt[0] * sb + nt[0] * L, dt[1] * sb + nt[1] * L],
+    d: [Math.cos(a) * tg[0] - Math.sin(a) * tg[1], Math.cos(a) * tg[1] + Math.sin(a) * tg[0]],
+    m: [0.5 + 0.5 * hb[2], 0.26 + 0.12 * hb[1], 2 * Math.PI * hb[2], 2 * Math.PI * fract(hb[0] * 5.3)],
+    s0: sb,
+    trunk,
+  };
+}
+const meander = (m, s) =>
+  m[0] * (Math.sin(m[1] * s + m[2]) - Math.sin(m[2]) + 0.35 * (Math.sin(2.3 * m[1] * s + m[3]) - Math.sin(m[3])));
+const meanderSlope = (m, s) => m[0] * m[1] * (Math.cos(m[1] * s + m[2]) + 0.805 * Math.cos(2.3 * m[1] * s + m[3]));
+const onCurve = (c, s) => {
+  const L = meander(c.m, s);
+  return [c.o[0] + c.d[0] * s - c.d[1] * L, c.o[1] + c.d[1] * s + c.d[0] * L];
+};
+
+test("one drainage tree: trunks leave the vent, branches leave their trunks", () => {
+  for (const line of [
+    "float L = m.x * (sin(ws + m.z) - sin(m.z) + 0.35 * (sin(2.3 * ws + m.w) - sin(m.w)));",
+    "float Lp = m.x * m.y * (cos(ws + m.z) + 0.805 * cos(2.3 * ws + m.w));",
+    "float dist = s < 0.0 ? length(rel) : abs(off);",
+    "float sb = 3.0 + 5.5 * hb.x + 2.0 * float((k - 3) % 2);",
+  ])
+    assert.ok(src.includes(line), line);
+  for (let k = 0; k < 9; k++) {
+    const c = curve(k);
+    // L(0) = 0: every curve starts at its origin.
+    assert.ok(Math.abs(meander(c.m, 0)) < 1e-12);
+    if (k < 3) assert.deepEqual(c.o, [0, 0]);
+    else {
+      // A branch's origin is the point of its trunk at s_b, and its
+      // direction leaves the trunk's tangent by 0.45..0.85 rad.
+      const t = curve(c.trunk);
+      const p = onCurve(t, c.s0);
+      assert.ok(Math.hypot(p[0] - c.o[0], p[1] - c.o[1]) < 1e-9);
+    }
+    // The distance is continuous at s = 0 (|n − L(0)| = |rel| there).
+    for (const n of [-0.7, 0.2, 1.3]) {
+      const rel = [-c.d[1] * n, c.d[0] * n];
+      assert.ok(Math.abs(Math.hypot(...rel) - Math.abs(n)) < 1e-12);
+    }
+  }
+  // The tree only depends on the seed (and plate size for its lattice
+  // samples), never on development, energy or time.
+  for (const name of ["void mrCurveCalc(", "vec4 mrChannel(", "vec4 mrCellCalc("]) {
+    const at = src.indexOf(name);
+    const body = src.slice(at, src.indexOf("\n}\n", at));
+    assert.doesNotMatch(body, /gDev|gSplit|gLakeAmt|gErupt|gLevel|u_params|u_time|gFlow|gErPh|u_rhythm/, name);
+  }
+});
+
+test("the heat front runs out along the tree and cools back on reversal", () => {
+  assert.match(src, /float front = mix\(0\.56, 1\.45, smoothstep\(0\.0, 0\.95, gDev\)\) \+ 0\.14 \* gLevel;/);
+  assert.match(src, /float behind = 1\.0 - smoothstep\(front - 0\.16, front, Pl\.arrive\);/);
+  // A pure, monotone function of development: the same seams are hot at
+  // the same development forward and back, and more seams with more.
+  const front = (dev, level) => mix(0.56, 1.45, smooth(0, 0.95, dev)) + 0.14 * level;
+  for (const level of [0.1, 0.9]) {
+    let prev = -Infinity;
+    for (let dev = 0; dev <= 2.0001; dev += 0.01) {
+      const f = front(dev, level);
+      assert.ok(f >= prev);
+      prev = f;
+    }
+    // Crust: only the tree near the vent is hot; Rivers: all of it
+    // (arrival is at most (s_b + s) / 18 inside the r < 18 field).
+    assert.ok(front(0, level) < 0.75);
+    assert.ok(front(0.95, level) >= 1.45);
+  }
+  // Seam temperature is symmetric in its two plates (one seam, one heat).
+  assert.match(src, /float seamId = fract\(\(Pl\.hA\.x \+ hB\.x\) \* 13\.7 \+ \(Pl\.hA\.y \+ hB\.y\) \* 7\.3\);/);
 });
 
 test("rising ash is smooth and periodic at the 64-cycle clock boundary", () => {
