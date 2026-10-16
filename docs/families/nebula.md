@@ -1,66 +1,110 @@
 # Density Waves · Spiral Nebula / Spiralnebel
 
-Family **87**, renderer/world ID **`nebula`**. Continuous **Dust → Spiral → Nova**. Persistent seed-derived particles provide resolved stars, ejecta and depth; analytic radiance supplies unresolved gas at full output resolution. This is astronomical choreography, not hydrodynamics or an N-body solver.
+Family **87**, renderer/world ID **`nebula`**. Continuous **Dust → Spiral → Nova**. A bounded volumetric raymarch carries the unresolved gas; one persistent seed-derived particle population carries resolved stars, tracers, ejecta and near-field motes. This is astronomical choreography, not hydrodynamics or an N-body solver.
 
-## Mathematics and persistent identity
+## Polish round 2026-10-16 (wave 6)
 
-`nebula-model.mjs` is the CPU reference.
+Wave 5 was judged ~7/10 by L0, and ~6/10 by this lane's own review. Its gas was 2D value noise read at one point in a flattened slab, so Dust looked like cotton and Nova like a flat camouflage ring. The ignition was invisible, energy barely changed the picture and every palette collapsed to one colour. This round replaced the radiance and the camera. The algorithms, presets, seeds, state names and look IDs are unchanged.
 
-- **Dust:** Zel'dovich displacement `x = q + D S(q)`, `S = −∇Φ`, using eight seeded plane-wave potentials. Tracer caustics follow `1 / |det(I + D ∂S/∂q)|`. Three domain-warped scalar-noise octaves describe diffuse gas; the finest disk-specific octave is skipped in pure Dust.
-- **Spiral:** stars stream along ellipses whose orientation winds with radius. Crowding of neighbouring orbits creates two trailing arms. Pattern and orbital speeds differ. The radiance follows the seeded winding, with broad gas arms and feathering. **Soft, broken dust absorption follows their concave/inner side**, rather than outlining the outside. Optical depth varies in width, position and density and no longer drives a continuous black stroke.
-- **Star formation:** sparse accent-coloured Gaussian **HII clumps with halos**, plus a separate population of white/primary young clusters, follow the arms. Width includes the pixel footprint; tails fade at cell boundaries. A compact bright bulge and broader light envelope feed bloom.
-- **Nova:** the core collapses and ignites, then the same tracers enter a shell. Tangential Zel'dovich gathering and radial fingers create ejecta structure. Sedov–Taylor fronts `F = 2.35 c^(2/5)` expand through it; subdued pulsar jets retain their identity. The unresolved gas now has **spherical support**, not sinusoidal angular lobes. Turbulence controls emitting thickness and filament brightness; a brighter limb surrounds illuminated interior gas, with resolved ejecta at different depths. A second surface projection breaks up fine tangent contours.
+- **Volume:** a jittered front-to-back march (emission + absorption) over the union of tight analytic bounds: a cloud ellipsoid, then a thin disk slab, then the shell layers. The jitter changes every frame, so it reads as fine film grain rather than a fixed screen pattern.
+- **Dust is the real Zel'dovich web.** Each frame, a data atlas evaluates the 16-mode potential at 96×48×96 points of the cloud frame. It applies one fixed-point inversion `q = x − D·S(x)`, then takes the eigenvalues of the deformation `I + D·∂S/∂q`. One eigenvalue near zero is a pancake, two are a filament and three are a node, and filaments carry the light. A second channel holds two-phase flow noise advected along `S`, so matter visibly **streams along the filaments into the nodes**. Tracer particles also stream along `S` over their own 20 s cycle and are dark where the cycle wraps.
+- **Identity:** every potential mode has phase π, so all modes crest at the origin. The **densest node is the seeded centre** for any breathing of the amplitudes (`S(0) = 0`, linear overdensity maximal there). It is the Dust nucleus, the galaxy bulge and the Nova pulsar.
+- **Morph 0→1:** the web is sampled at its pre-image. That pre-image is wound by up to 2.4 rad (inner gas turns more), contracted by 1.2 and flattened ×10, so filaments are wound into the disk. This is geometry, not a dissolve.
+- **Spiral:** a precomputed 512² disk map in the plane holds four channels: arm crest, clumpy arm light with spurs and fine star-cloud grain, lane optical depth, and HII knots. Arms follow the pattern speed and their texture rides with the gas. Exact sech² columns are integrated per step: disk h = .022 + .018 r, and HII knots sit in a thinner .012 layer. The cold lanes on the concave side stop emitting and hide what is behind them; diffuse midplane dust gives Edge-on Lanes its dark lane. The **bulge is an analytic, path-integrated Gaussian** split at the disk plane: the far half is seen through the lanes.
+- **Nova:** filaments live on the **sphere of directions**, in a 512² octahedral map recomputed each frame. Ridged 3D gradient noise is evaluated at the unit direction, so there are no projection streaks or lattice facets, and the same fingers ride outward with the shell. The map's four channels are finger strength, a second ridge for hot cores, patchiness, and a smooth breathing corrugation of the radius. The shell is a thin, limb-brightened layer with radial Rayleigh–Taylor fingers inside it, ejecta pulses running out along the fingers (4 s), an accent forward-shock rim, and a slow 720 s turn. Only the filament layers are marched. The interior synchrotron haze and the Sedov–Taylor fronts `R = R0·c^(2/5)` are path-integrated analytically, so the fronts stay inside the shell.
+- **No development-locked flash.** Ignition is a steady structural state. The bulge collapses toward a compact white-hot core as `smoothstep(0, .3, n)`, and the shell grows as `R = 1.55·(.1 + .9 n)` with **bipolar breakout lobes** `(1 + .6(1 − smoothstep(.3, 1, n))·d_y²)` that punch out of the disk and round into a sphere. Holding development at 1.25 gives a steady frame, and reversal never re-fires anything. Real flashes come only from the Core flare gesture, behind the shared limiter.
+- **Camera as a journey:** a 144 s orbit, a 60 s crane and a 96 s off-centre look-at drift. Each state has its own distance (3.0 / 2.6 / 4.0), elevation (.32 / .72 / .44), crane depth and offset. In Spiral the crane dips to about 2.0 at .42 rad, so the near arms sweep under the lens. The camera follows a **spring-smoothed development** stored in state texels 1–2 (ω = 1.4/s, |v| ≤ .45/s), so a one-bar drop never lurches. Distance never falls below 2.0, keeping the camera outside the disk and the web's core.
+- **Depth:** 1,536 near-field motes (an eighth of the dormant rows) form soft gas wisps and defocused star discs in a shell between the orbit and the form. Only those within about 3 units of the camera draw, so they pass with real parallax. The distant star field, per-star dust extinction and depth fog remain. Stars whose sight line passes behind the bulge or hot core are veiled, so they never shine through it.
+- **Palette:** primary = gas (web filaments, inter-arm glow, shell limb); secondary = young stars and arms, Nova filaments; primary→white = hot cores, bulge, pulsar; accent only for HII knots, the pulsar jets and the forward-shock rim. Warm (Ember) and cold (Glacier, Arctic) palettes both read as intentional.
 
-The cloud samples the closest point to the ray in metric `diag(1, 1/h, 1)`, where `h = mix(.65, .035, smoothstep(0,1,development))`: actual continuous flattening, not a picture dissolve. The shell radius is `R = 1.45 × mix(.25,1,smoothstep(1,2,development))`. Its envelope fades with a cubic smoothstep from `.94 R` to `1.16 R`; value and first derivative vanish at the outer bound. The sphere used for surface sampling is `1.17 R`, beyond that bound, avoiding a hard silhouette singularity. A noise-varied Gaussian limb peaks near `.87 R`.
+## Round 2 after L0 review (2026-10-16)
 
-The **512×256 = 131,072** state texels are unchanged: texel zero is a 32-bit clock; others retain extra azimuth ψ as a signed fixed-point turn. `dψ/dt = p(1−n)(Ω(a)−Ωcloud) − (1−p)kψ`. Nova freezes that record; dispersal relaxes it home. Integer cycle counts per 1,440 seconds make the uint wrap exact. No raw `u_time` product.
+L0 scored round 1 about 6.5/10. Dust read as a strip of scribbled sticks, the 0→1 morph as two pictures stacked, and Nova as a glass soap bubble with a straight line through it. Changes:
 
-A fixed **eighth** of non-sky tracers now draws/integrates, replacing the previous quarter to pay for the larger image. Dormant identities retain their state. All original sky stars remain at radii 7–16, with graded sizes and brightness. No particle-budget increase. The 12,288 legacy absorber identities remain dormant.
+- **Analytic filament web.** There are 36 seeded nodes; node 0 is the nucleus at the origin. Each node links to its nearest heavier node, giving a tree that drains into the nucleus (`webGraph`), and to its nearest other node that is neither its parent nor its child (loops). The simulation writes the links into spare state texels (x = 129 + 8i, last row). Each of the 70 edges is a cubic Bézier with two seeded control points, so filaments curve, often in an S.
+- **Filaments as particle line sprites.** The 7/8 of the dormant rows not used by motes draw 150 soft sprites per edge plus the 35 nodes, about 10.5k points. Each sprite has a core, a gas sheath at 8× the core width, a pixel floor, and a core that never narrows below the sprite spacing, so near filaments don't bead. Fog falls off with depth. Pulses run along each filament into its node, and the tracer particles stream along the same edges. An earlier per-pixel fragment loop over all edges cost about 15 ms at 1080p and was replaced.
+- **The grid now carries only the diffuse sheets** between the filaments, at low weight.
+- **Winding morph.** `webMorph` turns the inner web furthest, by up to `6e^(−0.8r) + 0.3` rad. The sense is the arms' sense (θ grows outward), and the web contracts by 0.62 and flattens. Each child end retracts toward its node while the filament colour shifts to the arm colour, so the web visibly winds up into the disk. The disk fades in over p = 0.15…0.85, and the filaments fade out over p = 0.35…1.
+- **Nova remnant.** The edge is thick and torn: its radius wanders with the direction map, and patches and holes break it up. The radial Rayleigh–Taylor fingers are in the secondary colour with accent knots and drift outward slowly. A mild bipolar elongation (0.22) persists at the top state. The interior synchrotron glow is in the primary colour (σ = 0.62 R). The pulsar jet is short and soft, about 0.13 R; jet stars only travel 0.39. The fresnel rim and the long line are gone, and the analytic Sedov–Taylor front is now faint.
+- **Spiral framing:** distance 2.3, elevation 0.9.
+- **Camera spring:** ω = 1.2/s, |v| ≤ 0.25/s. A test holds the view turn under ¼ short side per second and the dolly under 0.4 per second for 0→1, 1→2 and 2→0 at 1.5× motion speed.
+- **Jitter:** static interleaved-gradient jitter replaces the per-frame jitter, so there is no temporal shimmer on LED walls.
 
-## Extinction, light, camera and rhythm
+## Energy grammar
 
-Each particle uses finite emitter-to-eye extinction through a normalized `sech²` dust slab. Its exact tanh antiderivative has a finite parallel-ray limit; foreground stars exclude dust behind them. No screen-space absorber overlay. Particle lanes are also softer and weaker, avoiding a second sharp contour over the gas.
+Energy changes structure, not overall brightness:
 
-All colour derives from the palette, black or white. Secondary carries gas, white/primary hot stars and bulge, accent sparse HII/ejecta. Emission can exceed 1.0 into bloom. Energy changes tracer density, turbulence and integrated movement; it does not brighten the whole sky.
+- **Tracers:** energy draws a growing cohort of the fixed population, 1/16 → 1/8 → 1/4. ψ is integrated for the whole quarter, and per-star light is normalised.
+- **Dust:** filament sharpness (fibre contrast and hot cores) rises with energy.
+- **Spiral:** the HII-knot threshold falls, so more knots light.
+- **Nova:** the finger ridge exponent drops from 24 to 13, giving more and thicker filaments.
+- **Motes:** the near-field mote density rises.
+- **Speed:** motion speed (×0.6–1.5) and web growth (×0.85–1.15) follow the existing energy curves.
 
-The **288-second** perspective orbit remains continuous. Default distances are now **3.95 → 2.9 → 3.7**, with a smaller height swing and slightly steeper disk view. Short-side framing works in portrait. Native 4K stills give approximately **75% / 75% / 81% frame-height bright-body extent** (faint outskirts excluded), compared with 62% / 57% / 81% before this round. The default Nova already filled the frame; its geometry/light needed correction more than further enlargement. Kick focal movement stays at 2%. `CAMERA` and `cameraFraming()` keep CPU framing tests aligned with GLSL.
+## Rhythm
 
-The same three gestures remain: **Arm light** (4 beats), **Core flare** (8), **Shock ripple** (16). Faders and audio mappings are unchanged.
+- **Arm light (4 beats):** a pulse runs outward along the arm crests, the web filaments or the remnant fingers.
+- **Core flare (8):** the bulge, nucleus, pulsar and jets flare.
+- **Shock ripple (16):** a ring of light runs out through whatever matter is present: through the web, a Cartwheel-like ring through the disk, or through the shell.
 
-All world/look IDs, names, schema keys, seeds and preset parameters are stable. World states share seed **3141**: **Drifting Dust**, **Grand Spiral**, **Supernova Shell**. Extra looks remain **Cosmic Web**, **Edge-on Lanes**, **Open Whirlpool**, **Remnant Bloom**. `worlds.mjs` is untouched; no HISTORY migration is necessary. Tests locate the world by ID, not registry position.
+## Looks
 
-## Local data cache and performance
+The world states share seed **3141** and identical non-development parameters: **Drifting Dust**, **Grand Spiral**, **Supernova Shell**. Extra looks were re-authored for the new camera:
 
-No engine change. Existing optional `precompute` supplies a **128×129 RGBA32F scalar-data table** (~258 KiB): periodic lattice corners, camera basis and seeded uniform phases. Gas, lanes, knots and filaments still shade at full output resolution. This is not a reduced-resolution colour cache. A direct-evaluation fallback remains.
+- **Cosmic Web** (1618): a wide view from above (distance .95, height .8, speed 1.2).
+- **Edge-on Lanes** (2718): a close edge-on view (distance .8), with the bulge rising over a dark midplane lane.
+- **Open Whirlpool** (577): unchanged.
+- **Remnant Bloom** (4669): a close, immersive remnant (distance .82).
 
-Baseline for this final round: **`ce47579b3c8c9eb4ce9bf77ec1ca2aa2b89de8a8`**. Native headless Chrome 155 / ANGLE Metal / Apple M3 Pro; synchronous whole frame including post, excluding asynchronous flash approval, not display cadence.
+`worlds.mjs` is unchanged; no HISTORY entry is needed. Catalog previews of the three re-authored looks need L0's rebake; `tests/catalog-palette.test.mjs` flags them until then.
 
-The stock `profile-families.mjs --types --families nebula` reference/current recheck used 96 samples/state:
+## Data atlas and cost
 
-| State | 1080p baseline → final p50 | 4K baseline → final p50 | Final p95 1080p / 4K |
+The optional `precompute` is a **1296×588 RGBA16F, linearly filtered** atlas of scalar fields, never a colour image:
+
+- web slices: 48 × (98×98), r = filament density, g = streaming fibres; computed only while Dust is visible, with empty corners and voids skipped;
+- the octahedral remnant map in the same region while Nova is visible;
+- the disk map to the right, while the disk is visible.
+
+The simulation writes the 16-mode table (k, breathing amplitude) as exact float bits into spare texels of the last state row. The atlas, particles and fallback read it, so no shader re-hashes the modes. Every lookup has a direct analytic fallback when float targets are missing.
+
+Steps follow the bounded chord (step .08 at 1080p, .16 at 4K). Caps are 24/12, and the minimum is 8/5 in web and shell states or 2 for the disk slab. At 4K, four pixels share one 1080p pixel's footprint and average the jittered samples.
+
+Native headless Chrome / ANGLE Metal / Apple M3 Pro. `profile-rework-pair.mjs --reference main` (ABBA, level .95) under fleet load:
+
+| State | 1080p main → final p50 (ratio) | 4K main → final p50 (ratio) | Stock `profile-families` p50 1080p / 4K |
 | --- | --- | --- | --- |
-| Dust | 2.1 → **1.9 ms** | 6.4 → **6.2 ms** | 2.9 / 7.1 ms |
-| Spiral | 2.0 → **1.9 ms** | 5.7 → **5.5 ms** | 2.8 / 6.1 ms |
-| Nova | 2.0 → **1.9 ms** | 5.4 → **5.1 ms** | 2.8 / 5.8 ms |
+| Dust | 2.2 → **5.0 ms** (×2.27) | 5.5 → **11.5 ms** (×2.09) | 5.1 / 11.6 ms |
+| Spiral | 2.0 → **3.9 ms** (×1.95) | 5.0 → **8.8 ms** (×1.76) | 4.2 / 9.2 ms |
+| Nova | 2.0 → **4.3 ms** (×2.15) | 4.9 → **9.0 ms** (×1.84) | 4.5 / 9.3 ms |
 
-All six comparisons pass baseline +5%. An independent AB/BA alternation in one browser (96 samples/side/state) also passes: 1080p **2.6/2.1/2.2 → 2.7/2.1/2.1**, 4K **6.4/5.8/5.4 → 6.3/5.7/5.4**. Earlier stock runs were load-sensitive (final 4K 7.4/6.3/5.8 versus initial baseline 6.5/6.0/5.4); those reports are retained, not hidden. The closer composition was only accepted after the controlled recheck and alternating comparison. All health/error counters are zero.
+Round-2 numbers. The load average was about 33 during these runs, from four other lanes on the same GPU. On a quiet machine main measures about 1.9–2.0 ms at 1080p, so the ratios put the final at about 4–4.5 ms at 1080p and 10–11 ms at 4K. Targets were ≤ 5 ms at 1080p and ≤ 12 ms at 4K (16 ms ceiling). Optimisation steps, each A/B-measured against its predecessor:
 
-## Final-round visual iteration and evidence
+- mode table in state texels (pair ×0.65–0.9);
+- single read of the mode table per web texel;
+- void early-out and 96-grid web atlas (Dust ×0.76);
+- analytic bulge and slab-only disk march;
+- analytic remnant interior with a skipped hole;
+- corrugation stored in the direction map;
+- chord-based step counts with 4K caps.
 
-Evidence root: fleet `rework-space/output/` (absolute root in the worker report).
+## Verification
 
-1. **Round 1:** closer tilted camera; soften and move lanes inward; replace angular shell deformation with spherical support, soft outward fade and brighter limb. Weakness: star-forming knots too tiny; larger image raised cost.
-2. **Round 2:** larger saturated HII clumps, independent young clusters, fuller bulge; reduce the fixed tracer cohort and skip Dust's unnecessary fourth octave. Controlled baseline/current timings pass. Weakness: Nova interior too empty and outer contours stretched.
-3. **Round 3 / final:** balance Dust/Nova framing; stronger interior gas, second fine surface projection and brighter resolved ejecta. Repeat profiles, films and full-resolution checks.
+- `tests/nebula.test.mjs`: **18/18 pass** (round 2 adds the filament graph, Bézier edges, winding sense and sprite budget). The suite keeps the gradient, ellipse/crowding, identity, development and time continuity, ψ reversal, Sedov–Taylor, jets and exact dust-column tests. New CPU references cover:
+  - the nucleus/pulsar at the seeded node for any clock;
+  - the spare-texel layout of the mode table and camera spring;
+  - bipolar-to-spherical shell growth, and no `ignite` term anywhere;
+  - spring settling without overshoot, with view turn under ¼ short side/s and dolly under ½ size/s through a one-bar drop at 1.5× speed;
+  - a camera that stays outside web, disk and shell for every fader position;
+  - tracer streaming that restarts only while dark;
+  - atlas size, format and fallbacks.
+- **Full suite:** `npm test` 913 pass, 21 skipped, 1 failure. The failure is the expected stale baked preview of the re-authored looks, which is L0's rebake. Typecheck passes; i18n smoke passes de/en on the native GPU.
+- **Time:** `check-time-wrap.mjs --families nebula` finds no seams at 3600 s, 4096 s or 12 h.
+- **Health:** every profile row reports glError, gpuErrors and nonFinite = 0.
 
-Baseline/final films and strips: `nebula-last-baseline/nebula.{mp4,png}` and `nebula-last-final/nebula.{mp4,png}`. Combined: `nebula-last-before-after.png`. Round 1/2 strips and logs remain; superseded films were deleted to save disk. Extra films cover Ember, reverse Glacier portrait and held Edge-on Lanes. `nebula-last-ladder.png` covers all seven looks at three energies. Native 4K stills, pixel-native detail crops, scale measurements, stock/alternating raw profiles, fallback comparisons and time checks are retained.
+## Honest limits
 
-## Verification and honest limits
-
-- `tests/nebula.test.mjs` / `tests/time.test.mjs`: **24/24 pass**. Retains gradient, ellipse/crowding, identity, development reversal, fixed-point phase, Sedov–Taylor, jets and finite dust-column tests. Adds spherical-support/soft-envelope and closer-camera safety/continuity tests.
-- Full `tests/*.test.mjs`: **740 pass, 9 opt-in skips, 0 failures**. Typecheck, build and native German/English i18n smoke pass. No catalog exceptions needed; previews/curation were not touched.
-- Native health: **36 frames**, including low/high energy, integer/half development, three palettes, portrait and 4K; zero GL/non-finite/errors.
-- Cached/direct comparison across five developments: maximum **1/255**, mean below **0.000016/255**, zero GL errors.
-- Native GPU time/rate audit: **zero seams/errors** at 3,600, 4,096 and 43,200 seconds.
-
-**Honest rating: 8/10**, calibrated against the retained Liquid Chrome and Event Horizon reference films, not the previous optimistic self-rating. The stroke and polygon defects are removed, the main disk is larger and star formation reads clearly. Nova still reads as a procedural emitting shell rather than deeply integrated turbulent volume; the two-arm structure and HII placement remain stylized. Edge-on Lanes is intentionally thin. External-display cadence and multi-hour endurance are not claimed.
+- Dust filaments are a seeded node graph (schematic), not the Zel'dovich caustics themselves; the caustic field survives only as the diffuse sheets.
+- Static jitter shows as fine fixed grain in the diffuse gas.
+- Nova's fingers are mostly radial; it reads as a remnant, but it is less tangled than the Crab.
+- The 4K budget is tight under fleet load.
