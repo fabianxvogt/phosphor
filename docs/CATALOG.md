@@ -78,12 +78,12 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |
 | [Event Horizon](families/horizon.md) | horizon | Schwarzschild null geodesics (Binet equation, Encke RK4) with a thin Doppler-beamed disk | Star / Infall / Horizon | 8 |
 | [Laser Grid](families/laser.md) | laser | Hinged vector skyline, closed-form Gaussian lasers and liquid-sky cones | Horizon / Towers / Tunnel | 8 |
-| [Living Mycelium](families/mycelium.md) | mycelium | Gray–Scott reaction–diffusion as a lit terrain | Understory / Tide / City | 8 |
+| [Living Mycelium](families/mycelium.md) | mycelium | Hyphal tip growth with anastomosis, geodesic nutrient pulses and Murray-law cords | Understory / Tide / City | 8 |
 | [Attractor Ribbons](families/ribbons.md) (world Attractor Ribbons) | ribbons | Fixed-step RK4 trajectories in three flows, drawn as lit ribbons | Wings / Vortex / Labyrinth | 8 |
-| [Afterglow Garden](families/afterglow.md) | afterglow | Gray–Scott morphogens as a night garden | Roots / Petals / Bloom | 8 |
+| [Afterglow Garden](families/afterglow.md) | afterglow | Gray–Scott spots grow lantern buds, open petals and rising pollen over a dusk meadow | Roots / Petals / Bloom | 8 |
 | [Bioluminescent Abyss](families/abyss.md) (world Abyssal Bloom) | abyss | Pulsing parametric medusae, sea-pen light waves and disturbance-lit plankton | Sparks / Swarms / Reef | 8 |
 | [Moon Tide](families/tide.md) (world Moon Tide / Mondflut) | tide | Dispersive Gerstner sea with bioluminescent breaking foam (closed-form persistence) wound by a coordinate twist into a spiral funnel with a glowing eye | Calm / Swell / Maelstrom | 8 |
-| [Liquid Chrome](families/ferro.md) | ferro | Rippling chrome mirror grows an energy-populated Rosensweig crown and seamless floating sculpture; orbiting studio cards and valley reflections | Pool / Crown / Sculpture | 8 |
+| [Liquid Chrome](families/ferro.md) | ferro | Rippling chrome mirror grows a Rosensweig crown and floating sculpture; graduated silver reflections and alternating-pole magnetic strikes | Pool / Crown / Sculpture | 8 |
 | [Kinetic Rain](families/kinetic.md) (world Kinetic Rain) | kinetic | 9,216 persistent lit spheres: travelling-wave ceiling, kick rings and morphing sphere / torus / Möbius / saddle above a mirror floor | Ceiling / Waves / Sculpture | 8 |
 | [Magma Rift](families/magma.md) | magma | Raymarched Voronoi basalt seams heated along one seed-only drainage tree, channel-frame lava skins, a floe-crust lake, spray cones and ballistic bombs under an ash umbrella lit from below | Crust / Rivers / Eruption | 8 |
 | [Aurora Veil / Polarlicht-Schleier](families/aurora.md) | aurora | Folded rayed sheets along parallel magnetic field lines, zenith convergence and a frozen mirror | Glow / Curtains / Corona | 8 |
@@ -93,7 +93,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Prism Engine](families/prism.md) (Prismenmaschine) | prism | Two-interface Snell refraction, Cauchy dispersion and total internal reflection in persistent triangular glass | Shard / Array / Kaleidoscope | 8 |
 | [Impossible Stairs](families/escher.md) (Unmögliche Treppen) | escher | Raymarched projective Penrose stair cover, three gravity frames and exact log-polar Droste recursion | Stair / Relativity / Infinity | 8 |
 | [Silk Storm](families/silk.md) (Seidensturm) | silk | Strouhal travelling-wave silk, near-inextensible tangent integration and persistent conical ribbon helices | Veil / Banners / Tornado | 8 |
-| [Ink Bloom / Tintenblüte](families/ink.md) | ink | Kelvin vortex ring whose seeded Widnall lobes neck and pinch into daughter rings; crisp carved Kaden-wound cores, exact silk sheets, outward bloom, dark tank | Drop / Plumes / Nebula | 8 |
+| [Ink Bloom / Tintenblüte](families/ink.md) | ink | Characteristic-mapped vortex dye with seeded Widnall daughters, translucent Kaden folds, absorbing cores and local ink-burst fills in a dark tank | Drop / Plumes / Nebula | 8 |
 | [Soap Cathedral](families/soap.md) (Seifenkathedrale) | soap | Airy thin-film interference on clipped spherical cells and tetrahedral Plateau films | Bubble / Cluster / Foam | 8 |
 | [Dune Sea / Dünenmeer](families/dunes.md) | dunes | Moonlit barchan and star-dune heightfields, 34° slip faces, ballistic saltation and a depth-correct rolling haboob | Ripples / Dunes / Storm | 8 |
 | [Data Monolith](families/voxel.md) (Datenmonolith) | voxel | 1,296 persistent instanced cubes: GF(2) six-neighbour 3D CA, Morton-ordered assembly, recursive live-cell bridges and mirror floor | Rain / Assembly / Unfold | 8 |

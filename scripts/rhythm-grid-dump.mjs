@@ -40,7 +40,12 @@ const print = (title, definitions, names) => {
       console.log(
         `${track.effect.padEnd(20)} ${grid(track)}  (str ${track.strength.toFixed(2)}, dur ${track.duration})`,
       );
-    console.log("```\n");
+    const perBar = pattern.tracks.reduce(
+      (sum, t) =>
+        sum + t.steps.filter((v) => v > 0).length / (t.length / t.division / 4),
+      0,
+    );
+    console.log(`\`\`\`\n\n${perBar.toFixed(1)} hits per bar (all tracks)\n`);
   }
 };
 print("Global tracks (shared by every look)", GLOBAL_EFFECTS);

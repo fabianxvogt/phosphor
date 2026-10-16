@@ -13,6 +13,7 @@ import { catalogLooks } from "../catalog.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { advanceClocks } from "../scene-time.mjs";
+import { defaultPattern, samplePattern } from "../rhythm.mjs";
 
 const TAU = 2 * Math.PI;
 const smooth = (a, b, x) => {
@@ -28,7 +29,7 @@ function hex(p) {
   const b = p.map((x, i) => x - period[i] * (Math.floor(x / period[i]) + 0.5));
   return length(a) < length(b) ? a : b;
 }
-function profile(q, lift, level = 0.5) {
+function profile(q, lift, level = 0.5, strike = 0, poleAngle = 0) {
   const n = q.map((x) => x / Math.max(length(q), 0.00001));
   const chart = [n[0], n[2]].map(
     (x) => x / (1 + Math.sqrt(n[1] * n[1] + 0.025)),
@@ -44,7 +45,16 @@ function profile(q, lift, level = 0.5) {
     peak *
     peak *
     mix(0.12, 1, population) *
-    mix(smooth(-0.1, 0.3, n[1]), 1, lift)
+    mix(smooth(-0.1, 0.3, n[1]), 1, lift) *
+    (1 +
+      strike *
+        (0.25 +
+          0.75 *
+            smooth(
+              -0.35,
+              0.6,
+              n[0] * Math.cos(poleAngle) + n[2] * Math.sin(poleAngle),
+            )))
   );
 }
 // Mirror of the carrier and signed-distance estimate. Fixed time/seed,
@@ -59,8 +69,8 @@ function field(
 ) {
   const form = smooth(0, 1, dev),
     lift = smooth(1, 2, dev);
-  const radii = [1.9, 0.24 + 0.018 * Math.sin(phase), 1.9].map((x) =>
-    mix(x, 1, lift),
+  const radii = [1.9, 0.24 + 0.018 * Math.sin(phase), 1.9].map((x, i) =>
+    mix(x, [1.1, 1, 0.92][i], lift),
   );
   radii[1] *= 1 + 0.025 * level * Math.sin(phase * 2);
   const centre = [0, 0.23 + 1.25 * lift + 0.035 * Math.sin(phase) * lift, 0];
@@ -298,26 +308,99 @@ test("carrier camera bounds, kick and persistent droplets stay bounded", () => {
   assert.match(ferro.fragment, /id \* 2\.39996323 \+ gPhase \+ seedAngle/);
   assert.deepEqual(
     ferro.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16],
+    [4, 8, 16, 16],
   );
-  for (const channel of ["x", "y", "z"])
+  for (const channel of ["x", "y", "z", "w"])
     assert.ok(ferro.fragment.includes(`u_rhythm.${channel}`));
 });
 
-test("dark conductor uses separated shaped cards and fits the shallow crown in portrait", () => {
+test("dark conductor uses graduated reflection windows and fits the shallow crown in portrait", () => {
   // Light-card angular area must stay sparse even with the widest preset.
   // Rectangular solid angle on the unit sphere: 4 atan(wh/sqrt(1+w²+h²)).
-  const solidAngle = (w, h) => 4 * Math.atan(w * h / Math.sqrt(1 + w * w + h * h));
+  const solidAngle = (w, h) =>
+    4 * Math.atan((w * h) / Math.sqrt(1 + w * w + h * h));
   const widest = 1.5;
-  const coverage = [[0.72, 0.11], [0.12 * widest, 1.15], [1.1, 0.075 * widest],
-    [0.045 * widest, 1.4], [0.018 * widest, 0.6]]
-    .reduce((s, [w, h]) => s + solidAngle(w, h), 0) / (4 * Math.PI);
-  assert.ok(coverage > 0.05 && coverage < 0.12, `${coverage}`);
-  assert.match(ferro.fragment, /0\.008 \+ 0\.018 \* smoothstep/);
-  assert.match(ferro.fragment, /0\.32 \+ 0\.68 \* exp\(-sq\(uv\.x \/ width\) - sq\(uv\.y \/ height\)\)/);
-  assert.match(ferro.fragment, /float portraitFit = mix\(0\.72, 1\.0, smoothstep\(0\.6, 1\.2, u_resolution\.x \/ u_resolution\.y\)\);/);
+  const coverage =
+    [
+      [0.72, 0.25],
+      [0.12 * widest, 1.15],
+      [1.1, 0.075 * widest],
+      [0.045 * widest, 1.4],
+      [0.018 * widest, 0.6],
+    ].reduce((s, [w, h]) => s + solidAngle(w, h), 0) /
+    (4 * Math.PI);
+  assert.ok(coverage > 0.05 && coverage < 0.15, `${coverage}`);
+  assert.match(ferro.fragment, /0\.025 \+ 0\.10 \* smoothstep/);
+  assert.match(ferro.fragment, /window \* mullion/);
+  assert.match(ferro.fragment, /silver \* 0\.62 \* exp/);
+  assert.match(ferro.fragment, /float\(i\) >= u_raySteps/);
+  assert.match(
+    ferro.fragment,
+    /0\.32 \+ 0\.68 \* exp\(-sq\(uv\.x \/ width\) - sq\(uv\.y \/ height\)\)/,
+  );
+  assert.match(
+    ferro.fragment,
+    /float portraitFit = mix\(0\.72, 1\.0, smoothstep\(0\.6, 1\.2, u_resolution\.x \/ u_resolution\.y\)\);/,
+  );
   assert.match(ferro.fragment, /u_params\[7\] \* portraitFit/);
   assert.doesNotMatch(ferro.fragment, /Lambert|dot\(n, tipLight\)/);
+});
+
+test("magnetic strike is slot 3, bounded to fixed sites, and every preset is full", () => {
+  const strike = ferro.rhythm.find((r) => r.id === "magnetic-strike");
+  assert.equal(strike.slot, 3);
+  for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
+    assert.ok(ferro.fragment.includes(uniform));
+  assert.match(ferro.fragment, /gAmp \* \(1\.0 \+ gStrike\) \+ gRipple/);
+  assert.match(
+    ferro.fragment,
+    /return spikes \* upper \* \(1\.0 \+ gStrike \* pole\)/,
+  );
+  const names = ["Still mercury", "Magnetic breath", "Chrome resonance"];
+  for (const [index, style] of [
+    "restrained",
+    "driving",
+    "accented",
+  ].entries()) {
+    assert.equal(ferro.rhythmStyles[style], names[index]);
+    const pattern = defaultPattern(ferro.rhythm, style);
+    const track = pattern.tracks.find((t) => t.effect === strike.id);
+    assert.deepEqual(track, { ...strike.styles[style], effect: strike.id });
+    const hits = track.steps.flatMap((v, i) => (v > 0 ? [i] : []));
+    assert.ok(hits.length >= 2);
+    const gap = Math.min(
+      ...hits.map(
+        (i, n) =>
+          ((hits[(n + 1) % hits.length] - i + track.length) % track.length) /
+          track.division,
+      ),
+    );
+    assert.ok(track.duration < gap, `${style}: settles before next pole`);
+    const density = pattern.tracks.reduce(
+      (sum, t) =>
+        sum + (t.steps.filter((s) => s > 0).length * t.division * 4) / t.length,
+      0,
+    );
+    assert.ok(density >= [2, 6, 8][index], `${style}: ${density}`);
+    const muted = structuredClone(pattern);
+    muted.tracks.forEach((t) => {
+      t.muted = true;
+    });
+    assert.deepEqual(
+      samplePattern(muted, ferro.rhythm, 4, 3.9).values,
+      [0, 0, 0, 0],
+    );
+  }
+  for (let a = 0; a < TAU; a += 0.11) {
+    const p = [Math.cos(a), 0.45, Math.sin(a)];
+    const base = profile(p, 1, 0.85);
+    for (const pole of [0, TAU / 4, TAU / 2, (3 * TAU) / 4]) {
+      const top = profile(p, 1, 0.85, 0.85, pole);
+      assert.ok(top >= base && top <= base * 1.85 + 1e-12);
+      assert.equal(profile(p, 1, 0.85, 0, pole), base);
+      assert.ok(Math.abs(profile(p, 1, 0.85, 1e-6, pole) - base) < 1e-6);
+    }
+  }
 });
 
 test("rate clocks stay periodic and continuous at 3600 seconds and 12 hours", () => {

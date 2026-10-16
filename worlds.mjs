@@ -58,7 +58,7 @@ const AUTHORED = [
     id: "mycelium",
     name: "Living Mycelium",
     description:
-      "One living field grows from understory threads into tidal membranes and a luminous city. Play every stage in between.",
+      "Branching hyphae carry nutrient signals through a living forest floor, then fruit into a luminous mushroom city. Play every stage in between.",
     states: [
       { name: "Understory", look: "mycelium:Hyphal Understory" },
       { name: "Tide", look: "mycelium:Tidal Lamellae" },
@@ -69,7 +69,7 @@ const AUTHORED = [
     id: "garden",
     name: "Afterglow Garden",
     description:
-      "A low flight over glowing roots rises above petals into crowns of light. Play every stage in between.",
+      "A living morphogen meadow grows from glowing roots through lantern buds into open flowers at dusk.",
     states: [
       { name: "Roots", look: "afterglow:Glowing Roots" },
       { name: "Petals", look: "afterglow:Opening Petals" },
@@ -307,7 +307,7 @@ const AUTHORED = [
     id: "ink-bloom",
     name: "Ink Bloom",
     description:
-      "A falling drop rolls into a vortex ring whose Widnall lobes pinch off into a crown of daughter rings, each shedding silk bells in a dark tank.",
+      "A falling dye ring folds into hanging plumes and an outward crown, with translucent pigment bursts on musical fills.",
     states: [
       { name: "Drop", look: "ink:Drop" },
       { name: "Plumes", look: "ink:Plumes" },
@@ -351,7 +351,7 @@ const AUTHORED = [
 // previous definition here so existing sets upgrade instead of diverging.
 const withoutParams = (w) => ({
   ...w,
-  states: w.states.map(({ params, ...state }) => state),
+  states: w.states.map(({ params: _params, ...state }) => state),
 });
 // Ink Bloom before the 2026-10-16 dark-tank rework (same ids and looks).
 const INK_BLOOM_BACKLIT = {
@@ -365,12 +365,49 @@ const INK_BLOOM_BACKLIT = {
     { name: "Nebula", look: "ink:Nebula" },
   ],
 };
+// Ink Bloom before the round-3 translucent-dye material and fill accents.
+const INK_BLOOM_CARVED = {
+  id: "ink-bloom",
+  name: "Ink Bloom",
+  description:
+    "A falling drop rolls into a vortex ring whose Widnall lobes pinch off into a crown of daughter rings, each shedding silk bells in a dark tank.",
+  states: [
+    { name: "Drop", look: "ink:Drop" },
+    { name: "Plumes", look: "ink:Plumes" },
+    { name: "Nebula", look: "ink:Nebula" },
+  ],
+};
 const HISTORY = [
   MYCELIUM_ACID,
   withoutParams(MYCELIUM_ACID),
   GARDEN_EVOLUTION,
   withoutParams(GARDEN_EVOLUTION),
   INK_BLOOM_BACKLIT,
+  INK_BLOOM_CARVED,
+  // Living Mycelium before the seeded-network renderer (round 3).
+  {
+    id: "mycelium",
+    name: "Living Mycelium",
+    description:
+      "One living field grows from understory threads into tidal membranes and a luminous city. Play every stage in between.",
+    states: [
+      { name: "Understory", look: "mycelium:Hyphal Understory" },
+      { name: "Tide", look: "mycelium:Tidal Lamellae" },
+      { name: "City", look: "mycelium:Lantern City" },
+    ],
+  },
+  // Garden before the round-3 terrain-to-meadow rework; keep saved sets upgrading.
+  {
+    id: "garden",
+    name: "Afterglow Garden",
+    description:
+      "A low flight over glowing roots rises above petals into crowns of light. Play every stage in between.",
+    states: [
+      { name: "Roots", look: "afterglow:Glowing Roots" },
+      { name: "Petals", look: "afterglow:Opening Petals" },
+      { name: "Bloom", look: "afterglow:Crowns at Dusk" },
+    ],
+  },
 ];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const untouched = (w) =>
