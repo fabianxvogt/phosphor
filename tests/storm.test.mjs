@@ -246,19 +246,31 @@ test("one broad pulse per event; restrikes and flicker stay local and bounded", 
 });
 
 test("autonomous storm life follows energy, never development", () => {
+  // Slot 1: one-beat grid; slot 0 between hero strokes: two-beat grid,
+  // supercell only, from energy 0.3 (multi-strike bars at high energy).
   const rate = (level, rise) => {
     let fires = 0;
     for (let k = 0; k < 4000; k++) {
       const chance =
-        rise * (0.14 + (0.7 - 0.14) * level) + (1 - rise) * (0.35 + 0.5 * level);
+        rise * (0.08 + (0.85 - 0.08) * level) + (1 - rise) * (0.22 + 0.33 * level);
       fires += Number(random(10701, 31, k % 4096) < chance);
     }
     return fires / 4000;
   };
-  assert.ok(rate(0.1, 1) < 0.25 && rate(0.9, 1) > 0.6);
+  assert.ok(rate(0.1, 1) < 0.25 && rate(0.9, 1) > 0.7);
   assert.ok(rate(0.1, 0) > rate(0.1, 1), "heat lightning flickers more often");
-  assert.match(stormData, /float k = floor\(u_beat\*0\.5\)/);
-  assert.match(stormData, /mix\(mix\(0\.35,0\.85,level\),mix\(0\.14,0\.7,level\),stRise\)/);
+  const anvil = (level, supercell) => {
+    let fires = 0;
+    const chance = supercell * Math.min(1, Math.max(0, (level - 0.3) / 0.6)) * 0.8;
+    for (let k = 0; k < 4000; k++) fires += Number(random(10701, 35, k % 4096) < chance);
+    return fires / 4000;
+  };
+  assert.equal(anvil(0.1, 1), 0);
+  assert.equal(anvil(0.9, 0), 0);
+  assert.ok(anvil(0.9, 1) > 0.7);
+  assert.match(stormData, /float k = floor\(u_beat\);/);
+  assert.match(stormData, /mix\(mix\(0\.22,0\.55,level\),mix\(0\.08,0\.85,level\),stRise\)/);
+  assert.match(stormData, /float chance0 = stSuper\*clamp\(\(level-0\.3\)\/0\.6,0\.0,1\.0\)\*0\.8;/);
 });
 
 test("conservative tile masks include the tortuous zigzag and AA support", () => {
@@ -367,7 +379,7 @@ test("empty-space skipping is conservative for the carrier field", () => {
   // Erosion moves the surface outward by at most half the largest erosion.
   assert.match(stormVolume, /float e = mix\(1\.0,2\.5,/);
   assert.match(stormVolume, /float skip = max\(1e-4,\(sd-1\.3\)\*0\.8\/lip\)/);
-  assert.match(stormVolume, /float lip = mix\(1\.55,1\.15,stRise\)\+wA\*mix\(0\.45,2\.2,stSuper\)\+3\.0\*wM/);
+  assert.match(stormVolume, /float lip = mix\(1\.55,1\.25,stRise\)\+wA\*mix\(0\.45,1\.4,stSuper\)\+3\.5\*wM/);
   assert.match(stormVolume, /if \(sd > 0\.5\*e\+0\.05\) return 0\.0/);
 });
 
@@ -572,4 +584,46 @@ test("cloud and camera clocks remain continuous at reversals and late energy cha
   for (const source of [stormVolume, storm.fragment])
     for (const m of source.matchAll(/stPhase\*([0-9.]+)/g))
       assert.ok(Number.isInteger(Number(m[1])), m[0]);
+});
+
+test("round 2 world: moon in frame, lake mirror exact at the waterline, bounded floor", () => {
+  // The moon sits in the view of the orbit-free camera at these screen
+  // coordinates (short side = 2): inside 16:9 at every development.
+  const moon = (d) => {
+    const rise = Math.min(1, Math.max(0, d)) ** 2 * (3 - 2 * Math.min(1, Math.max(0, d)));
+    const s = Math.min(1, Math.max(0, d - 1));
+    const sup = s * s * (3 - 2 * s);
+    const lerp = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+    return lerp(lerp([0.82, 0.6], [0.92, 0.46], rise), [1.02, 0.6], sup);
+  };
+  for (const d of developments) {
+    const [x, y] = moon(d);
+    assert.ok(Math.abs(x) + 0.09 < 16 / 9 && Math.abs(y) + 0.09 < 1, `${d}`);
+  }
+  assert.match(stormData, /vec2 m = mix\(mix\(vec2\(0\.82,0\.6\),vec2\(0\.92,0\.46\),stRise\),vec2\(1\.02,0\.6\),stSuper\);/);
+  // Mirrored channels: y -> -y, so a trunk that ends on the ground meets
+  // its reflection exactly at the waterline.
+  assert.match(stormData, /a\.y = -a\.y; b\.y = -b\.y;/);
+  for (let index = 0; index < 50; index++) {
+    const graph = eventGraph(10701, discharge(10701, 0, index, 0.3, 1, 2));
+    const end = graph[17].b;
+    assert.deepEqual([end[0], -end[1], end[2]].map((v) => Math.abs(v) < 1e-12 ? 0 : v), end.map((v) => Math.abs(v) < 1e-12 ? 0 : v));
+  }
+  // March bounds start 1.5 below the base: the wall cloud (0.75), the
+  // ragged floor (0.45/2) and its ramp (0.35) reach 1.325; scud stops at 1.45.
+  assert.ok(0.75 + 0.45 / 2 + 0.35 < 1.5);
+  assert.match(stormVolume, /max\(stVolumeLo\.y,\(stBase-1\.5\)\*u_params\[2\]\)/);
+  assert.match(stormVolume, /floorHeight \+= 0\.45\*\(stNoise/);
+  assert.match(stormVolume, /smoothstep\(floorHeight-0\.35,floorHeight\+0\.6,p\.y\)/);
+  assert.match(stormVolume, /p\.y > stBase-1\.45/);
+  assert.match(stormVolume, /stBase-stSuper\*0\.75\*exp/);
+  // The bolt glow reach stays inside the tile-mask padding at every size.
+  for (const shortSide of [280, 540, 1080, 2160])
+    for (const focal of [1.6, 2.25]) {
+      const width = Math.min(Math.max(2 / (shortSide * focal) * 2.2, 0.0016), 0.0075);
+      const reach = Math.max(width * 9, Math.min(width * 9, 0.04));
+      for (const len of [0, 0.1, 0.4]) assert.ok(reach + 0.0018 + len * 0.3 < 0.07 + 0.3 * len);
+    }
+  assert.match(storm.fragment, /float width = clamp\(pixel\*2\.2,0\.0016,0\.0075\);/);
+  assert.match(storm.fragment, /float halo = min\(width\*9\.0,0\.04\);/);
 });

@@ -7,7 +7,7 @@
 // (seed, slot, event index); development only moves the endpoints smoothly.
 export const stormData = `
 float stRise, stSuper, stPhase, stCamera, stFocal;
-vec3 stEye, stF, stR, stU;
+vec3 stEye, stF, stR, stU, stMoon, stLight;
 // x local brightness (stroke + restrikes), y broad flash (return stroke only),
 // z leader progress 0..1, w tree identity used by stRand.
 vec4 stSlot[4];
@@ -21,7 +21,9 @@ float stRand(int network, int n) {
   return float(stHash(u_seedBits ^ (uint(network + 1) * 0x9e3779b9u) ^ (uint(n + 1) * 0x85ebca6bu)) >> 8) / 16777216.0;
 }
 // Cell layout: Haze bank -> separated towers -> supercell with flanking line.
-const float stHX[5] = float[5](-15.0,-7.5,0.0,7.5,15.0);
+const float stHX[5] = float[5](-17.0,-8.5,0.0,8.5,17.0);
+// Haze: a low bank with a few towers rising out of it.
+const float stHT[5] = float[5](0.0,3.0,1.6,3.4,0.4);
 const float stTX[5] = float[5](-13.0,-6.2,0.3,6.6,13.0);
 const float stTT[5] = float[5](5.6,10.4,12.0,9.6,5.2);
 const float stTR[5] = float[5](3.0,2.4,2.7,2.3,2.8);
@@ -34,15 +36,15 @@ vec4 stCell[5];
 float stCellR[5];
 float stBase;
 void stCells() {
-  stBase = mix(mix(2.4,2.6,stRise),3.0,stSuper);
+  stBase = mix(mix(1.4,2.6,stRise),4.4,stSuper);
   for (int i = 0; i < 5; ++i) {
     float j0 = stRand(7,i*4)-0.5, j1 = stRand(7,i*4+1)-0.5;
     float j2 = stRand(7,i*4+2)-0.5, j3 = stRand(7,i*4+3);
-    vec4 haze = vec4(stHX[i]+j0*2.5, 15.0+j1*4.0, 2.4, 5.6+j3*3.2);
+    vec4 haze = vec4(stHX[i]+j0*2.5, 15.0+j1*4.0, 1.4, 4.4+j3*2.2+stHT[i]);
     vec4 tower = vec4(stTX[i]+j0*1.2, 11.0+j1*3.0, 2.6, stTT[i]+1.0+j3*1.2);
-    vec4 super = vec4(stSX[i]+j0*0.8, stSZ[i]+j1*1.5, 3.0, stST[i]+1.2+j3*0.8);
+    vec4 super = vec4(stSX[i]+j0*0.8, stSZ[i]+j1*1.5, 4.4, stST[i]+2.0+j3*0.8);
     stCell[i] = mix(mix(haze,tower,stRise),super,stSuper);
-    stCellR[i] = mix(mix(5.0+j2*1.4,stTR[i]+j2*0.6,stRise),stSR[i]+j2*0.4,stSuper);
+    stCellR[i] = mix(mix(5.4+j2*2.2,stTR[i]+j2*0.6,stRise),stSR[i]+j2*0.4,stSuper);
   }
 }
 // Normalised event time u in (0,1): stepped leader, one return stroke, up to
@@ -143,8 +145,18 @@ void stEvent(int slot, float index, float u, float gain) {
 }
 void stEvents() {
   float level = clamp(u_level,0.0,1.0);
-  // 0: stepped return, rhythm z; 2: crawler, rhythm y; 3: buried, rhythm x.
-  stEvent(0, u_rhythmCount.z, stEnvelopeTime(u_rhythm.z,0.65), 1.0);
+  // 0: stepped return, rhythm z; between its events, at high energy, the
+  // slot carries autonomous anvil strikes on a two-beat grid (multi-strike
+  // bars in the supercell). 2: crawler, rhythm y; 3: buried, rhythm x.
+  float u0 = stEnvelopeTime(u_rhythm.z,0.65);
+  if (u0 >= 1.0) {
+    float k0 = floor(u_beat*0.5);
+    int id0 = int(mod(k0,4096.0));
+    float start0 = k0*2.0+0.5+0.5*stRand(34,id0);
+    float chance0 = stSuper*clamp((level-0.3)/0.6,0.0,1.0)*0.8;
+    float on0 = stRand(35,id0) < chance0 ? 1.0 : 0.0;
+    stEvent(0, 2048.0+mod(k0,2048.0), on0 > 0.5 ? (u_beat-start0)/1.4 : 1.0, 0.85);
+  } else stEvent(0, u_rhythmCount.z, u0, 1.0);
   stEvent(2, u_rhythmCount.y, stEnvelopeTime(u_rhythm.y,0.6), 1.0);
   // 3: the buried rhythm discharge; between its events the slot carries
   // autonomous intra-cloud flicker on a one-beat grid (energy sets the rate).
@@ -155,13 +167,14 @@ void stEvents() {
     float on = stRand(33,id3) < mix(0.15,0.6,clamp(u_level,0.0,1.0)) ? 1.0 : 0.0;
     stEvent(3, 2048.0+mod(k3,2048.0), on > 0.5 ? (u_beat-k3)*0.9 : 1.0, 0.7);
   } else stEvent(3, u_rhythmCount.x, u3, 0.9);
-  // 1: autonomous storm life on a two-beat grid; energy sets the rate.
-  float k = floor(u_beat*0.5);
+  // 1: autonomous storm life on a one-beat grid; energy sets the rate
+  // (rare strikes at 0.1, nearly every beat at 0.9 in the supercell).
+  float k = floor(u_beat);
   int id = int(mod(k,4096.0));
-  float start = k*2.0 + (stRand(30,id) < 0.35 ? 0.5 : 0.0);
-  float chance = mix(mix(0.35,0.85,level),mix(0.14,0.7,level),stRise);
+  float start = k + 0.25*stRand(30,id);
+  float chance = mix(mix(0.22,0.55,level),mix(0.08,0.85,level),stRise);
   float fires = stRand(31,id) < chance ? 1.0 : 0.0;
-  stEvent(1, k, fires > 0.5 ? (u_beat-start)/1.5 : 1.0, mix(0.75,1.0,stRand(32,id)));
+  stEvent(1, k, fires > 0.5 ? (u_beat-start)/1.3 : 1.0, mix(0.75,1.0,stRand(32,id)));
 }
 void stCameraSetup() {
   stRise = smoothstep(0.0, 1.0, u_params[0]);
@@ -173,17 +186,31 @@ void stCameraSetup() {
   stCamera = u_time * u_params[6] * 0.035;
 #endif
   // The storm grows toward and over the camera; the camera itself moves
-  // only moderately so a one-bar drop never lurches.
+  // only moderately so a one-bar drop never lurches. At the top state it
+  // sits low and looks up: anvil overhead, room for strikes below the base.
   float grow = 0.55*stRise+0.45*stSuper;
   // Overlook: low and close (0) to high and far (1).
   float eye = u_params[5]-0.45;
-  float z = mix(-22.0,-15.0,grow)-eye*7.0;
-  float y = mix(1.6,0.8,grow)+eye*1.4;
+  float z = mix(-21.0,-14.0,grow)-eye*7.0;
+  float y = mix(1.5,0.6,grow)+eye*(eye < 0.0 ? 0.8 : 1.4);
+  float ty = mix(3.0,mix(4.8,8.4,stSuper),stRise)*u_params[2];
+  float tz = mix(14.0,8.0,grow);
   stEye = vec3(2.2*sin(stCamera), y+0.08*sin(2.0*stCamera), z+0.6*cos(stCamera));
-  vec3 target = vec3(0.6*sin(stCamera), mix(3.0,mix(4.6,6.8,stSuper),stRise)*u_params[2], mix(14.0,8.0,grow));
+  vec3 target = vec3(0.6*sin(stCamera), ty, tz);
   stF = normalize(target - stEye);
   stR = normalize(cross(stF, vec3(0,1,0))); stU = cross(stR, stF);
-  stFocal = mix(2.35,1.45,grow);
+  stFocal = mix(mix(2.2,2.25,stRise),1.6,stSuper);
+  // The moon is placed in the view of the orbit-free camera, so it stays
+  // in frame in every state: above the bank, low between the towers, at
+  // the downstream anvil edge of the supercell (side-back light, silver
+  // linings). A smooth function of development only.
+  vec3 e0 = vec3(0.0,y,z), f0 = normalize(vec3(0.0,ty,tz)-e0);
+  vec3 r0 = normalize(cross(f0,vec3(0,1,0))), u0 = cross(r0,f0);
+  vec2 m = mix(mix(vec2(0.82,0.6),vec2(0.92,0.46),stRise),vec2(1.02,0.6),stSuper);
+  stMoon = normalize(f0*stFocal+r0*m.x+u0*m.y);
+  // Transport light comes from slightly beyond the disc: more side light
+  // on the camera-facing flanks, silver linings toward the moon.
+  stLight = normalize(stMoon+0.45*r0+0.1*u0);
 }
 void stSetup() { stCameraSetup(); stCells(); stEvents(); }
 // Light reaching each rain shaft (under cells 1, 2, 0) from the discharges,
@@ -249,5 +276,11 @@ vec4 stDatum(int i, int row) {
   if (row == 0) return vec4(stProject(a), stProject(b));
   if (row == 1) return vec4(a, weight);
   return vec4(b, weight);
+}
+// Exact projections of each channel mirrored in the lake plane y = 0.
+vec4 stMirrorDatum(int i) {
+  vec3 a, b; float weight; stSegment(i, a, b, weight);
+  a.y = -a.y; b.y = -b.y;
+  return vec4(stProject(a), stProject(b));
 }
 `;
