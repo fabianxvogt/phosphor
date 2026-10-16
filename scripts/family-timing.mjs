@@ -2,6 +2,7 @@
 // energy on the real stage at the 1080p-equivalent pixel budget and reports
 // frame-interval percentiles per type. Writes artifacts/timing/<family>.json.
 //   npm run timing -- --rig --family cathedral [--seconds 30] [--level 0.95]
+//     [--width 3840 --height 2160] (native-resolution 4K measurement)
 // The gate needs --rig (installed Chrome, real GPU, nothing else heavy
 // running); without it this is a headless smoke of the runner itself.
 import { writeFile } from "node:fs/promises";
@@ -20,10 +21,28 @@ const args = options({
   family: { type: "string" },
   seconds: { type: "string", default: "30" },
   level: { type: "string", default: "0.95" },
+  width: { type: "string", default: "1920" },
+  height: { type: "string", default: "1080" },
 });
 if (!args.family) throw new Error("--family is required");
 const seconds = Number(args.seconds),
-  level = Number(args.level);
+  level = Number(args.level),
+  width = Number(args.width),
+  height = Number(args.height);
+if (
+  ![width, height].every(
+    (value) => Number.isInteger(value) && value >= 128 && value <= 8192,
+  ) ||
+  !Number.isFinite(seconds) ||
+  seconds <= 0 ||
+  seconds > 3600 ||
+  !Number.isFinite(level) ||
+  level < 0 ||
+  level > 1
+)
+  throw new Error(
+    "Invalid timing dimensions (128–8192), seconds (0–3600) or level (0–1)",
+  );
 const out = await outputDirectory("timing", args.out);
 const server = await serve(".", args.port);
 const runtime = await launch({ rig: args.rig });
@@ -34,7 +53,7 @@ try {
     server.url,
     {
       viewport: { width: 1280, height: 800 },
-      stageViewport: { width: 1920, height: 1080 },
+      stageViewport: { width, height },
     },
   );
   const send = (action) =>
@@ -92,6 +111,7 @@ try {
       scene: t.scene,
       level: t.level,
       size: `${t.width}×${t.height}`,
+      requestedSize: `${width}×${height}`,
       frames: intervals.length,
       p50: percentile(intervals, 0.5),
       p95: percentile(intervals, 0.95),
@@ -106,6 +126,7 @@ try {
   }
   const ok = (r) =>
     r.scene === args.family &&
+    r.size === r.requestedSize &&
     r.p99 !== null &&
     r.p99 <= 34 &&
     r.gpuErrors === 0 &&
@@ -118,6 +139,7 @@ try {
     rig: !!args.rig,
     seconds,
     level,
+    requestedSize: `${width}×${height}`,
     rows,
     errors,
     passed: !!args.rig && errors.length === 0 && rows.every(ok),
