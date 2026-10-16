@@ -95,12 +95,15 @@ limiter modification. DE/EN strings are placed beside the existing ribbon keys.
 
 ## Cost and verification
 
-Native M3 Pro synchronous whole-frame probes, 36 measured frames/state:
-1080p states 0/1/2 p50 **3.9/5.0/2.2 ms**, p95 **5.6/7.4/7.1 ms**;
-4K p50 **5.0/5.2/5.0 ms**, p95 **5.6/5.6/5.5 ms**. Fleet contention
-inflated the 1080p run (an earlier run was 1.8–2.1 ms p50). Interleaved ABBA
-against main: 1080p p50 ratios **1.00/1.00/.95**, 4K **1.00/1.021/1.00**.
-These are throughput probes, not venue-cadence acceptance.
+Native M3 Pro synchronous whole-frame probes, refreshed after resuming and
+merging main, 36 measured frames/state:
+1080p states 0/1/2 p50 **1.9/2.1/2.2 ms**, p95 **2.5/2.3/2.5 ms**;
+4K p50 **5.0/5.2/5.0 ms**, p95 **5.7/5.8/5.8 ms**. The earlier shared-GPU
+1080p run reached 5.0 ms p50. Interleaved ABBA against main: 1080p p50
+ratios **.958/1.00/.913**, 4K **1.020/1.00/.980** (all within +5%).
+The geometry helper's GLSL tables are unchanged; its new functions are CPU
+references, so the pair runner's shared geometry helper does not alter the
+baseline shader. These are throughput probes, not venue-cadence acceptance.
 Simulation size, integration work and 147,456-vertex mesh are unchanged. A seed
 change still does a one-time full-history warm-up.
 
@@ -116,6 +119,12 @@ portrait/square states and a 4K still. Zero GL/non-finite errors.
 Evidence is under `artifacts/look-review/attractor-ribbons-r3/` (final film,
 12-still sheet, 24-frame rhythm strip, grids) and
 `artifacts/ribbons-verification/` (tests, palette ladders, aspect/4K, profiles).
+The night continuation re-ran the final film and grids, all 45 native matrix
+checks, reversal and single-use relay readback. `npm test`: **973 pass,
+21 opt-in skipped, zero failures**; targeted family/world-rhythm/pipeline-flash:
+**49 pass**; typecheck, build, DE/EN browser i18n and Prettier on the formatted
+family files pass. Fresh logs and profiles have the `resume-` prefix. Additive
+translation keys retain the existing dictionary formatting.
 
 ## Remaining limits
 
