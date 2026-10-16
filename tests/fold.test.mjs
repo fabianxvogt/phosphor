@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import {
   ATTRIBUTES,
@@ -128,8 +129,8 @@ test("development is continuous, reversible and staged sheet → fold → shards
   for (const birth of [0, 0.5, 1])
     for (const depth of [0, 2, 5]) {
       assert.ok(
-        Math.abs(foldProgress(0, birth, depth) - 0.035) < 1e-12,
-        "faint creases at Sheet",
+        Math.abs(foldProgress(0, birth, depth) - 0.14) < 1e-12,
+        "readable pre-creases at Sheet",
       );
       assert.equal(foldProgress(1, birth, depth), 1, "closed at Fold");
       assert.equal(foldProgress(2, birth, depth), 1);
@@ -176,40 +177,57 @@ test("nets and solids stay in their field; expanded vortex phases wrap without j
 });
 
 test("low camera is inside the storm canopy, outside every peak shard and streak", () => {
-  const peak = cameraPose(2, .25);
+  const peak = cameraPose(2, 0.25);
   assert.ok(Math.hypot(peak.eye[0], peak.eye[2]) < FIELD);
   assert.ok(peak.target[1] > peak.eye[1] + 3);
   // Bound actual triangle extents in their orthonormal shard frame. Taking
   // worst bob, camera sway and height independently covers every phase.
-  for (const seed of [527, 1931, 88, 3307, 777, 4096]) for (const item of arrangement(seed)) {
-    const t = TEMPLATES[item.t];
-    t.flat.forEach((face, f) => {
-      const c = [0, 1, 2].map(k => face.reduce((s, p) => s + p[k], 0) / face.length);
-      face.forEach((a, i) => {
-        const b = face[(i + 1) % face.length], pts = [c, a, b];
-        const tc = [0, 1, 2].map(k => pts.reduce((s, p) => s + p[k], 0) / 3);
-        const shard = item.shards[f][i], sa = shard.shardAngle;
-        const scale = Math.min(item.scale, .8) * 1.1;
-        const offsets = pts.map(p => {
-          const x = (p[0] - tc[0]) * scale, y = (p[2] - tc[2]) * scale * .6;
-          const ox = x * Math.cos(sa) - y * Math.sin(sa), oy = x * Math.sin(sa) + y * Math.cos(sa);
-          return [ox * (ox < 0 ? 1 + 2 * STORM.stretch : 1), oy];
+  for (const seed of [527, 1931, 88, 3307, 777, 4096])
+    for (const item of arrangement(seed)) {
+      const t = TEMPLATES[item.t];
+      t.flat.forEach((face, f) => {
+        const c = [0, 1, 2].map(
+          (k) => face.reduce((s, p) => s + p[k], 0) / face.length,
+        );
+        face.forEach((a, i) => {
+          const b = face[(i + 1) % face.length],
+            pts = [c, a, b];
+          const tc = [0, 1, 2].map(
+            (k) => pts.reduce((s, p) => s + p[k], 0) / 3,
+          );
+          const shard = item.shards[f][i],
+            sa = shard.shardAngle;
+          const scale = Math.min(item.scale, 0.8) * 1.1;
+          const offsets = pts.map((p) => {
+            const x = (p[0] - tc[0]) * scale,
+              y = (p[2] - tc[2]) * scale * 0.6;
+            const ox = x * Math.cos(sa) - y * Math.sin(sa),
+              oy = x * Math.sin(sa) + y * Math.cos(sa);
+            return [ox * (ox < 0 ? 1 + 2 * STORM.stretch : 1), oy];
+          });
+          const mx = Math.max(...offsets.map((o) => Math.abs(o[0]))),
+            my = Math.max(...offsets.map((o) => Math.abs(o[1])));
+          const bank = 0.38 * Math.cos(sa),
+            len = Math.hypot(bank, 1);
+          const radialMax = Math.hypot(
+            shard.radius * STORM.radius + (Math.abs(bank) * my) / len,
+            mx,
+          );
+          const yMin = STORM.height * (shard.height - 0.35) - my / len;
+          for (const crane of [0, 0.25, 0.5, 0.75, 1]) {
+            const cameraR = CAMERA.peakRadius - CAMERA.sway + 3.5 * crane;
+            const cameraY = CAMERA.peakHeight + 0.18 + 3.5 * crane;
+            assert.ok(
+              radialMax < cameraR - 0.1 || yMin > cameraY + 0.1,
+              `shard/camera overlap seed ${seed}, crane ${crane}: r ${radialMax}, y ${yMin}`,
+            );
+          }
         });
-        const mx = Math.max(...offsets.map(o => Math.abs(o[0]))), my = Math.max(...offsets.map(o => Math.abs(o[1])));
-        const bank = .38 * Math.cos(sa), len = Math.hypot(bank, 1);
-        const radialMax = Math.hypot(shard.radius * STORM.radius + Math.abs(bank) * my / len, mx);
-        const yMin = STORM.height * (shard.height - .35) - my / len;
-        for (const crane of [0, .25, .5, .75, 1]) {
-          const cameraR = CAMERA.peakRadius - CAMERA.sway + 3.5 * crane;
-          const cameraY = CAMERA.peakHeight + .18 + 3.5 * crane;
-          assert.ok(radialMax < cameraR - .1 || yMin > cameraY + .1,
-            `shard/camera overlap seed ${seed}, crane ${crane}: r ${radialMax}, y ${yMin}`);
-        }
       });
-    });
-  }
-  for (const dev of [0, .8, 1.4, 1.7, 2]) {
-    const a = cameraPose(dev, .37), b = cameraPose(dev, 1.37);
+    }
+  for (const dev of [0, 0.8, 1.4, 1.7, 2]) {
+    const a = cameraPose(dev, 0.37),
+      b = cameraPose(dev, 1.37);
     assert.ok(dist(a.eye, b.eye) < 1e-12);
   }
 });
@@ -218,38 +236,67 @@ test("cast shadows reuse exact hinge attributes and project in the key direction
   const data = createGeometry(527);
   let pairs = 0;
   for (let i = 0; i < data.length; i += STRIDE * 3) {
-    if (data[i + 5] !== KIND.face || data[i + 10] < .45) continue;
+    if (data[i + 5] !== KIND.face || data[i + 10] < 0.45) continue;
     const next = i + STRIDE * 3;
     assert.equal(data[next + 5], KIND.shadow);
-    for (let v = 0; v < 3; v++) for (let k = 0; k < STRIDE; k++) {
-      if (k !== 5) assert.equal(data[i + v * STRIDE + k], data[next + v * STRIDE + k]);
-    }
+    for (let v = 0; v < 3; v++)
+      for (let k = 0; k < STRIDE; k++) {
+        if (k !== 5)
+          assert.equal(data[i + v * STRIDE + k], data[next + v * STRIDE + k]);
+      }
     pairs++;
   }
   assert.ok(pairs > 300, "all hero nets carry actual triangle shadows");
-  const p = [1, 2, -3], q = shadowPoint(p), h = p[1] + .22;
-  assert.ok(Math.abs((q[0] - p[0]) / h - .75 / .6) < 1e-12);
-  assert.ok(Math.abs((q[2] - p[2]) / h - .42 / .6) < 1e-12);
-  assert.equal(q[1], -.185);
+  const p = [1, 2, -3],
+    q = shadowPoint(p),
+    h = p[1] + 0.22;
+  assert.ok(Math.abs((q[0] - p[0]) / h - 0.75 / 0.6) < 1e-12);
+  assert.ok(Math.abs((q[2] - p[2]) / h - 0.42 / 0.6) < 1e-12);
+  assert.equal(q[1], -0.185);
 });
 
 test("analytic paper normals match differences; banked shards stay rigid and periodic", () => {
-  const wave=(x,z,a,p)=>a*(Math.sin(.55*x+4*Math.PI*p)*Math.sin(.47*z-6*Math.PI*p)+.5*Math.sin(.31*(x+z)+10*Math.PI*p));
-  const e=1e-5;
-  for(const x of [-9,-.2,3,12]) for(const z of [-7,0,5]) for(const p of [0,.37,1]) {
-    const dx=(wave(x+e,z,.12,p)-wave(x-e,z,.12,p))/(2*e);
-    const dz=(wave(x,z+e,.12,p)-wave(x,z-e,.12,p))/(2*e);
-    const q=[-dx,1,-dz],len=Math.hypot(...q),n=paperNormal(x,z,.12,p);
-    assert.ok(dist(n,q.map(v=>v/len))<1e-9);
-    assert.ok(dist(n,paperNormal(x,z,.12,p+1))<1e-12);
-  }
-  for(const item of arrangement(527)) for(const face of item.shards) for(const shard of face) {
-    const f=shardFrame(shard,.37),wrapped=shardFrame(shard,1.37);
-    for(const v of Object.values(f))assert.ok(Math.abs(Math.hypot(...v)-1)<1e-12);
-    assert.ok(Math.abs(f.tangent.reduce((s,v,i)=>s+v*f.across[i],0))<1e-12);
-    assert.ok(dist(f.normal,wrapped.normal)<1e-12);
-  }
-  assert.deepEqual(scene.presets.map(p=>p.seed),[527,527,527,1931,88,3307,777,4096]);
+  const wave = (x, z, a, p) =>
+    a *
+    (Math.sin(0.55 * x + 4 * Math.PI * p) *
+      Math.sin(0.47 * z - 6 * Math.PI * p) +
+      0.5 * Math.sin(0.31 * (x + z) + 10 * Math.PI * p));
+  const e = 1e-5;
+  for (const x of [-9, -0.2, 3, 12])
+    for (const z of [-7, 0, 5])
+      for (const p of [0, 0.37, 1]) {
+        const dx =
+          (wave(x + e, z, 0.12, p) - wave(x - e, z, 0.12, p)) / (2 * e);
+        const dz =
+          (wave(x, z + e, 0.12, p) - wave(x, z - e, 0.12, p)) / (2 * e);
+        const q = [-dx, 1, -dz],
+          len = Math.hypot(...q),
+          n = paperNormal(x, z, 0.12, p);
+        assert.ok(
+          dist(
+            n,
+            q.map((v) => v / len),
+          ) < 1e-9,
+        );
+        assert.ok(dist(n, paperNormal(x, z, 0.12, p + 1)) < 1e-12);
+      }
+  for (const item of arrangement(527))
+    for (const face of item.shards)
+      for (const shard of face) {
+        const f = shardFrame(shard, 0.37),
+          wrapped = shardFrame(shard, 1.37);
+        for (const v of Object.values(f))
+          assert.ok(Math.abs(Math.hypot(...v) - 1) < 1e-12);
+        assert.ok(
+          Math.abs(f.tangent.reduce((s, v, i) => s + v * f.across[i], 0)) <
+            1e-12,
+        );
+        assert.ok(dist(f.normal, wrapped.normal) < 1e-12);
+      }
+  assert.deepEqual(
+    scene.presets.map((p) => p.seed),
+    [527, 527, 527, 1931, 88, 3307, 777, 4096],
+  );
 });
 
 test("geometry is deterministic, finite and bounded", () => {
@@ -259,8 +306,113 @@ test("geometry is deterministic, finite and bounded", () => {
   assert.notDeepEqual(a.subarray(0, 2000), b.subarray(0, 2000));
   assert.ok(a.every(Number.isFinite));
   assert.equal(a.length % (STRIDE * 3), 0);
-  assert.ok(a.length / STRIDE < 30000, "floor tessellation must not dominate vertex work");
+  assert.ok(
+    a.length / STRIDE < 30000,
+    "floor tessellation must not dominate vertex work",
+  );
   // Rodrigues sanity: a quarter turn about +y maps +x to -z.
   const r = rotateAbout([1, 0, 0], [0, 0, 0], [0, 1, 0], Math.PI / 2);
   assert.ok(dist(r, [0, 0, -1]) < 1e-12);
+});
+
+test("four authored gestures include a bounded slot-3 crease snap and full grids", () => {
+  assert.deepEqual(
+    scene.rhythm.map((g) => g.slot),
+    [0, 1, 2, 3],
+  );
+  assert.equal(scene.rhythm[3].id, "crease-snap");
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const tracks = defaultPattern(scene.rhythm, style).tracks;
+    const density = tracks.reduce(
+      (sum, t) =>
+        sum + (t.steps.filter((v) => v > 0).length * 4 * t.division) / t.length,
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density}`);
+    const snap = tracks.find((t) => t.effect === "crease-snap");
+    assert.ok(snap.steps.filter((v) => v > 0).length >= 2);
+    assert.ok(snap.strength <= 1 && snap.duration <= 0.9);
+  }
+  assert.match(scene.geometry.vertex, /u_rhythm\.w/);
+  assert.match(scene.geometry.vertex, /u_rhythmHit\.w/);
+  assert.match(scene.geometry.vertex, /u_rhythmCount\.w/);
+});
+
+test("median-split paper keeps exact barycentrics, shared creases and rigid wings", () => {
+  const data = createGeometry(527);
+  let halves = 0;
+  for (let i = 0; i < data.length; i += STRIDE * 3) {
+    if (data[i + 5] !== KIND.face) continue;
+    halves++;
+    const side = data[i + 4];
+    assert.ok(side === 1 || side === -1);
+    const points = [0, 1, 2].map((v) =>
+      Array.from(data.subarray(i + v * STRIDE, i + v * STRIDE + 3)),
+    );
+    for (let v = 0; v < 3; v++) {
+      const base = i + v * STRIDE;
+      assert.equal(data[base + 4], side);
+      const a = data[base + 26],
+        b = data[base + 27];
+      assert.ok(a >= 0 && b >= 0 && a + b <= 1);
+    }
+    // Shared median runs from original face-centre to edge midpoint.
+    const midpoint = side === 1 ? points[2] : points[1];
+    const root = points[0],
+      delta = midpoint.map((v, k) => v - root[k]);
+    const len = Math.hypot(...delta),
+      axis = delta.map((v) => v / len);
+    for (const angle of [0, 0.38, 1.41]) {
+      const bent = points.map((p) => rotateAbout(p, root, axis, side * angle));
+      for (let v = 0; v < 3; v++)
+        assert.ok(
+          Math.abs(
+            dist(bent[v], bent[(v + 1) % 3]) -
+              dist(points[v], points[(v + 1) % 3]),
+          ) < 1e-9,
+        );
+      assert.ok(
+        dist(rotateAbout(midpoint, root, axis, angle), midpoint) < 1e-9,
+      );
+    }
+  }
+  assert.ok(halves > 2000);
+});
+
+test("all crease angles stay within a conservative peak camera clearance sphere", () => {
+  for (const seed of [527, 1931, 88, 3307, 777, 4096])
+    for (const item of arrangement(seed)) {
+      const t = TEMPLATES[item.t];
+      t.flat.forEach((face, f) => {
+        const c = [0, 1, 2].map(
+          (k) => face.reduce((s, p) => s + p[k], 0) / face.length,
+        );
+        face.forEach((a, i) => {
+          const pts = [c, a, face[(i + 1) % face.length]];
+          const tc = [0, 1, 2].map(
+            (k) => pts.reduce((s, p) => s + p[k], 0) / 3,
+          );
+          const shard = item.shards[f][i];
+          // An orthonormal shard basis plus rotation about a median through
+          // tc preserves this bound for every rhythm angle and bank.
+          const extent =
+            Math.max(...pts.map((p) => dist(p, tc))) *
+            Math.min(item.scale, 0.8) *
+            1.1 *
+            1.5;
+          const radialMax = shard.radius * STORM.radius + extent;
+          const yMin = STORM.height * (shard.height - 0.35) - extent;
+          for (const crane of [0, 0.25, 0.5, 0.75, 1])
+            assert.ok(
+              radialMax < CAMERA.peakRadius - CAMERA.sway + 3.5 * crane - 0.1 ||
+                yMin > CAMERA.peakHeight + 0.18 + 3.5 * crane + 0.1,
+              `folded-wing clearance: seed ${seed}, crane ${crane}`,
+            );
+        });
+      });
+    }
 });
