@@ -20,7 +20,9 @@ export function steps(text) {
 // An authored loop: { steps: "X..x" | number[], division?, strength?,
 // duration? }. Missing timing fields fall back to the gesture's defaults.
 function loop(spec, base) {
-  const values = Array.isArray(spec.steps) ? [...spec.steps] : steps(spec.steps);
+  const values = Array.isArray(spec.steps)
+    ? [...spec.steps]
+    : steps(spec.steps);
   const result = {
     division: spec.division ?? base.division,
     length: values.length,
@@ -57,15 +59,15 @@ export function familyEffect(id, slot, label, description, options = {}) {
       : styles?.driving
         ? loop(styles.driving, base)
         : {
-          division: 1,
-          length,
-          steps: Array.from({ length }, (_, i) =>
-            period === 1 || i === 0 ? 1 : 0,
-          ),
-          strength,
-          duration,
-          muted: false,
-        };
+            division: 1,
+            length,
+            steps: Array.from({ length }, (_, i) =>
+              period === 1 || i === 0 ? 1 : 0,
+            ),
+            strength,
+            duration,
+            muted: false,
+          };
   return {
     id,
     slot,
