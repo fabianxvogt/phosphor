@@ -318,27 +318,40 @@ export default {
   },
   beat: { punch: 0.04, pulse: 0.04 },
   audio: [{ param: "glitch", feature: "onset", amount: 0.06 }],
+  rhythmStyles: { restrained: "Idle registers", driving: "Address march", accented: "Midnight overflow" },
   rhythm: [
     familyEffect(
       "address-flip",
       0,
       "Address flip",
       "A persistent address cohort lights along the voxel edges.",
-      { period: 4, strength: 0.7, duration: 1.2 },
+      { period: 4, strength: 0.7, duration: 1.2, steps: "X...", styles: {
+        restrained: { steps: "X....... | .....x.. | ....X... | .....x..", division: 2, strength: 0.55, duration: 1.1 },
+        driving: { steps: "X...x... | .X....x.", division: 2, strength: 0.82, duration: 0.7 },
+        accented: { steps: "X......x........ | ..X.......x..... | ....X.......x... | ......X.......x.", division: 4, strength: 0.95, duration: 0.4 },
+      } },
     ),
     familyEffect(
       "scan-plane",
       1,
       "Scan plane",
       "A narrow scan plane crosses the same voxel matter.",
-      { period: 8, strength: 0.75, duration: 3 },
+      { period: 8, strength: 0.75, duration: 3, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | .......X | ..x..... | ........", division: 2, strength: 0.6, duration: 1.3 },
+        driving: { steps: "..X..x.. | ...X..x.", division: 2, strength: 0.84, duration: 0.8 },
+        accented: { steps: ".X..x.X..x.X..x. | ..X.x..X.x..X.xx", division: 4, strength: 0.98, duration: 0.2 },
+      } },
     ),
     familyEffect(
       "register-shift",
       2,
       "Register shift",
       "One addressed row makes a bounded glitch displacement.",
-      { period: 16, strength: 0.75, duration: 2 },
+      { period: 16, strength: 0.75, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.6, duration: 1.5 },
+        driving: { steps: "........ | ......x. | ........ | .....X.x", division: 2, strength: 0.84, duration: 0.6 },
+        accented: { steps: "................ | .............x.. | ................ | ............X..x", division: 4, strength: 0.98, duration: 0.4 },
+      } },
     ),
   ],
   clocks: [

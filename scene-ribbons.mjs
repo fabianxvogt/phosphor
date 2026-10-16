@@ -340,10 +340,23 @@ export default {
     { param: "flow", feature: "low", amount: 0.04 },
     { param: "pulses", feature: "onset", amount: 0.08 },
   ],
+  rhythmStyles: { restrained: "Loose strands", driving: "Braided current", accented: "Attractor weave" },
   rhythm: [
-    familyEffect("ribbon-cohort", 0, "Ribbon cohort", "One in four whole ribbons lights up along its full trajectory.", { period: 4, strength: 0.6, duration: 1 }),
-    familyEffect("flow-run", 1, "Flow run", "Light runs down every ribbon along the direction of the flow.", { period: 8, strength: 0.6, duration: 1.5 }),
-    familyEffect("head-sparks", 2, "Head sparks", "The leading point of every trajectory flares together.", { period: 16, strength: 0.7, duration: 2 }),
+    familyEffect("ribbon-cohort", 0, "Ribbon cohort", "One in four whole ribbons lights up along its full trajectory.", { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
+        restrained: { steps: "X....... | ......x. | ...X....", division: 2, strength: 0.5, duration: 1.5 },
+        driving: { steps: "X.....x. | ...X..x.", division: 2, strength: 0.76, duration: 0.8 },
+        accented: { steps: "X........x...... | ..X........x.... | ....X........x..", division: 4, strength: 0.9, duration: 0.65 },
+      } }),
+    familyEffect("flow-run", 1, "Flow run", "Light runs down every ribbon along the direction of the flow.", { period: 8, strength: 0.6, duration: 1.5, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | .X...... | .....x..", division: 2, strength: 0.5, duration: 1.3 },
+        driving: { steps: "..X..x..X..x", division: 2, strength: 0.76, duration: 0.8 },
+        accented: { steps: "..X..x..X..x..X..x..", division: 4, strength: 0.9, duration: 0.5 },
+      } }),
+    familyEffect("head-sparks", 2, "Head sparks", "The leading point of every trajectory flares together.", { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | .......x | ........ | ......X.", division: 2, strength: 0.55, duration: 1.6 },
+        driving: { steps: "........ | ......xX | ........ | ....x..X", division: 2, strength: 0.8, duration: 0.4 },
+        accented: { steps: "............x... | .........X.x..xx", division: 4, strength: 0.96, duration: 0.18 },
+      } }),
   ],
   fragment: `${ground}
 void main() { outColor = vec4(ground(gl_FragCoord.xy), 1.); }`,

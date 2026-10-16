@@ -278,27 +278,40 @@ export default {
   type: { key: "development", values: [0, 1, 2] },
   energy: { wind: { mul: [0.7, 1.3] }, amplitude: { mul: [0.75, 1.2] } },
   beat: { punch: 0.04, pulse: 0.03 },
+  rhythmStyles: { restrained: "Still selvedge", driving: "Satin current", accented: "Vortex brocade" },
   rhythm: [
     familyEffect(
       "flutter-packet",
       0,
       "Flutter packet",
       "A bounded sheen packet travels along the material's existing folds.",
-      { period: 4, duration: 2.5, strength: 0.65 },
+      { period: 4, duration: 2.5, strength: 0.65, steps: "X...", styles: {
+        restrained: { steps: "X....... | .....x.. | ........ | ...X....", division: 2, strength: 0.55, duration: 1.8 },
+        driving: { steps: "X...x..X | ...x..X.", division: 2, strength: 0.78, duration: 0.8 },
+        accented: { steps: "X..x...X..x..X..x...", division: 4, strength: 0.92, duration: 0.5 },
+      } },
     ),
     familyEffect(
       "selvedge-cohort",
       1,
       "Selvedge cohort",
       "One persistent ribbon cohort catches accent light along its silk hems.",
-      { period: 8, duration: 2, strength: 0.6 },
+      { period: 8, duration: 2, strength: 0.6, steps: "X.......", styles: {
+        restrained: { steps: "..x..... | ........ | ......X. | ........", division: 2, strength: 0.5, duration: 1.8 },
+        driving: { steps: "...X...x | ..X....x", division: 2, strength: 0.74, duration: 0.9 },
+        accented: { steps: ".....X......x... | ..X.......x..... | .......X......x.", division: 4, strength: 0.88, duration: 0.8 },
+      } },
     ),
     familyEffect(
       "vortex-sweep",
       2,
       "Vortex sweep",
       "A broad raking-light front climbs the same fabric into the spiral.",
-      { period: 16, duration: 4, strength: 0.7 },
+      { period: 16, duration: 4, strength: 0.7, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | .......X", division: 2, strength: 0.55, duration: 3 },
+        driving: { steps: "........ | ......x. | ........ | ....X...", division: 2, strength: 0.8, duration: 2 },
+        accented: { steps: "..............x. | ........X....... | ...........X...x", division: 4, strength: 0.95, duration: 0.7 },
+      } },
     ),
   ],
   clocks: [

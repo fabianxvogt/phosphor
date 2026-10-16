@@ -460,27 +460,40 @@ void main() {
   type: { key: "development", values: [0, 1, 2] },
   energy: { sweep: { mul: [0.75, 1.35] }, drift: { mul: [0.75, 1.35] } },
   beat: { punch: 0.15, pulse: 0.1 },
+  rhythmStyles: { restrained: "Dark aperture", driving: "Beam relay", accented: "Vault chase" },
   rhythm: [
     familyEffect(
       "beam-address",
       0,
       "Beam address",
       "One persistent laser in the fan receives a brief accent.",
-      { period: 4, strength: 0.55, duration: 1 },
+      { period: 4, strength: 0.55, duration: 1, steps: "X...", styles: {
+        restrained: { steps: "X....... | ...x.... | ......X. | ....x...", division: 2, strength: 0.48, duration: 0.9 },
+        driving: { steps: "X.......x....... | ....X.......x...", division: 4, strength: 0.74, duration: 0.7 },
+        accented: { steps: "X.......x....... | ..X.......x..... | ....X.......x... | ......X.......x.", division: 4, strength: 0.88, duration: 0.4 },
+      } },
     ),
     familyEffect(
       "aperture-breath",
       1,
       "Aperture breath",
       "The laser fan opens by a bounded twelve percent.",
-      { period: 8, strength: 0.65, duration: 2, kind: "motion" },
+      { period: 8, strength: 0.65, duration: 2, kind: "motion", steps: "X.......", styles: {
+        restrained: { steps: ".....x.. | ........ | .......X | ........", division: 2, strength: 0.5, duration: 1.5 },
+        driving: { steps: "......x. | .......X | ........ | .....x..", division: 2, strength: 0.76, duration: 1.25 },
+        accented: { steps: "............x... | .............X.. | ..........x..... | ...............X", division: 4, strength: 0.9, duration: 1 },
+      } },
     ),
     familyEffect(
       "vault-rib",
       2,
       "Vault rib",
       "A narrow light rib travels along the same folded material grid.",
-      { period: 16, strength: 0.65, duration: 3 },
+      { period: 16, strength: 0.65, duration: 3, steps: "X...............", styles: {
+        restrained: { steps: "..x..... | ......X. | ........ | .....x..", division: 2, strength: 0.5, duration: 1.3 },
+        driving: { steps: "X.x.X.x.X.x.X.xx", division: 4, strength: 0.78, duration: 0.2 },
+        accented: { steps: "XxxxXxxxXxxxXxxx | XxxxXxxxXxxxXxXX", division: 4, strength: 0.94, duration: 0.16 },
+      } },
     ),
   ],
   clocks: [

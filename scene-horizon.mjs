@@ -818,27 +818,40 @@ export default {
     { param: "turbulence", feature: "high", amount: 0.08 },
     { param: "jets", feature: "low", amount: 0.1 },
   ],
+  rhythmStyles: { restrained: "Silent orbit", driving: "Photon waltz", accented: "Relativistic bloom" },
   rhythm: [
     familyEffect(
       "hot-spot",
       0,
       "Hot spot",
       "A hot spot in the inner disk flares as it orbits; its lensed images flare with it.",
-      { period: 4, strength: 0.6, duration: 1 },
+      { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
+        restrained: { steps: "X....... | .....x.. | ..X..... | .....x..", division: 2, strength: 0.5, duration: 1.2 },
+        driving: { steps: "X..x..X..x..", division: 2, strength: 0.76, duration: 0.8 },
+        accented: { steps: "X..x..X..x.. | X.x..X..x.X.", division: 4, strength: 0.9, duration: 0.4 },
+      } },
     ),
     familyEffect(
       "photon-ring",
       1,
       "Photon ring",
       "The photon ring at √27 M brightens once.",
-      { period: 8, strength: 0.6, duration: 1.5 },
+      { period: 8, strength: 0.6, duration: 1.5, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | ......X. | ........ | ....x...", division: 2, strength: 0.5, duration: 1.5 },
+        driving: { steps: "....X..x | ..X..x..", division: 2, strength: 0.74, duration: 0.75 },
+        accented: { steps: "..X...x..X...x.. | ....X..x...X...x", division: 4, strength: 0.88, duration: 0.6 },
+      } },
     ),
     familyEffect(
       "jet-knot",
       2,
       "Jet knot",
       "One bright knot is ejected along both relativistic jets.",
-      { period: 16, strength: 0.7, duration: 2 },
+      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.55, duration: 2.5 },
+        driving: { steps: "........ | ......x. | ........ | .....X..", division: 2, strength: 0.8, duration: 1.5 },
+        accented: { steps: "...........x.... | ........X.....x. | ..............X.", division: 4, strength: 0.95, duration: 0.9 },
+      } },
     ),
   ],
   fragment,

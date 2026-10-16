@@ -419,27 +419,40 @@ export default {
     { rate: (p) => p[3] * 0.035, period: 2 * Math.PI },
     { rate: () => 0.085, period: 2 * Math.PI },
   ],
+  rhythmStyles: { restrained: "Thin silence", driving: "Opal breathing", accented: "Iridescent bells" },
   rhythm: [
     familyEffect(
       "fringe-order",
       0,
       "Fringe order",
       "A local thickness wave travels through the existing interference bands.",
-      { period: 4, strength: 0.55, duration: 1.5 },
+      { period: 4, strength: 0.55, duration: 1.5, steps: "X...", styles: {
+        restrained: { steps: "X....... | .....x.. | ...X.... | ....x...", division: 2, strength: 0.48, duration: 1.4 },
+        driving: { steps: "X...x..X | ..x...X.", division: 2, strength: 0.72, duration: 0.8 },
+        accented: { steps: "X..x...X..x...X..x..", division: 4, strength: 0.86, duration: 0.5 },
+      } },
     ),
     familyEffect(
       "border-breath",
       1,
       "Border breath",
       "The draining Plateau borders catch a bounded grazing-light breath.",
-      { period: 8, strength: 0.5, duration: 2.5 },
+      { period: 8, strength: 0.5, duration: 2.5, steps: "X.......", styles: {
+        restrained: { steps: "..x..... | .......X | ........ | ....x...", division: 2, strength: 0.45, duration: 1.6 },
+        driving: { steps: "...X.... | ......x. | .X...... | .......x", division: 2, strength: 0.68, duration: 1.2 },
+        accented: { steps: ".....X..x....X.. | ..x....X..x.....", division: 4, strength: 0.82, duration: 0.5 },
+      } },
     ),
     familyEffect(
       "opal-window",
       2,
       "Opal window",
       "A rare highlight crosses the upper interference order of the same films.",
-      { period: 16, strength: 0.6, duration: 3 },
+      { period: 16, strength: 0.6, duration: 3, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ......X. | ........", division: 2, strength: 0.5, duration: 2.5 },
+        driving: { steps: "........ | .......x | ........ | .....X..", division: 2, strength: 0.74, duration: 1.8 },
+        accented: { steps: ".............x.. | .........X...x.. | ..............X.", division: 4, strength: 0.9, duration: 0.75 },
+      } },
     ),
   ],
   fragment,

@@ -791,27 +791,40 @@ export default {
     sway: [0.05, 0.6],
   },
   beat: { punch: 0.4, pulse: 0.8, inject: 0.8 },
+  rhythmStyles: { restrained: "Sleeping petals", driving: "Nectar paths", accented: "Midnight flowering" },
   rhythm: [
     familyEffect(
       "vein-pulse",
       0,
       "Vein pulse",
       "Light runs along the glowing veins and petal margins.",
-      { period: 4, strength: 0.6 },
+      { period: 4, strength: 0.6, steps: "X...", styles: {
+        restrained: { steps: "..X..... | .....x.. | X....... | .......x", division: 2, strength: 0.5, duration: 1 },
+        driving: { steps: "X..xX.x. | ..x.X..x", division: 2, strength: 0.76, duration: 0.35 },
+        accented: { steps: "X..x.X..x..X..x. | ..x.X.x...X..xxx", division: 4, strength: 0.9, duration: 0.2 },
+      } },
     ),
     familyEffect(
       "petal-cohort",
       1,
       "Petal-cohort light",
       "Select oriented petals in developed reaction crowns.",
-      { period: 8, strength: 0.5 },
+      { period: 8, strength: 0.5, steps: "X.......", styles: {
+        restrained: { steps: ".....x.. | ..X..... | ......x. | ...X....", division: 2, strength: 0.45, duration: 1.25 },
+        driving: { steps: "...X...x | .X....x.", division: 2, strength: 0.7, duration: 0.75 },
+        accented: { steps: ".....X......x... | ..X.........x... | ...X.......x....", division: 4, strength: 0.84, duration: 0.6 },
+      } },
     ),
     familyEffect(
       "morphogen-feed",
       2,
       "Local morphogen feed",
       "Seed a bounded patch into the continuing garden chemistry.",
-      { period: 16, strength: 0.55, duration: 0.25, kind: "simulation" },
+      { period: 16, strength: 0.55, duration: 0.25, kind: "simulation", steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | .......X | ........", division: 2, strength: 0.45, duration: 0.25 },
+        driving: { steps: "........ | .......x | ........ | .....X..", division: 2, strength: 0.7, duration: 0.25 },
+        accented: { steps: "................ | .............x.. | ................ | .........x.....X", division: 4, strength: 0.85, duration: 0.2 },
+      } },
     ),
   ],
   fragment: visual,

@@ -655,27 +655,40 @@ export default {
     { param: "falcon", feature: "onset", amount: 0.06 },
     { param: "fold", feature: "low", amount: 0.05 },
   ],
+  rhythmStyles: { restrained: "Dusk wings", driving: "Turning flock", accented: "Falcon shadow" },
   rhythm: [
     familyEffect(
       "sun-glint",
       0,
       "Sun glint",
       "The flock's wings catch the low sun together.",
-      { period: 4, strength: 0.55, duration: 1 },
+      { period: 4, strength: 0.55, duration: 1, steps: "X...", styles: {
+        restrained: { steps: "X......x | ...x....", division: 2, strength: 0.48, duration: 0.9 },
+        driving: { steps: "X..x..X. | .x..X..x", division: 2, strength: 0.72, duration: 0.4 },
+        accented: { steps: "X..x.X..x.X..x.. | ..X.x..X..x.X.xx", division: 4, strength: 0.88, duration: 0.2 },
+      } },
     ),
     familyEffect(
       "startle-wave",
       1,
       "Startle wave",
       "A startle runs across the flock from neighbour to neighbour.",
-      { period: 8, strength: 0.7, duration: 1 },
+      { period: 8, strength: 0.7, duration: 1, steps: "X.......", styles: {
+        restrained: { steps: "..x..... | ......X.", division: 2, strength: 0.55, duration: 1.2 },
+        driving: { steps: "...x.... | ......X. | ........ | .....x..", division: 2, strength: 0.8, duration: 1 },
+        accented: { steps: ".......x........ | ...........X.... | ....x........... | .........X.....x", division: 4, strength: 0.94, duration: 0.8 },
+      } },
     ),
     familyEffect(
       "falcon-strike",
       2,
       "Falcon strike",
       "The falcon strikes; the birds around it scatter and startle.",
-      { period: 16, strength: 0.7, duration: 2 },
+      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | .......X", division: 2, strength: 0.55, duration: 1.5 },
+        driving: { steps: "........ | .......x | ........ | ......X.", division: 2, strength: 0.82, duration: 1 },
+        accented: { steps: "................ | ..............x. | ................ | ...........X...x", division: 4, strength: 0.96, duration: 0.6 },
+      } },
     ),
   ],
   fragment,
