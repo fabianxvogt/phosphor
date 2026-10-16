@@ -86,7 +86,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Liquid Chrome](families/ferro.md) | ferro | Rippling chrome mirror grows a Rosensweig crown and floating sculpture; graduated silver reflections and alternating-pole magnetic strikes | Pool / Crown / Sculpture | 8 |
 | [Kinetic Rain](families/kinetic.md) (world Kinetic Rain) | kinetic | 9,216 persistent lit spheres: travelling-wave ceiling, kick rings and morphing sphere / torus / Möbius / saddle above a mirror floor | Ceiling / Waves / Sculpture | 8 |
 | [Magma Rift](families/magma.md) | magma | Raymarched Voronoi basalt seams heated along one seed-only drainage tree, channel-frame lava skins, a floe-crust lake, spray cones and ballistic bombs under an ash umbrella lit from below | Crust / Rivers / Eruption | 8 |
-| [Aurora Veil / Polarlicht-Schleier](families/aurora.md) | aurora | Folded rayed sheets along parallel magnetic field lines, zenith convergence and a frozen mirror | Glow / Curtains / Corona | 8 |
+| [Aurora Veil / Polarlicht-Schleier](families/aurora.md) | aurora | Layered field-aligned curtains above a frozen mirror, saturated upper rays and local travelling curtain surges | Glow / Curtains / Corona | 8 |
 | [Brass Orrery](families/orrery.md) (world Brass Orrery / Messing-Orrery) | orrery | Beveled involute gear trains with exact integer-tooth meshing and planetary orbital ratios | Gears / Orrery / Clockwork | 8 |
 | [Thunderhead](families/storm.md) (world Thunderhead / Gewitterzelle) | storm | Volumetric cumulonimbus (meteorological carrier, Beer–Lambert march, multiple-scattering octaves) lit from inside by seeded stepped-leader events | Haze / Towers / Supercell | 8 |
 

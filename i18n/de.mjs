@@ -24,6 +24,8 @@ export default {
   "A local cohort of persistent field-aligned rays catches a travelling pulse.": "Eine lokale Gruppe beständiger feldparalleler Strahlen fängt einen wandernden Impuls auf.",
   "A soft excitation travels upward along the existing magnetic curtain.": "Eine sanfte Anregung wandert entlang des bestehenden magnetischen Vorhangs nach oben.",
   "A few folds on the lower auroral edge receive a rare accent.": "Einige Falten am unteren Polarlichtrand erhalten einen seltenen Akzent.",
+  "Curtain surge": "Vorhangwoge",
+  "An excitation front rolls across the folded curtain and its lake reflection, cresting every second bar.": "Eine Anregungsfront rollt über den gefalteten Vorhang und sein Spiegelbild im See, mit Wellenkämmen in jedem zweiten Takt.",
   "Polar silence": "Polare Stille",
   "Curtain signals": "Vorhangsignale",
   "Magnetic midnight": "Magnetische Mitternacht",
