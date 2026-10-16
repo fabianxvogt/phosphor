@@ -2343,6 +2343,8 @@ export default {
   "A startle runs across the flock from neighbour to neighbour.": "A startle runs across the flock from neighbour to neighbour.",
   "Falcon strike": "Falcon strike",
   "The falcon strikes; the birds around it scatter and startle.": "The falcon strikes; the birds around it scatter and startle.",
+  "Wing front": "Wing front",
+  "A startled silver wing-front peels through the flock on fills, launching a neighbour wave.": "A startled silver wing-front peels through the flock on fills, launching a neighbour wave.",
   "Dusk wings": "Dusk wings",
   "Turning flock": "Turning flock",
   "Falcon shadow": "Falcon shadow",

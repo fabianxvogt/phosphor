@@ -23,6 +23,7 @@ import {
 } from "../murmuration-model.mjs";
 import { presetSnapshot, validateSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
@@ -184,7 +185,7 @@ test("distant bird LOD has stable image-plane area and smooth energy reveal", ()
       const lod = 1 - smooth(3, 7, (px * 1080) / resolution);
       assert.ok(lod >= 0 && lod <= 1);
       assert.equal(lod, 1 - smooth(3, 7, px1080));
-      const grow = Math.max(1, (3 * resolution) / 1080 / px);
+      const grow = Math.max(1, (4 * resolution) / 1080 / px);
       const fat = Math.max(
         1,
         Math.min(2.5, (7.5 * resolution) / 1080 / (px * grow)),
@@ -207,7 +208,7 @@ test("distant bird LOD has stable image-plane area and smooth energy reveal", ()
   assert.match(murmuration.geometry.fragment, /vec3 col=u_secondary\*\(\.004/);
   assert.match(
     murmuration.geometry.vertex,
-    /wingArea=\.32\+\.68\*abs\(cos\(bank\)\)/,
+    /wingArea=\.15\+\.85\*abs\(cos\(bank\)\)/,
   );
 });
 
@@ -217,6 +218,15 @@ test("bounded formation dolly, polynomial skyline and identifiers stay continuou
     assert.ok(distance >= 6.55 && distance <= 8);
     const focal = 1.65 + (1.45 - 1.65) * dive;
     assert.ok(focal >= 1.45 && focal <= 1.65);
+  }
+  for (const [aspect, expected] of [
+    [16 / 9, 1],
+    [1, 1],
+    [9 / 16, 0.759375],
+    [0.4, 0.72],
+  ]) {
+    const fit = Math.min(1, Math.max(0.72, 1.35 * aspect));
+    assert.ok(Math.abs(fit - expected) < 1e-12);
   }
   const mul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
   for (let a = -Math.PI; a <= Math.PI; a += 0.013) {
@@ -269,7 +279,7 @@ test("exact clock: integer cycles, and shader constants follow the model", () =>
   assert.deepEqual(murmuration.simulation.size, [4 * LATTICE[0], LATTICE[1]]);
 });
 
-test("ribbons have a dense cubic core, periodic slots and persistent rate phase", () => {
+test("ribbons have a broad graded core, periodic slots and persistent rate phase", () => {
   const key = seedKey(1207),
     c = 1234567;
   for (const u of [0.12, 0.31, 0.59, 0.87]) {
@@ -277,8 +287,8 @@ test("ribbons have a dense cubic core, periodic slots and persistent rate phase"
     const edge = dist(center, cloud(key, u, 1, 0.5, c));
     const core = dist(center, cloud(key, u, 0.75, 0.5, c));
     assert.ok(
-      Math.abs(core / edge - 0.125) < 1e-12,
-      "half the birds occupy one eighth of the ribbon half-width",
+      Math.abs(core / edge - 0.2375) < 1e-12,
+      "linear+cubic sampling broadens the flock without losing its dense core",
     );
   }
   // The closed scroll and knot agree at the lattice seam, including twist.
@@ -331,4 +341,59 @@ test("cloud data uses a seam-free diamond chart, never a colour cache", () => {
   assert.match(murmuration.precompute.fragment, /vec4\(muCloudExact/);
   assert.match(murmuration.fragment, /#ifdef PRECOMPUTED_LINEAR/);
   assert.match(murmuration.fragment, /horizonAA=max\(fwidth\(e\)/);
+});
+
+test("four authored gestures fill the grid; the wing-front is local and hit-seeded", () => {
+  assert.deepEqual(
+    murmuration.rhythm.map((g) => g.slot),
+    [0, 1, 2, 3],
+  );
+  assert.equal(murmuration.rhythm[3].id, "wing-front");
+  assert.deepEqual(Object.values(murmuration.rhythmStyles), [
+    "Dusk wings",
+    "Turning flock",
+    "Falcon shadow",
+  ]);
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(murmuration.rhythm, style);
+    const density = pattern.tracks.reduce(
+      (n, t) =>
+        n + (t.steps.filter((v) => v > 0).length * 4 * t.division) / t.length,
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+    const front = murmuration.rhythm[3].styles[style];
+    const hits = front.steps.flatMap((v, i) => (v > 0 ? [i] : []));
+    assert.ok(hits.length >= 2);
+    const gap = Math.min(
+      ...hits.map(
+        (hit, i) =>
+          (hits[(i + 1) % hits.length] +
+            (i === hits.length - 1 ? front.length : 0) -
+            hit) /
+          front.division,
+      ),
+    );
+    assert.ok(
+      front.duration < gap,
+      `${style}: wing-front settles before next fill`,
+    );
+  }
+  assert.match(murmuration.simulation.fragment, /u_rhythmHit\.w > 0\./);
+  assert.match(murmuration.geometry.vertex, /u_rhythmCount\.w/);
+  assert.match(murmuration.geometry.vertex, /u_rhythm\.w/);
+  assert.match(murmuration.geometry.vertex, /v_glint = u_rhythm\.x/);
+  assert.match(murmuration.geometry.fragment, /v_front\*feather/);
+  // pow(negative, integer-looking float) is undefined in GLSL: the third
+  // film caught this collapsing the cloud. Square trig values by multiply.
+  for (const source of [
+    murmuration.simulation.fragment,
+    murmuration.geometry.vertex,
+  ])
+    assert.doesNotMatch(source, /pow\((?:sin|cos)\(/);
+  assert.match(murmuration.geometry.vertex, /swell\*swell/);
 });
