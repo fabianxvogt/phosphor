@@ -2323,6 +2323,8 @@ export default {
   "A startle runs across the flock from neighbour to neighbour.": "Ein Schreck läuft von Nachbar zu Nachbar durch den Schwarm.",
   "Falcon strike": "Falkenangriff",
   "The falcon strikes; the birds around it scatter and startle.": "Der Falke stößt zu; die Vögel um ihn weichen aus und erschrecken.",
+  "Wing front": "Flügelfront",
+  "A startled silver wing-front peels through the flock on fills, launching a neighbour wave.": "Eine silberne Schreckfront schält sich bei Fills durch den Schwarm und löst eine Welle von Nachbar zu Nachbar aus.",
   "Dusk wings": "Dämmerflügel",
   "Turning flock": "Kreisender Schwarm",
   "Falcon shadow": "Falkenschatten",

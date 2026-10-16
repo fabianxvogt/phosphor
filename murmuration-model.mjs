@@ -124,23 +124,27 @@ export function falcon(clock) {
 export const yaw = (key, clock) =>
   TAU * (cycle(clock, N.yaw) + rnd(key, 0, 907));
 
-// Folded Lagrangian sheet: cubic transverse sampling concentrates birds in
-// a dense ribbon while preserving a sparse skirt and persistent lattice IDs.
+// Folded Lagrangian sheet: linear+cubic transverse sampling concentrates
+// birds in a graded ribbon with broader skirts and persistent lattice IDs.
 export function cloud(key, u, v, h, clock, fold = 1) {
   const t = TAU * (u + cycle(clock, N.swirl));
   const flow = TAU * cycle(clock, N.flow),
     br = TAU * cycle(clock, N.breath);
   const s = 2 * v - 1,
-    width = 0.65 * s ** 3,
+    width =
+      1.65 * (0.7 * s ** 3 + 0.3 * s) * (0.65 + 0.35 * Math.cos(t + br) ** 2),
     wave = 2 * t + flow;
-  return [
-    4.6 * Math.cos(t) + 0.35 * width * Math.sin(t),
-    1.25 * Math.sin(wave) +
-      0.4 * Math.min(2, Math.max(0, fold)) * Math.sin(3 * t - flow) +
-      width * (0.6 + 0.3 * Math.sin(br + t)) +
-      0.8,
-    1.6 * Math.sin(t) + (h - 0.5) * 0.32 + width * Math.cos(wave),
+  const q = [
+    4.2 * Math.cos(t) + 0.35 * width * Math.sin(t),
+    1.65 * Math.sin(wave) +
+      0.5 * Math.min(2, Math.max(0, fold)) * Math.sin(3 * t - flow) +
+      width * (0.8 + 0.3 * Math.sin(br + t)),
+    1.6 * Math.sin(t) + (h - 0.5) * 0.5 + width * Math.cos(wave),
   ];
+  const yw = yaw(key, clock),
+    cy = Math.cos(yw),
+    sy = Math.sin(yw);
+  return [cy * q[0] + sy * q[2], q[1] + 1.2, -sy * q[0] + cy * q[2]];
 }
 
 // Formation slots, from the bird's lattice coordinate (u, v) only.
@@ -156,7 +160,10 @@ export function slot(key, u, v, h, clock, formation) {
   let th = TAU * u + circ;
   th += 0.55 * Math.sin(th - roll) + 0.19 * Math.sin(3 * th + roll);
   const sheet = 2 * v - 1,
-    width = 0.95 * sheet ** 3,
+    width =
+      1.85 *
+      (0.7 * sheet ** 3 + 0.3 * sheet) *
+      (0.65 + 0.35 * Math.sin(th + roll) ** 2),
     curl = 2 * th + roll;
   const torus = [
     3.8 * Math.cos(th) + 0.2 * width * Math.cos(th),

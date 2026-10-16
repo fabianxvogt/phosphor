@@ -76,17 +76,19 @@ vec3 muFalcon(uint c) {
 }
 float muYaw(uint c) { return MU_TAU * (muCycle(c, ${N.yaw}u) + muRnd(muKey(), 0u, 907u)); }
 // A folded sheet, not a uniformly filled volume. Cross-sheet compression
-// creates dense ribbons with sparse skirts; integer clock modes are endless.
+// creates dense ribbons with graded skirts; integer clock modes are endless.
 vec3 muCloud(float u, float v, float h, uint c) {
   float t = MU_TAU * (u + muCycle(c, ${N.swirl}u));
   float flow = MU_TAU * muCycle(c, ${N.flow}u);
   float br = MU_TAU * muCycle(c, ${N.breath}u);
   float fold = clamp(u_params[5], 0., 2.);
-  float s = 2.*v-1., width = .65*s*s*s;
+  float s = 2.*v-1., swell = cos(t+br);
+  float width = 1.65*(.7*s*s*s+.3*s)*(.65+.35*swell*swell);
   float wave = 2.*t + flow;
-  vec3 q = vec3(4.6*cos(t), 1.25*sin(wave)+.4*fold*sin(3.*t-flow), 1.6*sin(t));
-  q += vec3(.35*width*sin(t), width*(.6+.3*sin(br+t)), (h-.5)*.32 + width*cos(wave));
-  return q + vec3(0., .8, 0.);
+  vec3 q = vec3(4.2*cos(t), 1.65*sin(wave)+.5*fold*sin(3.*t-flow), 1.6*sin(t));
+  q += vec3(.35*width*sin(t), width*(.8+.3*sin(br+t)), (h-.5)*.5 + width*cos(wave));
+  float yaw = muYaw(c), cy = cos(yaw), sy = sin(yaw);
+  return vec3(cy*q.x+sy*q.z,q.y,-sy*q.x+cy*q.z) + vec3(0., 1.2, 0.);
 }
 vec3 muKnot(float t) { return 1.25 * vec3(sin(t) + 2. * sin(2. * t), -sin(3. * t), cos(t) - 2. * cos(2. * t)); }
 vec3 muSlot(float u, float v, float h, uint c, float formation) {
@@ -94,7 +96,8 @@ vec3 muSlot(float u, float v, float h, uint c, float formation) {
   float th = MU_TAU * u + circ;
   // A travelling compression changes density sharply along the ribbon.
   th += .55*sin(th-roll)+.19*sin(3.*th+roll);
-  float sheet = 2.*v-1., width = .95*sheet*sheet*sheet;
+  float sheet = 2.*v-1., swell = sin(th+roll);
+  float width = 1.85*(.7*sheet*sheet*sheet+.3*sheet)*(.65+.35*swell*swell);
   float curl = 2.*th+roll;
   vec3 torus = vec3(3.8*cos(th), 2.05*sin(curl)+.35*sin(3.*th-roll), 1.4*sin(th));
   torus += vec3(.2*width*cos(th), width*cos(th+roll), width*sin(th+roll)+(h-.5)*.22);
@@ -149,9 +152,9 @@ MuCam muCamera(uint c, float dev) {
   // putting the camera inside a cropped wall of subpixel wings.
   float r = mix(dist, .82 * dist, m.dive);
   // Eye height is absolute so the horizon stays put; the flock flies above.
-  float h = mix(mix(.45, 4.5, clamp(u_params[7], 0., 1.)) + .3 * sin(MU_TAU * muCycle(c, ${N.anchorY * 3}u)), a.y, m.dive);
+  float h = mix(.45, 3.2, clamp(u_params[7], 0., 1.)) + .15 * sin(MU_TAU * muCycle(c, ${N.anchorY * 3}u));
   m.eye = vec3(a.x + r * sin(yaw), h, a.z + r * cos(yaw));
-  m.fwd = normalize(a + vec3(0., .5 + .7 * w.z, 0.) - m.eye);
+  m.fwd = normalize(a + vec3(0., 1.1, 0.) - m.eye);
   m.right = normalize(cross(m.fwd, vec3(0., 1., 0.)));
   m.up = cross(m.right, m.fwd);
   m.focal = mix(1.8 - .15 * w.z, 1.45, m.dive) * (1. + .02 * clamp(u_kick, 0., 1.));
@@ -179,9 +182,9 @@ vec2 muCloudExact(vec3 dir) {
   float n=muNoise(q)+.4*muNoise(q*3.1+19.);
   float detail=muNoise(q*9.3+7.)-.5;
   n+=.12*detail;
-  float bands=sin(e*26.+n*2.+dot(h,vec2(1.,2.)));
-  float cloud=muSmooth(-.65,.9,bands+n*.45)*muSmooth(.03,.13,e)*(1.-muSmooth(.5,.85,e));
-  return vec2(clamp(cloud*.68+detail*.09,0.,.82),exp(-abs(bands+.25)*8.)*cloud*.045);
+  float bands=n+.12*sin(e*18.+dot(h,vec2(1.,2.)));
+  float cloud=muSmooth(.48,1.15,bands)*muSmooth(.04,.18,e)*(1.-muSmooth(.55,.95,e));
+  return vec2(clamp(cloud*.38+detail*.05,0.,.5),exp(-abs(bands-.7)*10.)*cloud*.025);
 }
 vec2 muRidges(vec2 h) {
   vec2 h2=vec2(h.x*h.x-h.y*h.y,2.*h.x*h.y);
@@ -216,9 +219,9 @@ vec3 muSky(vec3 dir) {
   vec2 h = normalize(dir.xz + vec2(1e-5)), s = normalize(L.xz);
   float az = .5 + .5 * dot(h, s);
   float band = exp(-max(e,0.)*2.8);
-  vec3 warm = mix(u_primary,vec3(1.),.32);
-  vec3 col = mix(u_secondary*.14, mix(u_secondary,warm,.72)*.75, band);
-  col += warm * pow(az,4.) * exp(-max(e,0.)*5.)*.38;
+  vec3 warm = mix(u_primary,u_accent,.12);
+  vec3 col = mix(u_secondary*.055, mix(u_secondary,warm,.88)*.9, band);
+  col += warm * pow(az,6.) * exp(-max(e,0.)*4.)*.48;
   vec4 clouds=muCloudData(dir);
   col=mix(col,col*.38+u_secondary*.025,clouds.x);
   col+=warm*clouds.y;
@@ -319,10 +322,16 @@ void main() {
     }
     // Rhythm: a startle wave from a seeded point; a falcon strike.
     if (u_rhythmHit.y > 0.) {
-      vec3 at = A + 2.5 * vec3(cos(u_rhythmCount.y * 2.4), .3 * sin(u_rhythmCount.y * 1.7), sin(u_rhythmCount.y * 2.4));
-      if (length(b.p - at) < 1.) fired = true;
+      int ox = int(mod(u_rhythmCount.y*73.,float(MU_W)));
+      if (abs(x-ox)<3 && abs(y-MU_H/2)<4) fired = true;
     }
-    if (u_rhythmHit.z > 0. && length(b.p - muFalcon(clock)) < 2.) fired = true;
+    if (u_rhythmHit.z > 0. && length(b.p - muFalcon(clock)) < 2.5) fired = true;
+    // The fill's visible wing-front also launches a real excitable wave.
+    // One consumed hit, never repeated for the envelope's lifetime.
+    if (u_rhythmHit.w > 0.) {
+      int ox = int(mod(u_rhythmCount.w*97.,float(MU_W)));
+      if (abs(x-ox)<3 && abs(y-MU_H/2)<6) fired = true;
+    }
     // In Surge and Formation a startle fires from a seeded lattice point
     // every few seconds; the lattice carries it round the flock.
     uint back = clock - uint(u_dt * rate * (4294967296. / MU_P) + .5);
@@ -374,10 +383,12 @@ uniform highp uint u_seedBits;
 uniform float u_params[8];
 uniform vec2 u_resolution;
 uniform float u_kick, u_level;
+uniform vec4 u_rhythm, u_rhythmCount;
 uniform vec3 u_primary, u_secondary, u_accent;
 ${common}
 ${view}
 out vec3 v_normal, v_view, v_sky;
+out float v_glint, v_front;
 out float v_startle, v_density, v_kind, v_tip, v_depth, v_cover;
 out vec3 v_bary;
 void main() {
@@ -389,7 +400,7 @@ void main() {
   float T = 0., bank = 0., kind = 0., density = 0., reveal = 1.;
   if (id < 0) {
     // The falcon: only while it hunts the surging cloud.
-    float hunt = muWeights(dev).y * clamp(u_params[4], 0., 2.);
+    float hunt = (.3+.7*muWeights(dev).y) * clamp(u_params[4], 0., 2.);
     if (hunt < .05) return;
     p = muFalcon(clock);
     v = (muFalcon(clock + 2982617u) - p) / .02;
@@ -407,7 +418,20 @@ void main() {
     vec3 fromHome = p - muAnchor(clock);
     density = .8 / (1. + .08 * dot(fromHome, fromHome)) * reveal;
   }
+  // A narrow count-selected front travels along persistent longitude.
+  // The envelope moves the front, not the camera or a whole-frame exposure.
+  float longitude = float(max(id,0)%MU_W)/float(MU_W);
+  float frontAt = fract(u_rhythmCount.w*.381966 + (1.-u_rhythm.w)*.8);
+  float frontDistance = abs(sin(3.141592653589793*(longitude-frontAt)));
+  float front = (1.-muSmooth(.08,.25,frontDistance))*muSmooth(.01,.2,u_rhythm.w)*(1.-kind);
+  bank += front*1.2;
+  v_front = front;
+  float glintAt = fract(u_rhythmCount.x*.618034);
+  float glintDistance = abs(sin(3.141592653589793*(longitude-glintAt)));
+  v_glint = u_rhythm.x*(1.-muSmooth(.12,.38,glintDistance))*(1.-kind);
   MuCam cam = muCamera(clock, dev);
+  // Preserve the full cloud in tall output without changing landscape.
+  cam.focal *= min(1., max(.72, 1.35*u_resolution.x/u_resolution.y));
   // The background varies only on cloud scales, not feather scales. Evaluate
   // its exact density at the bird centre once per vertex, never per fragment.
   v_sky=muSky(normalize(p-cam.eye));
@@ -423,10 +447,10 @@ void main() {
   float z = dot(p - cam.eye, cam.fwd);
   if (z < .3) return;
   float res = min(u_resolution.x, u_resolution.y);
-  float span = kind > .5 ? .2 : .06;
-  // At least about 3 px wide at 1080p; birds by the lens shrink away.
+  float span = kind > .5 ? .26 : .085;
+  // At least about 4 px wide at 1080p; birds by the lens shrink away.
   float px = span * cam.focal / z * res * .5;
-  float grow = max(1., 3. * res / 1080. / px);
+  float grow = max(1., 4. * res / 1080. / px);
   float scale = grow * muSmooth(.3, 1.1, z) * sqrt(reveal);
   // Small birds: body width and wing chord (0.2 and 0.28 template units)
   // would be sub-pixel slivers that flicker in and out of pixels, so they
@@ -452,7 +476,7 @@ void main() {
   vec2 across = vec2(-heading.y, heading.x);
   // Even the distant LOD retains the banking compression. A startle wave
   // sweeps a dark/light density edge rather than lighting a band of dots.
-  float wingArea=.32+.68*abs(cos(bank));
+  float wingArea=.15+.85*abs(cos(bank));
   vec2 plane = heading * (local.x + local.z*.18*sin(bank))
     + across * local.z * wingArea * (1. + .12 * flap);
   vec3 offset = mix(fw * local.x + nrm * local.y + side * local.z,
@@ -476,6 +500,7 @@ const surface = `#version 300 es
 precision highp float;
 precision highp int;
 in vec3 v_normal, v_view, v_sky;
+in float v_glint, v_front;
 in float v_startle, v_density, v_kind, v_tip, v_depth, v_cover;
 in vec3 v_bary;
 uniform highp sampler2D u_state;
@@ -495,15 +520,19 @@ void main() {
   vec3 warm=mix(u_primary,vec3(1.),.32);
   vec3 sky=v_sky;
   float rim=pow(1.-abs(dot(N,V)),3.);
-  vec3 col=u_secondary*(.004+.008*rim)+warm*.018*turn*rim;
-  if(v_kind>.5) col+=u_accent*.045;
+  vec3 col=u_secondary*(.004+.008*rim)+warm*.18*turn*rim;
+  // Broad feather gradients inside a local cohort, not neon outlines.
+  float feather=.25+.75*abs(v_tip);
+  col += mix(u_primary,vec3(1.),.12)*v_glint*feather*1.25;
+  col += mix(u_primary,vec3(1.),.35)*v_front*feather*1.65;
+  if(v_kind>.5) col+=u_accent*(.12+.65*u_rhythm.z);
   col=mix(col,sky,1.-exp(-v_depth*.003));
   // Coverage: a bird drawn larger than it is shows its light spread thinly,
   // and outer edges fade into the sky over about a pixel.
   float e = min(v_bary.x, min(v_bary.y, v_bary.z));
   float edge = clamp(e / max(fwidth(e), 1e-6) + .5, 0., 1.);
   // (Dense clouds have birds, not sky, behind those edges: fade only half.)
-  col = mix(sky, col, (.82 + .18 * v_cover) * edge);
+  col = mix(sky, col, (.94 + .06 * v_cover) * edge);
   outColor = vec4(col, 1.);
 }
 `;
@@ -514,6 +543,7 @@ ${view}
 void main() {
   uint clock = muClock();
   MuCam cam = muCamera(clock, clamp(u_params[0], 0., 2.));
+  cam.focal *= min(1., max(.72, 1.35*u_resolution.x/u_resolution.y));
   vec2 res = u_resolution / min(u_resolution.x, u_resolution.y);
   vec2 p = (v_uv * 2. - 1.) * res;
   vec3 dir = normalize(cam.fwd * cam.focal + cam.right * p.x + cam.up * p.y);
@@ -526,11 +556,12 @@ void main() {
     vec2 h=normalize(dir.xz+vec2(1e-5));
     float az=atan(h.y,h.x);
     float ridge=.003+.007*sin(az*3.)+.003*cos(az*7.);
-    float treeX=az*23., cell=floor(treeX), local=fract(treeX)-.5;
+    float treeX=az*23.+.32*sin(az*11.), cell=floor(treeX), local=fract(treeX)-.5;
     float rnd=fract(sin(cell*127.1)*43758.5453);
-    float crown=sqrt(max(0.,1.-4.*local*local));
+    float crown=pow(max(0.,1.-4.*local*local),.45+.9*rnd);
     float twig=.0015*sin(treeX*51.)+.001*sin(treeX*113.);
-    float trees=ridge+.003+(.005+.014*rnd)*crown+twig*crown;
+    float forest=muNoise(vec2(az*16.,3.));
+    float trees=ridge+.002+(.003+.022*rnd*forest)*crown+twig*crown;
     float aa=horizonAA;
     float land=1.-smoothstep(trees-aa,trees+aa,e);
     vec3 reflected=muSky(normalize(vec3(dir.x,abs(e)*.7,dir.z)));
@@ -549,8 +580,10 @@ void main() {
     float stem=abs(local-bend);
     float aa=22./min(u_resolution.x,u_resolution.y);
     float reed=(1.-smoothstep(.018,.018+aa,stem))*(1.-smoothstep(tip-.02,tip,p.y));
-    float head=exp(-pow((p.y-tip+.025)/.035,2.)-pow(stem/.055,2.));
-    float leaf=exp(-pow((p.y-tip+.16)/.11,2.)-pow((local-bend+(p.y-tip+.13)*2.)/.035,2.));
+    float headY=(p.y-tip+.025)/.035, headX=stem/.055;
+    float leafY=(p.y-tip+.16)/.11, leafX=(local-bend+(p.y-tip+.13)*2.)/.035;
+    float head=exp(-headY*headY-headX*headX);
+    float leaf=exp(-leafY*leafY-leafX*leafX);
     col=mix(col,u_secondary*.002,clamp(reed+head+leaf,0.,1.));
   }
   emit(vec4(col, 1.));
@@ -655,40 +688,140 @@ export default {
     { param: "falcon", feature: "onset", amount: 0.06 },
     { param: "fold", feature: "low", amount: 0.05 },
   ],
-  rhythmStyles: { restrained: "Dusk wings", driving: "Turning flock", accented: "Falcon shadow" },
+  rhythmStyles: {
+    restrained: "Dusk wings",
+    driving: "Turning flock",
+    accented: "Falcon shadow",
+  },
   rhythm: [
     familyEffect(
       "sun-glint",
       0,
       "Sun glint",
       "The flock's wings catch the low sun together.",
-      { period: 4, strength: 0.55, duration: 1, steps: "X...", styles: {
-        restrained: { steps: "X......x | ...x....", division: 2, strength: 0.48, duration: 0.9 },
-        driving: { steps: "X..x..X. | .x..X..x", division: 2, strength: 0.72, duration: 0.4 },
-        accented: { steps: "X..x.X..x.X..x.. | ..X.x..X..x.X.xx", division: 4, strength: 0.88, duration: 0.2 },
-      } },
+      {
+        period: 4,
+        strength: 0.55,
+        duration: 1,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X......x | ...x....",
+            division: 2,
+            strength: 0.48,
+            duration: 0.9,
+          },
+          driving: {
+            steps: "X.x..x.X | .x.X.x.x",
+            division: 2,
+            strength: 0.86,
+            duration: 0.4,
+          },
+          accented: {
+            steps: "X..x.X..x.X..x.. | ..X.x..X..x.X.xx",
+            division: 4,
+            strength: 0.88,
+            duration: 0.2,
+          },
+        },
+      },
     ),
     familyEffect(
       "startle-wave",
       1,
       "Startle wave",
       "A startle runs across the flock from neighbour to neighbour.",
-      { period: 8, strength: 0.7, duration: 1, steps: "X.......", styles: {
-        restrained: { steps: "..x..... | ......X.", division: 2, strength: 0.55, duration: 1.2 },
-        driving: { steps: "...x.... | ......X. | ........ | .....x..", division: 2, strength: 0.8, duration: 1 },
-        accented: { steps: ".......x........ | ...........X.... | ....x........... | .........X.....x", division: 4, strength: 0.94, duration: 0.8 },
-      } },
+      {
+        period: 8,
+        strength: 0.7,
+        duration: 1,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "..x..... | ......X.",
+            division: 2,
+            strength: 0.55,
+            duration: 1.2,
+          },
+          driving: {
+            steps: "...x.... | ......X. | ........ | .....x..",
+            division: 2,
+            strength: 0.8,
+            duration: 1,
+          },
+          accented: {
+            steps:
+              ".......x........ | ...........X.... | ....x........... | .........X.....x",
+            division: 4,
+            strength: 0.94,
+            duration: 0.8,
+          },
+        },
+      },
     ),
     familyEffect(
       "falcon-strike",
       2,
       "Falcon strike",
       "The falcon strikes; the birds around it scatter and startle.",
-      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | .......X", division: 2, strength: 0.55, duration: 1.5 },
-        driving: { steps: "........ | .......x | ........ | ......X.", division: 2, strength: 0.82, duration: 1 },
-        accented: { steps: "................ | ..............x. | ................ | ...........X...x", division: 4, strength: 0.96, duration: 0.6 },
-      } },
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | .......X",
+            division: 2,
+            strength: 0.55,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "........ | .......x | ........ | ......X.",
+            division: 2,
+            strength: 0.82,
+            duration: 1,
+          },
+          accented: {
+            steps:
+              "................ | ..............x. | ................ | ...........X...x",
+            division: 4,
+            strength: 0.96,
+            duration: 0.6,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "wing-front",
+      3,
+      "Wing front",
+      "A startled silver wing-front peels through the flock on fills, launching a neighbour wave.",
+      {
+        period: 8,
+        strength: 0.85,
+        duration: 0.65,
+        styles: {
+          restrained: {
+            steps: "........ | ......x. | ........ | .......X",
+            division: 2,
+            strength: 0.58,
+            duration: 0.8,
+          },
+          driving: {
+            steps: "....X..x | ..X...x. | ....X..x | ...X...X",
+            division: 2,
+            strength: 0.88,
+            duration: 1.1,
+          },
+          accented: {
+            steps: "...X....x...X... | ......X..x...X..",
+            division: 4,
+            strength: 1,
+            duration: 0.65,
+          },
+        },
+      },
     ),
   ],
   fragment,
