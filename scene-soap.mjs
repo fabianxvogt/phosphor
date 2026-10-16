@@ -24,6 +24,7 @@ export function filmThickness(
     drain = 0,
     id = 0,
     rhythm = 0,
+    level = 0.5,
   } = {},
 ) {
   const smooth = (a, b, x) => {
@@ -45,7 +46,8 @@ export function filmThickness(
   const height =
     y +
     0.28 * curl +
-    0.035 * Math.sin(23 * v[0] + curl * 3 + Math.sin(8 * y + flow));
+    (0.02 + 0.03 * level) *
+      Math.sin(23 * v[0] + curl * 3 + Math.sin(8 * y + flow));
   const reservoir = 0.82 - 0.75 * height + 0.055 * Math.sin(drain + id * 0.71);
   const cap = 1 - smooth(0.48 - 0.25 * drainage, 0.86, y + 0.045 * curl);
   const d = Math.max(
@@ -54,7 +56,7 @@ export function filmThickness(
       (reservoir + 0.075 * Math.sin(12 * height + flow)) *
       (0.015 + 0.985 * cap),
   );
-  return d * (1 + 0.075 * rhythm * Math.exp(-(((y - 0.25) / 0.8) ** 2)));
+  return d * (1 + 0.16 * rhythm * Math.exp(-(((y - 0.25) / 0.8) ** 2)));
 }
 export function filmPalettePosition(thickness, cosine) {
   const mu = Math.min(1, Math.abs(cosine));
@@ -184,7 +186,7 @@ float soapBox(vec3 r,vec3 direction,vec2 size,float mullion) {
  return panel*bars;
 }
 vec3 soapRoom(vec3 r) {
- vec3 pale=mix(u_secondary,vec3(1.0),.85);
+ vec3 pale=mix(u_secondary,vec3(1.0),.55);
  float key=soapBox(r,vec3(-.55,.65,.65),vec2(.26,.47),1.0);
  float strip=soapBox(r,vec3(.85,.15,.4),vec2(.04,.65),0.0);
  float fill=pow(max(dot(r,normalize(vec3(-.6,.6,-.5))),0.0),6.0);
@@ -204,11 +206,23 @@ void soapFilm(vec3 p,vec3 n,vec3 rd,float distance,float id,float edge,float cov
  // The phase advances downwards: gravity carries fine folded contours
  // into the thicker lower reservoir. A continuously renewed black cap
  // is optically thin, not an opaque dark patch painted on the sphere.
- float height=q.y+.28*curl+.035*sin(23.0*vortex.x+curl*3.0+sin(8.0*q.y+flowPhase));
+ float height=q.y+.28*curl+(.02+.03*u_level)*sin(23.0*vortex.x+curl*3.0+sin(8.0*q.y+flowPhase));
  float drain=.82-.75*height+.055*sin(drainPhase+id*.71);
  float blackCap=1.0-smoothstep(.48-.25*u_params[4],.86,q.y+.045*curl);
  float thickness=max(6.0,u_params[1]*(drain+.075*sin(12.0*height+flowPhase))*(.015+.985*blackCap));
- thickness*=1.0+.075*u_rhythm.x*exp(-sq((q.y-.25)/.8));
+ thickness*=1.0+.16*u_rhythm.x*exp(-sq((q.y-.25)/.8));
+ // Capillary wave: each musical strike addresses existing membranes, never
+ // creates or destroys a cell. A decaying envelope moves a bright thin-film
+ // front out from a seeded point; only a small surface patch catches it.
+ float shimmer=0.0;
+ float address=mod(floor(id/4.0)+u_rhythmCount.w,3.0);
+ if(address<.5 && u_rhythm.w>.001){
+  float wavePhase=clamp(1.0-u_rhythm.w,0.0,1.0);
+  vec2 source=vec2(.32*sin(u_rhythmCount.w*2.39996323),.24);
+  float wave=exp(-sq((length(q.xy-source)-(.12+1.45*wavePhase))/.16));
+  shimmer=wave*(u_rhythm.w+.12*u_rhythmHit.w);
+ }
+ thickness*=1.0+.26*shimmer;
  vec3 orders=soapAiry(thickness,mu);
  float coherence=exp(-sq(soapDefocus(distance)*13.0));
  float fringe=.5+.5*coherence*sin(4.0*PI*1.333*thickness*sqrt(1.0-(1.0-mu*mu)/sq(1.333))/550.0);
@@ -219,17 +233,19 @@ void soapFilm(vec3 p,vec3 n,vec3 rd,float distance,float id,float edge,float cov
  float response=dot(orders,vec3(1.0/3.0));
  float grazing=pow(1.0-mu,12.0);
  float rim=exp(-edge/max(.006*u_params[5],distance*pixel*.85+soapDefocus(distance)*.3));
- float localPulse=1.0+.22*u_kick+.28*u_rhythm.y*exp(-sq(q.y-.5));
+ float localPulse=1.0+.22*u_kick+1.8*u_rhythm.y*exp(-sq(q.y-.5));
  float band=pow(fringe,3.0);
  vec3 colour=iridescence*(.008+(6.1+.8*band)*response+.10*grazing)*(.65+.35*max(dot(n,normalize(vec3(-.5,.7,.4))),0.0));
  // The room lights have radiance above one: a 4% film reflection must
  // still carry a readable curved softbox, without an opaque diffuse coat.
  colour+=reflected*(.10+.85*fresnel)*(.2+4.5*response);
- colour+=mix(iridescence,vec3(1.0),.40)*(grazing*.38+pow(1.0-mu,38.0)*1.5);
- colour+=mix(u_secondary,vec3(1.0),.72)*rim*2.7*localPulse;
+ colour+=mix(iridescence,vec3(1.0),.12)*(grazing*.28+pow(1.0-mu,38.0)*.65);
+ float borderLight=.22+.78*pow(max(dot(n,normalize(vec3(-.5,.7,.4))),0.0),2.0);
+ colour+=mix(iridescence,u_secondary,.24)*rim*1.8*localPulse*borderLight;
  float rare=pow(fringe,22.0)*pow(max(dot(n,normalize(vec3(.2,.9,.3))),0.0),8.0);
- colour+=u_accent*rare*.65*(1.0+u_rhythm.z);
- float fog=exp(-distance*mix(.025,.075,cathedral));
+ colour+=u_accent*rare*.65*(1.0+3.0*u_rhythm.z);
+ colour+=u_accent*shimmer*(.35+1.2*response)*3.8;
+ float fog=exp(-distance*mix(.025,.105,cathedral));
  radiance+=(colour*fog+palette(.23)*.008*(1.0-fog))*coverage;
  opticalDepth+=(.04+.25*response+.1*fresnel)*coverage*fog;
 }
@@ -312,12 +328,13 @@ void main(){
  float seedAngle=float(u_seedBits%997u)*.006302;
  soapTurn=rot2(.16*sin(cameraPhase)+seedAngle);
  vec2 uv=aspectUV()/min(u_resolution.x/u_resolution.y,1.0);
+ uv+=vec2(.12*(1.0-cathedral),.035);
  float az=(.13+.10*cathedral)*sin(cameraPhase),h=(u_params[7]-.5)*1.2;
  vec3 target=vec3(0,h*.2,-4.2*cathedral);
  vec3 ro=vec3(sin(az)*(5.4+3.0*form),h+.18*sin(cameraPhase*2.0)+.16*cathedral*sin(cameraPhase),5.4+3.0*form-2.9*cathedral);
  focusDistance=length(target-ro);
  vec3 fw=normalize(target-ro),right=normalize(cross(fw,vec3(0,1,0))),up=cross(right,fw);
- vec3 rd=normalize(fw*1.85*(1.0+.018*u_kick)+uv.x*right+uv.y*up);
+ vec3 rd=normalize(fw*(1.85+.19*(1.0-cathedral))*(1.0+.018*u_kick)+uv.x*right+uv.y*up);
  radiance=vec3(0);opticalDepth=0.0;
  vec3 centre=vec3(.07*sin(flowPhase),.06*cos(flowPhase),-4.2*cathedral);
  soapGroup(ro,rd,centre,1.0+.45*cathedral,1.0,0.0);
@@ -344,25 +361,31 @@ void main(){
    soapFilm(p,normalize(p-c),rd,t,id+40.0,100.0,.7*cover);
   }
  }
- // Dark photographic studio: defocused palette practicals recede behind
- // the films. Positions are world-space so the camera produces parallax.
+ // Dark photographic studio; world-space light shafts provide parallax.
  vec3 background=u_secondary*(.006+.012*exp(-sq(rd.y+.13)*14.0));
  background+=mix(u_primary,u_secondary,.6)*.009*exp(-dot(uv,uv)*2.0);
- for(int i=0;i<5;i++){
+ for(int i=0;i<4;i++){
   float id=float(i),side=mod(id,2.0)*2.0-1.0;
-  vec3 lightPos=vec3(side*(3.2+id*.8),sin(id*3.7)*2.8,-5.0-id*3.0);
-  vec3 delta=lightPos-ro;float t=dot(delta,rd);
-  float d=length(delta-rd*t)/max(t,.001);
-  float radius=.012+.004*id;
-  float disc=1.0-smoothstep(radius*.45,radius*1.65,d);
-  float halo=exp(-sq(d/(radius*2.8)))*.12;
-  background+=palette(.2+id*.15)*(disc+halo)*.20*step(0.0,t);
+  // Analytical single-scattering approximation of four tall nave shafts.
+  // Ray / beam closest approach gives perspective and camera parallax.
+  vec3 source=vec3(side*(2.0+id*.65),5.0,-4.0-id*2.5);
+  vec3 axis=normalize(vec3(-side*.22,-1.0,.16));
+  vec3 v=ro-source;float b=dot(rd,axis),den=max(1.0-b*b,.001);
+  float along=(dot(v,axis)-b*dot(v,rd))/den;
+  float rayT=b*along-dot(v,rd);
+  vec3 beamPoint=source+axis*clamp(along,0.0,8.5);
+  vec3 beamDelta=ro+rd*max(rayT,0.0)-beamPoint;
+  float beamD2=dot(beamDelta,beamDelta);
+  float shaft=exp(-beamD2/sq(.14+.035*max(along,0.0)));
+  float haze=exp(-beamD2/.64)*.12;
+  background+=mix(u_secondary,u_primary,.35)*(shaft+haze)*.16*exp(-max(rayT,0.0)*.035)*step(0.0,rayT);
  }
  // A restrained light pool beneath the suspended nave is a scale cue.
  if(rd.y<-.0001){
   float t=(-2.9-ro.y)/rd.y;vec3 p=ro+rd*t;
   float pool=exp(-sq(p.x/3.5)-sq((p.z+2.0)/6.0));
-  background+=mix(u_secondary,u_primary,.35)*pool*.035*cathedral*exp(-t*.04);
+  float caustic=.35+.65*pow(.5+.5*sin(length(p.xz*vec2(1.0,.65))*5.0+.5*sin(p.z*2.0)),6.0);
+  background+=mix(u_secondary,u_primary,.35)*pool*(.06+.10*caustic)*exp(-t*.04);
  }
  vec3 col=background*exp(-opticalDepth)+radiance/(1.0+.32*opticalDepth);
  col*=1.0-.12*smoothstep(.5,1.2,length(uv));
@@ -419,40 +442,139 @@ export default {
     { rate: (p) => p[3] * 0.035, period: 2 * Math.PI },
     { rate: () => 0.085, period: 2 * Math.PI },
   ],
-  rhythmStyles: { restrained: "Thin silence", driving: "Opal breathing", accented: "Iridescent bells" },
+  rhythmStyles: {
+    restrained: "Thin silence",
+    driving: "Opal breathing",
+    accented: "Iridescent bells",
+  },
   rhythm: [
     familyEffect(
       "fringe-order",
       0,
       "Fringe order",
       "A local thickness wave travels through the existing interference bands.",
-      { period: 4, strength: 0.55, duration: 1.5, steps: "X...", styles: {
-        restrained: { steps: "X....... | .....x.. | ...X.... | ....x...", division: 2, strength: 0.48, duration: 1.4 },
-        driving: { steps: "X...x..X | ..x...X.", division: 2, strength: 0.72, duration: 0.8 },
-        accented: { steps: "X..x...X..x...X..x..", division: 4, strength: 0.86, duration: 0.5 },
-      } },
+      {
+        period: 4,
+        strength: 0.55,
+        duration: 1.5,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | .....x.. | ...X.... | ....x...",
+            division: 2,
+            strength: 0.48,
+            duration: 1.4,
+          },
+          driving: {
+            steps: "X...x..X | ..x...X.",
+            division: 2,
+            strength: 0.72,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "X..x...X..x...X..x..",
+            division: 4,
+            strength: 0.86,
+            duration: 0.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "border-breath",
       1,
       "Border breath",
       "The draining Plateau borders catch a bounded grazing-light breath.",
-      { period: 8, strength: 0.5, duration: 2.5, steps: "X.......", styles: {
-        restrained: { steps: "..x..... | .......X | ........ | ....x...", division: 2, strength: 0.45, duration: 1.6 },
-        driving: { steps: "...X.... | ......x. | .X...... | .......x", division: 2, strength: 0.68, duration: 1.2 },
-        accented: { steps: ".....X..x....X.. | ..x....X..x.....", division: 4, strength: 0.82, duration: 0.5 },
-      } },
+      {
+        period: 8,
+        strength: 0.5,
+        duration: 2.5,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "..x..... | .......X | ........ | ....x...",
+            division: 2,
+            strength: 0.45,
+            duration: 1.6,
+          },
+          driving: {
+            steps: "...X.... | ......x. | .X...... | .......x",
+            division: 2,
+            strength: 0.68,
+            duration: 1.2,
+          },
+          accented: {
+            steps: ".....X..x....X.. | ..x....X..x.....",
+            division: 4,
+            strength: 0.82,
+            duration: 0.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "opal-window",
       2,
       "Opal window",
       "A rare highlight crosses the upper interference order of the same films.",
-      { period: 16, strength: 0.6, duration: 3, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ......X. | ........", division: 2, strength: 0.5, duration: 2.5 },
-        driving: { steps: "........ | .......x | ........ | .....X..", division: 2, strength: 0.74, duration: 1.8 },
-        accented: { steps: ".............x.. | .........X...x.. | ..............X.", division: 4, strength: 0.9, duration: 0.75 },
-      } },
+      {
+        period: 16,
+        strength: 0.6,
+        duration: 3,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ......X. | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 2.5,
+          },
+          driving: {
+            steps: "........ | .......x | ........ | .....X..",
+            division: 2,
+            strength: 0.74,
+            duration: 1.8,
+          },
+          accented: {
+            steps: ".............x.. | .........X...x.. | ..............X.",
+            division: 4,
+            strength: 0.9,
+            duration: 0.75,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "film-shimmer",
+      3,
+      "Film shimmer",
+      "A capillary shimmer wave expands across addressed soap films on syncopated accents.",
+      {
+        period: 8,
+        strength: 0.9,
+        duration: 0.7,
+        steps: "X...x...",
+        styles: {
+          restrained: {
+            steps: "..X..... | .....x..",
+            division: 2,
+            strength: 0.72,
+            duration: 1.1,
+          },
+          driving: {
+            steps: "X..x..X. | .X..x.X.",
+            division: 2,
+            strength: 0.95,
+            duration: 0.7,
+          },
+          accented: {
+            steps: "X..x..X...x..X... | ..X..x..X.......",
+            division: 4,
+            strength: 1.0,
+            duration: 0.6,
+          },
+        },
+      },
     ),
   ],
   fragment,

@@ -205,6 +205,8 @@ export default {
   "The draining Plateau borders catch a bounded grazing-light breath.": "The draining Plateau borders catch a bounded grazing-light breath.",
   "Opal window": "Opal window",
   "A rare highlight crosses the upper interference order of the same films.": "A rare highlight crosses the upper interference order of the same films.",
+  "Film shimmer": "Film shimmer",
+  "A capillary shimmer wave expands across addressed soap films on syncopated accents.": "A capillary shimmer wave expands across addressed soap films on syncopated accents.",
   "Thin silence": "Thin silence",
   "Opal breathing": "Opal breathing",
   "Iridescent bells": "Iridescent bells",

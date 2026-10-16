@@ -205,6 +205,8 @@ export default {
   "The draining Plateau borders catch a bounded grazing-light breath.": "Die abfließenden Plateau-Ränder fangen einen begrenzten Streiflichtatem ein.",
   "Opal window": "Opalfenster",
   "A rare highlight crosses the upper interference order of the same films.": "Ein seltenes Glanzlicht durchläuft die obere Interferenzordnung derselben Filme.",
+  "Film shimmer": "Filmschimmer",
+  "A capillary shimmer wave expands across addressed soap films on syncopated accents.": "Eine kapillare Schimmerwelle breitet sich auf synkopierten Akzenten über ausgewählte Seifenfilme aus.",
   "Thin silence": "Hauchdünne Stille",
   "Opal breathing": "Opalatmen",
   "Iridescent bells": "Schillernde Glocken",
