@@ -45,7 +45,9 @@ try {
         snapshot.params.development = spec.development;
       if (spec.palette) {
         const { PALETTES } = await import("/palettes.mjs");
-        snapshot.palette = { ...PALETTES.find((p) => p.id === spec.palette).colors };
+        snapshot.palette = {
+          ...PALETTES.find((p) => p.id === spec.palette).colors,
+        };
       }
       engine.resize(spec.width ?? 640, spec.height ?? 360);
       engine.setLevel(spec.energy, 0);
@@ -69,7 +71,15 @@ try {
       const gl = engine.gl;
       const pixels = new Uint8Array(engine.width * engine.height * 4);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.readPixels(0, 0, engine.width, engine.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      gl.readPixels(
+        0,
+        0,
+        engine.width,
+        engine.height,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        pixels,
+      );
       let lit = 0;
       for (let k = 0; k < pixels.length; k += 4)
         lit += Number(Math.max(pixels[k], pixels[k + 1], pixels[k + 2]) > 12);
@@ -81,20 +91,29 @@ try {
         png: canvas.toDataURL("image/png").split(",")[1],
         lit: lit / (engine.width * engine.height),
         glError: gl.getError(),
-        nonFinite: engine.counters.nonFinite + window.__harness.nonFiniteUploads,
+        nonFinite:
+          engine.counters.nonFinite + window.__harness.nonFiniteUploads,
       };
     }, spec);
     const { png, ...health } = result;
     assert.equal(health.glError, 0);
     assert.equal(health.nonFinite, 0);
-    assert.ok(health.lit > 0.04, `Mostly empty ${JSON.stringify(spec)}: ${health.lit}`);
+    assert.ok(
+      health.lit > 0.04,
+      `Mostly empty ${JSON.stringify(spec)}: ${health.lit}`,
+    );
     const file = `${String(i).padStart(2, "0")}-ink.png`;
     await writeFile(resolve(out, file), Buffer.from(png, "base64"));
     rows.push({ ...spec, ...health, file });
   }
   assert.deepEqual(lab.errors, []);
-  await writeFile(resolve(out, "verification.json"), JSON.stringify(rows, null, 2) + "\n");
-  console.log(`${rows.length} native frames: no GL/non-finite errors, lit coverage >4%`);
+  await writeFile(
+    resolve(out, "verification.json"),
+    JSON.stringify(rows, null, 2) + "\n",
+  );
+  console.log(
+    `${rows.length} native frames: no GL/non-finite errors, lit coverage >4%`,
+  );
 } finally {
   await runtime.stop();
   await server.close();
