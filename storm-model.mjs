@@ -482,6 +482,6 @@ export function stormBox(seed, development, height = 1) {
   maxZ = Math.max(maxZ, an.centre[2] + ra);
   return {
     lo: [Math.max(minX, -26), Math.max(0.3, (cells(seed, development).base - 1.5) * height), Math.max(minZ, -7)],
-    hi: [Math.min(maxX, 26), Math.min(17.1, top + an.dome + 2) * height, Math.min(maxZ, 23)],
+    hi: [Math.min(maxX, 26), Math.min(17.1, top + an.dome + 2.8) * height, Math.min(maxZ, 23)],
   };
 }

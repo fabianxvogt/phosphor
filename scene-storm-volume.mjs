@@ -119,11 +119,12 @@ void stStormBox(out vec3 lo, out vec3 hi) {
   float ra = stAnvilR+2.0;
   minX = min(minX,stAnvil.x-ra); maxX = max(maxX,stAnvil.x+ra);
   minZ = min(minZ,stAnvil.z-ra); maxZ = max(maxZ,stAnvil.z+ra);
+  // Haze bubbles boil up to ~0.7 above the crown: 2.8 headroom above top.
   // No cloud lies below the lowest base (wall cloud, ragged floor and its
   // ramp reach at most 1.4 below stBase): rays under the base start late.
   lo = vec3(max(minX,stVolumeLo.x),max(stVolumeLo.y,(stBase-1.5)*u_params[2]),max(minZ,stVolumeLo.z));
   hi = vec3(min(maxX,stVolumeLo.x+stVolumeSize.x),
-    min(stVolumeLo.y+stVolumeSize.y,top+stDomeR+2.0)*u_params[2],
+    min(stVolumeLo.y+stVolumeSize.y,top+stDomeR+2.8)*u_params[2],
     min(maxZ,stVolumeLo.z+stVolumeSize.z));
 }
 float stSmin(float a, float b, float k) {
