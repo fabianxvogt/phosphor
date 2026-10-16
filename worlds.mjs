@@ -58,7 +58,7 @@ const AUTHORED = [
     id: "mycelium",
     name: "Living Mycelium",
     description:
-      "One living field grows from understory threads into tidal membranes and a luminous city. Play every stage in between.",
+      "Branching hyphae carry nutrient signals through a living forest floor, then fruit into a luminous mushroom city. Play every stage in between.",
     states: [
       { name: "Understory", look: "mycelium:Hyphal Understory" },
       { name: "Tide", look: "mycelium:Tidal Lamellae" },
@@ -384,6 +384,18 @@ const HISTORY = [
   withoutParams(GARDEN_EVOLUTION),
   INK_BLOOM_BACKLIT,
   INK_BLOOM_CARVED,
+  // Living Mycelium before the seeded-network renderer (round 3).
+  {
+    id: "mycelium",
+    name: "Living Mycelium",
+    description:
+      "One living field grows from understory threads into tidal membranes and a luminous city. Play every stage in between.",
+    states: [
+      { name: "Understory", look: "mycelium:Hyphal Understory" },
+      { name: "Tide", look: "mycelium:Tidal Lamellae" },
+      { name: "City", look: "mycelium:Lantern City" },
+    ],
+  },
 ];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const untouched = (w) =>

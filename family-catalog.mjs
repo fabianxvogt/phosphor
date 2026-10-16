@@ -181,9 +181,9 @@ export const FAMILY_CATALOG = {
     variants: ["Roots", "Petals", "Bloom"],
   },
   mycelium: {
-    algorithm: "Gray–Scott reaction–diffusion as a lit terrain",
+    algorithm: "Hyphal tip growth with anastomosis, geodesic nutrient pulses and Murray-law cords",
     description:
-      "One reaction–diffusion field becomes understory threads, tidal membranes and a luminous city while its chemistry keeps running.",
+      "A seeded fungal network grows, fuses into loops and carries nutrient pulses along its shortest paths, then fruits into a grove of glowing mushrooms.",
     styles: ["organic", "spatial"],
     variants: ["Understory", "Tide", "City"],
   },

@@ -78,7 +78,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |
 | [Event Horizon](families/horizon.md) | horizon | Schwarzschild null geodesics (Binet equation, Encke RK4) with a thin Doppler-beamed disk | Star / Infall / Horizon | 8 |
 | [Laser Grid](families/laser.md) | laser | Hinged vector skyline, closed-form Gaussian lasers and liquid-sky cones | Horizon / Towers / Tunnel | 8 |
-| [Living Mycelium](families/mycelium.md) | mycelium | Gray–Scott reaction–diffusion as a lit terrain | Understory / Tide / City | 8 |
+| [Living Mycelium](families/mycelium.md) | mycelium | Hyphal tip growth with anastomosis, geodesic nutrient pulses and Murray-law cords | Understory / Tide / City | 8 |
 | [Attractor Ribbons](families/ribbons.md) (world Attractor Ribbons) | ribbons | Fixed-step RK4 trajectories in three flows, drawn as lit ribbons | Wings / Vortex / Labyrinth | 8 |
 | [Afterglow Garden](families/afterglow.md) | afterglow | Gray–Scott morphogens as a night garden | Roots / Petals / Bloom | 8 |
 | [Bioluminescent Abyss](families/abyss.md) (world Abyssal Bloom) | abyss | Pulsing parametric medusae, sea-pen light waves and disturbance-lit plankton | Sparks / Swarms / Reef | 8 |
