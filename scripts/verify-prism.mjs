@@ -30,7 +30,7 @@ for (const development of [0, 1, 2])
 for (const late of [3600, 4096, 43200])
   cases.push({ development: 2, energy: 0.9, late });
 for (const muted of [false, true])
-  for (const beat of [16.15, 16.4, 16.7])
+  for (const beat of [16.03, 16.13, 16.23, 16.33, 16.43, 16.53, 16.63, 16.73])
     cases.push({ development: 2, energy: 0.85, muted, beat });
 // These cases keep one live slot, seed and clock while reversing development.
 for (const development of [0, 0.5, 1, 1.5, 2, 1.5, 1, 0.5, 0])
@@ -61,8 +61,8 @@ try {
         if (spec.development !== undefined)
           snapshot.params.development = spec.development;
         if (colors) snapshot.palette = { ...colors };
-        const width = spec.portrait ? 540 : 640,
-          height = spec.portrait ? 810 : 360;
+        const width = spec.portrait ? 540 : 960,
+          height = spec.portrait ? 810 : 540;
         engine.resize(width, height);
         engine.speed = 1;
         engine.view = { hue: 0, zoom: 1 };

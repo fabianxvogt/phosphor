@@ -164,11 +164,24 @@ void pose(float id,out vec3 C,out float size,out mat3 Q){
   if(upper){float theta=(id-9.)*.6283185307+.06*sin(phase);
    C=vec3(cos(theta)*2.7*u_params[3],4.5+sin(theta)*2.7,-1.5)*growth;
    size=.82*growth;ang=theta+3.48;yaw=.05*sin(phase+ip);}}
+ if(id>.5&&id<2.5){float g=rise;vec3 nearC=id<1.5?vec3(-3.65,1.9,2.3):vec3(.8,1.3,-5.);
+  C=mix(nearC,C,g);size=mix(id<1.5?2.25:.7,size,g);yaw=mix(id<1.5?-.48:.3,yaw,g);}
  if(id>18.5&&id<22.5){float lens=id-19.,side=mod(lens,2.)>.5?-1.:1.;float g=rise;
   C=vec3(side*mix(1.75,2.7,vault)*u_params[3],2.15+vault*(floor(lens/2.)<.5?.1:3.1),mix((floor(lens/2.)-.5)*3.5,-1.7,vault))*g;
   size=(.65-.16*vault)*g;ang=0.;yaw=(side*.35+.1*sin(phase))*(1.-vault);}
  Q=ry(yaw)*rz(ang);
  if(id>22.5){vec3 stretch;archRod(id,C,stretch,Q);C*=vault;size=vault;}
+}
+// A four-leg authored relay route shares actual, continuously grown optics.
+float relayPhase(){return (1.-clamp(u_rhythm.w,0.,1.))*4.;}
+float relayLight(float stage){return exp(-pow((relayPhase()-stage)/.42,2.))*ss(0.,.035,max(u_rhythm.w,u_rhythmHit.w*.15));}
+void relayPoint(float index,out vec3 p){
+ vec3 a,b;float size;mat3 Q;float v=ss(1.,2.,u_params[0]);
+ float cohort=mod(u_rhythmCount.w,3.);
+ if(index<1.5){pose(0.,p,size,Q);if(index<.5)p+=vec3(-3.,-.7,0.);return;}
+ if(index<2.5){pose(2.,a,size,Q);pose(9.+cohort,b,size,Q);p=mix(a,b,v);return;}
+ if(index<3.5){pose(1.,a,size,Q);pose(11.+cohort,b,size,Q);p=mix(a,b,v);return;}
+ p=vec3(2.15,.018,-3.);
 }
 void camera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float d=clamp(u_params[0],0.,2.),v=ss(1.,2.,d),a=u_clock[1];
@@ -199,13 +212,22 @@ vec3 floorColor(vec3 p){
  // Its continuous spectral position also becomes visible through glass.
  float caustic=exp(-pow(p.z/.26,2.))*exp(-pow((p.x-3.4)/1.7,8.));
  col+=spectrum(ss(1.8,5.,p.x))*caustic*.12;
+ vec2 receiver=p.xz-vec2(2.15,-3.);
+ float poolLight=exp(-pow(receiver.x/.95,4.)-pow(receiver.y/.75,4.));
+ float receiverFold=exp(-pow((receiver.y-.22*sin(receiver.x*6.))/.065,2.));
+ col+=spectrum(ss(-.8,.8,receiver.x))*poolLight*(.025+receiverFold*.12)*(1.+relayLight(3.75)*9.);
  // Smooth fold caustics support the exact ray-receiver footprints. Their
  // finite envelope is the light's receiver, never a whole-floor effect.
  float vault=ss(1.,2.,u_params[0]);vec2 q=p.xz-vec2(3.2*(1.-vault),-2.*vault);
  float folds=sin(q.x*3.1+.7*sin(q.y*2.8+u_clock[0]))+sin(q.y*3.7+.6*sin(q.x*2.4-u_clock[0]));
  float footprint=exp(-pow(q.x/(1.7+2.4*vault),4.)-pow(q.y/(1.15+4.*vault),4.));
  float net=exp(-abs(folds)*24.);
- col+=spectrum(ss(-2.,3.,q.x))*(net*.72+.025)*footprint;
+ col+=spectrum(ss(-2.,3.,q.x))*(net*.25+.018)*footprint;
+ // Receding, separated floor images establish an optical room at Shard.
+ for(int layer=0;layer<3;layer++){float z=-2.5-float(layer)*3.4;
+  vec2 c=p.xz-vec2(-1.8+float(layer)*1.35,z);
+  float fold=exp(-pow((c.y-.24*sin(c.x*2.2))/.07,2.))*exp(-pow(c.x/2.3,4.));
+  col+=spectrum(.18+.24*float(layer))*fold*.12/(1.+float(layer));}
  return col;
 }
 vec3 gallery(vec3 o,vec3 d){
@@ -213,7 +235,10 @@ vec3 gallery(vec3 o,vec3 d){
  float t=(-18.-o.z)/d.z;vec3 p=o+d*t;
  float height=ss(0.,.5,p.y)*(1.-ss(8.5,10.,p.y));
  float slots=exp(-pow((abs(p.x)-4.5)/.025,2.))+exp(-pow((abs(p.x)-7.5)/.025,2.));
- float wall=exp(-pow(p.y-3.,2.)*.022)*exp(-p.x*p.x*.006)*.065;
+ float wall=exp(-pow(p.y-3.,2.)*.022)*exp(-p.x*p.x*.006)*.095;
+ // A broad, dim far-vault reflection, not another bright construction line.
+ float vaultImage=abs(pow(abs(p.x)+3.3,2.)+pow(p.y-2.3,2.)-43.56);
+ wall+=exp(-vaultImage*.11)*.075*ss(1.,3.,p.y);
  slots+=exp(-pow((abs(p.x)-1.6)/.045,2.))*.6;
  return mix(u_secondary,vec3(1),.35)*(slots*.16*height+wall)*exp(-t*.012);
 }
@@ -251,13 +276,20 @@ void main(){
  // Diffuse scattering is one median-ray sheath, not 41 coincident quads.
  // Every physical wavelength remains in the exact fan and receiver paths.
  if(kind==1.&&segment==2.5&&abs(a_info.z-.5)>.001){gl_Position=vec4(0,0,2,1);return;}
- float spectral=a_info.z+(kind==1.&&(segment==2.||segment==5.)&&id<18.5?(a_position.x*.5+.5)/${SPECTRAL_SAMPLES - 1}.:0.);
+ float spectral=a_info.z+(kind==8.||kind==9.?(a_position.x*.5+.5)/16.:0.)+(kind==1.&&(segment==2.||segment==5.)&&id<18.5?(a_position.x*.5+.5)/${SPECTRAL_SAMPLES - 1}.:0.);
  float lambda=mix(.38,.78,spectral);v_wavelength=spectral;v_visibility=1.;
  vec3 C;float size;mat3 Q;pose(id,C,size,Q);
  vec3 eye,R,U,F;camera(eye,R,U,F);vec3 p;
  v_center=C;v_size=size;v_Q=Q;v_uv=a_position.xy;v_info=a_info;v_local=a_position;v_normal=Q*(a_normal/objectStretch(id));
  if(size<.0001){gl_Position=vec4(0,0,2,1);v_world=vec3(0);return;}
- if(kind==7.){float growth=ss(1.,2.,u_params[0]);p=vec3(a_position.x*u_params[3],2.3+(a_position.y-2.3)*u_params[3],a_position.z)*growth;v_normal=a_normal;}
+ if(kind==8.){
+  vec3 a,b;relayPoint(segment,a);relayPoint(segment+1.,b);
+  float along=a_position.y*.5+.5;p=mix(a,b,along);
+  vec3 side=cross(normalize(b-a),normalize(eye-p));side=dot(side,side)>1e-8?normalize(side):R;
+  p+=side*(spectral-.5)*(.16+.09*u_level);
+ }else if(kind==9.){
+  vec3 end;relayPoint(4.,end);p=end+vec3((spectral-.5)*1.45,0.,a_position.y*.65);
+ }else if(kind==7.){float growth=ss(1.,2.,u_params[0]);p=vec3(a_position.x*u_params[3],2.3+(a_position.y-2.3)*u_params[3],a_position.z)*growth;v_normal=a_normal;}
  else if(kind<.5||kind>2.5){p=C+Q*(a_position*objectStretch(id))*size;}
  else{
   float slope=.34+.025*sin(u_clock[0])+.042*u_rhythm.y;vec3 I=vec3(cos(slope),sin(slope),0),o=-3.*I,en,ex;
@@ -328,11 +360,22 @@ void main(){
  vec3 eye,R,U,F;camera(eye,R,U,F);float id=v_info.x,kind=v_info.y,t=v_wavelength;
  if(kind==4.||kind==6.)eye.y=-eye.y;
  vec3 rd=normalize(v_world-eye),col=vec3(0);
- if(kind==7.){
+ if(kind==8.){
+  float along=v_info.w+v_uv.y*.5+.5;
+  float packet=exp(-pow((along-relayPhase())/.30,2.));
+  float enable=ss(0.,.035,max(u_rhythm.w,u_rhythmHit.w*.15));
+  float edge=ss(0.,.06,t)*(1.-ss(.94,1.,t));
+  col=spectrum(t)*edge*(.018+packet*enable*2.2);
+ }else if(kind==9.){
+  float footprint=exp(-pow(v_uv.y*2.,2.))*ss(0.,.12,t)*(1.-ss(.88,1.,t));
+  float fold=.35+.65*exp(-pow(sin(v_uv.y*5.+t*3.)*3.,2.));
+  col=spectrum(t)*footprint*fold*(.025+relayLight(3.8)*2.8);
+ }else if(kind==7.){
   vec3 n=normalize(v_normal);if(dot(n,rd)>0.)n=-n;
   float fr=.04+.96*pow(1.-max(dot(n,-rd),0.),5.);
-  col=environment(v_world,reflect(rd,n))*fr*.55+gallery(v_world,rd)*.6;
-  col+=mix(u_secondary,u_primary,.1)*(.014+.035*fr);
+  col=environment(v_world,reflect(rd,n))*fr*.4+gallery(v_world,rd)*.6;
+  float bay=exp(-pow((v_world.z+3.)/6.,2.));
+  col+=mix(u_secondary,u_primary,.1)*(.028+.055*fr)*bay;
  }else if(kind<.5||kind>2.5){
   vec3 n=normalize(v_normal);if(dot(n,rd)>0.)discard;
   float mu=max(dot(n,-rd),0.),eta=glassIndex(.55),fr=.043+.957*pow(1.-mu,5.);
@@ -353,10 +396,14 @@ void main(){
   if(kind==3.)m2=abs(1.-length(v_local.xy));
   float footprint=max(fwidth(m2),.001),edge=1.-ss(.003,.013+footprint,m2);
   float key=.3+.7*pow(max(dot(n,normalize(vec3(-.5,.8,1))),0.),2.);
-  col+=mix(u_secondary,u_primary,.3)*edge*(.14+.5*key);
+  col+=mix(u_secondary,u_primary,.3)*edge*(.055+.18*key);
   float innerBevel=exp(-pow((m2-.038)/.014,2.));
   col+=mix(u_primary,vec3(1),.18)*innerBevel*.12*(.4+key);
-  col+=tone(.15+.55*ss(-.5,1.,v_local.y))*(.025+.055*(1.-mu))*absorb;
+  // Broad transmitted light across the face, with a dark thickness edge.
+  float faceLight=exp(-pow((v_local.y+.18*v_local.x+.12)/.55,2.));
+  float faceBand=.5+.5*sin(v_local.y*3.+v_local.x*1.7+id*.6);
+  col+=tone(.10+.49*faceBand)*faceLight*(.16+.24*(1.-mu))*absorb;
+  col*=mix(.64,1.,ss(.015,.15,m2));
   col+=tone(.3)*tir*.1;
   // View-segment integration carries the two internal optical paths
   // through the front face, instead of hiding them behind its depth write.
@@ -371,9 +418,12 @@ void main(){
   vec3 view=normalize(localD);float viewLength=max(h.y,0.)*length(localD);
   float transported=pathGlow(v_local,view,viewLength,entry,leave);
   float ghost=pathGlow(v_local,view,viewLength,leave,next);
-  float relay=max(u_rhythm.w,u_rhythmHit.w*.65);
-  col+=mix(spectrum(.35),vec3(1),.08)*transported*.6+spectrum(.92)*ghost*.3;
-  col+=u_accent*transported*relay*.65;
+  col+=mix(spectrum(.35),vec3(1),.08)*transported*.16+spectrum(.92)*ghost*.055;
+  float cohort=mod(u_rhythmCount.w,3.),vault=ss(1.,2.,u_params[0]);
+  float arrival=id<.5?relayLight(1.):id==2.?relayLight(2.)*(1.-vault):id==1.?relayLight(3.)*(1.-vault):0.;
+  if(abs(id-9.-cohort)<.1)arrival+=relayLight(2.)*vault;
+  if(abs(id-11.-cohort)<.1)arrival+=relayLight(3.)*vault;
+  col+=spectrum(.1+.75*ss(-.5,1.,v_local.y))*faceLight*arrival*.8*ss(.02,.16,m2);
   }
   if(kind==3.){
    float r=length(v_local.xy),coating=exp(-pow((r-.87)/.035,2.));
@@ -382,12 +432,16 @@ void main(){
    col+=mix(u_secondary,vec3(1),.35)*coating*.12;
    col+=tone(.25)*(.022+.06*pow(r,4.));
   }
-  if(id>22.5)col*=.24;
-  if(kind==4.||kind==6.)col*=.17;
+  if(id>22.5){
+   float litBay=exp(-pow((v_world.z+2.)/7.,2.));
+   float softKey=.2+.8*max(dot(n,normalize(vec3(-.3,.7,.4))),0.);
+   col=col*.3+mix(u_secondary,u_primary,.2)*softKey*litBay*.25;
+  }
+  if(kind==4.||kind==6.)col*=.065;
   col+=tone(.2+.4*ss(-.5,.9,v_local.y))*.04*pow(1.-mu,2.);
  }else{
   float population=ss((id-1.)/18.-.12,(id-1.)/18.+.2,.25+.75*u_level);if(id<.5)population=1.;
-  vec3 ink=spectrum(t);float weight=id<.5?.85:id>18.5?.018:.25;
+  vec3 ink=spectrum(t);float weight=id<.5?.46:id>18.5?.006:id<8.5?.035:.09;
   if(id>18.5)population=.5+.5*u_level;
   if(kind<1.5){
    float x=v_uv.x*3.,core=exp(-x*x*2.2),sheath=exp(-x*x*.22)*.12*u_params[6];
@@ -395,19 +449,12 @@ void main(){
    if(v_info.w<.5){ink=mix(mix(u_primary,u_secondary,.5),vec3(1),.88);weight*=.035;}
    float activePrisms=mix(1.,mix(9.,19.,ss(1.,2.,u_params[0])),ss(0.,1.,u_params[0]));
    float address=1.+2.2*u_rhythm.x*float(abs(mod(u_rhythmCount.x,floor(activePrisms))-id)<.5);
-   // A finite packet runs along existing Snell-traced segments. Counts
-   // alternate relay cohorts; no geometry or whole-frame light is switched.
-   float relay=max(u_rhythm.w,u_rhythmHit.w*.65);
-   float chosen=step(abs(mod(id+u_rhythmCount.w,3.)),.5);
-   if(id<.5)chosen=1.;
-   float along=v_uv.y*.5+.5;
-   float packet=exp(-pow((along-(1.-u_rhythm.w)*1.12)*6.,2.))*relay;
-   float firing=1.+5.*packet*chosen;
-   ink=mix(ink,mix(u_primary,u_accent,t),.85*packet*chosen);
-   weight*=.72*firing;
+   // Passive Snell fans do not mask the separate sequential relay packet.
+   weight*=.72;
+   if(v_info.w>.5&&v_info.w<1.5)weight*=.025;
    if((v_info.w==2.||v_info.w==5.)&&id<18.5){
     float band=ss(0.,.018,t)*(1.-ss(.982,1.,t));
-    float branch=v_info.w==5.?.075:1.;
+    float branch=v_info.w==5.?.035:1.;
     col=ink*1.9*ends*weight*population*address*band*branch;
    }else if(v_info.w==2.5){
     // Forty-one coincident wavelength sheaths must not sum to white.
@@ -421,7 +468,7 @@ void main(){
    float transverse=exp(-v_uv.x*v_uv.x*12.),longitudinal=exp(-v_uv.y*v_uv.y*2.5);
    float fringe=.75+.25*cos(v_uv.y*18.+t*4.);
    float sweep=1.+3.2*u_rhythm.z*exp(-pow((t-(1.-u_rhythm.z))*5.,2.));
-   sweep+=2.5*u_rhythm.w*exp(-pow((t-(1.-u_rhythm.w))*5.,2.));
+   // Signature receiver has a separate, spatially isolated footprint.
    col=ink*transverse*longitudinal*fringe*weight*population*4.*sweep;
   }
  }
