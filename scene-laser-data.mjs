@@ -91,7 +91,10 @@ void lgEndpoints(int i, out vec3 a, out vec3 b, out float weight, out float tint
     float spoke = fi - 13.0;
     float angle = spoke * TAU / 8.0 + gPhase;
     vec3 apex = vec3(0, 5.7, 55);
-    vec3 coneEnd = apex + vec3(cos(angle) * gSlope * 53.0, sin(angle) * gSlope * 53.0, -53.0);
+    // Truncated cone: virtual apex is at z=70. The physical eight-laser
+    // crown at z=55 leaves a dark portal instead of a point starburst.
+    vec3 crown = apex + vec3(cos(angle), sin(angle), 0) * (15.0 * gSlope);
+    vec3 coneEnd = apex + vec3(cos(angle) * gSlope * 68.0, sin(angle) * gSlope * 68.0, -53.0);
     // Before the vault closes the SAME eight lasers fan out of the horizon
     // projector over the audience; the fan plane tilts slowly up and down.
     // Development folds this fan into the cone, so identity persists.
@@ -101,12 +104,14 @@ void lgEndpoints(int i, out vec3 a, out vec3 b, out float weight, out float tint
     // over the audience. High: the fan sweeps overhead out of the top.
     vec3 fanEnd = vec3(k * 18.0 * aperture + 3.0 * sin(gPhase + 0.4 * spoke),
       mix(-1.5, 9.5, lift) + 1.5 * k * k, 0.5);
-    a = mix(vec3(0, 3.4, 65), apex, gFold);
+    a = mix(vec3(0, 3.4, 65), crown, gFold);
     b = mix(fanEnd, coneEnd, gFold);
     weight = smoothstep(mod(spoke, 4.0) - 0.65, mod(spoke, 4.0) + 0.65, 0.7 + 2.6 * level + 0.6 * u_kick);
     // Four persistent spokes gain four interleaved neighbours on the kick.
     // A soft pedestal and smooth envelope avoid binary on/off strobing.
     weight *= mix(1.0, 0.14 + 0.86 * smoothstep(0.0, 0.55, u_kick), mod(spoke, 2.0));
+    // Competing spokes rest while the clockwise accent speaks.
+    weight *= (1.0 - 0.82 * u_rhythm.w) * mix(1.0, 0.52, gFold);
     weight = max(weight, lgChase(i));
     tint = 0.16 + 0.15 * mod(spoke, 2.0);
   } else {
@@ -116,16 +121,22 @@ void lgEndpoints(int i, out vec3 a, out vec3 b, out float weight, out float tint
     // Extra cohorts open on the kick; no gain flash or unbounded population.
     weight = gRise * smoothstep(cohort - 0.65, cohort + 0.65, 0.7 + 2.7 * level + 0.4 * gFold + 0.65 * u_kick * gFold);
     float upper = step(3.5, index);
-    a = vec3(bank * mix(10.0, 7.8, gFold), 1.0 + 10.0 * upper * gFold, 49.0 - 10.0 * upper * gFold);
+    a = vec3(bank * mix(10.0, 8.7, gFold), mix(1.0, 2.1 + 7.6 * upper, gFold), mix(49.0, 47.0 - index * 5.8, gFold));
     // In Towers the far emitter strikes the front facade of a persistent tower.
     int tower = (i - 1) * 2 + (bank > 0.0 ? 1 : 0);
     vec3 origin, size; lgTower(tower, origin, size);
     vec3 strike = origin + vec3(0, size.y * (0.35 + 0.5 * sin(gPhase + fi)), -size.z);
     float local = (mod(index, 4.0) - 1.5) / 1.5;
-    vec3 crossEnd = vec3(-bank * (4.5 + local * 3.2 * aperture) + 1.4 * sin(gPhase),
-      mix(10.5, 0.0, upper) + (1.0 - upper) * local * 1.3 * aperture + 0.65 * sin(gPhase + bank), 2.0 + index * 0.75);
+    // Near / middle / far wall rakes keep the central portal open.
+    // A bank never fires across the entire nave into the other bank.
+    vec3 crossEnd = vec3(bank * (2.4 + 0.5 * local * aperture),
+      mix(5.0 + local * aperture, 7.3 + local * 0.6, upper) + 0.5 * sin(gPhase + bank),
+      29.0 - index * 5.8);
     b = mix(strike, crossEnd, gFold);
-    weight = max(weight, lgAddress(i));
+    float bankCycle = 0.5 + 0.5 * sin(gPhase * 2.0 + index * 1.7 + bank * 1.2);
+    weight *= mix(1.0, 0.12 + 0.65 * smoothstep(0.3, 0.8, bankCycle), gFold);
+    weight *= 1.0 - 0.88 * u_rhythm.w;
+    weight = max(weight, lgAddress(i) * (1.0 - 0.8 * u_rhythm.w));
     tint = 0.35 + 0.4 * mod(fi, 2.0);
   }
   b = lgSurfaceEnd(a, b);

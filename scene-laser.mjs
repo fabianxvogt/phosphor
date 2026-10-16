@@ -216,7 +216,8 @@ void lgStrip(vec3 basePoint, vec3 tangent, float span, float material,
   float u = dot(hit - basePoint, tangent);
   if (t > 0.0 && t < depth && u >= 0.0 && u <= span) {
     depth = t; uv = vec2(material + u, hit.z);
-    light = 0.6 + 0.4 * abs(dot(normal, normalize(vec3(-0.4, 0.8, -0.5))));
+    vec3 inward = dot(normal, gEye - basePoint) > 0.0 ? normal : -normal;
+    light = 0.22 + 0.78 * max(0.0, dot(inward, normalize(vec3(-0.5, 0.8, -0.35))));
   }
 }
 void main() {
@@ -267,11 +268,26 @@ void main() {
     vec3 hitP = gEye + gRay * depth;
     vec3 source = mix(vec3(0, 3.4, 65), vec3(0, 5.7, 55), gFold);
     float sourceGlow = exp(-length(hitP - source) / mix(14.0, 22.0, gFold));
-    float lineLight = 0.42 + 1.5 * sourceGlow;
-    col += mix(u_secondary, u_primary, 0.13) * grid * fog * key * 0.24;
-    col += mix(u_primary, u_secondary, 0.3) * major * fog * mix(0.35, 0.85, gFold) * lineLight;
-    col += u_primary * seam * fog * gRise * 0.7 * lineLight;
-    col += u_secondary * 0.009 * fog * key;
+    float lineLight = 0.12 + 0.65 * sourceGlow;
+    float isFloor = 1.0 - smoothstep(0.02, 0.08, abs(hitP.y));
+    float bay = floor((gridUV.y + 1.0) / (gSpace * 4.0));
+    float panelSeed = lgHash(bay * 13.7 + floor(gridUV.x / (gSpace * 2.0)) * 7.1);
+    float panel = 0.5 + 0.5 * sin(gridUV.x * 0.21 + 0.8 * sin(gridUV.y * 0.09));
+    float grazing = sq(max(0.0, 1.0 - sq((hitP.x - 3.0 * sin(gPhase)) / 10.0) - sq((hitP.z - 17.0) / 30.0)));
+    float wallWash = sq(max(0.0, 1.0 - sq((hitP.z - 13.0) / 40.0))) * (0.3 + 0.7 * panel);
+    float jointAO = 0.28 + 0.72 * smoothstep(0.0, 1.1, seamDistance);
+    float bayJoint = 0.35 + 0.65 * smoothstep(0.0, 0.07, abs(fract((gridUV.y + 1.0) / (gSpace * 4.0)) - 0.5));
+    // Opaque folded metal: broad face gradients and dark contacts carry
+    // depth; the grid is an engraving revealed only by grazing light.
+    vec3 materialInk = mix(u_secondary, u_primary, 0.08 + 0.17 * panelSeed);
+    col += materialInk * fog * key * jointAO * bayJoint *
+      mix(0.018 + 0.25 * grazing, (0.055 + 0.44 * wallWash) * (0.65 + 0.35 * panelSeed), (1.0 - isFloor) * gRise);
+    float archWash = sq(max(0.0, 1.0 - sq((hitP.z - 25.0) / 27.0))) * (1.0 - isFloor) * gFold;
+    col += mix(u_secondary, u_primary, 0.65) * archWash * jointAO * bayJoint * fog * key * 0.12;
+    float engraving = mix(0.015 + 0.2 * grazing, 0.12, (1.0 - isFloor) * gFold);
+    col += mix(u_secondary, u_primary, 0.13) * grid * fog * key * engraving;
+    col += mix(u_primary, u_secondary, 0.3) * major * fog * mix(0.09 + 0.18 * grazing, 0.28, gFold) * lineLight;
+    col += u_primary * seam * fog * gRise * 0.25 * lineLight;
     col += mix(u_secondary, u_primary, 0.4) * u_params[3] * 0.1 * sourceGlow * key;
     // The tunnel's travelling scan rings also sweep the vault material as
     // light gates moving towards the viewer (continuous, not rhythmic).
@@ -329,14 +345,16 @@ void main() {
     depth = towerDepth;
     // The opaque faces need a low, directional wash behind the vector
     // skeleton. Otherwise foreground towers look like transparent boxes.
-    float faceKey = edgeDistance.z < edgeDistance.x ? 0.45 : 1.0;
+    float roof = step(edgeDistance.y, min(edgeDistance.x, edgeDistance.z));
+    // Identify the hit face BEFORE choosing its key. Comparing x/z on a
+    // roof paints an accidental hourglass across every retracted tower.
+    float faceKey = roof > 0.5 ? 0.28 : edgeDistance.z < edgeDistance.x ? 0.45 : 1.0;
     float faceGradient = 0.35 + 0.65 * smoothstep(-towerSize.y, towerSize.y, towerP.y);
-    col = mix(u_secondary, u_primary, 0.18) * 0.085 * faceKey * faceGradient * exp(-depth * 0.025);
+    col = mix(u_secondary, u_primary, 0.18) * 0.23 * faceKey * faceGradient * exp(-depth * 0.025);
     // Lit window cells, seeded per tower/row/column: the faces read as
     // occupied buildings instead of transparent wire boxes. Energy lights
     // more of them (structure, not gain). Roofs stay dark.
     bool front = edgeDistance.z < edgeDistance.x;
-    float roof = step(edgeDistance.y, min(edgeDistance.x, edgeDistance.z));
     float column = (front ? towerP.x : towerP.z) / 0.62;
     vec2 cellAA = vec2((front ? edgeAA.x : edgeAA.z) / 0.62, edgeAA.y / (gSpace * 0.38));
     vec2 cell = vec2(fract(column) - 0.5, fract(rowCoordinate) - 0.5);
@@ -349,7 +367,7 @@ void main() {
     col += windowInk * pane * lit * (0.25 + 0.55 * fract(cellSeed * 53.0)) * exp(-depth * 0.022) * towerLight;
     float crown = 0.45 + 0.95 * smoothstep(-towerSize.y, towerSize.y, towerP.y);
     col += mix(u_secondary, u_primary, 0.68) *
-      (corners * 1.1 * crown + levels * occupied * 0.22 + uprights * 0.1) * exp(-depth * 0.025) * towerLight;
+      (corners * mix(0.55, 0.16, gFold) * crown + levels * occupied * 0.12 + uprights * 0.05) * exp(-depth * 0.025) * towerLight;
     col += u_secondary * 0.012 * towerLight * exp(-depth * 0.018);
   }
 
@@ -401,12 +419,19 @@ void main() {
   // the same closed-form sheath integral; no extra data or marching.
   if (onSheet > 0.5 && abs(surface.y) < 0.05) {
     vec3 mirrorRay = vec3(gRay.x, -gRay.y, gRay.z);
-    float gloss = 0.16 * mix(0.45, 1.0, pow(1.0 - abs(gRay.y), 4.0)) * fog;
+    // Long soft puddle strokes, broken by broad static material bands;
+    // distance blurs out the ruled-grid impression, never temporal grain.
+    float polish = 0.28 + 0.72 * smoothstep(-0.5, 0.65, sin(surface.z * 1.6 + 1.4 * sin(surface.x * 0.8)));
+    float gloss = 0.25 * polish * mix(0.45, 1.0, pow(1.0 - abs(gRay.y), 4.0)) * fog;
     // Tile bits 6..14 of the beam word (unused by the 21 direct beams).
     uint mirrorMask = gloss > 0.004 ? candidates.w >> 6u : 0u;
     for (int j = 0; j < 9; ++j) {
       if ((mirrorMask & (1u << uint(j))) == 0u) continue;
       int i = j == 0 ? 0 : j + 12;
+      // Mirror the four persistent spokes; interleaved neighbours only
+      // enter the reflection while chased (including both afterglows).
+      // The cached mask remains a conservative superset of these rays.
+      if (j > 0 && (j % 2) == 0 && lgChase(i) < 0.001) continue;
       vec4 source = lgData(i, 3), target = lgData(i, 4);
       if (source.w < 0.001) continue;
       vec3 axis = target.xyz - source.xyz;
@@ -447,10 +472,10 @@ void main() {
   vec3 emitter = mix(vec3(0, 3.4, 65), vec3(0, 5.7, 55), gFold);
   vec2 emitterView = lgProject(emitter) - view;
   if (depth > length(emitter - gEye) * 0.98)
-    col += mix(u_primary, vec3(1), 0.25) * (exp(-dot(emitterView, emitterView) / sq(gPixel * 3.0)) * 1.4
+    col += mix(u_primary, vec3(1), 0.25) * (1.0 - gFold) * (exp(-dot(emitterView, emitterView) / sq(gPixel * 3.0)) * 1.4
       + exp(-dot(emitterView, emitterView) / 0.0016) * 0.12);
   // A widening hollow cone reads as the classic laser tunnel in haze.
-  vec3 coneV = gEye - vec3(0, 5.7, 55);
+  vec3 coneV = gEye - vec3(0, 5.7, 70);
   float coneSlope = gSlope;
   float coneA = dot(gRay.xy, gRay.xy) - sq(coneSlope * gRay.z);
   float coneB = dot(coneV.xy, gRay.xy) - sq(coneSlope) * coneV.z * gRay.z;
@@ -475,7 +500,7 @@ void main() {
       float t = (-coneB + (side == 0 ? -root : root)) / coneA;
       if (t <= 0.0 || t >= depth) continue;
       vec3 p = coneV + gRay * t;
-      float env = smoothstep(0.0, 9.0, -p.z) * (1.0 - smoothstep(32.0, 55.0, -p.z));
+      float env = smoothstep(15.0, 24.0, -p.z) * (1.0 - smoothstep(55.0, 72.0, -p.z));
       if (env < 0.0001) continue;
       vec3 normal = normalize(vec3(p.xy, -sq(coneSlope) * p.z));
       // Broad axial density waves reveal the cone's circular cross-section,
@@ -484,7 +509,7 @@ void main() {
       float rings = 0.0;
       for (int k = 0; k < 3; ++k) {
         float u = lgRingAge(k);
-        rings += lgRingEnv(u) * exp(-sq((p.z + 6.0 + 44.0 * u) / 1.1));
+        rings += lgRingEnv(u) * exp(-sq((p.z + 21.0 + 44.0 * u) / 1.1));
       }
       col += mix(u_secondary, u_primary, 0.58) * gFold * env * haze * coneEdge * (0.12 + 0.5 * rings + 0.02 * sin(p.z * 0.45 + p.x * 0.4 + gPhase)) * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
       // Tunnel chase: the cone wall around the fired spoke (and its two
@@ -494,9 +519,9 @@ void main() {
         float around = atan(p.y, p.x) - gPhase;
         for (int j = 0; j < 3; ++j) {
           float diff = mod(around - (sel - float(j)) * TAU / 8.0 + PI, TAU) - PI;
-          sector += (j == 0 ? 1.0 : j == 1 ? 0.55 : 0.22) * exp(-sq(diff / 0.2));
+          sector += (j == 0 ? 1.0 : j == 1 ? 0.35 : 0.12) * exp(-sq(diff / 0.28));
         }
-        col += u_accent * sector * u_rhythm.w * gFold * env * coneEdge * (0.35 + rings) * 0.6 * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
+        col += u_accent * sector * u_rhythm.w * gFold * env * coneEdge * (0.2 + rings) * 0.85 * exp(-t * 0.018) / max(abs(dot(normal, gRay)), 0.13);
       }
     }
   }
@@ -508,11 +533,20 @@ void main() {
     float z = 49.0 - 44.0 * u;
     float t = (z - gEye.z) / max(gRay.z, 0.01);
     vec2 p = (gEye + gRay * t).xy - vec2(0, 5.7);
-    float off = length(p) - coneSlope * (55.0 - z);
+    float off = length(p) - coneSlope * (70.0 - z);
     float width = max(0.045, gPixel * t * 0.8);
     if (t <= 0.0 || t >= depth || abs(off) > width * 20.0) continue;
     float front = exp(-sq(off / width)) + 0.12 * exp(-sq(off / (width * 5.0)));
-    col += mix(u_primary, u_secondary, 0.38) * front * gFold * haze * exp(-t * 0.014) * 1.9 * lgRingEnv(u);
+    float around = atan(p.y, p.x) - gPhase;
+    float selected = mod(u_rhythmCount.w + 7.0, 8.0) * TAU / 8.0;
+    float arc = mod(around - selected + PI, TAU) - PI;
+    float tailArc = mod(around - selected + TAU / 8.0 + PI, TAU) - PI;
+    float chaseArc = u_rhythm.w * (exp(-sq(arc / 0.25)) + 0.3 * exp(-sq(tailArc / 0.25)));
+    // Clockwise arclight at the same address as the fired spoke: an ordered
+    // travelling sentence remains visible even between the hot beam shots.
+    vec3 ringInk = mix(u_primary, u_secondary, 0.38) * (1.0 - 0.5 * u_rhythm.w);
+    ringInk += u_accent * chaseArc * 2.8;
+    col += ringInk * front * gFold * haze * exp(-t * 0.014) * 1.9 * lgRingEnv(u);
   }
   // A sparse travelling grid rib, not a whole-frame beat flash.
   // Vault rib (slot 2): a soft accent band with brighter grid crossings,
@@ -588,40 +622,110 @@ void main() {
   type: { key: "development", values: [0, 1, 2] },
   energy: { sweep: { mul: [0.75, 1.35] }, drift: { mul: [0.75, 1.35] } },
   beat: { punch: 0.15, pulse: 0.1 },
-  rhythmStyles: { restrained: "Dark aperture", driving: "Beam relay", accented: "Vault chase" },
+  rhythmStyles: {
+    restrained: "Dark aperture",
+    driving: "Beam relay",
+    accented: "Vault chase",
+  },
   rhythm: [
     familyEffect(
       "beam-address",
       0,
       "Beam address",
       "One persistent laser in the fan receives a brief accent.",
-      { period: 4, strength: 0.55, duration: 1, steps: "X...", styles: {
-        restrained: { steps: "X....... | ...x.... | ......X. | ....x...", division: 2, strength: 0.48, duration: 0.9 },
-        driving: { steps: "X.......x....... | ....X.......x...", division: 4, strength: 0.74, duration: 0.7 },
-        accented: { steps: "X.......x....... | ..X.......x..... | ....X.......x... | ......X.......x.", division: 4, strength: 0.88, duration: 0.4 },
-      } },
+      {
+        period: 4,
+        strength: 0.55,
+        duration: 1,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | ...x.... | ......X. | ....x...",
+            division: 2,
+            strength: 0.48,
+            duration: 0.9,
+          },
+          driving: {
+            steps: "X.......x....... | ....X.......x...",
+            division: 4,
+            strength: 0.74,
+            duration: 0.7,
+          },
+          accented: {
+            steps:
+              "X.......x....... | ..X.......x..... | ....X.......x... | ......X.......x.",
+            division: 4,
+            strength: 0.88,
+            duration: 0.4,
+          },
+        },
+      },
     ),
     familyEffect(
       "aperture-breath",
       1,
       "Aperture breath",
       "The laser fan opens by a bounded twelve percent.",
-      { period: 8, strength: 0.65, duration: 2, kind: "motion", steps: "X.......", styles: {
-        restrained: { steps: ".....x.. | ........ | .......X | ........", division: 2, strength: 0.5, duration: 1.5 },
-        driving: { steps: "......x. | .......X | ........ | .....x..", division: 2, strength: 0.76, duration: 1.25 },
-        accented: { steps: "............x... | .............X.. | ..........x..... | ...............X", division: 4, strength: 0.9, duration: 1 },
-      } },
+      {
+        period: 8,
+        strength: 0.65,
+        duration: 2,
+        kind: "motion",
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: ".....x.. | ........ | .......X | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "......x. | .......X | ........ | .....x..",
+            division: 2,
+            strength: 0.76,
+            duration: 1.25,
+          },
+          accented: {
+            steps:
+              "............x... | .............X.. | ..........x..... | ...............X",
+            division: 4,
+            strength: 0.9,
+            duration: 1,
+          },
+        },
+      },
     ),
     familyEffect(
       "vault-rib",
       2,
       "Vault rib",
       "A narrow light rib travels along the same folded material grid.",
-      { period: 16, strength: 0.65, duration: 3, steps: "X...............", styles: {
-        restrained: { steps: "..x..... | ......X. | ........ | .....x..", division: 2, strength: 0.6, duration: 1.3 },
-        driving: { steps: "X............... | ........x.......", division: 4, strength: 0.85, duration: 1.4 },
-        accented: { steps: "X.......x....... | X.......x...x.x.", division: 4, strength: 0.95, duration: 0.45 },
-      } },
+      {
+        period: 16,
+        strength: 0.65,
+        duration: 3,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "..x..... | ......X. | ........ | .....x..",
+            division: 2,
+            strength: 0.6,
+            duration: 1.3,
+          },
+          driving: {
+            steps: "X............... | ........x.......",
+            division: 4,
+            strength: 0.85,
+            duration: 1.4,
+          },
+          accented: {
+            steps: "X.......x....... | X.......x...x.x.",
+            division: 4,
+            strength: 0.95,
+            duration: 0.45,
+          },
+        },
+      },
     ),
     // Signature: the eight tunnel lasers (the horizon fan before the vault
     // closes) fire one after another; u_rhythmCount.w selects the spoke.
@@ -630,11 +734,32 @@ void main() {
       3,
       "Tunnel chase",
       "The eight tunnel lasers fire one after another in a sixteenth chase, each shot hot in the accent colour.",
-      { strength: 0.9, duration: 0.45, division: 4, steps: "..x...x...x...xX", styles: {
-        restrained: { steps: "................ | ............3579", division: 4, strength: 0.8, duration: 0.22 },
-        driving: { steps: "..x...x...x...xX | ..x...x...x.xxXX", division: 4, strength: 0.92, duration: 0.45 },
-        accented: { steps: "XxxxXxxxXxxxXxxx | Xxx5Xxx5XxXxXXXX", division: 4, strength: 1, duration: 0.24 },
-      } },
+      {
+        strength: 0.9,
+        duration: 0.45,
+        division: 4,
+        steps: "..x...x...x...xX",
+        styles: {
+          restrained: {
+            steps: "................ | ............3579",
+            division: 4,
+            strength: 0.8,
+            duration: 0.22,
+          },
+          driving: {
+            steps: "..x...x...x...xX | ..x...x...x.xxXX",
+            division: 4,
+            strength: 0.92,
+            duration: 0.45,
+          },
+          accented: {
+            steps: "XxxxXxxxXxxxXxxx | Xxx5Xxx5XxXxXXXX",
+            division: 4,
+            strength: 1,
+            duration: 0.24,
+          },
+        },
+      },
     ),
   ],
   clocks: [

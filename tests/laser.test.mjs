@@ -126,22 +126,38 @@ test("source pins the exact Gaussian/Beer integral, with no volume march", () =>
 });
 
 test("vector hierarchy and directional opaque-face lighting remain palette-only and bounded", () => {
-  assert.match(laser.fragment, /float faceKey = edgeDistance\.z < edgeDistance\.x \? 0\.45 : 1\.0;/);
-  assert.match(laser.fragment, /0\.35 \+ 0\.65 \* smoothstep\(-towerSize\.y, towerSize\.y, towerP\.y\)/);
+  assert.match(
+    laser.fragment,
+    /float faceKey = roof > 0\.5 \? 0\.28 : edgeDistance\.z < edgeDistance\.x \? 0\.45 : 1\.0;/,
+  );
+  assert.match(
+    laser.fragment,
+    /0\.35 \+ 0\.65 \* smoothstep\(-towerSize\.y, towerSize\.y, towerP\.y\)/,
+  );
   assert.match(laser.fragment, /float fog = exp\(-depth \* 0\.032\);/);
-  assert.match(laser.fragment, /major \* fog \* mix\(0\.35, 0\.85, gFold\)/);
-  assert.match(laser.fragment, /core \* 0\.58 \+ volume \* haze \* phase \* 0\.36/);
+  assert.match(
+    laser.fragment,
+    /major \* fog \* mix\(0\.09 \+ 0\.18 \* grazing, 0\.28, gFold\)/,
+  );
+  assert.match(
+    laser.fragment,
+    /core \* 0\.58 \+ volume \* haze \* phase \* 0\.36/,
+  );
   // Shading is bounded independently of energy and retains black at depth.
   for (let h = -1; h <= 1; h += 0.01) {
     const gradient = 0.35 + 0.65 * smooth(-1, 1, h);
     for (const face of [0.45, 1]) {
-      const wash = 0.085 * face * gradient;
-      assert.ok(wash >= 0 && wash <= 0.085);
-      assert.ok(wash * Math.exp(-120 * 0.025) < 0.005);
+      const wash = 0.23 * face * gradient;
+      assert.ok(wash >= 0 && wash <= 0.23);
+      assert.ok(wash * Math.exp(-120 * 0.025) < 0.012);
     }
   }
   assert.equal(laser.precompute.size[0], 32);
-  assert.equal(laser.precompute.size[1], 41, "no extra geometry/data work for the relight");
+  assert.equal(
+    laser.precompute.size[1],
+    41,
+    "no extra geometry/data work for the relight",
+  );
 });
 
 test("erf approximation is odd, monotone and agrees with its numeric definition", () => {
@@ -583,7 +599,6 @@ test("rate-dependent phases stay continuous at 3600 s and 12 h without touching 
   }
 });
 
-
 test("slot-3 signature: tunnel chase is authored for all three phrase styles", () => {
   const chase = laser.rhythm.find((effect) => effect.slot === 3);
   assert.ok(chase, "signature gesture in slot 3");
@@ -596,14 +611,20 @@ test("slot-3 signature: tunnel chase is authored for all three phrase styles", (
     assert.ok(loop.strength > 0 && loop.strength <= 1, `${style}: bounded`);
     assert.equal(loop.division, 4, `${style}: a sixteenth chase`);
   }
-  assert.deepEqual(defaultPattern(laser.rhythm).tracks.at(-1).steps, chase.styles.driving.steps);
+  assert.deepEqual(
+    defaultPattern(laser.rhythm).tracks.at(-1).steps,
+    chase.styles.driving.steps,
+  );
   // Shader reads all signature channels; selection lives in the shared data
   // code, so the data pass and the picture always agree on the fired spoke.
   assert.match(laserData, /u_rhythmCount\.w/);
   assert.match(laserData, /float lgChase\(int i\)/);
   assert.match(laserData, /weight = max\(weight, lgChase\(i\)\)/);
   assert.match(laser.fragment, /u_rhythm\.w/);
-  assert.match(laser.fragment, /float chase = lgChase\(i\), address = lgAddress\(i\);/);
+  assert.match(
+    laser.fragment,
+    /float chase = lgChase\(i\), address = lgAddress\(i\);/,
+  );
 });
 
 // CPU mirror of lgChase: the newest hit fires the next spoke, its two
@@ -616,12 +637,22 @@ const chaseOf = (count, spoke, env = 1) => {
 test("tunnel chase rotates through every spoke with a bounded two-step tail", () => {
   const fired = new Set();
   for (let count = 1; count <= 16; count++) {
-    const levels = Array.from({ length: 8 }, (_, spoke) => chaseOf(count, spoke));
+    const levels = Array.from({ length: 8 }, (_, spoke) =>
+      chaseOf(count, spoke),
+    );
     assert.equal(levels.filter((v) => v === 1).length, 1, "one hot spoke");
     assert.equal(levels.filter((v) => v > 0).length, 3, "two-step tail");
     const hot = levels.indexOf(1);
-    assert.equal(chaseOf(count + 1, (hot + 1) % 8), 1, "next hit fires the neighbour");
-    assert.equal(chaseOf(count + 1, hot), 0.55, "previous spoke becomes the tail");
+    assert.equal(
+      chaseOf(count + 1, (hot + 1) % 8),
+      1,
+      "next hit fires the neighbour",
+    );
+    assert.equal(
+      chaseOf(count + 1, hot),
+      0.55,
+      "previous spoke becomes the tail",
+    );
     fired.add(hot);
   }
   assert.equal(fired.size, 8);
@@ -634,23 +665,72 @@ test("horizon fan folds continuously into the tunnel cone (spoke identity)", () 
       slope = 0.19 + 0.025 * Math.sin(phase * 2),
       angle = (spoke * 2 * Math.PI) / 8 + phase,
       apex = [0, 5.7, 55];
-    const cone = add(apex, [Math.cos(angle) * slope * 53, Math.sin(angle) * slope * 53, -53]);
+    const crown = add(apex, [
+      Math.cos(angle) * slope * 15,
+      Math.sin(angle) * slope * 15,
+      0,
+    ]);
+    const cone = add(apex, [
+      Math.cos(angle) * slope * 68,
+      Math.sin(angle) * slope * 68,
+      -53,
+    ]);
     const k = (spoke - 3.5) / 3.5,
       lift = 0.5 + 0.5 * Math.sin(phase * 2 + 1.3);
-    const fan = [k * 18 * aperture + 3 * Math.sin(phase + 0.4 * spoke), mix(-1.5, 9.5, lift) + 1.5 * k * k, 0.5];
+    const fan = [
+      k * 18 * aperture + 3 * Math.sin(phase + 0.4 * spoke),
+      mix(-1.5, 9.5, lift) + 1.5 * k * k,
+      0.5,
+    ];
     const lerp = (p, q) => p.map((x, i) => mix(x, q[i], fold));
-    return { a: lerp([0, 3.4, 65], apex), b: lerp(fan, cone) };
+    return { a: lerp([0, 3.4, 65], crown), b: lerp(fan, cone) };
   };
   for (let spoke = 0; spoke < 8; spoke++)
     for (let dev = 0; dev < 2; dev += 0.01) {
       const p = spokeEnds(spoke, dev),
         q = spokeEnds(spoke, dev + 0.01);
-      assert.ok(Math.hypot(...sub(p.b, q.b)) < 0.6, "no jump between development steps");
+      assert.ok(
+        Math.hypot(...sub(p.b, q.b)) < 0.6,
+        "no jump between development steps",
+      );
       // Endpoints stay in front of the whole camera path (z >= -7.2 + 7).
       assert.ok(p.b[2] >= 0.5 - 1e-9 && p.a[2] >= 55);
     }
-  assert.match(laserData, /a = mix\(vec3\(0, 3\.4, 65\), apex, gFold\);/);
+  assert.match(laserData, /a = mix\(vec3\(0, 3\.4, 65\), crown, gFold\);/);
   assert.match(laserData, /b = mix\(fanEnd, coneEnd, gFold\);/);
+});
+
+test("r4 truncated cone, ordered arclight and same-side rakes preserve a dark aperture", () => {
+  assert.match(laser.fragment, /vec3 coneV = gEye - vec3\(0, 5\.7, 70\)/);
+  assert.match(laser.fragment, /coneSlope \* \(70\.0 - z\)/);
+  assert.match(laser.fragment, /ringInk \+= u_accent \* chaseArc/);
+  assert.match(laserData, /1\.0 - 0\.82 \* u_rhythm\.w/);
+  assert.match(laserData, /1\.0 - 0\.88 \* u_rhythm\.w/);
+  assert.match(laserData, /bank \* \(2\.4 \+ 0\.5 \* local \* aperture\)/);
+  for (let phase = 0; phase < 2 * Math.PI; phase += 0.05) {
+    const slope = 0.19 + 0.025 * Math.sin(phase * 2);
+    // Every beam axis lies on the SAME cone used by the analytic haze,
+    // while its physical source stays away from the vanishing point.
+    for (let spoke = 0; spoke < 8; spoke++) {
+      const angle = (spoke * Math.PI) / 4 + phase;
+      for (let z = 2; z <= 55; z++) {
+        const r = slope * (70 - z);
+        assert.ok(
+          Math.abs(Math.hypot(Math.cos(angle) * r, Math.sin(angle) * r) - r) <
+            1e-12,
+        );
+        assert.ok(r >= 15 * 0.165);
+      }
+    }
+  }
+  // The material uses compact, smooth nonnegative light pools. Contacts
+  // are never emissive and no energy or rhythm changes the material gain.
+  for (let x = -2; x <= 2; x += 0.01) {
+    const wash = Math.max(0, 1 - x * x) ** 2;
+    assert.ok(wash >= 0 && wash <= 1);
+  }
+  assert.match(laser.fragment, /float jointAO = 0\.28 \+ 0\.72 \* smoothstep/);
+  assert.match(laser.fragment, /float polish = 0\.28 \+ 0\.72/);
 });
 
 test("liquid sky stays above the eye; scan rings travel continuously", () => {
@@ -663,13 +743,22 @@ test("liquid sky stays above the eye; scan rings travel continuously", () => {
       assert.ok(height > eye + 0.25 + 1.4, `${preset.name} sheet above eye`);
     }
   }
-  assert.match(laser.fragment, /float sheetHeight = mix\(u_params\[7\] \+ 1\.7, max\(7\.2, u_params\[7\] \+ 1\.7\), gFold\);/);
+  assert.match(
+    laser.fragment,
+    /float sheetHeight = mix\(u_params\[7\] \+ 1\.7, max\(7\.2, u_params\[7\] \+ 1\.7\), gFold\);/,
+  );
   // Ring age uses an integer harmonic of the wrapped phase: continuous at 2π.
-  const age = (k, phase) => (((k / 3 + (phase * 12) / (2 * Math.PI)) % 1) + 1) % 1;
+  const age = (k, phase) =>
+    (((k / 3 + (phase * 12) / (2 * Math.PI)) % 1) + 1) % 1;
   for (let k = 0; k < 3; k++) {
     const before = age(k, 2 * Math.PI - 1e-9),
       after = age(k, 0);
-    assert.ok(Math.min(Math.abs(before - after), 1 - Math.abs(before - after)) < 1e-6);
+    assert.ok(
+      Math.min(Math.abs(before - after), 1 - Math.abs(before - after)) < 1e-6,
+    );
   }
-  assert.match(laser.fragment, /fract\(float\(k\) \/ 3\.0 \+ gPhase \* 12\.0 \/ TAU\)/);
+  assert.match(
+    laser.fragment,
+    /fract\(float\(k\) \/ 3\.0 \+ gPhase \* 12\.0 \/ TAU\)/,
+  );
 });
