@@ -13,6 +13,7 @@ import {
 } from "../scripts/browser-runtime.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 import {
   ATTRIBUTES,
   INSTANCE_ATTRIBUTES,
@@ -68,10 +69,10 @@ test("voxel is a continuous, eight-look spatial world with bounded presets", () 
         `${preset.name}.${field.key}`,
       );
     }
-  assert.equal(scene.rhythm.length, 3);
+  assert.equal(scene.rhythm.length, 4);
   assert.deepEqual(
     scene.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16],
+    [4, 8, 16, 8],
   );
   assert.equal(scene.geometry.instances.create, createInstances);
   assert.equal(
@@ -82,6 +83,34 @@ test("voxel is a continuous, eight-look spatial world with bounded presets", () 
     INSTANCE_ATTRIBUTES.reduce((a, b) => a + b),
     15,
   );
+});
+
+test("rewrite is slot 3, all presets are dense and shader responses stay local", () => {
+  const effect = scene.rhythm.find((r) => r.slot === 3);
+  assert.equal(effect.id, "memory-rewrite");
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(scene.rhythm, style);
+    const density = pattern.tracks.reduce(
+      (sum, track) =>
+        sum +
+        track.steps.filter((v) => v > 0).length /
+          (track.length / track.division / 4),
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+    assert.ok(effect.styles[style].steps.filter((v) => v > 0).length >= 2);
+  }
+  for (const shader of [scene.geometry.vertex, scene.geometry.fragment]) {
+    assert.match(shader, /u_rhythm\.w/);
+    assert.match(shader, /u_rhythmHit\.w/);
+    assert.match(shader, /u_rhythmCount\.w/);
+    assert.match(shader, /exp\(-pow\(\(address-y\)\/.9,2\.\)\)/);
+  }
+  assert.match(scene.geometry.fragment, /\.18\+u_level\*\.55/);
 });
 
 test("CA step equals an independent dense six-neighbour XOR reference", () => {

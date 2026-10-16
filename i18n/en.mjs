@@ -262,6 +262,9 @@ export default {
   "A persistent address cohort lights along the voxel edges.": "A persistent address cohort lights along the voxel edges.",
   "A narrow scan plane crosses the same voxel matter.": "A narrow scan plane crosses the same voxel matter.",
   "One addressed row makes a bounded glitch displacement.": "One addressed row makes a bounded glitch displacement.",
+  "Memory rewrite": "Memory rewrite",
+  "A travelling write plane turns voxel banks and rewrites their recessed memory ports.":
+    "A travelling write plane turns voxel banks and rewrites their recessed memory ports.",
   "Idle registers": "Idle registers",
   "Address march": "Address march",
   "Midnight overflow": "Midnight overflow",

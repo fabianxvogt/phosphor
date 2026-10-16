@@ -17,6 +17,16 @@ void camera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
 }
 float lens(){return mix(1.6,1.32,ss(1.,2.,u_params[0]))*(1.+.018*clamp(u_kick,0.,1.));}
 vec3 fogColor(){return mix(u_secondary,u_primary,.25)*.008;}
+// Scheduled envelope moves a local write head, never a whole-frame flash.
+float rewrite(vec3 p){
+ float e=clamp(u_rhythm.w,0.,1.);
+ float phase=clamp(1.-e+min(u_rhythmHit.w,.05),0.,1.);
+ float unfold=ss(1.,2.,u_params[0]);
+ float height=mix(14.,10.,unfold);
+ float address=mix(abs(p.y),mod(abs(p.y),10.),unfold);
+ float y=mix(phase,1.-phase,mod(u_rhythmCount.w,2.))*height;
+ return exp(-pow((address-y)/.9,2.))*ss(0.,.14,e);
+}
 `;
 const vertex = `#version 300 es
 precision highp float;
@@ -31,7 +41,7 @@ uniform float u_params[8];
 uniform float u_clock[4];
 uniform float u_level,u_kick;
 uniform vec2 u_resolution;
-uniform vec4 u_rhythm,u_rhythmCount;
+uniform vec4 u_rhythm,u_rhythmCount,u_rhythmHit;
 uniform vec3 u_primary,u_secondary,u_accent;
 ${common}
 out vec3 v_local,v_world;
@@ -57,7 +67,7 @@ void main(){
  // Local row cohorts receive a bounded bit flip, never a population reset.
  float row=floor((a_monolith.y-.22)/.44+.5);
  float cohort=1.-step(.5,abs(mod(row,8.)-mod(u_rhythmCount.z,8.)));
- float glitch=clamp(u_rhythm.z,0.,1.)*cohort*.10*u_params[6];
+ float glitch=clamp(u_rhythm.z,0.,1.)*cohort*.30*u_params[6];
  p.x+=glitch*sin(6.28318530718*rnd);
  float front=12.1*(1.-clamp(u_kick,0.,1.));
  float bit=exp(-pow((a_monolith.y-front)*2.5,2.))*u_kick;
@@ -67,7 +77,9 @@ void main(){
  float halfSize=mix(sparse*wrap,.207,assemble)*u_params[4];
  halfSize=mix(halfSize,.248*u_params[4],unfold);
  vec3 local=a_position;
- float turn=(bit*.18+glitch)*3.;
+ float write=rewrite(p);
+ float turn=(bit*.08+glitch)*2.+write*.34*(rnd-.5);
+ p.x+=write*.13*sin(rnd*6.28318530718);
  mat2 rot=mat2(cos(turn),-sin(turn),sin(turn),cos(turn));
  vec3 n=a_normal;local.xz=rot*local.xz;n.xz=rot*n.xz;
  float link=step(.0001,dot(a_link,a_link));
@@ -76,7 +88,7 @@ void main(){
  // Only rain can approach the lens. Fade its geometric size, not the whole
  // frame, before the near plane; fixed architecture never clips the camera.
  halfSize*=mix(ss(.55,1.25,length(p-eye)),1.,assemble);
- vec3 extent=mix(vec3(halfSize),(.5*span+vec3(.035))*unfold,link);
+ vec3 extent=mix(vec3(halfSize),(.5*span+vec3(.012))*unfold,link);
  vec3 world=p+local*extent;
  float tail=1.-step(.5,dot(a_normal,a_normal));
  if(tail>.5){
@@ -107,10 +119,10 @@ in vec2 v_depth;
 flat in vec4 v_info;
 flat in float v_tail;
 flat in float v_link;
-uniform float u_params[8],u_kick;
+uniform float u_params[8],u_kick,u_level;
 uniform float u_clock[4];
 uniform vec2 u_resolution;
-uniform vec4 u_rhythm,u_rhythmCount;
+uniform vec4 u_rhythm,u_rhythmCount,u_rhythmHit;
 uniform vec3 u_primary,u_secondary,u_accent;
 ${common}
 out vec4 outColor;
@@ -132,35 +144,53 @@ void main(){
  float sweep=exp(-pow((abs(v_world.y)-(.5+.5*sin(u_clock[2]))*32.)*4.,2.));
  scan=max(scan,sweep*.6);
  if(v_link>.5){
-  vec3 col=u_secondary*(.035+edges*.46+scan*.6);
+  vec3 col=u_secondary*(.025+.10*diffuse+edges*.025+scan*.18);
   if(v_info.y>.5)col*=v_depth.y*exp(-abs(v_world.y)*.075);
   col=mix(fogColor(),col,exp(-v_depth.x*mix(.038,.058,ss(1.,2.,dev))));
   outColor=vec4(max(col,vec3(0.)),1.);return;
  }
- vec3 base=mix(u_secondary,u_primary,.15+.65*v_info.w);
+ vec3 base=mix(u_secondary,u_primary,.5+.4*v_info.x);
  float cavities=.45+.55*ss(0.,2.8,abs(v_world.y));
  float fill=v_light.w;
- vec3 col=base*(.015+.12*diffuse)*cavities+u_secondary*fill*.035;
- col+=mix(base,vec3(1.),.15)*spec*.8;
+ // Solid black-silicon faces, a broad key and a narrow physical bevel.
+ float bevel=ss(.78,.99,edge);
+ vec3 col=base*(.055+.64*diffuse)*cavities*(1.-bevel*.48);
+ col+=u_secondary*fill*.12;
+ col+=mix(base,vec3(1.),.08)*spec*.7;
  float address=1.-step(.8,abs(mod(floor(v_info.w*1296.),16.)-mod(u_rhythmCount.x,16.)));
  float data=address*clamp(u_rhythm.x,0.,1.);
- float emit=(1.5+u_params[2]*1.4);
- col+=base*edges*emit*(.5+.5*diffuse);
- col+=u_secondary*rim*.13;
- col+=mix(u_primary,vec3(1.),.18)*edges*(scan*1.8+v_info.z*1.6);
+ float emit=(.11+u_params[2]*.16);
+ float conductor=step(.83,v_info.x);
+ col+=base*edges*emit*(.3+.7*diffuse)*(.2+.8*conductor);
+ col+=u_secondary*rim*.18;
+ col+=u_primary*edges*(scan*.65+v_info.z*.6);
  // Face memory pads: an addressed bit-flip travels with the kick front.
  vec2 uv=a.x>.999?v_local.yz:(a.y>.999?v_local.xz:v_local.xy);
  vec2 pad=abs(uv-vec2(-.27,.2));
  vec2 padAA=max(fwidth(uv),vec2(.015));
  float memory=(1.-ss(.13-padAA.x,.13+padAA.x,pad.x))*(1.-ss(.23-padAA.y,.23+padAA.y,pad.y));
  float marked=step(.85,v_info.x);
- col+=mix(u_primary,vec3(1.),.3)*memory*marked*(.25+v_info.z*2.);
+ col+=u_primary*memory*marked*(.5+v_info.z*2.);
  // Fine face scanline, separate from the large addressed scanning plane.
  float line=abs(fract(uv.y*.5+.5-u_clock[2]/6.28318530718)-.5);
  float lineAA=max(fwidth(line),.008);
  float readout=1.-ss(.012-lineAA,.012+lineAA,line);
- col+=u_secondary*readout*(.065+scan*.3)*(1.-edges);
- col+=u_accent*(edges*data*1.4+memory*marked*v_info.z*2.5);
+ col+=u_secondary*readout*(.025+scan*.18)*(1.-edges);
+ // Energy enables more actual illuminated memory ports, not global gain.
+ vec2 ports=vec2(abs(uv.x),abs(fract((uv.y*.5+.5)*4.)-.5));
+ vec2 portAA=max(fwidth(uv)*1.1,vec2(.03));
+ float bank=(1.-ss(.53-portAA.x,.53+portAA.x,ports.x))
+  *(1.-ss(.155-portAA.y,.155+portAA.y,ports.y));
+ float register=step(.32,fract(v_info.x*83.+floor((uv.y*.5+.5)*4.)*.618));
+ bank*=.22+.78*register;
+ float enabled=step(v_info.x,.18+u_level*.55);
+ float write=rewrite(v_world);
+ float interior=(1.-edges)*(1.-bevel*.55);
+ col*=1.-bank*.45;
+ col+=base*bank*interior*enabled*(1.65+data*2.6+scan*3.2);
+ col+=u_accent*write*interior*(bank*4.5+memory*1.2+.25);
+ col+=u_primary*write*(edges*.85+interior*.4);
+ col+=u_accent*(bank*interior*data*.7+memory*marked*v_info.z*2.5);
  if(v_info.y>.5)col*=v_depth.y*exp(-abs(v_world.y)*.075);
  col=mix(fogColor(),col,exp(-v_depth.x*mix(.038,.058,ss(1.,2.,dev))));
  outColor=vec4(max(col,vec3(0.)),1.);
@@ -196,7 +226,7 @@ void main(){
   // Most hall rays miss a column, so avoid three exponentials for them.
   if(d2<3.4){
    float bound=ss(.0,.5,p.y)*ss(38.,34.,p.y)*ss(T+.1,T-.1,t);
-   float beam=exp(-d2/.012)*1.8+exp(-d2/.3)*.07;
+   float beam=exp(-d2/.012)*.7+exp(-d2/.3)*.05;
    col+=tone*beam*bound*exp(-t*.055);
   }
  }
@@ -318,40 +348,141 @@ export default {
   },
   beat: { punch: 0.04, pulse: 0.04 },
   audio: [{ param: "glitch", feature: "onset", amount: 0.06 }],
-  rhythmStyles: { restrained: "Idle registers", driving: "Address march", accented: "Midnight overflow" },
+  rhythmStyles: {
+    restrained: "Idle registers",
+    driving: "Address march",
+    accented: "Midnight overflow",
+  },
   rhythm: [
     familyEffect(
       "address-flip",
       0,
       "Address flip",
       "A persistent address cohort lights along the voxel edges.",
-      { period: 4, strength: 0.7, duration: 1.2, steps: "X...", styles: {
-        restrained: { steps: "X....... | .....x.. | ....X... | .....x..", division: 2, strength: 0.55, duration: 1.1 },
-        driving: { steps: "X...x... | .X....x.", division: 2, strength: 0.82, duration: 0.7 },
-        accented: { steps: "X......x........ | ..X.......x..... | ....X.......x... | ......X.......x.", division: 4, strength: 0.95, duration: 0.4 },
-      } },
+      {
+        period: 4,
+        strength: 0.7,
+        duration: 1.2,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | .....x.. | ....X... | .....x..",
+            division: 2,
+            strength: 0.55,
+            duration: 1.1,
+          },
+          driving: {
+            steps: "X...x... | .X....x.",
+            division: 2,
+            strength: 0.82,
+            duration: 0.7,
+          },
+          accented: {
+            steps:
+              "X......x........ | ..X.......x..... | ....X.......x... | ......X.......x.",
+            division: 4,
+            strength: 0.95,
+            duration: 0.4,
+          },
+        },
+      },
     ),
     familyEffect(
       "scan-plane",
       1,
       "Scan plane",
       "A narrow scan plane crosses the same voxel matter.",
-      { period: 8, strength: 0.75, duration: 3, steps: "X.......", styles: {
-        restrained: { steps: "...x.... | .......X | ..x..... | ........", division: 2, strength: 0.6, duration: 1.3 },
-        driving: { steps: "..X..x.. | ...X..x.", division: 2, strength: 0.84, duration: 0.8 },
-        accented: { steps: ".X..x.X..x.X..x. | ..X.x..X.x..X.xx", division: 4, strength: 0.98, duration: 0.2 },
-      } },
+      {
+        period: 8,
+        strength: 0.75,
+        duration: 3,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | .......X | ..x..... | ........",
+            division: 2,
+            strength: 0.6,
+            duration: 1.3,
+          },
+          driving: {
+            steps: "..X.x.x. | .x.X..x.",
+            division: 2,
+            strength: 0.95,
+            duration: 0.38,
+          },
+          accented: {
+            steps: ".X..x.X..x.X..x. | ..X.x..X.x..X.xx",
+            division: 4,
+            strength: 0.98,
+            duration: 0.2,
+          },
+        },
+      },
     ),
     familyEffect(
       "register-shift",
       2,
       "Register shift",
       "One addressed row makes a bounded glitch displacement.",
-      { period: 16, strength: 0.75, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.6, duration: 1.5 },
-        driving: { steps: "........ | ......x. | ........ | .....X.x", division: 2, strength: 0.84, duration: 0.6 },
-        accented: { steps: "................ | .............x.. | ................ | ............X..x", division: 4, strength: 0.98, duration: 0.4 },
-      } },
+      {
+        period: 16,
+        strength: 0.75,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | ......X.",
+            division: 2,
+            strength: 0.6,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "........ | ......x. | ........ | .....X.x",
+            division: 2,
+            strength: 0.84,
+            duration: 0.6,
+          },
+          accented: {
+            steps:
+              "................ | .............x.. | ................ | ............X..x",
+            division: 4,
+            strength: 0.98,
+            duration: 0.4,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "memory-rewrite",
+      3,
+      "Memory rewrite",
+      "A travelling write plane turns voxel banks and rewrites their recessed memory ports.",
+      {
+        period: 8,
+        strength: 1,
+        duration: 1.5,
+        steps: "X...X...",
+        styles: {
+          restrained: {
+            steps: "..X..... | ......X. | ........ | .....X..",
+            division: 2,
+            strength: 0.9,
+            duration: 1.4,
+          },
+          driving: {
+            steps: "X...X... | ...X..X.",
+            division: 2,
+            strength: 1,
+            duration: 0.95,
+          },
+          accented: {
+            steps: "X...X..X....X... | ..X...X...X...X.",
+            division: 4,
+            strength: 1,
+            duration: 0.65,
+          },
+        },
+      },
     ),
   ],
   clocks: [
