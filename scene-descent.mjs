@@ -122,7 +122,10 @@ void main() {
   if (u_reset) state = vec2(fract(u_seed * 0.0173), 0.0);
   else {
     float d = clamp(u_params[0], 0.0, 2.0);
-    float x = state.x + u_dt * u_params[1] * 0.85 * (1.0 + 0.55 * d) / 6.0;
+    // The flight impulse (slot 1) is a bounded forward surge of the
+    // integrated speed, so the camera never settles backwards.
+    float surge = 1.0 + 0.6 * clamp(u_rhythm.y, 0.0, 1.0);
+    float x = state.x + u_dt * u_params[1] * 0.85 * (1.0 + 0.55 * d) * surge / 6.0;
     float wraps = floor(x);
     float counter = floor(state.y * 65535.0 + 0.5);
     state = vec2(x - wraps, mod(counter + wraps, 65535.0) / 65535.0);
@@ -198,7 +201,9 @@ float dsHall(vec3 p, bool clampCells) {
   dsHallSizes(cell, clampCells ? 0 : 1, xs, zs, ys, deck);
   float c = min(max(a.y - xs.x, a.z - xs.y),
     min(max(a.x - zs.x, a.y - zs.y), max(a.x - ys.x, a.z - ys.y)));
-  if (deck > 0.0)
+  // Decks hang only above the flight: below it the city falls away into
+  // its lit abyss (the narrow bound below still assumes decks everywhere).
+  if (deck > 0.0 && p.y > 0.0)
     c = max(c, deck - abs(mod(p.y, 18.0) - 9.0));
   // Neighbouring blocks differ: never step further than into the next
   // block, unless the narrowest variant of every block is still open there.
@@ -239,7 +244,7 @@ vec3 dsNormal(vec3 p) {
   if (t < c) { c = t; g = gt; }
   t = dsMaxGrad(a.x - ys.x, ex, a.z - ys.y, ez, gt);
   if (t < c) { c = t; g = gt; }
-  if (deck > 0.0) {
+  if (deck > 0.0 && p.y > 0.0) {
     float m = mod(p.y, 18.0) - 9.0;
     t = deck - abs(m);
     if (t > c) { c = t; g = vec3(0.0, -sign(m), 0.0); }
@@ -270,14 +275,17 @@ float dsMap(vec3 p, out float trap, bool clampCells) {
   trap = -1.0;
   // Fixed scales remove the dynamic loop/scale dependency on tile GPUs.
   // Same candidates, order, first winner and conservative suffix bound.
-  ${Array.from({ length: 5 }, (_, i) => `{
+  ${Array.from(
+    { length: 5 },
+    (_, i) => `{
     if (gLevels <= ${i}.) return -holes;
     vec3 q = mod(p * ${3 ** i}. + 1.0, 2.0) - 1.0;
     float w = ${i === 0 ? "gW0" : "gW"} * clamp(gLevels - ${i}., 0.0, 1.0);
     float c = dsCross(q, w) / ${3 ** i}.;
     if (c < holes) { holes = c; trap = ${i}.; }
     if (holes <= -gW / ${3 ** (i + 1)}.) return -holes;
-  }`).join("\n")}
+  }`,
+  ).join("\n")}
   return -holes;
 }
 
@@ -300,13 +308,15 @@ float dsSky(vec3 p, bool fine) {
     vec2 xs, zs, ys;
     float deck;
     dsHallSizes(cell, 1, xs, zs, ys, deck);
-    gap = max(a.x - ys.x, a.z - ys.y);
+    // Only the core of the wider shafts casts a beam: fewer, separate god
+    // rays rather than a veil when many shafts overlap in the open hall.
+    gap = max(a.x - ys.x, a.z - ys.y) + 0.2;
   }
   // Corridor beams fall through the sponge's own ceiling holes; in the open
   // states only the hall shafts and streets cast beams, which stay legible.
   if (fine || gCave < 0.5) gap = min(gap, max(a0.x, a0.y) - gW0);
   if (fine) gap = min(gap, (max(a1.x, a1.y) - gW) / 3.0);
-  float edge = fine ? 0.03 : 0.12;
+  float edge = fine ? 0.03 : 0.07;
   return smoothstep(edge, -edge, gap);
 }
 
@@ -359,7 +369,7 @@ void main() {
 
   // Camera: sway and bob scale with the guaranteed free core of the
   // camera's street, which is never narrower than the sponge corridor.
-  float s = state.x * 6.0 + u_rhythm.y * 0.05 * (1.0 + dev);
+  float s = state.x * 6.0;
   float w = s * TAU / 6.0;
   float coreY = min(gXs.x, 1.6) - b, coreZ = gXs.y - b;
   float ay = 0.15 * b + 0.5 * coreY, az = 0.15 * b + 0.55 * coreZ;
@@ -369,7 +379,10 @@ void main() {
   // block's avenue opens as a deep sideways vista (period 36 units).
   float route = mod(gCounter, 6.0) * 6.0 + s;
   float vista = 0.6 * gCity * cos(TAU * route / 36.0);
-  vec3 fw = normalize(vec3(1.0, 0.2 * velocity.y + 0.06 * gCity, 0.4 * velocity.z + vista));
+  // The gaze also dips toward the lit abyss, deepest at each vista peak, so
+  // the towers converge downwards into the glow (the descent).
+  float dive = gCity * (0.16 + 0.26 * abs(cos(TAU * route / 36.0)));
+  vec3 fw = normalize(vec3(1.0, 0.2 * velocity.y - dive, 0.4 * velocity.z + vista));
   vec3 up = vec3(0.0, 1.0, 0.0);
   vec3 rt = normalize(cross(up, fw));
   up = cross(fw, rt);
@@ -396,10 +409,10 @@ void main() {
   bool hit = false;
   float beamHeld = 0.0;
   // Sunlight is the corridor's hero; open states rely on more beams instead.
-  float beamGain = mix(3.4, 2.2, gCave);
+  float beamGain = mix(3.4, 2.8, gCave);
   // Narrow corridor beams need a denser medium than the wide cavern shafts;
   // the city keeps only faint shafts between towers.
-  float beamDensity = mix(0.3, 0.05, gCave) * (1.0 - smoothstep(0.0, 0.45, gCity));
+  float beamDensity = mix(0.3, 0.06, gCave) * (1.0 - smoothstep(0.0, 0.45, gCity));
   for (int i = 0; i < RAY_CAP; ++i) {
     if (i >= limit) break;
     vec3 p = ro + rd * t;
@@ -409,12 +422,15 @@ void main() {
     float segment = min(d * 0.97, tMax - t);
     // Light reuses the governed march: sunlight through ceiling holes in the
     // corridor, shafts in the cavern and gaps between towers in the city.
-    // Sampled on alternate steps and held: half the probes, same shafts.
+    // Alternate-step probes keep the scattering budget bounded. Open
+    // halls sample the segment midpoint and cap its lit length below,
+    // preventing long steps from smearing a shaft into a luminous veil.
     if (beamDensity > 0.0 && (i & 1) == 0 && segment > 0.03 && t < 18.0) {
+      vec3 q = gCave >= 0.5 ? p + rd * (0.5 * segment) : p;
       // Drifting dust breaks the shafts into soft volumetric streaks.
       float phase = mod(u_time * 0.21, TAU);
-      float dust = sin(dot(p, vec3(1.7, 0.3, 2.3)) + phase) * sin(dot(p, vec3(-0.9, 1.3, 0.7)) * 1.7 - phase);
-      beamHeld = beamGain * dsSky(p, false) * (0.6 + 0.4 * dust);
+      float dust = sin(dot(q, vec3(1.7, 0.3, 2.3)) + phase) * sin(dot(q, vec3(-0.9, 1.3, 0.7)) * 1.7 - phase);
+      beamHeld = beamGain * dsSky(q, false) * (0.4 + 0.6 * dust * dust);
     }
     float beam = segment > 0.03 && t < 18.0 ? beamHeld : 0.0;
     // Scattering density is independent of the fog, so beams stay crisp.
@@ -422,7 +438,9 @@ void main() {
     // never veils the whole frame.
     // A fixed falloff (not the fog) keeps distant shafts from piling into haze
     // when energy thins the fog.
-    scattering += exp(-t * max(extinction, 0.11)) * segment * (0.002 + beam * light * beamDensity * smoothstep(0.2, 1.2, t));
+    float beamLength = gCave >= 0.5 ? min(segment, 1.2) : segment;
+    scattering += exp(-t * max(extinction, 0.11)) * (0.001 * segment +
+      beamLength * beam * light * beamDensity * smoothstep(0.2, 1.2, t));
     edge += exp(-max(d, 0.0) * 90.0) * min(segment, 0.03) * 0.6;
     t += segment;
     if (t >= tMax) break;
@@ -430,15 +448,49 @@ void main() {
   // Out of steps close to a surface: shade it rather than leaving a hole.
   if (!hit && t < tMax && d < 0.03 * t) hit = true;
 
-  vec3 cityGlow = mix(u_primary, u_secondary, 0.45);
+  // The city's haze glows from its lit depths: a height fog that is bright,
+  // saturated light far below the flight and near black overhead, so towers
+  // dissolve downwards into light and upwards into night (layered
+  // silhouettes, one light source). The halls keep a dim cool haze.
   vec3 atmCave = mix(u_secondary, u_primary, 0.25) * 0.06;
-  // The city's haze glows from its lit depths: aerial perspective turns far
-  // towers into layered silhouettes, darkest overhead.
-  vec3 atmCity = mix(u_secondary * 0.035, cityGlow * 0.42, smoothstep(0.35, -0.75, rd.y));
-  vec3 atmosphere = mix(atmCave, atmCity, gCity);
   vec3 col = vec3(0.0);
+  vec3 hp = ro + rd * min(t, tMax);
+  float hRel = hp.y - ro.y;
+  float deep = 0.0;
+  vec3 atmosphere = atmCave;
+  // Uniform state branch: the halls need none of the city's height fog.
+  if (gCity > 0.0) {
+    float abyssGain = gCity * (0.55 + 0.75 * level + 0.25 * bass);
+    deep = smoothstep(3.0, -20.0, hRel);
+    vec3 abyss = mix(u_secondary * 0.03, mix(u_secondary, u_primary, 0.12 * deep * deep) *
+      (0.06 + 0.62 * deep * deep), smoothstep(0.0, 0.35, deep));
+    // Far below, the lattice's streets glow with distance-filtered widths.
+    if (!hit && rd.y < -0.06) {
+      float tp = 40.0 / -rd.y;
+      vec2 g = (ro.xz + rd.xz * tp) / 6.0;
+      vec2 dl = abs(fract(g + 0.5) - 0.5) * 6.0;
+      float width = 0.5 + 0.012 * tp;
+      float street = max(exp(-dl.y * dl.y / (width * width)), 0.6 * exp(-dl.x * dl.x / (width * width)));
+      abyss += mix(u_secondary, u_primary, 0.55) * street * 0.35 * exp(-tp * 0.012) * deep;
+    }
+    atmosphere = mix(atmCave, abyss * abyssGain + u_secondary * 0.012, gCity);
+    extinction *= 1.0 + 1.6 * gCity * deep;
+  }
+
+  // Signature (slot 3), the ignition wave. Its steps are full strength, so
+  // the envelope over the shared level response gives an eased front
+  // progress (0 at the hit, 1 when it has passed). In the city the front
+  // climbs out of the abyss (even hits) or descends from above (odd hits)
+  // and ignites every storey it passes; in the halls it races away from
+  // the lens and lights the recursive apertures ring by ring.
+  float igEnv = clamp(u_rhythm.w / (0.12 + 0.88 * level * level * (3.0 - 2.0 * level)), 0.0, 1.0);
+  float igProgress = 1.0 - igEnv;
+  float igOn = step(0.002, u_rhythm.w);
+  float igDir = gCity > 0.5 && mod(u_rhythmCount.w, 2.0) > 0.5 ? -1.0 : 1.0;
+  float igFront = mix(mix(0.5, 20.0, igProgress), mix(-12.0, 12.0, igProgress), gCity);
+  float igStart = mix(0.0, -13.0, gCity);
+
   if (hit) {
-    vec3 hp = ro + rd * t;
     float tmp;
     vec3 n = dsNormal(hp);
     float occlusion = dsOcclusion(hp, n);
@@ -448,7 +500,7 @@ void main() {
     vec4 r = dsCellRandom(floor(hp / 6.0 + 0.5));
     vec3 stone = mix(u_secondary, palette(0.2 + 0.4 * r.x * gVar), 0.4);
     vec3 tint = palette(0.15 + 0.17 * clamp(trap, 0.0, 3.0));
-    vec3 material = mix(stone, tint, 0.2) * (0.5 + 0.06 * clamp(trap, -1.0, 3.0)) * (1.0 - 0.2 * gCity);
+    vec3 material = mix(stone, tint, 0.2) * (0.5 + 0.06 * clamp(trap, -1.0, 3.0)) * (1.0 - 0.35 * gCity);
     float head = max(dot(n, -rd), 0.0);
     float sun = max(dot(n, gL), 0.0);
     if (sun > 0.0) {
@@ -464,75 +516,107 @@ void main() {
     float att = 1.0 / (1.0 + 0.07 * t * t);
     // Dark ground: a dim headlight; the sun patches carry the corridor and
     // cavern, while the night city keeps the sun low against its windows.
-    float sunGain = mix(mix(2.2, 1.9, gCave), 1.1, gCity);
+    float sunGain = mix(mix(3.2, 2.5, gCave), 0.7, gCity);
     float shade = 0.04 + light * (mix(0.32, 0.4, gCave) * head * head * att +
-      mix(0.07, 0.16, gCave) * (1.0 - 0.3 * gCity) * sky);
+      mix(0.07, 0.16, gCave) * (1.0 - 0.5 * gCity) * sky);
     col = material * shade * occlusion;
     // Warm key patches separate from the cool structural fill: multiplying
     // two saturated palette colours made the old sunlight muddy blue.
-    col += mix(u_primary, vec3(1.0), 0.2) * sunGain * sun * light * 0.24 * occlusion;
-    // Night city: faces turned downwards catch the glow of the depths.
-    col += mix(u_secondary, u_primary, 0.18) * 0.1 * gCity *
-      (0.25 + max(-n.y, 0.0)) * occlusion;
+    col += mix(u_primary, vec3(1.0), 0.1) * sunGain * sun * light * 0.24 * occlusion;
+    // Night city: every face catches the glow of the depths, faces turned
+    // downwards most, and lower storeys more than higher ones.
+    col += mix(u_secondary, u_primary, 0.2 * deep) * gCity * (0.05 + 0.32 * deep) *
+      (0.2 + 0.8 * max(-n.y, 0.0) + 0.25 * (1.0 - abs(n.y))) * occlusion * (0.7 + 0.5 * level);
     // A cool opposing key catches vertical ribs without bleaching the stone.
     float rimKey = max(dot(n, normalize(vec3(-0.4, 0.25, -0.8))), 0.0);
     col += u_secondary * light * (0.025 + 0.09 * gCave) * rimKey * occlusion;
     // A level still fading in (by energy or distance) shows as dark grooves
     // rather than bright sub-pixel slits; it brightens as it opens.
     if (trap >= 0.0) col *= mix(0.25, 1.0, clamp(gLevels - trap, 0.0, 1.0));
-    // A narrow raking bevel cue on resolved recursive aperture corners.
-    // Analytic on the winning scale: no extra SDF or shadow samples.
-    if (trap >= 0.0 && trap < 2.5) {
-      float sc = pow(3.0, trap);
-      vec3 q = abs(mod(hp * sc + 1.0, 2.0) - 1.0);
-      float width = (trap < 0.5 ? gW0 : gW) * clamp(gLevels - trap, 0.0, 1.0);
-      float corner = max(0.0, min(width - min(q.x, min(q.y, q.z)), max(q.x, max(q.y, q.z)) - width)) / sc;
-      float bevel = 1.0 - smoothstep(0.008, 0.025 + hitScale * t, corner);
-      col += mix(u_secondary, u_primary, 0.45) * bevel * (0.055 + 0.09 * gCave) * occlusion;
-    }
     float rim = pow(max(1.0 - head, 0.0), 3.0);
     col += mix(u_secondary, u_primary, 0.65) * rim * glowAmount *
       (0.06 + level * 0.16 + bass * (0.14 + level * 0.5)) * occlusion;
-    // Window lights: inner faces of recursive holes, seeded per window and
-    // continuous across travel wraps. More windows light as the city forms.
+    // The ignition front also sweeps across the facades as a soft band.
+    float igPassed = igFront - igDir * hRel;
+    float facade = igOn * gCity * step(igStart, igDir * hRel) * mix(1.0, igEnv, 0.5) *
+      (exp(-abs(igPassed) * 2.2) + 0.15 * igEnv * step(0.0, igPassed));
+    col += mix(u_primary, u_accent, 0.2) * facade * 1.1 * occlusion;
     if (trap >= 0.0 && trap < 2.5) {
       float sc = pow(3.0, trap);
       vec3 cid = floor((hp * sc + 1.0) * 0.5);
+      vec3 wq = abs(mod(hp * sc + 1.0, 2.0) - 1.0);
       uvec3 id = uvec3(ivec3(cid));
       id.x += uint(gCounter) * uint(3.0 * sc + 0.5);
       uint wh = cellHash(id ^ uvec3(0u, uint(trap) * 7919u, 0x9e37u));
       float r1 = float(wh >> 8) / 16777216.0;
       float r2 = float(wh & 255u) / 255.0;
-      // Lights live in the city; the corridor keeps a few deep embers.
-      float allowed = trap < 0.5 ? 0.4 * gCity : gCity + 0.12 * (1.0 - gCave);
-      float chance = 0.3 + 0.2 * level;
+      // Ignition: the storey (city) or aperture ring along the hall (halls)
+      // of this hole, quantised so the front lights floor by floor.
+      float floorY = 2.0 * cid.y / sc - ro.y;
+      float ringX = 2.0 * cid.x / sc - ro.x;
+      float coord = mix(ringX, igDir * floorY, gCity);
+      float passed = igFront - coord;
+      float ignite = igOn * step(0.0, passed) * step(igStart, coord) *
+        (exp(-passed * mix(0.35, 0.8, gCity)) * 2.6 + mix(0.45, 1.3, gCity) * igEnv) * mix(1.0, igEnv, 0.4);
+      // A narrow raking bevel cue on resolved recursive aperture corners.
+      // Analytic on the winning scale: no extra SDF or shadow samples.
+      float width = (trap < 0.5 ? gW0 : gW) * clamp(gLevels - trap, 0.0, 1.0);
+      float corner = max(0.0, min(width - min(wq.x, min(wq.y, wq.z)), max(wq.x, max(wq.y, wq.z)) - width)) / sc;
+      float bevel = 1.0 - smoothstep(0.008, 0.025 + hitScale * t, corner);
+      // The window cohort (slot 0) and seam surge (slot 2) also flare the
+      // aperture rims; in the halls the ignition rings run along them.
+      float band = mod(u_rhythmCount.x, 4.0);
+      float inCohort = step(abs(floor(r2 * 4.0) - band), 0.5);
+      // In the halls only the travelling ring of the front lights the rims.
+      float ring = igOn * exp(-abs(passed) * 1.4) * step(igStart, coord) * mix(1.0, igEnv, 0.4) * (1.0 - gCity);
+      float rimFlare = 1.0 + 1.6 * u_rhythm.z + 2.0 * inCohort * u_rhythm.x * (1.0 - gCity) + 5.0 * ring;
+      vec3 rimColour = mix(mix(u_secondary, u_primary, 0.45), mix(u_primary, u_accent, 0.35),
+        clamp(u_rhythm.z + ring, 0.0, 1.0));
+      // Seeded small aperture lips catch hot raking light; do not trace
+      // every square with a uniform neon outline.
+      float lip = mix(0.055, 0.3, step(r1, 0.18) * (1.0 - gCity));
+      col += rimColour * bevel * (lip + 0.09 * gCave) * rimFlare * occlusion;
+      // Window lights: inner faces of recursive holes, seeded per window and
+      // continuous across travel wraps. Lit storeys, not speckle: a seeded
+      // share of each block's floors lights most of its windows, a few
+      // windows burn elsewhere; energy lights more floors.
+      // A few recessed lamps carry the same window identity through the
+      // dark halls; the city inherits them as whole lit storeys.
+      float allowed = trap < 0.5 ? 0.4 * gCity : gCity + mix(0.3, 0.12, gCave) * (1.0 - gCity);
       vec3 block = floor(hp / 6.0 + 0.5);
       uint fh = cellHash(uvec3(ivec3(block.x + gCounter, cid.y, block.z)) ^ uvec3(0x51u, uint(trap), 0u));
-      float floorOn = step(float(fh >> 8) / 16777216.0, 0.35 + 0.3 * level);
+      float fr = float(fh >> 8) / 16777216.0;
+      float floorOn = step(fr, 0.16 + 0.34 * level);
+      float chance = mix(0.04 + 0.06 * level, 0.6 + 0.25 * level, floorOn);
       // Light one horizontal tunnel of the window's cross, chosen per window,
       // so lights read as panes and slots rather than plus signs.
-      vec3 wq = abs(mod(hp * sc + 1.0, 2.0) - 1.0);
       float tx = max(wq.y, wq.z), tz = max(wq.x, wq.y);
       float tunnel = r2 < 0.55 ? step(tz, min(tx, max(wq.x, wq.z))) : step(tx, min(tz, max(wq.x, wq.z)));
-      float lit = step(r1, chance) * floorOn * allowed * tunnel;
-      float band = mod(u_rhythmCount.x, 4.0);
-      float cohort = step(abs(floor(r2 * 4.0) - band), 0.5) * u_rhythm.x * allowed * tunnel;
-      vec3 lamp = r2 < 0.035 ? u_accent : mix(u_primary, vec3(1.0), 0.3);
+      float lit = step(r1, chance) * allowed * tunnel;
+      float cohort = inCohort * u_rhythm.x * allowed * tunnel;
+      // Floors pick a light: primary mostly, cool secondary offices, a rare
+      // accent signal; the brightest panes run hot toward white.
+      float hue = float(fh & 255u) / 255.0;
+      vec3 lamp = hue < 0.72 ? u_primary : mix(u_secondary, vec3(1.0), 0.35);
+      if (r2 < 0.035) lamp = u_accent;
+      lamp = mix(lamp, vec3(1.0), 0.25 * step(0.9, r1));
       float inset = 0.2 + 0.8 * (1.0 - smoothstep(0.4, 1.0, max(wq.x, wq.z)));
       float depth = clamp(1.0 - head * 0.5, 0.5, 1.0) * inset;
       // On every beat one floor band of the city answers the kick; the band
       // climbs a floor per beat, so the towers carry the bar's rhythm.
       float storey = floor(hp.y * 1.5);
       float chase = step(mod(storey - floor(u_beat), 4.0), 0.5) * u_kick * gCity * tunnel * step(0.5, r1 * 2.0 + floorOn);
-      col += lamp * glowAmount * depth * (lit * (1.2 + r1 / chance) + cohort * 0.9 + chase * 0.7);
+      vec3 igColour = mix(mix(u_primary, vec3(1.0), 0.15), mix(u_accent, vec3(1.0), 0.3), smoothstep(1.3, 2.4, ignite));
+      col += glowAmount * depth * (lamp * (lit * (1.4 + 1.2 * r1) + cohort * 2.0 + chase * 0.7) +
+        igColour * ignite * 2.6 * allowed * mix(0.5, 1.0, tunnel));
     }
   }
   float transmission = exp(-min(t, tMax) * extinction);
   col = mix(atmosphere, col, hit ? transmission : 0.0);
-  vec3 beamColour = mix(u_primary, vec3(1.0), 0.25);
+  vec3 beamColour = mix(u_primary, vec3(1.0), 0.12);
   vec3 seamColour = mix(u_accent, u_primary, 0.5 + 0.5 * sin(s * TAU / 6.0 + trap));
   col += seamColour * glowAmount * edge * (1.0 - 0.85 * gCity) *
-    (1.0 + bass * level + u_rhythm.z);
+    (1.0 + bass * level + 2.0 * u_rhythm.z);
   col += mix(seamColour, beamColour, 0.6 + 0.4 * gCave) * min(scattering, 0.6) *
     (0.8 + level * 0.1 + bass * level * 0.3);
   outColor = vec4(max(col, vec3(0.0)), 1.0);
@@ -560,40 +644,142 @@ export default {
     { param: "glow", feature: "low", amount: 0.1 },
     { param: "light", feature: "high", amount: 0.06 },
   ],
-  rhythmStyles: { restrained: "Empty avenues", driving: "Window procession", accented: "Recursive rush" },
+  rhythmStyles: {
+    restrained: "Empty avenues",
+    driving: "Window procession",
+    accented: "Recursive rush",
+  },
   rhythm: [
     familyEffect(
       "window-cohort",
       0,
       "Window cohort",
       "One seeded cohort of recursive windows lights together.",
-      { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
-        restrained: { steps: "X....... | .....x.. | ...X.... | ........", division: 2, strength: 0.5, duration: 1.25 },
-        driving: { steps: "X....x.. | .X....x.", division: 2, strength: 0.76, duration: 0.85 },
-        accented: { steps: "X......x........ | ...X......x.....", division: 4, strength: 0.9, duration: 0.7 },
-      } },
+      {
+        period: 4,
+        strength: 0.6,
+        duration: 1,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | .....x.. | ...X.... | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 1.25,
+          },
+          driving: {
+            steps: "X....x.. | .X....x.",
+            division: 2,
+            strength: 0.76,
+            duration: 0.85,
+          },
+          accented: {
+            steps: "X......x........ | ...X......x.....",
+            division: 4,
+            strength: 0.9,
+            duration: 0.7,
+          },
+        },
+      },
     ),
     familyEffect(
       "descent-impulse",
       1,
       "Flight impulse",
-      "Advance the camera a bounded distance along its street and settle back.",
-      { period: 8, strength: 0.5, duration: 1, kind: "motion", steps: "X.......", styles: {
-        restrained: { steps: "......x. | ........ | .......X | ........", division: 2, strength: 0.45, duration: 1.5 },
-        driving: { steps: "......x. | .......X | ........ | .....x..", division: 2, strength: 0.65, duration: 1 },
-        accented: { steps: "..........x..... | .............X.. | ......x......... | ...........X....", division: 4, strength: 0.8, duration: 0.9 },
-      } },
+      "A bounded forward speed surge carries the flight along its street without reversing.",
+      {
+        period: 8,
+        strength: 0.5,
+        duration: 1,
+        kind: "motion",
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "......x. | ........ | .......X | ........",
+            division: 2,
+            strength: 0.45,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "......x. | .......X | ........ | .....x..",
+            division: 2,
+            strength: 0.65,
+            duration: 1,
+          },
+          accented: {
+            steps:
+              "..........x..... | .............X.. | ......x......... | ...........X....",
+            division: 4,
+            strength: 0.8,
+            duration: 0.9,
+          },
+        },
+      },
     ),
     familyEffect(
       "seam-surge",
       2,
       "Seam surge",
       "The sponge's recursive edges flare once.",
-      { period: 16, strength: 0.6, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | ...x.... | ........ | ......X.", division: 2, strength: 0.5, duration: 1.5 },
-        driving: { steps: "..x...X. | ...x..X.", division: 2, strength: 0.74, duration: 0.75 },
-        accented: { steps: "..x.X..x..X..x.. | .x..X.x..X..x.XX", division: 4, strength: 0.9, duration: 0.2 },
-      } },
+      {
+        period: 16,
+        strength: 0.6,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ...x.... | ........ | ......X.",
+            division: 2,
+            strength: 0.5,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "..x...X. | ...x..X.",
+            division: 2,
+            strength: 0.74,
+            duration: 0.75,
+          },
+          accented: {
+            steps: "..x.X..x..X..x.. | .x..X.x..X..x.XX",
+            division: 4,
+            strength: 0.9,
+            duration: 0.2,
+          },
+        },
+      },
+    ),
+    // Signature: the ignition wave. Full-strength steps only (the shader
+    // recovers the front's progress from the envelope at nominal 1); the
+    // styles differ in placement and in how long the front takes to climb.
+    familyEffect(
+      "ignition-wave",
+      3,
+      "Ignition wave",
+      "A front of light climbs out of the glowing depths, or falls from above, and ignites the city floor by floor; in the halls it races away along the recursive apertures.",
+      {
+        strength: 1,
+        duration: 1.75,
+        styles: {
+          restrained: {
+            steps: "........ | ......X. | ........ | .......X",
+            division: 2,
+            strength: 1,
+            duration: 2.5,
+          },
+          driving: {
+            steps: "...X.... | .X....X.",
+            division: 2,
+            strength: 1,
+            duration: 1.75,
+          },
+          accented: {
+            steps: "..X........X.... | ..X.......X.....",
+            division: 4,
+            strength: 1,
+            duration: 1.5,
+          },
+        },
+      },
     ),
   ],
   fragment,
