@@ -5,7 +5,11 @@ import tide, {
   WAVE_HARMONICS,
   WAVE_AMPLITUDES,
   GERSTNER_Q,
+  CAMERA_SPRING,
+  ROLLER,
+  GLITTER,
 } from "../scene-tide.mjs";
+import { samplePattern, defaultPattern, effectDefinitions } from "../rhythm.mjs";
 import scenes from "../scenes.mjs";
 import { FAMILY_CATALOG } from "../family-catalog.mjs";
 import { catalogLooks } from "../catalog.mjs";
@@ -324,7 +328,7 @@ function foamSignal(q, w) {
 // envelope gate and the one-sided front.
 function foamAt(signal, level, scale = 1) {
   const envelope = Math.hypot(...signal),
-    threshold = 1.45 + (0.65 - 1.45) * level,
+    threshold = 1.1 + (0.65 - 1.1) * level,
     breaking = smooth(threshold, threshold + 0.5, envelope / 0.6242);
   const age =
     (((Math.PI / 2 - Math.atan2(signal[0], signal[1])) % (2 * Math.PI)) +
@@ -446,7 +450,9 @@ test("gated foam is continuous through phase dislocations and the crest wrap", (
   // Calm can never break: the full-schema Calm envelope stays below the
   // lowest threshold, so the gate is exactly zero.
   assert.ok(1.3 * 0.48 < 0.65);
-  assert.match(tide.fragment, /threshold=mix\(1\.45,\.65,u_level\)/);
+  assert.match(tide.fragment, /threshold=mix\(1\.1,\.65,u_level\)/);
+  // The extra Swell lowering scales with gSwell: zero in Calm.
+  assert.match(tide.fragment, /threshold-=\.3\*gSwell\*\(1\.-gVortex\)\*exp\(-t\/70\.\);/);
 });
 
 test("the vortex twist is a radius-preserving bijection with an exact pullback", () => {
@@ -523,8 +529,9 @@ test("line coverage conserves flux at 540p, 1080p and 4K; spiral seams are exact
 });
 
 test("biolight is HDR and locally kick-modulated; points conserve subpixel flux", () => {
-  assert.match(tide.fragment, /frontLight=front\*knots\*tumble\*\(1\.\+1\.6\*packet\*u_rhythm.x\)\*\(1\.\+\.3\*u_kick\*hot\)/);
-  assert.match(tide.fragment, /col\+=u_primary\*living\*glow\*1\.3/);
+  assert.match(tide.fragment, /gesture=\(1\.\+1\.6\*packet\*u_rhythm.x\)\*\(1\.\+\.3\*u_kick\*hot\)/);
+  assert.match(tide.fragment, /vortexFront=front\*knots\*tumble\*gesture/);
+  assert.match(tide.fragment, /col\+=u_primary\*living\*glow\*1\.1/);
   // Knots travel along the lip with whole wave-clock turns: periodic.
   assert.match(tide.fragment, /1\.5\*vec2\(cos\(gWavePhase\),sin\(gWavePhase\)\)/);
   assert.match(tide.fragment, /mistT<t/);
@@ -783,10 +790,11 @@ test("ray-specific slabs bound the exact ocean, including the deep throat", (tc)
 
 // Mirror of the shader camera: coastal sway, crane and orbit; eye > 0.7
 // cranes overhead, eye < 0.25 drops toward the lip.
-function camera(dev, phase, eyeParam = 0.4, height = 1) {
-  // Bowl (clearance) and crane follow separate, overlapping schedules.
+function camera(dev, phase, eyeParam = 0.4, height = 1, camDev = dev) {
+  // Bowl (clearance) and crane follow separate, overlapping schedules; the
+  // crane reads the spring-smoothed development, the bowl the raw one.
   const bowlWeight = smooth(1.2, 2, dev),
-    v = smooth(1.1, 1.9, dev),
+    v = smooth(1.1, 1.9, camDev),
     high = smooth(0.7, 1, eyeParam),
     low = 1 - smooth(0, 0.25, eyeParam);
   const upper = waves(10301, dev, height).reduce((s, w) => s + w.amplitude, 0);
@@ -799,7 +807,7 @@ function camera(dev, phase, eyeParam = 0.4, height = 1) {
     position: [
       12 * Math.sin(phase) * (1 - v) + radius * Math.sin(phase) * v,
       coastal * (1 - v) +
-        (35 + 12 * eyeParam + 10 * high - 22 * low + 2 * Math.sin(phase)) * v,
+        (27 + 15 * eyeParam + 12 * high - 14 * low + 2 * Math.sin(phase)) * v,
       radius * (1 - v) + radius * Math.cos(phase) * v,
     ],
   };
@@ -807,22 +815,25 @@ function camera(dev, phase, eyeParam = 0.4, height = 1) {
 
 test("camera remains above the sea; kick bounded; energy never changes development", () => {
   assert.match(tide.fragment, /coastal=gWaveHeight\+4\.6\*gVortex\+\.5\+2\.6\*eye/);
-  assert.match(tide.fragment, /crane=smoothstep\(1\.1,1\.9,u_params\[0\]\)/);
+  assert.match(tide.fragment, /crane=smoothstep\(1\.1,1\.9,tdCamDev\(\)\)/);
   assert.match(
     tide.fragment,
     /mix\(12\.\*sin\(orbit\),radius\*sin\(orbit\),crane\)/,
   );
   assert.match(tide.fragment, /mix\(radius,radius\*cos\(orbit\),crane\)/);
-  assert.match(tide.fragment, /35\.\+12\.\*eye\+10\.\*high-22\.\*lowEye\+2\.\*sin\(orbit\)/);
+  assert.match(tide.fragment, /27\.\+15\.\*eye\+12\.\*high-14\.\*lowEye\+2\.\*sin\(orbit\)/);
   for (let dev = 0; dev <= 2; dev += 0.01)
     for (const eyeParam of [0, 0.1, 0.25, 0.4, 0.7, 1])
       for (const height of [0.4, 1, 1.3])
         for (let phase = 0; phase < 2 * Math.PI; phase += 0.4) {
-          const { upper, position } = camera(dev, phase, eyeParam, height);
-          assert.ok(
-            position[1] > upper + 0.49,
-            `${dev}/${eyeParam}: eye ${position[1]} above envelope ${upper}`,
-          );
+          // The spring lags the raw development: every pair must clear.
+          for (const camDev of [0, 0.5, 1, 1.5, 2, dev]) {
+            const { upper, position } = camera(dev, phase, eyeParam, height, camDev);
+            assert.ok(
+              position[1] > upper + 0.49,
+              `${dev}/${camDev}/${eyeParam}: eye ${position[1]} above envelope ${upper}`,
+            );
+          }
         }
   for (const dev of [0, 0.5, 1, 1.25, 1.5, 1.75, 2])
     for (const eyeParam of [0, 0.4, 1]) {
@@ -853,7 +864,7 @@ test("camera remains above the sea; kick bounded; energy never changes developme
   assert.ok(tide.energy.speed.mul[1] / tide.energy.speed.mul[0] < 2);
   assert.deepEqual(
     tide.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16],
+    [4, 8, 16, 32],
   );
 });
 
@@ -919,9 +930,102 @@ test("Calm has no breaking foam at any energy; only faint biolight sparks", () =
   // The seeded shoal biases breaking near the coastal camera; it scales
   // with swell height (zero in Calm) and yields to the maelstrom.
   assert.match(tide.fragment, /\*gSwell\*\(1\.-gVortex\);\s*\}\s*threshold-=\.55\*shoal;/);
-  // Far-field normals: each mode Gaussian-filtered by the footprint; the
-  // table stays authoritative inside the twisted zone.
-  assert.match(tide.fragment, /exp\(-\.5\*sq\(gK\[i\]\*footprint\)\)/);
-  assert.match(tide.fragment, /mix\(1\.,smoothstep\(35\.,55\.,r\),-gTwist\/3\.5\)/);
-  assert.match(tide.fragment, /tdPoints\(q\*\.8,footprint\*\.8,\.004,\.8\)/);
+  // The moon road is the Cox-Munk glitter statistic: its width follows the
+  // wind (energy), never a fixed lobe.
+  assert.match(tide.fragment, new RegExp(`sigma=${GLITTER.base}\\+${GLITTER.gain}\\*wind`));
+  assert.match(tide.fragment, /tdPoints\(q\*2\.2,footprint\*2\.2,\.0015,\.82\)/);
+});
+
+test("signature Moon roller: slot 3, three spaced styles, recoverable progress", () => {
+  assert.deepEqual(
+    tide.rhythm.map((r) => [r.id, r.slot]),
+    [
+      ["crest-packet", 0],
+      ["spiral-ridge", 1],
+      ["incoming-tide", 2],
+      ["moon-roller", 3],
+    ],
+  );
+  const roller = tide.rhythm[3];
+  const fieldOfView = 2 * Math.atan(1 / 1.5);
+  for (const style of ["restrained", "driving", "accented"]) {
+    const loop = roller.styles[style];
+    const hits = loop.steps.flatMap((v, i) => (v > 0 ? [i / loop.division] : []));
+    assert.ok(hits.length >= 2, `${style}: at least two rollers per loop`);
+    const span = loop.length / loop.division;
+    // Each roller finishes before the next starts (cyclic): it never jumps
+    // back to the horizon.
+    hits.forEach((beat, i) => {
+      const next = i + 1 < hits.length ? hits[i + 1] : hits[0] + span;
+      assert.ok(next - beat >= loop.duration - 1e-9, `${style}: ${beat} → ${next}`);
+    });
+    // On-screen pace for the default coastal camera (≈2.4 m above the
+    // water): 1/D runs linearly, the front's depression angle atan(h/D)
+    // sweeps at most a quarter of the short side per second at 126 BPM.
+    const seconds = (loop.duration * 60) / 126,
+      h = 2.4;
+    const angle = (p) =>
+      Math.atan(h * ((1 - p) / ROLLER.d0 + p / ROLLER.d1));
+    let fastest = 0;
+    for (let p = 0; p < 1; p += 0.01)
+      fastest = Math.max(fastest, (angle(p + 0.01) - angle(p)) / 0.01 / seconds);
+    assert.ok(fastest / fieldOfView <= 0.26, `${style}: ${fastest / fieldOfView}`);
+  }
+  // The picture inverts the engine's envelope A s(1 - p) back to p.
+  for (const amplitude of [0.15, 0.6, 1])
+    for (let p = 0; p <= 1.0001; p += 0.05) {
+      const d = 1 - Math.min(p, 1),
+        envelope = amplitude * d * d * (3 - 2 * d);
+      const y = Math.min(1, envelope / amplitude);
+      const recovered = 0.5 + Math.sin(Math.asin(1 - 2 * y) / 3);
+      assert.ok(Math.abs(recovered - Math.min(p, 1)) < 1e-9);
+    }
+  // The engine delivers a hit on the crossing and the envelope afterwards.
+  const definitions = effectDefinitions(tide);
+  const pattern = defaultPattern(definitions, "driving");
+  const start = samplePattern(pattern, definitions, 0.001, -0.001);
+  assert.ok(start.hits[3] > 0 && Math.abs(start.values[3] - start.hits[3]) < 0.01);
+  const later = samplePattern(pattern, definitions, 3, 2.99);
+  assert.equal(later.hits[3], 0);
+  const y = later.values[3] / start.hits[3];
+  assert.ok(Math.abs(0.5 + Math.sin(Math.asin(1 - 2 * y) / 3) - 3 / 6) < 1e-9);
+  // The simulation latches the event amplitude; the picture reads it.
+  assert.deepEqual(tide.simulation.size, [2, 1]);
+  assert.match(tide.simulation.fragment, /if \(u_rhythmHit\.w > 0\.\) amplitude = u_rhythmHit\.w;/);
+  assert.match(tide.fragment, /rollY=rollA>\.005\?clamp\(u_rhythm\.w\/rollA,0\.,1\.\):0\./);
+  // The bump is shading only: the intersection (tdSea, the slabs and the
+  // camera clearance above) never sees it, and it fades out around the lens.
+  const sea = tide.fragment.slice(tide.fragment.indexOf("vec2 tdSea("), tide.fragment.indexOf("vec3 tdSky("));
+  assert.ok(sea.includes("tdSurfaceBase(x)") && !sea.includes("tdRoller"));
+  assert.match(tide.fragment, /float upper=gWaveHeight\+4\.6\*gVortex;/);
+  assert.ok(ROLLER.clear[0] > 0 && ROLLER.clear[1] > ROLLER.clear[0]);
+  assert.match(tide.fragment, /gRollMask=smoothstep\(4\.,10\.,length\(x-gRo\.xz\)\)/);
+  // Light only: no full-screen term. Every roller light term is weighted by
+  // a band (tip, face or wake) around the front.
+  assert.match(tide.fragment, /float rollGain=gRollLight\*smoothstep\(1\.,3\.,length\(p\.xz-ro\.xz\)\)/);
+});
+
+test("camera spring: a one-bar drop cranes over seconds and settles", () => {
+  const { omega, vmax } = CAMERA_SPRING;
+  for (const [from, to] of [
+    [1, 2],
+    [2, 0],
+    [0, 2],
+  ]) {
+    let d = from,
+      v = 0,
+      fastest = 0,
+      arrived = null;
+    for (let tick = 0; tick < 60 * 30; tick++) {
+      const acc = omega * omega * (to - d) - 2 * omega * v;
+      v = clamp(v + acc / 60, -vmax, vmax);
+      d = clamp(d + v / 60, 0, 2);
+      fastest = Math.max(fastest, Math.abs(v));
+      if (arrived === null && Math.abs(d - to) < 0.02) arrived = tick / 60;
+    }
+    assert.ok(fastest <= vmax + 1e-12);
+    assert.ok(arrived >= Math.abs(to - from) / vmax * 0.9, `${from}→${to}: ${arrived} s`);
+    assert.ok(Math.abs(d - to) < 1e-3, "settles");
+  }
+  assert.match(tide.simulation.fragment, /if \(u_reset\) \{ d = target; v = 0\.; \}/);
 });

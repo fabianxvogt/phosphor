@@ -20,6 +20,22 @@ export const MOON_RADIUS = 0.068;
 const GLITTER_GAIN = 3;
 // Peel segment length along the crest (m): one break point every L.
 export const PEEL_LENGTH = 55;
+// Signature gesture (slot 3), the Moon roller: one long swell of biolight
+// rolls in along the swell direction (front at s = -D, world-fixed
+// s = dot(x - (0, 54), d0); 1/D runs linearly from 1/d0 to 1/d1, so the
+// front crosses the screen at an even pace) or, in the maelstrom, contracts
+// as a ring from r0 to r1 into the eye. Height H m at full amplitude (x 1.3
+// in the vortex); never within `clear` m (horizontally) of the camera.
+export const ROLLER = {
+  d0: 220,
+  d1: 4,
+  r0: 62,
+  r1: 3,
+  height: 0.9,
+  face: 3.5,
+  back: 9,
+  clear: [4, 10],
+};
 const f = (x) => (Number.isInteger(x) ? `${x}.` : `${x}`);
 const schema = [
   {
@@ -298,8 +314,19 @@ void main() {
 `;
 
 // State texel 0 = (camera development / 2, velocity / (2 range) + 1/2).
+// Texel 1 = (roller event amplitude / 2, 0): latched from u_rhythmHit.w so
+// the picture can recover the event's progress from the envelope u_rhythm.w.
 const simulation = `
 void main() {
+  if (int(gl_FragCoord.x) == 1) {
+    float amplitude = 2. * unpack16(texelFetch(u_state, ivec2(1, 0), 0)).x;
+    if (u_reset) amplitude = 0.;
+    if (u_rhythmHit.w > 0.) amplitude = u_rhythmHit.w;
+    // An initial sample can show an envelope without its hit.
+    amplitude = clamp(max(amplitude, u_rhythm.w), 0., 2.);
+    outColor = pack16(vec2(.5 * amplitude, 0.));
+    return;
+  }
   vec2 state = unpack16(texelFetch(u_state, ivec2(0), 0));
   float target = clamp(u_params[0], 0., 2.);
   float d = 2. * state.x, v = (state.y - .5) * ${f(2 * CAMERA_SPRING.range)};
@@ -320,8 +347,35 @@ const fragment = `${common}
 uniform highp sampler2D u_precomputed;
 #endif
 float gSwell, gPixel, gWavePhase, gWaveHeight;
-vec3 gMoon;
+vec3 gMoon, gRo;
+float gRollP, gRollF, gRollH, gRollLight, gRollFlare, gRollMask, gRollScale, gRollU;
 float tdCamDev() { return 2. * unpack16(texelFetch(u_state, ivec2(0), 0)).x; }
+// The Moon roller as a shading bump: an asymmetric sech^2 swell (steep face
+// toward its travel direction) on the coordinate s, which blends from the
+// swell direction (sea) to the radius (maelstrom). Returns (height,
+// gradient, s - front). It tilts normals and lights the water but never
+// enters the intersection (no cost in the solve, no silhouette, nothing can
+// rise into the lens). The gradient ignores the slow 5-fold wobble.
+vec4 tdRoller(vec2 x) {
+  gRollMask=0.;
+  gRollU=1e4;
+  if(gRollH<=0.) return vec4(0.);
+  float r=max(length(x),1e-3);
+  // sin(5 theta + .44 r - 2 flow) without atan: Im(e^{i phi} z^5), |z| = 1.
+  vec2 z=x/r, z2=vec2(z.x*z.x-z.y*z.y,2.*z.x*z.y), z4=vec2(z2.x*z2.x-z2.y*z2.y,2.*z2.x*z2.y);
+  vec2 z5=vec2(z4.x*z.x-z4.y*z.y,z4.x*z.y+z4.y*z.x);
+  float phi=.44*r-2.*gFlow;
+  float wobble=sin(phi)*z5.x+cos(phi)*z5.y;
+  float s=mix(dot(x-vec2(0.,54.),gD[0]),-r-2.5*wobble,gVortex);
+  float u=s-gRollF;
+  gRollU=u;
+  float w=u>0.?${f(ROLLER.face)}:${f(ROLLER.back)};
+  float a=clamp(u/w,-12.,12.), ch=cosh(a);
+  gRollMask=smoothstep(${f(ROLLER.clear[0])},${f(ROLLER.clear[1])},length(x-gRo.xz));
+  float height=gRollH*gRollMask/(ch*ch);
+  vec2 ds=mix(gD[0],-x/r,gVortex);
+  return vec4(height,-2.*height*tanh(a)/w*ds,u);
+}
 // Sparse Gaussian points: the cell is only a candidate lookup, never a
 // shaded square. Each point vanishes well before its cell border; widen by
 // the pixel footprint and conserve its integrated flux when subpixel.
@@ -348,7 +402,7 @@ vec4 tdTable(vec2 p, int bank) {
                  texelFetch(u_precomputed,cell+ivec2(1),0),f.x),f.y);
 }
 #endif
-vec4 tdSurface(vec2 p) {
+vec4 tdSurfaceBase(vec2 p) {
 #ifdef PRECOMPUTED
   // Bilinear world-space surface data; shading stays full-resolution.
   // Keep the polar core and the table boundary on the exact fallback.
@@ -360,6 +414,11 @@ vec4 tdSurface(vec2 p) {
   }
 #endif
   return tdExactWaves(p)+vec4(tdBowlExact(p),0.);
+}
+vec4 tdSurface(vec2 p) {
+  vec4 surface=tdSurfaceBase(p);
+  if(gRollH>0.) surface.xyz+=tdRoller(p).xyz;
+  return surface;
 }
 vec4 tdFoamData(vec2 p) {
 #ifdef PRECOMPUTED
@@ -375,7 +434,7 @@ vec4 tdFoamData(vec2 p) {
 }
 vec2 tdSea(vec2 x) {
 #ifdef PRECOMPUTED
-  return tdSurface(x).xw;
+  return tdSurfaceBase(x).xw;
 #else
   vec2 q=tdMaterial(tdTwist(x));
   float h=0., crest=0.;
@@ -550,6 +609,22 @@ void main() {
   vec2 uv=2.*aspectUV();
   float focal=1.5*(1.+.022*u_kick);
   vec3 rd=normalize(fw*focal+rt*uv.x+up*uv.y);
+  gRo=ro;
+  // Moon roller progress 0 -> 1 over the event: the envelope is
+  // A s(1 - progress) with s the smoothstep, so progress = 1 - s^-1(env/A).
+  float rollA=2.*unpack16(texelFetch(u_state,ivec2(1,0),0)).x;
+  float rollY=rollA>.005?clamp(u_rhythm.w/rollA,0.,1.):0.;
+  float rollOn=rollY>0.?1.:0.;
+  gRollP=.5+sin(asin(1.-2.*rollY)/3.);
+  float rollD=1./mix(${f(1 / ROLLER.d0)},${f(1 / ROLLER.d1)},gRollP);
+  // Light widths follow the front's distance: an even band on screen.
+  gRollScale=mix(clamp(rollD,3.,60.),16.,gVortex);
+  gRollF=mix(-rollD,mix(-${f(ROLLER.r0)},-${f(ROLLER.r1)},gRollP),gVortex);
+  // Rises over the first 15 %, lies down over the last 30 %.
+  gRollH=rollOn*rollA*${f(ROLLER.height)}*mix(1.,1.3,gVortex)*smoothstep(0.,.15,gRollP)*(1.-smoothstep(.7,1.,gRollP));
+  gRollLight=rollOn*rollA*smoothstep(0.,.05,gRollP)*(1.-smoothstep(.82,1.,gRollP));
+  // Arrival in the eye: a bounded, local flare as the ring closes.
+  gRollFlare=rollOn*rollA*gVortex*smoothstep(.78,.92,gRollP)*(1.-smoothstep(.92,1.,gRollP));
   vec3 col=tdSky(rd,true);
   // Palette ramp, blackbody-like: white tip -> primary lip -> saturated
   // glow (secondary/accent) -> moonlit off-white foam as the light dies.
@@ -631,13 +706,11 @@ void main() {
       // Many unresolved facets per cell keep a soft diffuse base under the
       // resolved sparkles (35 % of the mean): a dense band, not a dotted line.
       float sparkle=road;
-      float tinyWeight=1.-smoothstep(.25,.6,glintFootprint/.04);
       // Facets only where the road holds > 0.7 % of its peak: outside it
       // the cell mean (road) is exact enough and the hashes are skipped.
       if(slope2<5.*roadVariance) {
         if(midWeight>0. && nearWeight<.999) sparkle=mix(road,tdFacets(q+vec2(17.3,5.1),slope,moonAxis,midSize,sigma,glintFootprint),midWeight);
         if(nearWeight>0.) sparkle=mix(sparkle,tdFacets(q,slope,moonAxis,nearSize,sigma,glintFootprint),nearWeight);
-        if(tinyWeight>0.) sparkle+=tinyWeight*.6*(tdFacets(q+vec2(5.7,9.3),slope,moonAxis,.04,sigma,glintFootprint)-road);
       }
       sparkle=mix(sparkle,road,.35);
       // Soft, slightly wider glow under the sparkles: the continuous road.
@@ -671,6 +744,8 @@ void main() {
       shoal=exp(-sq(shoalOffset.x)/1600.-sq(shoalOffset.y)/600.)*gSwell*(1.-gVortex);
     }
     threshold-=.55*shoal;
+    // Swell breaks across the frame, not only over the shoal (Calm: none).
+    threshold-=.3*gSwell*(1.-gVortex)*exp(-t/70.);
     // Short waves break preferentially on the crests of the long swell, so
     // whitecaps line up along the swell crests across the frame.
     float swellCrest=sin(dot(gW[0].xy,q)+gW[0].w);
@@ -679,7 +754,9 @@ void main() {
       // Near the maelstrom the current steepens the sea; far water calms.
       *mix(1.,.3+.7*exp(-sq(r/45.)),gVortex)
       // No breaker rolls through the lens: fronts fade in the last metres.
-      *smoothstep(6.,16.,t);
+      *smoothstep(6.,16.,t)
+      // Far whitecaps stay faint: subpixel lips would alias into dashes.
+      *mix(1.,.25+.75*exp(-t/45.),1.-gVortex);
     float age=mod(1.5707963-atan(foamData.x,foamData.y),TAU);
     float kappa=mix(.6,1.7,u_level);
     float floorDecay=exp(-TAU/kappa);
@@ -776,9 +853,15 @@ void main() {
     // Swell keeps its lips in display range for texture; the maelstrom's thin
     // wound fronts keep their wave-6 HDR strength.
     float wake=lace*foamFill*mix(fill*fill*.6,fill,gVortex);
-    float living=frontLight*mix(.75,3.8,gVortex)+armCore*2.3;
-    living+=armCore*exp(-sq((r-(6.+30.*u_rhythm.y))/3.5))*u_rhythm.y*3.;
-    living+=gVortex*exp(-sq((r-(6.+40.*(1.-u_rhythm.z)))/2.2))*u_rhythm.z*.45;
+    float living=frontLight*mix(.9,3.8,gVortex)+armCore*2.3;
+    // Spiral ridge: a surge runs down the arms (cores and bands) to the eye.
+    float ridgeSurge=exp(-sq((r-(6.+30.*u_rhythm.y))/5.))*u_rhythm.y;
+    living+=(armCore*5.+armBand*1.8)*ridgeSurge;
+    // Incoming tide: a lit ring rolls out from the eye (maelstrom) or from a
+    // seeded point on the open sea, its radius growing as the envelope dies.
+    vec2 tideCentre=mix(vec2(-12.+24.*tdHash(vec2(5.,float(u_seedBits%983u))),-15.),vec2(0.),gVortex);
+    float tideRing=exp(-sq((length(p.xz-tideCentre)-(6.+44.*(1.-u_rhythm.z)))/(2.4+footprint)))*u_rhythm.z;
+    col+=(glowHue*1.3+tipHue*.5*exp(-sq(u_rhythm.z-.9)/.02))*tideRing*glow*mix(1.,1.5,gVortex);
     col+=u_primary*living*glow*1.1;
     col+=glowHue*(wake*1.4+armBand*1.2+massLight*.9)*glow;
     col+=tipHue*(frontLight*mix(.25+.9*hot,1.2*(.5+hot),gVortex)+armCore*.4)*glow;
@@ -803,13 +886,45 @@ void main() {
     // so ridges between the lens and the eye glow instead of silhouetting.
     col+=mix(glowHue,u_accent,.3)*(exp(-r/6.)*smoothstep(-18.,-34.,h)*1.2+exp(-eyeDistance/8.)*1.6)*gVortex*glow;
     col+=(u_accent*core*1.8+u_primary*exp(-r*r/40.)*smoothstep(-12.,-36.,h)*gVortex*1.2)*glow;
+    // The roller arrives: the eye flares locally (bounded, ramped).
+    col+=mix(glowHue,u_accent,.5)*gRollFlare*(exp(-r*r/50.)*3.+exp(-r/9.)*.9)*glow;
     // Biolight sparks: plankton flashes where small crests compress and
     // glowing droplets thrown off breaking fronts. One candidate per cell.
+    // The Moon roller (signature gesture, slot 3): a white-hot crest line
+    // across the whole sea, a translucent glowing face ahead of it and a
+    // fading wake of foam light behind. Its brightness peels along the crest
+    // with a phase seeded per event, so consecutive rollers differ.
+    float rollSpark=0.;
+    if(gRollLight>0. && gRollU>-3.5*(1.5+.3*gRollScale) && gRollU<4.5*(.8+.3*gRollScale)) {
+      // gRollU was left by tdSurface(p.xz) above.
+      float u=gRollU;
+      float tipWidth=.2+.012*gRollScale+2.*footprint;
+      float tip=exp(-sq(u/tipWidth));
+      float faceLength=.8+.3*gRollScale, wakeLength=1.5+.3*gRollScale;
+      float rollFace=exp(-max(u,0.)/faceLength)*smoothstep(-tipWidth,0.,u);
+      float rollWake=exp(min(u,0.)/wakeLength)*smoothstep(tipWidth,-tipWidth,u);
+      vec2 along=vec2(dot(p.xz,vec2(-gD[0].y,gD[0].x)),u);
+      float grain=footprint<1.5?tdNoise(along*vec2(.11,.32)+3.*vec2(cos(gWavePhase),sin(gWavePhase))):.5;
+      float shred=.35+.9*grain;
+      float peelSeed=TAU*tdHash(vec2(u_rhythmCount.w,float(u_seedBits%631u)));
+      float peelAlong=.55+.45*sin(.035*along.x+peelSeed+4.*gRollP);
+      // The light may pass under the lens (the height bump may not).
+      float rollGain=gRollLight*smoothstep(1.,3.,length(p.xz-ro.xz))*peelAlong*glow*mix(1.,1.5,gVortex);
+      // Tumbling knots along the lip; a thin white-hot core only at its centre.
+      float knotsAlong=.2+1.2*smoothstep(.2,.8,grain);
+      float core=tip*tip*tip;
+      col+=(tipHue*core*1.4+mix(glowHue,u_primary,.3)*tip*1.9*knotsAlong
+        +glowHue*(rollFace*1.25*(1.-.5*fresnel)*(.6+.4*shred)+rollWake*.8*shred*shred))*rollGain*1.4;
+      col+=u_accent*tip*smoothstep(.75,1.,peelAlong)*rollGain*1.2;
+      rollSpark=(tip+.6*rollFace)*rollGain;
+    }
     float compress=surface.w/(.279*max(scale,.01));
-    float sparkGate=smoothstep(.15,.7,compress)*mix(.5,1.,u_level)+front*hot*2.;
+    float sparkGate=smoothstep(.15,.7,compress)*mix(.5,1.,u_level)+front*hot*2.+rollSpark*3.
+      // Plankton bloom on the spiral-ridge beat and the crest packet's sea.
+      +(u_rhythm.y*1.2+u_rhythm.x*packet*2.)*(1.-gVortex)*smoothstep(.15,.7,compress);
     if(sparkGate>.001) {
       float sparks=tdPoints(q*2.2,footprint*2.2,.0015,.82)*sparkGate;
-      col+=mix(u_primary,u_accent,step(.93,tdHash(floor(q*2.2)+3.)))*sparks*(3.+5.*wind)*glow;
+      col+=mix(mix(glowHue,u_primary,.55),u_accent,step(.93,tdHash(floor(q*2.2)+3.)))*sparks*(3.+5.*wind)*glow;
     }
     // Spray thrown forward off the peel point: a dense fan of glowing
     // droplets on the face ahead of the igniting lip.
@@ -852,7 +967,7 @@ void main() {
       }
       vec3 columnHue=mix(mix(u_accent,glowHue,smoothstep(-34.,-10.,y)),u_secondary,smoothstep(-10.,10.,y));
       col+=(columnHue*column*vertical*mist*1.4+mix(glowHue,u_accent,.3)*haze*hazeHeight*.35)
-        *gVortex*u_params[3]*(.55+.45*u_rhythm.y);
+        *gVortex*u_params[3]*(.55+.9*u_rhythm.y+2.5*gRollFlare);
     }
   }
   // Three thin strata of wind-torn spindrift. Separate depths create
@@ -940,8 +1055,26 @@ export default {
         accented: { steps: "................ | ..........X..... | ................ | .........x....X.", division: 4, strength: 0.92, duration: 1 },
       } },
     ),
+    // Signature: a roller every second bar. Events are spaced at least one
+    // duration apart, so a roller never jumps back to the horizon.
+    familyEffect(
+      "moon-roller",
+      3,
+      "Moon roller",
+      "Every second bar a long swell of biolight rolls in from the horizon across the whole sea; at the peak it is a ring of light pulled down the spiral into the eye.",
+      {
+        division: 2,
+        strength: 0.8,
+        duration: 6,
+        styles: {
+          restrained: { steps: "X....... | ........ | ........ | ........ | ........ | 6....... | ........ | ........", strength: 0.62, duration: 7 },
+          driving: { steps: "X....... | ........ | .x...... | ........", strength: 0.8, duration: 6 },
+          accented: { steps: "X....... | .......x | ........ | ........ | X....... | ......X. | ........ | ........", strength: 0.95, duration: 6 },
+        },
+      },
+    ),
   ],
   fragment,
-  simulation: { fragment: simulation, size: [1, 1], steps: 1 },
+  simulation: { fragment: simulation, size: [2, 1], steps: 1 },
   precompute: { fragment: precompute, size: [1024, 513] },
 };

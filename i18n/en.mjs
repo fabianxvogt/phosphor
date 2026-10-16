@@ -319,6 +319,8 @@ export default {
   "A wave group at the true group velocity lights the breaking crests it passes.": "A wave group at the true group velocity lights the breaking crests it passes.",
   "A surge of biolight runs down the spiral arms into the glowing eye.": "A surge of biolight runs down the spiral arms into the glowing eye.",
   "A tide ring rolls out from the glowing eye across the maelstrom's shoulder.": "A tide ring rolls out from the glowing eye across the maelstrom's shoulder.",
+  "Moon roller": "Moon roller",
+  "Every second bar a long swell of biolight rolls in from the horizon across the whole sea; at the peak it is a ring of light pulled down the spiral into the eye.": "Every second bar a long swell of biolight rolls in from the horizon across the whole sea; at the peak it is a ring of light pulled down the spiral into the eye.",
   "Slack water": "Slack water",
   "Rolling swell": "Rolling swell",
   "Spring tide": "Spring tide",
