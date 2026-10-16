@@ -146,6 +146,8 @@ export default {
   "A bounded sheen packet travels along the material's existing folds.": "A bounded sheen packet travels along the material's existing folds.",
   "One persistent ribbon cohort catches accent light along its silk hems.": "One persistent ribbon cohort catches accent light along its silk hems.",
   "A broad raking-light front climbs the same fabric into the spiral.": "A broad raking-light front climbs the same fabric into the spiral.",
+  "Whip-crack ripple": "Whip-crack ripple",
+  "A raised crease races along selected silk lengths, catching a narrow accent-light wake.": "A raised crease races along selected silk lengths, catching a narrow accent-light wake.",
   "Still selvedge": "Still selvedge",
   "Satin current": "Satin current",
   "Vortex brocade": "Vortex brocade",

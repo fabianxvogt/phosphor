@@ -146,6 +146,8 @@ export default {
   "A bounded sheen packet travels along the material's existing folds.": "Ein begrenztes Glanzpaket wandert entlang der vorhandenen Stofffalten.",
   "One persistent ribbon cohort catches accent light along its silk hems.": "Eine beständige Bändergruppe fängt Akzentlicht an ihren Seidensäumen ein.",
   "A broad raking-light front climbs the same fabric into the spiral.": "Eine breite Streiflichtfront steigt am selben Stoff in die Spirale hinauf.",
+  "Whip-crack ripple": "Peitschenwelle",
+  "A raised crease races along selected silk lengths, catching a narrow accent-light wake.": "Eine erhabene Falte eilt über ausgewählte Seidenbahnen und zieht eine schmale Akzentlichtspur hinter sich her.",
   "Still selvedge": "Stille Webkante",
   "Satin current": "Satinströmung",
   "Vortex brocade": "Wirbelbrokat",

@@ -8,6 +8,18 @@ import {
   createGeometry,
 } from "./silk-model.mjs";
 
+// One material-space front drives both the real crease and its local light.
+const whip = `
+float ssWhip(vec2 uv,float id){
+ float b=ssSmooth(u_params[0]/.82),g=(id+uv.y)/SS_N;
+ float cohort=1.-step(.5,abs(mod(id-u_rhythmCount.w+3.5,7.)-3.5));
+ float veil=pow(.5+.5*cos(SS_TAU*(g*3.-u_rhythmCount.w/7.)),8.);
+ float address=mix(veil,cohort,b);
+ float envelope=clamp(u_rhythm.w+u_rhythmHit.w*.08,0.,1.);
+ float centre=1.-clamp(u_rhythm.w,0.,1.);
+ return exp(-pow((uv.x-centre)*14.,2.))*envelope*address;
+}
+`;
 const vertex = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 a_uv;
@@ -17,7 +29,16 @@ uniform float u_params[8];
 uniform float u_clock[4];
 uniform float u_kick;
 uniform vec2 u_resolution;
+uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 ${GLSL}
+${whip}
+vec3 ssDrapedPoint(vec2 uv,float id,vec3 rnd){
+ vec3 p=ssPoint(uv,id,rnd);
+ float t=ssSmooth(u_params[0]-1.),b=ssSmooth(u_params[0]/.82);
+ vec3 direction=normalize(mix(vec3(0.,0.,1.),vec3(p.x,.15,p.z),t));
+ float edge=mix(1.,sin(clamp(uv.y,0.,1.)*3.14159265359),b);
+ return p+direction*(.1*ssWhip(uv,id)*edge);
+}
 out vec3 v_p,v_n,v_t,v_view;
 out float v_shadow;
 out vec2 v_uv;
@@ -35,9 +56,9 @@ void main(){
   gl_Position=vec4(dot(q,R)*f/max(A,1.),dot(q,U)*f*min(A,1.),(z*(60.+.1)-2.*60.*.1)/(60.-.1),z);
   return;
  }
- vec3 p=ssPoint(a_uv,a_id,a_rnd);
- vec3 du=ssPoint(a_uv+vec2(.0005,0.),a_id,a_rnd)-p;
- vec3 dv=ssPoint(a_uv+vec2(0.,.0005),a_id,a_rnd)-p;
+ vec3 p=ssDrapedPoint(a_uv,a_id,a_rnd);
+ vec3 du=ssDrapedPoint(a_uv+vec2(.0005,0.),a_id,a_rnd)-p;
+ vec3 dv=ssDrapedPoint(a_uv+vec2(0.,.0005),a_id,a_rnd)-p;
  v_p=p;v_view=eye-p;v_t=normalize(du);v_n=normalize(cross(du,dv));
  v_uv=a_uv;v_id=a_id;v_rnd=a_rnd;
  // Bounded local fold-ray occlusion, evaluated on the moving mesh, not a
@@ -47,7 +68,7 @@ void main(){
  for(int j=0;j<2;j++){
   float stepU=j==0?-.12:.12;
   vec2 uv=vec2(clamp(a_uv.x+stepU,0.,1.),a_uv.y);
-  vec3 delta=ssPoint(uv,a_id,a_rnd)-p;
+  vec3 delta=ssDrapedPoint(uv,a_id,a_rnd)-p;
   float forward=dot(delta,key),perp=length(delta-key*forward);
   float hit=(1.-smoothstep(.07,.24,perp))*smoothstep(.12,.38,forward);
   v_shadow*=1.-.72*hit;
@@ -66,16 +87,17 @@ uniform float u_params[8];
 uniform float u_clock[4];
 uniform float u_kick;
 uniform vec2 u_resolution;
-uniform vec4 u_rhythm,u_rhythmCount;
+uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 uniform vec3 u_primary,u_secondary,u_accent;
 ${GLSL}
+${whip}
 out vec4 outColor;
 void main(){
  if(v_id<0.){
   float r2=dot(v_uv,v_uv);
   float core=(1.-smoothstep(.1,1.,r2))*exp(-r2*3.);
   float beam=exp(-pow((v_p.x+.3*v_p.y-.5)*.38,2.));
-  float fade=1.-ssSmooth(u_params[0]-1.);
+  float fade=1.-.65*ssSmooth(u_params[0]-1.);
   outColor=vec4(mix(u_primary,vec3(1.),.35)*core*beam*(.08+.16*v_rnd.z)*fade,0.);
   return;
  }
@@ -98,26 +120,37 @@ void main(){
  float back=pow(max(dot(-N,B),0.),2.);
  float transmitted=(.035+.7*thin)*back;
  float shadow=mix(.18,1.,ssSmooth((nl+.12)/.52))*v_shadow;
- shadow*=mix(1.,.24+.76*ssSmooth((length(v_p.xz)-.8)/2.3),t);
- vec3 dye=mix(u_secondary,u_primary,.08*diffuse*(1.-t));
+ shadow*=mix(1.,.48+.52*ssSmooth((length(v_p.xz)-.8)/2.3),t);
+ float inner=pow(max(dot(N,normalize(vec3(-v_p.x,.6,-v_p.z))),0.),2.)*t;
+ vec3 dye=mix(u_secondary,u_primary,.025+.07*diffuse);
  float brightRibbon=1.-step(.5,abs(mod(v_id+2.,11.)));
- dye=mix(dye,u_accent,brightRibbon*b*.72);
- vec3 sheen=mix(mix(u_secondary,u_primary,(.22+.38*ssSmooth(aniso))*(1.-t)),u_accent,brightRibbon*b*.8);
+ dye=mix(dye,u_accent,brightRibbon*b*.22);
+ vec3 sheen=mix(mix(u_secondary,u_primary,(.22+.38*ssSmooth(aniso))*(1.-t)),u_accent,brightRibbon*b*.3);
  float weaveFrequency=550.;
  float weaveAA=1.-smoothstep(.2,.65,max(fwidth(v_uv.x*weaveFrequency),fwidth(g*weaveFrequency)));
  float weave=1.+.025*weaveAA*sin(v_uv.x*weaveFrequency*SS_TAU)*sin(g*weaveFrequency*SS_TAU);
  float rake=.72+.28*exp(-pow((v_p.x-2.*sin(light))*.22,2.));
  vec3 col=dye*(.035+.72*diffuse*shadow+transmitted)*weave;
- col+=mix(sheen,vec3(1.),.38)*mix(2.9,2.4,t)*aniso*u_params[4]*shadow*rake;
+ col+=mix(sheen,vec3(1.),.22)*mix(2.9,2.6,t)*aniso*u_params[4]*shadow*rake;
+ // Broad silk return lobe reveals the inward faces without flattening gaps.
+ float returnLight=pow(max(dot(N,normalize(vec3(.4,-.7,1.))),0.),2.);
+ col+=u_secondary*(.09*returnLight+.4*inner)*(1.-.35*rim);
+ col+=u_primary*pow(inner,4.)*.075;
+ // A separate coloured grazing lobe, rather than desaturating the blue dye.
+ float crossSheen=pow(max(dot(N,normalize(vec3(-.6,.25,-.7))),0.),12.);
+ col+=u_primary*crossSheen*(.12+.55*t)*shadow;
  col+=mix(dye,vec3(1.),.2)*rim*(.1+.3*thin);
  float hem=(1.-smoothstep(.02,.02+fwidth(seam)*1.5,seam))*b;
  col+=mix(dye,vec3(1.),.25)*hem*.18;
  float packet=exp(-pow((v_uv.x-(1.-u_rhythm.x))*9.,2.))*u_rhythm.x;
  float cohort=1.-step(.6,abs(mod(v_id-u_rhythmCount.y,7.)));
- col+=mix(dye,vec3(1.),.4)*packet*.24*diffuse;
- col+=u_accent*hem*cohort*u_rhythm.y*.8;
+ col+=mix(u_primary,u_secondary,.25)*packet*1.25*(.3+.7*diffuse);
+ float softHem=exp(-seam*24.)*b;
+ col+=u_accent*softHem*cohort*u_rhythm.y*2.;
  float spiral=exp(-pow((v_uv.x-(1.-u_rhythm.z))*6.,2.))*u_rhythm.z;
- col+=mix(dye,vec3(1.),.3)*spiral*.3*diffuse;
+ col+=mix(u_secondary,u_primary,.2)*spiral*1.2*(.25+.75*diffuse);
+ float crack=ssWhip(v_uv,v_id);
+ col+=mix(u_accent,u_primary,.15)*crack*1.8*(.35+.65*nv);
  float depth=length(v_view);
  vec3 fog=mix(u_secondary,u_primary,.25)*(.008+.018*t);
  col=mix(fog,col,exp(-max(depth-2.,0.)*(.045+.025*t)));
@@ -146,6 +179,9 @@ void main(){
  vec3 col=mix(u_secondary,u_primary,.25)*.005;
  float haze=exp(-dot(s*vec2(.7,1.),s*vec2(.7,1.))*2.);
  col+=u_secondary*haze*.022;
+ // Scattered raking light at the far opening, not an empty black axis.
+ float axis=pow(max(rd.y,0.),8.)*ssSmooth(u_params[0]-1.);
+ col+=u_secondary*axis*.065+u_primary*axis*.008;
  float shaft=exp(-pow((s.x+.24*s.y-.35)*4.,2.))*exp(-pow((s.y-.1)*.9,2.));
  col+=mix(u_primary,u_secondary,.6)*shaft*.018;
  if(rd.y<-.001){
@@ -278,40 +314,139 @@ export default {
   type: { key: "development", values: [0, 1, 2] },
   energy: { wind: { mul: [0.7, 1.3] }, amplitude: { mul: [0.75, 1.2] } },
   beat: { punch: 0.04, pulse: 0.03 },
-  rhythmStyles: { restrained: "Still selvedge", driving: "Satin current", accented: "Vortex brocade" },
+  rhythmStyles: {
+    restrained: "Still selvedge",
+    driving: "Satin current",
+    accented: "Vortex brocade",
+  },
   rhythm: [
     familyEffect(
       "flutter-packet",
       0,
       "Flutter packet",
       "A bounded sheen packet travels along the material's existing folds.",
-      { period: 4, duration: 2.5, strength: 0.65, steps: "X...", styles: {
-        restrained: { steps: "X....... | .....x.. | ........ | ...X....", division: 2, strength: 0.55, duration: 1.8 },
-        driving: { steps: "X...x..X | ...x..X.", division: 2, strength: 0.78, duration: 0.8 },
-        accented: { steps: "X..x...X..x..X..x...", division: 4, strength: 0.92, duration: 0.5 },
-      } },
+      {
+        period: 4,
+        duration: 2.5,
+        strength: 0.65,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | .....x.. | ........ | ...X....",
+            division: 2,
+            strength: 0.65,
+            duration: 1.8,
+          },
+          driving: {
+            steps: "X...x..X | ...x..X.",
+            division: 2,
+            strength: 0.9,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "X..x...X..x..X..x...",
+            division: 4,
+            strength: 1,
+            duration: 0.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "selvedge-cohort",
       1,
       "Selvedge cohort",
       "One persistent ribbon cohort catches accent light along its silk hems.",
-      { period: 8, duration: 2, strength: 0.6, steps: "X.......", styles: {
-        restrained: { steps: "..x..... | ........ | ......X. | ........", division: 2, strength: 0.5, duration: 1.8 },
-        driving: { steps: "...X...x | ..X....x", division: 2, strength: 0.74, duration: 0.9 },
-        accented: { steps: ".....X......x... | ..X.......x..... | .......X......x.", division: 4, strength: 0.88, duration: 0.8 },
-      } },
+      {
+        period: 8,
+        duration: 2,
+        strength: 0.6,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "..x..... | ........ | ......X. | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 1.8,
+          },
+          driving: {
+            steps: "...X...x | ..X....x",
+            division: 2,
+            strength: 0.74,
+            duration: 0.9,
+          },
+          accented: {
+            steps: ".....X......x... | ..X.......x..... | .......X......x.",
+            division: 4,
+            strength: 0.88,
+            duration: 0.8,
+          },
+        },
+      },
     ),
     familyEffect(
       "vortex-sweep",
       2,
       "Vortex sweep",
       "A broad raking-light front climbs the same fabric into the spiral.",
-      { period: 16, duration: 4, strength: 0.7, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | .......X", division: 2, strength: 0.55, duration: 3 },
-        driving: { steps: "........ | ......x. | ........ | ....X...", division: 2, strength: 0.8, duration: 2 },
-        accented: { steps: "..............x. | ........X....... | ...........X...x", division: 4, strength: 0.95, duration: 0.7 },
-      } },
+      {
+        period: 16,
+        duration: 4,
+        strength: 0.7,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | .......X",
+            division: 2,
+            strength: 0.55,
+            duration: 3,
+          },
+          driving: {
+            steps: "........ | ......x. | ........ | ....X...",
+            division: 2,
+            strength: 0.8,
+            duration: 2,
+          },
+          accented: {
+            steps: "..............x. | ........X....... | ...........X...x",
+            division: 4,
+            strength: 0.95,
+            duration: 0.7,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "whip-crack",
+      3,
+      "Whip-crack ripple",
+      "A raised crease races along selected silk lengths, catching a narrow accent-light wake.",
+      {
+        period: 8,
+        duration: 0.8,
+        strength: 0.9,
+        steps: "X..x..X.",
+        styles: {
+          restrained: {
+            steps: "X...x... | ..X..... | x.....X. | ....x...",
+            division: 2,
+            strength: 0.65,
+            duration: 1.4,
+          },
+          driving: {
+            steps: "X.x.X... | x.X...X.",
+            division: 2,
+            strength: 0.9,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "X..x....X.x..... | ..X.x...X....x..",
+            division: 4,
+            strength: 1,
+            duration: 0.45,
+          },
+        },
+      },
     ),
   ],
   clocks: [
