@@ -163,8 +163,11 @@ float stCarrier(vec3 p, bool fine, bool lobes, out vec2 parts) {
     float sd = min(max(q.x,q.y),0.0)+length(max(q,0.0))-rr;
     // Thermal bubbles (seeded centres cached once per invocation): stacked
     // domes that boil slowly, so towers read as lobed congestus.
+    // Bubbles reach at most ~0.6 R beyond the column: far samples skip
+    // them (the skip distance keeps a 1.3 margin for the smin bulge).
+    bool near = lobes && sd < 0.6*stCellR[i]+1.0;
     for (int k = 0; k < 3; ++k) {
-      if (!lobes) break;
+      if (!near) break;
       vec4 b = stBubble[i*3+k];
       sd = stSmin(sd,length(p-b.xyz)-b.w,0.7);
     }

@@ -541,11 +541,11 @@ void main() {
     float t0 = max(0.0,max(nn.x,max(nn.y,nn.z))), t1 = min(ff.x,min(ff.y,ff.z));
     if (t1 > t0) {
       float len = min(t1-t0,40.0);
-      // Two taps along the chord, averaged: a soft silhouette whose edge
-      // the ripples bend smoothly instead of notching it.
-      vec4 o = 0.5*(stVolume(g+r*(t0+len*0.3))+stVolume(g+r*(t0+len*0.6)));
+      // One tap at a fixed chord fraction (no dither hatch); the reflected
+      // storm never goes fully black, so ripple-bent edges stay soft.
+      vec4 o = stVolume(g+r*(t0+len*0.45));
       float sigma = max(o.x,0.0);
-      lakeTrans = mix(1.0,exp(-sigma*len*0.4),0.88);
+      lakeTrans = mix(1.0,exp(-sigma*len*0.4),0.85);
       vec3 S = moonTint*0.1*exp(-o.y)+skyLight*o.z*0.6+townLight*(1.0-o.z)*0.8+flashLight*o.w;
       float fresnel = 0.02+0.98*pow(1.0-clamp(-rd.y,0.0,1.0),5.0);
       lakeCol = lakeCol*lakeTrans+S*(1.0-lakeTrans)*fresnel;
