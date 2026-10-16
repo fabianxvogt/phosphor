@@ -11,6 +11,7 @@ import {
 import { initialShowSet, validateShowSet } from "../show-set.mjs";
 import { catalogLooks } from "../catalog.mjs";
 import evolution, { morphogenSimulation } from "../scene-evolution.mjs";
+import { defaultPattern, validatePattern } from "../rhythm.mjs";
 import afterglow, {
   CHEMISTRY,
   CELLS,
@@ -116,12 +117,28 @@ test("flower template: detailed, simple and additive parts in a fixed order", ()
   // detailed square itself and stay unique.
   assert.equal(flowerInstances().length / 2, CELLS * CELLS);
   assert.equal(afterglow.precompute.size[0], CELLS);
-  assert.equal(afterglow.precompute.size[1], 2 * CELLS);
+  assert.equal(afterglow.precompute.size[1], 3 * CELLS);
   assert.equal(FIELD % CELLS, 0);
   assert.ok(!FAR_IMAGES.some(([x, y]) => x === 0 && y === 0));
   assert.equal(new Set(FAR_IMAGES.map(String)).size, FAR_IMAGES.length);
-  // Without float targets the flowers are simply absent (ground still draws).
-  assert.match(afterglow.geometry.vertex, /#ifndef PRECOMPUTED\n  hide\(\);/);
+  // The no-float fallback still grows concentration-driven lanterns.
+  assert.match(afterglow.geometry.vertex, /#else\n  \/\/ No float target/);
+  assert.match(afterglow.geometry.vertex, /vec4 spot = vec4\(at, peak \* \.55/);
+  // Development is a uniform, never an input to either identity buffer.
+  assert.deepEqual(
+    afterglow.geometry.create(5607),
+    afterglow.geometry.create(5607),
+  );
+  assert.deepEqual(
+    afterglow.geometry.instances.create(5607),
+    flowerInstances(),
+  );
+  assert.doesNotMatch(
+    afterglow.precompute.fragment.split("void main() {")[1],
+    /agDev|agGrow|agBloom|u_params/,
+  );
+  assert.match(afterglow.simulation.fragment, /if \(u_rhythmHit.z > 0\.\)/);
+  assert.doesNotMatch(afterglow.simulation.fragment, /wilt|phase < 180u/);
 });
 
 test("camera rises within a bounded range so a one-bar drop is a gentle crane", () => {
@@ -139,7 +156,10 @@ test("camera rises within a bounded range so a one-bar drop is a gentle crane", 
   for (const altitude of [0.7, 1.4])
     assert.ok(gardenEye(0, altitude).z > 0.034, "never in the soil");
   // The shader mirrors the same numbers.
-  assert.match(afterglow.fragment, /\.05 \+ \.07 \* agSmooth\(0\., 1\., d\) \+ \.09 \* agSmooth\(1\., 2\., d\)/);
+  assert.match(
+    afterglow.fragment,
+    /\.05 \+ \.07 \* agSmooth\(0\., 1\., d\) \+ \.09 \* agSmooth\(1\., 2\., d\)/,
+  );
 });
 
 test("saved sets with the earlier evolution-based Afterglow Garden upgrade; edited ones stay", () => {
@@ -163,6 +183,17 @@ test("saved sets with the earlier evolution-based Afterglow Garden upgrade; edit
   for (const old of [
     previous,
     { ...previous, states: previous.states.map(({ params, ...s }) => s) },
+    {
+      id: "garden",
+      name: "Afterglow Garden",
+      description:
+        "A low flight over glowing roots rises above petals into crowns of light. Play every stage in between.",
+      states: [
+        { name: "Roots", look: "afterglow:Glowing Roots" },
+        { name: "Petals", look: "afterglow:Opening Petals" },
+        { name: "Bloom", look: "afterglow:Crowns at Dusk" },
+      ],
+    },
   ]) {
     const set = initialShowSet(scenes);
     set.worlds[worldIndex] = structuredClone(old);
@@ -328,22 +359,27 @@ function elongation(g, [x, y]) {
     s = S(x, y);
   const hxx = S(x + 3, y) + S(x - 3, y) - 2 * s,
     hyy = S(x, y + 3) + S(x, y - 3) - 2 * s;
-  const hxy = (S(x + 3, y + 3) + S(x - 3, y - 3) - S(x + 3, y - 3) - S(x - 3, y + 3)) / 4;
+  const hxy =
+    (S(x + 3, y + 3) + S(x - 3, y - 3) - S(x + 3, y - 3) - S(x - 3, y + 3)) / 4;
   const m = (hxx + hyy) / 2,
     q = Math.hypot((hxx - hyy) / 2, hxy);
   const l1 = m - q,
     l2 = m + q;
-  return l1 < 0 ? Math.max(0, Math.min(1, 1 - Math.abs(Math.min(l2, 0)) / Math.abs(l1))) : 1;
+  return l1 < 0
+    ? Math.max(0, Math.min(1, 1 - Math.abs(Math.min(l2, 0)) / Math.abs(l1)))
+    : 1;
 }
 
 test("the spot finder sees every flower exactly once, owned by one cell", () => {
   const g = garden(96, 96);
-  for (let y = 8; y < 96; y += 24) for (let x = 8; x < 96; x += 24) bud(g, x, y, 5);
+  for (let y = 8; y < 96; y += 24)
+    for (let x = 8; x < 96; x += 24) bud(g, x, y, 5);
   run(g, CHEMISTRY[2], 40);
   const S = boxField(g);
   const global = [];
   for (let y = 0; y < 96; y++)
-    for (let x = 0; x < 96; x++) if (isMaximum(S, x, y)) global.push(`${x},${y}`);
+    for (let x = 0; x < 96; x++)
+      if (isMaximum(S, x, y)) global.push(`${x},${y}`);
   const found = findSpots(g).map(String);
   assert.ok(found.length > 20, `flowers ${found.length}`);
   assert.deepEqual([...found].sort(), [...global].sort());
@@ -352,13 +388,15 @@ test("the spot finder sees every flower exactly once, owned by one cell", () => 
 
 test("a cleared Bloom patch refills by spot division", () => {
   const g = garden(96, 96);
-  for (let y = 8; y < 96; y += 24) for (let x = 8; x < 96; x += 24) bud(g, x, y, 5);
+  for (let y = 8; y < 96; y += 24)
+    for (let x = 8; x < 96; x += 24) bud(g, x, y, 5);
   run(g, CHEMISTRY[2], 50);
   const [cx, cy, R] = [48, 48, 18];
   const near = (spots) =>
     spots.filter(([x, y]) => Math.hypot(x - cx, y - cy) < R + 6).length;
   const before = near(findSpots(g));
-  // The shader's wilt: V → 0 inside a soft disk, then one seed bud.
+  // External damage robustness experiment (not an autonomous shader event):
+  // remove a disk, then plant a seed and let the continuing chemistry refill it.
   for (let k = 0; k < 180; k++) {
     for (let y = 0; y < 96; y++)
       for (let x = 0; x < 96; x++) {
@@ -376,12 +414,43 @@ test("a cleared Bloom patch refills by spot division", () => {
   for (let s = 0; s < 14; s++) {
     run(g, CHEMISTRY[2], 1);
     dividing += findSpots(g).filter(
-      (p) => Math.hypot(p[0] - cx, p[1] - cy) < R + 8 && elongation(g, p) > 0.5 && elongation(g, p) < 0.85,
+      (p) =>
+        Math.hypot(p[0] - cx, p[1] - cy) < R + 8 &&
+        elongation(g, p) > 0.5 &&
+        elongation(g, p) < 0.85,
     ).length;
   }
   assert.ok(dividing > 0, "pinching spots appear while the patch refills");
-  assert.ok(near(findSpots(g)) >= before - 1, `refilled ${near(findSpots(g))} / ${before}`);
+  assert.ok(
+    near(findSpots(g)) >= before - 1,
+    `refilled ${near(findSpots(g))} / ${before}`,
+  );
 });
+test("slot-3 pollen signature has three authored, distinct, bounded loops", () => {
+  const signature = afterglow.rhythm.find((effect) => effect.slot === 3);
+  assert.equal(signature.id, "pollen-rising");
+  const placements = [];
+  for (const style of ["restrained", "driving", "accented"]) {
+    const pattern = defaultPattern(afterglow.rhythm, style);
+    assert.deepEqual(validatePattern(pattern, afterglow.rhythm), pattern);
+    const track = pattern.tracks.find((track) => track.effect === signature.id);
+    assert.ok(track.steps.filter((value) => value > 0).length >= 2);
+    assert.ok(track.duration >= 2.5 && track.duration <= 3);
+    const hits = track.steps.flatMap((value, i) => (value > 0 ? [i] : []));
+    for (let i = 0; i < hits.length; i++) {
+      const next =
+        hits[(i + 1) % hits.length] +
+        (i === hits.length - 1 ? track.length : 0);
+      assert.ok(track.duration < (next - hits[i]) / track.division);
+    }
+    placements.push(JSON.stringify([track.division, track.steps]));
+  }
+  assert.equal(new Set(placements).size, 3);
+  for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
+    assert.ok(afterglow.geometry.vertex.includes(uniform), uniform);
+  assert.match(afterglow.geometry.vertex, /part >= 33/);
+});
+
 function smooth(a, b, x) {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);

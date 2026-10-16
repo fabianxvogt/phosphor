@@ -41,7 +41,7 @@ export const DETAIL_VERTICES =
   STEM_SEGMENTS * 6 + HEAD_AROUND * HEAD_ALONG * 6 + 6;
 export const SIMPLE_VERTICES = FAR_IMAGES.length * 12;
 export const ADDITIVE_FROM = DETAIL_VERTICES + SIMPLE_VERTICES;
-export const TAIL_VERTICES = 18; // halo + two pollen motes
+export const TAIL_VERTICES = 90; // halo, two ambient motes, four curved pollen ribbons
 export const FLOWER_VERTICES = ADDITIVE_FROM + TAIL_VERTICES;
 
 const smooth = (a, b, x) => {
@@ -51,8 +51,7 @@ const smooth = (a, b, x) => {
 // CPU mirror of agCamera() (eye height and pitch follow development).
 export function gardenEye(development, altitude = 1) {
   const d = Math.max(0, Math.min(2, development));
-  const z =
-    (0.05 + 0.07 * smooth(0, 1, d) + 0.09 * smooth(1, 2, d)) * altitude;
+  const z = (0.05 + 0.07 * smooth(0, 1, d) + 0.09 * smooth(1, 2, d)) * altitude;
   const pitch = -(0.07 + 0.03 * smooth(0, 1, d) + 0.06 * smooth(1, 2, d));
   return { z, pitch };
 }
@@ -63,15 +62,37 @@ export function flowerTemplate() {
   const out = [];
   const quad = (part, a0, a1, b0, b1) =>
     out.push(
-      part, a0, b0, part, a1, b0, part, a0, b1,
-      part, a0, b1, part, a1, b0, part, a1, b1,
+      part,
+      a0,
+      b0,
+      part,
+      a1,
+      b0,
+      part,
+      a0,
+      b1,
+      part,
+      a0,
+      b1,
+      part,
+      a1,
+      b0,
+      part,
+      a1,
+      b1,
     );
   for (let s = 0; s < STEM_SEGMENTS; s++)
     quad(0, -1, 1, s / STEM_SEGMENTS, (s + 1) / STEM_SEGMENTS);
   for (let k = 0; k < PETALS; k++)
     for (let i = 0; i < 4; i++)
       for (let j = 0; j < HEAD_ALONG; j++)
-        quad(1 + k, (k + i / 4 - .5) / PETALS, (k + (i + 1) / 4 - .5) / PETALS, j / HEAD_ALONG, (j + 1) / HEAD_ALONG);
+        quad(
+          1 + k,
+          (k + i / 4 - 0.5) / PETALS,
+          (k + (i + 1) / 4 - 0.5) / PETALS,
+          j / HEAD_ALONG,
+          (j + 1) / HEAD_ALONG,
+        );
   quad(7, -1, 1, -1, 1);
   for (let k = 0; k < FAR_IMAGES.length; k++) {
     quad(8 + k, -1, 1, 0, 1); // stem card
@@ -80,6 +101,8 @@ export function flowerTemplate() {
   quad(30, -1, 1, -1, 1);
   quad(31, -1, 1, -1, 1);
   quad(32, -1, 1, -1, 1);
+  for (let k = 33; k < 37; k++)
+    for (let j = 0; j < 3; j++) quad(k, -1, 1, j / 3, (j + 1) / 3);
   return new Float32Array(out);
 }
 export function flowerInstances() {
@@ -154,7 +177,7 @@ vec3 agRamp(float h) {
   vec3 c = agSat(u_secondary, 1.3) * .34 * agSmooth(0., .32, h);
   c = mix(c, agSat(u_secondary, 1.35) * .76, agSmooth(.22, .62, h));
   c = mix(c, u_primary * .98, agSmooth(.55, .9, h));
-  return mix(c, mix(u_primary, vec3(1.), .45) * 1.45, agSmooth(.9, 1., h));
+  return mix(c, mix(u_primary, vec3(1.), .16) * 1.25, agSmooth(.9, 1., h));
 }
 float agSector(vec2 dir) { return pow(.5 + .5 * dot(normalize(dir + 1e-6), normalize(agSun().xy)), 2.2); }
 float agHeat(vec3 rd) {
@@ -169,7 +192,7 @@ const geometryUniforms = `uniform float u_time, u_level, u_kick;
 uniform vec2 u_resolution;
 uniform float u_params[8];
 uniform vec3 u_primary, u_secondary, u_accent;
-uniform vec4 u_rhythm, u_rhythmCount;
+uniform vec4 u_rhythm, u_rhythmHit, u_rhythmCount;
 uniform highp uint u_seedBits;
 uniform sampler2D u_state;
 #ifdef PRECOMPUTED
@@ -179,6 +202,14 @@ uniform highp sampler2D u_precomputed;
 // Wave of light (vein pulse): a front runs out from the near field through
 // the flowers to the horizon; flowers behind it keep a decaying afterglow.
 const pulse = `
+// Count selects a moving patch of the meadow, never the whole screen.
+float agPollen(vec2 p, vec2 eye, vec2 forward) {
+  vec2 ahead = normalize(forward), side = vec2(ahead.y, -ahead.x);
+  float event = u_rhythmCount.w;
+  vec2 focus = eye + ahead * (.65 + .15 * sin(event * 2.4)) + side * (.30 * sin(event * 3.8));
+  float cohort = 1. - agSmooth(.28, .78, length(p - focus));
+  return cohort * clamp(u_rhythm.w + .08 * u_rhythmHit.w, 0., 1.);
+}
 float agPulse(float distanceFromEye) {
   float front = (1. - clamp(u_rhythm.x, 0., 1.)) * 7.;
   float ring = exp(-sq((distanceFromEye - front) / .35));
@@ -248,10 +279,10 @@ const epilogue = `
       current = mix(current, vec2(.5, .26), spore * (1. - smoothstep(.02, .06, around)));
     }
   }
-  if (u_rhythmHit.z > .5) {
+  if (u_rhythmHit.z > 0.) {
     float packet = gardenPatch(v_uv, u_time, u_rhythmCount.z + 17.);
     // One bounded nutrient packet, never repeated for the envelope lifetime.
-    current = mix(current, vec2(.5, .26), packet * .7);
+    current = mix(current, vec2(.5, .26), packet * .7 * clamp(u_rhythmHit.z, 0., 1.));
   }
 `;
 const simulationFragment = morphogenSimulation(
@@ -274,7 +305,7 @@ const simulationFragment = morphogenSimulation(
 // Texel (x, y<64): spot of cell (x, y) = (field x, field y, prominence,
 // elongation). Texel (x, 64+y): (axis cos, axis sin, peak, 0). The search runs
 // on the half-texel lattice, where one bilinear tap is an exact 2×2 box mean.
-const precompute = `
+const precompute = `${common}
 float agS(vec2 corner) { return unpack16(texture(u_state, corner / ${f(FIELD)})).y; }
 void main() {
   ivec2 c = ivec2(gl_FragCoord.xy);
@@ -299,6 +330,11 @@ void main() {
   float l = agS(at - vec2(1., 0.)), r = agS(at + vec2(1., 0.));
   float b = agS(at - vec2(0., 1.)), t = agS(at + vec2(0., 1.));
   vec2 sub = vec2(.5 * (l - r) / min(l - 2. * best + r, -1e-5), .5 * (b - t) / min(b - 2. * best + t, -1e-5));
+  vec2 lattice = (at + clamp(sub, -.5, .5)) / 12.;
+  if (c.y >= 128) {
+    outColor = vec4(agNoise(lattice, 32., 21u), agNoise(lattice * 1.5, 48., 22u), agNoise(lattice * .5 + 7., 16., 23u), agNoise(lattice * .375, 12., 24u));
+    return;
+  }
   float ring = 0.;
   for (int k = 0; k < 12; k++) {
     float a = float(k) * .5235988;
@@ -314,7 +350,7 @@ void main() {
   float axis = .5 * atan(2. * hxy, hxx - hyy);
   outColor = c.y < ${CELLS}
     ? vec4(at + clamp(sub, -.5, .5), prominence, elongation)
-    : vec4(cos(axis), sin(axis), best, 0.);
+    : vec4(cos(axis), sin(axis), best, agSmooth(.62, .9, agNoise(lattice * .5 + 3., 16., 27u)));
 }
 `;
 
@@ -382,15 +418,16 @@ void main() {
     float fresnel = .02 + .5 * pow(1. - abs(rd.z), 6.);
     color = agSat(u_secondary, 1.1) * .004 + refl * fresnel * (.30 + .25 * agSmooth(.3, -.3, grain));
     // Broad root tissue with a thickness-dependent core, never an iso-outline.
-    float roots = agSmooth(.12, .34, v) * (1. - .65 * agBloom());
-    float sap = .65 + .35 * sin(uv.x * 43. + uv.y * 31. - u_time * .8);
-    color += agSat(mix(u_secondary, u_primary, .55), 1.4) * roots * sap * .32 * agGlow();
+    float roots = pow(agSmooth(.14, .37, v), 2.) * (1. - .65 * agBloom());
+    float sap = .65 + .35 * sin(AG_TAU * (uv.x * 7. + uv.y * 5.) - u_time * .8);
+    color += agSat(mix(u_secondary, u_primary, .55), 1.4) * roots * sap * .22 * agGlow();
     // Light pools below every flower (wide blur of the spot field).
     float lit = .25 + .75 * agGrow();
     float pools = agSmooth(.06, .28, vp);
     color += mix(u_primary, agSat(mix(u_secondary, u_primary, .5), 1.5), .4) * pools * lit * .09 * agGlow();
     float front = (1. - clamp(u_rhythm.x, 0., 1.)) * 7.;
-    color += u_primary * pools * clamp(u_rhythm.x, 0., 1.) * exp(-sq((t - front) / .3)) * .05;
+    color += u_primary * roots * clamp(u_rhythm.x, 0., 1.) * exp(-sq((t - front) / .45)) * .55;
+    color += u_primary * pools * agPollen(q, eye.xy, F.xy) * .16;
     float fog = 1. - exp(-pow(t / 5.5, 1.7));
     color = mix(color, agHaze(rd), fog);
   }
@@ -438,7 +475,7 @@ void main() {
 #else
   // No float target: continuous concentration-driven seed lanterns still grow.
   vec2 at = (a_cell + .5) * 6.;
-  float peak = unpack16(texture(u_state, at / AG_N)).y;
+  float peak = dot(texture(u_state, at / AG_N).ba, vec2(256., 1.)) * (255. / 65535.);
   vec4 spot = vec4(at, peak * .55, 0.);
   vec4 axisData = vec4(1., 0., peak, 0.);
 #endif
@@ -455,20 +492,37 @@ void main() {
     simple = 1.;
   }
   float far = length(base - eye.xy);
+  // Retract plants softly before their heads enter the camera clearance disk.
+  float clearance = agSmooth(.18, .34, far);
+  size *= clearance;
+  if (size <= 0.) { hide(); return; }
   float fade = simple > 0. ? 1. - agSmooth(5.5, 7.6, far) : 1.;
   if (fade <= 0. || dot(base - eye.xy, normalize(F.xy)) < -.6) { hide(); return; }
+  // Conservative frustum bound includes the largest flower and pollen fan.
+  vec3 bound = vec3(base, .12) - eye;
+  float depthBound = dot(bound, F);
+  if (depthBound > .4 && (abs(dot(bound, R)) > depthBound * agFit().x / (2. * agLens()) + .35 || abs(dot(bound, U)) > depthBound * agFit().y / (2. * agLens()) + .35)) { hide(); return; }
   // Continuous per-flower character from periodic noise of the spot position.
   vec2 lattice = spot.xy / 12.;
+#ifdef PRECOMPUTED
+  vec4 character = texelFetch(u_precomputed, ivec2(a_cell) + ivec2(0, 128), 0);
+  float n1 = character.x, n2 = character.y, n3 = character.z, tone = character.w;
+  float hero = axisData.w;
+#else
   float n1 = agNoise(lattice, 32., 21u), n2 = agNoise(lattice * 1.5, 48., 22u);
   float n3 = agNoise(lattice * .5 + 7., 16., 23u), tone = agNoise(lattice * .375, 12., 24u);
+  float hero = agSmooth(.62, .9, agNoise(lattice * .5 + 3., 16., 27u));
+#endif
   float grow = .16 + .84 * agGrow(), bloom = agBloom(), level = agLevel();
   // A pinching spot (peanut) has a moderate Hessian anisotropy; a worm
   // segment is almost fully anisotropic and is not a division.
   float dividing = agSmooth(.50, .70, spot.w) * (1. - agSmooth(.80, .90, spot.w)) * agSmooth(.5, .9, size);
-  float flare = agPulse(far) + agCohort(tone);
-  float openness = clamp(mix(.04, .72 + .30 * level, bloom) + .34 * agCohort(tone) * (.25 + .75 * bloom) - .38 * dividing * bloom, 0., 1.);
+  float pollen = agPollen(base, eye.xy, F.xy);
+  float feedCohort = (1. - agSmooth(.10, .23, abs(fract(tone - fract(u_rhythmCount.z * .618034) + .5) - .5))) * u_rhythm.z;
+  float flare = 1.4 * agPulse(far) + agCohort(tone) + .8 * feedCohort + .45 * pollen;
+  float openness = clamp(mix(.04, .60 + .40 * level, bloom) + .62 * agCohort(tone) + .40 * pollen - .38 * dividing * bloom, 0., 1.);
   // Height, lean in a travelling wind wave, and a bow away from the camera.
-  float height = (.028 + .055 * n1 + .04 * agSmooth(.62, .9, agNoise(lattice * .5 + 3., 16., 27u))) * agRelief() * grow * (.55 + .45 * size);
+  float height = (.028 + .055 * n1 + .04 * hero) * agRelief() * grow * (.55 + .45 * size) * clearance;
   vec2 wdir = normalize(vec2(.8, .6));
   vec2 pf = base / AG_WS;
   float wave = sin(AG_TAU * (2. * pf.x + 3. * pf.y) - u_time * 1.4) * .5 + .5;
@@ -479,8 +533,7 @@ void main() {
   lean += away / max(near, 1e-3) * max(0., .16 - near) * 7. / max(height, .02) * .02;
   vec3 head = vec3(base + lean * height, height * (1. - .25 * dot(lean, lean)));
   vec3 axis = normalize(vec3(lean * 1.4 + (vec2(n3, n1) - .5) * .5, 1.));
-  float hero = agSmooth(.62, .9, agNoise(lattice * .5 + 3., 16., 27u));
-  float petalLength = (.021 + .018 * n2 + .060 * hero) * (.6 + .7 * clamp(u_params[3], 0., 1.25)) * (.28 + .72 * grow) * (.5 + .5 * size);
+  float petalLength = (.021 + .018 * n2 + .060 * hero) * (.6 + .7 * clamp(u_params[3], 0., 1.25)) * (.28 + .72 * grow) * (.5 + .5 * size) * clearance;
   v_surface = vec4(0., 0., tone, openness);
   v_event = vec4(dividing * bloom, flare, fade, size);
   v_part = part;
@@ -555,6 +608,21 @@ void main() {
     vec3 cx = normalize(cross(toEye, vec3(0., 0., 1.)) + 1e-5), cy = cross(cx, toEye);
     p = head + axis * petalLength * .2 + (cx * a_vertex.y + cy * a_vertex.z) * r;
     v_surface.xy = a_vertex.yz;
+  } else if (part >= 33) {
+    // Four curved, tapering trails rise from a selected patch of flowers.
+    // The envelope lifts the fan smoothly; no per-frame randomness or reset.
+    if (pollen < .005) { hide(); return; }
+    float k = float(part - 33), s = a_vertex.z;
+    float lift = 1. - clamp(u_rhythm.w, 0., 1.);
+    float phase = clamp(lift * .85 + s * .20 + k * .035, 0., 1.2);
+    float az = AG_TAU * (n2 + k * .25);
+    float spread = (.02 + .025 * level) * phase * phase;
+    vec3 c = head + vec3(cos(az + phase * 2.) * spread + .015 * phase, sin(az + phase * 2.) * spread, .015 + (.16 + .08 * level) * phase) * (.35 + .65 * agGrow());
+    vec3 side = normalize(cross(toEye, vec3(0., 0., 1.)) + 1e-5);
+    float width = max(.0007 + .0007 * level, far * .65 / (min(u_resolution.x, u_resolution.y) * agLens()));
+    p = c + side * a_vertex.y * width * (1. - .4 * s);
+    v_surface.xy = vec2(a_vertex.y, s * 2. - 1.);
+    v_event.y = pollen * (.35 + .65 * agGrow()) * (1. - .5 * s);
   } else {
     // Pollen motes rise from open flowers on fixed-rate whole cycles.
     float k = float(part - 31);
@@ -637,7 +705,7 @@ void main() {
     float lobe = 1.1 * dividing;
     float r2 = min(dot(q - vec2(lobe, 0.), q - vec2(lobe, 0.)), dot(q + vec2(lobe, 0.), q + vec2(lobe, 0.)));
     if (r2 > 1.) discard;
-    color = mix(u_primary, vec3(1.), .35) * (1.4 + 1.6 * flare) * glow * (.4 + .6 * openness) * (1. - .4 * r2);
+    color = mix(u_primary, vec3(1.), .08) * (1.4 + 1.3 * flare) * glow * (.4 + .6 * openness) * (1. - .4 * r2);
     color = mix(color, u_accent * (.4 + 1.4 * exp(-r2 * 3.)) * glow, dividing * .85);
   } else if (v_part < 30) {
     vec2 q = v_surface.xy;
@@ -657,11 +725,12 @@ void main() {
     vec2 q = v_surface.xy;
     float h = exp(-dot(q, q) * 4.) * (1. - smoothstep(.7, 1., dot(q, q)));
     color = mix(bloomColor, mix(u_primary, vec3(1.), .2), .4) * h * (.04 + .08 * openness) * glow;
-    color += bloomColor * h * flare * .6;
+    color += bloomColor * h * flare * .15;
   } else {
     vec2 q = v_surface.xy;
     float h = exp(-q.x * q.x * 3.) * (1. - smoothstep(.6, 1., abs(q.y)));
-    color = mix(u_primary, vec3(1.), .3) * h * flare * .8 * glow;
+    float beads = v_part >= 33 ? .25 + .75 * pow(.5 + .5 * cos(q.y * 12.), 3.) : 1.;
+    color = mix(u_primary, u_accent, v_part >= 33 ? .65 : .12) * h * beads * flare * (v_part >= 33 ? 2.6 : .8) * glow;
   }
   color *= v_event.z;
   float fog = 1. - exp(-pow(dist / 5.5, 1.7));
@@ -791,44 +860,142 @@ export default {
     sway: [0.05, 0.6],
   },
   beat: { punch: 0.4, pulse: 0.8, inject: 0.8 },
-  rhythmStyles: { restrained: "Sleeping petals", driving: "Nectar paths", accented: "Midnight flowering" },
+  rhythmStyles: {
+    restrained: "Sleeping petals",
+    driving: "Nectar paths",
+    accented: "Midnight flowering",
+  },
   rhythm: [
     familyEffect(
       "vein-pulse",
       0,
       "Vein pulse",
       "Light runs along the glowing veins and petal margins.",
-      { period: 4, strength: 0.6, steps: "X...", styles: {
-        restrained: { steps: "..X..... | .....x.. | X....... | .......x", division: 2, strength: 0.5, duration: 1 },
-        driving: { steps: "X..xX.x. | ..x.X..x", division: 2, strength: 0.76, duration: 0.35 },
-        accented: { steps: "X..x.X..x..X..x. | ..x.X.x...X..xxx", division: 4, strength: 0.9, duration: 0.2 },
-      } },
+      {
+        period: 4,
+        strength: 0.6,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "..X..... | .....x.. | X....... | .......x",
+            division: 2,
+            strength: 0.5,
+            duration: 1,
+          },
+          driving: {
+            steps: "X..xX.x. | ..x.X..x",
+            division: 2,
+            strength: 0.76,
+            duration: 0.35,
+          },
+          accented: {
+            steps: "X..x.X..x..X..x. | ..x.X.x...X..xxx",
+            division: 4,
+            strength: 0.9,
+            duration: 0.2,
+          },
+        },
+      },
     ),
     familyEffect(
       "petal-cohort",
       1,
       "Petal-cohort light",
       "Select oriented petals in developed reaction crowns.",
-      { period: 8, strength: 0.5, steps: "X.......", styles: {
-        restrained: { steps: ".....x.. | ..X..... | ......x. | ...X....", division: 2, strength: 0.45, duration: 1.25 },
-        driving: { steps: "...X...x | .X....x.", division: 2, strength: 0.7, duration: 0.75 },
-        accented: { steps: ".....X......x... | ..X.........x... | ...X.......x....", division: 4, strength: 0.84, duration: 0.6 },
-      } },
+      {
+        period: 8,
+        strength: 0.5,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: ".....x.. | ..X..... | ......x. | ...X....",
+            division: 2,
+            strength: 0.45,
+            duration: 1.25,
+          },
+          driving: {
+            steps: "...X...x | .X....x.",
+            division: 2,
+            strength: 0.7,
+            duration: 0.75,
+          },
+          accented: {
+            steps: ".....X......x... | ..X.........x... | ...X.......x....",
+            division: 4,
+            strength: 0.84,
+            duration: 0.6,
+          },
+        },
+      },
     ),
     familyEffect(
       "morphogen-feed",
       2,
       "Local morphogen feed",
       "Seed a bounded patch into the continuing garden chemistry.",
-      { period: 16, strength: 0.55, duration: 0.25, kind: "simulation", steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | .......X | ........", division: 2, strength: 0.45, duration: 0.25 },
-        driving: { steps: "........ | .......x | ........ | .....X..", division: 2, strength: 0.7, duration: 0.25 },
-        accented: { steps: "................ | .............x.. | ................ | .........x.....X", division: 4, strength: 0.85, duration: 0.2 },
-      } },
+      {
+        period: 16,
+        strength: 0.55,
+        duration: 0.25,
+        kind: "simulation",
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | .......X | ........",
+            division: 2,
+            strength: 0.45,
+            duration: 0.25,
+          },
+          driving: {
+            steps: "........ | .......x | ........ | .....X..",
+            division: 2,
+            strength: 0.7,
+            duration: 0.25,
+          },
+          accented: {
+            steps:
+              "................ | .............x.. | ................ | .........x.....X",
+            division: 4,
+            strength: 0.85,
+            duration: 0.2,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "pollen-rising",
+      3,
+      "Pollen rising",
+      "A patch of flowers unfurls and releases curved pollen trails into the afterglow.",
+      {
+        strength: 0.9,
+        duration: 3,
+        styles: {
+          restrained: {
+            steps: "X....... | ........ | ........ | x.......",
+            division: 2,
+            strength: 0.7,
+            duration: 3,
+          },
+          driving: {
+            steps: "........ | ......X. | ........ | ....X...",
+            division: 2,
+            strength: 0.9,
+            duration: 2.75,
+          },
+          accented: {
+            steps:
+              "............X... | ..............x. | ............X... | ............x...",
+            division: 4,
+            strength: 1,
+            duration: 2.5,
+          },
+        },
+      },
     ),
   ],
   fragment: visual,
-  precompute: { fragment: precompute, size: [CELLS, 2 * CELLS] },
+  precompute: { fragment: precompute, size: [CELLS, 3 * CELLS] },
   geometry: {
     create: flowerTemplate,
     attributes: [3],

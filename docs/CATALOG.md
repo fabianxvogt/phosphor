@@ -80,7 +80,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Laser Grid](families/laser.md) | laser | Hinged vector skyline, closed-form Gaussian lasers and liquid-sky cones | Horizon / Towers / Tunnel | 8 |
 | [Living Mycelium](families/mycelium.md) | mycelium | Gray–Scott reaction–diffusion as a lit terrain | Understory / Tide / City | 8 |
 | [Attractor Ribbons](families/ribbons.md) (world Attractor Ribbons) | ribbons | Fixed-step RK4 trajectories in three flows, drawn as lit ribbons | Wings / Vortex / Labyrinth | 8 |
-| [Afterglow Garden](families/afterglow.md) | afterglow | Gray–Scott morphogens as a night garden | Roots / Petals / Bloom | 8 |
+| [Afterglow Garden](families/afterglow.md) | afterglow | Gray–Scott spots grow lantern buds, open petals and rising pollen over a dusk meadow | Roots / Petals / Bloom | 8 |
 | [Bioluminescent Abyss](families/abyss.md) (world Abyssal Bloom) | abyss | Pulsing parametric medusae, sea-pen light waves and disturbance-lit plankton | Sparks / Swarms / Reef | 8 |
 | [Moon Tide](families/tide.md) (world Moon Tide / Mondflut) | tide | Dispersive Gerstner sea with bioluminescent breaking foam (closed-form persistence) wound by a coordinate twist into a spiral funnel with a glowing eye | Calm / Swell / Maelstrom | 8 |
 | [Liquid Chrome](families/ferro.md) | ferro | Rippling chrome mirror grows an energy-populated Rosensweig crown and seamless floating sculpture; orbiting studio cards and valley reflections | Pool / Crown / Sculpture | 8 |

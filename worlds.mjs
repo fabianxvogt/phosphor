@@ -69,7 +69,7 @@ const AUTHORED = [
     id: "garden",
     name: "Afterglow Garden",
     description:
-      "A low flight over glowing roots rises above petals into crowns of light. Play every stage in between.",
+      "A living morphogen meadow grows from glowing roots through lantern buds into open flowers at dusk.",
     states: [
       { name: "Roots", look: "afterglow:Glowing Roots" },
       { name: "Petals", look: "afterglow:Opening Petals" },
@@ -371,6 +371,18 @@ const HISTORY = [
   GARDEN_EVOLUTION,
   withoutParams(GARDEN_EVOLUTION),
   INK_BLOOM_BACKLIT,
+  // Garden before the round-3 terrain-to-meadow rework; keep saved sets upgrading.
+  {
+    id: "garden",
+    name: "Afterglow Garden",
+    description:
+      "A low flight over glowing roots rises above petals into crowns of light. Play every stage in between.",
+    states: [
+      { name: "Roots", look: "afterglow:Glowing Roots" },
+      { name: "Petals", look: "afterglow:Opening Petals" },
+      { name: "Bloom", look: "afterglow:Crowns at Dusk" },
+    ],
+  },
 ];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const untouched = (w) =>
