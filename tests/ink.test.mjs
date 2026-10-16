@@ -11,6 +11,10 @@ import ink, {
   kadenPhase,
   kadenRadius,
   seedHash,
+  INK_FLOW,
+  INK_ATMOS,
+  inkStream,
+  inkCross,
 } from "../scene-ink.mjs";
 import scenes from "../scenes.mjs";
 import { catalogLooks } from "../catalog.mjs";
@@ -20,6 +24,22 @@ import { advanceClocks } from "../scene-time.mjs";
 
 const TAU = 2 * Math.PI;
 const SQRT_PI = Math.sqrt(Math.PI);
+
+test("stream surfaces bound the atmosphere and crossing integrator recovers hidden folds", () => {
+  assert.ok(INK_FLOW.k > 0 && INK_FLOW.U > 0);
+  for (const angle of [0, 0.3, 1.2, 2.7]) {
+    const r = 1 + INK_ATMOS * Math.cos(angle);
+    const y = INK_ATMOS * Math.sin(angle);
+    assert.ok(Math.abs(inkStream(r, y)) < 1e-12);
+  }
+  assert.ok(inkStream(1, 0) > 0);
+  assert.ok(inkStream(1, 2) < 0);
+  assert.equal(inkCross(0.1, 0.4, 1.1, 1, 1), 1);
+  assert.equal(inkCross(1.1, 0.4, 0.1, 1, 1), 0);
+  // A parabola touches above 1 between the last two samples, then returns:
+  // both endpoints stay below 1 but the fold crosses it twice.
+  assert.equal(inkCross(0.1, 0.99, 0.8, 1, 1), 2);
+});
 
 test("Kelvin thin-ring velocity has the correct constant, dimensions, sign and core dependence", () => {
   assert.equal(kelvinVelocity(4 * Math.PI, 1, 8 / Math.E ** 3), 2.75);
@@ -98,12 +118,8 @@ test("Kaden roll-up: sheets lie on rho/a = (c/theta)^(2/3), denser toward the co
       assert.ok(inner < x && inner2 < inner && x - inner > inner - inner2);
     }
   // The shader phase is c x^-1.5 - theta + roll with |grad| from dPhi/dx.
-  assert.match(ink.fragment, /k=turns\*ix\*ix\*ix/);
-  assert.match(ink.fragment, /float Phi=k-theta\+roll/);
-  assert.match(
-    ink.fragment,
-    /sqrt\(sq\(1\.5\*k\/\(x\*a\)\)\+1\.0\/sq\(max\(rho,1e-3\)\)\)/,
-  );
+  assert.match(ink.fragment, /K=gTurns\/\(x\*sqrt\(x\)\)/);
+  assert.match(ink.fragment, /S1=\(K\+gRoll-theta\)\/TAU/);
   const x = 0.9,
     c = 6,
     h = 1e-6;
@@ -158,7 +174,6 @@ test("cascade morph is continuous and reversible: lobes neck, pinch and re-absor
     ...c.daughterCentre,
     c.daughterRadius,
     c.daughterTilt,
-    c.parentCore,
     c.radius,
     c.neck,
   ];
@@ -170,7 +185,7 @@ test("cascade morph is continuous and reversible: lobes neck, pinch and re-absor
       assert.ok(Number.isFinite(v));
       // Lipschitz-bounded in development (the dissolving neck is steepest).
       assert.ok(
-        Math.abs(v - previous[j]) < (j === 13 ? 0.02 : 0.004),
+        Math.abs(v - previous[j]) < (j === 12 ? 0.02 : 0.004),
         `jump at ${dev} key ${j}`,
       );
     });
@@ -184,7 +199,7 @@ test("cascade morph is continuous and reversible: lobes neck, pinch and re-absor
     nebula = inkCascade(2);
   // Daughters are born AT the rim lobe (no pop from nowhere) ...
   assert.deepEqual(drop.daughterCentre, drop.peak);
-  assert.ok(drop.daughterRadius > 0.05 && drop.pinch === 0);
+  assert.ok(drop.daughterRadius >= 0.05 && drop.pinch === 0);
   // ... are half-pinched at 0.5 ...
   assert.ok(
     half.bud > 0.3 && half.bud < 0.7 && half.pinch > 0 && half.pinch < 0.5,
@@ -199,24 +214,22 @@ test("cascade morph is continuous and reversible: lobes neck, pinch and re-absor
   // roll over (axis tilted past 80 degrees), still smaller than the parent.
   assert.ok(nebula.g2 === 1 && nebula.daughterRadius < 0.4 * nebula.radius);
   assert.ok(nebula.daughterCentre[1] > plumes.daughterCentre[1] + 0.8);
-  assert.ok(nebula.daughterCentre[0] > plumes.daughterCentre[0] + 1.0);
+  assert.ok(nebula.daughterCentre[0] > plumes.daughterCentre[0] + 0.7);
   assert.ok(nebula.daughterTilt > 1.4);
   // The shader carries the same schedule.
   for (const source of [
     "gLobeAmp=0.035+0.15*smoothstep(0.0,0.55,gG1)*gFinger",
     "gBud=smoothstep(0.05,0.95,gG1)",
-    "gPinch=smoothstep(0.35,0.95,gG1)",
-    "gRP=1.0+0.35*gG2",
-    "gDaughter=vec3(gPeak.x+(0.62*gBud*gFinger+0.95*gG2)*gSpread,",
-    "gPeak.y-1.05*gBud*gFinger*(1.0-0.85*gG2)+0.25*gG2,0.0)",
-    "gTiltC=cos(0.5*gBud+1.1*gG2)",
-    "gRd=mix(0.06,0.34,smoothstep(0.15,0.85,gG1))+0.16*gG2",
-    "(1.0-smoothstep(0.45,0.9,gPinch))",
+    "gRP=1.0+0.3*gG2",
+    "gDC=vec2(gPeak.x+(0.35*gBud*gFinger+0.55*gG2)*u_params[5],",
+    "gPeak.y-1.15*gBud*gFinger*(1.0-0.8*gG2)+0.2*gG2)",
+    "gTiltC=cos(0.5*gBud+1.0*gG2)",
+    "gRd=mix(0.05,0.3,smoothstep(0.15,0.85,gG1))+0.06*gG2",
   ])
     assert.ok(ink.fragment.includes(source), source);
 });
 
-test("silk uses the exact sheet integral of its Gaussian profile; no threads remain", () => {
+test("sheet integral reference and characteristic dye have no opaque isosurfaces", () => {
   // Numerical integral of rho exp(-d^2/w^2) along a ray crossing a sheet at
   // angle: rho w sqrt(pi) / |cos|.
   const integrate = (f, a, b, n = 200000) => {
@@ -231,15 +244,17 @@ test("silk uses the exact sheet integral of its Gaussian profile; no threads rem
     assert.ok(Math.abs(numeric - (w * SQRT_PI) / cos) < 1e-6);
   }
   assert.ok(Math.abs(1.7725 - SQRT_PI) < 1e-4);
-  assert.match(ink.fragment, /0\.65\*0\.012\*1\.7725/);
+  assert.match(ink.fragment, /vec3 X=p-A\.xyz/);
+  assert.match(ink.fragment, /inkSheet\(dP,0\.035,fp\)/);
+  assert.doesNotMatch(ink.fragment, /INK_ISO|inkCarve|prevField/);
   // The straight drop tail and pinched-neck threads are gone (L0 review):
   // necks dissolve as they pinch, wakes are the bells.
   assert.doesNotMatch(ink.fragment, /twisted pair of threads|sine\*span/);
 });
 
 test("guttered half-float body atlas has bijective nodes and matching shader layout", () => {
-  const grid = [96, 128, 96],
-    tile = [98, 130],
+  const grid = [48, 64, 48],
+    tile = [50, 66],
     columns = 16,
     atlas = [tile[0] * columns, tile[1] * Math.ceil(grid[2] / columns)];
   assert.deepEqual(ink.precompute.size, atlas);
@@ -265,13 +280,13 @@ test("guttered half-float body atlas has bijective nodes and matching shader lay
       }
   assert.equal(addresses.size, grid[0] * grid[1] * grid[2]);
   for (const source of [
-    "const vec3 INK_GRID=vec3(96,128,96);",
-    "const vec2 INK_TILE=vec2(98,130);",
-    "const vec2 INK_ATLAS=vec2(1568,780);",
+    "const vec3 INK_GRID=vec3(48,64,48);",
+    "const vec2 INK_TILE=vec2(50,66);",
+    "const vec2 INK_ATLAS=vec2(800,198);", 
   ])
     assert.ok(ink.fragment.includes(source), source);
   assert.ok(
-    ink.precompute.fragment.includes("int z=(pixel.y/130)*16+pixel.x/98;"),
+    ink.precompute.fragment.includes("int z=(py/66)*16+pixel.x/50;"),
   );
   // Trilinear interpolation of a 1-Lipschitz distance errs by at most half a
   // cell diagonal; the skip subtracts more than that.
@@ -371,7 +386,7 @@ test("eight stable looks, id-selected world, gestures, step budget and dark tank
   // The march honours the engine's ray-step budget (governor 96/64/40).
   assert.match(
     ink.fragment,
-    /int limit=int\(min\(float\(INK_STEP_CAP\),u_raySteps\)\)/,
+    /int limit=int\(min\(float\(INK_STEP_CAP\),0\.75\*u_raySteps\)\)/,
   );
   assert.match(ink.fragment, /budget=96\.0\/clamp\(u_raySteps,16\.0,96\.0\)/);
   // Dark tank: no cream lamp field; colour only from the palette.
