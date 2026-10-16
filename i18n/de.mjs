@@ -260,6 +260,9 @@ export default {
   "A persistent address cohort lights along the voxel edges.": "Eine feste Adressgruppe leuchtet an den Voxelkanten auf.",
   "A narrow scan plane crosses the same voxel matter.": "Eine schmale Scanebene durchquert dieselbe Voxelmaterie.",
   "One addressed row makes a bounded glitch displacement.": "Eine adressierte Reihe führt einen begrenzten Glitchversatz aus.",
+  "Memory rewrite": "Speicherneuschrift",
+  "A travelling write plane turns voxel banks and rewrites their recessed memory ports.":
+    "Eine wandernde Schreibebene dreht Voxelbänke und beschreibt ihre eingelassenen Speicherports neu.",
   "Idle registers": "Ruhende Register",
   "Address march": "Adressmarsch",
   "Midnight overflow": "Mitternachtsüberlauf",
