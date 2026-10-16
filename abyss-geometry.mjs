@@ -39,11 +39,12 @@ export const NG = 6;
 export const NCH = 6; // siphonophore chains
 export const NSH = 20; // light shafts
 export const NP = 150; // reef patches
-export const TUBES = 9; // tube worms per patch
+export const TUBES = 6; // tube worms per patch
 export const PENS = 2; // sea pens per patch
 export const CROWN_PETALS = 8;
 export const PEN_LEAVES = 12;
-export const FAN_GRID = [8, 6];
+export const FAN_SIDES = 5;
+export const FAN_BRANCHES = 31;
 export const FLOOR_GRID = [72, 128];
 export const FLOOR_HALF = 24;
 export const BELL = { big: [10, 24], small: [6, 12] }; // rings, segments
@@ -109,7 +110,8 @@ export function jelly(seed, i) {
     const h = (k) => rnd(seed, i, k);
     const lone = i < 5;
     const z = lone
-      ? ((hash32(seed) / 4294967296) * PERIOD + [9, 17, 25, 38, 52][i]) % PERIOD
+      ? ((hash32(seed) / 4294967296) * PERIOD + [9, 11.5, 19.5, 38, 52][i]) %
+        PERIOD
       : ((((i * 0.618034 + 0.37 + 0.05 * h(1)) % 1) + 1) % 1) * PERIOD;
     const R = lone ? 1.25 + 0.2 * h(5) : 0.3 + 0.45 * h(5) * h(5);
     const side = lone
@@ -124,7 +126,7 @@ export function jelly(seed, i) {
       R,
       birth: lone ? -1 : 0.3 + 0.65 * h(6),
       swarm: false,
-      tentacle: R * (3.2 + 3 * h(7)),
+      tentacle: R * (lone ? 2.4 + 1.4 * h(7) : 3.2 + 3 * h(7)),
     };
   }
   const j = i - NJ,
@@ -194,6 +196,34 @@ export function jellyReveal(j, development, swarm = 0.5) {
     0.5 *
     smooth(0.7, 1.3, development);
   return smooth(j.birth - 0.12, j.birth + 0.05, development + boost);
+}
+
+// A real tapered skeleton, not a branching mask on a sector. Local y <= 1.
+export function fanBranches(rnd) {
+  const rand = random(Math.floor(rnd * 4294967295) >>> 0);
+  const branches = [];
+  const grow = (start, angle, depth) => {
+    const length = (0.245 - depth * 0.032) * (0.82 + rand() * 0.3);
+    const end = [
+      start[0] + Math.sin(angle) * length,
+      start[1] + Math.cos(angle) * length,
+      start[2] + (rand() - 0.5) * length * 0.9,
+    ];
+    branches.push({ start, end, radius: 0.034 * 0.78 ** depth, depth });
+    if (depth < 4) {
+      grow(end, angle - 0.22 - rand() * 0.4, depth + 1);
+      grow(end, angle + 0.22 + rand() * 0.4, depth + 1);
+    }
+  };
+  grow([0, 0, 0], (rand() - 0.5) * 0.35, 0);
+  const bound = Math.max(...branches.map((b) => b.end[1] + b.radius));
+  if (bound > 0.95)
+    for (const branch of branches) {
+      branch.start = branch.start.map((v) => (v * 0.95) / bound);
+      branch.end = branch.end.map((v) => (v * 0.95) / bound);
+      branch.radius *= 0.95 / bound;
+    }
+  return branches;
 }
 
 function random(seed) {
@@ -287,11 +317,11 @@ const QUAD = [
 
 export function vertexCounts() {
   const tube = 5 * 2 * 6,
-    crown = CROWN_PETALS * 2 * 6,
-    pen = 4 * 6 + PEN_LEAVES * 2 * 6,
+    crown = CROWN_PETALS * 4 * 6,
+    pen = 4 * 6 + PEN_LEAVES * 2 * 2 * 6,
     floor = FLOOR_GRID[0] * FLOOR_GRID[1] * 6,
-    fan = FAN_GRID[0] * FAN_GRID[1] * 6;
-  const opaque = NP * (TUBES * (tube + crown) + PENS * pen) + floor;
+    fan = FAN_BRANCHES * FAN_SIDES * 6;
+  const opaque = NP * (TUBES * (tube + crown) + PENS * pen + fan) + floor;
   const bigJelly =
     BELL.big[0] * BELL.big[1] * 6 +
     TENTACLES.big[0] * TENTACLES.big[1] * 6 +
@@ -300,7 +330,6 @@ export function vertexCounts() {
     BELL.small[0] * BELL.small[1] * 6 +
     TENTACLES.small[0] * TENTACLES.small[1] * 6;
   const additive =
-    NP * fan +
     NSH * SHAFT_SEGMENTS * 6 +
     NCH * (CHAIN_SEGMENTS * 6 + BEADS * 6) +
     NJ * bigJelly +
@@ -327,23 +356,55 @@ function build(seed) {
   const { patches, items } = reef(seed);
   // Opaque reef first (tall items occlude the floor early), then the floor.
   for (const it of items) {
-    if (it.kind === KIND.fan) continue;
     const k = [it.kind, 0, it.rnd, it.birth],
       r = [...it.root, it.height],
       s = [it.radius, it.yaw, it.width, 0];
-    if (it.kind === KIND.tube) {
+    if (it.kind === KIND.fan) {
+      for (const [index, branch] of fanBranches(it.rnd).entries()) {
+        const delta = branch.end.map((v, i) => v - branch.start[i]);
+        const length = Math.hypot(...delta);
+        const axis = delta.map((v) => v / length);
+        const norm = Math.hypot(axis[0], axis[1]);
+        const right = [axis[1] / norm, -axis[0] / norm, 0];
+        const back = [
+          -axis[2] * right[1],
+          axis[2] * right[0],
+          axis[0] * right[1] - axis[1] * right[0],
+        ];
+        for (let side = 0; side < FAN_SIDES; side++)
+          for (const [a, b] of QUAD) {
+            const phi = ((side + a) / FAN_SIDES) * TAU;
+            const normal = right.map(
+              (v, i) => v * Math.cos(phi) + back[i] * Math.sin(phi),
+            );
+            const radius = branch.radius * (1 - b * 0.32);
+            const point = branch.start.map(
+              (v, i) => v + delta[i] * b + normal[i] * radius,
+            );
+            v([KIND.fan, index, it.rnd, it.birth], [...point, b], r, [
+              normal[0],
+              it.yaw,
+              normal[1],
+              normal[2],
+            ]);
+          }
+      }
+    } else if (it.kind === KIND.tube) {
       for (let j = 0; j < 2; j++)
         for (let a = 0; a < 5; a++)
           for (const [di, dj] of QUAD) v(k, [a + di, (j + dj) / 2, 0, 0], r, s);
       const ck = [KIND.crown, 0, it.rnd, it.birth];
       for (let p = 0; p < CROWN_PETALS; p++)
-        strip(ck, 2, (j, side) => [p, j / 2, side, 0], r, s);
+        strip(ck, 4, (j, side) => [p, j / 4, side, 0], r, s);
     } else {
       for (let j = 0; j < 4; j++)
         for (const [a, b] of QUAD) v(k, [0, (j + b) / 4, a * 2 - 1, 0], r, s);
       for (let leaf = 0; leaf < PEN_LEAVES; leaf++)
         for (const side of [-1, 1])
-          for (const [a, b] of QUAD) v(k, [1, leaf, side, a + 2 * b], r, s);
+          for (let u = 0; u < 2; u++)
+            for (let w = 0; w < 1; w++)
+              for (const [a, b] of QUAD)
+                v(k, [1 + (u + a) * 0.5, leaf, side, w + b], r, s);
     }
   }
   // Seabed grid with baked reef-glow weight and mean patch birth.
@@ -398,20 +459,7 @@ function build(seed) {
     }
   }
   if (o !== counts.opaque * STRIDE) throw new Error("abyss: opaque count");
-  // Additive: fans, shafts, siphonophores, then the medusae.
-  for (const it of items) {
-    if (it.kind !== KIND.fan) continue;
-    const [FU, FV] = FAN_GRID;
-    for (let j = 0; j < FV; j++)
-      for (let i = 0; i < FU; i++)
-        for (const [di, dj] of QUAD)
-          v(
-            [KIND.fan, 0, it.rnd, it.birth],
-            [(i + di) / FU, (j + dj) / FV, 0, 0],
-            [...it.root, it.height],
-            [it.radius, it.yaw, 0, 0],
-          );
-  }
+  // Additive: shafts, siphonophores, then the medusae.
   for (let n = 0; n < NSH; n++)
     strip([KIND.shaft, n, 0, 0], SHAFT_SEGMENTS, (j, side) => [
       j / SHAFT_SEGMENTS,

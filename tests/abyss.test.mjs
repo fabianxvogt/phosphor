@@ -6,6 +6,8 @@ import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { defaultPattern } from "../rhythm.mjs";
 import {
   ATTRIBUTES,
+  FAN_BRANCHES,
+  fanBranches,
   DRIFT,
   KIND,
   NCH,
@@ -103,6 +105,23 @@ test("living relay occupies slot 3 with three full, distinct authored presets", 
   assert.match(scene.geometry.vertex, /dRelay\(rootRel\)/);
   assert.match(scene.geometry.vertex, /dRelay\(j.c\)/);
   assert.match(scene.simulation.fragment, /dRelay\(p\)/);
+  assert.match(scene.simulation.fragment, /id == 15/);
+  assert.match(scene.geometry.vertex, /dRelay\(p\)/);
+  assert.match(
+    scene.geometry.vertex,
+    /max\(dRelayFront\(p, 14\), dRelayFront\(p, 15\)\)/,
+  );
+  assert.doesNotMatch(scene.geometry.vertex, /flat out vec4 v_i/);
+  assert.match(
+    scene.particles.vertex,
+    /Dark water around the principal animals/,
+  );
+  assert.match(
+    scene.particles.vertex,
+    /if \(abs\(dRel\(z, Z\) - p.z\) > 3.31\) continue/,
+  );
+  assert.ok(1.45 * 1.8 + DRIFT[2] <= 3.31);
+  assert.match(scene.geometry.vertex, /1\. - \.22 \* portrait/);
 });
 
 test("geometry is deterministic, finite, seed-dependent and split at a fixed opaque count", () => {
@@ -121,11 +140,29 @@ test("geometry is deterministic, finite, seed-dependent and split at a fixed opa
     for (let v = 0; v < vertices; v += 97) {
       const kind = data[v * STRIDE];
       if (v < OPAQUE_VERTICES)
-        assert.ok(kind <= KIND.pen, `opaque ${v} kind ${kind}`);
-      else assert.ok(kind >= KIND.fan, `additive ${v} kind ${kind}`);
+        assert.ok(kind <= KIND.fan, `opaque ${v} kind ${kind}`);
+      else assert.ok(kind >= KIND.shaft, `additive ${v} kind ${kind}`);
     }
   }
-  assert.ok(vertexCounts().total < 700000);
+  assert.ok(vertexCounts().total < 750000);
+});
+
+test("gorgonians have irregular tapered three-dimensional skeletons below the clearance bound", () => {
+  for (const rnd of [0.1, 0.4, 0.99]) {
+    const branches = fanBranches(rnd);
+    assert.equal(branches.length, FAN_BRANCHES);
+    assert.deepEqual(branches, fanBranches(rnd));
+    assert.ok(branches.some((b) => Math.abs(b.end[2]) > 0.03));
+    for (const branch of branches) {
+      assert.ok(branch.end.every(Number.isFinite));
+      assert.ok(branch.end[1] + branch.radius < 1);
+      assert.ok(branch.radius > 0 && branch.radius <= 0.034);
+      assert.ok(
+        Math.hypot(...branch.end.map((v, i) => v - branch.start[i])) > 0.05,
+      );
+    }
+  }
+  assert.notDeepEqual(fanBranches(0.1), fanBranches(0.4));
 });
 
 test("integer hash mirrors lowbias32 and stays in [0, 1)", () => {
@@ -290,7 +327,7 @@ test("camera clearance: the glide never enters the reef, a medusa or a chain", (
 test("foreground sentinel is seeded ahead and axial broad phase cannot reject a disturbance", () => {
   for (const seed of [61, 1709, 433, 2203, 877, 3301]) {
     const initialZ = (hash32(seed) / 4294967296) * PERIOD;
-    for (const [i, ahead] of [9, 17, 25, 38, 52].entries())
+    for (const [i, ahead] of [9, 11.5, 19.5, 38, 52].entries())
       assert.ok(
         Math.abs(
           ((jelly(seed, i).anchor[2] - initialZ + PERIOD) % PERIOD) - ahead,

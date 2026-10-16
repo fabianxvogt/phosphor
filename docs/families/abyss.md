@@ -7,8 +7,8 @@
 One seed fixes a periodic stretch of deep water (64 units along z) that the camera glides through. The signature detail is **light made by animals**:
 
 - **Medusae** (40 large, 144 in six swarms): parametric bells whose contraction travels from apex to margin (fast squeeze, slow relaxation), with a bright scalloped margin, margin lights, radial canals, four gonad lobes (accent in a quarter of the large animals), a fresnel rim and a light ring that rides the contraction. Large animals trail 12 tentacles and 4 frilled oral arms, swarm animals 6 tentacles; all are screen-space ribbons at least about 1.4 px wide at 1080p.
-- **Plankton** (about 32k points): each texel of the 256² simulation stores a 16-bit glow that rises where the camera's bow wave, a contracting bell or a **light wave** passes and then decays. Clouds gather from scattered positions (Sparks) into swirling swarms (Swarms) and partly settle over the reef (Reef).
-- **Reef** (150 patches): tube worms with plume crowns, sea pens whose feathers carry upward waves of light (as real sea pens do), and gorgonian fans drawn as additive lace with binary-branching veins and cross-links. Patches grow in seeded birth order.
+- **Plankton** (about 14k points): each texel of the 256² simulation stores a 16-bit glow that rises where the camera's bow wave, a contracting bell or a **light wave** passes and then decays. Clouds gather from scattered positions (Sparks) into swirling swarms (Swarms) and partly settle over the reef (Reef).
+- **Reef** (150 patches): six tube worms with curved feathery plume crowns, two sea pens with irregular cupped leaves, and a gorgonian with 31 seeded tapering three-dimensional branch tubes per patch. Opaque shaded tissue and contact-darkened roots carry isolated emissive polyps. Patches grow in seeded birth order.
 - **Water**: marine snow with bokeh near the lens, siphonophore chains with a travelling light wave, anglerfish lures (accent), shafts of light from far above, a caustic network on the seabed and fog to near-black.
 
 Medusae, swarms, chains, shafts and plankton are placed by a seeded integer hash that GLSL and [abyss-geometry.mjs](../../abyss-geometry.mjs) evaluate identically (lowbias32), so the simulation can find the bells without the mesh. The reef is seeded on the CPU and baked into the buffer. Development never touches the buffer.
@@ -44,7 +44,7 @@ Both restore GL state; `tests/browser/abyss-layers.test.mjs` checks state restor
 
 ## Cost
 
-About 586k vertices (316k opaque reef/seabed, 270k additive), 65 536 points, one 256² simulation pass per tick (plankton test 40 bells and four waves). Geometry creation takes about 0.25 s of CPU per seed (cached per seed).
+Current r4 topology: 743,148 vertices (515,196 opaque reef/seabed, 227,952 additive), 65 536 point slots (about14k plankton, remaining slots mostly dim marine snow), one 256² simulation pass per tick. Plankton tests40 bells with axial rejection, four waves and two relay fronts. Geometry is cached per seed. Historical measurements below precede the r4 structural replacement; current measurements are in the r4 section.
 
 The fill cost is mostly the opaque seabed shader, not the translucent overdraw (measured by removing parts, 4K, A/B in one browser): seabed ≈ 0.8–1.1 ms (caustics ≈ 0.5, light-wave rings ≈ 0.5), fans, shafts, bells or particles alone ≤ 0.3 ms each. Polish 2026-10-15: the light-wave origins are written once per trigger into state texels 10–13 instead of being re-hashed per pixel; the seabed evaluates the exact rings only where a per-vertex envelope (shell width 1.4 instead of 0.55, conservative for the 0.67 grid) is lit; caustics skip fogged seabed and are evaluated per vertex for tubes and sea-pen leaves (their input is the constant root); `pow` in the caustic became multiplications; fully fogged seabed returns the water colour; shafts are trimmed to the 80 % of their width where the profile is non-zero. Interleaved A/B at 4K: Reef 7.5–8.1 → 7.0–7.6 ms (−0.3 to −0.5 ms, about −5 %), Sparks −0.1 to −0.3 ms.
 
@@ -176,6 +176,32 @@ intentionally dark, not claimed to have uniform screen coverage.
 `npm test`: 979 passed, 21 opt-in browser cases skipped; typecheck, build,
 DE/EN native i18n and scoped Prettier pass. Shared dictionaries receive only
 additive keys; their pre-existing whole-file formatting is not rewritten.
+
+## Round 4 — spatial hierarchy and living tissue
+
+Responds to the independent r3 L6.5/G8.5/E7 review, not the earlier optimistic lane ratings. State/look names, preset seeds and parameters, rhythm ids and world description remain unchanged; no HISTORY migration or catalog wording change.
+
+- **Breakdown:** the second lantern is now 11.5 rather than 17 units ahead, counterbalancing the right hero. The third is 19.5 ahead, maintaining a prominent whole animal over the Reef. Lone tentacles are shorter, water has a faint directional upper volume at every development, and bell-edge normals use a nonzero one-sided derivative. Portrait projection widens by 22% and uses half the old sentinel yaw, keeping both principal bells inside the tested narrow frames.
+- **Material:** gorgonians are actual seeded tapered tubes with depth excursions, opaque backs, raking light, contact-dark roots and scattered polyps. There is no sector mask or additive branch tracing. Sea-pen leaves vary placement/length, curve and twist on subdivided surfaces; crowns have curved, tapered, textured feathers. Six rather than nine worms per patch reduce repeated stamped crowns and fund the new topology. Branch bounds remain below the original camera-clearance envelope.
+- **Living relay:** same slot 3 and authored steps, now a compact diagonal front climbing from the reef into the water and bell canals with an 18% trailing wake. Texel 15 retains the previous front when texel 14 receives a close fill, so later hits cannot erase a transit. Reef responses interpolate actual surface positions; bell canals sample their own surface. A helical plankton current links the reef to the third lantern. Leading-cohort colour is localized; no global pulse or limiter change.
+- **Hierarchy:** plankton population falls from roughly 32k to 14k, currents narrow, distant intensity drops, and a conservative dark gap surrounds principal animals. A 3.31-unit axial rejection avoids evaluating irrelevant whole jellies in the particle shader.
+
+Three inspected film rounds are retained at `artifacts/look-review/deep-sea-r4-round{1,2,3}`. Round1 improved the opening and reduced confetti, but lost the peak hero and made coral too dark. Round2 restored a near lantern/current and tissue, but the new hero approached the right border. Round3 moved it back, thickened coral and interpolated the relay. Final framing/normal/cost refinements were recaptured and inspected in large opening/peak stills, canonical sheets and portrait/Ember/Acid Yellow stills. Final evidence: `artifacts/look-review/deep-sea-r4/{deep-sea-sheet.png,deep-sea-rhythm.png,grids.md}`.
+
+Presets remain **Abyssal hush / Lantern drift / Reef awakening**, 4.3/7.8/12.8 hits/bar. The three-bar accented bell cycle is preserved. Living-relay driving steps are 4,15,23,31 (sixteenths, two bars); accented 3,9,15,21,27,31; restrained 15,29 (eighths, four bars).
+
+Native throughput p50/p95 ms, Sparks / Swarms / Reef:
+
+| Output | Sparks  | Swarms  | Reef    |
+| ------ | ------- | ------- | ------- |
+| 1080p  | 2.6/2.9 | 3.2/3.4 | 3.6/3.9 |
+| 4K     | 6.7/7.3 | 7.4/8.1 | 8.4/9.0 |
+
+All remain below 8/16 ms p50. The stock paired harness does not route `abyss-geometry.mjs` to the reference revision; its numbers are invalid for this topology change. A retained artifact copy (`artifacts/abyss-pair-corrected.mjs`) extends only that route to geometry helpers, retaining the exact native ABBA probe and unchanged engine. Valid 1080p deltas versus main: 0% / −2.94% / −5.26%. A contended 4K run measured +3.17% / +5.80% / −40% (baseline Reef spiked to 17 ms); the retained repeat measured −1.56% / −2.90% / 0%. The repeat passes the 5% gate; both runs remain available in `artifacts/deep-sea-r4-pair4k{,-repeat}/profile.json`, not silently replaced.
+
+Verification: 1006 tests pass, 21 opt-in skips; typecheck/build/check:dist/DE+EN native i18n/scoped Prettier pass. Native verifier 19/19 covers 0.1/.5/.9 at all states, three palettes, portrait and 12-hour time, with zero GL/non-finite errors; reversal 0 differing channels with 5548 changed in the intervening frame. The live presentation limiter remains enabled in that verifier; offline films and throughput are not venue/photosensitivity qualification. Added CPU tests cover branch determinism,3D growth, finite taper/height bounds, opaque ordering, relay carry and preset density.
+
+Self-assessment: look 7.5, not an independent pass claim. The opening is still dark, close coral remains angular at this mesh budget, and narrow screens retain more negative space. Large bell silhouettes and localized relay are materially clearer than r3.
 
 ## Limits
 
