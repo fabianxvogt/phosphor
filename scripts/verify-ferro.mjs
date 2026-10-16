@@ -22,7 +22,7 @@ try {
   const lab = await openLab(runtime.browser, server.url);
   for (const paletteId of ["glacier", "ember", "phosphor"])
     for (const development of [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2])
-      for (const energy of [0.1, 0.9]) {
+      for (const energy of [0.1, 0.5, 0.9]) {
         const snapshot = await lab.page.evaluate(
           ({ development, colors }) => {
             const { scenes, presetSnapshot } = window.__phosphorLab;
@@ -51,6 +51,28 @@ try {
         });
         assert.equal(initial.glError, 0);
         assert.equal(initial.nonFinite, 0);
+        if (Number.isInteger(development))
+          await lab.page.evaluate(
+            ({ paletteId, development, energy }) => {
+              window.__ferroSheets ??= {};
+              const canvas = (window.__ferroSheets[paletteId] ??=
+                document.createElement("canvas"));
+              if (!canvas.width || canvas.width !== 960) {
+                canvas.width = 960;
+                canvas.height = 540;
+              }
+              canvas
+                .getContext("2d")
+                .drawImage(
+                  window.__phosphorLab.engine.canvas,
+                  [0.1, 0.5, 0.9].indexOf(energy) * 320,
+                  development * 180,
+                  320,
+                  180,
+                );
+            },
+            { paletteId, development, energy },
+          );
         for (const time of [3600, 43200]) {
           const row = await lab.page.evaluate(
             async ({ time }) => {
@@ -112,6 +134,47 @@ try {
           rows.push({ paletteId, development, energy, ...row });
         }
       }
+  for (const paletteId of ["glacier", "ember", "phosphor"]) {
+    const png = await lab.page.evaluate(
+      (id) => window.__ferroSheets[id].toDataURL("image/png").split(",")[1],
+      paletteId,
+    );
+    await writeFile(
+      resolve(out, `${paletteId}-energy.png`),
+      Buffer.from(png, "base64"),
+    );
+  }
+  const reversal = await lab.page.evaluate(() => {
+    const { engine } = window.__phosphorLab;
+    const slot = engine.slots.at(-1),
+      start = slot.time;
+    let frames = 0;
+    for (const direction of [1, -1])
+      for (let i = 0; i <= 80; i++) {
+        const development = direction > 0 ? i / 40 : 2 - i / 40;
+        const snapshot = structuredClone(engine.active);
+        snapshot.params.development = development;
+        engine.setSnapshot(snapshot);
+        engine.setLevel(0.85, 0);
+        engine.beat = frames / 30;
+        engine.advance(1 / 60, false);
+        if (engine.slots.at(-1) !== slot || slot.time < start)
+          throw new Error("development reset the live slot");
+        frames++;
+      }
+    engine.present();
+    return {
+      frames,
+      glError: engine.gl.getError(),
+      nonFinite: engine.counters.nonFinite,
+    };
+  });
+  assert.equal(reversal.glError, 0);
+  assert.equal(reversal.nonFinite, 0);
+  await writeFile(
+    resolve(out, "reversal.json"),
+    JSON.stringify(reversal, null, 2),
+  );
   for (const [name, index, width, height] of [
     ["pool-portrait", 0, 540, 960],
     ["crown-portrait", 1, 540, 960],
