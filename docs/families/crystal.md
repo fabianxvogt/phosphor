@@ -10,11 +10,11 @@ Every crystal is a 54-vertex hexagonal prism. Its root, axis, length, radius, bi
 
 ## States (world Crystal Cavern, seed 311)
 
-| Development | State | Form |
-| --- | --- | --- |
-| 0 | Seeds | Dark cave; glowing nuclei (accent only in their hottest core) with light pools on the rock. |
-| 1 | Lattice | Every druse member has nucleated in birth order, outward from its nucleus; parallel habit groups. |
-| 2 | Hall | Druses lengthen and thicken, seed crystals become columns, micro-druses and a faceted druse lining cover the walls. |
+| Development | State   | Form                                                                                                                |
+| ----------- | ------- | ------------------------------------------------------------------------------------------------------------------- |
+| 0           | Seeds   | Dark cave; broad glowing nuclei, small subsidiary quartz and light pools on rock.                                   |
+| 1           | Lattice | Every druse member has nucleated in birth order, outward from its nucleus; parallel habit groups.                   |
+| 2           | Hall    | Druses lengthen and thicken, seed crystals become columns, micro-druses and a faceted druse lining cover the walls. |
 
 `growth(kind, birth, development, detail)` in [crystal-geometry.mjs](../../crystal-geometry.mjs) is the CPU mirror of the shader function. It is a pure function, so reversal retraces the forward path exactly; the GPU check below confirms pixel identity. The wall lining uses per-cell thresholds on the same development value: a Voronoi cell on the (angle, depth) surface raises a hexagonal pyramid from a flat rock chip.
 
@@ -34,7 +34,7 @@ Crystal shading: a dark tinted body, facet-flat key and lamp light, fresnel rim,
 
 ## Energy and rhythm
 
-Energy moves `drift` (glide speed ×0.7–1.4), `shimmer` (speed of light pulses climbing the crystals and a ±2% breathing), `sparkle` (fraction of facets that glint) and `detail` (grain density, +0.5 across the range). Brightness is not an energy target. Kick: field of view punch of 2%. Family gestures: **Facet glint** (4 beats), **Growth pulse** (8 beats, a band climbs every crystal from root to tip), **Seed beacons** (16 beats, seed crystals flare in accent).
+Energy moves `drift` (glide speed ×0.7–1.4), `shimmer` (speed of light pulses climbing the crystals and a ±2% breathing), `sparkle` (fraction of facets that glint) and `detail` (grain density, +0.5 across the range). Brightness is not an energy target. Kick: field of view punch of 2%. Family gestures retain their IDs: **Facet glint** (directional facet light), **Growth pulse** (broad root-to-tip band), **Seed beacons** (original nuclei brighten). Slot 3 adds **Crystal chime**: see the r3 section below. Legacy 4/8/16-beat defaults remain compatible; live playback uses authored styles.
 
 ## Safety and endlessness
 
@@ -57,6 +57,36 @@ Three filmed rounds: (1) replace nine random Voronoi candidates per wall pixel w
 M3 Pro native headless whole-frame p50, states 0/1/2: 1080p **3.2/3.8/3.7 → 2.8/3.0/3.1 ms**; 4K **9.3/10.0/10.3 → 8.3/8.5/8.5 ms**. Tests compare the analytic cell to exhaustive nearest-site search, verify exact chart periodicity and CPU/GPU seed-growth constants, in addition to the existing independent corridor check. All preset names, seeds, schema and world definitions remain intact.
 
 Evidence: fleet worker `rework-geometry/output/evidence/crystal/`, including baseline/final films, Needle Grotto, all-look energy ladder and ember/glacier portrait. Honest rating **8.5/10**: stronger gems and depth, cheaper and calmer lining; the opening remains an environmental cave with distributed seeds, not a single monumental hero. The wall's hexagonal regularity is visible at close range.
+
+## Round 3 — mineral habit and Crystal chime (2026-10-16)
+
+Three captured iteration rounds plus final and ember/glacier films. Broader seed radii (0.18–0.27 × cluster scale) and thicker member/hall habits replace thin glow sticks. Dormant nuclei start at 72% Hall length and 95% radius; subsidiary members start at 17.36% Hall length. All growth remains monotone, pure and reversible; largest Hall bounds and independent corridor checks still apply. No preset/state names, seeds, schema keys or world definitions changed.
+
+Axial emission and uniform edge highlights are reduced. Refracted cores have mineral growth zones, reflected strips are locked to facet/view geometry, and the early accent disc is removed. Wider wall-light pools and stronger camera light reveal the cave. Regular apex dots and lining ridges are suppressed; the hexagonal wall material is still visible up close. Opening/peak lens factors are 1.9/1.5, with a stable horizon and the existing integrated travel.
+
+**Signature: Crystal chime**, `crystal-chime`, slot 3. `u_rhythm.w` sends a bounded angular cascade around mineral groups while a broad band climbs each selected prism; `u_rhythmCount.w` rotates the next strike origin and `u_rhythmHit.w` supplies a local root attack. No new full-screen pass or white flash. German/English labels and descriptions are additive. Existing glints, climbing bands and seed beacons have stronger shader amplitudes.
+
+Four-bar eighth-note chime loops (one-based steps):
+
+- **Hidden facets**: steps 13, 31, strength .72, duration 1.3 beats.
+- **Quartz steps**: steps 3, 14, 20, 31, strength .95, duration .85 beats.
+- **Prismatic chime**: steps 3, 14, 20, 27, 31, strength 1, duration .8 beats.
+
+Combined family density: **3.3 / 8.5 / 14.9 hits/bar**. Five-beat facet accents and short late beacon fills retain their independent phrasing; the chime does not overlap its next event.
+
+Verification on Apple M3 Pro, concurrent fleet GPU load:
+
+| State   | 1080p p50 / p95 ms | 4K p50 / p95 ms | paired p50 delta vs main |
+| ------- | ------------------ | --------------- | ------------------------ |
+| Seeds   | 2.6 / 3.7          | 6.6 / 6.9       | 0%                       |
+| Lattice | 3.2 / 3.8          | 6.7 / 7.1       | −3.8%                    |
+| Hall    | 2.8 / 4.0          | 7.3 / 8.7       | +3.8%                    |
+
+The standard ABBA script compares scene shaders but serves the current geometry helper to both candidates; it is **not** an isolated before/after measurement of changed crystal proportions. Absolute probes include the final geometry. These are synchronous whole-frame throughput, not venue cadence.
+
+`npm test`: 975 pass, 21 opt-in skips, zero failures (996 total). Typecheck, build and DE/EN native-GPU i18n pass. Family tests include preset bounds, growth/identity/corridor and slot-3/density checks; world-rhythm and pipeline-flash gates pass. `scripts/verify-crystal.mjs` checks all three states × energies .1/.5/.9 × authored/ember/glacier in square aspect, with the shared limiter **enabled**: zero GL/non-finite errors, low-energy scenes nonempty; paused reversal at time 43200 differs by at most 4/255 in display space (post/limiter remain active). This is a late-time sample, not a 12-hour soak.
+
+Evidence: `artifacts/look-review/cavern-r3/` (reviewer sheet, rhythm strip, MP4, grids), `cavern-r3-round{1,2,3}/`, `cavern-r3-palettes/`, `cavern-r3-checks/`, `cavern-r3-ladder/`, `cavern-r3-perf/` in the cavern-r3 worktree. Self-assessment **L6.5**, not an independent pass: early chambers remain too empty, large facets can still read as polished plastic, and the wall lattice remains artificial. The historical 8.5 estimate above is not a current acceptance score.
 
 ## Limits
 
