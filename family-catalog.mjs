@@ -25,8 +25,8 @@ export const FAMILY_CATALOG = {
     variants: ["Gears", "Orrery", "Clockwork"],
   },
   storm: {
-    algorithm: "Seeded stepped-leader trees inside bounded analytic cloud volumes",
-    description: "A distant bank of heat lightning rises into towering cumulonimbus and a rotating supercell. Seeded branching leaders illuminate the clouds from within.",
+    algorithm: "Volumetric cumulonimbus lit from inside by seeded stepped-leader discharges",
+    description: "A distant bank flickering with heat lightning grows into towering cumulonimbus and a supercell with a streaming anvil. Every discharge lights the cloud from inside; strikes fall from the anvil to the plain.",
     styles: ["spatial", "organic"],
     variants: ["Haze", "Towers", "Supercell"],
   },

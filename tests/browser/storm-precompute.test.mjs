@@ -10,7 +10,7 @@ test(
     timeout: 180000,
   },
   async () => {
-    const server = await serve(".", 48502);
+    const server = await serve(".", Number(process.env.PHOSPHOR_PORT ?? 48502));
     const runtime = await launch({ rig: true, headless: true });
     let native = null;
     try {
@@ -100,12 +100,15 @@ test(
           const max = Math.max(...differences),
             mean = differences.reduce((a, b) => a + b, 0) / differences.length;
           // Hardware interpolation has implementation-defined subtexel precision;
-          // permit sparse contour outliers, not a widespread picture difference.
+          // the empty-space skip and bisected cloud entry are threshold
+          // decisions on the interpolated field, so a few boundary pixels may
+          // step differently. Permit sparse small outliers, never a widespread
+          // picture difference.
           const outliers =
             differences.filter((d) => d > 2).length / differences.length;
           console.log(JSON.stringify({ mode, max, mean, outliers }));
           assert.ok(
-            max <= 2 && mean < 0.02 && outliers === 0,
+            max <= 4 && mean < 0.02 && outliers < 1e-4,
             `${mode}: max=${max} mean=${mean} outliers=${outliers}`,
           );
         }
