@@ -965,7 +965,8 @@ void main() {
     float sphere = F > impact ? 2. * fw * 1.7725 / max(sqrt(1. - nbSq(impact / F)), sqrt(2. * fw / max(F, .01)))
       : fw * 1.7725 * sqrt(2. * F / fw) * exp(-nbSq((impact - F) / fw));
     float front = u_params[7] * nbSmooth(0., .05, shockC) * (1. - shockC) * sphere * nbSmooth(.05, .3, F);
-    col += Tcore * n * (mix(cGas, cHot, .2) * haze * .32 + cHot * front * .45);
+    // The analytic front stays faint: a breath of light, not a glass sphere.
+    col += Tcore * n * (mix(cGas, cHot, .2) * haze * .32 + mix(cGas, cHot, .5) * front * .08);
   }
   // The densest web node, the future nucleus: a compact hot knot
   // (path-integrated Gaussian, analytic).
