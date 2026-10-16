@@ -43,16 +43,16 @@ Inverse depth is affine along the projected segment, so this radius tapers. A qu
 
 The first three presets share seed **10501** and every non-development parameter. No IDs or names changed in round 2.
 
-| EN | DE | Development / composition |
-| --- | --- | --- |
-| Horizon | Horizont | 0: vector floor, horizon projector fanning the eight spokes over the audience, liquid-sky ceiling |
-| Towers | Türme | 1: 32 varied towers with lit window cells, antenna tips and bright façade strikes under the fan |
-| Tunnel | Tunnel | 2: the same sheet closes into a vault; crossfire, the fan folded into a convergent cone, scan rings travelling towards the viewer |
-| Low Voltage | Niederspannung | 0.3: low viewpoint, coarse grid, slow broad haze |
-| Vector District | Vektorviertel | 1: tall skyline, high viewpoint, fine façades |
-| Folded Chapel | Gefaltete Kapelle | 1.65: held-open wings and low viewpoint |
-| Light Organ | Lichtorgel | 2: fine vault, narrow aperture, higher eye |
-| Afterimage Arcade | Nachbildarkade | 2: coarse vault, shallow relief, wider aperture and drifting view |
+| EN                | DE                | Development / composition                                                                                                         |
+| ----------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Horizon           | Horizont          | 0: vector floor, horizon projector fanning the eight spokes over the audience, liquid-sky ceiling                                 |
+| Towers            | Türme             | 1: 32 varied towers with lit window cells, antenna tips and bright façade strikes under the fan                                   |
+| Tunnel            | Tunnel            | 2: the same sheet closes into a vault; crossfire, the fan folded into a convergent cone, scan rings travelling towards the viewer |
+| Low Voltage       | Niederspannung    | 0.3: low viewpoint, coarse grid, slow broad haze                                                                                  |
+| Vector District   | Vektorviertel     | 1: tall skyline, high viewpoint, fine façades                                                                                     |
+| Folded Chapel     | Gefaltete Kapelle | 1.65: held-open wings and low viewpoint                                                                                           |
+| Light Organ       | Lichtorgel        | 2: fine vault, narrow aperture, higher eye                                                                                        |
+| Afterimage Arcade | Nachbildarkade    | 2: coarse vault, shallow relief, wider aperture and drifting view                                                                 |
 
 ## Energy, rhythm and camera
 
@@ -61,6 +61,33 @@ Energy changes sweep/glide rates (×0.75→1.35), interleaved beam population an
 Four family gestures (round 3): **Beam address / Strahladresse** (slot 0: one crossfire laser, or the horizon scanner before towers exist, turns accent, wider and brighter), **Aperture breath / Atmende Öffnung** (slot 1: ≤12% crossfire/fan opening and ≤10% wider tunnel cone), **Vault rib / Gewölberippe** (slot 2: a soft accent band with bright grid crossings travelling along the folded sheet, on the Horizon floor too) and the slot-3 signature **Tunnel chase / Tunneljagd** (below). Accent is otherwise absent from the static field. The kick changes focal length by at most **2%**.
 
 The camera follows a slow closed lateral/dolly/crane path: x±1.1, z=−9±1.8, eye±0.25. No roll or cuts. Every tower remains ahead of the entire camera path, even at maximum footprint/height. Short-side ray footprints compose natively in landscape and portrait.
+
+## Round 4 · independent-review fixes
+
+Review input: L 6 / G 8.5 / E 7 / Overall 6.5. Three change→film→sheet-critique rounds, followed by a material-cost and reflection trim. Final evidence: `artifacts/look-review/laser-grid-r4/` (`laser-grid.mp4`, `laser-grid-sheet.png`, `laser-grid-rhythm.png`, `grids.md`). Plan and critiques: `.claude/world-polish/plans/laser-grid-r3.md`, r4 section. This section supersedes the r3 beam formation and material balance below.
+
+- **Architectural substance:** the five original strips now carry broad, directional dark-metal gradients, seeded panel variation and dark hinge/bay contacts. Inward-facing keys distinguish opposing planes; distant engraved lines are subdued. Tower faces are stronger than their outlines. Explicit roof-face classification fixes the accidental hourglass caused by comparing x/z distances on roof pixels. The material pools use compact smooth polynomial falloffs rather than extra exponentials.
+- **Open peak:** eight physical projectors sit on a crown at z=55, on the same truncated cone as the haze and rings (virtual apex z=70). The vanishing aperture stays dark. Twelve crossfire lasers become staggered same-side near/middle/far wall rakes with smooth cohort envelopes, not twelve crossings through the centre. No new beams or cache enlargement.
+- **Breakdown floor:** localized grazing washes reveal the floor engraving instead of uniformly lighting it. Soft mirror strokes break over static broad polish bands; no temporal noise. Mirrors retain the scanner, four persistent spokes, and any actively chased neighbours/tails. The old mask remains a conservative superset.
+- **Chase sentence:** clockwise addressed spokes retain their two-step afterglow. Ordinary spokes rest by up to 82%, and wall rakes by up to 88%, during the accent envelope. The same address paints a pink arclight and weaker predecessor on the existing travelling rings, plus the cone-wall sector. Pink remains local; secondary address/rib gestures and soft haze survive.
+
+Presets, strengths, placements and translated names are unchanged: **Dark aperture** 4.3, **Beam relay** 9.8, **Vault chase** 22.0 hits/bar. Driving chase steps (1-indexed): bar 1 = 3/7/11/15/16; bar 2 = 3/7/11/13/14/15/16. No IDs, seeds, schema, state count, saved world definition or catalog description changed; no HISTORY migration or preview rebake.
+
+### r4 measured cost and verification
+
+Native M3 Pro / ANGLE Metal, 30 synchronous samples including post. Shared GPU; not venue cadence:
+
+| State   | 1080p p50 / p95 | 4K p50 / p95   | ABBA p50 delta vs main |
+| ------- | --------------- | -------------- | ---------------------- |
+| Horizon | 2.9 / 4.0 ms    | 12.6 / 14.6 ms | −19.3%                 |
+| Towers  | 3.6 / 5.5 ms    | 16.4 / 16.8 ms | +4.5%                  |
+| Tunnel  | 3.7 / 5.2 ms    | 14.1 / 16.7 ms | −35.7%                 |
+
+The 4K Towers median remains **0.4 ms above** the 16 ms target; not claimed as a clean absolute-budget pass. Earlier contended runs reached 24.9–30.4 ms at 4K. ABBA medians themselves inflated to 7.4–14 ms at 1080p under fleet load; all final ratios are ≤1.05. Evidence: `artifacts/performance/laser-r4-{1080,4k,pair}-mirror-trim/`.
+
+`npm test`: 995 pass / 21 skipped, including updated family, world-rhythm and pipeline-flash gates; typecheck and native DE/EN i18n pass. Family tests now cover the shared truncated cone, same-side rakes, bounded material pools, chase rests and arclight address. `verify-laser` compiles all four paths and sweeps development forward/reverse at energy 0.1/0.5/0.9 at 12 hours with the real asynchronous limiter enabled. `verify-wave4-reworks --families laser`: 60 three-palette/low-high-energy/development/late-time cases plus mid-energy portrait states and 4K; zero GL errors or non-finite uploads. Final stills reviewed after the reflection trim.
+
+Remaining limits: graphic rather than photoreal architecture; tilted towers during folding; sparse dark ground is intentional. Sixteenth ordering is authored and CPU-tested, not fully demonstrable at half-beat sampling. Independent r4 aesthetic acceptance is pending.
 
 ## Round 3 · 16 October 2026
 
@@ -80,11 +107,11 @@ What changed and why (baseline weaknesses: empty Horizon, grey haze smudge, tran
 
 Presets (sixteenth grids, `node scripts/rhythm-grid-dump.mjs --worlds laser-grid`):
 
-| Preset | Tunnel chase | Hits per bar (all tracks) |
-| --- | --- | --- |
-| Dark aperture (restrained) | a rising four-step run (0.3→0.9) closing every second bar | 4.3 |
-| Beam relay (driving, default) | off-beat sixteenths with end-of-bar doubles and a two-bar roll | 9.8 |
-| Vault chase (accented) | full sixteenth chase with dynamics and a phrase-end roll | 22.0 |
+| Preset                        | Tunnel chase                                                   | Hits per bar (all tracks) |
+| ----------------------------- | -------------------------------------------------------------- | ------------------------- |
+| Dark aperture (restrained)    | a rising four-step run (0.3→0.9) closing every second bar      | 4.3                       |
+| Beam relay (driving, default) | off-beat sixteenths with end-of-bar doubles and a two-bar roll | 9.8                       |
+| Vault chase (accented)        | full sixteenth chase with dynamics and a phrase-end roll       | 22.0                      |
 
 The vault rib is now structural (driving: bar 1 and the third beat of bar 2, 1.4-beat travel; accented: eighth-bar pairs with a syncopated fill) so it can be seen travelling; the old straight-sixteenth rib character moved to the chase.
 
@@ -92,11 +119,11 @@ The vault rib is now structural (driving: bar 1 and the third beat of bar 2, 1.4
 
 Headless Chrome / ANGLE Metal / M3 Pro, shared with other lanes; `profile-families --types --frames 30`:
 
-| State | 1080p p50 / p95 | 4K p50 / p95 |
-| --- | --- | --- |
-| Horizon | 3.2 / 3.9 ms | 11.3 / 12.4 ms |
-| Towers | 4.1 / 4.7 ms | 15.5 / 16.1 ms |
-| Tunnel | 4.5 / 5.2 ms | 14.4 / 14.9 ms |
+| State   | 1080p p50 / p95 | 4K p50 / p95   |
+| ------- | --------------- | -------------- |
+| Horizon | 3.2 / 3.9 ms    | 11.3 / 12.4 ms |
+| Towers  | 4.1 / 4.7 ms    | 15.5 / 16.1 ms |
+| Tunnel  | 4.5 / 5.2 ms    | 14.4 / 14.9 ms |
 
 Interleaved pair against `main` (`profile-rework-pair --reference main`, 1080p, energy 0.95): Horizon 2.1 → 3.0 ms (×1.43), Towers 2.8 → 3.7 ms (×1.32), Tunnel 3.3 → 3.7 ms (×1.12). Most of the increase is the floor mirror (≈0.7–0.9 ms at 1080p); before it the pair was ×1.00 / 1.16 / 1.06. Towers at 4K is at the 16 ms edge on the shared GPU; if it needs trimming, lower the mirror candidate set (spokes only) first.
 
@@ -112,11 +139,11 @@ Two engine clocks integrate sweep and camera rates with period 2π. The authored
 
 Apple M3 Pro / Chrome ANGLE Metal; synchronous whole-frame throughput including post, twelve measured frames per state. All films remain 960×540, and every rig process is headless.
 
-| State | 1080p p50 / p95 | 4K p50 / p95 |
-| --- | --- | --- |
-| Horizon | 2.2 / 2.5 ms | 5.4 / 5.7 ms |
-| Towers | 2.5 / 2.7 ms | 8.8 / 9.1 ms |
-| Tunnel | 3.0 / 3.2 ms | 11.3 / 11.7 ms |
+| State   | 1080p p50 / p95 | 4K p50 / p95   |
+| ------- | --------------- | -------------- |
+| Horizon | 2.2 / 2.5 ms    | 5.4 / 5.7 ms   |
+| Towers  | 2.5 / 2.7 ms    | 8.8 / 9.1 ms   |
+| Tunnel  | 3.0 / 3.2 ms    | 11.3 / 11.7 ms |
 
 A separate 4K run across all eight looks peaked at **12.1 ms p50 / 12.7 ms p95**. The previous state measurements were 13.2 / 26.7 / 25.1 ms medians, with 30.5 ms p95 in Towers. An additional 84-case probe covers seven development positions, six times through 43,200 s and both resolutions at energy 0.95. Worst medians: **4.9 ms at 1080p, 14.3 ms at 4K**. Shared-machine wall-time tails reached **8.1 / 22.2 ms** respectively; this is not a hard per-frame ≤16 ms or dual-world venue-cadence guarantee.
 
@@ -136,11 +163,11 @@ Three filmed rounds, with all saved IDs/names/seeds/schema/preset values and wor
 
 Headless Chrome / ANGLE Metal / M3 Pro, synchronous throughput including post:
 
-| State | 1080p baseline → final p50 (30 samples) | 4K paired baseline → final p50 (60 samples) |
-| --- | --- | --- |
-| Horizon | 2.5 → 2.5 ms | 7.8 → 8.1 ms |
-| Towers | 3.4 → 3.3 ms | 11.6 → 12.0 ms |
-| Tunnel | 4.6 → 3.8 ms | 14.0 → 14.4 ms |
+| State   | 1080p baseline → final p50 (30 samples) | 4K paired baseline → final p50 (60 samples) |
+| ------- | --------------------------------------- | ------------------------------------------- |
+| Horizon | 2.5 → 2.5 ms                            | 7.8 → 8.1 ms                                |
+| Towers  | 3.4 → 3.3 ms                            | 11.6 → 12.0 ms                              |
+| Tunnel  | 4.6 → 3.8 ms                            | 14.0 → 14.4 ms                              |
 
 Every paired median is within +5%. Original 30-sample 4K baseline was 8.4/11.7/14.8 ms; first final was 7.6/11.8/15.6 ms (Tunnel +5.4%, hence the longer paired check against `deaaae1`, not silently discarded). Paired final p95 9.4/12.9/15.5 ms. Shared GPU wall-time variation is not a venue cadence guarantee.
 
