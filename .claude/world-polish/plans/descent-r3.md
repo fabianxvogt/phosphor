@@ -28,6 +28,30 @@ A light front ignites an entire storey across recursive towers, climbing from th
 - Final stock 1080p p50 4.6/7.3/6.4ms; 4K 19.3/26.0/22.4ms remains over budget. ABBA 4K +4.6/+3.4/+2.3%; 1080p repeat +6.7/+3.2/+1.7% (first run +4.3/+4.2/+12.3%). Strict +5% relative gate not cleanly passed; preserve all JSON and report it.
 - Read final canonical sheet/rhythm, Ember portrait reverse, Glacier extra look and 43200-second fixed-anchor energy ladder. No empty or erroneous frames. Final tests: 971 passed, 21 skipped, zero failed; typecheck, DE/EN i18n, build/dist and formatting pass.
 
+## r4
+
+Independent r3: L6.5 / G8.5 / E7, Overall 7.0. Keep the continuous field, deep occlusion, frame-filling perspective, lime offices and rare lilac signals, all three authored grooves and four gesture IDs.
+
+Response in reviewer priority order, before building:
+
+1. Breakdown hierarchy: selected coarse recessed apertures become saturated inner lanterns with bounded spill, leaving intervening structural masses dark; reduce broad olive sunlight rather than raising ambient exposure.
+2. Monumentality: reduce fine-level light and rim activity, distance-filter recursion earlier, and emphasize coarse portals over tiled surfaces. Keep near recursive cutouts visible, not a replacement algorithm. Preserve state/look names, seeds and schema; no world migration needed.
+3. Striped fog: remove the projected abyss street grid (the actual repeating blue bands in the void), remove sinusoidal dust modulation, and retain smooth height/depth haze with only sparse occluded hall shafts.
+4. Ignition: replace the persistent passed-floor plateau with one narrow advancing leading storey, short exponential wake and adjacent-recess spill; darken resting floor/cohort light. Alternate vertical direction remains; halls retain aperture-ring travel. Existing preset densities already satisfy 2.25 / 6.25 / 11 hits per bar; reviewer did not request polyrhythm.
+
+Phone moment: one lime storey ascends between immense dark recursive towers, leaving a brief lilac wake against a smooth blue abyss. Three new change/capture/read/critique rounds, including full individual frames, then limiter-enabled energy/late/palette/aspect verification and native profiles. No new ray-loop work; simplifying fog should offset hit-shading changes.
+
+### r4 film critique and verification
+
+- w1: removed projected blue street stripes; narrowed event wake and quieted small rims. Full early still remained too dark and flat, while the city read as larger masses. Rejected as sufficient.
+- w2: architecture-attached six-unit portal thresholds, stronger selected recessed lamps and a 1.6 focal length. Early individual still gained a distinct threshold, but equal-scale recursive texture still read tiled.
+- w3: coarse aperture width ×1.2, fine carving width ×0.6, stronger distant filtering. Actual heavier piers replace fine tiling. Full still exposed overbright corridor lanterns and mismatched ignition rows between carving scales.
+- w4: reduced hall emission/rim amplification, unified storeys at 2/3 unit across all carving scales, narrow primary leader and short accent wake. Reviewed both sheets and full early/event stills. Resting city piers were too empty.
+- final (fifth capture): occasional coarse city chambers and a modest lit-floor density recovery preserve lime/lilac life without returning to speckle. Read final canonical sheets and full-size early/peak stills. Self-assessed L7.5, E8.5, G8.5 (overall rounded 8), not an independent pass. Angular stone and soft olive sun patches remain the weak points.
+- Limiter-enabled native Phosphor 43200-second 0.1/0.5/0.9 ladder and Glacier Quiet Vault portrait ladder: all 18 frames nonempty, GL/GPU/nonfinite zero. Ember reverse film read. No limiter changes. Official capture/profile tools unchanged.
+- Native 1080p p50/p95: 4.8/4.9, 6.6/6.9, 5.6/5.9 ms. 4K: 18.5/18.7, 22.5/23.0, 19.6/22.9 ms. ABBA versus main: +2.0/-9.5/-14.3% at 1080p; +4.3/-14.1/-12.8% at 4K. Relative gate passes; absolute 4K budget still fails.
+- Full suite 1005 pass / 21 skipped / zero failures; typecheck, build/dist and native DE/EN pass. First software UI run timed out; native rerun passed. Format and final focused source/geometry/rhythm/flash checks recorded in artifacts logs.
+
 ## Cost risks / critique
 
 No new distance-field taps: ignition is hit shading, abyss is post-march. Existing 4K cavern/city already exceed 16ms; avoid expensive ray-loop additions. Fine square grids can look like procedural CAD, early states lack a singular hero, default lime sunlight can still read olive. Aim L>=8 without inventing a passing assessment. Breadth/verified deliverables take precedence over elaborate redesign.
