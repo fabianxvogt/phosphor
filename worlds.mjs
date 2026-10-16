@@ -307,7 +307,7 @@ const AUTHORED = [
     id: "ink-bloom",
     name: "Ink Bloom",
     description:
-      "A falling drop rolls into a vortex ring whose Widnall lobes pinch off into a crown of daughter rings, each shedding silk bells in a dark tank.",
+      "A falling dye ring folds into hanging plumes and an outward crown, with translucent pigment bursts on musical fills.",
     states: [
       { name: "Drop", look: "ink:Drop" },
       { name: "Plumes", look: "ink:Plumes" },
@@ -365,12 +365,25 @@ const INK_BLOOM_BACKLIT = {
     { name: "Nebula", look: "ink:Nebula" },
   ],
 };
+// Ink Bloom before the round-3 translucent-dye material and fill accents.
+const INK_BLOOM_CARVED = {
+  id: "ink-bloom",
+  name: "Ink Bloom",
+  description:
+    "A falling drop rolls into a vortex ring whose Widnall lobes pinch off into a crown of daughter rings, each shedding silk bells in a dark tank.",
+  states: [
+    { name: "Drop", look: "ink:Drop" },
+    { name: "Plumes", look: "ink:Plumes" },
+    { name: "Nebula", look: "ink:Nebula" },
+  ],
+};
 const HISTORY = [
   MYCELIUM_ACID,
   withoutParams(MYCELIUM_ACID),
   GARDEN_EVOLUTION,
   withoutParams(GARDEN_EVOLUTION),
   INK_BLOOM_BACKLIT,
+  INK_BLOOM_CARVED,
 ];
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const untouched = (w) =>
