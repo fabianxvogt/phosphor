@@ -21,6 +21,7 @@ import { PALETTES } from "../palettes.mjs";
 
 const args = options({
   shots: { type: "string" },
+  live: { type: "boolean", default: false },
   look: { type: "string", default: "Breathing Crust" },
   width: { type: "string", default: "960" },
   height: { type: "string", default: "540" },
@@ -142,6 +143,7 @@ try {
       shot.palette ?? "own",
       `${width}x${height}`,
       ...(shot.steps ? [`s${shot.steps}`] : []),
+      ...(shot.tag ? [shot.tag] : []),
     ].join("_");
     await writeFile(
       resolve(out, `${name}.png`),
@@ -155,6 +157,55 @@ try {
     assert.equal(row.glError, 0, name);
     assert.equal(row.nonFinite, 0, name);
     assert.ok(row.peak > 40, `${name} is nearly black`);
+    assert.ok(row.litFraction > 0.02, `${name} is mostly empty`);
+  }
+  if (args.live) {
+    const live = await lab.page.evaluate(async () => {
+      const { engine, scenes, presetSnapshot } = window.__phosphorLab;
+      const { initialRhythm } = await import("/rhythm.mjs");
+      const scene = scenes.find((s) => s.id === "magma");
+      engine.options.flashLimit = true;
+      engine.resize(1920, 1080);
+      engine.setLevel(0.85, 0);
+      engine.load(presetSnapshot(scene, 2), 0);
+      await engine.ready("magma");
+      const settings = initialRhythm(scenes);
+      const samples = [];
+      const raf = () => new Promise((done) => requestAnimationFrame(done));
+      let previous = await raf();
+      for (let i = 0; i < 220; i++) {
+        const now = await raf();
+        engine.setRhythmFrame({
+          beat: (now * 126) / 60000,
+          origin: 0,
+          settings,
+          enabled: true,
+        });
+        engine.advance(Math.min(0.1, (now - previous) / 1000), false);
+        if (i >= 20) samples.push(now - previous);
+        previous = now;
+      }
+      samples.sort((a, b) => a - b);
+      return {
+        kind: "Limiter-enabled 1080p native RAF smoke, not venue qualification",
+        frames: samples.length,
+        p50: samples[Math.floor(samples.length * 0.5)],
+        p95: samples[Math.floor(samples.length * 0.95)],
+        limiterEnabled: engine.options.flashLimit,
+        glError: engine.gl.getError(),
+        nonFinite:
+          engine.counters.nonFinite + window.__harness.nonFiniteUploads,
+        stats: engine.stats(),
+      };
+    });
+    assert.equal(live.limiterEnabled, true);
+    assert.equal(live.glError, 0);
+    assert.equal(live.nonFinite, 0);
+    await writeFile(
+      resolve(out, "live.json"),
+      JSON.stringify(live, null, 2) + "\n",
+    );
+    console.log(JSON.stringify(live));
   }
   assert.deepEqual(lab.errors, []);
   await writeFile(

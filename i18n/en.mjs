@@ -2550,6 +2550,9 @@ export default {
   "Fresh lava surges through the rivers; the crust skins thin and glow.": "Fresh lava surges through the rivers; the crust skins thin and glow.",
   "Ejecta volley": "Ejecta volley",
   "The fountain surges and the ejecta flare; embers burst from the field.": "The fountain surges and the ejecta flare; embers burst from the field.",
+  "Rift pressure": "Rift pressure",
+  "A pressure wave tears along the rifts and climbs the fountain as a hot ejecta packet.":
+    "A pressure wave tears along the rifts and climbs the fountain as a hot ejecta packet.",
   "Cooling seams": "Cooling seams",
   "Lava channels": "Lava channels",
   "Cinder fountain": "Cinder fountain",
