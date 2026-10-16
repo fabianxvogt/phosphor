@@ -329,6 +329,8 @@ export default {
   "A wave group at the true group velocity lights the breaking crests it passes.": "Eine Wellengruppe mit echter Gruppengeschwindigkeit lässt die brechenden Kämme aufleuchten, über die sie zieht.",
   "A surge of biolight runs down the spiral arms into the glowing eye.": "Eine Woge aus Biolicht läuft die Spiralarme hinab ins leuchtende Auge.",
   "A tide ring rolls out from the glowing eye across the maelstrom's shoulder.": "Ein Flutring rollt vom leuchtenden Auge über die Schulter des Mahlstroms hinaus.",
+  "Moon roller": "Mondwoge",
+  "Every second bar a long swell of biolight rolls in from the horizon across the whole sea; at the peak it is a ring of light pulled down the spiral into the eye.": "Jeden zweiten Takt rollt eine lange Dünung aus Biolicht vom Horizont über die ganze See heran; auf dem Höhepunkt wird sie zu einem Lichtring, der die Spirale hinab ins Auge gezogen wird.",
   "Slack water": "Stilles Wasser",
   "Rolling swell": "Rollende Dünung",
   "Spring tide": "Springflut",
