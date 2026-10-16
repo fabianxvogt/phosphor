@@ -10,7 +10,7 @@ import { SYSTEMS, flow, rk4 } from "./scene-attractor.mjs";
 
 export const RIBBONS = 192; // trajectories per flow
 export const HISTORY = 224; // samples kept per trajectory (state columns)
-export const SEGMENTS = 128; // rendered segments per ribbon; 224 exact history samples retained
+export const SEGMENTS = 224; // smooth Hermite-resampled strips; exact history retained
 export const PER_RIBBON = SEGMENTS * 6;
 export const SUBSTEPS = 2; // RK4 steps per history sample
 export const ROWS = RIBBONS * 6 + 1; // 2 texels × 3 flows per ribbon + globals
@@ -96,7 +96,7 @@ export function camera(development, params, yawPhase, driftPhase) {
     drift = 2 * Math.PI * driftPhase;
   const dist =
     params.distance *
-    (3.0 + (2.9 - 3.0) * mid + (2.45 - 2.9) * peak) *
+    (3.0 + (2.9 - 3.0) * mid + (2.65 - 2.9) * peak) *
     (1 + 0.1 * peak * Math.sin(2 * yaw + drift));
   const pitch = Math.min(
     1.3,
@@ -118,7 +118,7 @@ export function camera(development, params, yawPhase, driftPhase) {
     -0.14 * (1 - mid) - 0.12 * peak + 0.08 * peak * Math.sin(drift),
     0.15 * peak * Math.cos(1.3 * yaw + 0.5),
   ];
-  const focal = 2.46 + (2.24 - 2.46) * mid + (1.78 - 2.24) * peak;
+  const focal = 2.46 + (2.42 - 2.46) * mid + (2.02 - 2.42) * peak;
   return { eye, target, focal, dist, pitch };
 }
 // Ribbons thin to nothing near the eye, so a fly-through never fills the lens.
@@ -127,10 +127,11 @@ export const NEAR_FADE = [0.15, 0.45];
 // CPU reference of the local relay front/wake in scene-ribbons.mjs.
 // Age is fixed-tick elapsed time / 0.75 s, not a decaying beat envelope.
 export function relayPacket(s, rank, age, strength, count) {
-  const selected = Math.floor(rank * 24) % 3 === count % 3 ? 1 : 0;
+  const selected =
+    rank < 0.04 && Math.floor(rank * 192) % 3 === count % 3 ? 1 : 0;
   const d = s - (1.08 - 1.4 * age);
-  const hot = Math.exp(-((d / 0.045) ** 2));
-  const wake = Math.exp(-Math.max(0, d) * 10) * smoothstep(-0.015, 0.025, d);
+  const hot = Math.exp(-((d / 0.06) ** 2));
+  const wake = Math.exp(-Math.max(0, d) * 16) * smoothstep(0, 0.035, d);
   const gain =
     selected *
     strength *
