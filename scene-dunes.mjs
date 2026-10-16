@@ -13,11 +13,9 @@ export function barchanHeight(crosswind, downwind, height = 4, width = 11) {
   const d = downwind - crest;
   const shoulder = 14 - 8 * v * v;
   const windward = Math.max(0, 1 - (d / shoulder) ** 2);
-  return Math.abs(v) >= 1
-    ? 0
-    : d < 0
-      ? h * windward * windward
-      : Math.max(0, h - REPOSE_SLOPE * d);
+  if (Math.abs(v) >= 1) return 0;
+  if (d < 0) return h * windward * windward;
+  return Math.max(0, h - REPOSE_SLOPE * d);
 }
 export function saltation(id, phase, wind = 1) {
   const launch = 0.7 + 0.6 * ((id * 0.61803398875) % 1);
@@ -30,7 +28,8 @@ export function rippleHeight(x, z, phase = 0) {
     6 * (0.55 * x + 0.84 * z) +
     2.6 * Math.sin(0.31 * x - 0.19 * z + 1.4 * Math.sin(0.09 * z)) +
     2.2 * Math.sin(0.13 * x + 0.35 * z) +
-    0.8 * Math.sin(0.8 * x + 0.57 * z) - phase;
+    0.8 * Math.sin(0.8 * x + 0.57 * z) -
+    phase;
   const amplitude = 0.028 * (0.65 + 0.35 * Math.sin(0.2 * x + 0.23 * z));
   return amplitude * (Math.sin(p) + 0.22 * Math.sin(2 * p));
 }
@@ -159,7 +158,7 @@ const common = `${lateClockGlsl}
 #ifdef PRECOMPUTED
 uniform highp sampler2D u_precomputed;
 #endif
-float gGrowth, gStorm, gPhase, gCam, gDust, gPixel, gRelief;
+float gGrowth, gStorm, gPhase, gCam, gDust, gPixel, gRelief, gVeil, gGustLane;
 vec3 gMoon;
 float dsHash(vec2 p) {
   vec3 q=fract(vec3(p.xyx)*.1031); q+=dot(q,q.yzx+33.33);
@@ -376,8 +375,11 @@ float dsIntersect(vec3 ro, vec3 rd) {
 }
 float dsShadow(vec3 p, vec3 l) {
   float shadow=1., t=.3;
+  float ceiling=max(4.4*gRelief,3.4*(1.-gGrowth));
   for(int i=0;i<5;i++) {
     vec3 q=p+l*t;
+    // Every later sample is above the proven heightfield bound too.
+    if(l.y>0. && q.y>ceiling)break;
     float h=q.y-dsMacro(q.xz);
     shadow=min(shadow,18.*h/t);
     if(shadow<=.08)break;
@@ -427,7 +429,8 @@ float dsGrains(vec3 q, float fp, float surface) {
     float sigma=max(.008,fp*.55);
     float distance2=dot(q.xz-pos,q.xz-pos)+sq(q.y-h-y);
     float crest=mix(1.,smoothstep(1.8,3.3,h/max(gRelief,.01)),gGrowth);
-    total+=exp(-distance2/(sigma*sigma))*(.008/sigma)*crest;
+    float airborne=smoothstep(.02,.16,u_level-dsHash(c+113.)*.65);
+    total+=exp(-distance2/(sigma*sigma))*(.008/sigma)*crest*airborne;
   }
   return total;
 }
@@ -473,12 +476,15 @@ void main() {
   gCam=u_time*u_params[4]*.025;
   gDust=mod(u_time*u_params[1]*.08,TAU);
 #endif
+  // The scheduler owns the event: no development-triggered flashes or resets.
+  gVeil=clamp(u_rhythm.w+.12*u_rhythmHit.w,0.,1.);
+  gGustLane=mod(u_rhythmCount.w,7.)*2.399963;
   gPixel=2./min(u_resolution.x,u_resolution.y);
   gRelief=mix(.5,1.2,gGrowth)*u_params[2];
   gMoon=normalize(vec3(-.75,u_params[5],-.7));
   float yaw=.08*sin(gCam);
   vec3 ro=vec3(mix(3.,4.,gGrowth)+3.*sin(gCam),mix(5.,10.+5.*u_params[6],gGrowth)+gStorm*2.,mix(25.,33.,gGrowth));
-  vec3 target=vec3(mix(-5.,-3.,gGrowth),mix(1.6,1.5,gGrowth)+gStorm*12.,-25.);
+  vec3 target=vec3(mix(-5.,-3.,gGrowth),mix(1.6,1.5,gGrowth)+gStorm*9.,-25.);
   vec3 fw=normalize(target-ro), rt=normalize(cross(fw,vec3(0,1,0))), up=cross(rt,fw);
   vec2 uv=aspectUV()*2.;
   vec3 rd=normalize(fw*(1.65+.025*u_kick)+rt*(uv.x+yaw)+up*uv.y);
@@ -510,8 +516,10 @@ void main() {
     float grainFootprint=max(length(footprintX),length(footprintY))*23.;
     float grain=grainFootprint<1.5?dsNoise(p.xz*23.):.5;
     float rough=mix(.93,grain*.38+.74,exp(-2.*grainFootprint*grainFootprint));
-    vec3 sandColor=mix(mix(u_secondary,u_primary,.42),vec3(1.),.18);
-    col=sandColor*(.065+key*shadow*2.5)*ao*rough;
+    // Pigmented shadow fields; pale mineral light belongs only to brinks.
+    vec3 sandColor=mix(u_secondary,u_primary,.07);
+    col=sandColor*(.045+key*shadow*1.75)*ao*rough;
+    col+=u_primary*pow(key,4.)*shadow*.35*rough;
     col+=u_secondary*fill*.095+u_primary*(rim*key*.055+.035*(1.-n.y));
     vec2 grainChart=p.xz*45., grainCell=floor(grainChart);
     float random=dsHash(grainCell+19.);
@@ -521,7 +529,9 @@ void main() {
     sparkle*=smoothstep(.72,.98,random)*pow(max(0.,dot(n,normalize(gMoon-rd))),6.);
     col+=mix(u_secondary,vec3(1.),.7)*sparkle*shadow*9.*(1.-smoothstep(.018,.055,fp));
     float brink=exp(-sq(surface.w/max(.085,fp*.65)))*smoothstep(.1,.6,h);
-    col+=sandColor*brink*(.55+.15*u_rhythm.y);
+    float slipPacket=pow(.5+.5*sin(p.x*.42+p.z*.29-mod(u_rhythmCount.y,9.)*1.7),4.);
+    col+=mix(u_secondary,u_primary,.3)*brink*.55;
+    col+=u_primary*brink*slipPacket*u_rhythm.y*2.4;
     float sheen=pow(max(0.,dot(n,normalize(gMoon-rd))),50.);
     col+=mix(u_secondary,vec3(1.),.25)*sheen*shadow*.025;
     // Saltation: ballistic arcs above the existing crest, carried along wind.
@@ -530,24 +540,37 @@ void main() {
     float lanes=dsNoise(vec2(p.x*2.,p.z*.3)+vec2(sin(gPhase),cos(gPhase)));
     float packet=pow(.5+.5*sin(p.z*1.7-gPhase*3.+p.x*.3),4.);
     float salt=crest*lanes*packet*(.2+.8*u_level)*u_params[1];
-    salt*=1.+u_rhythm.x*.6+u_rhythm.y*.35;
-    col+=mix(u_secondary,u_primary,.6)*salt*.22;
+    salt*=1.+u_rhythm.x*3.5+u_rhythm.y*1.8;
+    col+=mix(u_secondary,u_primary,.75)*salt*.55;
+    float grainRun=pow(.5+.5*sin(p.x*.65+p.z*.35-mod(u_rhythmCount.x,11.)*1.9),8.);
+    col+=u_primary*crest*grainRun*u_rhythm.x*1.7;
     float fog=1.-exp(-depth*(.003+gStorm*.002)*u_params[7]);
     col=mix(col,dsHaze(),fog);
     // Three depth-correct samples through the saltation veil above the brinks.
-    if(rd.y<-.03 && depth<130. && surface.w<3.5) {
-      float plume=0.;
-      for(int j=0;j<3;j++) {
-        float distance=max(0.,t-(.2+.24*float(j))/max(-rd.y,.08));
+    if(rd.y<-.03 && depth<130. && surface.w<3.5+gVeil*2.) {
+      float plume=0., veil=0.;
+      for(int j=0;j<2;j++) {
+        // Two broad strata replace the old three-sample micro-plume.
+        // The gust lifts the sand, not the camera.
+        float lift=.2+.36*float(j)+gVeil*(.25+.75*u_level)*(.5+1.4*float(j));
+        float distance=max(0.,t-lift/max(-rd.y,.08));
         vec3 q=ro+rd*distance;
         vec4 ridge=dsSurface(q.xz);
         float height=q.y-ridge.x;
         float streamer=dsNoise(q.xz*vec2(1.2,.35)+vec2(sin(gPhase),cos(gPhase)));
         float curl=.5+.5*sin(q.x*.8+q.z*.33-gPhase*3.+sin(q.x*.23));
         plume+=exp(-ridge.w*.9)*exp(-height*height*2.5)*smoothstep(.02,.25,height)*streamer;
-        plume+=gStorm*streamer*curl*exp(-height*1.6)*smoothstep(.01,.15,height)*.16;
+        plume+=gStorm*streamer*curl*exp(-max(height,0.)*1.6)*smoothstep(.01,.15,height)*.16;
+        if(gVeil>.002) {
+          float fold=.5+.5*sin(q.x*.65+q.z*.26+sin(q.z*.3)-gPhase*2.+gGustLane);
+          float thread=pow(.5+.5*sin(q.x*2.7+q.z*.7-height*1.9+2.*sin(q.z*.4-gPhase)),4.);
+          veil+=exp(-sq((ridge.w-.7-gVeil*1.7)/1.8))*exp(-sq((height-.4-gVeil*1.4)/1.3))
+            *smoothstep(.03,.45,height)*pow(fold,1.6)*(.2+.8*thread)*(.35+.65*streamer)*1.5;
+        }
       }
-      col+=mix(u_secondary,vec3(1.),.48)*plume*.7*u_params[1]*(.6+.4*u_level+.35*u_rhythm.x+.2*u_rhythm.y);
+      col+=u_secondary*plume*.65*u_params[1]*(.6+.4*u_level+u_rhythm.x+u_rhythm.y);
+      float localVeil=veil*gVeil*(.25+.75*u_level)*u_params[1];
+      col=mix(col,col*.45+mix(u_secondary,u_accent,.8)*3.4,clamp(localVeil,0.,.78));
     }
     if(rd.y<-.06 && fp<.045) {
       float sand=0.;
@@ -579,16 +602,18 @@ void main() {
     vec3 edges=abs(abs(p-monoCentre)-monoBounds);
     float edge=min(max(edges.x,edges.y),min(max(edges.y,edges.z),max(edges.z,edges.x)));
     float bevel=exp(-edge/max(.045,gPixel*depth*.5));
-    col+=mix(mix(u_secondary,u_primary,.35),vec3(1.),.3)*bevel*(.8+.55*gStorm);
+    col+=u_secondary*bevel*(.12+.3*max(0.,dot(normal,gMoon)));
     // Carved vertical rune columns, footprint-filtered cores and soft halos.
     float across=face<.5?p.z-monoCentre.z:p.x-monoCentre.x;
-    vec2 rune=vec2(across*.7,fract(p.y*.55)-.5);
-    float diamond=abs(abs(rune.x)+abs(rune.y)-.27);
-    float stroke=min(max(abs(rune.x),abs(rune.y)-.34),max(diamond,abs(rune.y)-.23));
+    float row=floor(p.y*.46), eroded=dsHash(vec2(row,monoCentre.x+31.));
+    vec2 rune=vec2(across*.7,fract(p.y*.46)-.5);
+    float spine=max(abs(rune.x+.05*sin(row*1.7)),abs(rune.y)-.29);
+    float branch=max(abs(rune.y-rune.x*sign(eroded-.5)*.7),abs(rune.x)-.12-.18*eroded);
+    float stroke=min(spine,branch)+step(eroded,.19)*.5;
     float runeWidth=max(.012,gPixel*depth*.45);
     float glyph=(1.-smoothstep(runeWidth,runeWidth*2.,stroke))*smoothstep(1.,3.,p.y);
     float halo=exp(-stroke*stroke/.012)*smoothstep(1.,3.,p.y);
-    col+=mix(u_secondary,u_primary,.45)*(glyph*1.4+halo*.12)*(.8+.2*sin(gDust));
+    col+=mix(u_secondary,u_primary,.8)*(glyph*1.4+halo*.12)*(.45+.12*sin(gDust));
     col+=mix(u_primary,u_accent,.08)*.11*exp(-sq((p.y-19.)/13.));
     col=mix(col,u_secondary*.06,1.-exp(-depth*.006));
   }
@@ -619,25 +644,29 @@ void main() {
       vec2 roll=vec2(sin(gDust),cos(gDust));
       vec3 skin=ro+rd*hit.x;
       vec2 curl=vec2(sin(skin.y*.23+sin(skin.x*.13)),cos(skin.x*.17));
-      vec3 detail=dsNoiseSlope(skin.xy*.7+skin.z*.17+roll+curl*.7);
-      float skinFine=dsNoise(skin.xy*2.1+skin.z*.31+roll);
-      vec3 litNormal=normalize(normal+vec3(-detail.y,-detail.z,0.)*.2);
+      vec3 detail=dsNoiseSlope(skin.xy*vec2(.55,.35)+skin.z*.17+roll+curl*1.2);
+      // Long wind-drawn curtains break the cotton-like isotropic grain.
+      float skinFine=dsNoise(vec2(skin.x*.9+2.*sin(skin.y*.17+gDust),skin.y*.35)+skin.z*.09+roll);
+      vec3 litNormal=normalize(normal+vec3(-detail.y,-detail.z,0.)*.12);
       float key=max(0.,dot(litNormal,normalize(vec3(-.65,.75,.28))));
       float heightLight=smoothstep(2.,33.,skin.y);
-      vec3 dustColor=mix(mix(u_primary,u_secondary,.65),vec3(1.),.13);
+      vec3 dustColor=mix(u_primary,u_secondary,.92);
       for(int i=0;i<2;i++) {
         if(trans<.01)break;
         vec3 q=ro+rd*(hit.x+(float(i)+.5)*stepSize);
         vec2 chart=q.xy*.23+q.z*.12+roll+curl*.6;
         float coarse=dsNoise(chart), fine=skinFine;
-        float density=(.5+.65*coarse+.22*fine)*smoothstep(-1.,2.,q.y);
-        float alpha=1.-exp(-density*stepSize*.25*gStorm*u_params[7]);
+        float density=(.25+.65*coarse+.6*fine)*smoothstep(-1.,2.,q.y);
+        float alpha=1.-exp(-density*stepSize*.25*gStorm*u_params[7]*(1.-heightLight*.55));
         float penetration=exp(-float(i)*.38);
-        vec3 lit=dustColor*(.018+heightLight*(.045+key*1.15*penetration))*(.65+.55*coarse+.2*fine);
+        float windward=smoothstep(.18,.75,.55*coarse+.45*fine);
+        vec3 lit=dustColor*(.015+heightLight*(.035+key*.7*penetration))*(.45+.7*windward);
+        lit+=u_primary*pow(key,4.)*heightLight*windward*.09;
         // Broad, warped light transport through folds: no sun/disc primitive.
         float spread=exp(-sq((q.x+8.+5.*sin(q.y*.2))/22.)-sq((q.y-22.+5.*coarse)/14.));
         float inner=spread*(.1+.9*coarse*coarse)*(.4+.6*fine)*exp(-sq((q.z-front+9.)/22.));
-        lit+=mix(mix(u_primary,u_secondary,.22),u_accent,.12)*inner*(1.3+.16*u_rhythm.z+.08*u_kick);
+        float gustFold=exp(-sq((q.x-18.*sin(mod(u_rhythmCount.z,8.)*2.4))/12.));
+        lit+=mix(u_primary,u_secondary,.25)*inner*(.32+2.6*u_rhythm.z*gustFold);
         cloud+=trans*alpha*lit;
         trans*=1.-alpha;
       }
@@ -665,40 +694,141 @@ export default {
     { rate: (p) => p[4] * 0.025, period: 2 * Math.PI },
     { rate: (p) => p[1] * 0.08, period: 2 * Math.PI },
   ],
-  rhythmStyles: { restrained: "Leeward hush", driving: "Saltation trails", accented: "Haboob drums" },
+  rhythmStyles: {
+    restrained: "Leeward hush",
+    driving: "Saltation trails",
+    accented: "Haboob drums",
+  },
   rhythm: [
     familyEffect(
       "crest-saltation",
       0,
       "Crest saltation",
       "A packet of windblown grains follows the existing dune crests.",
-      { period: 4, strength: 0.55, duration: 1.4, steps: "X...", styles: {
-        restrained: { steps: "X......x | ....X... | ..x..... | ........", division: 2, strength: 0.48, duration: 1.3 },
-        driving: { steps: "X..x.X.. | x..X..x.", division: 2, strength: 0.72, duration: 0.7 },
-        accented: { steps: "X..x..X..x..X..x..X.", division: 4, strength: 0.86, duration: 0.4 },
-      } },
+      {
+        period: 4,
+        strength: 0.55,
+        duration: 1.4,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X......x | ....X... | ..x..... | ........",
+            division: 2,
+            strength: 0.48,
+            duration: 1.3,
+          },
+          driving: {
+            steps: "X..x.X.. | x..X..x.",
+            division: 2,
+            strength: 0.72,
+            duration: 0.7,
+          },
+          accented: {
+            steps: "X..x..X..x..X..x..X.",
+            division: 4,
+            strength: 0.86,
+            duration: 0.4,
+          },
+        },
+      },
     ),
     familyEffect(
       "slipface-stream",
       1,
       "Slipface stream",
       "A second sand stream grazes the persistent slip faces.",
-      { period: 8, strength: 0.5, duration: 2, steps: "X.......", styles: {
-        restrained: { steps: "...x.... | ......X. | .....x.. | ........", division: 2, strength: 0.45, duration: 1.5 },
-        driving: { steps: "..X..x.. | ....X..x", division: 2, strength: 0.68, duration: 0.8 },
-        accented: { steps: "..X...x..X..x... | ....X..x..X...x.", division: 4, strength: 0.82, duration: 0.5 },
-      } },
+      {
+        period: 8,
+        strength: 0.5,
+        duration: 2,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | ......X. | .....x.. | ........",
+            division: 2,
+            strength: 0.45,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "..X..x.. | ....X..x",
+            division: 2,
+            strength: 0.68,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "..X...x..X..x... | ....X..x..X...x.",
+            division: 4,
+            strength: 0.82,
+            duration: 0.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "haboob-roll",
       2,
       "Haboob roll",
       "A slow gust lifts crest grains and lights one rolling fold inside the dust wall.",
-      { period: 16, strength: 0.5, duration: 3, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | .....X..", division: 2, strength: 0.42, duration: 2.8 },
-        driving: { steps: "........ | .......x | ........ | ......X.", division: 2, strength: 0.66, duration: 2 },
-        accented: { steps: "................ | ...........X.... | ................ | .........x....X.", division: 4, strength: 0.8, duration: 1 },
-      } },
+      {
+        period: 16,
+        strength: 0.5,
+        duration: 3,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | .....X..",
+            division: 2,
+            strength: 0.42,
+            duration: 2.8,
+          },
+          driving: {
+            steps: "........ | .......x | ........ | ......X.",
+            division: 2,
+            strength: 0.66,
+            duration: 2,
+          },
+          accented: {
+            steps:
+              "................ | ...........X.... | ................ | .........x....X.",
+            division: 4,
+            strength: 0.8,
+            duration: 1,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "crest-veil",
+      3,
+      "Crest veil",
+      "An accent gust peels a curling sand veil off the persistent dune crests.",
+      {
+        period: 16,
+        strength: 0.88,
+        duration: 1,
+        steps: "X......x........",
+        styles: {
+          restrained: {
+            steps: "........ | .....X.. | ........ | ......x.",
+            division: 2,
+            strength: 0.7,
+            duration: 1.4,
+          },
+          driving: {
+            steps: "X......x........ | X.........X.....",
+            division: 4,
+            strength: 0.94,
+            duration: 1,
+          },
+          accented: {
+            steps:
+              "X.....x.......X. | .......X........ | X......x........ | X.........X.....",
+            division: 4,
+            strength: 1,
+            duration: 0.85,
+          },
+        },
+      },
     ),
   ],
   fragment,

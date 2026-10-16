@@ -236,6 +236,8 @@ export default {
   "A second sand stream grazes the persistent slip faces.": "Ein zweiter Sandstrom streift die beständigen Rutschhänge.",
   "Haboob roll": "Haboob-Walze",
   "A slow gust lifts crest grains and lights one rolling fold inside the dust wall.": "Eine langsame Böe hebt Kammkörner an und beleuchtet eine rollende Falte in der Staubwand.",
+  "Crest veil": "Kammschleier",
+  "An accent gust peels a curling sand veil off the persistent dune crests.": "Eine Akzentböe hebt einen gewellten Sandschleier von den beständigen Dünenkämmen.",
   "Leeward hush": "Leestille",
   "Saltation trails": "Sprungspuren",
   "Haboob drums": "Haboobtrommeln",
