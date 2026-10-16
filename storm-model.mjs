@@ -87,7 +87,8 @@ export function leaderSegment(seed, network, local) {
 }
 
 // ---- Convective cells: Haze bank -> towers -> supercell with flanking line.
-const HX = [-15, -7.5, 0, 7.5, 15];
+const HX = [-17, -8.5, 0, 8.5, 17];
+const HT = [0, 3, 1.6, 3.4, 0.4];
 const TX = [-13, -6.2, 0.3, 6.6, 13];
 const TT = [5.6, 10.4, 12, 9.6, 5.2];
 const TR = [3, 2.4, 2.7, 2.3, 2.8];
@@ -102,18 +103,18 @@ export function stages(development) {
 export function cells(seed, development) {
   const { rise, supercell } = stages(development);
   return {
-    base: mix(mix(2.4, 2.6, rise), 3, supercell),
+    base: mix(mix(1.4, 2.6, rise), 4.4, supercell),
     cells: HX.map((_, i) => {
       const j0 = random(seed, 7, i * 4) - 0.5,
         j1 = random(seed, 7, i * 4 + 1) - 0.5,
         j2 = random(seed, 7, i * 4 + 2) - 0.5,
         j3 = random(seed, 7, i * 4 + 3);
-      const haze = [HX[i] + j0 * 2.5, 15 + j1 * 4, 2.4, 5.6 + j3 * 3.2];
+      const haze = [HX[i] + j0 * 2.5, 15 + j1 * 4, 1.4, 4.4 + j3 * 2.2 + HT[i]];
       const tower = [TX[i] + j0 * 1.2, 11 + j1 * 3, 2.6, TT[i] + 1 + j3 * 1.2];
-      const sup = [SX[i] + j0 * 0.8, SZ[i] + j1 * 1.5, 3, ST[i] + 1.2 + j3 * 0.8];
+      const sup = [SX[i] + j0 * 0.8, SZ[i] + j1 * 1.5, 4.4, ST[i] + 2 + j3 * 0.8];
       return {
         cell: mix3(mix3(haze, tower, rise), sup, supercell),
-        radius: mix(mix(5 + j2 * 1.4, TR[i] + j2 * 0.6, rise), SR[i] + j2 * 0.4, supercell),
+        radius: mix(mix(5.4 + j2 * 2.2, TR[i] + j2 * 0.6, rise), SR[i] + j2 * 0.4, supercell),
       };
     }),
   };
@@ -303,8 +304,8 @@ export function anvil(seed, development) {
   const [mx, mz, , mtop] = cs[2].cell;
   return {
     centre: [mix(mx, -3, supercell), mtop * mix(0.92, 0.9, supercell), mix(mz, 7, supercell)],
-    radius: mix(0.6 * cs[2].radius, 19, supercell),
-    thickness: mix(0.9, 0.85, supercell),
+    radius: mix(0.6 * cs[2].radius, 17.5, supercell),
+    thickness: mix(0.9, 1.25, supercell),
     dome: 2.5 * supercell,
   };
 }
@@ -316,38 +317,71 @@ const smin = (a, b, k) => {
 export function carrier(p, seed, development, phase = 0, parts = null) {
   const { supercell } = stages(development);
   const { cells: cs } = cells(seed, development);
-  let field = 1e3;
+  let field = 1e3,
+    foot = 1e3;
   const { rise } = stages(development);
   cs.forEach(({ cell: c, radius }, i) => {
     const d = [p[0] - c[0], p[2] - c[1]];
     d[0] -= (p[1] - c[2]) * (random(seed, 8, i) - 0.5) * 0.3 * rise * (1 - 0.6 * supercell);
     const rad = Math.hypot(d[0], d[1]);
-    let R = radius * (0.82 + 0.26 * smooth(c[2], c[2] + 0.5 * (c[3] - c[2]), p[1]));
+    let R = radius * mix(0.82 + 0.26 * smooth(c[2], c[2] + 0.5 * (c[3] - c[2]), p[1]), 1.1 - 0.35 * smooth(c[2] + 0.2 * (c[3] - c[2]), c[3], p[1]), rise * (1 - supercell));
     if (i === 2 && supercell > 0) {
       const low = 1 - smooth(c[2] + 3, c[2] + 6.5, p[1]);
       const theta = Math.atan2(d[1], d[0] + 1e-5);
       R *= mix(1, 0.7 + 0.3 * smooth(c[2], c[2] + 5, p[1]), supercell * low);
       R += supercell * low * 0.85 * Math.sin(TAU * p[1] * 0.8 + theta - 2 * phase);
     }
-    const halfH = 0.5 * (c[3] - c[2]) + 0.5,
-      ym = c[2] - 0.5 + halfH,
+    const hgt = c[3] - c[2];
+    const halfH = 0.5 * hgt * mix(1, 0.78, rise * (i === 2 ? 1 - supercell : 1)) + 1.1,
+      ym = c[2] - 1.6 + halfH,
       rr = Math.min(R, halfH) * 0.85;
     const q = [rad - R + rr, Math.abs(p[1] - ym) - halfH + rr];
-    const sd =
+    let sd =
       Math.min(Math.max(q[0], q[1]), 0) +
       Math.hypot(Math.max(q[0], 0), Math.max(q[1], 0)) -
       rr;
+    // Thermal bubbles (scene-storm-volume.mjs stCarrier).
+    const leanK = (random(seed, 8, i) - 0.5) * 0.3 * rise * (1 - 0.6 * supercell);
+    const calm = i === 2 ? 1 - 0.75 * supercell : 1;
+    for (let k = 0; k < 3; k++) {
+      const bob = Math.sin(phase + TAU * random(seed, 9, i * 3 + k));
+      const by = c[2] + hgt * (0.5 + 0.19 * k) + 0.18 * bob;
+      const bc = [
+        c[0] + (random(seed, 10, i * 3 + k) - 0.5) * 1.0 * radius + leanK * (by - c[2]),
+        by,
+        c[1] + (random(seed, 11, i * 3 + k) - 0.5) * 1.0 * radius,
+      ];
+      const br = radius * (0.8 - 0.14 * k) * mix(0.75, 1, rise) * calm;
+      sd = smin(sd, length(sub(p, bc)) - br, 0.7);
+    }
     if (i === 2 && parts) parts.main = sd;
     field = smin(field, sd, 1.3);
+    foot = smin(foot, rad - radius * 1.25, 1.5);
   });
+  if (rise > 0) {
+    const base = cells(seed, development).base;
+    const shelf = Math.max(foot + (1 - rise) * 6, Math.abs(p[1] - (base - 0.5)) - mix(0.75, 1.1, supercell));
+    field = smin(field, shelf, 1);
+  }
   const an = anvil(seed, development);
   const a = [p[0] - an.centre[0], (p[2] - an.centre[2]) * mix(1.4, 2, supercell)];
   if (a[0] > 0) a[0] *= mix(1, 1.7, supercell);
-  const k = Math.min(1, Math.hypot(a[0], a[1]) / an.radius);
-  const thick = an.thickness * (1 - 0.65 * k * k);
+  const theta = Math.atan2(a[1], a[0] + 1e-5);
+  const rim =
+    an.radius *
+    (1 +
+      supercell *
+        (0.13 * Math.sin(2 * theta + TAU * random(seed, 12, 0)) +
+          0.07 * Math.sin(5 * theta + TAU * random(seed, 12, 1)) -
+          0.1));
+  const k = Math.min(1, Math.hypot(a[0], a[1]) / rim);
+  const thick = an.thickness * (1 - 0.7 * k * k);
   const centre = an.centre[1] + 0.5 * k * k;
+  const sc = [a[0] > 0 ? mix(1, 1.7, supercell) : 1, mix(1.4, 2, supercell)];
+  const al = Math.max(Math.hypot(a[0], a[1]), 1e-4);
+  const gl = Math.max(Math.hypot(sc[0] * a[0], sc[1] * a[1]) / al, 1);
   const sa = Math.max(
-    Math.hypot(a[0], a[1]) - an.radius,
+    (al - rim) / gl,
     Math.max(p[1] - centre - thick, centre - thick - p[1]),
   );
   if (parts) parts.anvil = sa;
@@ -367,7 +401,7 @@ export function carrierLipschitz(p, seed, development) {
   const sd = carrier(p, seed, development, 0.7, parts);
   const wM = supercell * (1 - smooth(0, 2, parts.main - sd));
   const wA = 1 - smooth(0, 2, parts.anvil - sd);
-  return mix(1.55, 1.15, stages(development).rise) + wA * mix(0.45, 2.2, supercell) + 3 * wM;
+  return mix(1.55, 1.25, stages(development).rise) + wA * mix(0.45, 1.4, supercell) + 3.5 * wM;
 }
 // ---- Cellular billows (unchanged hashing, exact periodic cache).
 export function cellFeature(seed, cell, period = 0) {
@@ -419,9 +453,9 @@ export function camera(development, eye = 0.45) {
   const { rise, supercell } = stages(development);
   const grow = 0.55 * rise + 0.45 * supercell;
   return {
-    z: mix(-22, -15, grow) - (eye - 0.45) * 7,
-    y: mix(1.6, 0.8, grow) + (eye - 0.45) * 1.4,
-    focal: mix(2.35, 1.45, grow),
+    z: mix(-21, -14, grow) - (eye - 0.45) * 7,
+    y: mix(1.5, 0.6, grow) + (eye - 0.45) * (eye < 0.45 ? 0.8 : 1.4),
+    focal: mix(mix(2.2, 2.25, rise), 1.6, supercell),
   };
 }
 // Conservative storm bounds (scene-storm-volume.mjs stStormBox), unscaled y.
@@ -447,7 +481,7 @@ export function stormBox(seed, development, height = 1) {
   minZ = Math.min(minZ, an.centre[2] - ra);
   maxZ = Math.max(maxZ, an.centre[2] + ra);
   return {
-    lo: [Math.max(minX, -26), 0.3, Math.max(minZ, -7)],
-    hi: [Math.min(maxX, 26), Math.min(17.1, top + an.dome + 2) * height, Math.min(maxZ, 23)],
+    lo: [Math.max(minX, -26), Math.max(0.3, (cells(seed, development).base - 1.5) * height), Math.max(minZ, -7)],
+    hi: [Math.min(maxX, 26), Math.min(17.1, top + an.dome + 2.8) * height, Math.min(maxZ, 23)],
   };
 }

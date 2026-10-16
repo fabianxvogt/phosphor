@@ -119,7 +119,7 @@ try {
         });
         const { lo, hi } = stormBox(snapshot.seed, development, height);
         const origin = [-26, 0.3, -7], size = [52, 16.8, 30], grid = [128, 80, 64];
-        let overflow = -1e9, occupied = 0, nonFinite = 0;
+        let overflow = -1e9, occupied = 0, nonFinite = 0, worst = null;
         for (let z = 0; z < 64; z++)
           for (let y = 0; y < 80; y++)
             for (let x = 0; x < 128; x++) {
@@ -132,13 +132,15 @@ try {
               // (bounds already include the erosion and AA margins).
               for (let axis = 0; axis < 3; axis++) {
                 const centre = origin[axis] + ((q[axis] + 0.5) / grid[axis]) * size[axis];
-                overflow = Math.max(overflow, lo[axis] - centre, centre - hi[axis]);
+                const over = Math.max(lo[axis] - centre, centre - hi[axis]);
+                if (over > overflow) worst = { axis, side: lo[axis] - centre > centre - hi[axis] ? "lo" : "hi", centre };
+                overflow = Math.max(overflow, over);
               }
             }
         assert.equal(nonFinite, 0);
         report.bounds.push({ development, height, time, occupied, overflow });
         assert.ok(occupied > 0);
-        assert.ok(overflow <= 0, JSON.stringify({ development, height, time, overflow }));
+        assert.ok(overflow <= 0, JSON.stringify({ development, height, time, overflow, worst, lo, hi }));
         // Event graphs: 4 slots x 30 edges, world endpoints in rows 1 and 2.
         let graphError = 0;
         const texel = (x, row) => data.rows.slice((row * 1024 + x) * 4, (row * 1024 + x) * 4 + 4);

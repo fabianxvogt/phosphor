@@ -114,7 +114,10 @@ test("branching probability and unbiased stepped-leader jitter meet independent 
   // Difference of two independent U(-a/2,a/2) samples has variance a²/6.
   assert.ok(Math.abs(dx2 / steps - 0.16 ** 2 / 6) < 0.00008);
   assert.match(stormData, /stRand\(network, 70 \+ branch\) < 0\.78/);
-  assert.match(stormData, /stRand\(network,n\*3\)-stRand\(network,0\)\)\*0\.16/);
+  assert.match(
+    stormData,
+    /stRand\(network,n\*3\)-stRand\(network,0\)\)\*0\.16/,
+  );
 });
 
 test("each event picks a seeded tree and site; development never changes identity", () => {
@@ -141,7 +144,10 @@ test("each event picks a seeded tree and site; development never changes identit
   }
   assert.ok(moved > 750, `${moved}`);
   assert.doesNotMatch(
-    stormData.slice(stormData.indexOf("vec3 stLeader"), stormData.indexOf("vec3 stWorld")),
+    stormData.slice(
+      stormData.indexOf("vec3 stLeader"),
+      stormData.indexOf("vec3 stWorld"),
+    ),
     /stRise|stSuper|u_time|u_params/,
   );
 });
@@ -173,9 +179,13 @@ test("leaders stay inside the cloud as heat lightning, then strike exactly on th
         assert.ok(haze.bottom[1] > base, "Haze leaders end inside the bank");
         const strike = discharge(seed, slot, index, 0.3, 1, 2);
         const graph = eventGraph(seed, strike);
-        assert.ok(Math.abs(graph[17].b[1]) < 1e-9, "the trunk ends on the ground");
+        assert.ok(
+          Math.abs(graph[17].b[1]) < 1e-9,
+          "the trunk ends on the ground",
+        );
         assert.ok(strike.top[1] > 3, "the root is inside the cloud");
-        if (slot === 0) assert.ok(strike.top[1] > 9, "hero bolts leave the anvil");
+        if (slot === 0)
+          assert.ok(strike.top[1] > 9, "hero bolts leave the anvil");
       }
 });
 
@@ -224,7 +234,15 @@ test("one broad pulse per event; restrikes and flicker stay local and bounded", 
           maxLocal = 0;
         for (let k = -10; k <= 1010; k++) {
           const u = k / 1000;
-          const [local, broad, progress] = stroke(u, id % 3, crawl, ic, seed, id, slot);
+          const [local, broad, progress] = stroke(
+            u,
+            id % 3,
+            crawl,
+            ic,
+            seed,
+            id,
+            slot,
+          );
           assert.ok(local >= 0 && local <= 1.6 && broad >= 0 && broad <= 1);
           assert.ok(progress >= 0 && progress <= 1);
           if (u <= 0 || u >= 1) assert.deepEqual([local, broad], [0, 0]);
@@ -246,19 +264,40 @@ test("one broad pulse per event; restrikes and flicker stay local and bounded", 
 });
 
 test("autonomous storm life follows energy, never development", () => {
+  // Slot 1: one-beat grid; slot 0 between hero strokes: two-beat grid,
+  // supercell only, from energy 0.3 (multi-strike bars at high energy).
   const rate = (level, rise) => {
     let fires = 0;
     for (let k = 0; k < 4000; k++) {
       const chance =
-        rise * (0.14 + (0.7 - 0.14) * level) + (1 - rise) * (0.35 + 0.5 * level);
+        rise * (0.08 + (0.85 - 0.08) * level) +
+        (1 - rise) * (0.22 + 0.33 * level);
       fires += Number(random(10701, 31, k % 4096) < chance);
     }
     return fires / 4000;
   };
-  assert.ok(rate(0.1, 1) < 0.25 && rate(0.9, 1) > 0.6);
+  assert.ok(rate(0.1, 1) < 0.25 && rate(0.9, 1) > 0.7);
   assert.ok(rate(0.1, 0) > rate(0.1, 1), "heat lightning flickers more often");
-  assert.match(stormData, /float k = floor\(u_beat\*0\.5\)/);
-  assert.match(stormData, /mix\(mix\(0\.35,0\.85,level\),mix\(0\.14,0\.7,level\),stRise\)/);
+  const anvil = (level, supercell) => {
+    let fires = 0;
+    const chance =
+      supercell * Math.min(1, Math.max(0, (level - 0.3) / 0.6)) * 0.8;
+    for (let k = 0; k < 4000; k++)
+      fires += Number(random(10701, 35, k % 4096) < chance);
+    return fires / 4000;
+  };
+  assert.equal(anvil(0.1, 1), 0);
+  assert.equal(anvil(0.9, 0), 0);
+  assert.ok(anvil(0.9, 1) > 0.7);
+  assert.match(stormData, /float k = floor\(u_beat\);/);
+  assert.match(
+    stormData,
+    /mix\(mix\(0\.22,0\.55,level\),mix\(0\.08,0\.85,level\),stRise\)/,
+  );
+  assert.match(
+    stormData,
+    /float chance0 = stSuper\*clamp\(\(level-0\.3\)\/0\.6,0\.0,1\.0\)\*0\.8;/,
+  );
 });
 
 test("conservative tile masks include the tortuous zigzag and AA support", () => {
@@ -267,18 +306,29 @@ test("conservative tile masks include the tortuous zigzag and AA support", () =>
     for (const focal of [1.45, 2.35])
       for (const framing of [1, 1.05])
         for (const len of [0, 0.01, 0.1, 0.4]) {
-          const width = Math.max((2 / (shortSide * focal * framing)) * 1.45, 0.0014);
+          const width = Math.max(
+            (2 / (shortSide * focal * framing)) * 1.45,
+            0.0014,
+          );
           assert.ok(width * 9 + 0.0018 + len * 0.3 < 0.07 + 0.3 * len);
         }
   assert.match(storm.fragment, /shortSide >= 280\.0/);
-  assert.match(storm.precompute.fragment, /float pad = 0\.07\+0\.3\*length\(p\.zw-p\.xy\)/);
+  assert.match(
+    storm.precompute.fragment,
+    /float pad = 0\.07\+0\.3\*length\(p\.zw-p\.xy\)/,
+  );
   assert.match(storm.fragment, /n\*len\*0\.2\*r0/);
   assert.match(storm.fragment, /n\*len\*0\.1\*r1/);
   assert.deepEqual(storm.precompute.size, [1024, 675]);
   assert.equal(storm.precompute.filter, "linear");
   assert.equal(storm.precompute.nearestFallback, true);
-  assert.match(storm.fragment, /return stDatum\(i, row\)/, "uncached exact fallback");
-  for (let bits = 0; bits <= 65535; bits++) assert.equal(Math.fround(bits), bits);
+  assert.match(
+    storm.fragment,
+    /return stDatum\(i, row\)/,
+    "uncached exact fallback",
+  );
+  for (let bits = 0; bits <= 65535; bits++)
+    assert.equal(Math.fround(bits), bits);
 });
 
 test("bolts are occluded by the cloud in front of them", () => {
@@ -292,8 +342,14 @@ test("bolts are occluded by the cloud in front of them", () => {
   assert.equal(transmittanceAt(9.9, record), 1);
   assert.ok(Math.abs(transmittanceAt(11, record) - 0.5) < 1e-4);
   assert.ok(Math.abs(transmittanceAt(12.5, record) - 0.1) < 1e-4);
-  assert.equal(transmittanceAt(5, { enter: -1, half: -1, tenth: -1, exit: 0, final: 1 }), 1);
-  assert.match(storm.fragment, /float occlusion = stTransAt\(length\(mix\(a\.xyz,b\.xyz,s\)-stEye\)\)/);
+  assert.equal(
+    transmittanceAt(5, { enter: -1, half: -1, tenth: -1, exit: 0, final: 1 }),
+    1,
+  );
+  assert.match(
+    storm.fragment,
+    /float occlusion = stTransAt\(length\(mix\(a\.xyz,b\.xyz,s\)-stEye\)\)/,
+  );
   assert.doesNotMatch(storm.fragment, /flashLimit|flashExempt|gl_FragDepth/);
   assert.match(storm.fragment, /1\.0 \+ 0\.02 \* u_kick/);
 });
@@ -319,7 +375,10 @@ test("phase functions and multiple-scattering octaves are physical", () => {
   }
   // Backlit: thin edges outshine thick fronts by more than an order.
   assert.ok(multipleScattering(0.3, 0.9) > 10 * multipleScattering(12, 0.9));
-  assert.match(storm.fragment, /phase0\*exp\(-tau\)\+phase1\*exp\(-0\.4\*tau\)\+phase2\*exp\(-0\.16\*tau\)/);
+  assert.match(
+    storm.fragment,
+    /phase0\*exp\(-tau\)\+phase1\*exp\(-0\.4\*tau\)\+phase2\*exp\(-0\.16\*tau\)/,
+  );
 });
 
 test("lightning irradiance is local, monotone and attenuated inside the cloud", () => {
@@ -334,9 +393,13 @@ test("lightning irradiance is local, monotone and attenuated inside the cloud", 
   for (const x of [-4, 0, 8]) {
     const a = [x, 0, 1],
       b = [x, 4, 1];
-    for (const t of [0, 0.5, 1]) assert.equal(channelDistance([x, t * 4, 1], a, b), 0);
+    for (const t of [0, 0.5, 1])
+      assert.equal(channelDistance([x, t * 4, 1], a, b), 0);
     assert.equal(channelDistance([x, 5, 1], a, b), 1);
-    assert.equal(channelDistance([x + 3, 2, 1], a, b), channelDistance([x + 3, 2, 1], b, a));
+    assert.equal(
+      channelDistance([x + 3, 2, 1], a, b),
+      channelDistance([x + 3, 2, 1], b, a),
+    );
   }
   assert.match(stormVolume, /float g = power\/pow\(1\.0\+d\*d\*0\.06,1\.5\)/);
   assert.match(stormVolume, /g \*= exp\(-tau\*d\*0\.333\*0\.16\)/);
@@ -359,15 +422,23 @@ test("empty-space skipping is conservative for the carrier field", () => {
           lo = [...p];
         hi[k] += eps;
         lo[k] -= eps;
-        return (carrier(hi, 10701, d, 0.7) - carrier(lo, 10701, d, 0.7)) / (2 * eps);
+        return (
+          (carrier(hi, 10701, d, 0.7) - carrier(lo, 10701, d, 0.7)) / (2 * eps)
+        );
       });
-      worst = Math.max(worst, Math.hypot(...grad) / carrierLipschitz(p, 10701, d));
+      worst = Math.max(
+        worst,
+        Math.hypot(...grad) / carrierLipschitz(p, 10701, d),
+      );
     }
   assert.ok(worst <= 1 / 0.8, `${worst}`);
   // Erosion moves the surface outward by at most half the largest erosion.
   assert.match(stormVolume, /float e = mix\(1\.0,2\.5,/);
   assert.match(stormVolume, /float skip = max\(1e-4,\(sd-1\.3\)\*0\.8\/lip\)/);
-  assert.match(stormVolume, /float lip = mix\(1\.55,1\.15,stRise\)\+wA\*mix\(0\.45,2\.2,stSuper\)\+3\.0\*wM/);
+  assert.match(
+    stormVolume,
+    /float lip = mix\(1\.55,1\.25,stRise\)\+wA\*mix\(0\.45,1\.4,stSuper\)\+3\.5\*wM/,
+  );
   assert.match(stormVolume, /if \(sd > 0\.5\*e\+0\.05\) return 0\.0/);
 });
 
@@ -379,7 +450,11 @@ test("the camera never enters a cloud, keeps above ground and moves gently", () 
       const c = camera(d, eye);
       assert.ok(c.y > 0.1);
       // The closed orbit adds at most ±2.2 x and ±0.6 z.
-      for (const [dx, dz] of [[-2.2, -0.6], [2.2, 0.6], [0, 0.6]])
+      for (const [dx, dz] of [
+        [-2.2, -0.6],
+        [2.2, 0.6],
+        [0, 0.6],
+      ])
         assert.ok(carrier([dx, c.y, c.z + dz], 10701, d) > 2, `${eye}/${d}`);
       if (j) {
         const p = camera(developments[j - 1], eye);
@@ -397,7 +472,10 @@ test("3D atlas addresses are bijective and trilinear interpolation preserves aff
   const grid = [128, 80, 64],
     size = [52, 16.8, 30],
     lo = [-26, 0.3, -7];
-  const address = ([x, y, z]) => [(z % 8) * 128 + x, 35 + Math.floor(z / 8) * 80 + y];
+  const address = ([x, y, z]) => [
+    (z % 8) * 128 + x,
+    35 + Math.floor(z / 8) * 80 + y,
+  ];
   const seen = new Set();
   for (let z = 0; z < grid[2]; z++)
     for (let y = 0; y < grid[1]; y++)
@@ -416,17 +494,31 @@ test("3D atlas addresses are bijective and trilinear interpolation preserves aff
         for (let x = 0; x < 2; x++) {
           const corner = [x, y, z],
             fraction = q.map((v) => v - Math.floor(v));
-          const weight = corner.reduce((w, c, k) => w * (c ? fraction[k] : 1 - fraction[k]), 1);
-          const p = q.map((v, k) => lo[k] + ((Math.floor(v) + corner[k] + 0.5) / grid[k]) * size[k]);
+          const weight = corner.reduce(
+            (w, c, k) => w * (c ? fraction[k] : 1 - fraction[k]),
+            1,
+          );
+          const p = q.map(
+            (v, k) =>
+              lo[k] + ((Math.floor(v) + corner[k] + 0.5) / grid[k]) * size[k],
+          );
           value += affine(p) * weight;
         }
-    const exact = affine(q.map((v, k) => lo[k] + ((v + 0.5) / grid[k]) * size[k]));
+    const exact = affine(
+      q.map((v, k) => lo[k] + ((v + 0.5) / grid[k]) * size[k]),
+    );
     assert.ok(Math.abs(value - exact) < 1e-12);
   }
   assert.match(stormVolume, /const vec3 stGrid = vec3\(128,80,64\)/);
-  assert.match(stormVolume, /const vec3 stVolumeSize = vec3\(52\.0,16\.8,30\.0\)/);
+  assert.match(
+    stormVolume,
+    /const vec3 stVolumeSize = vec3\(52\.0,16\.8,30\.0\)/,
+  );
   assert.match(stormVolume, /#ifdef PRECOMPUTED_LINEAR/);
-  assert.match(stormVolume, /return stOptical\(clamp\(p,stVolumeLo,stVolumeLo\+stVolumeSize\)\)/);
+  assert.match(
+    stormVolume,
+    /return stOptical\(clamp\(p,stVolumeLo,stVolumeLo\+stVolumeSize\)\)/,
+  );
 });
 
 test("integer cloud features are seed-specific, uniform and exactly spatially periodic", () => {
@@ -438,10 +530,20 @@ test("integer cloud features are seed-specific, uniform and exactly spatially pe
       assert.ok(v >= 0 && v < 1 && Number.isInteger(v * 1024));
       sum[k] += v;
     });
-    assert.deepEqual(cellFeature(10701, c, 7), cellFeature(10701, c.map((n) => n + 14), 7));
+    assert.deepEqual(
+      cellFeature(10701, c, 7),
+      cellFeature(
+        10701,
+        c.map((n) => n + 14),
+        7,
+      ),
+    );
   }
   for (const value of sum) assert.ok(Math.abs(value / 10000 - 0.5) < 0.015);
-  assert.notDeepEqual(cellFeature(10701, [2, -3, 7]), cellFeature(10702, [2, -3, 7]));
+  assert.notDeepEqual(
+    cellFeature(10701, [2, -3, 7]),
+    cellFeature(10702, [2, -3, 7]),
+  );
   assert.match(stormVolume, /hcell>>10,hcell>>20/);
 });
 
@@ -450,7 +552,11 @@ test("rounded billow gradients match independent central differences and the cac
   for (let i = 1; i <= 150; i++) {
     const p = [i * 0.143 + 0.21, i * 0.277 - 13.17, i * 0.063 + 0.55];
     const a = billowLobe(10701, p, 7),
-      b = billowLobe(10701, p.map((n) => n + 7), 7);
+      b = billowLobe(
+        10701,
+        p.map((n) => n + 7),
+        7,
+      );
     assert.ok(Math.abs(a.value - b.value) < 1e-12);
     assert.ok(distance(a.gradient, b.gradient) < 1e-11);
     if (a.value > 0.93) continue;
@@ -460,7 +566,8 @@ test("rounded billow gradients match independent central differences and the cac
       lo[axis] -= eps;
       hi[axis] += eps;
       const numerical =
-        (billowLobe(10701, hi, 7).value - billowLobe(10701, lo, 7).value) / (2 * eps);
+        (billowLobe(10701, hi, 7).value - billowLobe(10701, lo, 7).value) /
+        (2 * eps);
       assert.ok(Math.abs(numerical - a.gradient[axis]) < 1e-6);
     }
   }
@@ -473,17 +580,28 @@ test("periodic detail atlas is bijective, padded and separate from all other dat
     for (let y = 0; y < 28; y++)
       for (let x = 0; x < 28; x++) {
         const address = detailAddress([x, y, z]);
-        assert.ok(address[0] >= 125 && address[0] < 964 && address[1] >= 4 && address[1] < 33);
+        assert.ok(
+          address[0] >= 125 &&
+            address[0] < 964 &&
+            address[1] >= 4 &&
+            address[1] < 33,
+        );
         // Never overlaps the per-frame state texels (x 120–132, rows 0–2).
         assert.ok(address[1] > 2);
         seen.add(address.join(","));
         for (const shift of [-56, 28])
-          assert.deepEqual(detailAddress([x + shift, y + shift, z + shift]), address);
+          assert.deepEqual(
+            detailAddress([x + shift, y + shift, z + shift]),
+            address,
+          );
       }
   assert.equal(seen.size, 28 ** 3);
   assert.match(stormVolume, /vec2\(125\.5,4\.5\)\+q.xy/);
   assert.match(storm.precompute.fragment, /x >= 124 && x < 964 && row < 33/);
-  assert.match(storm.precompute.fragment, /if \(row < 3\) \{ outColor = stDatum\(x,row\); return; \}/);
+  assert.match(
+    storm.precompute.fragment,
+    /if \(row < 3\) \{ outColor = stDatum\(x,row\); return; \}/,
+  );
 });
 
 test("full-resolution lobes fade monotonically at the output pixel footprint", () => {
@@ -510,7 +628,11 @@ test("the supercell carries a rotating anvil, dome and striated updraft only at 
     [-1, 5.2, 7.5],
   ])
     for (const d of [1.3, 2])
-      assert.ok(Math.abs(carrier(p, 10701, d, 0.4) - carrier(p, 10701, d, 0.4 + 2 * Math.PI)) < 1e-9);
+      assert.ok(
+        Math.abs(
+          carrier(p, 10701, d, 0.4) - carrier(p, 10701, d, 0.4 + 2 * Math.PI),
+        ) < 1e-9,
+      );
   assert.match(stormVolume, /stRotation = rot2\(stPhase\)/);
   assert.doesNotMatch(stormVolume, /stSuper \* stPhase|stPhase \* stSuper/);
   const { supercell: s } = stages(1.5);
@@ -525,7 +647,9 @@ test("eight complete bounded presets register one continuous three-state world",
   for (const p of storm.presets)
     for (const f of storm.schema)
       assert.ok(
-        Number.isFinite(p.params[f.key]) && p.params[f.key] >= f.min && p.params[f.key] <= f.max,
+        Number.isFinite(p.params[f.key]) &&
+          p.params[f.key] >= f.min &&
+          p.params[f.key] <= f.max,
         `${p.name}.${f.key}`,
       );
   const worlds = defaultWorlds(catalogLooks(scenes).map((l) => l.id));
@@ -548,11 +672,24 @@ test("eight complete bounded presets register one continuous three-state world",
       ["buried-discharge", 0, 4],
       ["branch-corona", 1, 8],
       ["stepped-return", 2, 16],
+      ["bolt-from-the-blue", 3, 32],
     ],
   );
   assert.match(stormData, /u_rhythm\.x/);
   assert.match(stormData, /u_rhythm\.y/);
   assert.match(stormData, /u_rhythm\.z/);
+  assert.match(stormData, /u_rhythm\.w/);
+  // Signature slot 3: every style is authored, has at least two hits, and
+  // uses full-strength steps only (the shader inverts its envelope at
+  // nominal 1, so the strike lands on the step).
+  const signature = storm.rhythm.find((r) => r.slot === 3);
+  for (const style of ["restrained", "driving", "accented"]) {
+    const loop = signature.styles[style];
+    assert.ok(loop, style);
+    const hits = loop.steps.filter((v) => v > 0);
+    assert.ok(hits.length >= 2, style);
+    assert.ok(hits.every((v) => v === 1) && loop.strength === 1, style);
+  }
 });
 
 test("cloud and camera clocks remain continuous at reversals and late energy changes", () => {
@@ -572,4 +709,66 @@ test("cloud and camera clocks remain continuous at reversals and late energy cha
   for (const source of [stormVolume, storm.fragment])
     for (const m of source.matchAll(/stPhase\*([0-9.]+)/g))
       assert.ok(Number.isInteger(Number(m[1])), m[0]);
+});
+
+test("round 2 world: moon in frame, lake mirror exact at the waterline, bounded floor", () => {
+  // The moon sits in the view of the orbit-free camera at these screen
+  // coordinates (short side = 2): inside 16:9 at every development.
+  const moon = (d) => {
+    const rise =
+      Math.min(1, Math.max(0, d)) ** 2 * (3 - 2 * Math.min(1, Math.max(0, d)));
+    const s = Math.min(1, Math.max(0, d - 1));
+    const sup = s * s * (3 - 2 * s);
+    const lerp = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+    return lerp(lerp([0.82, 0.6], [0.92, 0.46], rise), [1.02, 0.6], sup);
+  };
+  for (const d of developments) {
+    const [x, y] = moon(d);
+    assert.ok(Math.abs(x) + 0.09 < 16 / 9 && Math.abs(y) + 0.09 < 1, `${d}`);
+  }
+  assert.match(
+    stormData,
+    /vec2 m = mix\(mix\(vec2\(0\.82,0\.6\),vec2\(0\.92,0\.46\),stRise\),vec2\(1\.02,0\.6\),stSuper\);/,
+  );
+  // Mirrored channels: y -> -y, so a trunk that ends on the ground meets
+  // its reflection exactly at the waterline.
+  assert.match(stormData, /a\.y = -a\.y; b\.y = -b\.y;/);
+  for (let index = 0; index < 50; index++) {
+    const graph = eventGraph(10701, discharge(10701, 0, index, 0.3, 1, 2));
+    const end = graph[17].b;
+    assert.deepEqual(
+      [end[0], -end[1], end[2]].map((v) => (Math.abs(v) < 1e-12 ? 0 : v)),
+      end.map((v) => (Math.abs(v) < 1e-12 ? 0 : v)),
+    );
+  }
+  // March bounds start 1.5 below the base: the wall cloud (0.75), the
+  // ragged floor (0.45/2) and its ramp (0.35) reach 1.325; scud stops at 1.45.
+  assert.ok(0.75 + 0.45 / 2 + 0.35 < 1.5);
+  assert.match(
+    stormVolume,
+    /max\(stVolumeLo\.y,\(stBase-1\.5\)\*u_params\[2\]\)/,
+  );
+  assert.match(stormVolume, /floorHeight \+= 0\.45\*\(stNoise/);
+  assert.match(
+    stormVolume,
+    /smoothstep\(floorHeight-0\.35,floorHeight\+0\.6,p\.y\)/,
+  );
+  assert.match(stormVolume, /p\.y > stBase-1\.45/);
+  assert.match(stormVolume, /stBase-stSuper\*0\.75\*exp/);
+  // The bolt glow reach stays inside the tile-mask padding at every size.
+  for (const shortSide of [280, 540, 1080, 2160])
+    for (const focal of [1.6, 2.25]) {
+      const width = Math.min(
+        Math.max((2 / (shortSide * focal)) * 2.2, 0.0016),
+        0.0075,
+      );
+      const reach = Math.max(width * 9, Math.min(width * 9, 0.04));
+      for (const len of [0, 0.1, 0.4])
+        assert.ok(reach + 0.0018 + len * 0.3 < 0.07 + 0.3 * len);
+    }
+  assert.match(
+    storm.fragment,
+    /float width = clamp\(pixel\*2\.2,0\.0016,0\.0075\);/,
+  );
+  assert.match(storm.fragment, /float halo = min\(width\*9\.0,0\.04\);/);
 });
