@@ -5,14 +5,16 @@ import { lateClockGlsl } from "./scene-time.mjs";
 // The ground is a crust of basalt plates: a jittered Voronoi tessellation
 // whose exact seams (distance to the nearest bisector, found in one cached
 // 3×3 search) become cracks, then lava rivers, then the shore of a lava
-// lake into which the central plates sink one by one. Development widens
-// the seams (Crust → Rivers) and opens the lake with a fountain that throws
-// ejecta on exact ballistic parabolas under an ash plume lit from below
-// (→ Eruption). Plate identity (site, height, tilt, rift) is a function of
-// the seed only; development never moves a site. Light is temperature: the
-// emission ramp runs dark → palette dark field → primary → accent → near
-// white, so every library palette is a different "lava".
-
+// lake into which the central plates sink one by one. A seed-only drainage
+// tree (three meandering trunks from the vent, two branches each) selects
+// which seams glow in the crust, widen into braided rivers and lead to the
+// vent; a heat front runs out along it with development. The lake opens
+// with a fountain of incandescent spray (paraboloid streak cones) and bombs
+// on exact ballistic parabolas under an ash umbrella lit from below. Plate
+// identity and the tree are functions of the seed only; development never
+// moves a site. Light is temperature: the emission ramp runs dark →
+// secondary → primary → accent → near white, so every library palette is a
+// different "lava".
 export const PLATE_JITTER = 0.8; // sites in [0.1, 0.9] of their cell: 3×3 search is exact
 export const GRAVITY = 7.0; // world units / s²
 export const CYCLE_SECONDS = 4.6; // physical seconds of one ejecta cycle
@@ -148,6 +150,14 @@ float mrNoise(vec2 p) {
              mix(mrH2(i + vec2(0.0, 1.0)), mrH2(i + vec2(1.0)), f.x), f.y);
 }
 
+// Bilinear value noise: its level lines are nearly straight inside each
+// lattice cell, so ridges read as angular cracks rather than smooth loops.
+float mrNoiseLin(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  return mix(mix(mrH2(i), mrH2(i + vec2(1.0, 0.0)), f.x),
+             mix(mrH2(i + vec2(0.0, 1.0)), mrH2(i + vec2(1.0)), f.x), f.y);
+}
+
 // Value noise with a lattice periodic in y (period in lattice cells).
 float mrNoiseP(vec2 p, float period) {
   vec2 i = floor(p), f = fract(p);
@@ -163,7 +173,7 @@ float mrNoiseP(vec2 p, float period) {
 // accent and bloom.
 vec3 mrHeat(float T) {
   T = max(T, 0.0);
-  vec3 c = mix(u_secondary * 0.8, u_primary, smoothstep(0.4, 0.92, T));
+  vec3 c = mix(u_secondary * 0.8, u_primary, smoothstep(0.34, 0.86, T));
   c = mix(c, u_accent, smoothstep(1.0, 1.25, T));
   // Only the very hottest matter whitens, and never fully: pale palettes
   // keep their hue.
@@ -557,7 +567,8 @@ bool mrLaunch(int i, out vec3 p0, out vec3 v0, out float tt, out float tf, out f
   float tau = fract(u);
   float id = mod(floor(u), 64.0);
   vec3 hb = mrH3(vec3(fi, id, 3.7) + vec3(gSeedOff, 0.0));
-  float kf = sqrt(max(gForce, 0.05));
+  // Launch speed grows with the eruption, so a young fountain throws low.
+  float kf = sqrt(max(gForce, 0.05)) * mix(0.6, 1.0, gErupt);
   float vy = (big ? mix(8.5, 11.0, hb.x) : mix(5.5, 9.5, hb.x)) * kf;
   float vh = (big ? mix(1.8, 2.8, hb.y) : mix(0.1, 1.1, hb.y)) * kf;
   float ang = TAU * hb.z;
@@ -641,13 +652,17 @@ void main() {
   bool haveP = false;
   float tMax = 75.0;
   bool hit = false;
+  // The governor's ray-step budget (u_raySteps 96 → 64 → 40 under load)
+  // scales the coarse march, the detail iterations and the ash samples.
   int limit = int(min(float(MARCH_CAP), 1.15 * u_raySteps));
+  int detailN = u_raySteps >= 90.0 ? DETAIL_CAP : (u_raySteps >= 60.0 ? 4 : 3);
+  int plumeN = int(clamp(u_raySteps * float(PLUME_STEPS) / 96.0, 8.0, float(PLUME_STEPS)));
   for (int i = 0; i < MARCH_CAP; ++i) {
     if (i >= limit) break;
     vec3 p = ro + rd * t;
     float r = length(p.xz);
     float gap = p.y - mrBound(p.xz);
-    if (gap < 0.004 + 0.0004 * t) { hit = true; break; }
+    if (gap < 0.01 + 0.001 * t) { hit = true; break; }
     if (p.y > 11.5 && rd.y > 0.0) break; // above the caldera wall
     float slope = 0.13 + 2.3 * smoothstep(15.0, 21.0, r);
     tPrev = t;
@@ -673,6 +688,7 @@ void main() {
       vec2 g0 = vec2(mrBase(p0.xz + vec2(0.05, 0.0)) - b0, mrBase(p0.xz + vec2(0.0, 0.05)) - b0) / 0.05;
       float s = a, lo = a, glo = 1.0, hi = -1.0, ghi = 0.0;
       for (int k = 0; k < DETAIL_CAP; ++k) {
+        if (k >= detailN) break;
         vec3 p = ro + rd * s;
         vec2 gh;
         // Fully sunk central plates cannot reach the molten surface:
@@ -711,7 +727,7 @@ void main() {
   // The crust's hot fissures already light a little haze.
   float fieldGlow = 0.32 + 0.45 * gSplit + 0.9 * lakeGlow + 0.6 * gErupt;
   vec3 heat62 = mrHeat(0.62);
-  vec3 hazeCol = heat62 * 0.05 * fieldGlow + u_secondary * 0.006;
+  vec3 hazeCol = heat62 * 0.05 * fieldGlow / (1.0 + 0.6 * fieldGlow) + u_secondary * 0.006;
   float fog = 0.0;
   // Heat front: the tree's fissures are hot up to this arrival; it runs
   // out from the vent to the rim between Crust and Rivers, and back.
@@ -750,14 +766,15 @@ void main() {
     // temperature) and, as the plates split, every seam a little.
     vec2 hB = mrCellData(Pl.cellB).xy;
     float seamId = fract((Pl.hA.x + hB.x) * 13.7 + (Pl.hA.y + hB.y) * 7.3);
-    float net = smoothstep(0.1, 0.42, Pl.river);
+    // The whole braided channel belongs to the tree (its margins too).
+    float net = smoothstep(0.03, 0.3, Pl.river);
     float behind = 1.0 - smoothstep(front - 0.16, front, Pl.arrive);
     float lone = smoothstep(0.86 - 0.1 * gLevel, 0.9 - 0.1 * gLevel, seamId) * (0.45 + 0.55 * breathe);
     float hot = max(net * behind, 0.6 * lone);
     hot = max(hot, mix(0.0, 0.55, smoothstep(0.6, 1.6, gDev)));
     // Gesture x: a crack-propagation flash runs out along the hot tree.
     float pulseA = 1.25 * (1.0 - u_rhythm.x);
-    float ring = u_rhythm.x * exp(-sq((Pl.arrive - pulseA) / 0.07)) * (0.25 + 0.75 * net * behind);
+    float ring = u_rhythm.x * exp(-sq((Pl.arrive - pulseA) / 0.1)) * (0.25 + 0.75 * net * behind);
     // Gesture y: a surge front of fresh lava travels down the channels.
     float surgeA = 1.35 * (1.0 - u_rhythm.y);
     float surge = u_rhythm.y * (0.3 + 0.7 * exp(-sq((Pl.arrive - surgeA) / 0.12)) * net);
@@ -767,7 +784,7 @@ void main() {
     seamT += 0.16 * (breathe - 0.5) * (1.0 - 0.6 * gSplit) * hot;
     // Only a seeded subset of hot cracks flares with any kick.
     float flare = smoothstep(0.72, 0.96, mrPlateId(Pl)) * hot;
-    seamT += 0.22 * ring + 0.1 * surge + 0.12 * kick * flare;
+    seamT += 0.34 * ring + 0.1 * surge + 0.12 * kick * flare;
 
 #ifdef MR_DEBUG
     vec3 dbgT = vec3(0.0);
@@ -783,8 +800,10 @@ void main() {
       // frame (along / across), torn by incandescent seams; the centre
       // runs hotter than the banks.
       float lakeFull = smoothstep(0.75, 0.95, lakeM);
+      // Skins only resolve in channels several footprints wide; narrower
+      // ones take the skin/lava average (n = 0.5, half skinned).
       vec2 fn = vec2(0.5, 0.0);
-      if (lakeFull < 1.0) {
+      if (lakeFull < 1.0 && Pl.width > 3.0 * fp) {
         vec2 fr = mrFrame(x);
         fn = mrFlowNoise(fr.y, fr.x, 11.0);
       }
@@ -792,8 +811,8 @@ void main() {
       // ropy folds, and hot seams where skins tear apart.
       float n = clamp((fn.x - 0.5) * 2.8 + 0.5, 0.0, 1.0);
       float skinAmt = mix(0.35, 1.0, gSplit) * (1.0 - 0.35 * gLevel) * (1.0 - 0.6 * surge);
-      float skin = smoothstep(0.3, 0.52, n) * skinAmt;
-      float tear = (1.0 - smoothstep(0.0, 0.05, abs(n - 0.33))) * skinAmt;
+      float skin = smoothstep(0.4, 0.6, n) * skinAmt;
+      float tear = (1.0 - smoothstep(0.0, 0.05, abs(n - 0.43))) * skinAmt;
       float centre = sqrt(clamp(-Pl.gap / max(Pl.width * 0.8, 1e-3), 0.0, 1.0));
       float T = min(seamT, 0.74) * (0.72 + 0.28 * centre + 0.06 * smoothstep(0.05, 0.2, Pl.width));
       T *= mix(1.04, 0.42 + 0.08 * fn.y, skin);
@@ -804,10 +823,10 @@ void main() {
         // value noise, wider where the fountain tears the crust open.
         float la = TAU * gFlow / 16.0;
         vec2 xr = mat2(cos(la), sin(la), -sin(la), cos(la)) * x;
-        xr += 0.45 * vec2(sin(xr.y * 1.3), sin(xr.x * 1.1 + 1.0));
+        xr += 0.35 * vec2(sin(xr.y * 0.9 + 0.6 * sin(xr.x * 1.7)), sin(xr.x * 0.8 + 1.0 + 0.6 * sin(xr.y * 1.5)));
         float lfp = fp * gS;
-        float c1 = mrNoise(xr * 0.95 + gSeedOff);
-        float c2 = mrNoise(xr * 2.3 + 0.6 * vec2(sin(TAU * gFlow), cos(TAU * gFlow)) + 7.0);
+        float c1 = mrNoiseLin(xr * 1.1 + gSeedOff);
+        float c2 = mrNoiseLin(xr * 2.6 + 0.6 * vec2(sin(TAU * gFlow), cos(TAU * gFlow)) + 7.0);
         float open = exp(-r * r / (2.0 + 3.0 * gErupt));
         float ridge1 = abs(2.0 * c1 - 1.0), ridge2 = abs(2.0 * c2 - 1.0);
         float cw1 = 0.04 + 0.22 * open + 0.04 * gLevel, cw2 = 0.03 + 0.1 * open;
@@ -925,7 +944,7 @@ void main() {
     float glint = pow(max(dot(N, Hs), 0.0), 48.0) * gloss * gloss;
     if (!lava) sheen += seamHeat * glint * 1.6 * exp(-max(Pl.gap, 0.0) * gS / 0.6) * mask;
     float fres = pow(1.0 - max(dot(N, -rd), 0.0), 4.0);
-    vec3 rim = hazeCol * 3.0 * fres * gloss + env * (0.3 + 0.7 * fres);
+    vec3 rim = hazeCol * 2.0 * fres * gloss + env * (0.3 + 0.5 * fres);
     col = albedo * light * ao + emit + (sheen + rim) * ao;
 #ifdef MR_DEBUG
     col = lava ? dbgT : vec3(0.0);
@@ -933,7 +952,7 @@ void main() {
 
     // Distance haze glows faintly with the field's light below it.
     fog = 1.0 - exp(-t * 0.017);
-    col = mix(col, hazeCol + heat62 * 0.05 * fieldGlow * (1.0 - smoothstep(2.0, 9.0, P.y)), fog);
+    col = mix(col, hazeCol + heat62 * 0.05 * fieldGlow / (1.0 + 0.6 * fieldGlow) * (1.0 - smoothstep(2.0, 9.0, P.y)), fog);
   } else {
     t = 80.0;
   }
@@ -1001,10 +1020,11 @@ void main() {
         // Static interleaved-gradient offset over the whole step: fine,
         // evenly spread grain that bloom hides; no temporal flicker.
         float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
-        float ds = (tb - ta) / float(PLUME_STEPS);
+        float ds = (tb - ta) / float(plumeN);
         float trans = 1.0;
         vec3 acc = vec3(0.0);
         for (int k = 0; k < PLUME_STEPS; ++k) {
+          if (k >= plumeN) break;
           float s = ta + ds * (float(k) + ign);
           vec3 p = ro + rd * s;
           float hy = p.y - y0;
@@ -1014,8 +1034,10 @@ void main() {
           float dr = length(p.xz - axis);
           float shape = smoothstep(rad, rad * 0.5, dr) * smoothstep(0.0, 1.2, hy) * (1.0 - smoothstep(11.5, 14.0, hy));
           if (shape <= 0.0) continue;
-          float nRaw = mrBillow(p * (0.95 - 0.4 * umb) + vec3(gSeedOff, 0.0), TAU * gErPh * 0.5);
-          float dens = smoothstep(0.28, 0.82, nRaw) * shape * 2.2 * plumeAmt;
+          float nRaw = mrBillow(p * vec3(0.95 - 0.4 * umb, 0.95, 0.95 - 0.4 * umb) + vec3(gSeedOff, 0.0), TAU * gErPh * 0.5);
+          // A lattice value noise breaks the sines' regular holes.
+          nRaw += 0.22 * (mrNoise(p.xz * 0.7 + vec2(p.y * 0.45, -p.y * 0.3) + gSeedOff) - 0.5);
+          float dens = smoothstep(0.36, 0.8, nRaw) * shape * 3.0 * plumeAmt;
           // Lit from below: the fountain's light decays with height, but
           // the umbrella's underside still catches it; the top stays dark.
           float under = exp(-hy / (4.5 + 2.0 * gForce)) * (0.55 + 0.45 * smoothstep(rad, rad * 0.3, dr))
@@ -1049,9 +1071,9 @@ void main() {
         width *= 1.0 + 0.13 * sin(hy * 39.0 - TAU * gErPh * 3.0 + q.x * 4.0);
         float aa = max(0.035, gPix * cs.y * 1.5);
         float liquid = 1.0 - smoothstep(width - aa, width + aa, cs.x);
-        float core = 1.0 - smoothstep(width * 0.08, width * 0.62, cs.x);
+        float core = 1.0 - smoothstep(width * 0.05, width * 0.4, cs.x);
         float skin = smoothstep(0.53, 0.82, billow);
-        float T = 1.02 - 0.15 * hy + 0.12 * billow - 0.18 * skin;
+        float T = 0.96 - 0.15 * hy + 0.1 * billow - 0.18 * skin;
         add += (mrHeat(T) + mrHeat(1.5 - 0.2 * hy) * core * (0.65 + 0.3 * billow)) * liquid * gErupt;
         add += mrHeat(0.94) * exp(-sq(cs.x / (width * 1.6 + 0.2))) * gErupt * 0.22 * (1.0 - smoothstep(2.1, 2.5, cs.x));
       }
@@ -1142,13 +1164,13 @@ void main() {
       if (length(ro + rd * tb - bb.xyz) > bb.w + 4.0 * max(0.085, gPix * tb * 1.2)) continue;
 #endif
       if (tt >= tf) {
-        // Landing flare: a local splash of heat and a spreading ring.
+        // Landing flare: a local splash of heat that spreads and cools.
         vec3 lp = mrBomb(p0, v0, tf);
         float a = (tt - tf) / FLARE;
         float tq = dot(lp - ro, rd);
         float d = length(ro + rd * tq - lp);
         float sigF = max(0.12 + 0.55 * a, gPix * tq * 1.5);
-        float f = exp(-sq(d / sigF)) * sq(1.0 - a) * 1.4 + exp(-sq((d - 0.6 * a) / max(0.05, gPix * tq * 1.5))) * (1.0 - a) * 0.5;
+        float f = exp(-sq(d / sigF)) * sq(1.0 - a) * 1.6;
         add += mrHeat(1.12 - 0.35 * a) * f * on * step(tq, t + 0.8) * (1.0 + 0.6 * u_rhythm.z);
         continue;
       }
@@ -1187,7 +1209,7 @@ void main() {
   // ------------------------------------------------------------ embers
   // A 3D cell DDA along the ray: each visited cell may hold one ember that
   // rises through it (fading at the cell faces), so no ember ever pops.
-  float emberAmt = (0.25 + 0.75 * smoothstep(0.35, 1.1, dev)) * (0.25 + 0.75 * gEmbers) * (0.15 + 0.85 * level + 0.3 * u_rhythm.z);
+  float emberAmt = smoothstep(0.3, 1.1, dev) * (0.25 + 0.75 * gEmbers) * (0.15 + 0.85 * level + 0.3 * u_rhythm.z);
   if (emberAmt > 0.01) {
     const float CE = 2.2;
     float baseY = gVent.y - 0.9;
@@ -1298,7 +1320,7 @@ export default {
   number: 104,
   name: "Magma Rift",
   description:
-    "A volcanic field raymarched as one continuous world: basalt plates on a Voronoi crust whose exact seams breathe with heat, split into lava rivers with drifting crust skins and embers, and open into a lava lake whose fountain throws glowing ejecta on ballistic arcs under an ash plume lit from below. Colour is temperature on the palette. Energy raises flow, embers, ejecta and breathing.",
+    "A volcanic field raymarched as one continuous world: a seed-only drainage tree picks which seams of a Voronoi basalt crust glow, opens them into braided lava rivers with streaming crust skins and leads them to the vent, which founders into a crusted lava lake. Its fountain throws incandescent spray and ballistic bombs that flare where they land, under an ash umbrella lit from below. Colour is temperature on the palette. Energy raises flow, spray, ejecta and embers.",
   development: "development",
   schema,
   presets,

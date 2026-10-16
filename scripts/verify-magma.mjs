@@ -81,8 +81,10 @@ try {
     });
     assert.equal(initial.glError, 0);
     const row = await lab.page.evaluate(
-      async ({ time }) => {
+      async ({ time, steps }) => {
         const { engine } = window.__phosphorLab;
+        // The governor's ray-step budget (96 → 64 → 40 under load).
+        engine.rayStepBudget = steps;
         const slot = engine.slots.at(-1);
         slot.time = time;
         engine.beat = time * (126 / 60) + 0.5;
@@ -130,7 +132,7 @@ try {
           png: c.toDataURL("image/png").split(",")[1],
         };
       },
-      { time: shot.time ?? 20 },
+      { time: shot.time ?? 20, steps: shot.steps ?? 96 },
     );
     const name = [
       look.replace(/\W+/g, "-").toLowerCase(),
@@ -139,6 +141,7 @@ try {
       `t${shot.time ?? 20}`,
       shot.palette ?? "own",
       `${width}x${height}`,
+      ...(shot.steps ? [`s${shot.steps}`] : []),
     ].join("_");
     await writeFile(
       resolve(out, `${name}.png`),

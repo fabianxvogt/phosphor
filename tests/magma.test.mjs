@@ -208,7 +208,7 @@ test("shader keeps the mirrored ballistic ejecta", () => {
     `const float G_ACC = ${GRAVITY.toFixed(1)};`,
     `const float CYCLE = ${CYCLE_SECONDS.toFixed(1)};`,
     "return p0 + v0 * tt + vec3(0.0, -0.5 * G_ACC * tt * tt, 0.0);",
-    "float kf = sqrt(max(gForce, 0.05));",
+    "float kf = sqrt(max(gForce, 0.05)) * mix(0.6, 1.0, gErupt);",
     "float vy = (big ? mix(8.5, 11.0, hb.x) : mix(5.5, 9.5, hb.x)) * kf;",
     "float vh = (big ? mix(1.8, 2.8, hb.y) : mix(0.1, 1.1, hb.y)) * kf;",
     "tf = (vy + sqrt(vy * vy + 2.0 * G_ACC * 0.35)) / G_ACC;",
@@ -226,7 +226,7 @@ test("shader keeps the mirrored ballistic ejecta", () => {
   assert.ok(flight(vy) + FLARE_SECONDS < CYCLE_SECONDS);
   assert.match(src, /const float FLARE_R = 2\.1;/);
   assert.match(src, /float sigF = max\(0\.12 \+ 0\.55 \* a, gPix \* tq \* 1\.5\);/);
-  assert.ok(3 * (0.12 + 0.55) < 2.1 && 0.6 + 3 * 0.05 < 2.1);
+  assert.ok(3 * (0.12 + 0.55) < 2.1);
   assert.match(src, /if \(tt >= tf\) return vec4\(mrBomb\(p0, v0, tf\), FLARE_R\);/);
 });
 
@@ -419,7 +419,7 @@ test("clocks are the authored products and every use is periodic", () => {
       /TAU \* gErPh|TAU \* \(gErPh \* 8\.0\)|gErPh \+ fract|gErPh \* \(0\.5 \+ floor\(h\.z \* 2\.0\) \* 0\.25\)|speed \* gErPh/,
       use,
     );
-  assert.match(src, /mrBillow\(p \* \(0\.95 - 0\.4 \* umb\) \+ vec3\(gSeedOff, 0\.0\), TAU \* gErPh \* 0\.5\)/);
+  assert.match(src, /mrBillow\(p \* vec3\(0\.95 - 0\.4 \* umb, 0\.95, 0\.95 - 0\.4 \* umb\) \+ vec3\(gSeedOff, 0\.0\), TAU \* gErPh \* 0\.5\)/);
   // Spray lattices move by whole cells per eruption cycle (period 64).
   assert.match(src, /float speed = fall \? -26\.0 : 38\.0;/);
   for (const speed of [-26, 38]) assert.ok(Number.isInteger(64 * speed));
@@ -551,6 +551,14 @@ const onCurve = (c, s) => {
   const L = meander(c.m, s);
   return [c.o[0] + c.d[0] * s - c.d[1] * L, c.o[1] + c.d[1] * s + c.d[0] * L];
 };
+
+test("the governor's ray-step budget scales the march, detail and ash", () => {
+  assert.match(src, /int limit = int\(min\(float\(MARCH_CAP\), 1\.15 \* u_raySteps\)\);/);
+  assert.match(src, /int detailN = u_raySteps >= 90\.0 \? DETAIL_CAP : \(u_raySteps >= 60\.0 \? 4 : 3\);/);
+  assert.match(src, /int plumeN = int\(clamp\(u_raySteps \* float\(PLUME_STEPS\) \/ 96\.0, 8\.0, float\(PLUME_STEPS\)\)\);/);
+  assert.match(src, /if \(k >= detailN\) break;/);
+  assert.match(src, /if \(k >= plumeN\) break;/);
+});
 
 test("one drainage tree: trunks leave the vent, branches leave their trunks", () => {
   for (const line of [
