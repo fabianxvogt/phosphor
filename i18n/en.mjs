@@ -85,6 +85,8 @@ export default {
   "The incident angle breathes gently, steering the physically refracted fan.": "The incident angle breathes gently, steering the physically refracted fan.",
   "Caustic sweep": "Caustic sweep",
   "A wavelength band travels across the existing spectral floor caustics.": "A wavelength band travels across the existing spectral floor caustics.",
+  "Spectral relay": "Spectral relay",
+  "A light packet fires through the prism and its spectral relays, leaving a coloured caustic on the floor.": "A light packet fires through the prism and its spectral relays, leaving a coloured caustic on the floor.",
   "Sleeping spectrum": "Sleeping spectrum",
   "Refracted paths": "Refracted paths",
   "Caustic choir": "Caustic choir",

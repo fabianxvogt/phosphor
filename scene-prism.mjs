@@ -153,7 +153,7 @@ void pose(float id,out vec3 C,out float size,out mat3 Q){
  float dev=clamp(u_params[0],0.,2.),rise=ss(0.,1.,dev),vault=ss(1.,2.,dev);
  float phase=u_clock[0],seed=mod(u_seed,997.)*.0063,ip=seed+id*2.39996323;
  float ang=.08*sin(phase),yaw=.06+.22*sin(phase)+.12*sin(seed);
- if(id<.5){C=vec3(0,1.55+.25*vault,-2.2*vault);size=2.-.35*rise+.45*vault;}
+ if(id<.5){C=vec3(0,1.55+.25*vault,-2.8*vault);size=2.-.35*rise-.05*vault;}
  else{bool upper=id>8.;float growth=upper?vault:rise,side=mod(id,2.)>.5?-1.:1.;
   float bay=upper?floor((id-9.)/2.):floor((id-1.)/2.);
   C=vec3(side*(upper?2.6:mix(2.65,3.05,vault))*u_params[3],upper?4.3+.15*bay:1.05+1.15*vault+.12*sin(ip),(bay-(upper?2.+1.6*vault:1.5+.9*vault))*mix(1.65,2.6,vault))*growth;
@@ -162,11 +162,11 @@ void pose(float id,out vec3 C,out float size,out mat3 Q){
   // an optical rose. Physically traced spectra cross through the nave.
   yaw=atan(-(bay-(upper?2.:1.5))*1.65,side*(upper?2.6:2.65)*u_params[3])+3.1415926536*vault+.08*sin(phase+ip);
   if(upper){float theta=(id-9.)*.6283185307+.06*sin(phase);
-   C=vec3(cos(theta)*2.45*u_params[3],4.25+sin(theta)*2.45,-1.5)*growth;
+   C=vec3(cos(theta)*2.7*u_params[3],4.5+sin(theta)*2.7,-1.5)*growth;
    size=.82*growth;ang=theta+3.48;yaw=.05*sin(phase+ip);}}
  if(id>18.5&&id<22.5){float lens=id-19.,side=mod(lens,2.)>.5?-1.:1.;float g=rise;
-  C=vec3(side*mix(1.75,1.05,vault)*u_params[3],2.15+vault*(floor(lens/2.)<.5?1.05:3.15),mix((floor(lens/2.)-.5)*3.5,-1.2,vault))*g;
-  size=(.65+.04*vault)*g;ang=0.;yaw=(side*.35+.1*sin(phase))*(1.-vault);}
+  C=vec3(side*mix(1.75,2.7,vault)*u_params[3],2.15+vault*(floor(lens/2.)<.5?.1:3.1),mix((floor(lens/2.)-.5)*3.5,-1.7,vault))*g;
+  size=(.65-.16*vault)*g;ang=0.;yaw=(side*.35+.1*sin(phase))*(1.-vault);}
  Q=ry(yaw)*rz(ang);
  if(id>22.5){vec3 stretch;archRod(id,C,stretch,Q);C*=vault;size=vault;}
 }
@@ -174,11 +174,11 @@ void camera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float d=clamp(u_params[0],0.,2.),v=ss(1.,2.,d),a=u_clock[1];
  vec3 target=vec3(1.05,1.15+.7*v,0);
  vec3 exterior=target+normalize(vec3(.35+.18*sin(a),.25+.35*u_params[4]+.035*sin(a*2.),1.))*(7.4+2.*ss(0.,2.,d));
- vec3 entrance=vec3(.35+.65*sin(a),2.35+.4*u_params[4]+.12*sin(a*2.),4.3+1.1*cos(a));
- eye=mix(exterior,entrance,v);target=mix(target,vec3(0,3.3,-5.),v);
+ vec3 entrance=vec3(.25+.42*sin(a),2.65+.4*u_params[4]+.1*sin(a*2.),5.3+.7*cos(a));
+ eye=mix(exterior,entrance,v);target=mix(target,vec3(0,3.8,-4.),v);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0,1,0)));U=cross(R,F);
 }
-float focal(){return mix(2.15,1.22,ss(1.,2.,u_params[0]))*u_params[7]*(1.+.02*u_kick);}
+float focal(){return mix(2.15,1.48,ss(1.,2.,u_params[0]))*u_params[7]*(1.+.02*u_kick);}
 // Same full, non-wrapping gradient as the picture header's palette(t).
 vec3 spectrum(float t){return mix(mix(u_secondary,u_primary,ss(0.,.65,t)),u_accent,ss(.65,1.,t));}
 vec3 tone(float t){return spectrum(t);}
@@ -205,7 +205,7 @@ vec3 floorColor(vec3 p){
  float folds=sin(q.x*3.1+.7*sin(q.y*2.8+u_clock[0]))+sin(q.y*3.7+.6*sin(q.x*2.4-u_clock[0]));
  float footprint=exp(-pow(q.x/(1.7+2.4*vault),4.)-pow(q.y/(1.15+4.*vault),4.));
  float net=exp(-abs(folds)*24.);
- col+=spectrum(ss(-2.,3.,q.x))*(net*.28+.012)*footprint;
+ col+=spectrum(ss(-2.,3.,q.x))*(net*.72+.025)*footprint;
  return col;
 }
 vec3 gallery(vec3 o,vec3 d){
@@ -219,7 +219,7 @@ vec3 gallery(vec3 o,vec3 d){
 }
 vec3 environment(vec3 o,vec3 d){
  vec3 col=u_secondary*(.003+.01*max(d.y,0.))+gallery(o,d);
- vec3 silver=mix(u_secondary,vec3(1),.6),key=mix(u_primary,vec3(1),.7);
+ vec3 silver=mix(u_secondary,vec3(1),.22),key=mix(u_primary,vec3(1),.28);
  // A broad, distant cyclorama stays below the subject's specular strips.
  col+=mix(u_secondary,u_primary,.12)*.04*pow(max(d.y,0.),.5);
  float soft=pow(max(dot(d,normalize(vec3(-.45,.8,1))),0.),22.);
@@ -234,12 +234,12 @@ vec3 environment(vec3 o,vec3 d){
  if(d.z>.02){float t=(6.-o.z)/d.z;vec3 p=o+d*t;
   float card=exp(-pow((p.x+5.)/4.,8.))*exp(-pow((p.y+.3)/2.5,8.));
   float slit=exp(-pow((p.x+5.5)/.13,2.))*exp(-pow((p.y+.3)/3.,8.));
-  col+=silver*card*2.5+key*slit*4.;}
+  col+=silver*card*1.4+key*slit*2.;}
  if(d.y<-.001){float t=-o.y/d.y;col+=floorColor(o+d*t)*exp(-t*.025);}
  return col;
 }
 `;
-const uniforms = `uniform float u_time,u_seed,u_level,u_kick;uniform float u_clock[4];uniform float u_params[8];uniform vec2 u_resolution;uniform vec3 u_primary,u_secondary,u_accent;uniform vec4 u_rhythm,u_rhythmCount;`;
+const uniforms = `uniform float u_time,u_seed,u_level,u_kick;uniform float u_clock[4];uniform float u_params[8];uniform vec2 u_resolution;uniform vec3 u_primary,u_secondary,u_accent;uniform vec4 u_rhythm,u_rhythmCount,u_rhythmHit;`;
 const vertex = `#version 300 es
 precision highp float;
 layout(location=0)in vec3 a_position;layout(location=1)in vec3 a_normal;layout(location=2)in vec4 a_info;
@@ -248,6 +248,9 @@ ${common}
 out vec3 v_world,v_local,v_normal;out vec2 v_uv;out float v_wavelength;flat out float v_visibility;flat out vec4 v_info;flat out vec3 v_center;flat out float v_size;flat out mat3 v_Q;
 void main(){
  float id=a_info.x,kind=a_info.y,segment=a_info.w;
+ // Diffuse scattering is one median-ray sheath, not 41 coincident quads.
+ // Every physical wavelength remains in the exact fan and receiver paths.
+ if(kind==1.&&segment==2.5&&abs(a_info.z-.5)>.001){gl_Position=vec4(0,0,2,1);return;}
  float spectral=a_info.z+(kind==1.&&(segment==2.||segment==5.)&&id<18.5?(a_position.x*.5+.5)/${SPECTRAL_SAMPLES - 1}.:0.);
  float lambda=mix(.38,.78,spectral);v_wavelength=spectral;v_visibility=1.;
  vec3 C;float size;mat3 Q;pose(id,C,size,Q);
@@ -257,7 +260,7 @@ void main(){
  if(kind==7.){float growth=ss(1.,2.,u_params[0]);p=vec3(a_position.x*u_params[3],2.3+(a_position.y-2.3)*u_params[3],a_position.z)*growth;v_normal=a_normal;}
  else if(kind<.5||kind>2.5){p=C+Q*(a_position*objectStretch(id))*size;}
  else{
-  float slope=.34+.025*sin(u_clock[0])+.018*u_rhythm.y;vec3 I=vec3(cos(slope),sin(slope),0),o=-3.*I,en,ex;
+  float slope=.34+.025*sin(u_clock[0])+.042*u_rhythm.y;vec3 I=vec3(cos(slope),sin(slope),0),o=-3.*I,en,ex;
   vec2 h=prismHit(o,I,en,ex);vec3 entry=o+I*h.x,d=refract(I,en,1./glassIndex(lambda));
   vec2 inner=prismHit(entry+d*.0001,d,en,ex);vec3 leave=entry+d*(inner.y+.0001);
   vec3 outgoing=refract(d,-ex,glassIndex(lambda));
@@ -299,7 +302,7 @@ void main(){
    vec3 dir=normalize(finish-start),toEye=normalize(eye-p),side=cross(dir,toEye);
    side=dot(side,side)>1e-8?normalize(side):R;
    float width=max(.007,length(eye-p)*.7/(min(u_resolution.x,u_resolution.y)*focal()));
-   if(segment==2.5)width=.09;
+   if(segment==2.5)width=.12+.1*u_level;
    if(segment<.5)width*=1.6;
    if(!((segment==2.||segment==5.)&&id<18.5))p+=side*a_position.x*width*3.;
   }
@@ -350,15 +353,15 @@ void main(){
   if(kind==3.)m2=abs(1.-length(v_local.xy));
   float footprint=max(fwidth(m2),.001),edge=1.-ss(.003,.013+footprint,m2);
   float key=.3+.7*pow(max(dot(n,normalize(vec3(-.5,.8,1))),0.),2.);
-  col+=mix(u_secondary,vec3(1),.55)*edge*(.35+.85*key);
+  col+=mix(u_secondary,u_primary,.3)*edge*(.14+.5*key);
   float innerBevel=exp(-pow((m2-.038)/.014,2.));
-  col+=mix(u_primary,vec3(1),.6)*innerBevel*.1*(.4+key);
-  col+=tone(.25)*(.012+.024*(1.-mu))*absorb;
+  col+=mix(u_primary,vec3(1),.18)*innerBevel*.12*(.4+key);
+  col+=tone(.15+.55*ss(-.5,1.,v_local.y))*(.025+.055*(1.-mu))*absorb;
   col+=tone(.3)*tir*.1;
   // View-segment integration carries the two internal optical paths
   // through the front face, instead of hiding them behind its depth write.
   if(kind==0.||kind==4.){
-  float slope=.34+.025*sin(u_clock[0])+.018*u_rhythm.y;
+  float slope=.34+.025*sin(u_clock[0])+.042*u_rhythm.y;
   vec3 incident=vec3(cos(slope),sin(slope),0),origin=-3.*incident,entryN,exitN;
   vec2 bounds=prismHit(origin,incident,entryN,exitN);vec3 entry=origin+incident*bounds.x;
   vec3 internal=refract(incident,entryN,1./eta);vec2 span=prismHit(entry+internal*.0001,internal,entryN,exitN);
@@ -368,7 +371,9 @@ void main(){
   vec3 view=normalize(localD);float viewLength=max(h.y,0.)*length(localD);
   float transported=pathGlow(v_local,view,viewLength,entry,leave);
   float ghost=pathGlow(v_local,view,viewLength,leave,next);
-  col+=mix(spectrum(.35),vec3(1),.82)*transported+spectrum(.92)*ghost*.24;
+  float relay=max(u_rhythm.w,u_rhythmHit.w*.65);
+  col+=mix(spectrum(.35),vec3(1),.08)*transported*.6+spectrum(.92)*ghost*.3;
+  col+=u_accent*transported*relay*.65;
   }
   if(kind==3.){
    float r=length(v_local.xy),coating=exp(-pow((r-.87)/.035,2.));
@@ -377,27 +382,46 @@ void main(){
    col+=mix(u_secondary,vec3(1),.35)*coating*.12;
    col+=tone(.25)*(.022+.06*pow(r,4.));
   }
+  if(id>22.5)col*=.24;
   if(kind==4.||kind==6.)col*=.17;
   col+=tone(.2+.4*ss(-.5,.9,v_local.y))*.04*pow(1.-mu,2.);
  }else{
   float population=ss((id-1.)/18.-.12,(id-1.)/18.+.2,.25+.75*u_level);if(id<.5)population=1.;
-  vec3 ink=spectrum(t);float weight=id<.5?1.:id>18.5?.018:.3;
+  vec3 ink=spectrum(t);float weight=id<.5?.85:id>18.5?.018:.25;
   if(id>18.5)population=.5+.5*u_level;
   if(kind<1.5){
    float x=v_uv.x*3.,core=exp(-x*x*2.2),sheath=exp(-x*x*.22)*.12*u_params[6];
    float ends=ss(0.,.12,1.-abs(v_uv.y));
    if(v_info.w<.5){ink=mix(mix(u_primary,u_secondary,.5),vec3(1),.88);weight*=.035;}
-   float address=1.+.65*u_rhythm.x*float(abs(mod(u_rhythmCount.x,19.)-id)<.5);
+   float activePrisms=mix(1.,mix(9.,19.,ss(1.,2.,u_params[0])),ss(0.,1.,u_params[0]));
+   float address=1.+2.2*u_rhythm.x*float(abs(mod(u_rhythmCount.x,floor(activePrisms))-id)<.5);
+   // A finite packet runs along existing Snell-traced segments. Counts
+   // alternate relay cohorts; no geometry or whole-frame light is switched.
+   float relay=max(u_rhythm.w,u_rhythmHit.w*.65);
+   float chosen=step(abs(mod(id+u_rhythmCount.w,3.)),.5);
+   if(id<.5)chosen=1.;
+   float along=v_uv.y*.5+.5;
+   float packet=exp(-pow((along-(1.-u_rhythm.w)*1.12)*6.,2.))*relay;
+   float firing=1.+5.*packet*chosen;
+   ink=mix(ink,mix(u_primary,u_accent,t),.85*packet*chosen);
+   weight*=.72*firing;
    if((v_info.w==2.||v_info.w==5.)&&id<18.5){
     float band=ss(0.,.018,t)*(1.-ss(.982,1.,t));
     float branch=v_info.w==5.?.075:1.;
     col=ink*1.9*ends*weight*population*address*band*branch;
-   }else if(v_info.w==2.5){col=ink*sheath*.22*ends*weight*population;}
+   }else if(v_info.w==2.5){
+    // Forty-one coincident wavelength sheaths must not sum to white.
+    // A relay's scattered tint is palette-bound; its exact fan retains
+    // the complete spectrum. Only the travelling packet lifts this haze.
+    vec3 scattered=spectrum(mod(id,3.)*.5);
+    col=scattered*sheath*3.28*ends*weight*population;
+   }
    else col=ink*(core*1.9+sheath)*ends*weight*population*address;
   }else{
    float transverse=exp(-v_uv.x*v_uv.x*12.),longitudinal=exp(-v_uv.y*v_uv.y*2.5);
    float fringe=.75+.25*cos(v_uv.y*18.+t*4.);
-   float sweep=1.+.6*u_rhythm.z*exp(-pow((t-(1.-u_rhythm.z))*7.,2.));
+   float sweep=1.+3.2*u_rhythm.z*exp(-pow((t-(1.-u_rhythm.z))*5.,2.));
+   sweep+=2.5*u_rhythm.w*exp(-pow((t-(1.-u_rhythm.w))*5.,2.));
    col=ink*transverse*longitudinal*fringe*weight*population*4.*sweep;
   }
  }
@@ -428,40 +452,141 @@ export default {
     { rate: (p) => p[1] * 0.15, period: 2 * Math.PI },
     { rate: (p) => p[5] * 0.035, period: 2 * Math.PI },
   ],
-  rhythmStyles: { restrained: "Sleeping spectrum", driving: "Refracted paths", accented: "Caustic choir" },
+  rhythmStyles: {
+    restrained: "Sleeping spectrum",
+    driving: "Refracted paths",
+    accented: "Caustic choir",
+  },
   rhythm: [
     familyEffect(
       "spectral-address",
       0,
       "Spectral address",
       "One persistent prism receives a bounded pulse along its dispersed rays.",
-      { period: 4, strength: 0.6, duration: 1.5, steps: "X...", styles: {
-        restrained: { steps: "X....... | ......x. | ....X... | ........", division: 2, strength: 0.5, duration: 1.4 },
-        driving: { steps: "X....x.. | ...X..x.", division: 2, strength: 0.76, duration: 0.8 },
-        accented: { steps: "X.......x....... | ...X.......x.... | ......X.......x.", division: 4, strength: 0.9, duration: 0.4 },
-      } },
+      {
+        period: 4,
+        strength: 0.6,
+        duration: 1.5,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | ......x. | ....X... | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 1.4,
+          },
+          driving: {
+            steps: "X....x.. | ...X..x.",
+            division: 2,
+            strength: 0.76,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "X.......x....... | ...X.......x.... | ......X.......x.",
+            division: 4,
+            strength: 0.9,
+            duration: 0.4,
+          },
+        },
+      },
     ),
     familyEffect(
       "snell-breath",
       1,
       "Snell breath",
       "The incident angle breathes gently, steering the physically refracted fan.",
-      { period: 8, strength: 0.6, duration: 2, kind: "motion", steps: "X.......", styles: {
-        restrained: { steps: "...x.... | ........ | .......X | ........", division: 2, strength: 0.5, duration: 1.8 },
-        driving: { steps: "......x. | .......X | ........ | ....X...", division: 2, strength: 0.72, duration: 1.4 },
-        accented: { steps: "...........x.... | ..............X. | .......x........ | ............X...", division: 4, strength: 0.86, duration: 1.1 },
-      } },
+      {
+        period: 8,
+        strength: 0.6,
+        duration: 2,
+        kind: "motion",
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | ........ | .......X | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 1.8,
+          },
+          driving: {
+            steps: "......x. | .......X | ........ | ....X...",
+            division: 2,
+            strength: 0.72,
+            duration: 1.4,
+          },
+          accented: {
+            steps:
+              "...........x.... | ..............X. | .......x........ | ............X...",
+            division: 4,
+            strength: 0.86,
+            duration: 1.1,
+          },
+        },
+      },
     ),
     familyEffect(
       "caustic-sweep",
       2,
       "Caustic sweep",
       "A wavelength band travels across the existing spectral floor caustics.",
-      { period: 16, strength: 0.65, duration: 3, steps: "X...............", styles: {
-        restrained: { steps: ".....x.. | ........ | ..X..... | ........", division: 2, strength: 0.52, duration: 1.6 },
-        driving: { steps: "..X..x.. | .X..x..X", division: 2, strength: 0.78, duration: 0.75 },
-        accented: { steps: "..X..x..X..x | .X..x..X..xx", division: 4, strength: 0.92, duration: 0.18 },
-      } },
+      {
+        period: 16,
+        strength: 0.65,
+        duration: 3,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: ".....x.. | ........ | ..X..... | ........",
+            division: 2,
+            strength: 0.52,
+            duration: 1.6,
+          },
+          driving: {
+            steps: "..X..x.. | .X..x..X",
+            division: 2,
+            strength: 0.78,
+            duration: 0.75,
+          },
+          accented: {
+            steps: "..X..x..X..x | .X..x..X..xx",
+            division: 4,
+            strength: 0.92,
+            duration: 0.18,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "spectral-relay",
+      3,
+      "Spectral relay",
+      "A light packet fires through the prism and its spectral relays, leaving a coloured caustic on the floor.",
+      {
+        period: 8,
+        strength: 0.85,
+        duration: 0.8,
+        steps: "X..x....",
+        styles: {
+          restrained: {
+            steps: "..X..... | .....x..",
+            division: 2,
+            strength: 0.65,
+            duration: 1.2,
+          },
+          driving: {
+            steps: "X..x.X.. | .X.x..X.",
+            division: 2,
+            strength: 0.88,
+            duration: 0.85,
+          },
+          accented: {
+            steps: "X..x..X...x..X.. | ..X..x..X..x..X.",
+            division: 4,
+            strength: 1,
+            duration: 0.42,
+          },
+        },
+      },
     ),
   ],
   fragment,
