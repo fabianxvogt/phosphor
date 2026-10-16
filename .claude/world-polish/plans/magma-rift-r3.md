@@ -15,6 +15,26 @@ A pressure surge tears a hot path outward through black basalt, then climbs the 
 3. Three filmed iterations: break up seam temperature along a seam without changing topology, deepen cool banks and narrow hot cores; roughen plate reflections; vary spray occupancy by height/angle and event count to lose the cone outline. Palette-derived thermal highlights only; no hardcoded orange.
 4. Verify all energies, three palettes, portrait, 43200 s, reverse development. CPU suite, typecheck, i18n, formatter, flash/world rhythm tests. Native 1080p/4K and interleaved main pair. Final standard film + rhythm strip + grids.
 
+## r4
+
+Independent r3 review: L6.5/G8.5/E7.5, Overall 7.0. Worktree was clean; merged main (fast-forward) before work. Priority responses, before implementation:
+
+1. Geological crust: retain seeded Voronoi identity but stop using bright regular bevels as the river. Incise the cached drainage profile directly through rough, chipped slabs; suppress non-channel perimeters, add negative-only physical relief and contact darkening. Keep dark banks, perspective and a few dominant channels.
+2. Heavy ejecta: shorten exact ballistic wakes into tapering discontinuous fragments, reduce circular head halos, vary spray occupancy/height. Keep incandescent yellow heads and saturated pink cooling wakes, not ornamental arcs.
+3. Breakdown focus: expose a recessed, irregular lava channel beneath dark crust lips with local bounce and near/far roughness; preserve darkness rather than raising master illumination.
+4. Environment: introduce overlapping subdued caldera ridges using the terrain field, with localized vent-facing illumination and darker plume cores. Preserve broad terrain perspective.
+5. Pressure cause: reverse the r3 outward wave into a narrow inbound front on the dominant drainage field, then climb the column only after arrival. Separate ordinary spray from the event and leave a cooling tail. Preserve all four gesture IDs, polyrhythms and 2.5/7.75/14.67 grid densities.
+
+At least three change/capture/read/critique rounds, inspecting full-size stills as well as both sheets. No state/look/seed/schema changes, so no saved-world HISTORY migration. Native health, late/aspect/palette/reversal, limiter smoke, CPU/typecheck/i18n/format and performance pair required. Structural shading changes may increase per-pixel cost; shorten ejecta work to compensate. No engine or limiter edits.
+
+### r4 executed / critical film notes
+
+Six iterative films plus final: round 1 removed outlined river tiles and ornamental arcs but exposed flat bright channels; round 2 deepened the channel and broke the spray envelope, yet dimmed the breakdown too far; round 3 restored some rough-light hierarchy but briefly created an annular lake-pressure flash; round 4 fixed the groove floor (it must be below the newly recessed lava) and restricted lake pressure to cracks; round 5 staged denser column occupancy after ground arrival and restored basalt visibility; round 6 tested cheap analytic triangular relief, rejected its obvious regular texture. Final uses angular seeded noise with a shared analytic gradient, not the triangular field. Large ground/eruption stills, both sheets, reverse Ember film, Night Fountain/Glacier, portrait and alternate palettes were read.
+
+Final self-assessed L7, not an independent ≥8 claim. The broad banks and wispy plume remain stylized; incoming ground pressure is subtler than the rising packet. Kept saturated pink/yellow, terrain-wide perspective, dark hierarchy and differentiated presets. Final captures: artifacts/look-review/magma-rift-r4/ including grids.md. No palette, schema, seed, state, look parameter or rhythm-ID changes; no HISTORY migration.
+
+Verification: full suite 1015 pass / 22 skipped / 0 fail; family 25/25; typecheck and native DE/EN pass; formatted owned scene/test/plan/docs, no diff whitespace errors. CATALOG has pre-existing whole-table formatting debt; only owned row changed. 33 final native health shots: energies, four alternate palettes, portrait and 12h, zero GL/non-finite errors; wrap check reports zero seams/errors. Live limiter-enabled smoke 200 measured frames, 16.7/16.8 ms p50/p95, 19 live/allocated textures. Native absolute p50/p95 by Crust/Rivers/Eruption: 1080p 9.0/11.2, 9.8/11.1, 8.7/9.5 ms; 4K 35.1/38.0, 34.2/36.9, 31.1/36.3 ms. Both budgets fail. Final ABBA vs main 1ef13ce: 1080p +33.3/+17.6/+1.3%, 4K +27.8/+19.0/+2.6%. Physical incision/relief regresses ground-state cost, honestly unresolved; no engine workaround. Sampled caldera maximum height/gradient 10.78/3.05, inside 11.5/4.13 march allowances (empirical, not a proof).
+
 ## Cost and invariants
 
 No engine changes, no limiter changes, no previews. Preserve state/look names, seeds, schemas, plate identity and existing clocks; no HISTORY needed unless definitions change. Reuse existing shader fields; no new raymarch or data pass. Existing 4K is over budget; report measured results, not projected performance. Record attribution as actual model openai-codex/gpt-6.1-sol (night continuation overrides obsolete requested co-author model).
