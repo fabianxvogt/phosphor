@@ -175,6 +175,46 @@ try {
     resolve(out, "reversal.json"),
     JSON.stringify(reversal, null, 2),
   );
+  // Separate live presentation check: the deterministic sheets deliberately
+  // disable approval, so exercise the unchanged asynchronous limiter here.
+  await lab.page.evaluate(renderLook, {
+    sceneId: "ferro",
+    index: 2,
+    level: 0.85,
+    width: 1920,
+    height: 1080,
+    frames: 2,
+    capture: false,
+    pollHealth: false,
+  });
+  const live = await lab.page.evaluate(async () => {
+    const { engine } = window.__phosphorLab;
+    engine.options.flashLimit = true;
+    for (let i = 0; i < 240; i++) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      engine.beat = ((i / 60) * 126) / 60;
+      engine.advance(1 / 60, false);
+      engine.present();
+    }
+    return {
+      frames: 240,
+      enabled: engine.options.flashLimit,
+      exempt: engine.flashExempt,
+      approved: engine.pipeline.displayValid,
+      limited: engine.counters.flashLimited,
+      glError: engine.gl.getError(),
+      nonFinite: engine.counters.nonFinite + window.__harness.nonFiniteUploads,
+    };
+  });
+  assert.equal(live.enabled, true);
+  assert.ok(!live.exempt);
+  assert.equal(live.approved, true);
+  assert.equal(live.glError, 0);
+  assert.equal(live.nonFinite, 0);
+  await writeFile(
+    resolve(out, "limiter-live.json"),
+    JSON.stringify(live, null, 2),
+  );
   for (const [name, index, width, height] of [
     ["pool-portrait", 0, 540, 960],
     ["crown-portrait", 1, 540, 960],

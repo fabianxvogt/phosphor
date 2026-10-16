@@ -30,9 +30,13 @@ function hex(p) {
   return length(a) < length(b) ? a : b;
 }
 function profile(q, lift, level = 0.5, strike = 0, poleAngle = 0) {
-  const n = q.map((x) => x / Math.max(length(q), 0.00001));
-  const chart = [n[0], n[2]].map(
-    (x) => x / (1 + Math.sqrt(n[1] * n[1] + 0.025)),
+  const chart = [q[0], q[2]].map(
+    (x, i) =>
+      x -
+      [Math.cos(poleAngle), Math.sin(poleAngle)][i] *
+        strike *
+        Math.max(q[1], 0) *
+        0.38,
   );
   const grid = chart.map((x, i) => (x + [0.031, -0.017][i]) / FERRO_SPACING);
   const cell = hex(grid);
@@ -45,20 +49,12 @@ function profile(q, lift, level = 0.5, strike = 0, poleAngle = 0) {
     peak *
     peak *
     mix(0.12, 1, population) *
-    mix(smooth(-0.1, 0.3, n[1]), 1, lift) *
-    (1 +
-      strike *
-        (0.25 +
-          0.75 *
-            smooth(
-              -0.35,
-              0.6,
-              n[0] * Math.cos(poleAngle) + n[2] * Math.sin(poleAngle),
-            )))
+    (1 - smooth(1.42, 1.84, Math.hypot(q[0], q[2]))) *
+    (1 + 0.4 * strike)
   );
 }
-// Mirror of the carrier and signed-distance estimate. Fixed time/seed,
-// no identity parameter ever depends on development.
+// Mirror of the grounded height surface and signed-distance estimate.
+// Fixed time/seed; no lattice identity depends on development.
 function field(
   p,
   dev,
@@ -69,41 +65,35 @@ function field(
 ) {
   const form = smooth(0, 1, dev),
     lift = smooth(1, 2, dev);
-  const radii = [1.9, 0.24 + 0.018 * Math.sin(phase), 1.9].map((x, i) =>
-    mix(x, [1.1, 1, 0.92][i], lift),
-  );
-  radii[1] *= 1 + 0.025 * level * Math.sin(phase * 2);
-  const centre = [0, 0.23 + 1.25 * lift + 0.035 * Math.sin(phase) * lift, 0];
   const angle = 0.15 * Math.sin(phase) + (seed % 997) * 0.0063;
-  const q = p.map((x, i) => x - centre[i]);
+  const q = [...p];
   // GLSL rot2 has columns (c,-s),(s,c).
   [q[0], q[2]] = [
     Math.cos(angle) * q[0] + Math.sin(angle) * q[2],
     -Math.sin(angle) * q[0] + Math.cos(angle) * q[2],
   ];
-  const v = q.map((x, i) => x / radii[i]);
-  const k0 = length(v),
-    k1 = length(q.map((x, i) => x / (radii[i] * radii[i])));
-  const estimate = (k0 * (k0 - 1)) / Math.max(k1, 0.0001);
-  const body = mix(
-    -Math.min(radii[0], radii[1]),
-    estimate,
-    smooth(0.15, 0.5, k0),
-  );
-  const shell = smooth(0.3, 0.8, k0);
-  const amp = form * (0.25 + 0.16 * lift) * fieldStrength;
-  const displacement = amp > 0.00001 ? amp * profile(v, lift, level) : 0;
-  const rippleAmp = (1 - form) * 0.006;
   const r = Math.hypot(q[0], q[2]);
+  const lensBase = Math.max(0, 1 - (r * r) / 3.61);
+  const lens = 0.1 * lensBase * Math.sqrt(lensBase);
+  const mound =
+    0.54 * lift * Math.exp((-r * r) / 1.35) * (1 - smooth(1.5, 1.9, r));
+  const amp =
+    form * (0.25 + 0.18 * lift) * fieldStrength * (0.65 + 0.45 * level);
+  const peaks = amp > 0.00001 ? amp * profile(q, lift, level) : 0;
   const ripple =
-    rippleAmp > 0.00001
-      ? rippleAmp *
-        Math.sin(17 * r - 2 * phase) *
-        Math.exp(-0.45 * r * r) *
-        smooth(0, 0.22, r) *
-        smooth(0, 0.35, v[1])
-      : 0;
-  return Math.max(body - (displacement + ripple) * shell, -p[1] - 0.003);
+    (1 - 0.8 * form) *
+    0.006 *
+    Math.sin(17 * r - 2 * phase) *
+    Math.exp(-0.45 * r * r) *
+    smooth(0, 0.22, r) *
+    (1 - smooth(1.5, 1.9, r));
+  return Math.max(
+    Math.max(
+      (p[1] - lens - mound - peaks - ripple) * mix(0.85, 0.35, form),
+      r - 1.9,
+    ),
+    -p[1] - 0.003,
+  );
 }
 
 test("critical Rosensweig wavelength minimizes the capillary/gravity threshold", () => {
@@ -181,19 +171,19 @@ test("the shader remains pinned to the tested chart, lattice, profile and carrie
     "vec2 a = p - period * floor(p / period + 0.5);",
     "vec2 b = p - period * (floor(p / period) + 0.5);",
     "return dot(a, a) < dot(b, b) ? a : b;",
-    "vec2 chart = n.xz / (1.0 + sqrt(n.y * n.y + 0.025));",
+    "vec2 chart = q.xz - gPole * gStrike * max(q.y, 0.0) * 0.38;",
     "vec2 grid = (chart + vec2(0.031, -0.017)) / 0.28;",
     "vec2 site = grid - local;",
     "float cohort = fract(dot(site, vec2(0.754877666, 0.569840296)));",
     "float population = smoothstep(cohort - 0.14, cohort + 0.14, 0.2 + 0.8 * u_level);",
     "float peak = max(0.0, 1.0 - length(local) * 0.28 / 0.139);",
     "float spikes = peak * peak * mix(0.12, 1.0, population);",
-    "float body = k0 * (k0 - 1.0) / max(k1, 0.0001);",
-    "body = mix(-min(gRadii.x, gRadii.y), body, smoothstep(0.15, 0.5, k0));",
-    "float shell = smoothstep(0.3, 0.8, k0);",
-    "float displacement = gAmp > 0.00001 ? gAmp * ferroProfile(v) : 0.0;",
-    "return max(body - (displacement + ripple) * shell, -p.y - 0.003);",
-    "ripple = gRipple * sin(17.0 * r - 2.0 * gPhase) *",
+    "float lens = 0.10 * lensBase * sqrt(lensBase);",
+    "float mound = 0.54 * gLift * exp(-r * r / 1.35) * (1.0 - smoothstep(1.5, 1.9, r));",
+    "float peaks = gAmp > 0.00001 ? gAmp * ferroProfile(q) : 0.0;",
+    "float safety = mix(0.85, 0.35, gForm);",
+    "return max(max((p.y - height) * safety, r - 1.9), -p.y - 0.003);",
+    "float height = lens + mound + peaks + ripple;",
   ])
     assert.ok(ferro.fragment.includes(source), source);
   const chartSource = ferro.fragment.slice(
@@ -230,14 +220,14 @@ test("the exact field is finite and continuous through the entire development, i
         Math.abs(field(p, boundary + 1e-6) - field(p, boundary - 1e-6)) < 1e-8,
       );
   }
-  // The equator is C1, not merely C0: mirrored hemispheres have zero
-  // chart slope at the join, so the conductor normal cannot flip there.
-  for (let a = 0; a < TAU; a += 0.1) {
-    const at = (y) => profile([Math.cos(a), y, Math.sin(a)], 1);
-    assert.ok(Math.abs(at(1e-8) - at(-1e-8)) < 1e-10);
-    const h = 1e-6;
-    assert.ok(Math.abs((at(h) - at(0)) / h - (at(0) - at(-h)) / h) < 0.001);
-  }
+  // Every development remains connected to the pool, not a floating ball.
+  for (const dev of [0, 0.25, 0.75, 1, 1.5, 2])
+    for (const x of [-1.4, -0.7, 0, 0.7, 1.4])
+      assert.ok(field([x, 0, 0], dev) < 0);
+  // The lens reaches the puddle tangentially rather than a hard rim wall.
+  const lens = (r) => 0.1 * Math.max(0, 1 - (r * r) / 3.61) ** 1.5;
+  assert.equal(lens(1.9), 0);
+  assert.ok(lens(1.9 - 1e-6) / 1e-6 < 0.001);
 });
 
 test("energy grows persistent lattice sites continuously without retiming the chart", () => {
@@ -299,7 +289,7 @@ test("overshot estimator hits are bracketed before shading, including strong-fie
 
 test("carrier camera bounds, kick and persistent droplets stay bounded", () => {
   // Bound includes maximum spikes, ripples and camera-target offset.
-  assert.ok(7.1 - 0.4 > 1.9 + 0.75 + 0.04 + 1.85 * 0.15);
+  assert.ok(6.4 - 0.5 > 1.9 + 1.6 + 0.04);
   assert.match(ferro.fragment, /1\.0 \+ 0\.022 \* u_kick/);
   assert.match(
     ferro.fragment,
@@ -308,14 +298,14 @@ test("carrier camera bounds, kick and persistent droplets stay bounded", () => {
   assert.match(ferro.fragment, /id \* 2\.39996323 \+ gPhase \+ seedAngle/);
   assert.deepEqual(
     ferro.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16, 16],
+    [4, 8, 16, 32],
   );
   for (const channel of ["x", "y", "z", "w"])
     assert.ok(ferro.fragment.includes(`u_rhythm.${channel}`));
 });
 
 test("dark conductor uses graduated reflection windows and fits the shallow crown in portrait", () => {
-  // Light-card angular area must stay sparse even with the widest preset.
+  // Discrete softbox cards leave dark gaps even in the widest preset.
   // Rectangular solid angle on the unit sphere: 4 atan(wh/sqrt(1+w²+h²)).
   const solidAngle = (w, h) =>
     4 * Math.atan((w * h) / Math.sqrt(1 + w * w + h * h));
@@ -323,13 +313,14 @@ test("dark conductor uses graduated reflection windows and fits the shallow crow
   const coverage =
     [
       [0.72, 0.25],
+      [0.7, 0.12],
       [0.12 * widest, 1.15],
+      [0.2 * widest, 0.85],
       [1.1, 0.075 * widest],
-      [0.045 * widest, 1.4],
-      [0.018 * widest, 0.6],
+      [0.11 * widest, 1.4],
     ].reduce((s, [w, h]) => s + solidAngle(w, h), 0) /
     (4 * Math.PI);
-  assert.ok(coverage > 0.05 && coverage < 0.15, `${coverage}`);
+  assert.ok(coverage > 0.1 && coverage < 0.25, `${coverage}`);
   assert.match(ferro.fragment, /0\.025 \+ 0\.10 \* smoothstep/);
   assert.match(ferro.fragment, /window \* mullion/);
   assert.match(ferro.fragment, /silver \* 0\.62 \* exp/);
@@ -351,11 +342,16 @@ test("magnetic strike is slot 3, bounded to fixed sites, and every preset is ful
   assert.equal(strike.slot, 3);
   for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
     assert.ok(ferro.fragment.includes(uniform));
-  assert.match(ferro.fragment, /gAmp \* \(1\.0 \+ gStrike\) \+ gRipple/);
   assert.match(
     ferro.fragment,
-    /return spikes \* upper \* \(1\.0 \+ gStrike \* pole\)/,
+    /gAmp \* \(1\.0 \+ 0\.40 \* max\(gStrike, 0\.0\)\)/,
   );
+  assert.match(
+    ferro.fragment,
+    /return spikes \* edge \* \(1\.0 \+ 0\.40 \* gStrike\)/,
+  );
+  assert.match(ferro.fragment, /mod\(u_rhythmCount\.w, 2\.0\) \* 3\.141592654/);
+  assert.match(ferro.fragment, /gWave = 1\.15 \+ 1\.50 \* \(1\.0 - event\)/);
   const names = ["Still mercury", "Magnetic breath", "Chrome resonance"];
   for (const [index, style] of [
     "restrained",
@@ -392,15 +388,37 @@ test("magnetic strike is slot 3, bounded to fixed sites, and every preset is ful
     );
   }
   for (let a = 0; a < TAU; a += 0.11) {
-    const p = [Math.cos(a), 0.45, Math.sin(a)];
-    const base = profile(p, 1, 0.85);
+    // At the foot the shear is zero and every pole gives exactly +40%.
+    const foot = [Math.cos(a), 0, Math.sin(a)];
+    const base = profile(foot, 1, 0.85);
     for (const pole of [0, TAU / 4, TAU / 2, (3 * TAU) / 4]) {
-      const top = profile(p, 1, 0.85, 0.85, pole);
-      assert.ok(top >= base && top <= base * 1.85 + 1e-12);
-      assert.equal(profile(p, 1, 0.85, 0, pole), base);
-      assert.ok(Math.abs(profile(p, 1, 0.85, 1e-6, pole) - base) < 1e-6);
+      const top = profile(foot, 1, 0.85, 1, pole);
+      assert.ok(Math.abs(top - base * 1.4) < 1e-12);
+      assert.equal(profile(foot, 1, 0.85, 0, pole), base);
+      assert.ok(Math.abs(profile(foot, 1, 0.85, 1e-6, pole) - base) < 1e-6);
     }
   }
+});
+
+test("strike settles with overshoot and its pressure front moves outward", () => {
+  const impulse = (e) => e * (1 - 1.3 * Math.exp(-(((e - 0.16) / 0.09) ** 2)));
+  assert.ok(impulse(1) > 0.999);
+  assert.ok(impulse(0.16) < 0);
+  assert.equal(impulse(0), 0);
+  let previous = 0;
+  for (let e = 1; e >= 0; e -= 0.01) {
+    const wave = 1.15 + 1.5 * (1 - e);
+    assert.ok(wave >= previous);
+    previous = wave;
+    assert.ok(impulse(e) >= -0.06 && impulse(e) <= 1);
+  }
+  const accented = defaultPattern(ferro.rhythm, "accented");
+  const beats = (id) => {
+    const track = accented.tracks.find((t) => t.effect === id);
+    return track.length / track.division;
+  };
+  assert.equal(beats("spike-swell"), 12);
+  assert.equal(beats("droplet-orbit"), 16);
 });
 
 test("rate clocks stay periodic and continuous at 3600 seconds and 12 hours", () => {

@@ -1,90 +1,76 @@
 # Liquid Chrome · Flüssiges Chrom
 
-World `liquid-chrome`, renderer `ferro`, family **101**. A mirror pool develops a magnetic crown, then lifts into a floating liquid-metal sculpture. Eight saved looks, all schema keys, seeds, state names and rhythm IDs are preserved. The three world states retain seed 10101 and identical non-development parameters.
+World `liquid-chrome`, family `ferro` **101**. One mercury lens grows a dense magnetic crown rooted in its mirror puddle. Eight preset names/seeds, schema keys, state names and four rhythm IDs remain stable. The former floating-sphere description is retained in `worlds.mjs` HISTORY so untouched saved sets upgrade.
 
-## Mathematics and identity
+## Model and continuity
 
-The Rosensweig instability's capillary/gravity wavelength is
-`λc = 2π √(σ / (ρg))`. With σ = 0.028 N/m, ρ = 1210 kg/m³ and g = 9.81 m/s², λc = **9.650097 mm**. The material chart uses spacing 0.28, equivalent to 0.034464633 m/unit. This is an instability-inspired geometric model, not magnetohydrodynamics.
+Rosensweig's critical wavelength is `λc = 2π √(σ/(ρg))`: **9.650097 mm** for σ = 0.028 N/m, ρ = 1210 kg/m³, g = 9.81 m/s². Fixed lattice spacing 0.28 corresponds to 0.034464633 m/unit. This is an instability-inspired analytic surface, not magnetohydrodynamics or mass-conserving fluid simulation.
 
-The triangular lattice is the nearer of two rectangular cosets with period `(a, √3a)` and a half-period offset. Each site has six neighbours at 60°. Carrier directions map through `n.xz / (1 + √(n.y² + 0.025))`: a C1 equatorial fold rather than an `abs(y)` normal crease. It retains mirrored hemispheres and is not globally geodesic.
+The triangular lattice is the nearer of two rectangular cosets, period `(a, √3a)`, offset half a period. Six neighbours meet at 60°. Unlike r3's stereographic ball chart, r4 samples **world-space xz**: roughly 130–160 peaks rise vertically from one continuous liquid lens. A seed-derived rotation preserves all sites through development and reversal. The squared conical profile has rounded shoulders, sharp tips and a smooth radial population taper; it is not a collection of separate cone meshes.
 
-The squared conical profile `max(0, 1 − distance/0.139)²` has fixed site identities. A deterministic site cohort controls energy-dependent population: dormant peaks grow continuously from 12% to full height, never sliding or reseeding. Development grows the crown and deforms its regularized ellipsoid carrier from a shallow pool to a slightly elongated body `(1.10, 1.0, 0.92)`. Seven persistent analytic satellite spheres grow out of the same lifted body on closed orbits.
+Height combines a tangent-edged lens `0.10·max(0,1−r²/3.61)^1.5`, a development-grown central mound, lattice peaks and small pressure ripples. The base remains joined to y=0 at every development. A deterministic fixed-site cohort controls energy population; dormant sites grow continuously, never slide or reseed. Energy additionally changes peak height, fluid/orbit speed and droplet size, not exposure.
 
-## Round-3 look work
+| State / look         | Character                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| Pool / Spiegel       | Rippled mercury lens, reflected studio strips, a quiet breakdown composition                    |
+| Crown / Krone        | Smaller peaks awaken across the fixed hexagonal lattice                                         |
+| Sculpture / Skulptur | Dense, taller magnetic crown and seven orbiting chrome satellites, still attached to the puddle |
+| Obsidian Lens        | Higher view, broad reflections, quieter motion                                                  |
+| Needle Garden        | Strong field, higher view, narrower strips                                                      |
+| Mercury Moon         | Lower view, softer peaks, larger satellites                                                     |
+| Black Magnet         | Intermediate crown, narrow strips, faster fluid phase                                           |
+| Silver Orbit         | Strong field, higher view, broad reflections and large satellites                               |
 
-The independent baseline was **L 3.5 / overall 3.0**, not the earlier self-rating of 8.7. Before and three filmed iterations were opened and critiqued. The main problem was underlit chrome appearing as disconnected green outlines on black.
+The first three presets retain seed 10101 and identical non-development parameters. No identity or simulation state resets during a sweep, hold or reversal.
 
-- A graduated silver reflection window, dark mullions and a continuous silver horizon now reveal curved valleys between the narrow palette strips. These are **reflected environment radiance**, not Lambertian paint or emissive contours. Conductor F0 remains 0.88.
-- The environment retains black gaps; accent stays on a narrow strip and selected tip reflections. Neutral silver mixes are palette/white only, with no fixed RGB lighting.
-- One near-field SDF visibility probe and a cheap carrier-normal environment bounce darken valleys. The duplicate far probe was removed.
-- The mirror basin retains a real SDF reflection, now stronger, with soft spatial floor illumination and a broad dim edge instead of a bright hairline ellipse.
-- Top-state focal length grows to 2.30 rather than 2.05; the moving camera remains radius 7.1, stable, continuous and outside all bounded geometry. The portrait fit is unchanged. Kick focal punch remains **2.2%**.
+## r4 response to independent review
 
-## States and looks
+The r3 review scored **L 6 / G 7.5 / E 6 / overall 6**. The principal failures were empty framing, lime-painted reflections, a floating sea urchin, weak strikes and wire-like reflections. Three filmed iterations plus final refinement were opened and critiqued, rather than trusting the earlier lane's self-rating.
 
-| English       | German           | Development / character                                                   |
-| ------------- | ---------------- | ------------------------------------------------------------------------- |
-| Pool          | Spiegel          | 0 · broad liquid lens with moving studio reflections and pressure ripples |
-| Crown         | Krone            | 1 · energy-populated hexagonal magnetic peaks                             |
-| Sculpture     | Skulptur         | 2 · lifted asymmetric chrome body and orbiting droplets                   |
-| Obsidian Lens | Obsidianlinse    | 0.25 · high camera, broad strips, quiet motion                            |
-| Needle Garden | Nadelgarten      | 1 · strong field, high camera, narrow strips                              |
-| Mercury Moon  | Quecksilbermond  | 2 · low view, softer peaks, large satellites                              |
-| Black Magnet  | Schwarzer Magnet | 1.45 · partially lifted crown, narrow strips                              |
-| Silver Orbit  | Silberumlauf     | 2 · strong peaks, high camera, broad strips                               |
+- A closer oblique camera fills the frame without clipping the pool. Continuous off-axis framing and two near droplets add parallax and scale. The Pool view is higher; the top view lowers gently to expose the spike silhouette and real mirror reflection. There are no camera cuts. Focal kick remains **2.2%**.
+- A dim palette-secondary studio gradient supplies depth without making the background bright. Primary/secondary-tinted silver softboxes, dark mullions and upper/lower reflected horizons describe every peak. No coloured diffuse material is added.
+- Broad lime cards and the narrow magenta wire-card are gone. The palette-primary pressure front is local and varies around the pool like a reflected light arc, rather than a uniform neon halo. Accent is not used as a broad fill.
+- A tangential lens edge and soft basin Fresnel region replace the hard illustrated rim. One true SDF mirror bounce preserves reflected peaks below the connected body. Near-field visibility plus a cheap neighbour reflection darken valleys.
+- The peak is a dense grounded lattice, not a radially spiked sphere. Both count and height vary clearly between energy 0.1 and 0.9.
 
-No preset or world-definition migration is required: saved definitions are unchanged; only the renderer and additive fourth gesture changed.
+## Rhythm
 
-## Energy and rhythm
+The existing **Spike swell** grows needles (and Pool ripples), **Field breath** raises the same crown, and **Droplet orbit** moves the seven persistent satellites outward. Two extra near droplets remain present during the breakdown.
 
-Energy changes the fixed-site population, fluid speed ×0.7–1.35, orbit speed ×0.8–1.3, body breathing and satellite size, **not lighting gain**. Low audio perturbs field by at most 0.07 of its parameter range.
+### Slot 3 — Magnetic strike · Magnetschlag
 
-Existing gestures are stronger: **Spike swell** adds up to 38% peak amplitude plus pool ripples; **Field breath** adds up to 12% vertical stretch; **Droplet orbit** moves satellites outward by at most 0.45 world units. Authored strengths remain bounded, and structural tracks never exceed two hits per bar.
+`magnetic-strike` reads envelope `u_rhythm.w`, newly crossed hit `u_rhythmHit.w`, and count `u_rhythmCount.w`. Its bounded signed impulse raises peak height by **up to 40%**, then passes through a small negative settling overshoot. Count alternates two poles by π. Height-dependent shear leans tips toward the active pole while every foot remains anchored in the liquid. At zero envelope the exact resting surface returns; changing the count while silent does not deform geometry.
 
-### Slot 3: Magnetic strike · Magnetschlag
+During decay the pressure front travels from radius **1.15 to 2.65** across the lens and exposed puddle. It bends the actual height surface and adds a soft reflected arc outside the crown. Kick FOV does not carry the gesture. No event depends on development, no full-screen white, and the shared flash limiter is unchanged.
 
-`magnetic-strike` reads `u_rhythm.w`, `u_rhythmHit.w` and `u_rhythmCount.w`. The smooth envelope lifts the same lattice sites toward one of four alternating magnetic poles. Maximum local growth is +85%; the other hemisphere receives a smaller response. The hit floor preserves a newly delivered strike after a lost render frame without replaying history. Pole selection only changes between completed envelopes. At zero envelope the exact original surface returns.
+| Preset           | Strike loop (one-based sixteenths)                                                                              | Family hits/bar |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- | --------------- |
+| Still mercury    | Two bars: 1 / 27; long settling spaces, extra offbeat Pool swells                                               | **3.0**         |
+| Magnetic breath  | Two bars: 1 / 4 / 7 / 9 / 11 / 14 / 17 / 20 / 23 / 25 / 28 / 31; syncopated pushes rather than straight eighths | **9.5**         |
+| Chrome resonance | Two bars: 1 / 4 / 7 / 9 / 11 / 15 / 17 / 19 / 22 / 25 / 28 / 31                                                 | **10.0**        |
 
-The same event bends Pool reflections and sends a local palette-coloured pressure ring across the basin. No full-screen flash, scene reset or additional ray trace is introduced. The expanded estimator bound includes the maximum event displacement. All host presentation remains behind the unchanged shared flash limiter.
+All four gestures retain independently authored restrained/driving/accented loops. The accented 12-beat swell against 16-beat satellites remains intact. Every strike envelope settles before its next authored event. DE/EN signature labels/descriptions remain available; the revised world description adds translations without removing old saved-description keys.
 
-| Preset               | Signature loop                                                                                | All-track density |
-| -------------------- | --------------------------------------------------------------------------------------------- | ----------------- |
-| **Still mercury**    | Two-bar sixteenth loop, steps 1 and 27; strength 0.60, duration 0.8 beats                     | 2.5 hits/bar      |
-| **Magnetic breath**  | Two-bar eighth loop, steps 1/3/5/7/9/11/14/15; strength 0.90, duration 0.42 beats             | 7.5 hits/bar      |
-| **Chrome resonance** | Two-bar sixteenth loop, steps 1/4/7/9/11/15/17/19/22/25/28/31; strength 1, duration 0.4 beats | 10 hits/bar       |
+## Time, cost and verification
 
-Step numbers are one-based. Separate slower swell, breathing and satellite phrases cross these figures. Each of the four gestures has an independently authored restrained/driving/accented loop and DE/EN text.
+Three integrated 2π clocks preserve fluid phase, camera orbit and studio motion at 3600/43200 s. Their uses are periodic. Rendering uses one full-resolution primary ray, tight slab rejection, the engine's `u_raySteps` governor, tetrahedral normals, seven bisections for negative overshoots and one bounded mirror bounce. There is no reduced-resolution colour cache. The almost-flat Pool skips the lattice calculation and uses a less conservative distance step.
 
-## Endlessness and cost
+Native Chrome / ANGLE Metal / Apple M3 Pro, synchronous whole-frame throughput including post, 30 samples per state:
 
-Three 2π engine clocks integrate fluid phase, camera azimuth and studio orbit. All uses are periodic harmonics; authored time products remain in the first-hour branch and late programs use integrated phases. Development/reversal never resets the slot or identity.
+| State     | 1080p p50/p95 | Final 4K p50/p95 | Interleaved 1080p pair p50 vs main |
+| --------- | ------------- | ---------------- | ---------------------------------- |
+| Pool      | 2.7 / 3.6 ms  | 8.1 / 9.1 ms     | +17.4%                             |
+| Crown     | 4.2 / 5.9 ms  | 14.3 / 14.6 ms   | +8.6%                              |
+| Sculpture | 5.1 / 6.3 ms  | 15.8 / 16.1 ms   | −2.3%                              |
 
-The primary estimator has a constant cap of 128 and honours `u_raySteps`. Conservative ellipsoid bounds reject empty rays. Negative overshoots receive seven bisections before normals. One full-resolution primary ray, pixel-scaled tetrahedral normals and angularly filtered reflection cards avoid temporal noise or reduced-resolution colour rendering.
+Absolute median budgets pass in the final run. A heavily contended earlier 4K run measured **21.9 / 20.6 / 22.9 ms p50**; it is retained, not discarded. The final pair's +5% relative gate **fails for Pool and Crown**. Do not claim venue cadence or independent aesthetic acceptance from these probes.
 
-Apple M3 Pro / Chrome / ANGLE Metal, 30 synchronous whole-frame samples including post. Fleet contention varies; these are not venue-cadence qualifications.
+- Full `npm test`: **995 pass, 21 opt-in skips, zero failures**. Targeted family/world-rhythm/flash suite: **51/51**. Typecheck, build and native DE/EN i18n pass. Scene/tests/verifier/family-doc/plan formatting passes. Five shared files still warn; the same five warnings were reproduced on main's sources, so unrelated rows/dictionary entries were not reformatted.
+- CPU references cover physical wavelength, exact hex neighbours, grounded field, 401-point forward/reverse continuity, energy population, bisection, anchored strike growth, negative settling tail, outward pressure front and 3:4 polyrhythm. Presets and density floors validate.
+- Native verifier: **162 late-time cases**, **162 same-slot reversal frames**, three palettes × three energies, portrait states and 4K; zero GL/non-finite errors. Separate **240-frame 1080p limiter-enabled** run: non-exempt, approval active, no limited frames or GPU errors.
+- Review film rounds: `artifacts/look-review/liquid-chrome-r4-round{1,2,3}/`. Final still/film/rhythm/grids: **`artifacts/look-review/liquid-chrome-r4/`**.
+- Energy/portrait/late/live evidence: `artifacts/films/ferro-r4-verification/`. Final profiles: `artifacts/performance/ferro-r4-final-{1080,4k,pair}/`; earlier contended/repeat probes remain alongside them.
 
-| State     | 1080p p50 / p95 | 4K p50 / p95   | 1080p ABBA pair p50 delta vs main |
-| --------- | --------------- | -------------- | --------------------------------- |
-| Pool      | 2.6 / 3.3 ms    | 6.3 / 6.8 ms   | ≈0%                               |
-| Crown     | 3.6 / 4.4 ms    | 11.7 / 13.9 ms | +6.5%                             |
-| Sculpture | 5.3 / 6.1 ms    | 15.3 / 17.4 ms | +10.8%                            |
+## Remaining limitations
 
-The absolute p50 targets (8/16 ms) pass. The pair probe's stricter +5% relative gate **fails** for Crown/Sculpture; larger framing and magnetic geometry consume more GPU work. No GL, GPU or non-finite errors. 4K p95 still exceeds 16 ms; preserve this limitation rather than calling it venue-safe.
-
-## Verification and evidence
-
-All paths below are relative to `.claude/worktrees/liquid-chrome-r3/`.
-
-- `npm test`: **967 passed, 21 opt-in skips, zero failures** (988 total); `npm run typecheck` passes.
-- `node --test tests/ferro.test.mjs tests/world-rhythm.test.mjs tests/pipeline-flash.test.mjs`: **50/50 pass**. CPU physical/lattice references, 401-point forward/reverse continuity, equatorial derivative, energy-site monotonicity, overshoot refinement, camera bounds, preset validation, slot-3 pole growth bounds, mute behaviour, distinct loops and density floors.
-- Build and native `test:i18n` pass for DE/EN. Prettier passes the changed scene, family tests, verifier, docs and plan. Existing dictionary-wide and shared CATALOG table formatting warnings are left untouched to keep translation edits additive and respect row ownership; all three warnings were reproduced on the baseline sources.
-- `scripts/verify-ferro.mjs --rig --port 48622`: **162 late-time cases** across nine developments × energies 0.1/0.5/0.9 × Glacier/Ember/Phosphor × 3600/43200 s; native late program compiled, all frames nonempty, zero GL/non-finite errors. Additional **162 live forward/reverse frames** preserve the same slot and time. Three energy sheets, three portrait states and a 4K still: `artifacts/films/ferro-r3-verification/`.
-- Eight-look, three-energy native ladder: `artifacts/films/ferro-r3-ladder/`.
-- Before: `artifacts/look-review/liquid-chrome-r3-before/`; look iterations: `liquid-chrome-r3-round1/`, `-round2/` (also Ember), `-round3/` (Glacier); rhythm review: `-rhythm/`.
-- **Final reviewer evidence:** `artifacts/look-review/liquid-chrome-r3/liquid-chrome-{sheet,rhythm}.png`, `liquid-chrome.mp4`, `grids.md`.
-- Native profiles: `artifacts/performance/ferro-r3-{1080,4k,pair}/profile.json`.
-
-## Still weak
-
-Self-assessed look **7.5/10**, not an independent pass. The low-energy lens and Crown remain austere, the floating form can still resemble a regular spiked object, and grazing tips retain occasional subpixel glints. The studio is implicit rather than a richly populated environment. Real multiple-bounce reflection, fluid mass conservation and physical magnetic dynamics are outside this bounded analytic model. 4K contention headroom is limited.
+The lattice is intentionally regular and the lower-energy Crown remains quieter than the peak. Grazing needle tips can retain subpixel glints; the mirror reflection is strongest along the front edge rather than across a broad floor. Two analytic near droplets give softer edges, not a physical depth-of-field lens. The pressure wave is a bounded envelope-driven approximation, not a simulated travelling fluid impulse. Independent review remains the acceptance authority.
