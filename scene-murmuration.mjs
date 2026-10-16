@@ -65,7 +65,7 @@ vec4 muWeights(float dev) {
 }
 vec3 muAnchor(uint c) {
   return vec3(3.2 * sin(MU_TAU * muCycle(c, ${N.anchorX}u)),
-    3.3 + .9 * sin(MU_TAU * muCycle(c, ${N.anchorY}u)),
+    2.8 + .6 * sin(MU_TAU * muCycle(c, ${N.anchorY}u)),
     2.4 * sin(MU_TAU * muCycle(c, ${N.anchorX * 2}u) + 1.));
 }
 vec3 muFalcon(uint c) {
@@ -86,7 +86,7 @@ vec3 muCloud(float u, float v, float h, uint c) {
   float width = 1.65*(.7*s*s*s+.3*s)*(.65+.35*swell*swell);
   float wave = 2.*t + flow;
   vec3 q = vec3(4.2*cos(t), 1.65*sin(wave)+.5*fold*sin(3.*t-flow), 1.6*sin(t));
-  q += vec3(.35*width*sin(t), width*(.8+.3*sin(br+t)), (h-.5)*.5 + width*cos(wave));
+  q += vec3(.35*width*sin(t), width*(.8+.3*sin(br+t)), (h-.5)*.95 + width*cos(wave));
   float yaw = muYaw(c), cy = cos(yaw), sy = sin(yaw);
   return vec3(cy*q.x+sy*q.z,q.y,-sy*q.x+cy*q.z) + vec3(0., 1.2, 0.);
 }
@@ -100,15 +100,20 @@ vec3 muSlot(float u, float v, float h, uint c, float formation) {
   float width = 1.85*(.7*sheet*sheet*sheet+.3*sheet)*(.65+.35*swell*swell);
   float curl = 2.*th+roll;
   vec3 torus = vec3(3.8*cos(th), 2.05*sin(curl)+.35*sin(3.*th-roll), 1.4*sin(th));
-  torus += vec3(.2*width*cos(th), width*cos(th+roll), width*sin(th+roll)+(h-.5)*.22);
+  torus += vec3(.2*width*cos(th), width*cos(th+roll), width*sin(th+roll)+(h-.5)*.55);
   float s = MU_TAU * (u + muCycle(c, ${N.circ / 2}u));
   vec3 k0 = muKnot(s), tan = normalize(muKnot(s + .01) - k0);
   vec3 nrm = normalize(cross(tan, vec3(0., 1., 0.))), bin = cross(tan, nrm);
-  float tw = 2. * s + roll, w = (v - .5) * 1.3, d = (h - .5) * .25;
+  float tw = 2. * s + roll, w = (v - .5) * 1.3, d = (h - .5) * .5;
   vec3 ribbon = k0 + (nrm * cos(tw) + bin * sin(tw)) * w + (bin * cos(tw) - nrm * sin(tw)) * d;
   float strand = v < .5 ? 0. : 3.141592653589793;
-  float y = (u - .5) * 6.4, fr = .7 + .32 * (y + 3.2) + .45 * sqrt(h);
-  float ta = MU_TAU * 2.2 * u + circ + strand + MU_TAU * mod(v, .5) * .35;
+  // Open strand ends fray into a seeded tail instead of a cut row.
+  float tail = muSmooth(.75, 1., abs(2. * u - 1.));
+  float y = (u - .5) * 6.4 + sign(u - .5) * tail * tail * 1.3 * h;
+  // Each strand is dense at its centre and frays at its angular edges.
+  float sv = 4. * mod(v, .5) - 1.;
+  float fr = (.7 + .32 * (y + 3.2) + .6 * h * h + .3 * sv * sv) * (1. - .3 * tail);
+  float ta = MU_TAU * 2.2 * u + circ + strand + 1.1 * (.6 * sv * sv * sv + .4 * sv);
   vec3 twister = vec3(fr * cos(ta), y, fr * sin(ta));
   float fm = mod(formation, 3.);
   float i = floor(fm), t = muSmooth(0., 1., fm - i);
@@ -119,6 +124,33 @@ vec3 muSlot(float u, float v, float h, uint c, float formation) {
   float yaw = muYaw(c), cy = cos(yaw), sy = sin(yaw);
   q = vec3(q.x, .9 * q.y + .43589 * q.z, -.43589 * q.y + .9 * q.z);
   return vec3(cy * q.x + sy * q.z, q.y, -sy * q.x + cy * q.z) + vec3(0., 1.2, 0.);
+}
+// Persistent per-bird home offset: rows near the sheet's edges spread into a
+// ragged fringe and a seeded share strays outside the sheet, so density
+// falls off into stragglers instead of ending at a cut edge.
+vec3 muJitter(uint key, uint uid, float v) {
+  float e = muSmooth(.55, 1., abs(2. * v - 1.));
+  vec3 j = (vec3(muRnd(key, uid, 8u), muRnd(key, uid, 9u), muRnd(key, uid, 10u)) - .5) * (.3 * (1. + 3. * e * e));
+  if (muRnd(key, uid, 11u) < .05 + .3 * e * e) {
+    vec3 d = vec3(muRnd(key, uid, 12u), muRnd(key, uid, 13u), muRnd(key, uid, 14u)) - .5;
+    j += d * ((.5 + 1.2 * muRnd(key, uid, 15u)) / max(length(d), 1e-3));
+  }
+  return j;
+}
+// The falcon strikes a count-selected real bird in the flock's core rows.
+int muStrikeBird(float count) {
+  float a = fract(sin(count * 12.9898 + 4.1) * 43758.5453);
+  float b = fract(sin(count * 78.233 + 1.7) * 12543.123);
+  int row = MU_H / 2 + int((b - .5) * .3 * float(MU_H));
+  return max(1, row * MU_W + int(a * float(MU_W)));
+}
+// Linear 0→1 progress of a rhythm gesture: invert the scheduler's
+// smoothstep envelope with the amplitude stored at its hit (clock bird,
+// texel 2). A wave can then sweep across the flock exactly once.
+vec4 muHitAmp() { return texelFetch(u_state, ivec2(2, 0), 0); }
+float muPhase(float env, float amp) {
+  float y = clamp(env / max(amp, .02), 0., 1.);
+  return env > .001 ? .5 + sin(asin(1. - 2. * y) / 3.) : 1.;
 }
 // A second persistent uint phase integrates the formation-rate fader. It
 // cannot jump at a fractional-rate cycle wrap or when the rate is edited.
@@ -147,14 +179,19 @@ MuCam muCamera(uint c, float dev) {
   float yaw = muYaw(c);
   float wave = .5 - .5 * cos(MU_TAU * muCycle(c, ${N.dive}u));
   m.dive = muSmooth(1.35, 1.9, dev) * muSmooth(.2, .8, wave);
-  float dist = u_params[6] * (mix(11.5, 9.2, w.x) - 1.2 * w.z);
-  // A bounded dolly breath keeps the whole formation readable rather than
-  // putting the camera inside a cropped wall of subpixel wings.
-  float r = mix(dist, .82 * dist, m.dive);
+  float dist = u_params[6] * (mix(9.4, 7.8, w.x) - 1.1 * w.z);
+  // A bounded dive at the peak: part of the formation sweeps close past the
+  // lens while the rest of it stays in frame.
+  float r = mix(dist, .66 * dist, m.dive);
   // Eye height is absolute so the horizon stays put; the flock flies above.
   float h = mix(.45, 3.2, clamp(u_params[7], 0., 1.)) + .15 * sin(MU_TAU * muCycle(c, ${N.anchorY * 3}u));
   m.eye = vec3(a.x + r * sin(yaw), h, a.z + r * cos(yaw));
-  m.fwd = normalize(a + vec3(0., 1.1, 0.) - m.eye);
+  // The aim drifts beside the flock over ~24 s: off-centre framing that
+  // moves by phrase, never a cut or a lurch (integer clock harmonic).
+  vec3 aim = a + vec3(0., .7, 0.);
+  vec3 side0 = normalize(cross(aim - m.eye, vec3(0., 1., 0.)));
+  aim += side0 * (1.1 + .5 * w.x) * sin(MU_TAU * muCycle(c, ${N.drift}u));
+  m.fwd = normalize(aim - m.eye);
   m.right = normalize(cross(m.fwd, vec3(0., 1., 0.)));
   m.up = cross(m.right, m.fwd);
   m.focal = mix(1.8 - .15 * w.z, 1.45, m.dive) * (1. + .02 * clamp(u_kick, 0., 1.));
@@ -175,16 +212,24 @@ float muNoise(vec2 p) {
     dot(i+vec2(0,1),vec2(127.1,311.7)),dot(i+vec2(1),vec2(127.1,311.7))))*43758.5453);
   return mix(mix(a.x,a.y,f.x),mix(a.z,a.w,f.x),f.y);
 }
+vec2 muRot(vec2 h, float a) { float c=cos(a), s=sin(a); return vec2(c*h.x-s*h.y, s*h.x+c*h.y); }
+// Two raw cloud fields (thresholds and light are applied at output): high
+// wisps stretched along azimuth and low lumpy banks. Each layer turns about
+// the zenith at its own integer clock rate, so they drift with parallax,
+// endlessly and without an azimuth seam.
 vec2 muCloudExact(vec3 dir) {
-  float e=dir.y;
+  float e=max(dir.y,0.);
   vec2 h=normalize(dir.xz+vec2(1e-5));
-  vec2 q=h*4.+vec2(e*2., e*9.);
-  float n=muNoise(q)+.4*muNoise(q*3.1+19.);
-  float detail=muNoise(q*9.3+7.)-.5;
-  n+=.12*detail;
-  float bands=n+.12*sin(e*18.+dot(h,vec2(1.,2.)));
-  float cloud=muSmooth(.48,1.15,bands)*muSmooth(.04,.18,e)*(1.-muSmooth(.55,.95,e));
-  return vec2(clamp(cloud*.38+detail*.05,0.,.5),exp(-abs(bands-.7)*10.)*cloud*.025);
+  uint c=muClock();
+  vec2 hh=muRot(h,MU_TAU*muCycle(c,${N.highDrift}u)), hl=muRot(h,MU_TAU*muCycle(c,${N.lowDrift}u));
+  // Domain-warped value noise: organic edges, no straight cell contours.
+  vec2 q=hh*3.6+vec2(e*11.,-e*9.);
+  q+=.6*vec2(muNoise(q*1.7+3.),muNoise(q*1.7+8.));
+  float hi=.6*muNoise(q)+.28*muNoise(q*2.6+11.)+.12*muNoise(q*6.1+2.);
+  vec2 r=hl*4.5+vec2(e*34.,e*27.);
+  r+=.8*vec2(muNoise(r*1.3+1.),muNoise(r*1.3+6.));
+  float lo=.55*muNoise(r)+.3*muNoise(r*2.3+5.)+.15*muNoise(r*5.1+9.);
+  return vec2(hi,lo);
 }
 vec2 muRidges(vec2 h) {
   vec2 h2=vec2(h.x*h.x-h.y*h.y,2.*h.x*h.y);
@@ -212,19 +257,32 @@ vec4 muCloudData(vec3 dir) {
   return vec4(muCloudExact(dir),muRidges(normalize(dir.xz+vec2(1e-5))));
 #endif
 }
-// Palette dusk lights the whole sky behind the birds, not a thin neon line.
+// Dusk: a near-black secondary zenith, saturated primary light confined to
+// a low horizon band, dusky secondary between (where the flock flies).
+// Darkening moves toward secondary, never to a dark (olive) primary.
+// Energy widens the glow band and breaks the cloud banks up.
 vec3 muSky(vec3 dir) {
   vec3 L = muSun();
-  float e = dir.y;
+  float e = dir.y, ep = max(e, 0.), level = clamp(u_level, 0., 1.);
   vec2 h = normalize(dir.xz + vec2(1e-5)), s = normalize(L.xz);
   float az = .5 + .5 * dot(h, s);
-  float band = exp(-max(e,0.)*2.8);
-  vec3 warm = mix(u_primary,u_accent,.12);
-  vec3 col = mix(u_secondary*.055, mix(u_secondary,warm,.88)*.9, band);
-  col += warm * pow(az,6.) * exp(-max(e,0.)*4.)*.48;
+  float band = exp(-ep * mix(7.5, 5.0, level));
+  vec3 col = u_secondary * (.025 + .45 * exp(-ep * 2.8));
+  col += u_primary * band * (.5 + .45 * az * az * az);
+  col += u_primary * exp(-ep * 26.) * pow(az, 18.) * .45;
   vec4 clouds=muCloudData(dir);
-  col=mix(col,col*.38+u_secondary*.025,clouds.x);
-  col+=warm*clouds.y;
+  // High banks: translucent darker bands whose lower edges catch the glow.
+  float hiT = mix(.44, .56, level);
+  float hi = muSmooth(hiT, hiT + .27, clouds.x) * muSmooth(.1, .3, ep) * (1. - muSmooth(.6, .95, ep));
+  col = mix(col, col * .5 + u_secondary * .012, hi * .65);
+  col += u_secondary * hi * (1. - hi) * .1;
+  col += u_primary * hi * (1. - hi) * (.03 + .2 * band) * (.5 + .5 * az);
+  // Low banks: lumpy, broken, silhouetted against the glow with lit rims.
+  float loT = mix(.46, .6, level);
+  float top = .06 + .1 * clouds.x;
+  float lo = muSmooth(loT, loT + .26, clouds.y) * muSmooth(.006, .04, ep) * (1. - muSmooth(top * .5, top, ep));
+  col = mix(col, col * .35 + u_secondary * .02, lo * .6);
+  col += u_primary * lo * (1. - lo) * 2. * band * .25 * (.45 + .55 * az);
   // Two very low distant silhouettes break the laser-straight horizon.
   // Fixed angular harmonics give stable geographic scale cues on the orbit.
   // Integer angular harmonics via complex products: no per-pixel atan or
@@ -248,6 +306,12 @@ void main() {
   int k = cell.x % 4, id = cell.y * MU_W + cell.x / 4;
   float rate = clamp(u_params[1], 0., 2.);
   if (id == 0) {
+    // Texel 2 keeps each slot's latest hit amplitude for muPhase().
+    if (k == 2) {
+      vec4 amp = u_reset ? vec4(0.) : texelFetch(u_state, ivec2(2, 0), 0);
+      outColor = mix(amp, clamp(u_rhythmHit, 0., 1.), vec4(greaterThan(u_rhythmHit, vec4(0.))));
+      return;
+    }
     uint c = u_reset ? 0u : muWord(texelFetch(u_state, ivec2(k,0), 0));
     if (k == 0) c += uint(u_dt * rate * (4294967296. / MU_P) + .5);
     if (k == 1) c += uint(u_dt * rate * u_params[3] * (4294967296. / 240.) + .5);
@@ -259,7 +323,7 @@ void main() {
   Bird b;
   if (u_reset) {
     vec3 A = muAnchor(clock);
-    b.p = A + muCloud(float(id%MU_W)/float(MU_W),float(id/MU_W)/float(MU_H),muRnd(key,uid,6u),clock);
+    b.p = A + muJitter(key, uid, float(id/MU_W)/float(MU_H)) + muCloud(float(id%MU_W)/float(MU_W),float(id/MU_W)/float(MU_H),muRnd(key,uid,6u),clock);
     b.v = vec3(1.2,0.,0.);
     b.T = 0.; b.bank = 0.;
   } else {
@@ -290,7 +354,7 @@ void main() {
     a += (vm - b.v) * 2.6 * w.x;
     vec3 rel = b.p - A;
     // A fixed per-bird offset hides the lattice's rows up close.
-    vec3 jit = (vec3(muRnd(key, uid, 8u), muRnd(key, uid, 9u), muRnd(key, uid, 10u)) - .5) * .16;
+    vec3 jit = muJitter(key, uid, float(y) / float(MU_H));
     if (w.w > 0.) {
       // Weak sheet-following leaves room to wander under the existing
       // cruise/neighbor forces, without an unrelated per-group orbit field.
@@ -325,7 +389,8 @@ void main() {
       int ox = int(mod(u_rhythmCount.y*73.,float(MU_W)));
       if (abs(x-ox)<3 && abs(y-MU_H/2)<4) fired = true;
     }
-    if (u_rhythmHit.z > 0. && length(b.p - muFalcon(clock)) < 2.5) fired = true;
+    // The strike startles the birds around the struck bird in every state.
+    if (u_rhythmHit.z > 0. && length(b.p - muPos(muStrikeBird(u_rhythmCount.z))) < 1.7) fired = true;
     // The fill's visible wing-front also launches a real excitable wave.
     // One consumed hit, never repeated for the envelope's lifetime.
     if (u_rhythmHit.w > 0.) {
@@ -388,23 +453,49 @@ uniform vec3 u_primary, u_secondary, u_accent;
 ${common}
 ${view}
 out vec3 v_normal, v_view, v_sky;
-out float v_glint, v_front;
+out float v_glint, v_front, v_trail, v_strike, v_dense, v_far;
 out float v_startle, v_density, v_kind, v_tip, v_depth, v_cover;
 out vec3 v_bary;
+vec2 muScreen(vec3 q, MuCam cam) {
+  vec3 r = q - cam.eye;
+  return vec2(dot(r, cam.right), dot(r, cam.up)) * cam.focal / max(dot(r, cam.fwd), .3);
+}
 void main() {
   gl_Position = vec4(2., 2., 2., 1.);
   uint key = muKey(), clock = muClock();
   float dev = clamp(u_params[0], 0., 2.), level = clamp(u_level, 0., 1.);
   int id = int(a_bird);
+  MuCam cam = muCamera(clock, dev);
+  // Preserve the full cloud in tall output without changing landscape.
+  cam.focal *= min(1., max(.72, 1.35*u_resolution.x/u_resolution.y));
+  float res = min(u_resolution.x, u_resolution.y);
   vec3 p, v;
-  float T = 0., bank = 0., kind = 0., density = 0., reveal = 1.;
-  if (id < 0) {
+  float T = 0., bank = 0., kind = 0., far = 0., density = 0., reveal = 1., cell = -1.;
+  vec3 A = muAnchor(clock);
+  if (id == -1) {
     // The falcon: only while it hunts the surging cloud.
     float hunt = (.3+.7*muWeights(dev).y) * clamp(u_params[4], 0., 2.);
-    if (hunt < .05) return;
+    if (hunt < .05 && u_rhythm.z < .002) return;
     p = muFalcon(clock);
     v = (muFalcon(clock + 2982617u) - p) / .02;
     kind = 1.;
+  } else if (id < -1) {
+    // A distant second flock low over the horizon, beside and behind the
+    // main one: a scale cue. Procedural sheet, no simulation, no rhythm.
+    int k = -2 - id;
+    float fu = float(k % 64) / 64., fv = float(k / 64) / 32.;
+    float fh = muRnd(key, uint(k), 40u);
+    uint c2 = clock + 1717986918u;
+    float yw = muYaw(clock);
+    float ang = .5 + .22 * sin(MU_TAU * muCycle(clock, ${N.drift}u) + 1.3);
+    vec3 C = A + vec3(-sin(yw + ang), 0., -cos(yw + ang)) * 30.;
+    C.y = 6.2 + .6 * sin(MU_TAU * muCycle(clock, ${N.anchorY}u) + 2.);
+    vec3 off = (vec3(muRnd(key, uint(k), 41u), muRnd(key, uint(k), 42u), muRnd(key, uint(k), 43u)) - .5) * .6;
+    // A flattened, drawn-out distant cloud reads as birds, not a bush.
+    vec3 flat_ = vec3(.95, .38, .95);
+    p = C + flat_ * (muCloud(fu, fv, fh, c2) - vec3(0., 1.2, 0.)) + off;
+    v = C + flat_ * (muCloud(fu, fv, fh, c2 + 2982617u) - vec3(0., 1.2, 0.)) + off - p + vec3(1e-3, 0., 0.);
+    far = 1.;
   } else {
     // Energy density: birds fade in by size, never popping.
     float keep = mix(.55, 1., level), r = muRnd(key, uint(id), 20u);
@@ -413,25 +504,72 @@ void main() {
     Bird b = muBird(id);
     p = b.p; v = b.v; T = b.T; bank = b.bank;
     // A broad interior fill is only a lighting cue, not a simulated force.
-    // Avoid fetching four neighbours for each of twelve mesh vertices.
-    // The actual flock dynamics still use all eight topological neighbours.
-    vec3 fromHome = p - muAnchor(clock);
+    vec3 fromHome = p - A;
     density = .8 / (1. + .08 * dot(fromHome, fromHome)) * reveal;
+    // Projected lattice cell from two real neighbours: where the sheet is
+    // compressed or edge-on the cell is small and the birds merge into a
+    // dark fold; thin, stretched sections stay open and translucent.
+    int bx = id % MU_W, by = id / MU_W;
+    int n1 = by * MU_W + (bx + 1) % MU_W, n2 = ((by + 1) % MU_H) * MU_W + bx;
+    if (n1 == 0) n1 = by * MU_W + (bx + MU_W - 1) % MU_W;
+    if (n2 == 0) n2 = ((by + MU_H - 1) % MU_H) * MU_W + bx;
+    vec2 s0 = muScreen(p, cam), s1 = muScreen(muPos(n1), cam) - s0, s2 = muScreen(muPos(n2), cam) - s0;
+    cell = abs(s1.x * s2.y - s1.y * s2.x) * res * res * .25;
   }
-  // A narrow count-selected front travels along persistent longitude.
-  // The envelope moves the front, not the camera or a whole-frame exposure.
+  vec3 centre = A + vec3(0., 1.2, 0.);
+  vec4 amp = muHitAmp();
   float longitude = float(max(id,0)%MU_W)/float(MU_W);
-  float frontAt = fract(u_rhythmCount.w*.381966 + (1.-u_rhythm.w)*.8);
-  float frontDistance = abs(sin(3.141592653589793*(longitude-frontAt)));
-  float front = (1.-muSmooth(.08,.25,frontDistance))*muSmooth(.01,.2,u_rhythm.w)*(1.-kind);
-  bank += front*1.2;
-  v_front = front;
   float glintAt = fract(u_rhythmCount.x*.618034);
   float glintDistance = abs(sin(3.141592653589793*(longitude-glintAt)));
-  v_glint = u_rhythm.x*(1.-muSmooth(.12,.38,glintDistance))*(1.-kind);
-  MuCam cam = muCamera(clock, dev);
-  // Preserve the full cloud in tall output without changing landscape.
-  cam.focal *= min(1., max(.72, 1.35*u_resolution.x/u_resolution.y));
+  v_glint = u_rhythm.x*(1.-muSmooth(.12,.38,glintDistance))*(1.-kind)*(1.-far);
+  // Wing front: a curved band about an eighth of the flock wide sweeps once
+  // across it in image space over the gesture's duration (inverted
+  // envelope). The birds it passes bank edge-on and catch silver light, the
+  // sheet dents as they lift and drop, and a dark broad-winged wave follows.
+  float front = 0., trail = 0.;
+  if (u_rhythm.w > .002 && kind < .5 && far < .5) {
+    float ph = muPhase(u_rhythm.w, amp.w);
+    float cnt = u_rhythmCount.w, tilt = (fract(cnt * .618034) - .5) * .9;
+    float dir = mod(cnt, 2.) < 1. ? 1. : -1.;
+    vec3 ax = cam.right * cos(tilt) + cam.up * sin(tilt), ay = cam.up * cos(tilt) - cam.right * sin(tilt);
+    vec3 rel = p - centre;
+    float sx = dir * dot(rel, ax) / 5., sy = dot(rel, ay) / 5.;
+    float sw = sx + .35 * sy * sy;
+    float f = mix(-1.4, 1.3, ph);
+    float gate = muSmooth(.002, .06, u_rhythm.w);
+    // A crest with a sharp leading edge and a longer lit tail, then a
+    // dark trough of broad, open wings behind it.
+    float x = sw - f, xc = x / (x > 0. ? .075 : .2), xt = (x + .4) / .17;
+    front = exp(-xc * xc) * gate;
+    trail = exp(-xt * xt) * gate;
+    p += ay * (.75 * front - .45 * trail);
+    bank += front * 1.5;
+  }
+  v_front = front; v_trail = trail;
+  // Falcon strike: a void punched along the view line through a struck
+  // bird. Birds inside are thrown out radially (seeded spray), leaving a
+  // hole with a dense, startled rim; the falcon dives through its centre.
+  float strike = 0.;
+  if (u_rhythm.z > .002 && far < .5) {
+    float ph = muPhase(u_rhythm.z, amp.z);
+    vec3 S = muPos(muStrikeBird(u_rhythmCount.z));
+    vec3 axis = normalize(S - cam.eye);
+    float open = muSmooth(0., .1, ph) * (1. - muSmooth(.4, 1., ph)) * muSmooth(.002, .05, u_rhythm.z);
+    if (kind > .5) {
+      p = mix(p, S + axis * mix(-3., 4., ph), muSmooth(0., .06, ph) * (1. - muSmooth(.8, 1., ph)));
+      v = axis;
+    } else {
+      vec3 d = p - S, radial = d - axis * dot(d, axis);
+      float rr = length(radial), R = 1.45;
+      vec3 out_ = rr > 1e-3 ? radial / rr : cam.right;
+      float spray = 1. + 1.6 * muRnd(key, uint(max(id, 0)), 44u) * muRnd(key, uint(max(id, 0)), 45u);
+      float push = open * R * exp(-rr * rr / (R * R)) * spray;
+      p += (out_ + cam.fwd * .15 * (spray - 1.)) * push;
+      strike = open * exp(-(rr - R) * (rr - R) / .35);
+      bank += 1.3 * open * exp(-rr * rr / (4. * R * R));
+    }
+  }
+  v_strike = strike;
   // The background varies only on cloud scales, not feather scales. Evaluate
   // its exact density at the bird centre once per vertex, never per fragment.
   v_sky=muSky(normalize(p-cam.eye));
@@ -446,12 +584,15 @@ void main() {
   local.y += a_flap * flap * (kind > .5 ? .25 : .5);
   float z = dot(p - cam.eye, cam.fwd);
   if (z < .3) return;
-  float res = min(u_resolution.x, u_resolution.y);
   float span = kind > .5 ? .26 : .085;
   // At least about 4 px wide at 1080p; birds by the lens shrink away.
   float px = span * cam.focal / z * res * .5;
-  float grow = max(1., 4. * res / 1080. / px);
-  float scale = grow * muSmooth(.3, 1.1, z) * sqrt(reveal);
+  float grow = max(1., (far > .5 ? 2.6 : 4.) * res / 1080. / px);
+  // Coverage of its own lattice cell: dense folds go solid, open sheet
+  // sections thin out; near birds are physically larger and darker.
+  float dense = cell < 0. ? 1. : muSmooth(.03, .5, .5 * px * grow * px * grow / max(cell, 1e-3));
+  float scale = grow * muSmooth(.3, 1.1, z) * sqrt(reveal) * mix(.8, 1.7, dense) * (1. + .35 * trail);
+  scale *= .8 + .4 * muRnd(key, uint(max(id, 0)), 46u);
   // Small birds: body width and wing chord (0.2 and 0.28 template units)
   // would be sub-pixel slivers that flicker in and out of pixels, so they
   // thicken to about 2 px and their light spreads over the larger footprint
@@ -493,6 +634,8 @@ void main() {
   v_kind = kind;
   v_tip = a_flap;
   v_depth = vz;
+  v_dense = dense;
+  v_far = far;
 }
 `;
 
@@ -500,7 +643,7 @@ const surface = `#version 300 es
 precision highp float;
 precision highp int;
 in vec3 v_normal, v_view, v_sky;
-in float v_glint, v_front;
+in float v_glint, v_front, v_trail, v_strike, v_dense, v_far;
 in float v_startle, v_density, v_kind, v_tip, v_depth, v_cover;
 in vec3 v_bary;
 uniform highp sampler2D u_state;
@@ -523,16 +666,27 @@ void main() {
   vec3 col=u_secondary*(.004+.008*rim)+warm*.18*turn*rim;
   // Broad feather gradients inside a local cohort, not neon outlines.
   float feather=.25+.75*abs(v_tip);
-  col += mix(u_primary,vec3(1.),.12)*v_glint*feather*1.25;
-  col += mix(u_primary,vec3(1.),.35)*v_front*feather*1.65;
+  col += mix(u_primary,vec3(1.),.25)*v_glint*feather*1.;
+  // Silver wing-front: a restrained primary-tinted feather sheen, local.
+  col += mix(u_primary,vec3(1.),.75)*v_front*(.45+.55*feather)*1.6;
+  col *= 1. - .8 * v_trail;
+  // The struck rim catches a trace of the falcon's accent.
+  col += u_accent*.25*v_strike*feather;
   if(v_kind>.5) col+=u_accent*(.12+.65*u_rhythm.z);
-  col=mix(col,sky,1.-exp(-v_depth*.003));
+  // Aerial perspective inside the flock: near birds black, the far side
+  // hazes toward the dusk; the distant second flock is mostly air.
+  float haze = v_far > .5 ? .12 : 1. - exp(-max(v_depth - 5., 0.) * .03);
+  col=mix(col,sky,haze*(1.-.7*v_front));
   // Coverage: a bird drawn larger than it is shows its light spread thinly,
-  // and outer edges fade into the sky over about a pixel.
+  // and outer edges fade into the sky over about a pixel. Open, stretched
+  // sheet sections stay translucent; folds and trailing waves are solid.
   float e = min(v_bary.x, min(v_bary.y, v_bary.z));
   float edge = clamp(e / max(fwidth(e), 1e-6) + .5, 0., 1.);
-  // (Dense clouds have birds, not sky, behind those edges: fade only half.)
-  col = mix(sky, col, (.94 + .06 * v_cover) * edge);
+  float opacity = mix(.85, 1., max(v_dense, max(v_trail, v_front)));
+  // In a compressed fold the next bird, not empty sky, sits behind
+  // an antialiased feather edge. This prevents pinholes in the dark core.
+  vec3 behind = mix(sky, u_secondary * .012, v_dense * .7 * (1. - v_far));
+  col = mix(behind, col, (.94 + .06 * v_cover) * edge * opacity);
   outColor = vec4(col, 1.);
 }
 `;
@@ -555,13 +709,16 @@ void main() {
   if(e<.07) {
     vec2 h=normalize(dir.xz+vec2(1e-5));
     float az=atan(h.y,h.x);
-    float ridge=.003+.007*sin(az*3.)+.003*cos(az*7.);
-    float treeX=az*23.+.32*sin(az*11.), cell=floor(treeX), local=fract(treeX)-.5;
-    float rnd=fract(sin(cell*127.1)*43758.5453);
-    float crown=pow(max(0.,1.-4.*local*local),.45+.9*rnd);
-    float twig=.0015*sin(treeX*51.)+.001*sin(treeX*113.);
-    float forest=muNoise(vec2(az*16.,3.));
-    float trees=ridge+.002+(.003+.022*rnd*forest)*crown+twig*crown;
+    // Woods as irregular masses with gaps and ragged crowns: noise on the
+    // unit circle is periodic in azimuth, so nothing repeats or seams.
+    float ridge=.002+.004*muNoise(h*3.+2.);
+    float mass=.6*muNoise(h*5.+3.)+.4*muNoise(h*12.+7.);
+    float wood=muSmooth(.38,.62,mass);
+    float tall=.006+.022*muNoise(h*21.+1.)*muNoise(h*9.+4.);
+    float crowns=(muNoise(h*75.)-.5)*.012+(muNoise(h*190.+5.)-.5)*.006;
+    float spire=max(muNoise(h*60.+9.)-.62,0.)/.38;
+    float lone=spire*spire*.02*(1.-wood);
+    float trees=ridge+wood*(tall+crowns)+lone+.0006;
     float aa=horizonAA;
     float land=1.-smoothstep(trees-aa,trees+aa,e);
     vec3 reflected=muSky(normalize(vec3(dir.x,abs(e)*.7,dir.z)));
@@ -571,20 +728,31 @@ void main() {
     col=mix(col,u_secondary*.003,land);
     col=mix(col,lake,1.-smoothstep(shore-aa,shore+aa,e));
   }
-  if(p.y<-.65) {
-    float x=p.x*22.+cam.eye.x*.32;
-    float id=floor(x), local=fract(x)-.5;
-    float rnd=fract(sin(id*73.13)*43758.5453);
-    float tip=-1.04+.41*rnd*rnd;
-    float bend=(p.y+1.)*(p.y+1.)*2.*sin(id);
-    float stem=abs(local-bend);
-    float aa=22./min(u_resolution.x,u_resolution.y);
-    float reed=(1.-smoothstep(.018,.018+aa,stem))*(1.-smoothstep(tip-.02,tip,p.y));
-    float headY=(p.y-tip+.025)/.035, headX=stem/.055;
-    float leafY=(p.y-tip+.16)/.11, leafX=(local-bend+(p.y-tip+.13)*2.)/.035;
-    float head=exp(-headY*headY-headX*headX);
-    float leaf=exp(-leafY*leafY-leafX*leafX);
-    col=mix(col,u_secondary*.002,clamp(reed+head+leaf,0.,1.));
+  if(p.y<-.6) {
+    // Foreground reeds in clumps: three layers with seeded presence, height,
+    // lean, thickness and taper, a few seed heads. Not an even picket.
+    float mask=0.;
+    for(int i=0;i<3;i++) {
+      float fi=float(i), fq=7.+6.*fi;
+      float x=p.x*fq+cam.eye.x*.32*(1.+.4*fi)+17.3*fi;
+      float id=floor(x), lx=fract(x)-.5;
+      vec4 r=fract(sin(vec4(id*73.13+fi*7.,id*41.7+fi*3.,id*19.3+fi*11.,id*91.9+fi*5.))*43758.5453);
+      float clump=muNoise(vec2(id*.23+fi*9.,fi*3.));
+      if(r.x>.15+.75*clump) continue;
+      float tip=-1.02+(.1+.3*r.y*r.y)*(1.-.22*fi)*(.6+.6*clump);
+      float t=clamp((p.y+1.)/max(tip+1.,.01),0.,1.);
+      float off=(r.z-.5)*1.1*t*t;
+      float wdt=(.03+.09*r.w*r.w)*(1.-.85*t)*(1.+.3*fi);
+      float aa=fq*2.2/min(u_resolution.x,u_resolution.y);
+      float stem=abs(lx-off)-wdt;
+      float reed=(1.-smoothstep(-aa*.5,aa*.5,stem))*(1.-smoothstep(tip-aa*.3/fq,tip,p.y));
+      if(r.w>.72) {
+        vec2 hd=vec2((lx-off)/(wdt+.09),(p.y-tip+.04)/.04);
+        reed=max(reed,1.-smoothstep(.8,1.,length(hd)));
+      }
+      mask=max(mask,reed);
+    }
+    col=mix(col,u_secondary*.002,mask);
   }
   emit(vec4(col, 1.));
 }
@@ -711,17 +879,18 @@ export default {
             strength: 0.48,
             duration: 0.9,
           },
+          // Three-beat loops: the glint walks across the 4/4 bar.
           driving: {
-            steps: "X.x..x.X | .x.X.x.x",
+            steps: "X.x..x",
             division: 2,
             strength: 0.86,
             duration: 0.4,
           },
           accented: {
-            steps: "X..x.X..x.X..x.. | ..X.x..X..x.X.xx",
+            steps: "X....x..x...",
             division: 4,
             strength: 0.88,
-            duration: 0.2,
+            duration: 0.3,
           },
         },
       },

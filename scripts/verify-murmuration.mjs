@@ -1,6 +1,8 @@
 // Native energy/palette/aspect/reversal/late-time review. Keeps the shared
 // flash limiter enabled; source/GPU profiles use the repository's own probes.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { renderLook } from "../tests/browser/client.mjs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -11,8 +13,15 @@ import {
   openLab,
 } from "./browser-runtime.mjs";
 import { PALETTES } from "../palettes.mjs";
-const args = options();
+const args = options({
+  pair: { type: "boolean", default: false },
+  reference: { type: "string", default: "main" },
+});
 assert.ok(args.rig, "Pass --rig on the native GPU");
+if (args.pair) {
+  await profilePair();
+  process.exit(process.exitCode ?? 0);
+}
 const out = await outputDirectory("murmuration-r3-verification", args.out);
 const server = await serve(".", args.port);
 const runtime = await launch({ rig: args.rig });
@@ -158,4 +167,137 @@ try {
 } finally {
   await runtime.stop();
   await server.close();
+}
+
+// The shared pair probe routes scene/model but not geometry. r4 adds a
+// distant flock with negative mesh IDs; using that mesh with main's shader
+// draws 2,048 extra falcons. Route all three owned modules for a fair pair.
+async function profilePair() {
+  const reference = execFileSync(
+    "git",
+    ["rev-parse", `${args.reference}^{commit}`],
+    { encoding: "utf8" },
+  ).trim();
+  const out = await outputDirectory("murmuration-r4-pair-matched", args.out);
+  const server = await serve(".", args.port),
+    runtime = await launch({ rig: true });
+  try {
+    const sources = new Map();
+    const baseline = {
+      newContext: async (options) => {
+        const context = await runtime.browser.newContext(options);
+        await context.route(
+          /\/(scene-murmuration|murmuration-model|murmuration-geometry)\.mjs$/,
+          (route) => {
+            const file = new URL(route.request().url()).pathname.slice(1);
+            if (!sources.has(file))
+              sources.set(
+                file,
+                execFileSync("git", ["show", `${reference}:${file}`], {
+                  encoding: "utf8",
+                }),
+              );
+            return route.fulfill({
+              contentType: "text/javascript",
+              body: sources.get(file),
+            });
+          },
+        );
+        return context;
+      },
+    };
+    const labs = [
+      await openLab(baseline, server.url),
+      await openLab(runtime.browser, server.url),
+    ];
+    const renderer = await labs[1].page.evaluate(() => {
+      const gl = window.__phosphorLab.engine.gl;
+      return gl.getParameter(
+        gl.getExtension("WEBGL_debug_renderer_info")?.UNMASKED_RENDERER_WEBGL ??
+          gl.RENDERER,
+      );
+    });
+    assert.doesNotMatch(renderer, /swiftshader|software|llvmpipe/i);
+    const rows = [];
+    for (let type = 0; type < 3; type++) {
+      const samples = [[], []];
+      for (const lab of labs) {
+        const health = await lab.page.evaluate(renderLook, {
+          sceneId: "murmuration",
+          index: type,
+          type,
+          level: 0.95,
+          width: 1920,
+          height: 1080,
+          frames: 8,
+          capture: false,
+          pollHealth: false,
+        });
+        assert.equal(health.glError, 0);
+        assert.equal(health.nonFinite, 0);
+        assert.ok(health.peak > 0);
+      }
+      for (const candidate of [0, 1, 1, 0, 1, 0, 0, 1]) {
+        const block = await labs[candidate].page.evaluate(() => {
+          const { engine } = window.__phosphorLab;
+          engine.options.flashLimit = true; // Keep live safety enabled in this supplemental probe.
+          const gl = engine.gl,
+            pixel = new Uint8Array(4),
+            samples = [];
+          for (let i = 0; i < 19; i++) {
+            const start = performance.now();
+            engine.beat = (engine.renderTick + 0.5) / 30;
+            engine.advance(1 / 60, false);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+            if (i >= 3) samples.push(performance.now() - start);
+          }
+          if (
+            gl.getError() ||
+            engine.counters.gpuErrors ||
+            engine.counters.nonFinite ||
+            window.__harness.nonFiniteUploads
+          )
+            throw Error("GPU health");
+          return samples;
+        });
+        samples[candidate].push(...block);
+      }
+      const stats = (a) => {
+        a = [...a].sort((x, y) => x - y);
+        return { p50: a[32], p95: a[60] };
+      };
+      const baseline = stats(samples[0]),
+        final = stats(samples[1]);
+      const row = {
+        type,
+        baseline,
+        final,
+        ratio: final.p50 / baseline.p50,
+        samples,
+      };
+      rows.push(row);
+      console.log(JSON.stringify({ ...row, samples: undefined }));
+    }
+    const errors = labs.flatMap((l) => l.errors);
+    await writeFile(
+      join(out, "profile.json"),
+      JSON.stringify(
+        {
+          reference,
+          renderer,
+          kind: "ABBA; matching scene, model AND geometry; 64 synchronous frames/candidate/state, 1080p; not venue cadence",
+          rows,
+          errors,
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    assert.deepEqual(errors, []);
+    if (rows.some((r) => r.ratio > 1.05)) process.exitCode = 1;
+  } finally {
+    await runtime.stop();
+    await server.close();
+  }
 }

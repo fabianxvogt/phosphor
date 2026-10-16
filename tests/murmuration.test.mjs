@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import murmuration from "../scene-murmuration.mjs";
-import { BIRDS, TEMPLATE, createGeometry } from "../murmuration-geometry.mjs";
+import {
+  BIRDS,
+  FAR,
+  TEMPLATE,
+  createGeometry,
+} from "../murmuration-geometry.mjs";
 import {
   CLOCK_PERIOD,
   LATTICE,
@@ -14,6 +19,7 @@ import {
   cloud,
   cycle,
   formationAt,
+  jitter,
   neighbours,
   rnd,
   seedKey,
@@ -66,9 +72,53 @@ test("topological neighbours are fixed, symmetric and never the clock", () => {
   }
   // The mesh draws one bird per lattice site; site 0 draws the falcon.
   const data = createGeometry();
-  assert.equal(data.length, BIRDS * TEMPLATE.length * 5);
+  assert.equal(data.length, (BIRDS + FAR) * TEMPLATE.length * 5);
   assert.equal(data[0], -1);
   assert.equal(data[TEMPLATE.length * 5], 1);
+});
+
+test("ragged fringe is seeded, bounded and broader than the dense core", () => {
+  const key = seedKey(1207);
+  let core = 0,
+    fringe = 0;
+  for (let id = 1; id <= 4096; id++) {
+    const a = jitter(key, id, 0.5),
+      b = jitter(key, id, 0);
+    assert.deepEqual(b, jitter(key, id, 0));
+    assert.ok(a.every(Number.isFinite) && b.every(Number.isFinite));
+    assert.ok(Math.hypot(...b) < 3);
+    core += Math.hypot(...a);
+    fringe += Math.hypot(...b);
+  }
+  assert.ok(fringe > core * 3);
+  const geometry = createGeometry(),
+    stride = TEMPLATE.length * 5;
+  assert.equal(geometry[BIRDS * stride], -2);
+  assert.equal(geometry[(BIRDS + FAR - 1) * stride], -FAR - 1);
+  assert.match(murmuration.simulation.fragment, /b.p = A \+ muJitter/);
+});
+
+test("wing-front recovers one linear beat sweep from the quantised envelope", () => {
+  for (const amplitude of [0.25, 0.55, 0.88, 1]) {
+    const stored = Math.round(amplitude * 255) / 255;
+    let previous = 0;
+    for (let i = 0; i <= 100; i++) {
+      const t = i / 100,
+        d = 1 - t;
+      const env = amplitude * d * d * (3 - 2 * d);
+      const y = Math.max(0, Math.min(1, env / stored));
+      const phase = env > 0.001 ? 0.5 + Math.sin(Math.asin(1 - 2 * y) / 3) : 1;
+      assert.ok(Number.isFinite(phase) && phase >= previous - 1e-12);
+      assert.ok(Math.abs(phase - t) < 0.045);
+      previous = phase;
+    }
+  }
+  const glint = murmuration.rhythm[0].styles;
+  for (const style of ["driving", "accented"])
+    assert.equal(glint[style].length / glint[style].division, 3);
+  assert.match(murmuration.geometry.vertex, /\.35 \* sy \* sy/);
+  assert.match(murmuration.geometry.vertex, /\.75 \* front - \.45 \* trail/);
+  assert.match(murmuration.geometry.vertex, /radial \/ rr/);
 });
 
 test("development blends forces, never positions", () => {
@@ -142,7 +192,7 @@ test("Surge holds a folded sheet and Formation converges to its slots", () => {
       form.clock,
       0,
     );
-    const j = [8, 9, 10].map((k) => (rnd(key, id, k) - 0.5) * 0.16);
+    const j = jitter(key, id, Math.floor(id / 32) / 16);
     miss += dist(b.p, [
       home[0] + j[0] + s[0],
       home[1] + j[1] + s[1],
@@ -214,8 +264,8 @@ test("distant bird LOD has stable image-plane area and smooth energy reveal", ()
 
 test("bounded formation dolly, polynomial skyline and identifiers stay continuous", () => {
   for (let dive = 0; dive <= 1; dive += 0.01) {
-    const distance = 8 * (1 - 0.18 * dive);
-    assert.ok(distance >= 6.55 && distance <= 8);
+    const distance = 6.7 * (1 - 0.34 * dive);
+    assert.ok(distance >= 4.4 && distance <= 6.7);
     const focal = 1.65 + (1.45 - 1.65) * dive;
     assert.ok(focal >= 1.45 && focal <= 1.65);
   }
@@ -258,7 +308,7 @@ test("bounded formation dolly, polynomial skyline and identifiers stay continuou
   );
   assert.match(
     murmuration.geometry.vertex,
-    /mix\(dist, \.82 \* dist, m.dive\)/,
+    /mix\(dist, \.66 \* dist, m.dive\)/,
   );
 });
 
@@ -387,7 +437,10 @@ test("four authored gestures fill the grid; the wing-front is local and hit-seed
   assert.match(murmuration.geometry.vertex, /u_rhythmCount\.w/);
   assert.match(murmuration.geometry.vertex, /u_rhythm\.w/);
   assert.match(murmuration.geometry.vertex, /v_glint = u_rhythm\.x/);
-  assert.match(murmuration.geometry.fragment, /v_front\*feather/);
+  assert.match(
+    murmuration.geometry.fragment,
+    /v_front\*\(\.45\+\.55\*feather\)/,
+  );
   // pow(negative, integer-looking float) is undefined in GLSL: the third
   // film caught this collapsing the cloud. Square trig values by multiply.
   for (const source of [
