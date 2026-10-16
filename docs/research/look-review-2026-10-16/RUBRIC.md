@@ -11,7 +11,7 @@ Per world, from `node scripts/look-review-capture.mjs --out artifacts/look-revie
 - `<world>.mp4`: the film itself (optional; extract stills with ffmpeg if a sheet is ambiguous).
 - `node scripts/rhythm-grid-dump.mjs --worlds <world>`: the authored rhythm presets as sixteenth-note grids (restrained / driving / accented phrase styles) with the gesture descriptions.
 
-Stills do not show motion quality; judge motion only where frames show it (lurches, stalls, popping) and say so when a call is uncertain.
+Stills do not show motion quality; judge motion only where frames show it (lurches, stalls, popping) and say so when a call is uncertain. The existing offline `world-film.mjs` harness disables asynchronous flash approval for deterministic captures: these sheets judge the renderer, **not live photosensitivity compliance**. Limiter-enabled native verification, flash-limiter tests and real-stage timing remain separate acceptance evidence; never weaken the live limiter to match a film.
 
 ## Sub-scores (0–10, half points allowed)
 
