@@ -196,27 +196,40 @@ export default {
     audio: [0.1, 0.8],
   },
   beat: { punch: 0.4, pulse: 0.8, inject: 1 },
+  rhythmStyles: { restrained: "Dormant threads", driving: "Root signals", accented: "Spore chorus" },
   rhythm: [
     familyEffect(
       "reaction-front",
       0,
       "Reaction-front light",
       "Light the threads where the activator front advances.",
-      { period: 4, strength: 0.6 },
+      { period: 4, strength: 0.6, steps: "X...", styles: {
+        restrained: { steps: "X.....x. | ....x...", division: 2, strength: 0.5, duration: 0.8 },
+        driving: { steps: "X.x.X..x | X.x.X.x.", division: 2, strength: 0.76, duration: 0.35 },
+        accented: { steps: "X..x..x.X..x.x.. | X.x..x..X..x..xx", division: 4, strength: 0.9, duration: 0.2 },
+      } },
     ),
     familyEffect(
       "chemical-band",
       1,
       "Chemical-band light",
       "Select one concentration band across the terrain.",
-      { period: 8, strength: 0.5 },
+      { period: 8, strength: 0.5, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | ......X.", division: 2, strength: 0.45, duration: 1 },
+        driving: { steps: "..X...x. | ...X...x", division: 2, strength: 0.7, duration: 0.7 },
+        accented: { steps: "...X.......x.... | ......X......x..", division: 4, strength: 0.84, duration: 0.45 },
+      } },
     ),
     familyEffect(
       "feed",
       2,
       "Local chemical feed",
       "Inject a bounded local feed patch into the living field.",
-      { period: 16, strength: 0.6, duration: 0.25, kind: "simulation" },
+      { period: 16, strength: 0.6, duration: 0.25, kind: "simulation", steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.45, duration: 0.25 },
+        driving: { steps: "........ | ......x. | ........ | .......X", division: 2, strength: 0.72, duration: 0.25 },
+        accented: { steps: "................ | ............x... | ................ | ..........X...x.", division: 4, strength: 0.86, duration: 0.2 },
+      } },
     ),
   ],
   fragment: landscapeBackdrop(false),

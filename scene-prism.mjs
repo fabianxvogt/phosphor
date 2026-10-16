@@ -428,27 +428,40 @@ export default {
     { rate: (p) => p[1] * 0.15, period: 2 * Math.PI },
     { rate: (p) => p[5] * 0.035, period: 2 * Math.PI },
   ],
+  rhythmStyles: { restrained: "Sleeping spectrum", driving: "Refracted paths", accented: "Caustic choir" },
   rhythm: [
     familyEffect(
       "spectral-address",
       0,
       "Spectral address",
       "One persistent prism receives a bounded pulse along its dispersed rays.",
-      { period: 4, strength: 0.6, duration: 1.5 },
+      { period: 4, strength: 0.6, duration: 1.5, steps: "X...", styles: {
+        restrained: { steps: "X....... | ......x. | ....X... | ........", division: 2, strength: 0.5, duration: 1.4 },
+        driving: { steps: "X....x.. | ...X..x.", division: 2, strength: 0.76, duration: 0.8 },
+        accented: { steps: "X.......x....... | ...X.......x.... | ......X.......x.", division: 4, strength: 0.9, duration: 0.4 },
+      } },
     ),
     familyEffect(
       "snell-breath",
       1,
       "Snell breath",
       "The incident angle breathes gently, steering the physically refracted fan.",
-      { period: 8, strength: 0.6, duration: 2, kind: "motion" },
+      { period: 8, strength: 0.6, duration: 2, kind: "motion", steps: "X.......", styles: {
+        restrained: { steps: "...x.... | ........ | .......X | ........", division: 2, strength: 0.5, duration: 1.8 },
+        driving: { steps: "......x. | .......X | ........ | ....X...", division: 2, strength: 0.72, duration: 1.4 },
+        accented: { steps: "...........x.... | ..............X. | .......x........ | ............X...", division: 4, strength: 0.86, duration: 1.1 },
+      } },
     ),
     familyEffect(
       "caustic-sweep",
       2,
       "Caustic sweep",
       "A wavelength band travels across the existing spectral floor caustics.",
-      { period: 16, strength: 0.65, duration: 3 },
+      { period: 16, strength: 0.65, duration: 3, steps: "X...............", styles: {
+        restrained: { steps: ".....x.. | ........ | ..X..... | ........", division: 2, strength: 0.52, duration: 1.6 },
+        driving: { steps: "..X..x.. | .X..x..X", division: 2, strength: 0.78, duration: 0.75 },
+        accented: { steps: "..X..x..X..x | .X..x..X..xx", division: 4, strength: 0.92, duration: 0.18 },
+      } },
     ),
   ],
   fragment,

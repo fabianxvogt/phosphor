@@ -581,27 +581,40 @@ export default {
     { rate: (p) => p[1] * 0.12, period: 48 },
     { rate: () => 0.035, period: 2 * Math.PI },
   ],
+  rhythmStyles: { restrained: "Empty landings", driving: "Lantern steps", accented: "Endless ascent" },
   rhythm: [
     familyEffect(
       "tread-procession",
       0,
       "Tread procession",
       "A local light packet climbs the same persistent impossible treads.",
-      { period: 4, strength: 0.55, duration: 1.25 },
+      { period: 4, strength: 0.55, duration: 1.25, steps: "X...", styles: {
+        restrained: { steps: "X....... | .....x.. | ....X...", division: 2, strength: 0.48, duration: 1.5 },
+        driving: { steps: "X....x.. | ...X.... | .x....X.", division: 2, strength: 0.72, duration: 0.9 },
+        accented: { steps: "X.........x..... | .X.........x.... | ..X.........x...", division: 4, strength: 0.86, duration: 0.6 },
+      } },
     ),
     familyEffect(
       "gravity-light",
       1,
       "Gravity light",
       "A soft stage light reveals the three stair orientations.",
-      { period: 8, strength: 0.45, duration: 2 },
+      { period: 8, strength: 0.45, duration: 2, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | .......X | ..x.....", division: 2, strength: 0.4, duration: 1.4 },
+        driving: { steps: "...X..x. | .X...x..", division: 2, strength: 0.65, duration: 0.8 },
+        accented: { steps: "...X..x...X..x.. | .....X..x..X..x.", division: 4, strength: 0.8, duration: 0.5 },
+      } },
     ),
     familyEffect(
       "recursive-lantern",
       2,
       "Recursive lantern",
       "The walking lanterns breathe together through every recursive level.",
-      { period: 16, strength: 0.6, duration: 2.5 },
+      { period: 16, strength: 0.6, duration: 2.5, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ......X. | ........", division: 2, strength: 0.5, duration: 2.5 },
+        driving: { steps: "........ | ......x. | ........ | .....X.x", division: 2, strength: 0.74, duration: 0.8 },
+        accented: { steps: "............x... | .........X..x.XX", division: 4, strength: 0.9, duration: 0.18 },
+      } },
     ),
   ],
   fragment,

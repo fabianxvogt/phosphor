@@ -18,8 +18,32 @@ const worldFamilies = [
     defaultWorlds(lookIds).map((world) => world.states[0].look.split(":")[0]),
   ),
 ].map((id) => byId.get(id));
-// Families still waiting for authored presets. Shrinks to empty.
-const authored = worldFamilies.filter((scene) => scene.rhythmStyles);
+const authored = worldFamilies;
+// Count-selected cohorts and physical/simulation gestures need room to settle.
+// Local lighting sweeps may be faster; future slot-3 signatures are lane-owned.
+const spacedSlots = {
+  mycelium: [1, 2],
+  afterglow: [1, 2],
+  metamorphosis: [1],
+  fibration: [0, 1, 2],
+  descent: [0, 1],
+  murmuration: [1, 2],
+  fold: [1],
+  ribbons: [0],
+  abyss: [0, 1],
+  ferro: [0, 1, 2],
+  laser: [0, 1],
+  kinetic: [0],
+  aurora: [0, 1, 2],
+  orrery: [1],
+  storm: [0, 1, 2],
+  prism: [0, 1],
+  escher: [0],
+  silk: [1],
+  ink: [0, 1],
+  voxel: [0, 2],
+};
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
 const hitsOf = (track) =>
   track.steps.flatMap((value, i) => (value > 0 ? [i] : []));
@@ -32,8 +56,18 @@ test("step notation", () => {
   assert.throws(() => steps("X?"));
 });
 
-test("every world family is listed", () => {
+test("every world family is listed and declares three named rhythm styles", () => {
   assert.equal(worldFamilies.length, 27);
+  for (const scene of worldFamilies) {
+    assert.ok(scene.rhythmStyles, `${scene.id} declares rhythmStyles`);
+    assert.equal(new Set(Object.values(scene.rhythmStyles)).size, 3);
+    for (const style of STYLES)
+      assert.match(
+        scene.rhythmStyles[style],
+        /^\S+(?: \S+){1,2}$/,
+        `${scene.id}/${style}`,
+      );
+  }
 });
 
 for (const scene of authored)
@@ -42,8 +76,13 @@ for (const scene of authored)
       assert.ok(scene.rhythmStyles[style], `${scene.id} names ${style}`);
     assert.ok(scene.rhythm.length >= 3, `${scene.id} has ≥ 3 gestures`);
     const patterns = STYLES.map((style) => defaultPattern(scene.rhythm, style));
+    assert.deepEqual(
+      defaultPattern(scene.rhythm), patterns[1], `${scene.id} defaults to driving`,
+    );
     const signatures = patterns.map((pattern) =>
-      JSON.stringify(pattern.tracks.map((t) => [t.division, t.steps])),
+      JSON.stringify(
+        pattern.tracks.map((t) => [t.division, t.steps.map((v) => v > 0)]),
+      ),
     );
     assert.equal(new Set(signatures).size, 3, `${scene.id} presets differ`);
     for (const [index, pattern] of patterns.entries()) {
@@ -51,6 +90,35 @@ for (const scene of authored)
       for (const track of pattern.tracks) {
         const hits = hitsOf(track);
         assert.ok(hits.length > 0, `${label}/${track.effect} plays`);
+        const effect = scene.rhythm.find((effect) => effect.id === track.effect);
+        if (effect.slot < 3) {
+          assert.ok(
+            effect.styles?.[STYLES[index]], `${label}/${effect.id} is authored`,
+          );
+          assert.deepEqual(
+            track,
+            { ...effect.styles[STYLES[index]], effect: effect.id },
+            `${label} uses its authored loop, not legacy defaults`,
+          );
+          const gaps = hits.map((hit, i) => (
+            hits[(i + 1) % hits.length]
+            + (i === hits.length - 1 ? track.length : 0) - hit
+          ) / track.division);
+          assert.ok(
+            track.duration < Math.min(...gaps),
+            `${label}/${effect.id} settles before the next hit`,
+          );
+        }
+        if (spacedSlots[scene.id]?.includes(effect.slot)) {
+          const bar = 4 * track.division;
+          const cycle = (track.length * bar) / gcd(track.length, bar);
+          for (let start = 0; start < cycle; start += bar) {
+            let count = 0;
+            for (let step = start; step < start + bar; step++)
+              if (track.steps[step % track.length] > 0) count++;
+            assert.ok(count <= 2, `${label}/${effect.id}: ≤ 2 hits per bar`);
+          }
+        }
         assert.ok(
           !(hits.length === 1 && hits[0] === 0 && track.length <= 4),
           `${label}/${track.effect} is more than a hit on 1`,

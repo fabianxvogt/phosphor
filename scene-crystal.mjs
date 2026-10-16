@@ -343,27 +343,40 @@ export default {
     { param: "shimmer", feature: "low", amount: 0.06 },
     { param: "sparkle", feature: "high", amount: 0.05 },
   ],
+  rhythmStyles: { restrained: "Hidden facets", driving: "Quartz steps", accented: "Prismatic chime" },
   rhythm: [
     familyEffect(
       "facet-glint",
       0,
       "Facet glint",
       "More crystal facets catch the light at once.",
-      { period: 4, strength: 0.6, duration: 0.5 },
+      { period: 4, strength: 0.6, duration: 0.5, steps: "X...", styles: {
+        restrained: { steps: "X....x.. | ...x....", division: 2, strength: 0.5, duration: 0.9 },
+        driving: { steps: "X.x.X.x. | X..xX.xx", division: 2, strength: 0.78, duration: 0.3 },
+        accented: { steps: "X.x..X.x..X.x..xX.x.", division: 4, strength: 0.94, duration: 0.2 },
+      } },
     ),
     familyEffect(
       "growth-pulse",
       1,
       "Growth pulse",
       "A band of light climbs every crystal from its root to its tip.",
-      { period: 8, strength: 0.65, duration: 1 },
+      { period: 8, strength: 0.65, duration: 1, steps: "X.......", styles: {
+        restrained: { steps: "..x..... | ......X.", division: 2, strength: 0.55, duration: 1.25 },
+        driving: { steps: "...X..x. | .X...x..", division: 2, strength: 0.78, duration: 0.75 },
+        accented: { steps: "...X..x..X..x... | .X..x..X..x...X.", division: 4, strength: 0.9, duration: 0.4 },
+      } },
     ),
     familyEffect(
       "seed-beacons",
       2,
       "Seed beacons",
       "The original seed crystals flare together.",
-      { period: 16, strength: 0.7, duration: 2 },
+      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ....X... | ........", division: 2, strength: 0.55, duration: 2 },
+        driving: { steps: "........ | ......xX | ........ | .....x.X", division: 2, strength: 0.82, duration: 0.35 },
+        accented: { steps: "................ | ..........x.X.xx", division: 4, strength: 0.97, duration: 0.18 },
+      } },
     ),
   ],
   fragment: `void main(){vec2 p=v_uv-.5;outColor=vec4(mix(u_secondary,u_primary,.3)*.035*(1.-.4*dot(p,p)),1.);}`,

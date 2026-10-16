@@ -549,27 +549,40 @@ export default {
     { param: "speed", feature: "low", amount: 0.05 },
     { param: "detail", feature: "high", amount: 0.06 },
   ],
+  rhythmStyles: { restrained: "Suspended drops", driving: "Pendulum rain", accented: "Lattice cascade" },
   rhythm: [
     familyEffect(
       "kick-rings",
       0,
       "Kick rings",
       "A ring wave runs outwards through the sphere lattice from its centre.",
-      { period: 4, strength: KICK_STRENGTH, duration: 3.5 },
+      { period: 4, strength: KICK_STRENGTH, duration: 3.5, steps: "X...", styles: {
+        restrained: { steps: "X....... | ......x. | ........ | ...X....", division: 2, strength: 0.58, duration: 2.2 },
+        driving: { steps: "X....... | ....x... | ....X... | ....X...", division: 2, strength: 0.84, duration: 1.8 },
+        accented: { steps: "X.........x..... | ....X.......x...", division: 4, strength: 0.98, duration: 0.9 },
+      } },
     ),
     familyEffect(
       "index-sweep",
       1,
       "Index sweep",
       "A band of light sweeps diagonally across the lattice by sphere index, in every state.",
-      { period: 8, strength: 0.65, duration: 2 },
+      { period: 8, strength: 0.65, duration: 2, steps: "X.......", styles: {
+        restrained: { steps: "...x.... | ........ | .....X.. | .......x", division: 2, strength: 0.52, duration: 1.5 },
+        driving: { steps: "..X..x.. | ...X..x.", division: 2, strength: 0.78, duration: 0.8 },
+        accented: { steps: "..X..x..X..x..X..x..X...", division: 4, strength: 0.92, duration: 0.5 },
+      } },
     ),
     familyEffect(
       "lattice-lines",
       2,
       "Lattice lines",
       "Every eighth row and column of spheres lights up, tracing the grid across the surface.",
-      { period: 16, strength: 0.7, duration: 2.5 },
+      { period: 16, strength: 0.7, duration: 2.5, steps: "X...............", styles: {
+        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.55, duration: 2 },
+        driving: { steps: "........ | .......x | ........ | .....X.x", division: 2, strength: 0.82, duration: 0.7 },
+        accented: { steps: "...........x.... | ........X.x..Xxx", division: 4, strength: 0.96, duration: 0.18 },
+      } },
     ),
   ],
   // Integrated phases (scene-time.mjs): every use is periodic in its period.
