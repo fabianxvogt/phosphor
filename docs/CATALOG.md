@@ -88,7 +88,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Magma Rift](families/magma.md) | magma | Raymarched Voronoi basalt seams heated along one seed-only drainage tree, channel-frame lava skins, a floe-crust lake, spray cones and ballistic bombs under an ash umbrella lit from below | Crust / Rivers / Eruption | 8 |
 | [Aurora Veil / Polarlicht-Schleier](families/aurora.md) | aurora | Layered field-aligned curtains above a frozen mirror, saturated upper rays and local travelling curtain surges | Glow / Curtains / Corona | 8 |
 | [Brass Orrery](families/orrery.md) (world Brass Orrery / Messing-Orrery) | orrery | Beveled involute gear trains with exact integer-tooth meshing and planetary orbital ratios | Gears / Orrery / Clockwork | 8 |
-| [Thunderhead](families/storm.md) (world Thunderhead / Gewitterzelle) | storm | Volumetric cumulonimbus (meteorological carrier, Beer–Lambert march, multiple-scattering octaves) lit from inside by seeded stepped-leader events | Haze / Towers / Supercell | 8 |
+| [Thunderhead](families/storm.md) (world Thunderhead / Gewitterzelle) | storm | Connected turbulent cumulonimbus (Beer–Lambert march, multiple scattering), localized discharge light and branching anvil strikes reflected in a moonlit lake | Haze / Towers / Supercell | 8 |
 
 | [Prism Engine](families/prism.md) (Prismenmaschine) | prism | Two-interface Snell refraction, Cauchy dispersion and total internal reflection in persistent triangular glass | Shard / Array / Kaleidoscope | 8 |
 | [Impossible Stairs](families/escher.md) (Unmögliche Treppen) | escher | Analytic projective Penrose stair cover, three gravity frames, log-polar Droste recursion and count-addressed lantern ascent | Stair / Relativity / Infinity | 8 |

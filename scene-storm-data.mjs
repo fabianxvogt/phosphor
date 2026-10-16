@@ -32,7 +32,7 @@ const float stHX[5] = float[5](-17.0,-8.5,0.0,8.5,17.0);
 const float stHT[5] = float[5](0.0,3.0,1.6,3.4,0.4);
 const float stTX[5] = float[5](-13.0,-6.2,0.3,6.6,13.0);
 const float stTT[5] = float[5](5.6,10.4,12.0,9.6,5.2);
-const float stTR[5] = float[5](3.0,2.4,2.7,2.3,2.8);
+const float stTR[5] = float[5](3.5,3.2,3.4,3.1,3.3);
 const float stSX[5] = float[5](-12.5,-6.0,0.0,5.8,10.6);
 const float stSZ[5] = float[5](11.0,11.5,6.5,8.6,10.5);
 const float stST[5] = float[5](4.4,7.6,11.6,8.4,6.0);
@@ -227,7 +227,7 @@ void stCameraSetup() {
   float grow = 0.55*stRise+0.45*stSuper;
   // Overlook: low and close (0) to high and far (1).
   float eye = u_params[5]-0.45;
-  float z = mix(-21.0,mix(-14.0,-12.0,stSuper),grow)-eye*7.0;
+  float z = mix(-21.0,-14.0,grow)-eye*7.0;
   float y = mix(1.5,0.6,grow)+eye*(eye < 0.0 ? 0.8 : 1.4);
   float ty = mix(3.0,mix(4.8,8.4,stSuper),stRise)*u_params[2];
   float tz = mix(14.0,8.0,grow);
@@ -238,7 +238,7 @@ void stCameraSetup() {
   vec3 target = vec3(pan+0.6*sin(stCamera), ty, tz);
   stF = normalize(target - stEye);
   stR = normalize(cross(stF, vec3(0,1,0))); stU = cross(stR, stF);
-  stFocal = mix(mix(2.2,2.25,stRise),1.6,stSuper);
+  stFocal = mix(mix(2.2,2.25,stRise),1.48,stSuper);
   // The moon is placed in the view of the orbit-free camera, so it stays
   // in frame in every state: above the bank, low between the towers, at
   // the downstream anvil edge of the supercell (side-back light, silver

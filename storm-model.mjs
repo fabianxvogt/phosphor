@@ -91,13 +91,16 @@ const HX = [-17, -8.5, 0, 8.5, 17];
 const HT = [0, 3, 1.6, 3.4, 0.4];
 const TX = [-13, -6.2, 0.3, 6.6, 13];
 const TT = [5.6, 10.4, 12, 9.6, 5.2];
-const TR = [3, 2.4, 2.7, 2.3, 2.8];
+const TR = [3.5, 3.2, 3.4, 3.1, 3.3];
 const SX = [-12.5, -6, 0, 5.8, 10.6];
 const SZ = [11, 11.5, 6.5, 8.6, 10.5];
 const ST = [4.4, 7.6, 11.6, 8.4, 6];
 const SR = [2.4, 3.4, 5.6, 2.8, 2.2];
 export function stages(development) {
-  return { rise: smooth(0, 1, development), supercell: smooth(1, 2, development) };
+  return {
+    rise: smooth(0, 1, development),
+    supercell: smooth(1, 2, development),
+  };
 }
 // [x, z, base, top] and radius of each cell; base is the shared cloud base.
 export function cells(seed, development) {
@@ -111,10 +114,19 @@ export function cells(seed, development) {
         j3 = random(seed, 7, i * 4 + 3);
       const haze = [HX[i] + j0 * 2.5, 15 + j1 * 4, 1.4, 4.4 + j3 * 2.2 + HT[i]];
       const tower = [TX[i] + j0 * 1.2, 11 + j1 * 3, 2.6, TT[i] + 1 + j3 * 1.2];
-      const sup = [SX[i] + j0 * 0.8, SZ[i] + j1 * 1.5, 4.4, ST[i] + 2 + j3 * 0.8];
+      const sup = [
+        SX[i] + j0 * 0.8,
+        SZ[i] + j1 * 1.5,
+        4.4,
+        ST[i] + 2 + j3 * 0.8,
+      ];
       return {
         cell: mix3(mix3(haze, tower, rise), sup, supercell),
-        radius: mix(mix(5.4 + j2 * 2.2, TR[i] + j2 * 0.6, rise), SR[i] + j2 * 0.4, supercell),
+        radius: mix(
+          mix(5.4 + j2 * 2.2, TR[i] + j2 * 0.6, rise),
+          SR[i] + j2 * 0.4,
+          supercell,
+        ),
       };
     }),
   };
@@ -165,9 +177,18 @@ export function discharge(seed, slot, index, u, gain, development) {
   const shape = Math.floor(random(seed, 40 + slot, id) * TREE_SHAPES);
   const restrikes = Math.floor(random(seed, 50 + slot, id) * 3);
   const ic = slot >= 2 ? 1 : 1 - ground;
-  const [power, broad, progress] = stroke(u, restrikes, slot === 2, ic, seed, id, slot);
+  const [power, broad, progress] = stroke(
+    u,
+    restrikes,
+    slot === 2,
+    ic,
+    seed,
+    id,
+    slot,
+  );
   const pick = random(seed, 60 + slot, id);
-  const cell = pick < 0.4 ? 2 : pick < 0.6 ? 1 : pick < 0.8 ? 3 : pick < 0.9 ? 0 : 4;
+  const cell =
+    pick < 0.4 ? 2 : pick < 0.6 ? 1 : pick < 0.8 ? 3 : pick < 0.9 ? 0 : 4;
   const [cx, cz, base, topY] = cs[cell].cell,
     rad = cs[cell].radius;
   const a = random(seed, 70 + slot, id) * TAU,
@@ -179,7 +200,11 @@ export function discharge(seed, slot, index, u, gain, development) {
   const [ox, oz, obase, otop] = cs[other].cell;
   let A, B;
   if (slot <= 1) {
-    let root = [cx + off[0], base + top * mix(0.55, 0.45, supercell), cz + off[1]];
+    let root = [
+      cx + off[0],
+      base + top * mix(0.55, 0.45, supercell),
+      cz + off[1],
+    ];
     if (slot === 0) {
       // The hero return stroke leaves the forward anvil in the supercell.
       const side = (random(seed, 91, id) - 0.5) * 2;
@@ -198,10 +223,18 @@ export function discharge(seed, slot, index, u, gain, development) {
     const a0 = [cx, base + top * 0.45, cz];
     const b0 = [ox, obase + (otop - obase) * 0.45, oz];
     const [mx, mz, , mtop] = cs[2].cell;
-    const centre = [mix(mx, -3, supercell), mtop * 0.9 - 1.5, mix(mz, 7, supercell)];
+    const centre = [
+      mix(mx, -3, supercell),
+      mtop * 0.9 - 1.5,
+      mix(mz, 7, supercell),
+    ];
     const dir = random(seed, 100, id) * TAU,
       turn = (random(seed, 101, id) - 0.5) * 1.6;
-    const a1 = add(centre, [Math.cos(dir) * (Math.cos(dir) > 0 ? 7.5 : 13), 0, Math.sin(dir) * 6]);
+    const a1 = add(centre, [
+      Math.cos(dir) * (Math.cos(dir) > 0 ? 7.5 : 13),
+      0,
+      Math.sin(dir) * 6,
+    ]);
     const b1 = add(centre, [
       Math.cos(dir + 3.1416 + turn) * 9,
       -0.5,
@@ -260,8 +293,8 @@ export function eventGraph(seed, event, height = 1) {
 
 // ---- Light transport.
 // Lightning irradiance falloff from the closest channel point (before the
-// in-cloud attenuation exp(-0.04·τ·d), with τ the summed tap densities).
-export const flashFalloff = (d) => 1 / (1 + d * d * 0.06) ** 1.5;
+// in-cloud attenuation, with a short falloff that preserves distant shadows).
+export const flashFalloff = (d) => 1 / (1 + d * d * 0.22) ** 1.5;
 export function channelDistance(point, a, b) {
   const v = sub(b, a),
     q = sub(point, a);
@@ -278,7 +311,8 @@ export function multipleScattering(tau, mu) {
     b = 1,
     c = 1;
   for (let k = 0; k < 3; k++) {
-    sum += a * Math.exp(-b * tau) * mix(hg(0.72 * c, mu), hg(-0.25 * c, mu), 0.3);
+    sum +=
+      a * Math.exp(-b * tau) * mix(hg(0.72 * c, mu), hg(-0.25 * c, mu), 0.3);
     a *= 0.5;
     b *= 0.4;
     c *= 0.5;
@@ -291,9 +325,12 @@ export function transmittanceAt(t, r) {
   const lf = Math.log(Math.max(r.final, 1e-4));
   const t1 = r.half > 0 ? r.half : r.exit,
     l1 = r.half > 0 ? -0.6931 : lf;
-  if (t <= t1) return Math.exp((l1 * (t - r.enter)) / Math.max(t1 - r.enter, 1e-3));
+  if (t <= t1)
+    return Math.exp((l1 * (t - r.enter)) / Math.max(t1 - r.enter, 1e-3));
   if (r.tenth > 0 && t <= r.tenth)
-    return Math.exp(mix(-0.6931, -2.3026, (t - r.half) / Math.max(r.tenth - r.half, 1e-3)));
+    return Math.exp(
+      mix(-0.6931, -2.3026, (t - r.half) / Math.max(r.tenth - r.half, 1e-3)),
+    );
   return r.final;
 }
 
@@ -303,7 +340,11 @@ export function anvil(seed, development) {
   const { cells: cs } = cells(seed, development);
   const [mx, mz, , mtop] = cs[2].cell;
   return {
-    centre: [mix(mx, -3, supercell), mtop * mix(0.92, 0.9, supercell), mix(mz, 7, supercell)],
+    centre: [
+      mix(mx, -3, supercell),
+      mtop * mix(0.92, 0.9, supercell),
+      mix(mz, 7, supercell),
+    ],
     radius: mix(0.6 * cs[2].radius, 17.5, supercell),
     thickness: mix(0.9, 1.25, supercell),
     dome: 2.5 * supercell,
@@ -313,6 +354,27 @@ const smin = (a, b, k) => {
   const h = Math.max(0, Math.min(1, 0.5 + (0.5 * (b - a)) / k));
   return mix(b, a, h) - k * h * (1 - h);
 };
+// Scalar value noise reference for the carrier's turbulent radius.
+export function carrierNoise(p, seed) {
+  const fract = (x) => x - Math.floor(x);
+  const c = p.map(Math.floor),
+    f = p.map((x, i) => smooth(0, 1, x - c[i]));
+  const shift = (seed % 117) * 0.17;
+  const base = c[0] + shift + (c[1] + shift) * 57 + (c[2] + shift) * 113;
+  const h = (v) => {
+    let n = fract(v * 0.1031);
+    n *= n + 33.33;
+    n *= n + n;
+    return fract(n);
+  };
+  const plane = (z) =>
+    mix(
+      mix(h(base + z), h(base + z + 1), f[0]),
+      mix(h(base + z + 57), h(base + z + 58), f[0]),
+      f[1],
+    );
+  return mix(plane(0), plane(113), f[2]);
+}
 // Coarse carrier (no mammatus), as used by the light-transport taps.
 export function carrier(p, seed, development, phase = 0, parts = null) {
   const { supercell } = stages(development);
@@ -322,17 +384,34 @@ export function carrier(p, seed, development, phase = 0, parts = null) {
   const { rise } = stages(development);
   cs.forEach(({ cell: c, radius }, i) => {
     const d = [p[0] - c[0], p[2] - c[1]];
-    d[0] -= (p[1] - c[2]) * (random(seed, 8, i) - 0.5) * 0.3 * rise * (1 - 0.6 * supercell);
+    d[0] -=
+      (p[1] - c[2]) *
+      (random(seed, 8, i) - 0.5) *
+      0.3 *
+      rise *
+      (1 - 0.6 * supercell);
     const rad = Math.hypot(d[0], d[1]);
-    let R = radius * mix(0.82 + 0.26 * smooth(c[2], c[2] + 0.5 * (c[3] - c[2]), p[1]), 1.1 - 0.35 * smooth(c[2] + 0.2 * (c[3] - c[2]), c[3], p[1]), rise * (1 - supercell));
+    let R =
+      radius *
+      mix(
+        0.82 + 0.26 * smooth(c[2], c[2] + 0.5 * (c[3] - c[2]), p[1]),
+        1.1 - 0.35 * smooth(c[2] + 0.2 * (c[3] - c[2]), c[3], p[1]),
+        rise * (1 - supercell),
+      );
     if (i === 2 && supercell > 0) {
       const low = 1 - smooth(c[2] + 3, c[2] + 6.5, p[1]);
-      const theta = Math.atan2(d[1], d[0] + 1e-5);
-      R *= mix(1, 0.7 + 0.3 * smooth(c[2], c[2] + 5, p[1]), supercell * low);
-      R += supercell * low * 0.85 * Math.sin(TAU * p[1] * 0.8 + theta - 2 * phase);
+      R *= mix(1, 0.78 + 0.22 * smooth(c[2], c[2] + 5, p[1]), supercell * low);
+      const eddy = [
+        d[0] * 0.55 + Math.sin(phase) * 0.45,
+        p[1] * 0.55,
+        d[1] * 0.55 + Math.cos(phase) * 0.45,
+      ];
+      R *= 1 - 0.1 * supercell;
+      R += supercell * 2.4 * (carrierNoise(eddy, seed) - 0.5);
     }
     const hgt = c[3] - c[2];
-    const halfH = 0.5 * hgt * mix(1, 0.78, rise * (i === 2 ? 1 - supercell : 1)) + 1.1,
+    const halfH =
+        0.5 * hgt * mix(1, 0.78, rise * (i === 2 ? 1 - supercell : 1)) + 1.1,
       ym = c[2] - 1.6 + halfH,
       rr = Math.min(R, halfH) * 0.85;
     const q = [rad - R + rr, Math.abs(p[1] - ym) - halfH + rr];
@@ -341,17 +420,25 @@ export function carrier(p, seed, development, phase = 0, parts = null) {
       Math.hypot(Math.max(q[0], 0), Math.max(q[1], 0)) -
       rr;
     // Thermal bubbles (scene-storm-volume.mjs stCarrier).
-    const leanK = (random(seed, 8, i) - 0.5) * 0.3 * rise * (1 - 0.6 * supercell);
-    const calm = i === 2 ? 1 - 0.75 * supercell : 1;
+    const leanK =
+      (random(seed, 8, i) - 0.5) * 0.3 * rise * (1 - 0.6 * supercell);
+    const calm = i === 2 ? 1 - 0.15 * supercell : 1;
     for (let k = 0; k < 3; k++) {
       const bob = Math.sin(phase + TAU * random(seed, 9, i * 3 + k));
-      const by = c[2] + hgt * (0.5 + 0.19 * k) + 0.18 * bob;
+      const by =
+        c[2] + hgt * (0.3 + 0.6 * random(seed, 13, i * 3 + k)) + 0.18 * bob;
       const bc = [
-        c[0] + (random(seed, 10, i * 3 + k) - 0.5) * 1.0 * radius + leanK * (by - c[2]),
+        c[0] +
+          (random(seed, 10, i * 3 + k) - 0.5) * 1.0 * radius +
+          leanK * (by - c[2]),
         by,
         c[1] + (random(seed, 11, i * 3 + k) - 0.5) * 1.0 * radius,
       ];
-      const br = radius * (0.8 - 0.14 * k) * mix(0.75, 1, rise) * calm;
+      const br =
+        radius *
+        (0.5 + 0.24 * random(seed, 14, i * 3 + k)) *
+        mix(0.75, 1, rise) *
+        calm;
       sd = smin(sd, length(sub(p, bc)) - br, 0.7);
     }
     if (i === 2 && parts) parts.main = sd;
@@ -360,11 +447,25 @@ export function carrier(p, seed, development, phase = 0, parts = null) {
   });
   if (rise > 0) {
     const base = cells(seed, development).base;
-    const shelf = Math.max(foot + (1 - rise) * 6, Math.abs(p[1] - (base - 0.5)) - mix(0.75, 1.1, supercell));
+    const bankP = [p[0] * 0.075, (p[2] - 11) * 0.27];
+    const bankLength = Math.max(Math.hypot(...bankP), 1e-4);
+    const bankGradient = Math.max(
+      Math.hypot(bankP[0] * 0.075, bankP[1] * 0.27) / bankLength,
+      0.075,
+    );
+    const bank = (bankLength - 1) / bankGradient;
+    const connected = smin(foot, bank, 1.5);
+    const shelf = Math.max(
+      connected + (1 - rise) * 6,
+      Math.abs(p[1] - (base + 0.1)) - mix(1.65, 1.5, supercell),
+    );
     field = smin(field, shelf, 1);
   }
   const an = anvil(seed, development);
-  const a = [p[0] - an.centre[0], (p[2] - an.centre[2]) * mix(1.4, 2, supercell)];
+  const a = [
+    p[0] - an.centre[0],
+    (p[2] - an.centre[2]) * mix(1.4, 2, supercell),
+  ];
   if (a[0] > 0) a[0] *= mix(1, 1.7, supercell);
   const theta = Math.atan2(a[1], a[0] + 1e-5);
   const rim =
@@ -375,8 +476,21 @@ export function carrier(p, seed, development, phase = 0, parts = null) {
           0.07 * Math.sin(5 * theta + TAU * random(seed, 12, 1)) -
           0.1));
   const k = Math.min(1, Math.hypot(a[0], a[1]) / rim);
-  const thick = an.thickness * (1 - 0.7 * k * k);
-  const centre = an.centre[1] + 0.5 * k * k;
+  const fray = carrierNoise(
+    [
+      p[0] * 0.35 + Math.sin(phase) * 0.3,
+      p[1] * 0.6,
+      p[2] * 0.5 + Math.cos(phase) * 0.3,
+    ],
+    seed,
+  );
+  const thick =
+    an.thickness * (1 - 0.7 * k * k) + supercell * (fray - 0.5) * 1.1;
+  const shear =
+    supercell *
+    (0.32 * Math.sin(p[0] * 0.46 + p[2] * 0.38 + phase) +
+      0.18 * Math.sin(p[0] * 0.83 - p[2] * 0.64 - phase));
+  const centre = an.centre[1] + 0.5 * k * k + shear;
   const sc = [a[0] > 0 ? mix(1, 1.7, supercell) : 1, mix(1.4, 2, supercell)];
   const al = Math.max(Math.hypot(a[0], a[1]), 1e-4);
   const gl = Math.max(Math.hypot(sc[0] * a[0], sc[1] * a[1]) / al, 1);
@@ -401,7 +515,11 @@ export function carrierLipschitz(p, seed, development) {
   const sd = carrier(p, seed, development, 0.7, parts);
   const wM = supercell * (1 - smooth(0, 2, parts.main - sd));
   const wA = 1 - smooth(0, 2, parts.anvil - sd);
-  return mix(1.55, 1.25, stages(development).rise) + wA * mix(0.45, 1.4, supercell) + 3.5 * wM;
+  return (
+    mix(1.55, 2.0, stages(development).rise) +
+    wA * mix(0.45, 1.4, supercell) +
+    4.5 * wM
+  );
 }
 // ---- Cellular billows (unchanged hashing, exact periodic cache).
 export function cellFeature(seed, cell, period = 0) {
@@ -455,7 +573,7 @@ export function camera(development, eye = 0.45) {
   return {
     z: mix(-21, -14, grow) - (eye - 0.45) * 7,
     y: mix(1.5, 0.6, grow) + (eye - 0.45) * (eye < 0.45 ? 0.8 : 1.4),
-    focal: mix(mix(2.2, 2.25, rise), 1.6, supercell),
+    focal: mix(mix(2.2, 2.25, rise), 1.48, supercell),
   };
 }
 // Conservative storm bounds (scene-storm-volume.mjs stStormBox), unscaled y.
@@ -468,7 +586,7 @@ export function stormBox(seed, development, height = 1) {
     maxZ = -1e3,
     top = 0;
   for (const { cell: c, radius } of cs) {
-    const r = radius * 1.25 + 2 + 0.15 * (c[3] - c[2]);
+    const r = radius * 1.25 + 3 + 0.15 * (c[3] - c[2]);
     minX = Math.min(minX, c[0] - r);
     maxX = Math.max(maxX, c[0] + r);
     minZ = Math.min(minZ, c[1] - r);
@@ -481,7 +599,15 @@ export function stormBox(seed, development, height = 1) {
   minZ = Math.min(minZ, an.centre[2] - ra);
   maxZ = Math.max(maxZ, an.centre[2] + ra);
   return {
-    lo: [Math.max(minX, -26), Math.max(0.3, (cells(seed, development).base - 1.5) * height), Math.max(minZ, -7)],
-    hi: [Math.min(maxX, 26), Math.min(17.1, top + an.dome + 2.8) * height, Math.min(maxZ, 23)],
+    lo: [
+      Math.max(minX, -26),
+      Math.max(0.3, (cells(seed, development).base - 1.5) * height),
+      Math.max(minZ, -7),
+    ],
+    hi: [
+      Math.min(maxX, 26),
+      Math.min(17.1, (top + an.dome + 4.5) * height),
+      Math.min(maxZ, 23),
+    ],
   };
 }

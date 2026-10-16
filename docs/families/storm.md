@@ -2,6 +2,36 @@
 
 World `thunderhead`, scene `storm`, family **107**. **Haze / Dunst → Towers / Türme → Supercell / Superzelle**. World ID, the eight look names/IDs and seeds, schema keys and rhythm IDs/defaults are unchanged; the three states share seed **10701** and identical non-development parameters. Tests find the world by ID.
 
+## Round 4: turbulent connected storm, localized discharge light
+
+Responds to the independent r3 review (L 6.5, Overall 7), not the earlier implementer score. World/state/look IDs, seeds and schema are unchanged. The existing family-owned shader helpers `scene-storm-data.mjs` and `scene-storm-volume.mjs` carry the geometry/transport changes; no shared renderer or limiter changes.
+
+- **Weather, not tyres.** Remove height-periodic mesocyclone grooves entirely. A smooth 3D turbulent radius, randomly spaced thermal lobes and stronger volumetric cellular erosion break the updraft into overlapping billows and shadowed cavities. Wind-sheared anvil thickness and lower texture anisotropy tear its thin edge instead of drawing a smooth saucer rim. Full-resolution billows use their gradient for subtle cavity lighting, not a uniform outline.
+- **One storm.** Wider tower footprints and a continuous irregular basal bank replace the black cut-out slots and isolated left puff. Deep upper recesses remain; Haze → Towers → Supercell is still one continuous, exactly reversible carrier, with unchanged centres/seeds.
+- **Localized light.** Channel falloff coefficient 0.06 → 0.22, ordinary flash accent reduced to 10%, signature colour weighted by `0.65·exp(−0.2·distance²)` around its own channel. The struck side flares; distant towers retain moonlit blue shadows. Bolt cores/branches, lake endpoints, rippled reflections, moon halo and dark pauses are preserved.
+- **Framing.** Peak focal 1.6 → 1.48 and camera endpoint z −12 → −14 leave sky beyond the downstream anvil tip and retain the lake. Camera travel across development stays below 8 world units. Aspect-aware FOV fits the whole cloud on square/portrait instead of cover-cropping the anvil and moon.
+- **Conservative bounds.** Erosion maximum 4×1.35 needs a 2.8-unit empty-space margin. Low-height Haze GPU scans exposed the old top clip: headroom is now 4.5 above crown. Normalize the common bank ellipse by its gradient so erosion distances are in world units; scale the storm's height _before_ clipping to the physical lattice (fixes low-height peak clipping). No extra transport taps or per-pixel loops; zero-weight anvil noise is skipped in Haze/Towers.
+
+### Current rhythm
+
+Preset names remain **Distant rumble / Charged silence / Forked sky**. Family density: **2.625 / 6.5 / 8 hits per bar**. Buried flashes address cells in six-beat loops against 4/4; crawlers syncopate; structural return strokes remain capped at two per bar. **Bolt from the blue**, slot 3, leaves the crown/anvil, crosses clear air, lights the nearby cloud in accent and meets its reflection at the lake. Driving hits the “and” of beats 2 and 4 (sixteenth positions 6 and 14) every bar; accented alternates positions 6/14 and 3/11 over four bars. Full-strength steps retain exact envelope-time inversion. Restrained keeps the old eight-bar rare-strike phrase.
+
+### r4 evidence and verification
+
+Five film/read/critique iterations: `artifacts/look-review/thunderhead-r4-{a,b,c,d,e}/`. Final reviewer evidence: `artifacts/look-review/thunderhead-r4/` (film, sheet, rhythm sheet, grids). Self-assessment: **L ≈7.5–8**, not independent acceptance; the dark central updraft can still look smoother than the torn crowns. Quiet Haze remains intentionally restrained. Standard films disable asynchronous flash approval for deterministic evidence; the live shared limiter is untouched, and film sheets do not establish photosensitivity safety.
+
+Native GPU verification: **60** late frames at energies 0.1/0.9, developments 0/0.5/1/1.5/2 and three palettes; min lit **51.7%**. **72** complete lattice scans (max overflow **−0.0419**), **72** CPU/GPU leader graph comparisons (max error **1.73×10⁻⁶**), seven aspect/palette/4K stills; zero GL/non-finite errors. Read square/portrait, Ember/Glacier/Phosphor stills and reversal/extra-look film strips. `npm test`: **989 pass, 21 skipped, 0 fail**; storm **26** tests; world-rhythm and pipeline-flash pass; typecheck, build, DE/EN native i18n and touched-file Prettier pass.
+
+M3 Pro native throughput under fleet contention, **not unloaded qualification**:
+
+| State     | 1080p p50/p95 ms | 4K p50/p95 ms | Interleaved p50 delta vs main |
+| --------- | ---------------- | ------------- | ----------------------------- |
+| Haze      | 9.3 / 10.4       | 15.5 / 17.4   | +5.0% (8.0 → 8.4 ms)          |
+| Towers    | 11.7 / 14.0      | 24.7 / 25.9   | +11.2% (8.0 → 8.9 ms)         |
+| Supercell | 13.4 / 14.2      | 26.1 / 28.1   | +3.6% (11.1 → 11.5 ms)        |
+
+Absolute budgets (8/16 ms) are **not demonstrated** under this load; Towers costs more because the connected cloud occupies more rays. Profiles: `artifacts/r4-profile-{1080,4k}/`, `artifacts/r4-pair/`; verification: `artifacts/r4-verification/`. Earlier r4 probes varied substantially with contention (e.g. Supercell 7.6 ms at 1080p before the final bounds correction). No render-scale or limiter workaround was used.
+
 ## Round 3 (2026-10-16/17): colour grammar, clean lake, signature strike
 
 Round 3 starts from the round-2 world (moonlit lake, plain, graphic bolts, below) and fixes what still read as unfinished on a club screen. Lane films: `artifacts/look-review/thunderhead-r3-{before,a..e}/` and the final review capture `artifacts/look-review/thunderhead-r3/` (sheet, rhythm sheet, film, `grids.md`).
@@ -17,12 +47,12 @@ Round 3 starts from the round-2 world (moonlit lake, plain, graphic bolts, below
 
 IDs unchanged; the three authored presets come from main's "World rhythm presets": **Distant rumble** (restrained), **Charged silence** (driving), **Forked sky** (accented).
 
-| Slot | ID | Label EN / DE | Shader |
-| --- | --- | --- | --- |
-| 0 | `buried-discharge` | Buried discharge / Verborgene Entladung | `u_rhythm.x` → discharge slot 3, lights one cell from inside |
-| 1 | `branch-corona` | Anvil crawler / Ambosskriecher (relabelled: it always drove the crawler) | `u_rhythm.y` → slot 2, gain 1.0 → 1.3 |
-| 2 | `stepped-return` | Stepped return / Gestufter Rückstrom | `u_rhythm.z` → slot 0, hero ground strike |
-| 3 | `bolt-from-the-blue` | Bolt from the blue / Blitz aus heiterem Himmel | `u_rhythm.w`, `u_rhythmCount.w` → takes over slot 1 |
+| Slot | ID                   | Label EN / DE                                                            | Shader                                                       |
+| ---- | -------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| 0    | `buried-discharge`   | Buried discharge / Verborgene Entladung                                  | `u_rhythm.x` → discharge slot 3, lights one cell from inside |
+| 1    | `branch-corona`      | Anvil crawler / Ambosskriecher (relabelled: it always drove the crawler) | `u_rhythm.y` → slot 2, gain 1.0 → 1.3                        |
+| 2    | `stepped-return`     | Stepped return / Gestufter Rückstrom                                     | `u_rhythm.z` → slot 0, hero ground strike                    |
+| 3    | `bolt-from-the-blue` | Bolt from the blue / Blitz aus heiterem Himmel                           | `u_rhythm.w`, `u_rhythmCount.w` → takes over slot 1          |
 
 **Signature, "Bolt from the blue".** While the slot-3 envelope runs, discharge slot 1 (autonomous storm life) carries a giant positive strike instead: it leaves the outer cell's crown (towers/bank) or the anvil's forward edge (supercell), alternating sides per hit, crosses clear air and lands on the plain beside the storm. All branches on, two restrikes, always cloud-to-ground (also in Haze), core 1.7× brighter with a full-accent halo, accent attachment flash, mirrored in the lake with an accent streak running down the water below the attachment point, and the storm interior flares accent. No new loops or channel storage: the envelope `stSig` travels in state texel (133, row 1). The shader inverts the envelope at nominal 1, so every style uses full-strength steps only (tested). Loops: restrained `........|........|........|......X.|........|........|....X...|......X.` (÷2, 1.8 beats), driving `......X.|........|......X.|....X.X.` (÷2, 1.4), accented `..............X.|...X............|......X.......X.|...........X..X.` (÷4, 0.9). Bright events stay local or ramp; nothing is full-screen; the shared flash limiter is untouched (`tests/pipeline-flash.test.mjs` passes).
 
@@ -44,10 +74,10 @@ Round 1 made the cloud volumetric, but it was a grey object floating on black: n
 
 **Pitch:** a supercell over a moonlit lake and plain; every strike tears from the anvil to the shore and appears twice, in the sky and mirrored in the black water.
 
-| State | Composition |
-| --- | --- |
-| Haze (0) | A low, wide bank sunk behind the horizon (base below eye level) with three towers rising out of it; textured moon with aureole above it; cirrus drifting across a palette sky; heat lightning mirrored in a still lake. |
-| Towers (1) | A towering complex on one dark shelf: tapered columns with boiling thermal bubbles (seeded, phase-driven) and deep self-shadowed crevices; the moon low between them; cloud-to-cloud leaders across the gaps. |
+| State         | Composition                                                                                                                                                                                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Haze (0)      | A low, wide bank sunk behind the horizon (base below eye level) with three towers rising out of it; textured moon with aureole above it; cirrus drifting across a palette sky; heat lightning mirrored in a still lake.                                                                  |
+| Towers (1)    | A towering complex on one dark shelf: tapered columns with boiling thermal bubbles (seeded, phase-driven) and deep self-shadowed crevices; the moon low between them; cloud-to-cloud leaders across the gaps.                                                                            |
 | Supercell (2) | Low camera looking up; storm plus anvil ≈ 75–85 % of the width; a torn, fibrous anvil with the moon at its downstream edge; striated updraft over a flat dark shelf with ragged scud and soft rain veils; anvil-to-ground strikes with attachment flash, lit plain and their reflection. |
 
 **Environment (visual pass, analytic):** palette night sky (deep zenith, horizon band tinted toward accent, the moon side of the sky lighter, wide aureole), warm town light domes on the horizon, a drifting two-octave cirrus deck lit by the moon and by return strokes (sheet lightning), static 1-px stars; moon disc with limb darkening, maria and cirrus veil. The moon direction is a smooth function of development, placed in the view of the orbit-free camera so it stays in frame; transport light comes from slightly beyond the disc (side light on the flanks, silver linings toward the moon). Plain: moonlit fields fading into horizon haze, town clusters (warm pool + lamps that merge into glow at distance), road threads, strike-lit pools. **Lake** from the camera to a seeded far shore: static ripple normals plus a slow swell (energy raises the chop), Fresnel, a lite sky with moon glint, the storm as one lattice sample along the reflected ray (a soft silhouette with its flash light), and **exact mirrored channels** (mirrored projections in cache row 33, mirrored tile masks in columns 64–95), so a strike's foot meets its reflection at the waterline.
@@ -64,12 +94,12 @@ Round 1 made the cloud volumetric, but it was a grey object floating on black: n
 
 Wave 5 left a strip of grey "crumpled foil": a black body shaded by high-frequency surface normals, lightning pasted over the cloud as screen-space tubes, a mirrored "+" of crawlers, a tiny moon and no scale. This round replaces the material, the shape and the lightning grammar. **Before/after stills at identical beats:** `artifacts/stills/before/` vs `artifacts/stills/final/` in the lane worktree (not committed).
 
-**Pitch:** a colossal storm on a dark plain; every discharge lights the cloud *from inside*, revealing its lobes, gaps and anvil, then it falls back to a moonlit silhouette.
+**Pitch:** a colossal storm on a dark plain; every discharge lights the cloud _from inside_, revealing its lobes, gaps and anvil, then it falls back to a moonlit silhouette.
 
-| State | Composition |
-| --- | --- |
-| Haze (0) | Telephoto view of a distant line of storms on the horizon under a large moon; sparse settlement lights on the plain. Heat lightning: frequent buried flashes wander from cell to cell and light whole parts of the bank. |
-| Towers (1) | Closer, lower. Five separated convective towers with cauliflower crowns and a seeded lean, a shared flat base, deep gaps; the moon rims the crowns. Intra-cloud flashes light single towers; cloud-to-cloud leaders jump between them; the first rain shaft hangs under one tower. |
+| State         | Composition                                                                                                                                                                                                                                                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Haze (0)      | Telephoto view of a distant line of storms on the horizon under a large moon; sparse settlement lights on the plain. Heat lightning: frequent buried flashes wander from cell to cell and light whole parts of the bank.                                                                                                                        |
+| Towers (1)    | Closer, lower. Five separated convective towers with cauliflower crowns and a seeded lean, a shared flat base, deep gaps; the moon rims the crowns. Intra-cloud flashes light single towers; cloud-to-cloud leaders jump between them; the first rain shaft hangs under one tower.                                                              |
 | Supercell (2) | Low wide view of the whole storm: a striated, rotating updraft ("mothership" terraces), a flanking line stepping down, an asymmetric anvil streaming downstream with mammatus underneath, rain shafts. Hero strikes fall from the forward anvil to the plain at a new seeded place every time; spider crawlers race across the anvil underside. |
 
 The in-between states are real geometry: the bank's cells rise into towers (1), then the central tower widens and twists, the anvil spreads from its crown and the side cells slide into a flanking line (1→2). Reversal splits the anvil back into towers without a pop (filmed, `reverse.mp4`); development 1.5 is a strong held state (`hover15.mp4`).
@@ -106,26 +136,26 @@ The in-between states are real geometry: the bank's cells rise into towers (1), 
 
 Values unchanged; `eye` now changes distance as well as height, which separates the compositions.
 
-| EN | DE | Development / composition |
-| --- | --- | --- |
-| Haze | Dunst | 0 · distant line of storms, heat lightning |
-| Towers | Türme | 1 · separated towers, intra-cloud flashes |
-| Supercell | Superzelle | 2 · whole supercell, anvil strikes |
-| Heat Lantern | Wetterlaterne | 0.25 · low wide bank seen from high and far |
-| Anvil Choir | Ambosschor | 1.2 · tall dense towers spreading an anvil, low close view |
-| Silent Shelf | Stille Wolkenbank | 0.8 · squat dense shelf, little rain |
-| Ground Current | Erdstrom | 2 · low close view under the anvil, strikes in front |
-| Midnight Rotation | Mitternachtsrotation | 1.8 · the rotating storm from high and far, heavy rain |
+| EN                | DE                   | Development / composition                                  |
+| ----------------- | -------------------- | ---------------------------------------------------------- |
+| Haze              | Dunst                | 0 · distant line of storms, heat lightning                 |
+| Towers            | Türme                | 1 · separated towers, intra-cloud flashes                  |
+| Supercell         | Superzelle           | 2 · whole supercell, anvil strikes                         |
+| Heat Lantern      | Wetterlaterne        | 0.25 · low wide bank seen from high and far                |
+| Anvil Choir       | Ambosschor           | 1.2 · tall dense towers spreading an anvil, low close view |
+| Silent Shelf      | Stille Wolkenbank    | 0.8 · squat dense shelf, little rain                       |
+| Ground Current    | Erdstrom             | 2 · low close view under the anvil, strikes in front       |
+| Midnight Rotation | Mitternachtsrotation | 1.8 · the rotating storm from high and far, heavy rain     |
 
 ## Cost
 
 Apple M3 Pro / Chrome / ANGLE Metal, headless rig, after the fleet load dropped (load ≈ 12). `profile-rework-pair.mjs --families storm --reference cda9842` alternates the previous storm (identical to main's storm sources) with this revision in the same browser; two 4K runs agreed within 0.2 ms.
 
-| State | 1080p previous → now p50 | 4K previous → now p50 |
-| --- | --- | --- |
-| Haze | 2.9 → **4.4 ms** | 8.0 → **11.9 ms** |
-| Towers | 3.3 → **4.0 ms** | 10.0 → **11.2 ms** |
-| Supercell | 3.6 → **5.6 ms** | 10.4 → **15.8 ms** |
+| State     | 1080p previous → now p50 | 4K previous → now p50 |
+| --------- | ------------------------ | --------------------- |
+| Haze      | 2.9 → **4.4 ms**         | 8.0 → **11.9 ms**     |
+| Towers    | 3.3 → **4.0 ms**         | 10.0 → **11.2 ms**    |
+| Supercell | 3.6 → **5.6 ms**         | 10.4 → **15.8 ms**    |
 
 Standard `profile-families.mjs --types --families storm --frames 60`: 1080p 3.9 / 3.8 / 5.3 ms (p95 ≤ 5.5), 4K 11.2 / 11.4 / 15.8 ms (p95 ≤ 16.2). All within the new-world budget (≤ 8 ms 1080p, ≤ 16 ms 4K), but the Supercell at 4K sits at the limit and the rework costs +12–56 % over the previous version. Measured savings that made it fit: per-frame state (cells, events, shaft light) computed once in the cache rows instead of per pixel; tile masks list only active events; lattice nodes far from the storm bounds skip all transport; lobe carving only on the first four interior samples. Under heavy fleet load (load 30–45) the same probes read 1.3–1.9× higher; those numbers are not qualification. Native shader compile ≈ 50 ms (unchanged). Software GL (SwiftShader) renders a 160×90 storm frame in ≈ 0.95 s versus 0.16 s before, because the resolution-independent lattice is heavier.
 
