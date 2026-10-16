@@ -2386,6 +2386,11 @@ export default {
   "Fold breath": "Faltatem",
   "All hinges open slightly and close again.": "Alle Scharniere öffnen sich leicht und schließen sich wieder.",
   "The light core flares and lights every face.": "Der Lichtkern flammt auf und beleuchtet jede Fläche.",
+  "A moving cohort of paper edges catches an accent.":
+    "Eine wandernde Gruppe von Papierkanten fängt einen Akzent ein.",
+  "Crease snap": "Falzschlag",
+  "A sector of paper snaps into a new fold on the accent.":
+    "Ein Papiersektor schnappt auf dem Akzent in eine neue Falte.",
   "Paper hush": "Papierstille",
   "Crease dance": "Falzentanz",
   "Thousand cranes": "Tausend Kraniche",

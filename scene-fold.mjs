@@ -20,7 +20,10 @@ const faces = TEMPLATES.flatMap((t) =>
   t.faces.map((face, i) => {
     const h = t.hinge[i],
       pts = t.flat[i],
-      c = pts.reduce((s, p) => [s[0] + p[0], s[1] + p[1], s[2] + p[2]], [0, 0, 0]);
+      c = pts.reduce(
+        (s, p) => [s[0] + p[0], s[1] + p[1], s[2] + p[2]],
+        [0, 0, 0],
+      );
     return {
       parent: t.parent[i] < 0 ? -1 : t.offset + t.parent[i],
       a: h?.a ?? [0, 0, 0],
@@ -40,6 +43,7 @@ const vec3 HU[FACES]=vec3[](${faces.map((x) => v3(x.u)).join(",")});
 const float HPHI[FACES]=float[](${faces.map((x) => f(x.phi)).join(",")});
 const float DEPTH[FACES]=float[](${faces.map((x) => x.depth.toFixed(1)).join(",")});
 const int TPL[FACES]=int[](${faces.map((x) => x.template).join(",")});
+const vec3 FACE_C[FACES]=vec3[](${faces.map((x) => v3(x.centre)).join(",")});
 const vec3 SOLID[5]=vec3[](${TEMPLATES.map((t) => v3(t.solidCentre)).join(",")});`;
 const consts = `const float PI=3.14159265359,TAU=6.28318530718;`;
 const common = `
@@ -89,7 +93,7 @@ layout(location=6) in vec4 a6;
 uniform float u_kick;
 uniform vec2 u_resolution;
 uniform float u_params[8];
-uniform vec4 u_rhythm;
+uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 uniform highp sampler2D u_state;
 ${tables}
 ${consts}
@@ -105,7 +109,7 @@ vec3 rot(vec3 p,vec3 a,vec3 k,float t){
 vec3 rotDir(vec3 v,vec3 k,float t){return rot(v,vec3(0.),k,t);}
 float foldS(float dev,float birth,float depth){
  float t=clamp((dev-(.05+.4*birth+.05*depth))/.25,0.,1.);
- return clamp(.035+.965*t*t*(3.-2.*t)-.035*u_rhythm.y,0.,1.);
+ return clamp(.14+.86*t*t*(3.-2.*t)-.16*u_rhythm.y,0.,1.);
 }
 void main(){
  float dev=u_dev,kind=a1.y,pv=phaseAt(1);
@@ -148,17 +152,25 @@ void main(){
   vec3 H=vec3(orbitR*cos(oa),mix(1.,${STORM.height.toFixed(2)},tower)*(a4.z+.35*sin(TAU*3.*pv+a5.z)),orbitR*sin(oa));
   // Persistent bank per shard: still an orthonormal rigid face frame,
   // but front and back paper surfaces catch different raking light.
+  float sector=.5+.5*cos(oa-u_rhythmCount.w*2.399963);
+  float snap=pow(sector,6.)*max(u_rhythm.w,u_rhythmHit.w*.5);
   float bank=.38*cos(a5.w);
   vec3 T=vec3(-sin(oa),0.,cos(oa)),B=normalize(vec3(bank*cos(oa),1.,bank*sin(oa)));
   vec2 o=(a0.xz-a6.xy)*mix(scale,min(scale,.8)*1.1,e)*vec2(1.,mix(1.,.6,e));
   float sa=a5.w;o=vec2(o.x*cos(sa)-o.y*sin(sa),o.x*sin(sa)+o.y*cos(sa));
-  float stretch=1.+clamp(u_params[3],0.,2.)*${STORM.stretch.toFixed(2)}*e;
-  if(o.x<0.){v_trail=e;o.x*=stretch;}
-  vec3 target=T*o.x+B*o.y;
+  float stretch=1.+.25*clamp(u_params[3],0.,2.)*e;
+  o.x*=stretch;
+  vec2 median=(FACE_C[g].xz-a6.xy)*vec2(1.,mix(1.,.6,e));
+  median=vec2(median.x*cos(sa)-median.y*sin(sa),median.x*sin(sa)+median.y*cos(sa));
+  median.x*=stretch;
+  vec3 hingeAxis=normalize(T*median.x+B*median.y);
+  float crease=e*(.38+.14*sin(TAU*2.*pv+a5.w)+.65*snap+.24*u_rhythm.y);
+  vec3 target=rotDir(T*o.x+B*o.y,hingeAxis,a1.x*crease);
   p=mix(cA,H,e)+mix(pA-cA,target,eR);
-  n=normalize(mix(nA,cross(T,B),eR)+1e-5);
+  n=normalize(mix(nA,rotDir(cross(T,B),hingeAxis,a1.x*crease),eR)+1e-5);
   v_bary=vec3(1.-a6.z-a6.w,a6.z,a6.w);
-  v_info=vec4(kind,a5.y,e,float(t));
+  float pigment=fract(sin(dot(a2.xy,vec2(12.9898,78.233))+float(g)*.17)*43758.5453);
+  v_info=vec4(kind,mix(pigment,a5.y,e),e,snap*e);
  }
  if(kind>1.5){
   // Directional projection of the actual folded triangle, with a tiny lift
@@ -172,7 +184,7 @@ void main(){
  vec3 q2=p-cam;
  v_world=p;v_pos=q2;v_normal=n;
  vec3 view=vec3(dot(q2,rt),dot(q2,up),dot(q2,fw));
- float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.25,ss(1.,2.,dev))*(1.+.02*u_kick);
+ float A=u_resolution.x/u_resolution.y,F=mix(2.,1.25,ss(1.,2.,dev))*(1.+.02*u_kick);
  float nearZ=.05,farZ=80.;
  gl_Position=vec4(view.x*F/max(A,1.),view.y*F*min(A,1.),
   (view.z*(farZ+nearZ)-2.*farZ*nearZ)/(farZ-nearZ),view.z);
@@ -186,7 +198,7 @@ flat in vec4 v_info;
 uniform float u_time,u_level;
 uniform float u_params[8];
 uniform vec3 u_primary,u_secondary,u_accent;
-uniform vec4 u_rhythm;
+uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 uniform highp sampler2D u_state;
 ${consts}
 ${common}
@@ -201,7 +213,7 @@ void main(){
  vec3 K=normalize(vec3(-.75,.6,-.42));
  vec3 L=coreAt(dev)-v_world;float l2=dot(L,L);L*=inversesqrt(l2);
  float I=coreLight(dev),att=I/(1.+.11*l2);
- vec3 coreC=mix(mix(u_primary,vec3(1.),.3),u_accent,.22+.3*u_rhythm.z);
+ vec3 coreC=mix(u_primary,u_accent,.12+.4*u_rhythm.z);
  vec3 fogC=mix(u_secondary,u_primary,.25)*.03;
  float fog=1.-exp(-max(dist-6.,0.)*.035);
  vec3 col;
@@ -242,9 +254,9 @@ void main(){
   }
  }else{
   float e=v_info.z;
-  // Paper-white pigment with palette in the fibres, not dark neon nets.
-  vec3 paperO=mix(pal(.04+.6*rnd),vec3(1.),.82)*mix(.94,.82,e);
-  vec3 paperI=mix(mix(u_secondary,pal(.45),.5),vec3(1.),.76)*mix(.88,.72,e);
+  // Dyed, double-sided paper pigment; no metallic white specular.
+  vec3 paperO=mix(pal(.08+.49*rnd),vec3(1.),.12)*mix(1.1,.9,e);
+  vec3 paperI=mix(pal(.16+.37*rnd),vec3(1.),.08)*1.05;
   vec3 base=outside?paperO:paperI;
   float key=max(dot(N,K),0.)*(1.-.35*e),cd=dot(N,L);
   // Lit sides face the core; backlit shards keep a faint transmission, so
@@ -254,23 +266,32 @@ void main(){
   float spec=pow(max(dot(N,normalize(K+V)),0.),40.);
   vec3 tintS=pal(.04+.6*fract(rnd*2.7));
   float paperEdge=ss(0.,.3,v_bary.x);
-  float creaseShade=mix(.72,1.,paperEdge);
-  float fill=mix(.22,.12,e)+mix(.3,.12,e)*max(N.y,0.);
+  float creaseShade=mix(.65,1.,paperEdge);
+  // Broad raking gradient and an antialiased valley, not a neon outline.
+  float valley=abs(v_bary.y-v_bary.z);
+  float cw=max(fwidth(valley)*1.5,.018);
+  creaseShade*=mix(1.,.62+.18*ss(0.,cw,valley),e);
+  creaseShade*=.84+.16*ss(.05,.65,v_bary.x);
+  float fill=mix(.42,.18,e)+mix(.4,.16,e)*max(N.y,0.);
   col=base*(fill+.9*key)*creaseShade+mix(base,mix(coreC,tintS,.45*e),.55+.3*e)*att*core*(.6+.75*e);
-  col+=mix(u_secondary,vec3(1.),.5)*fres*.22;
-  col+=vec3(1.)*spec*.25*key;
+  col+=u_secondary*fres*.13;
+  col+=base*spec*.035*key;
   // Glowing rims on every polygon edge, about 1.5 px at any resolution.
   // Folded faces glow on their polygon rim; shards on all three edges.
   float edgeS=min(min(v_bary.x,v_bary.y),v_bary.z);
   float edge=mix(v_bary.x,edgeS,ss(0.,.3,e));
   float w=fwidth(edge);
   float rim=(1.-smoothstep(0.,w*1.6,edge))*smoothstep(.6,.15,w);
-  float rimG=u_params[5]*(.18+.35*ss(.3,1.,dev)+.25*e*(.4+att))*(1.+1.1*u_rhythm.x);
-  vec3 rimC=mix(pal(.2+.5*fract(rnd*5.3)),vec3(1.),.45);
-  col+=mix(rimC,u_accent,.25*u_rhythm.x)*rim*rimG;
-  // Shards glow as they stream; the trailing end fades into a streak.
+  float selected=pow(.5+.5*cos(rnd*TAU-u_rhythmCount.x*2.399963),8.);
+  float edgeHit=u_rhythm.x*selected;
+  float rimG=u_params[5]*(.08+.18*ss(.3,1.,dev)+.1*e*(.4+att))*(1.+5.*edgeHit);
+  vec3 rimC=pal(.2+.35*fract(rnd*5.3));
+  col+=mix(rimC,u_accent,edgeHit)*rim*rimG;
+  col+=u_accent*edgeHit*.45*exp(-v_bary.x*14.);
+  // Restrained transmitted core light on the folded paper wings.
   vec3 glowC=mix(coreC,tintS,.6);
-  col+=glowC*e*(.2+.6*att)*(1.-.9*v_trail);
+  col+=glowC*e*(.04+.18*att)*(1.-.9*v_trail);
+  col+=u_accent*v_info.w*(.7+1.6*exp(-valley*14.));
   col*=1.-.85*v_trail*e;
  }
  col=mix(col,fogC,fog);
@@ -282,12 +303,12 @@ ${common}
 void main(){
  float dev=u_dev;
  vec3 cam,fw,rt,up;cameraAt(dev,cam,fw,rt,up);
- float A=u_resolution.x/u_resolution.y,F=mix(mix(2.,1.45,ss(0.,1.,dev)),1.25,ss(1.,2.,dev))*(1.+.02*u_kick);
+ float A=u_resolution.x/u_resolution.y,F=mix(2.,1.25,ss(1.,2.,dev))*(1.+.02*u_kick);
  vec2 ndc=v_uv*2.-1.;
  vec3 rd=normalize(fw+rt*(ndc.x*max(A,1.)/F)+up*(ndc.y/(F*min(A,1.))));
  vec3 c=coreAt(dev)-cam;float t=max(dot(c,rd),0.);float d=length(c-rd*t);
  float I=coreLight(dev);
- vec3 coreC=mix(mix(u_primary,vec3(1.),.35),u_accent,.18+.3*u_rhythm.z);
+ vec3 coreC=mix(u_primary,u_accent,.12+.4*u_rhythm.z);
  vec3 col=mix(u_secondary,u_primary,.25)*.03*(.7+.3*smoothstep(-.3,.4,rd.y));
  col+=coreC*I*(1.1*exp(-d*d*2.)+.1/(1.+d*d*.6));
  col+=mix(u_accent,vec3(1.),.5)*I*exp(-d*d*28.)*.8;
@@ -312,13 +333,55 @@ const schema = [
     step: 0.01,
     default: 0,
   },
-  { key: "drift", label: "Orbit speed", min: 0.1, max: 2, step: 0.01, default: 1 },
-  { key: "swirl", label: "Vortex speed", min: 0.1, max: 2, step: 0.01, default: 1 },
-  { key: "streak", label: "Shard streaks", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "light", label: "Core light", min: 0.2, max: 1.6, step: 0.01, default: 1 },
+  {
+    key: "drift",
+    label: "Orbit speed",
+    min: 0.1,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "swirl",
+    label: "Vortex speed",
+    min: 0.1,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "streak",
+    label: "Shard streaks",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
+  {
+    key: "light",
+    label: "Core light",
+    min: 0.2,
+    max: 1.6,
+    step: 0.01,
+    default: 1,
+  },
   { key: "rims", label: "Edge glow", min: 0, max: 2, step: 0.01, default: 1 },
-  { key: "density", label: "Small solids", min: 0, max: 1, step: 0.01, default: 0.55 },
-  { key: "crane", label: "Crane height", min: 0, max: 1, step: 0.01, default: 0 },
+  {
+    key: "density",
+    label: "Small solids",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.55,
+  },
+  {
+    key: "crane",
+    label: "Crane height",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0,
+  },
 ];
 const look = (name, seed, development, params = {}) => ({
   name,
@@ -349,9 +412,24 @@ export default {
     look("Shard Storm", 527, 2),
     look("Blueprint Field", 1931, 0.35, { crane: 0.8, rims: 1.6, drift: 0.6 }),
     look("Tumbling Choir", 88, 1.15, { swirl: 1.5, light: 1.3, density: 0.9 }),
-    look("Slow Comet Ring", 3307, 1.75, { swirl: 0.6, streak: 1.8, drift: 0.7, crane: 0.35 }),
-    look("Paper Lanterns", 777, 0.75, { light: 1.5, rims: 1.4, density: 0.8, drift: 0.6 }),
-    look("Glass Asteroids", 4096, 1.35, { swirl: 0.45, streak: 0.3, crane: 0.25, light: 1.2 }),
+    look("Slow Comet Ring", 3307, 1.75, {
+      swirl: 0.6,
+      streak: 1.8,
+      drift: 0.7,
+      crane: 0.35,
+    }),
+    look("Paper Lanterns", 777, 0.75, {
+      light: 1.5,
+      rims: 1.4,
+      density: 0.8,
+      drift: 0.6,
+    }),
+    look("Glass Asteroids", 4096, 1.35, {
+      swirl: 0.45,
+      streak: 0.3,
+      crane: 0.25,
+      light: 1.2,
+    }),
   ],
   stage: ["swirl", "streak", "light"],
   type: { key: "development", values: [0, 1, 2] },
@@ -366,41 +444,140 @@ export default {
     { param: "streak", feature: "low", amount: 0.06 },
     { param: "rims", feature: "high", amount: 0.05 },
   ],
-  rhythmStyles: { restrained: "Paper hush", driving: "Crease dance", accented: "Thousand cranes" },
+  rhythmStyles: {
+    restrained: "Paper hush",
+    driving: "Crease dance",
+    accented: "Thousand cranes",
+  },
   rhythm: [
-    familyEffect("edge-flash", 0, "Edge flash", "Every polygon edge flares at once.", {
-      period: 4,
-      strength: 0.6,
-      duration: 0.5,
-      steps: "X...",
-      styles: {
-        restrained: { steps: "X.....x. | ...x..X.", division: 2, strength: 0.5, duration: 0.65 },
-        driving: { steps: "X.x..X.x | .X.x..X.", division: 2, strength: 0.76, duration: 0.35 },
-        accented: { steps: "X.x..X..x.X. | .x.X..x.X..x", division: 4, strength: 0.92, duration: 0.2 },
+    familyEffect(
+      "edge-flash",
+      0,
+      "Edge flash",
+      "A moving cohort of paper edges catches an accent.",
+      {
+        period: 4,
+        strength: 0.6,
+        duration: 0.5,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X.....x. | ...x..X.",
+            division: 2,
+            strength: 0.5,
+            duration: 0.65,
+          },
+          driving: {
+            steps: "X.x.Xx.X | .X.xX.Xx",
+            division: 2,
+            strength: 0.9,
+            duration: 0.35,
+          },
+          accented: {
+            steps: "X.x.X.xX.xX.x.X. | .xX.x.X.Xx.xX.x.",
+            division: 4,
+            strength: 1,
+            duration: 0.2,
+          },
+        },
       },
-    }),
-    familyEffect("fold-breath", 1, "Fold breath", "All hinges open slightly and close again.", {
-      period: 8,
-      strength: 0.6,
-      duration: 1,
-      steps: "X.......",
-      styles: {
-        restrained: { steps: "....x... | .X......", division: 2, strength: 0.5, duration: 1.25 },
-        driving: { steps: "...X.... | ......x.", division: 2, strength: 0.74, duration: 1.1 },
-        accented: { steps: ".....X......x... | ...X........x...", division: 4, strength: 0.88, duration: 0.8 },
+    ),
+    familyEffect(
+      "fold-breath",
+      1,
+      "Fold breath",
+      "All hinges open slightly and close again.",
+      {
+        period: 8,
+        strength: 0.6,
+        duration: 1,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "....x... | .X......",
+            division: 2,
+            strength: 0.5,
+            duration: 1.25,
+          },
+          driving: {
+            steps: "...X.... | ......x.",
+            division: 2,
+            strength: 0.74,
+            duration: 1.1,
+          },
+          accented: {
+            steps: ".....X......x... | ...X........x...",
+            division: 4,
+            strength: 0.88,
+            duration: 0.8,
+          },
+        },
       },
-    }),
-    familyEffect("core-flare", 2, "Core flare", "The light core flares and lights every face.", {
-      period: 16,
-      strength: 0.7,
-      duration: 2,
-      steps: "X...............",
-      styles: {
-        restrained: { steps: "........ | ........ | .......X | ........", division: 2, strength: 0.55, duration: 2 },
-        driving: { steps: "........ | .....x.X | ........ | ......xX", division: 2, strength: 0.8, duration: 0.4 },
-        accented: { steps: "................ | .........x..X.xx", division: 4, strength: 0.96, duration: 0.18 },
+    ),
+    familyEffect(
+      "core-flare",
+      2,
+      "Core flare",
+      "The light core flares and lights every face.",
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | .......X | ........",
+            division: 2,
+            strength: 0.55,
+            duration: 2,
+          },
+          driving: {
+            steps: "........ | .....x.X | ........ | ......xX",
+            division: 2,
+            strength: 0.8,
+            duration: 0.4,
+          },
+          accented: {
+            steps: "................ | .........x..X.xx",
+            division: 4,
+            strength: 0.96,
+            duration: 0.18,
+          },
+        },
       },
-    }),
+    ),
+    familyEffect(
+      "crease-snap",
+      3,
+      "Crease snap",
+      "A sector of paper snaps into a new fold on the accent.",
+      {
+        period: 8,
+        strength: 0.9,
+        duration: 0.65,
+        kind: "motion",
+        styles: {
+          restrained: {
+            steps: "......x. | ........ | ....X... | ........",
+            division: 2,
+            strength: 0.6,
+            duration: 0.9,
+          },
+          driving: {
+            steps: "..X..... | .....X..",
+            division: 2,
+            strength: 0.95,
+            duration: 0.65,
+          },
+          accented: {
+            steps: "..X.......X..... | ......X.......X.",
+            division: 4,
+            strength: 1,
+            duration: 0.45,
+          },
+        },
+      },
+    ),
   ],
   fragment,
   simulation: { fragment: simulation, size: [2, 1], steps: 1 },

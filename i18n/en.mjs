@@ -2386,6 +2386,11 @@ export default {
   "Fold breath": "Fold breath",
   "All hinges open slightly and close again.": "All hinges open slightly and close again.",
   "The light core flares and lights every face.": "The light core flares and lights every face.",
+  "A moving cohort of paper edges catches an accent.":
+    "A moving cohort of paper edges catches an accent.",
+  "Crease snap": "Crease snap",
+  "A sector of paper snaps into a new fold on the accent.":
+    "A sector of paper snaps into a new fold on the accent.",
   "Paper hush": "Paper hush",
   "Crease dance": "Crease dance",
   "Thousand cranes": "Thousand cranes",
