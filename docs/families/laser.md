@@ -45,9 +45,9 @@ The first three presets share seed **10501** and every non-development parameter
 
 | EN | DE | Development / composition |
 | --- | --- | --- |
-| Horizon | Horizont | 0: sparse vector plane, scanning laser, faint horizon haze and sheet |
-| Towers | Türme | 1: 32 varied towers, lit rows, antenna tips and bright façade strikes |
-| Tunnel | Tunnel | 2: the same sheet closes into a vault; crossfire, liquid sky and a convergent light tunnel |
+| Horizon | Horizont | 0: vector floor, horizon projector fanning the eight spokes over the audience, liquid-sky ceiling |
+| Towers | Türme | 1: 32 varied towers with lit window cells, antenna tips and bright façade strikes under the fan |
+| Tunnel | Tunnel | 2: the same sheet closes into a vault; crossfire, the fan folded into a convergent cone, scan rings travelling towards the viewer |
 | Low Voltage | Niederspannung | 0.3: low viewpoint, coarse grid, slow broad haze |
 | Vector District | Vektorviertel | 1: tall skyline, high viewpoint, fine façades |
 | Folded Chapel | Gefaltete Kapelle | 1.65: held-open wings and low viewpoint |
@@ -58,9 +58,51 @@ The first three presets share seed **10501** and every non-development parameter
 
 Energy changes sweep/glide rates (×0.75→1.35), interleaved beam population and half-cell grid detail, not picture gain. Four persistent cone spokes acquire four softly enveloped neighbours on the kick: multiplication is bounded by the 21-beam cap, with a nonzero pedestal instead of binary strobing. Low-energy Tunnel retains upper and lower banks. Horizon remains sparse at every energy.
 
-The three unchanged family gestures are **Beam address / Strahladresse** (4 beats, one beam receives accent), **Aperture breath / Atmende Öffnung** (8 beats, ≤12% opening), and **Vault rib / Gewölberippe** (16 beats, a narrow travelling material rib). Accent is otherwise absent from the static field. The kick changes focal length by at most **2%**.
+Four family gestures (round 3): **Beam address / Strahladresse** (slot 0: one crossfire laser, or the horizon scanner before towers exist, turns accent, wider and brighter), **Aperture breath / Atmende Öffnung** (slot 1: ≤12% crossfire/fan opening and ≤10% wider tunnel cone), **Vault rib / Gewölberippe** (slot 2: a soft accent band with bright grid crossings travelling along the folded sheet, on the Horizon floor too) and the slot-3 signature **Tunnel chase / Tunneljagd** (below). Accent is otherwise absent from the static field. The kick changes focal length by at most **2%**.
 
 The camera follows a slow closed lateral/dolly/crane path: x±1.1, z=−9±1.8, eye±0.25. No roll or cuts. Every tower remains ahead of the entire camera path, even at maximum footprint/height. Short-side ray footprints compose natively in landscape and portrait.
+
+## Round 3 · 16 October 2026
+
+Lane `r3/laser-grid`; plan `.claude/world-polish/plans/laser-grid-r3.md`. Seven filmed rounds (`artifacts/look-review/laser-grid-r3-before`, `-v1`…`-v7`, final `laser-grid-r3`). IDs, names, seeds, schema, presets, state count and the world definition are unchanged; no `HISTORY` entry needed.
+
+What changed and why (baseline weaknesses: empty Horizon, grey haze smudge, transparent wire towers, small centred Tunnel starburst, invisible rhythm):
+
+- **Liquid sky ceiling.** The finite scanning sheet now sits 1.7 units above the eye (rising to ≥7.2 under the vault) and is seen from below: a rippling light ceiling with discrete fan rays sweeping across it (a finer second ray set fades in with energy). Grazing gain is capped and blended with a face-on floor, so it reads as laser light rather than grey haze. Ray lines fade out analytically by their screen footprint (no shimmer near the emitter).
+- **Horizon fan with spoke identity.** The eight cone spokes exist in every state: before the vault closes they fan out of the horizon projector over the audience (energy population 2 → 8, the fan plane tilts slowly between floor strikes and overhead); development folds the same eight beams into the tunnel cone. A small hot projector source and a polished-floor sheen below it anchor the vanishing point.
+- **Lit towers.** Seeded lit window cells per tower/row/column (energy lights more of them), darker roofs, crown-weighted edges; the wire skeleton is dimmer, so towers read as opaque occupied buildings. Every beam impact leaves a soft 0.8-unit splash on the material in addition to the hot dot.
+- **Volumetric beams and a polished floor** (after the independent baseline review: "static wireframe outlines, no volumetric beams or haze, no floor reflection"). Beam sheaths scatter 1.33× more; the floor mirrors the scanner and the eight spokes as blurred reflections (same closed-form sheath integral on the mirrored ray, width 0.45, grazing-angle Fresnel weight, chase colour included). Mirror candidates use free tile bits 6..14 of the beam word with the same conservative taper as direct beams. Structural lines are lit by the projector (0.42 + 1.5 × source glow) instead of glowing uniformly, so near frame lines dim and the vanishing region is brightest.
+- **Tunnel depth.** Three scan rings travel down the cone towards the viewer (integer harmonic of the wrapped sweep phase, continuous at 2π and through reversal); the same rings sweep the vault material as light gates. Material near the projector glows softly.
+
+### Signature: Tunnel chase / Tunneljagd (slot 3)
+
+`u_rhythmCount.w` selects one of the eight spokes; each hit fires the next one (rotating around the tunnel, or left → right across the Horizon fan). The fired spoke turns accent with up to 3.2× wider core and 3.6× power, its two predecessors glow at 0.55 / 0.22 (a visible spinning tail), and the cone wall sector around it lights in accent. Selection lives in `scene-laser-data.mjs`, so the data pass lifts the fired spoke's weight and it is always a tile candidate. Local beams only, never a full-frame gain; the flash limiter is untouched.
+
+Presets (sixteenth grids, `node scripts/rhythm-grid-dump.mjs --worlds laser-grid`):
+
+| Preset | Tunnel chase | Hits per bar (all tracks) |
+| --- | --- | --- |
+| Dark aperture (restrained) | a rising four-step run (0.3→0.9) closing every second bar | 4.3 |
+| Beam relay (driving, default) | off-beat sixteenths with end-of-bar doubles and a two-bar roll | 9.8 |
+| Vault chase (accented) | full sixteenth chase with dynamics and a phrase-end roll | 22.0 |
+
+The vault rib is now structural (driving: bar 1 and the third beat of bar 2, 1.4-beat travel; accented: eighth-bar pairs with a syncopated fill) so it can be seen travelling; the old straight-sixteenth rib character moved to the chase.
+
+### Cost (round 3)
+
+Headless Chrome / ANGLE Metal / M3 Pro, shared with other lanes; `profile-families --types --frames 30`:
+
+| State | 1080p p50 / p95 | 4K p50 / p95 |
+| --- | --- | --- |
+| Horizon | 3.2 / 3.9 ms | 11.3 / 12.4 ms |
+| Towers | 4.1 / 4.7 ms | 15.5 / 16.1 ms |
+| Tunnel | 4.5 / 5.2 ms | 14.4 / 14.9 ms |
+
+Interleaved pair against `main` (`profile-rework-pair --reference main`, 1080p, energy 0.95): Horizon 2.1 → 3.0 ms (×1.43), Towers 2.8 → 3.7 ms (×1.32), Tunnel 3.3 → 3.7 ms (×1.12). Most of the increase is the floor mirror (≈0.7–0.9 ms at 1080p); before it the pair was ×1.00 / 1.16 / 1.06. Towers at 4K is at the 16 ms edge on the shared GPU; if it needs trimming, lower the mirror candidate set (spokes only) first.
+
+### Verification (round 3)
+
+`npm test` (967 pass, 21 skipped), `npm run typecheck`, `npm run test:i18n -- --native-gpu` (DE/EN pass), `scripts/verify-laser.mjs` (all four shader variants compile), `scripts/verify-wave4-reworks.mjs --families laser` (60 palette/development/energy/12-hour cases, portrait and 4K, zero GL/non-finite errors). New CPU tests: slot-3 gesture authored for all styles, chase rotation and bounded tail, fan → cone spoke continuity in front of the camera path, liquid sky above the eye for every look, ring-age continuity at the phase wrap.
 
 ## Endlessness and continuity
 

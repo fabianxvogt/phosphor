@@ -2,7 +2,7 @@
 // This is geometry, not a reduced-resolution colour cache.
 export const laserData = `
 float lgHash(float x) { return hash(vec2(x, 105.0)); }
-float gFold, gRise, gPhase, gCt, gSt;
+float gFold, gRise, gPhase, gCt, gSt, gSlope;
 vec3 gEye, gFw, gRight, gUp;
 void lgSetup() {
   float dev = clamp(u_params[0], 0.0, 2.0);
@@ -19,6 +19,23 @@ void lgSetup() {
   vec3 target = vec3(0.8 * sin(camera), mix(1.9, 6.0, gFold), 34.0);
   gFw = normalize(target - gEye); gRight = normalize(cross(vec3(0,1,0), gFw)); gUp = cross(gFw, gRight);
   gCt = cos(gFold * PI * 0.5); gSt = sin(gFold * PI * 0.5);
+  // One cone slope for spokes, haze cone and scan fronts. Aperture breath
+  // (slot 1) widens the whole tunnel by at most 10%.
+  gSlope = (0.19 + 0.025 * sin(gPhase * 2.0)) * (1.0 + 0.1 * u_rhythm.y);
+}
+// Rhythm selections, shared by the data pass and the picture so a selected
+// beam is always a candidate. Beam address (slot 0): one crossfire laser, or
+// the horizon scanner before towers exist. Tunnel chase (slot 3): the newest
+// hit fires the next of the eight spokes, its two predecessors still glow.
+float lgAddress(int i) {
+  if (i == 0) return u_rhythm.x * (1.0 - gRise);
+  if (i > 12) return 0.0;
+  return abs(mod(u_rhythmCount.x + 11.0, 12.0) + 1.0 - float(i)) < 0.5 ? u_rhythm.x * gRise : 0.0;
+}
+float lgChase(int i) {
+  if (i < 13) return 0.0;
+  float back = mod(mod(u_rhythmCount.w + 7.0, 8.0) - float(i - 13) + 8.0, 8.0);
+  return u_rhythm.w * (back < 0.5 ? 1.0 : back < 1.5 ? 0.55 : back < 2.5 ? 0.22 : 0.0);
 }
 vec2 lgProject(vec3 p) {
   vec3 v = p - gEye;
@@ -73,13 +90,24 @@ void lgEndpoints(int i, out vec3 a, out vec3 b, out float weight, out float tint
   } else if (i >= 13) {
     float spoke = fi - 13.0;
     float angle = spoke * TAU / 8.0 + gPhase;
-    float slope = 0.19 + 0.025 * sin(gPhase * 2.0);
-    a = vec3(0, 5.7, 55);
-    b = a + vec3(cos(angle) * slope * 53.0, sin(angle) * slope * 53.0, -53.0);
-    weight = gFold * smoothstep(mod(spoke, 4.0) - 0.65, mod(spoke, 4.0) + 0.65, 0.7 + 2.6 * level + 0.6 * u_kick);
+    vec3 apex = vec3(0, 5.7, 55);
+    vec3 coneEnd = apex + vec3(cos(angle) * gSlope * 53.0, sin(angle) * gSlope * 53.0, -53.0);
+    // Before the vault closes the SAME eight lasers fan out of the horizon
+    // projector over the audience; the fan plane tilts slowly up and down.
+    // Development folds this fan into the cone, so identity persists.
+    float k = (spoke - 3.5) / 3.5;
+    float lift = 0.5 + 0.5 * sin(gPhase * 2.0 + 1.3);
+    // Low: the central rays strike the floor, the outer ones leave the frame
+    // over the audience. High: the fan sweeps overhead out of the top.
+    vec3 fanEnd = vec3(k * 18.0 * aperture + 3.0 * sin(gPhase + 0.4 * spoke),
+      mix(-1.5, 9.5, lift) + 1.5 * k * k, 0.5);
+    a = mix(vec3(0, 3.4, 65), apex, gFold);
+    b = mix(fanEnd, coneEnd, gFold);
+    weight = smoothstep(mod(spoke, 4.0) - 0.65, mod(spoke, 4.0) + 0.65, 0.7 + 2.6 * level + 0.6 * u_kick);
     // Four persistent spokes gain four interleaved neighbours on the kick.
     // A soft pedestal and smooth envelope avoid binary on/off strobing.
     weight *= mix(1.0, 0.14 + 0.86 * smoothstep(0.0, 0.55, u_kick), mod(spoke, 2.0));
+    weight = max(weight, lgChase(i));
     tint = 0.16 + 0.15 * mod(spoke, 2.0);
   } else {
     float bank = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
@@ -97,6 +125,7 @@ void lgEndpoints(int i, out vec3 a, out vec3 b, out float weight, out float tint
     vec3 crossEnd = vec3(-bank * (4.5 + local * 3.2 * aperture) + 1.4 * sin(gPhase),
       mix(10.5, 0.0, upper) + (1.0 - upper) * local * 1.3 * aperture + 0.65 * sin(gPhase + bank), 2.0 + index * 0.75);
     b = mix(strike, crossEnd, gFold);
+    weight = max(weight, lgAddress(i));
     tint = 0.35 + 0.4 * mod(fi, 2.0);
   }
   b = lgSurfaceEnd(a, b);
