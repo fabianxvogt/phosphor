@@ -2606,6 +2606,9 @@ export default {
   "The anchor rocks and the engaged involute tooth rims catch a local accent.": "Der Anker schwingt und die eingreifenden Evolventenzähne fangen einen örtlichen Akzent ein.",
   "A persistent shaft cohort catches a white glint without changing its meshing speed.": "Eine beständige Wellenkohorte fängt weißen Glanz ein, ohne ihre Eingriffsgeschwindigkeit zu ändern.",
   "A bounded light wave follows tooth rims out through the cathedral.": "Eine begrenzte Lichtwelle folgt den Zahnkanten durch die Kathedrale.",
+  "Escapement strike": "Hemmungsschlag",
+  "An alternating pallet strike sends a narrow luminous stress front through gear faces, bearings and armillary rings.":
+    "Ein wechselnder Ankerschlag schickt eine schmale leuchtende Spannungsfront durch Zahnradflächen, Lager und Armillarringe.",
   "Sleeping gears": "Schlafende Zahnräder",
   "Brass escapement": "Messinghemmung",
   "Cathedral clock": "Kathedralenuhr",

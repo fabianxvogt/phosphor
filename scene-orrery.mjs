@@ -27,14 +27,14 @@ void rig(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  vec3 target=vec3(.1*cos(a)*(1.-hero),.1-.3*h-.1*hero,-.6-7.*h+1.95*hero);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
-float focal(){return 1.42*u_params[5]*(1.+.018*clamp(u_kick,0.,1.));}
+float focal(){return 1.42*u_params[5]*(1.+.09*(ss(0.,1.,u_params[0])-ss(1.,2.,u_params[0])))*(1.+.018*clamp(u_kick,0.,1.));}
 // Select the warm anchor *within* the active palette. Phosphor's brass is
 // its yellow primary; Symbiosis' brass is its ochre secondary, never blue.
 vec3 brass(){
  float p=dot(u_primary,vec3(1.,.35,-1.)),s=dot(u_secondary,vec3(1.,.35,-1.));
  return mix(u_secondary,u_primary,ss(-.06,.06,p-s)*.84+.08);
 }
-vec3 fogColor(){return brass()*(.012+.026*ss(1.,2.,u_params[0]));}
+vec3 fogColor(){return u_secondary*(.001+.004*ss(1.,2.,u_params[0]));}
 vec3 sunPosition(){return vec3(0.,0.,1.35*ss(.06,.85,u_params[0])-6.5*ss(1.,2.,u_params[0]));}
 #ifndef ORRERY_VERTEX
 // Integrate a narrow light sheet along the visible ray, clipped by the
@@ -49,7 +49,7 @@ vec3 atmosphere(vec3 eye,vec3 rd,float distance){
  // Bounded Lorentzian approximation to the sheet's ray integral. Avoid
  // two per-pixel atan calls and generate the dust as tiny depth-tested mesh.
  float sheet=.68/(abs(k)+.68/max(len,.001))/(1.+miss*miss*8.65);
- return brass()*hall*(.0035*len+.045*sheet);
+ return mix(brass(),u_accent,.28)*hall*(.0008*len+.018*sheet);
 }
 #endif
 float inclination(float id){return (.4+.85*mod(id,3.)/2.)*u_params[4];}
@@ -72,7 +72,7 @@ uniform float u_time,u_seed,u_level,u_kick;
 uniform float u_params[8];
 uniform vec2 u_resolution;
 uniform vec3 u_primary,u_secondary,u_accent;
-uniform vec4 u_rhythm,u_rhythmCount;
+uniform vec4 u_rhythm,u_rhythmCount,u_rhythmHit;
 ${lateClockGlsl}
 #define ORRERY_VERTEX
 ${common}
@@ -86,7 +86,7 @@ void main(){
  vec3 p=a_position,n=a_normal,C=a_center;
  float angle=a_motion.x*drive()+a_motion.y;
  // Every shaft uses the same integrated drive. No kick can shear a mesh.
- if(kind>2.5&&kind<3.5)angle=(group==51.?.25:.12)*sin(drive()*12.)+.10*clamp(u_kick+u_rhythm.x,0.,1.);
+ if(kind>2.5&&kind<3.5)angle=(group==51.?.25:.12)*sin(drive()*12.)+.10*clamp(u_kick+u_rhythm.x,0.,1.)+.13*clamp(u_rhythm.w+u_rhythmHit.w,0.,1.)*(mod(floor(u_rhythmCount.w),2.)*2.-1.);
  float c=cos(angle),s=sin(angle);
  p.xy=mat2(c,s,-s,c)*p.xy;n.xy=mat2(c,s,-s,c)*n.xy;
  float growth=1.;
@@ -148,7 +148,7 @@ precision highp float;
 in vec3 v_p,v_n,v_local;
 in vec4 v_surface;
 flat in vec3 v_tag,v_eye;
-uniform float u_time,u_kick;
+uniform float u_time,u_kick,u_level;
 uniform float u_params[8];
 uniform vec2 u_resolution;
 uniform vec3 u_primary,u_secondary,u_accent;
@@ -185,10 +185,21 @@ void main(){
  // Recessed bearing seats darken near contact; the bright lip above is
  // separate geometry, so this is occlusion rather than a painted outline.
  ao*=1.-.28*exp(-pow((rad-.255)/.045,2.))*ss(.4,.15,v_local.z);
- vec3 metal=mix(brass(),mix(u_primary,u_secondary,.5),v_surface.w*.12);
- vec3 bright=mix(metal,vec3(1.),.16);
- vec3 col=metal*(.075+.22*nl)*ao*grooves;
- col+=bright*(card*.9+strip*2.2+ceiling*.18+broad*.1)*u_params[3]*ao*grooves;
+ // Warm alloy and cool environment are distinct palette-owned materials.
+ // The accent is blended into the alloy, never used as a flat pink fill.
+ vec3 alloy=brass()*mix(vec3(1.),u_accent,.42)+u_accent*.06;
+ vec3 metal=mix(alloy,u_secondary,min(.18,v_surface.w*.04));
+ vec3 bright=mix(metal,vec3(1.),.10);
+ vec3 col=metal*(.035+.18*nl)*ao*grooves;
+ col+=mix(bright,u_secondary,.18)*(card*1.25+strip*2.2+ceiling*.18+broad*.22)*u_params[3]*ao*grooves;
+ // Energy resolves a second scale of engraved dial indices, not exposure.
+ float theta=atan(v_local.y,v_local.x);
+ float aa=max(fwidth(theta)*48.,.012);
+ float graduations=1.-ss(.10,.10+aa,abs(sin(theta*48.)));
+ float major=1.-ss(.16,.16+aa*.25,abs(sin(theta*12.)));
+ float dial=ss(.60,.62,rad)*(1.-ss(.79+major*.04,.81+major*.04,rad))*step(v_tag.x,.5);
+ col*=1.-dial*.55;
+ col+=mix(bright,u_secondary,.4)*dial*graduations*ss(.15,.8,u_level)*.85;
  col+=mix(metal,vec3(1.),.28)*spec*2.4*u_params[3];
  col+=mix(metal,u_primary,.18)*rim*.35;
  float core=step(1.5,v_tag.x)*step(v_tag.x,2.5);
@@ -213,20 +224,30 @@ void main(){
   }
  }
  float sun=opening*visibility*10./(.7+sd*sd);
- vec3 sunColor=mix(brass(),vec3(1.),.18);
+ vec3 sunColor=mix(alloy,vec3(1.),.18);
  col+=metal*sunColor*(.12+.58*sn)*sun;
  vec3 SH=normalize(V+S/max(sd,.001));
  col+=sunColor*pow(max(dot(N,SH),0.),70.)*sun*2.*u_params[3];
- vec3 coreLight=mix(brass(),mix(brass(),vec3(1.),.55),ss(.1,.95,nv));
+ vec3 coreLight=mix(alloy,mix(alloy,vec3(1.),.55),ss(.1,.95,nv));
  col=mix(col,coreLight*(1.2+2.8*pow(nv,.7))*u_params[3],core);
  // Three local gestures: escapement, engaged tooth rims, ratio cohort.
  float tooth=ss(.86,.97,rad)*step(v_tag.x,.5);
- col+=u_accent*tooth*clamp(u_rhythm.x,0.,1.)*.55;
- col+=mix(u_secondary,vec3(1.),.3)*v_tag.z*clamp(u_rhythm.y,0.,1.)*tooth*.8;
+ float contact=pow(max(0.,cos(atan(v_local.y,v_local.x)*4.+u_rhythmCount.x*1.5707963)),8.);
+ col+=u_accent*tooth*clamp(u_rhythm.x,0.,1.)*contact*2.8;
+ col+=mix(u_secondary,vec3(1.),.16)*v_tag.z*clamp(u_rhythm.y,0.,1.)*ss(.55,.92,rad)*step(v_tag.x,.5)*1.8;
  float front=length(v_p.xy)-(1.-clamp(u_rhythm.z,0.,1.))*14.;
- col+=u_accent*exp(-front*front*2.)*min(1.,u_rhythm.z*5.)*tooth*.6;
+ col+=u_accent*exp(-front*front*2.)*min(1.,u_rhythm.z*5.)*tooth*2.2;
+ // A strike propagates on the real mechanism, never a screen-space ring.
+ // Alternating pallet origins are count-selected; managed mute is exact zero.
+ float strike=clamp(u_rhythm.w,0.,1.);
+ vec3 origin=sunPosition()+vec3(mod(floor(u_rhythmCount.w),2.)*4.-2.,0.,0.);
+ float travel=length((v_p-origin)*vec3(1.,1.,.6))-(1.-strike)*10.;
+ float stress=exp(-travel*travel*2.8)*min(1.,strike*6.);
+ float bearing=exp(-pow((rad-.29)/.06,2.));
+ float struckMetal=max(ss(.66,.91,rad),bearing)*(step(v_tag.x,.5)+.32*step(4.5,v_tag.x)*step(v_tag.x,5.5));
+ col+=mix(brass(),u_accent,.45)*stress*struckMetal*2.8;
  float distance=length(eye-v_p);
- col=mix(fogColor(),col,exp(-max(distance-4.,0.)*.058));
+ col=mix(fogColor(),col,exp(-max(distance-4.,0.)*.075));
  col+=atmosphere(eye,-V,distance);
  if(v_tag.y<0.)col*=.22+.14*pow(1.-abs(V.y),3.);
  outColor=vec4(max(col,vec3(0.)),1.);
@@ -246,13 +267,14 @@ void main(){
  vec3 core=sunPosition();
  float tc=max(0.,dot(core-eye,rd));
  vec3 at=eye+tc*rd-core;
- col+=brass()*(.035+.19*ss(0.,1.,u_params[0]))/(1.+dot(at,at)*.9);
+ col+=mix(brass(),u_accent,.30)*(.008+.035*ss(0.,1.,u_params[0]))/(1.+dot(at,at)*.9);
+ col+=u_secondary*.014*ss(0.,1.,u_params[0])/(1.+dot(at,at)*.22);
  // Soft raking light in the long nave, evaluated at two depth planes.
  for(int i=0;i<2;i++){
   float z=-9.-float(i)*14.;float t=(z-eye.z)/rd.z;
   vec3 p=eye+max(t,0.)*rd;
   float shaft=exp(-pow((p.x+.31*p.y+3.4)/.6,2.))*exp(-abs(p.y-2.)*.19);
-  col+=brass()*shaft*.3*hall*exp(-max(t,0.)*.016);
+  col+=mix(brass(),u_accent,.28)*shaft*.10*hall*exp(-max(t,0.)*.024);
  }
  float vault=pow(max(0.,1.-abs(rd.x)*1.4),12.)*pow(max(rd.y,0.),1.4);
  col+=mix(u_secondary,u_primary,.3)*vault*.04*hall;
@@ -353,40 +375,140 @@ export default {
   type: { key: "development", values: [0, 1, 2] },
   energy: { speed: { mul: [0.65, 1.35] }, glide: { mul: [0.75, 1.4] } },
   beat: { punch: 0.035, pulse: 0.025 },
-  rhythmStyles: { restrained: "Sleeping gears", driving: "Brass escapement", accented: "Cathedral clock" },
+  rhythmStyles: {
+    restrained: "Sleeping gears",
+    driving: "Brass escapement",
+    accented: "Cathedral clock",
+  },
   rhythm: [
     familyEffect(
       "escapement-tick",
       0,
       "Escapement tick",
       "The anchor rocks and the engaged involute tooth rims catch a local accent.",
-      { period: 4, duration: 0.65, strength: 0.65, steps: "X...", styles: {
-        restrained: { steps: "X...x... | ..X....x", division: 2, strength: 0.55, duration: 0.4 },
-        driving: { steps: "X.x.X.x.X.x.X.xx", division: 4, strength: 0.8, duration: 0.18 },
-        accented: { steps: "XxxxXx.xXxxxXxXx | Xx.xXxxxXxXxXxXX", division: 4, strength: 0.94, duration: 0.14 },
-      } },
+      {
+        period: 4,
+        duration: 0.65,
+        strength: 0.65,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X...x... | ..X....x",
+            division: 2,
+            strength: 0.55,
+            duration: 0.4,
+          },
+          driving: {
+            steps: "X.x.X.x.X.x.X.xx",
+            division: 4,
+            strength: 0.8,
+            duration: 0.18,
+          },
+          accented: {
+            steps: "XxxxXx.xXxxxXxXx | Xx.xXxxxXxXxXxXX",
+            division: 4,
+            strength: 0.94,
+            duration: 0.14,
+          },
+        },
+      },
     ),
     familyEffect(
       "ratio-cohort",
       1,
       "Ratio cohort",
       "A persistent shaft cohort catches a white glint without changing its meshing speed.",
-      { period: 8, duration: 2, strength: 0.7, steps: "X.......", styles: {
-        restrained: { steps: ".....x.. | .......X", division: 2, strength: 0.55, duration: 1.2 },
-        driving: { steps: "...X...x | ..X...x.", division: 2, strength: 0.82, duration: 0.65 },
-        accented: { steps: "...X.......x.... | ......X.......x. | .X.......x......", division: 4, strength: 0.94, duration: 0.6 },
-      } },
+      {
+        period: 8,
+        duration: 2,
+        strength: 0.7,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: ".....x.. | .......X",
+            division: 2,
+            strength: 0.55,
+            duration: 1.2,
+          },
+          driving: {
+            steps: "...X...x | ..X...x.",
+            division: 2,
+            strength: 0.82,
+            duration: 0.65,
+          },
+          accented: {
+            steps: "...X.......x.... | ......X.......x. | .X.......x......",
+            division: 4,
+            strength: 0.94,
+            duration: 0.6,
+          },
+        },
+      },
     ),
     familyEffect(
       "clockwork-wave",
       2,
       "Clockwork wave",
       "A bounded light wave follows tooth rims out through the cathedral.",
-      { period: 16, duration: 3.5, strength: 0.75, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.6, duration: 2.5 },
-        driving: { steps: "........ | .....x.. | ........ | .......X", division: 2, strength: 0.84, duration: 1.8 },
-        accented: { steps: "............x... | ..........X...x. | ................ | ............X..x", division: 4, strength: 0.98, duration: 0.5 },
-      } },
+      {
+        period: 16,
+        duration: 3.5,
+        strength: 0.75,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | ......X.",
+            division: 2,
+            strength: 0.6,
+            duration: 2.5,
+          },
+          driving: {
+            steps: "........ | .....x.. | ........ | .......X",
+            division: 2,
+            strength: 0.84,
+            duration: 1.8,
+          },
+          accented: {
+            steps:
+              "............x... | ..........X...x. | ................ | ............X..x",
+            division: 4,
+            strength: 0.98,
+            duration: 0.5,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "escapement-strike",
+      3,
+      "Escapement strike",
+      "An alternating pallet strike sends a narrow luminous stress front through gear faces, bearings and armillary rings.",
+      {
+        period: 16,
+        duration: 1.1,
+        strength: 0.9,
+        steps: "X.......x.......",
+        styles: {
+          restrained: {
+            steps: "........ | ......X. | ........ | ....x...",
+            division: 2,
+            strength: 0.78,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "X....... | .....X.. | ..x..... | ......X.",
+            division: 2,
+            strength: 0.94,
+            duration: 0.85,
+          },
+          accented: {
+            steps: "X....... | ...X.... | ......x. | X.....X.",
+            division: 2,
+            strength: 1,
+            duration: 0.7,
+          },
+        },
+      },
     ),
   ],
   // 56/24=7/3 and 56/40=7/5. A drive period of 30π completes
