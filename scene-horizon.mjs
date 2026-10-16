@@ -19,7 +19,14 @@ const schema = [
     step: 0.01,
     default: 0,
   },
-  { key: "swirl", label: "Disk rotation", min: 0, max: 2, step: 0.01, default: 1 },
+  {
+    key: "swirl",
+    label: "Disk rotation",
+    min: 0,
+    max: 2,
+    step: 0.01,
+    default: 1,
+  },
   {
     key: "turbulence",
     label: "Turbulence",
@@ -37,9 +44,30 @@ const schema = [
     step: 0.01,
     default: 0.7,
   },
-  { key: "orbit", label: "Camera orbit", min: -1, max: 1, step: 0.01, default: 0.4 },
-  { key: "tilt", label: "Inclination", min: 0, max: 1, step: 0.01, default: 0.35 },
-  { key: "stars", label: "Star field", min: 0, max: 1, step: 0.01, default: 0.5 },
+  {
+    key: "orbit",
+    label: "Camera orbit",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    default: 0.4,
+  },
+  {
+    key: "tilt",
+    label: "Inclination",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.35,
+  },
+  {
+    key: "stars",
+    label: "Star field",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    default: 0.5,
+  },
 ];
 
 const base = {
@@ -220,7 +248,7 @@ float hzCameraRadius(float dev, out float az, out float pass) {
   float form = smoothstep(0.0, 1.0, dev), blaze = smoothstep(1.0, 2.0, dev);
   az = TAU * hzPhase(0) + gSa;
   pass = blaze * pow(0.5 + 0.5 * cos(az - 1.9), 6.0);
-  return mix(mix(46.0, 34.0, form), 27.0, blaze) * (1.0 - 0.42 * pass) *
+  return mix(mix(34.0, 32.0, form), 30.0, blaze) * (1.0 - 0.08 * pass) *
     (1.0 + 0.025 * sin(3.0 * az));
 }
 
@@ -298,7 +326,7 @@ vec2 hzJet(vec3 A, vec3 B) {
   knots *= 0.8 + 0.2 * sin(0.17 * y - TAU * gKnot + 1.3);
   // Gesture: one bright knot ejected along both jets.
   float burstY = 4.5 + gJetLen * (1.0 - u_rhythm.z);
-  knots += 2.5 * u_rhythm.z * exp(-sq((y - burstY) / 2.2));
+  knots += 6.0 * u_rhythm.z * exp(-sq((y - burstY) / 1.6));
   float span0 = sStar * lxz, span1 = (1.0 - sStar) * lxz;
   vec2 cover = vec2(
     (hzErf(span1 / coreW) + hzErf(span0 / coreW)) * 0.886 * coreW * exp(-rho2 / (coreW * coreW)),
@@ -326,7 +354,7 @@ float hzNoise(vec2 p, float period, float salt) {
 // Turbulent gas in material coordinates of one flow layer. lr = ln r,
 // angle0 = material angle, fl = pixel footprint in ln r.
 float hzTurbulence(float lr, float angle0, float fl, float salt, int octaves) {
-  float sum = 0.0, norm = 0.0, amp = 1.0, freq = 9.0, per = 8.0;
+  float sum = 0.0, norm = 0.0, amp = 1.0, freq = 15.0, per = 12.0;
   float decay = 0.62 + 0.12 * gLevel;
   for (int o = 0; o < 4; ++o) {
     if (o >= octaves) break;
@@ -365,7 +393,7 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   float trailB = max(trail - TAU, d0), offB = lrs + pitch * trailB;
   if (abs(offB) < abs(off)) { trail = trailB; off = offB; }
   float width = mix(0.035, 0.12, gForm) + 0.5 * fl;
-  float reach = mix(2.6, 12.0, smoothstep(0.0, 1.2, gDev));
+  float reach = mix(5.2, 12.0, smoothstep(0.0, 1.2, gDev));
   float stream = exp(-sq(off / width)) * (1.0 - smoothstep(0.55 * reach, reach, trail)) *
     smoothstep(R_IN - 0.5, R_IN + 2.0, r) * mix(0.9, 0.35, gBlaze) * min(1.0, 0.035 / width + 0.25) *
     smoothstep(0.0, 0.3, trail);
@@ -379,7 +407,7 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
 
   // The disk: Novikov–Thorne-like envelope with a sharp ISCO edge, faint
   // plunging gas inside it, turbulence and two slow density-wave arms.
-  float rOut = mix(mix(9.0, 15.0, gForm), 19.0, gBlaze);
+  float rOut = mix(mix(12.0, 15.0, gForm), 19.0, gBlaze);
   float edge = 0.35 + 0.6 * fl * r;
   float env = smoothstep(R_IN - edge, R_IN + edge, r) * (1.0 - smoothstep(0.55 * rOut, rOut, r));
   env += 0.06 * smoothstep(2.4, R_IN, r) * (1.0 - smoothstep(R_IN - 0.3, R_IN + 0.3, r));
@@ -406,9 +434,9 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   stream *= 1.0 + 0.5 * gTurb * n;
   float arms = 1.0 + 0.45 * gForm * sin(2.0 * th + 5.5 * lr + 1.7) * (1.0 - smoothstep(0.2, 0.8, fl * 6.0));
   // Fine ringlets: concentric streaks sheared out of the turbulence.
-  float ringlets = 1.0 + 0.12 * gTurb * sin(lr * 42.0 + 5.0 * n) * (1.0 - smoothstep(0.02, 0.06, fl));
-  float turb = 0.5 + 1.1 * gTurb;
-  float disk = env * gMass * arms * ringlets * pow(max(0.0, 1.0 + turb * n), 2.0) * pow(R_IN / max(r, R_IN), 0.35);
+  float ringlets = 1.0 + 0.08 * gTurb * sin(lr * 42.0 + 5.0 * n) * (1.0 - smoothstep(0.02, 0.06, fl));
+  float turb = 0.85 + 1.65 * gTurb;
+  float disk = env * gMass * arms * ringlets * pow(max(0.0, 1.0 + turb * n), 3.0) * pow(R_IN / max(r, R_IN), 0.35);
   disk *= mix(1.0, 0.75, smoothstep(0.0, 1.0, order - 1.0));
 
   float density = disk + stream;
@@ -420,10 +448,14 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   float T = gHeat * profile * gb;
   // Colour is temperature: cool receding gas toward secondary, hot
   // approaching gas toward primary; the accent stays reserved.
-  float tone = clamp(0.64 * pow(T / 1.2, 2.2) + 0.06 * n * gTurb, 0.0, 0.66);
-  // The hottest, beamed gas whitens a little (palette mixed with white).
-  vec3 hue = mix(palette(tone), vec3(1.0), 0.3 * smoothstep(1.0, 1.8, T));
-  vec3 col = hue * density * pow(T, 2.6) * pow(gb, 1.6) * 0.75;
+  float tone = smoothstep(0.9, 2.0, T + 0.45 * n);
+  // Cool outer gas and hot inner gas remain distinct in every palette.
+  // Only exceptional beamed peaks approach white; accent belongs to events.
+  vec3 hue = mix(u_secondary, u_primary, tone);
+  hue = mix(hue, vec3(1.0), 0.28 * smoothstep(1.45, 2.2, T));
+  vec3 col = hue * density * pow(T, 2.1) * pow(gb, 1.6) * 0.65;
+  float ember = smoothstep(0.32, 0.65, n) * smoothstep(1.05, 1.5, T);
+  col += u_accent * disk * ember * 0.45;
   // Tidal debris glows by itself (shocked gas), so the stream reads before
   // the disk has heated: cool toward secondary, its inner wraps warmer.
   col += mix(u_secondary, u_primary, 0.35 + 0.3 * smoothstep(R_STAR, R_IN, r)) * stream * 0.95 * pow(gb, 1.5) * (1.0 - 0.6 * gBlaze);
@@ -431,7 +463,7 @@ vec4 hzDisk(vec2 xz, float g, float fp, float order) {
   col += mix(u_primary, vec3(1.0), 0.35) * head * 3.4 * (1.0 + 2.5 * u_rhythm.x * (1.0 - gMass)) * pow(gb, 1.5);
 
   // Gesture: an orbiting hot spot flares in the inner disk (Sgr A*-style).
-  col += mix(u_primary, u_accent, 0.6) * spot * 3.0 * pow(gb, 3.0);
+  col += mix(u_primary, u_accent, 0.8) * spot * 6.0 * pow(gb, 3.0);
 
   float alpha = 1.0 - exp(-(disk * mix(0.8, 4.5, gBlaze) + stream * 0.6 + head * 2.0));
   return vec4(col, alpha);
@@ -539,8 +571,8 @@ void main() {
   gLevel = level;
   gForm = smoothstep(0.0, 1.0, dev);
   gBlaze = smoothstep(1.0, 2.0, dev);
-  gMass = smoothstep(0.3, 1.25, dev);
-  gHeat = mix(0.45, 0.82, gForm) + 0.33 * gBlaze;
+  gMass = 0.4 + 0.6 * smoothstep(0.3, 1.25, dev);
+  gHeat = mix(0.88, 0.94, gForm) + 0.24 * gBlaze;
   gTurb = clamp(u_params[2], 0.0, 1.0);
   gBeam = clamp(u_params[4], 0.0, 1.0);
   gStars = clamp(u_params[7], 0.0, 1.0);
@@ -565,11 +597,11 @@ void main() {
 
   // Camera: a slow orbit around the spin axis. Inclination moves to a new
   // seeded value on each 8-bar phrase; distance closes in with development
-  // and dives into one close pass per orbit in the Horizon state.
+  // and breathes through a bounded 8% pass per orbit in the Horizon state.
   float az, pass;
   float radius = hzCameraRadius(dev, az, pass);
   // Finite luminous jet knots stay framed even on the closest pass.
-  gJetLen = min(gJetLen, radius * 0.38);
+  gJetLen = min(gJetLen, radius * 0.25);
   float phrase = u_beat / 32.0;
   float pk = floor(phrase);
   float wob = mix(hz01(seedHash(uint(int(pk)) ^ 0x2545f491u)),
@@ -586,7 +618,9 @@ void main() {
   float shortSide = min(u_resolution.x, u_resolution.y);
   vec2 uv = rot2(roll) * (aspectUV() * (2.0 * u_resolution.y / shortSide));
   float kick = u_kick * smoothstep(0.15, 1.0, level);
-  float focal = mix(mix(2.0, 1.75, gForm), 1.55, gBlaze) * (1.0 - 0.2 * pass) * (1.0 + 0.025 * kick);
+  float aspectFit = mix(0.72, 1.0, smoothstep(1.0, 1.7, u_resolution.x / u_resolution.y));
+  float focal = mix(mix(1.95, 2.15, gForm), 2.1, gBlaze) * aspectFit * (1.0 - 0.04 * pass) * (1.0 + 0.025 * kick);
+  uv += vec2(0.07 * sin(az), 0.035 * cos(az));
   vec3 rd = normalize(fw * focal + rt * uv.x + up * uv.y);
   gPixelAngle = 2.0 / (focal * shortSide);
 
@@ -747,8 +781,22 @@ void main() {
   float wr = max(0.035, 1.2 * fwB);
   float ring = exp(-sq((b - BC) / wr)) * (0.035 / wr + 0.15);
   float halo = exp(-max(b - BC, 0.0) / 0.5) * step(BC, b) * 0.12;
-  float ringAmt = (0.3 + 0.9 * gMass + 0.3 * gBlaze) * (1.0 + 1.6 * u_rhythm.y);
-  col += T * (mix(u_secondary, u_primary, 0.65) * ring * 1.15 + mix(u_primary, u_secondary, 0.3) * halo * gMass) * ringAmt;
+  float rimAngle = atan(dot(rd, up), dot(rd, rt));
+  float rimSector = 0.35 + 0.65 * pow(0.5 + 0.5 * cos(rimAngle + az), 2.0);
+  float ringAmt = (0.55 + 0.75 * gMass + 0.3 * gBlaze) * (1.0 + 2.2 * u_rhythm.y * rimSector);
+  col += T * (mix(u_secondary, u_primary, 0.65) * ring * rimSector * 1.15 + mix(u_primary, u_secondary, 0.3) * halo * gMass) * ringAmt;
+
+  // Slot 3: a photon relay runs around the actual critical-impact rim.
+  // Count chooses successive launch sectors; envelope travel leaves a soft
+  // wake. Hit only broadens the local leading edge, never the whole frame.
+  float relay = clamp(u_rhythm.w, 0.0, 1.0);
+  float relayAngle = mod(u_rhythmCount.w, 8.0) * 2.39996323 - (1.0 - relay) * 2.6;
+  float da = mod(rimAngle - relayAngle + PI, TAU) - PI;
+  float head = exp(-sq(da / (0.18 + 0.1 * u_rhythmHit.w)));
+  float wake = exp(-sq((da - 0.27) / 0.42));
+  float relayRim = exp(-sq((b - BC - 0.08) / max(0.16, 1.8 * fwB)));
+  col += mix(u_accent, u_primary, 0.12) * relay * (head * 4.5 + wake * 1.4) * relayRim;
+  col += u_accent * relay * head * exp(-sq((b - BC - 0.18) / 0.48)) * 0.8;
 
   outColor = vec4(max(col, vec3(0.0)), 1.0);
 }
@@ -818,40 +866,139 @@ export default {
     { param: "turbulence", feature: "high", amount: 0.08 },
     { param: "jets", feature: "low", amount: 0.1 },
   ],
-  rhythmStyles: { restrained: "Silent orbit", driving: "Photon waltz", accented: "Relativistic bloom" },
+  rhythmStyles: {
+    restrained: "Silent orbit",
+    driving: "Photon waltz",
+    accented: "Relativistic bloom",
+  },
   rhythm: [
     familyEffect(
       "hot-spot",
       0,
       "Hot spot",
       "A hot spot in the inner disk flares as it orbits; its lensed images flare with it.",
-      { period: 4, strength: 0.6, duration: 1, steps: "X...", styles: {
-        restrained: { steps: "X....... | .....x.. | ..X..... | .....x..", division: 2, strength: 0.5, duration: 1.2 },
-        driving: { steps: "X..x..X..x..", division: 2, strength: 0.76, duration: 0.8 },
-        accented: { steps: "X..x..X..x.. | X.x..X..x.X.", division: 4, strength: 0.9, duration: 0.4 },
-      } },
+      {
+        period: 4,
+        strength: 0.6,
+        duration: 1,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | .....x.. | ..X..... | .....x..",
+            division: 2,
+            strength: 0.5,
+            duration: 1.2,
+          },
+          driving: {
+            steps: "X..x..X..x..",
+            division: 2,
+            strength: 0.76,
+            duration: 0.8,
+          },
+          accented: {
+            steps: "X..x..X..x.. | X.x..X..x.X.",
+            division: 4,
+            strength: 0.9,
+            duration: 0.4,
+          },
+        },
+      },
     ),
     familyEffect(
       "photon-ring",
       1,
       "Photon ring",
       "The photon ring at √27 M brightens once.",
-      { period: 8, strength: 0.6, duration: 1.5, steps: "X.......", styles: {
-        restrained: { steps: "...x.... | ......X. | ........ | ....x...", division: 2, strength: 0.5, duration: 1.5 },
-        driving: { steps: "....X..x | ..X..x..", division: 2, strength: 0.74, duration: 0.75 },
-        accented: { steps: "..X...x..X...x.. | ....X..x...X...x", division: 4, strength: 0.88, duration: 0.6 },
-      } },
+      {
+        period: 8,
+        strength: 0.6,
+        duration: 1.5,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: "...x.... | ......X. | ........ | ....x...",
+            division: 2,
+            strength: 0.5,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "....X..x | ..X..x..",
+            division: 2,
+            strength: 0.74,
+            duration: 0.75,
+          },
+          accented: {
+            steps: "..X...x..X...x.. | ....X..x...X...x",
+            division: 4,
+            strength: 0.88,
+            duration: 0.6,
+          },
+        },
+      },
     ),
     familyEffect(
       "jet-knot",
       2,
       "Jet knot",
       "One bright knot is ejected along both relativistic jets.",
-      { period: 16, strength: 0.7, duration: 2, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.55, duration: 2.5 },
-        driving: { steps: "........ | ......x. | ........ | .....X..", division: 2, strength: 0.8, duration: 1.5 },
-        accented: { steps: "...........x.... | ........X.....x. | ..............X.", division: 4, strength: 0.95, duration: 0.9 },
-      } },
+      {
+        period: 16,
+        strength: 0.7,
+        duration: 2,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | ......X.",
+            division: 2,
+            strength: 0.55,
+            duration: 2.5,
+          },
+          driving: {
+            steps: "........ | ......x. | ........ | .....X..",
+            division: 2,
+            strength: 0.8,
+            duration: 1.5,
+          },
+          accented: {
+            steps: "...........x.... | ........X.....x. | ..............X.",
+            division: 4,
+            strength: 0.95,
+            duration: 0.9,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "photon-relay",
+      3,
+      "Photon relay",
+      "An accent flare circles the photon rim with a trailing wake; successive hits launch from new sectors.",
+      {
+        period: 8,
+        strength: 0.85,
+        duration: 0.65,
+        steps: "X..x.X..",
+        styles: {
+          restrained: {
+            steps: "...X.... | ......x.",
+            division: 2,
+            strength: 0.65,
+            duration: 1.1,
+          },
+          driving: {
+            steps: "X..x.X.. | ..X...x.",
+            division: 2,
+            strength: 0.92,
+            duration: 0.65,
+          },
+          accented: {
+            steps: "X..x..X...x.X... | ..X.x..X...x..X.",
+            division: 4,
+            strength: 1,
+            duration: 0.4,
+          },
+        },
+      },
     ),
   ],
   fragment,

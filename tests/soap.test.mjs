@@ -12,6 +12,7 @@ import { catalogLooks } from "../catalog.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { advanceClocks } from "../scene-time.mjs";
+import { defaultPattern } from "../rhythm.mjs";
 
 const add = (a, b) => a.map((x, i) => x + b[i]);
 const sub = (a, b) => a.map((x, i) => x - b[i]);
@@ -170,7 +171,7 @@ test("draining films have a black cap, thick lower reservoir and a smooth period
       const adjacent = filmThickness(add(q, [1e-7, 0, 0]), options);
       assert.ok(Math.abs(adjacent - d) < 0.01, "no vortex/chart seam");
       const pulse = filmThickness(q, { ...options, rhythm: 1 });
-      assert.ok(pulse >= d && pulse <= d * 1.075 + 1e-10);
+      assert.ok(pulse >= d && pulse <= d * 1.16 + 1e-10);
     }
   }
   assert.ok(
@@ -346,19 +347,52 @@ test("the camera remains outside every film over its full closed orbit", () => {
   assert.match(soap.fragment, /1\.0\+\.018\*u_kick/);
   assert.match(soap.fragment, /float footprint=max\(tc\*pixel\/1\.85,\.0001\)/);
   assert.match(soap.fragment, /float thickness=max\(6\.0,/);
-  const diameter = (2 * 1.85) / Math.sqrt(5.4 ** 2 - 1);
+  const diameter = (2 * (1.85 + 0.19)) / Math.sqrt(5.4 ** 2 - 1);
   assert.ok(
-    diameter >= 0.5 && diameter <= 0.7,
-    "Bubble fills 50–70% of the short side",
+    diameter >= 0.75 && diameter <= 0.8,
+    "Bubble fills 75–80% of the short side",
   );
+  assert.ok(soap.fragment.includes("fw*(1.85+.19*(1.0-cathedral))"));
 });
 
-test("all signature gestures are bounded 4/8/16-beat effects, and time stays continuous for 12 hours", () => {
+test("all four signature gestures are bounded and time stays continuous for 12 hours", () => {
   assert.deepEqual(
     soap.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16],
+    [4, 8, 16, 8],
   );
-  for (const channel of ["x", "y", "z"])
+  assert.equal(soap.rhythm[3].slot, 3);
+  assert.equal(soap.rhythm[3].id, "film-shimmer");
+  for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
+    assert.ok(soap.fragment.includes(uniform));
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const tracks = defaultPattern(soap.rhythm, style).tracks;
+    const density = tracks.reduce(
+      (n, t) =>
+        n + (t.steps.filter((v) => v > 0).length * 4 * t.division) / t.length,
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+    for (const track of tracks) {
+      const hits = track.steps.flatMap((value, i) => (value > 0 ? [i] : []));
+      for (let i = 0; i < hits.length; i++) {
+        const next =
+          hits[(i + 1) % hits.length] +
+          (i === hits.length - 1 ? track.length : 0);
+        assert.ok(
+          track.duration < (next - hits[i]) / track.division,
+          `${style}/${track.effect} settles`,
+        );
+      }
+    }
+    assert.ok(
+      soap.rhythm[3].styles[style].steps.filter((v) => v > 0).length >= 2,
+    );
+  }
+  for (const channel of ["x", "y", "z", "w"])
     assert.ok(soap.fragment.includes(`u_rhythm.${channel}`));
   const p = soap.schema.map((f) => f.default);
   for (const at of [3600, 43200]) {
