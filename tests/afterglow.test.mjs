@@ -22,6 +22,10 @@ import afterglow, {
   DETAIL_VERTICES,
   SIMPLE_VERTICES,
   TAIL_VERTICES,
+  TRAIL_SEGMENTS,
+  HEAD_ALONG,
+  HEAD_AROUND,
+  PETALS,
   flowerTemplate,
   flowerInstances,
   gardenEye,
@@ -466,7 +470,7 @@ test("slot-3 pollen signature has three authored, distinct, bounded loops", () =
   }
 });
 
-test("r4 meadow keeps opaque grass, local motes and independent sap/flex signals", () => {
+test("meadow keeps opaque grass, local trails and independent sap/flex signals", () => {
   const parts = [];
   const template = flowerTemplate();
   for (let i = 0; i < template.length; i += 3) parts.push(template[i]);
@@ -474,24 +478,95 @@ test("r4 meadow keeps opaque grass, local motes and independent sap/flex signals
     assert.equal(parts.filter((p) => p === grass).length, 18);
     assert.ok(parts.indexOf(grass) < ADDITIVE_FROM);
   }
-  for (let mote = 33; mote < 45; mote++)
+  for (let mote = 33; mote < 33 + 3 * (TRAIL_SEGMENTS + 1); mote++)
     assert.equal(parts.filter((p) => p === mote).length, 6);
   assert.match(
     afterglow.geometry.vertex,
-    /v_signal = vec3\(agPulse\(far\), pollen, cohort\)/,
+    /v_signal = vec3\(agSapSelection\(base, eye.xy, F.xy\), pollen, flex\)/,
   );
-  assert.match(
-    afterglow.geometry.fragment,
-    /u_primary \* v_signal.x \* \(margin/,
-  );
+  assert.match(afterglow.geometry.fragment, /v_signal.x \* \(veinTravel/);
   assert.match(afterglow.geometry.fragment, /u_accent \* v_signal.y/);
-  assert.match(afterglow.fragment, /packetRing/);
+  assert.match(afterglow.fragment, /pollenSpill/);
+  assert.doesNotMatch(afterglow.fragment, /packetRing|packetDistance/);
   assert.doesNotMatch(afterglow.fragment, /vec3 mirrored|float fresnel/);
   // Conservative angular projection of a radius .21 patch at .88 distance,
   // including its lateral excursion: < one third of a 16:9 review frame.
   const width = (2 * 0.21 * 1.15) / Math.sqrt(0.88 ** 2 - 0.21 ** 2) / (16 / 9);
   assert.ok(width < 1 / 3, `patch width ${width}`);
   assert.match(afterglow.geometry.vertex, /agSmooth\(\.09, \.21/);
+});
+
+test("r5 sap is a bounded stem-to-vein-to-margin packet, never a full outline", () => {
+  const shader = afterglow.geometry.fragment;
+  assert.match(shader, /agSapPacket\(s \* \.40\)/);
+  assert.match(shader, /agSapPacket\(\.40 \+ v \* \.36\)/);
+  assert.match(shader, /agSapPacket\(\.76 \+ \(1\. - v\) \* \.24/);
+  assert.doesNotMatch(shader, /v_signal.x \* \(margin \*/);
+  const packet = (path, envelope) => {
+    const front = (1 - Math.max(0, Math.min(1, envelope))) * 1.75 - 0.42;
+    return Math.exp(-(((path - front) / 0.1) ** 2)) * smooth(0, 0.07, envelope);
+  };
+  // The same causal pulse passes these positions in this order, leaving dark
+  // tissue behind. Values are within the driving track's .76 amplitude.
+  for (const path of [0.1, 0.38, 0.6, 0.9]) {
+    const envelope = 1 - (path + 0.42) / 1.75;
+    assert.ok(envelope > 0 && envelope < 0.76);
+    assert.ok(packet(path, envelope) > 0.99);
+    assert.ok(packet(path - 0.3, envelope) < 0.001);
+    assert.ok(packet(path + 0.3, envelope) < 0.001);
+    assert.equal(packet(path, 0), 0);
+  }
+  assert.match(afterglow.geometry.vertex, /lean \+= R.xy \* flex/);
+  assert.doesNotMatch(afterglow.geometry.vertex, /sapWidth/);
+  assert.match(shader, /float pulseRib = exp/);
+  assert.match(
+    afterglow.geometry.vertex,
+    /petalLength \*= agSmooth\(0\., petalLength/,
+  );
+});
+
+test("r6 pollen uses three rooted smooth tapered curves and soft airborne heads", () => {
+  const shader = afterglow.geometry.vertex;
+  assert.match(shader, /floor\(float\(part - 33\) \/ 9\.\)/);
+  assert.match(shader, /mod\(float\(part - 33\), 9\.\)/);
+  assert.match(shader, /far \* 2\.8 \/ \(min\(u_resolution/);
+  assert.match(shader, /phase \* 3\./);
+  assert.match(shader, /float emitter = agSmooth/);
+  assert.match(shader, /bool moteHead = piece > 7\.5/);
+  assert.match(shader, /vec3 origin = head \+ axis \* petalLength \* \.12/);
+  assert.match(shader, /float phase = along \*/);
+  assert.match(shader, /\.55 - \.36 \* along/);
+  assert.match(afterglow.geometry.fragment, /\(v_part - 33\) % 9 != 8/);
+  assert.equal(TRAIL_SEGMENTS, 8);
+  assert.equal(TAIL_VERTICES, 180);
+});
+
+test("r6 rounded lamina, stable endpoint normals and foreground framing", () => {
+  assert.equal(HEAD_ALONG, 12);
+  assert.equal(HEAD_AROUND / PETALS, 4);
+  const shader = afterglow.geometry.vertex;
+  assert.match(shader, /float along = \.5 - \.5 \* cos/);
+  assert.match(shader, /float width = max\(0\., sin/);
+  assert.match(shader, /nv = clamp\(v, \.006, \.994\)/);
+  assert.match(shader, /float nearCanopy = mix/);
+  assert.match(shader, /agCohort\(base, eye.xy, F.xy\)/);
+  assert.match(shader, /agFlowerPatch\(p, eye, forward, u_rhythmCount.x/);
+  assert.match(shader, /agFlowerPatch\(p, eye, forward, u_rhythmCount.y/);
+  assert.match(shader, /1\.10 \+ 1\.20 \* foreground/);
+  assert.match(shader, /- dot\(headView, U\)/);
+  assert.match(afterglow.geometry.fragment, /diffuse \* fold/);
+  assert.match(afterglow.geometry.fragment, /vec3 flushed = u_accent/);
+  // Cosine-spaced longitudinal samples resolve rounded ends rather than a
+  // uniformly sampled blade. The curve and its width are continuous/symmetric.
+  for (let i = 0; i <= 100; i++) {
+    const v = i / 100;
+    const along = 0.5 - 0.5 * Math.cos(Math.PI * v);
+    const width = Math.sin(Math.PI * v);
+    assert.ok(along >= 0 && along <= 1 && width >= 0);
+    assert.ok(Math.abs(width - Math.sin(Math.PI * (1 - v))) < 1e-12);
+    assert.ok(Math.abs((2 * along - 1) ** 2 + width ** 2 - 1) < 1e-12);
+  }
+  assert.ok(0.5 - 0.5 * Math.cos(Math.PI / HEAD_ALONG) < 0.04);
 });
 
 function smooth(a, b, x) {
