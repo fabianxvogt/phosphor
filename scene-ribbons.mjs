@@ -134,11 +134,11 @@ vec2 rbRelay(float s, float rank) {
   float age = rbUnpack24(texelFetch(u_state, ivec2(4, ${RIBBONS * 6}), 0));
   float strength = rbUnpack24(texelFetch(u_state, ivec2(5, ${RIBBONS * 6}), 0));
   float cohort = floor(3. * rbUnpack24(texelFetch(u_state, ivec2(6, ${RIBBONS * 6}), 0)) + .5);
-  float selected = 1. - step(.5, abs(mod(floor(rank * 24.), 3.) - cohort));
+  float selected = (1. - step(.04, rank)) * (1. - step(.5, abs(mod(floor(rank * 192.), 3.) - cohort)));
   float front = 1.08 - 1.4 * age;
   float d = s - front;
-  float hot = exp(-pow(d / .045, 2.));
-  float wake = exp(-max(0., d) * 10.) * smoothstep(-.015, .025, d);
+  float hot = exp(-pow(d / .06, 2.));
+  float wake = exp(-max(0., d) * 16.) * smoothstep(0., .035, d);
   float gain = selected * strength * smoothstep(0., .09, age) * (1. - smoothstep(.8, .99, age));
   return vec2(hot, wake) * gain;
 }
@@ -148,6 +148,7 @@ const vertex = `#version 300 es
 precision highp float;
 precision highp int;
 layout(location=0) in float a_rank;
+layout(location=1) in float a_ribbon;
 uniform float u_params[8];
 uniform vec2 u_resolution;
 uniform float u_kick, u_level;
@@ -156,7 +157,7 @@ uniform sampler2D u_state;
 uniform vec3 u_primary, u_secondary, u_accent;
 out vec3 v_side, v_toCam, v_normal, v_color;
 out float v_across, v_s, v_fog, v_cover, v_speed, v_head, v_glow;
-flat out float v_rank;
+flat out float v_rank, v_additive;
 const float PI = 3.14159265359, TAU = 6.28318530718;
 ${glsl}
 ${relay}
@@ -169,15 +170,24 @@ vec4 rbPoint(int r, int k, int j) {
   return vec4(RB_SCALE[k] * (RB_FRAME[k] * (p - RB_CENTER[k])), rbUnpack16(b.ba));
 }
 // Interpolated position at fractional sample u; w = 0 marks a broken segment.
-vec4 rbAt(int r, int k, float u) {
+vec4 rbAt(int r, int k, float u, out vec3 tangent) {
   int j = int(floor(u));
   vec4 a = rbPoint(r, k, j), b = rbPoint(r, k, j + 1);
-  return vec4(mix(a.xyz, b.xyz, u - float(j)), a.w == b.w ? 1. : 0.);
+  vec4 prev = rbPoint(r, k, max(0, j - 1)), next = rbPoint(r, k, min(HISTORY - 1, j + 2));
+  float t = u - float(j);
+  vec3 m0 = .5 * (b.xyz - prev.xyz), m1 = .5 * (next.xyz - a.xyz);
+  vec3 p = (2. * t*t*t - 3. * t*t + 1.) * a.xyz + (t*t*t - 2. * t*t + t) * m0
+         + (-2. * t*t*t + 3. * t*t) * b.xyz + (t*t*t - t*t) * m1;
+  tangent = (6. * t*t - 6. * t) * a.xyz + (3. * t*t - 4. * t + 1.) * m0
+          + (-6. * t*t + 6. * t) * b.xyz + (3. * t*t - 2. * t) * m1;
+  return vec4(p, a.w == b.w && prev.w == a.w && next.w == b.w ? 1. : 0.);
 }
 vec3 palette(float t) { return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t)),u_accent,smoothstep(.65,1.,t)); }
 void main() {
   gl_Position = vec4(2., 2., 2., 1.);
-  int r = gl_VertexID / PER_RIBBON, local = gl_VertexID - r * PER_RIBBON;
+  int order = gl_VertexID / PER_RIBBON;
+  int r = int(a_ribbon + .5), local = gl_VertexID - order * PER_RIBBON;
+  v_additive = order >= 24 ? 1. : 0.;
   int quad = local / 6, corner = local - quad * 6;
   int du = corner == 1 || corner == 4 || corner == 5 ? 1 : 0;
   float side = corner == 2 || corner == 3 || corner == 5 ? 1. : -1.;
@@ -192,23 +202,25 @@ void main() {
   if (w >= 1.) { ka = 2; w = 0.; }
 
   float s = float(quad + du) / float(SEGMENTS);
-  float span = clamp(u_params[2], .2, 1.) * float(HISTORY - 4);
+  float span = clamp(u_params[2], .2, 1.) * float(HISTORY - 6);
   float f = global(0);
   float u = 1. + s * span + 1. - f;
-  vec4 p0 = rbAt(r, ka, u), pm = rbAt(r, ka, u - .5), pp = rbAt(r, ka, u + .5);
+  vec3 T;
+  vec4 p0 = rbAt(r, ka, u, T);
   if (w > 0.) {
-    vec4 q0 = rbAt(r, ka + 1, u), qm = rbAt(r, ka + 1, u - .5), qp = rbAt(r, ka + 1, u + .5);
+    vec3 qT;
+    vec4 q0 = rbAt(r, ka + 1, u, qT);
     p0 = vec4(mix(p0.xyz, q0.xyz, w), w < 1. ? p0.w * q0.w : q0.w);
-    pm.xyz = mix(pm.xyz, qm.xyz, w); pp.xyz = mix(pp.xyz, qp.xyz, w);
+    T = mix(T, qT, w);
   }
-  vec3 P = p0.xyz, T = pp.xyz - pm.xyz;
+  vec3 P = p0.xyz;
   float speed = length(T) / mix(RB_VREF[ka], RB_VREF[min(ka + 1, 2)], w);
   T = length(T) > 1e-6 ? normalize(T) : vec3(1., 0., 0.);
 
   // Camera (mirrors camera() in ribbons-geometry.mjs).
   float mid = smoothstep(0., 1., dev), peak = smoothstep(1., 2., dev);
   float yaw = .7 + (.6 + .9 * mid) * sin(TAU * global(1)), drift = TAU * global(2);
-  float dist = u_params[7] * mix(mix(3., 2.9, mid), 2.45, peak) * (1. + .1 * peak * sin(2. * yaw + drift));
+  float dist = u_params[7] * mix(mix(3., 2.9, mid), 2.65, peak) * (1. + .1 * peak * sin(2. * yaw + drift));
   float pitch = clamp(.12 + .2 * mid + (u_params[6] - .35) + (.1 + .12 * peak) * sin(drift), -.4, 1.3);
   vec3 eye = dist * vec3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw));
   vec3 target = vec3(.15 * peak * sin(1.3 * yaw + .5), -.14 * (1. - mid) - .12 * peak + .08 * peak * sin(drift), .15 * peak * cos(1.3 * yaw + .5));
@@ -216,10 +228,21 @@ void main() {
   vec3 fwd = normalize(target - eye);
   vec3 right = normalize(cross(fwd, vec3(sin(roll), cos(roll), 0.)));
   vec3 up = cross(right, fwd);
-  float focal = mix(mix(2.46, 2.24, mid), 1.78, peak) * (1. + .022 * u_kick);
+  float focal = mix(mix(2.46, 2.42, mid), 2.02, peak) * (1. + .022 * u_kick);
   focal *= mix(mix(.88, .76, peak), 1., smoothstep(.85, 1.5, u_resolution.x / u_resolution.y));
   float minSide = min(u_resolution.x, u_resolution.y);
 
+  // A panoramic flow field, not a turntable. The same histories provide
+  // thin peripheral orbits; their scale/parallax opens the surrounding space.
+  float panoramic = smoothstep(.85, 1.5, u_resolution.x / u_resolution.y);
+  float outer = smoothstep(.58, .78, a_rank) * mid;
+  float nearLayer = smoothstep(.12, .14, a_rank) * (1. - smoothstep(.19, .22, a_rank)) * mid;
+  float laneScale = 1. + (.25 + .75 * mid) * (1. - smoothstep(.1, .13, a_rank)) * (-.1 + .02 * floor(a_rank * 192.));
+  P *= laneScale * (1. + .48 * outer + .12 * peak + .4 * nearLayer);
+  P += right * (dot(P, right) * (.32 + .22 * peak) * panoramic);
+  T += right * (dot(T, right) * (.32 + .22 * peak) * panoramic);
+  T = normalize(T);
+  P += right * (.4 * sin(drift + yaw) + .16 * sin(2. * yaw)) * panoramic;
   // A camera-facing satin band with an optically twisting normal.
   vec3 toCam = eye - P;
   float depth = max(.05, dot(P - eye, fwd));
@@ -234,9 +257,9 @@ void main() {
   float head = 1. - smoothstep(0., .065, s);
   // A few broad foreground trajectories against many fine tracers give
   // scale without changing seeded ranks, population or integration.
-  float hero = pow(1. - a_rank, 5.);
-  float weight = mix(.2, 2.45, hero);
-  float width = .022 * u_params[4] * (1. + .12 * peak) * weight * mix(.65, 1.15, u_level) * mix(1., .25, s) * (1. - .55 * head * head) * presence * p0.w;
+  float hero = exp(-a_rank * 20.);
+  float weight = .07 + 3.2 * hero + .24 * exp(-a_rank * 4.) + .22 * nearLayer;
+  float width = .028 * u_params[4] * (1. + .12 * peak) * weight * mix(.65, 1.15, u_level) * mix(1., .48, s) * (1. - .55 * head * head) * presence * p0.w;
   width *= (1. + .32 * rbRelay(s, a_rank).x) * smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, depth);
   float minWidth = 1.2 * depth / (focal * .5 * minSide);
   v_cover = clamp(width / minWidth, 0., 1.);
@@ -248,7 +271,7 @@ void main() {
   gl_Position = vec4(view.x * focal * minSide / u_resolution.x, view.y * focal * minSide / u_resolution.y,
                      (view.z * (far + near) + 2. * far * near) / (near - far), -view.z);
   // Ribbons on one surface (Aizawa's sphere) get a stable order, not z-fighting.
-  gl_Position.z += a_rank * 8e-4 * gl_Position.w;
+  gl_Position.z += float(min(order, 24)) * 3e-5 * gl_Position.w;
   // Keep W unsigned: v_across supplies the sign exactly once. Multiplying
   // both here and in the surface folded both halves onto the same normal.
   v_side = vec3(dot(W, right), dot(W, up), -dot(W, fwd));
@@ -274,7 +297,7 @@ const surface = `#version 300 es
 precision highp float;
 in vec3 v_side, v_toCam, v_normal, v_color;
 in float v_across, v_s, v_fog, v_cover, v_speed, v_head, v_glow;
-flat in float v_rank;
+flat in float v_rank, v_additive;
 uniform float u_params[8];
 uniform vec2 u_resolution;
 uniform vec3 u_primary, u_secondary, u_accent;
@@ -289,7 +312,7 @@ void main() {
   // A folded, brushed band rather than a circular plastic cable. Its
   // optical normal moves the satin key across broad, dark margins.
   float a = clamp(v_across, -1., 1.);
-  float fold = sign(a) * (.08 * abs(a) + .32 * smoothstep(.6, 1., abs(a)));
+  float fold = .75 * a + .18 * a*a;
   vec3 N = normalize(normalize(v_normal) + normalize(v_side) * fold);
   vec3 V = normalize(v_toCam);
   vec3 L = normalize(vec3(-.5, .75, .45));
@@ -299,11 +322,13 @@ void main() {
   vec3 base = v_color;
   // Tails fade into the dark; heads carry the light.
   float life = pow(1. - v_s, 1.1);
-  float margin = .65 + .35 * (1. - smoothstep(.7, 1., abs(a)));
-  vec3 color = base * (.08 + 1.05 * diffuse + .12 * wrap) * (.22 + .78 * life) * margin;
-  color += base * .18 * life;
-  color += u_primary * fresnel * .32 * life;
-  color += mix(base, vec3(1.), .12) * spec * .75 * life;
+  float margin = .38 + .62 * pow(max(0., 1. - a*a), .65);
+  vec3 color = base * (.08 + 1.05 * diffuse + .12 * wrap) * (.38 + .62 * life) * margin;
+  color += u_secondary * .08 * life;
+  float selvedge = smoothstep(.78, .94, abs(a)) * (1. - smoothstep(.94, 1., abs(a)));
+  color += u_primary * fresnel * .16 * life;
+  color += base * selvedge * .22 * life;
+  color += mix(base, vec3(1.), .08) * spec * 1.1 * life;
   // Flowing light: pulses run from tail to head along every ribbon.
   float pulse = rbUnpack24(texelFetch(u_state, ivec2(3, ${RIBBONS * 6}), 0));
   float wave = pow(.5 + .5 * cos(TAU * (v_s * (2. + 4. * u_params[5]) + pulse * 3. + v_rank * 7.)), 18.);
@@ -311,19 +336,25 @@ void main() {
   float run = pow(.5 + .5 * cos(TAU * (v_s * 1.5 + pulse * 6.)), 16.);
   color += mix(base, u_primary, .4) * run * u_rhythm.y * 1.8 * life;
   // Heads: a small accent spark (rare, ≤ a few % of lit pixels).
-  color += mix(u_accent, vec3(1.), .08) * v_head * (.2 + 2.4 * u_rhythm.z);
+  color += mix(u_accent, vec3(1.), .08) * v_head * (.12 + 2.4 * u_rhythm.z) * (1. - smoothstep(.08, .14, v_rank));
   color += u_primary * .9 * v_glow * (.25 + .75 * life);
   vec2 packet = rbRelay(v_s, v_rank);
   // Hot core is rare; the long saturated wake makes direction legible.
-  color += mix(u_accent, vec3(1.), .15) * packet.x * 3.2;
-  color += mix(u_primary, u_accent, .35) * packet.y * 1.25;
+  color = mix(color, color * .28, packet.y * .7);
+  color += mix(u_accent, vec3(1.), .12) * packet.x * 6.;
+  color += mix(u_primary, u_accent, .2) * packet.y * .45;
   color *= v_cover;
-  vec3 g = ground(gl_FragCoord.xy);
+  // Peripheral ribbons supply parallax, not a second competing sculpture.
+  color *= mix(1., .38, smoothstep(.12, .14, v_rank) * (1. - smoothstep(.19, .22, v_rank)));
+  vec3 g = v_additive > .5 ? vec3(0.) : ground(gl_FragCoord.xy);
   float fog = 1. - exp(-max(0., v_fog + .65) * .85);
   color = mix(color, g, clamp(fog, 0., .9));
   // Soft silhouettes: the band's edges fade into the ground over ~a pixel.
   float edge = 1. - abs(a);
   color = mix(g, color, smoothstep(0., max(fwidth(edge) * 1.5, .02), edge));
+  vec2 border = min(gl_FragCoord.xy, u_resolution - gl_FragCoord.xy) / min(u_resolution.x, u_resolution.y);
+  float frameFade = smoothstep(0., .075, min(border.x, border.y));
+  color = mix(g, color, frameFade);
   outColor = vec4(pow(max(color, vec3(0.)), vec3(.92)), 1.);
 }`;
 
@@ -606,7 +637,8 @@ void main() { outColor = vec4(ground(gl_FragCoord.xy), 1.); }`,
   simulation: { fragment: simulation, size: [HISTORY, ROWS], steps: 1 },
   geometry: {
     create: createRibbons,
-    attributes: [1],
+    attributes: [1, 1],
+    additiveFrom: 24 * PER_RIBBON,
     vertex,
     fragment: surface,
   },
@@ -632,8 +664,17 @@ export function ribbonRanks(seed) {
 }
 export function createRibbons(seed) {
   const ranks = ribbonRanks(seed),
-    data = new Float32Array(RIBBONS * PER_RIBBON);
-  for (let r = 0; r < RIBBONS; r++)
-    data.fill(ranks[r], r * PER_RIBBON, (r + 1) * PER_RIBBON);
+    data = new Float32Array(RIBBONS * PER_RIBBON * 2);
+  // Keep each trajectory's original rank/seed identity. Only draw order changes:
+  // opaque hero bands first, then depth-tested additive subpixel filaments.
+  const order = ranks
+    .map((rank, r) => ({ rank, r }))
+    .sort((a, b) => a.rank - b.rank);
+  for (let i = 0; i < RIBBONS; i++)
+    for (let v = 0; v < PER_RIBBON; v++) {
+      const at = (i * PER_RIBBON + v) * 2;
+      data[at] = order[i].rank;
+      data[at + 1] = order[i].r;
+    }
   return data;
 }

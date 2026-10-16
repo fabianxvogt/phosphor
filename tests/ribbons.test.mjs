@@ -152,7 +152,7 @@ test("identity is fixed per seed and independent of development", () => {
   const a = createRibbons(9701),
     b = createRibbons(9701),
     c = createRibbons(9702);
-  assert.equal(a.length, RIBBONS * PER_RIBBON);
+  assert.equal(a.length, RIBBONS * PER_RIBBON * 2);
   assert.deepEqual(a, b);
   assert.notDeepEqual(a, c);
   const ranks = ribbonRanks(9701);
@@ -160,8 +160,24 @@ test("identity is fixed per seed and independent of development", () => {
     new Set(ranks.map((r) => Math.floor(r * RIBBONS))).size,
     RIBBONS,
   );
-  for (let r = 0; r < RIBBONS; r += 17)
-    assert.ok(Math.abs(a[r * PER_RIBBON + 5] - ranks[r]) < 1e-6);
+  let previous = -1;
+  const seen = new Set();
+  for (let order = 0; order < RIBBONS; order++) {
+    const at = order * PER_RIBBON * 2;
+    const rank = a[at],
+      r = a[at + 1];
+    assert.ok(
+      Math.abs(rank - ranks[r]) < 1e-6,
+      "trajectory keeps original rank",
+    );
+    assert.ok(rank > previous, "opaque bands precede additive thin strands");
+    assert.equal(a[at + (PER_RIBBON - 1) * 2 + 1], r);
+    seen.add(r);
+    previous = rank;
+  }
+  assert.equal(seen.size, RIBBONS);
+  assert.equal(scene.geometry.additiveFrom, 24 * PER_RIBBON);
+  assert.deepEqual(scene.geometry.attributes, [1, 1]);
 });
 
 test("twisting ribbon frames stay orthonormal with one unsigned side vector", () => {
@@ -181,7 +197,11 @@ test("twisting ribbon frames stay orthonormal with one unsigned side vector", ()
     scene.geometry.vertex,
     /v_side = vec3\(dot\(W, right\), dot\(W, up\), -dot\(W, fwd\)\);/,
   );
-  assert.ok(PER_RIBBON * RIBBONS < 150000, "20% fewer repeated vertices");
+  assert.equal(PER_RIBBON * RIBBONS, 258048, "bounded smooth strip mesh");
+  assert.match(scene.geometry.vertex, /prev = rbPoint/);
+  assert.match(scene.geometry.vertex, /HISTORY - 6/);
+  assert.match(scene.geometry.vertex, /min\(order, 24\)/);
+  assert.match(scene.geometry.fragment, /v_additive > \.5 \? vec3\(0\.\)/);
   assert.deepEqual(
     scene.presets.map((p) => p.seed),
     [9701, 9701, 9701, 9702, 9703, 9704, 9705, 9706],
@@ -233,6 +253,20 @@ test("slot-3 relay is a bounded monotone tail-to-head event with a finite wake",
     assert.deepEqual(relayPacket(location, 0.001, age, 1, 1), [0, 0]);
     assert.deepEqual(relayPacket(location, 0.001, 1, 1, 0), [0, 0]);
     assert.deepEqual(relayPacket(location, 0.001, age, 0, 0), [0, 0]);
+    assert.deepEqual(
+      relayPacket(location, 0.2, age, 1, 0),
+      [0, 0],
+      "secondary cohorts stay quiet",
+    );
+    const head = 1.08 - 1.4 * age;
+    assert.ok(
+      relayPacket(head + 0.07, 0.001, age, 1, 0)[1] > 0,
+      "wake trails toward the tail",
+    );
+    assert.ok(
+      relayPacket(head - 0.07, 0.001, age, 1, 0)[1] === 0,
+      "no wake ahead of front",
+    );
   }
 });
 
