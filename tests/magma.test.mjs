@@ -156,7 +156,7 @@ const dev01 = (dev) => ({
   split: smooth(0.08, 1, dev),
   lake: smooth(1.05, 1.85, dev),
   erupt: smooth(1.3, 2, dev),
-  seamW: 0.018 + 0.068 * smooth(0.08, 1, dev) + 0.03 * smooth(1, 2, dev),
+  seamW: 0.03 + 0.056 * smooth(0.08, 1, dev) + 0.03 * smooth(1, 2, dev),
 });
 test("plate identity never depends on development; only seams, lava and sinking do", () => {
   assert.match(src, /Plate mrPlates\(vec2 q, float wScale\)/);
@@ -164,7 +164,7 @@ test("plate identity never depends on development; only seams, lava and sinking 
   const body = src.slice(src.indexOf("Plate mrPlates("), src.indexOf("// ------------------------------------------------------------------ terrain"));
   assert.equal((body.match(/wScale/g) ?? []).length, 2);
   assert.doesNotMatch(body, /gDev|gSplit|gLakeAmt|gErupt|u_params/);
-  assert.match(src, /gSeamW = 0\.018 \+ 0\.068 \* gSplit \+ 0\.03 \* smoothstep\(1\.0, 2\.0, dev\);/);
+  assert.match(src, /gSeamW = 0\.03 \+ 0\.056 \* gSplit \+ 0\.03 \* smoothstep\(1\.0, 2\.0, dev\);/);
   // The same plate at every development value, forward and back.
   const probes = [...points(500, 40, 3)].map(([x, y]) => plates(x, y));
   for (let dev = 0; dev <= 2.0001; dev += 0.05)
@@ -597,7 +597,9 @@ test("one drainage tree: trunks leave the vent, branches leave their trunks", ()
 
 test("the heat front runs out along the tree and cools back on reversal", () => {
   assert.match(src, /float front = mix\(0\.56, 1\.45, smoothstep\(0\.0, 0\.95, gDev\)\) \+ 0\.14 \* gLevel;/);
-  assert.match(src, /float behind = 1\.0 - smoothstep\(front - 0\.16, front, Pl\.arrive\);/);
+  assert.match(src, /float behind = 1\.0 - smoothstep\(front - 0\.16, front, max\(dA\.w, dB\.w\)\);/);
+  // Per seam (both plates' cell data): hot or cold along its whole length.
+  assert.match(src, /float netSeam = smoothstep\(0\.05, 0\.3, min\(dA\.z, dB\.z\)\);/);
   // A pure, monotone function of development: the same seams are hot at
   // the same development forward and back, and more seams with more.
   const front = (dev, level) => mix(0.56, 1.45, smooth(0, 0.95, dev)) + 0.14 * level;
@@ -614,7 +616,7 @@ test("the heat front runs out along the tree and cools back on reversal", () => 
     assert.ok(front(0.95, level) >= 1.45);
   }
   // Seam temperature is symmetric in its two plates (one seam, one heat).
-  assert.match(src, /float seamId = fract\(\(Pl\.hA\.x \+ hB\.x\) \* 13\.7 \+ \(Pl\.hA\.y \+ hB\.y\) \* 7\.3\);/);
+  assert.match(src, /float seamId = fract\(\(Pl\.hA\.x \+ dB\.x\) \* 13\.7 \+ \(Pl\.hA\.y \+ dB\.y\) \* 7\.3\);/);
 });
 
 test("rising ash is smooth and periodic at the 64-cycle clock boundary", () => {

@@ -171,14 +171,29 @@ float mrNoiseP(vec2 p, float period) {
 // runs dark field → primary → accent → near white and the radiance grows
 // steeply, so cooling crust is dim and only the hottest matter reaches the
 // accent and bloom.
+// A blackbody-like curve in palette terms: the three palette colours are
+// ordered by luminance (mrSetup) and saturated, so matter runs from a deep
+// dark colour through saturated mid-tones to the lightest colour; only the
+// very hottest matter mixes towards (never fully) white.
+vec3 gHeatDark, gHeatMid, gHeatHot;
 vec3 mrHeat(float T) {
   T = max(T, 0.0);
-  vec3 c = mix(u_secondary * 0.8, u_primary, smoothstep(0.34, 0.86, T));
-  c = mix(c, u_accent, smoothstep(1.0, 1.25, T));
-  // Only the very hottest matter whitens, and never fully: pale palettes
-  // keep their hue.
-  c = mix(c, vec3(1.0), 0.6 * smoothstep(1.3, 1.6, T));
+  vec3 c = mix(gHeatDark, gHeatMid, smoothstep(0.4, 0.78, T));
+  c = mix(c, gHeatHot, smoothstep(0.8, 1.15, T));
+  c = mix(c, vec3(1.0), 0.55 * smoothstep(1.22, 1.6, T));
   return c * (2.2 * T * T * T + 0.04 * T);
+}
+float mrLum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+vec3 mrSaturate(vec3 c, float k) { return max(mix(vec3(mrLum(c)), c, k), vec3(0.0)); }
+void mrHeatRamp() {
+  vec3 a = u_secondary, b = u_accent, c = u_primary;
+  // Sort three colours by luminance (dark, mid, hot).
+  if (mrLum(a) > mrLum(b)) { vec3 t = a; a = b; b = t; }
+  if (mrLum(b) > mrLum(c)) { vec3 t = b; b = c; c = t; }
+  if (mrLum(a) > mrLum(b)) { vec3 t = a; a = b; b = t; }
+  gHeatDark = mrSaturate(a, 1.35);
+  gHeatMid = mrSaturate(b, 1.25);
+  gHeatHot = mrSaturate(c, 1.1);
 }
 
 // ------------------------------------------------------------------ rivers
@@ -262,6 +277,14 @@ vec4 mrCellData(vec2 c) {
 #endif
 }
 vec2 mrSite(vec2 h) { return 0.5 + JIT * (h - 0.5); }
+// Cell data with the tree sampled on every path (shading only).
+vec4 mrSeamData(vec2 c) {
+#ifdef PRECOMPUTED
+  return mrCellData(c);
+#else
+  return mrCellCalc(c);
+#endif
+}
 // The channel frame (offset across, distance along) at world point x,
 // bilinear over lattice corners cached in the data pass's second tile
 // (it is smooth inside a channel; only lava is shaded with it).
@@ -331,7 +354,7 @@ Plate mrPlates(vec2 q, float wScale) {
   // Without the data pass the tree is evaluated here (exact, not bilinear).
   c.zw = mrChannel(q * gS).xy;
 #endif
-  float width = wScale * (0.22 + 3.0 * c.z) * (0.6 + 0.8 * wv);
+  float width = wScale * (0.22 + 3.0 * c.z) * (0.3 + 1.4 * wv * wv);
   Plate P;
   P.cellA = ic + oA;
   P.cellB = ic + floor(rB + f);
@@ -522,6 +545,7 @@ float mrBillow(vec3 p, float phase) {
 void mrSetup() {
   float dev = clamp(u_params[0], 0.0, 2.0);
   float level = clamp(u_level, 0.0, 1.0);
+  mrHeatRamp();
   gDev = dev;
   gLevel = level;
   gSplit = smoothstep(0.08, 1.0, dev);
@@ -535,7 +559,7 @@ void mrSetup() {
   float rotA = float(u_seedBits % 773u) * 0.0081;
   gRot = vec2(cos(rotA), sin(rotA));
   // Seams widen as the plates split; the lake opens around the vent.
-  gSeamW = 0.018 + 0.068 * gSplit + 0.03 * smoothstep(1.0, 2.0, dev);
+  gSeamW = 0.03 + 0.056 * gSplit + 0.03 * smoothstep(1.0, 2.0, dev);
   gLakeR = 6.2 * gLakeAmt;
   gLavaT = mix(0.66, 0.76, gSplit) + 0.1 * gErupt + 0.12 * (gHeat - 0.5);
 
@@ -766,22 +790,30 @@ void main() {
     // Which seams are hot: the drainage tree behind the heat front, a few
     // lone seams (a hash symmetric in both plates, so one seam has one
     // temperature) and, as the plates split, every seam a little.
-    vec2 hB = mrCellData(Pl.cellB).xy;
-    float seamId = fract((Pl.hA.x + hB.x) * 13.7 + (Pl.hA.y + hB.y) * 7.3);
-    // The whole braided channel belongs to the tree (its margins too).
+    // Seam temperature is a property of the whole seam: from both plates'
+    // cell data (tree profile and arrival at their lattice corners), so a
+    // seam is hot or cold along its full length (no stubs), and symmetric.
+    vec4 dA = mrSeamData(Pl.cellA), dB = mrSeamData(Pl.cellB);
+    float seamId = fract((Pl.hA.x + dB.x) * 13.7 + (Pl.hA.y + dB.y) * 7.3);
+    // The braided channels belong to the tree (pixel profile, for lava);
+    // a seam is on the tree when both its plates are.
     float net = smoothstep(0.03, 0.3, Pl.river);
-    float behind = 1.0 - smoothstep(front - 0.16, front, Pl.arrive);
-    float lone = smoothstep(0.86 - 0.1 * gLevel, 0.9 - 0.1 * gLevel, seamId) * (0.45 + 0.55 * breathe);
-    float hot = max(net * behind, 0.6 * lone);
+    float netSeam = smoothstep(0.05, 0.3, min(dA.z, dB.z));
+    float behind = 1.0 - smoothstep(front - 0.16, front, max(dA.w, dB.w));
+    // The rest of the field is alive: every seam has its own temperature,
+    // most barely glowing hairlines, some warm, a few hot (more with energy).
+    float warm = 0.55 * seamId * seamId + 0.35 * smoothstep(0.88 - 0.12 * gLevel, 0.96 - 0.12 * gLevel, seamId) * (0.55 + 0.45 * breathe);
+    float hot = max(netSeam * behind, warm);
     hot = max(hot, mix(0.0, 0.55, smoothstep(0.6, 1.6, gDev)));
     // Gesture x: a crack-propagation flash runs out along the hot tree.
     float pulseA = 1.25 * (1.0 - u_rhythm.x);
-    float ring = u_rhythm.x * exp(-sq((Pl.arrive - pulseA) / 0.1)) * (0.25 + 0.75 * net * behind);
+    float ring = u_rhythm.x * exp(-sq((Pl.arrive - pulseA) / 0.1)) * (0.25 + 0.75 * netSeam * behind);
     // Gesture y: a surge front of fresh lava travels down the channels.
     float surgeA = 1.35 * (1.0 - u_rhythm.y);
     float surge = u_rhythm.y * (0.3 + 0.7 * exp(-sq((Pl.arrive - surgeA) / 0.12)) * net);
-    // Cold seams are dark grooves; hot ones run near the lava temperature.
-    float seamT = gLavaT * (0.86 + 0.28 * vent) * mix(0.44, 1.0, hot);
+    // Cold seams are dim dark-red hairlines; hot ones run near the lava
+    // temperature.
+    float seamT = gLavaT * (0.86 + 0.28 * vent) * mix(0.68, 1.32, hot);
     seamT *= 1.0 - 0.2 * gSplit * (1.0 - net) * (1.0 - smoothstep(0.03, 0.14, Pl.width));
     seamT += 0.16 * (breathe - 0.5) * (1.0 - 0.6 * gSplit) * hot;
     // Only a seeded subset of hot cracks flares with any kick.
@@ -799,26 +831,32 @@ void main() {
     vec3 env = vec3(0.0); // obsidian reflection colour (secondary-tinted)
     if (lava) {
       // Lava: cooling skins stream down each channel in the channel's own
-      // frame (along / across), torn by incandescent seams; the centre
-      // runs hotter than the banks.
+      // frame (along / across), stretch into ropy folds and tear open on
+      // incandescent seams. A white-hot core runs along the channel's
+      // centreline and cools to deep red at the banks.
       float lakeFull = smoothstep(0.75, 0.95, lakeM);
+      vec2 fr = vec2(9.0, 0.0);
       // Skins only resolve in channels several footprints wide; narrower
       // ones take the skin/lava average (n = 0.5, half skinned).
       vec2 fn = vec2(0.5, 0.0);
-      if (lakeFull < 1.0 && Pl.width > 3.0 * fp) {
-        vec2 fr = mrFrame(x);
-        fn = mrFlowNoise(fr.y, fr.x, 11.0);
+      // The crust's narrow cracks need no channel frame (no skins there).
+      if (lakeFull < 1.0 && gSplit > 0.0) {
+        fr = mrFrame(x);
+        if (Pl.width > 3.0 * fp) fn = mrFlowNoise(fr.y, fr.x, 11.0);
       }
-      // Contrast-stretched: open incandescent lava, dull crust skins with
-      // ropy folds, and hot seams where skins tear apart.
       float n = clamp((fn.x - 0.5) * 2.8 + 0.5, 0.0, 1.0);
-      float skinAmt = mix(0.35, 1.0, gSplit) * (1.0 - 0.35 * gLevel) * (1.0 - 0.6 * surge);
+      float centre = sqrt(clamp(-Pl.gap / max(Pl.width * 0.8, 1e-3), 0.0, 1.0));
+      // Channel core: near the tree's centreline, in open (wide) channels.
+      float core = (1.0 - smoothstep(0.0, 1.4, abs(fr.x))) * net * gSplit * smoothstep(0.04, 0.16, Pl.width);
+      float skinAmt = mix(0.35, 1.0, gSplit) * (1.0 - 0.35 * gLevel) * (1.0 - 0.6 * surge) * (1.0 - 0.55 * core);
       float skin = smoothstep(0.4, 0.6, n) * skinAmt;
       float tear = (1.0 - smoothstep(0.0, 0.05, abs(n - 0.43))) * skinAmt;
-      float centre = sqrt(clamp(-Pl.gap / max(Pl.width * 0.8, 1e-3), 0.0, 1.0));
-      float T = min(seamT, 0.74) * (0.72 + 0.28 * centre + 0.06 * smoothstep(0.05, 0.2, Pl.width));
-      T *= mix(1.04, 0.42 + 0.08 * fn.y, skin);
-      T += (0.22 * tear * centre + 0.12 * surge) * hot;
+      // A crack's bottom is its hottest part; wider channels cool at the banks.
+      float T = min(seamT, 0.95) * (0.86 + 0.16 * centre);
+      T = mix(T, 1.12 + 0.06 * (gHeat - 0.5), core * core * centre);
+      // Skins: dull, with stretched ropy folds across the flow.
+      T *= mix(1.0, 0.4 + 0.1 * fn.y, skin);
+      T += (0.24 * tear * centre + 0.12 * surge) * hot;
       if (lakeM > 0.01) {
         // The lake turns slowly (one turn per 16 flow cycles) under a crust
         // of black floes split by incandescent cracks: ridges of a warped
@@ -827,17 +865,18 @@ void main() {
         vec2 xr = mat2(cos(la), sin(la), -sin(la), cos(la)) * x;
         xr += 0.35 * vec2(sin(xr.y * 0.9 + 0.6 * sin(xr.x * 1.7)), sin(xr.x * 0.8 + 1.0 + 0.6 * sin(xr.y * 1.5)));
         float lfp = fp * gS;
-        float c1 = mrNoiseLin(xr * 1.1 + gSeedOff);
-        float c2 = mrNoiseLin(xr * 2.6 + 0.6 * vec2(sin(TAU * gFlow), cos(TAU * gFlow)) + 7.0);
+        // Few, large floes: one coarse crack net, with irregular widths
+        // (a slow noise along the cracks) that open where the fountain
+        // pushes the floes apart, plus a faint finer net of new cracks.
+        float c1 = mrNoiseLin(xr * 0.6 + gSeedOff);
+        float c2 = mrNoiseLin(xr * 1.7 + 0.6 * vec2(sin(TAU * gFlow), cos(TAU * gFlow)) + 7.0);
         float open = exp(-r * r / (2.0 + 3.0 * gErupt));
         float ridge1 = abs(2.0 * c1 - 1.0), ridge2 = abs(2.0 * c2 - 1.0);
-        float cw1 = 0.04 + 0.22 * open + 0.04 * gLevel, cw2 = 0.03 + 0.1 * open;
-        // Thin incandescent cracks whose heat varies along them, with a
-        // soft glow in the crust beside each crack.
-        float along1 = 0.55 + 0.6 * mrNoise(xr * 3.7 + 3.0);
-        float lcrack = max((1.0 - smoothstep(cw1 * 0.3, cw1 + lfp * 2.0, ridge1)) * along1,
-                           0.6 * (1.0 - smoothstep(cw2 * 0.3, cw2 + lfp * 3.0, ridge2)));
-        lcrack = max(lcrack, 0.25 * (1.0 - smoothstep(0.0, 0.22, ridge1)) * along1);
+        float along1 = mrNoise(xr * 1.3 + 3.0);
+        float cw1 = (0.015 + 0.09 * along1 * along1) * (1.0 + 4.0 * open) + 0.02 * gLevel, cw2 = 0.02 + 0.06 * open;
+        float lcrack = (1.0 - smoothstep(cw1 * 0.3, cw1 + lfp * 2.0, ridge1)) * (0.6 + 0.6 * along1);
+        lcrack = max(lcrack, 0.35 * (1.0 - smoothstep(cw2 * 0.3, cw2 + lfp * 3.0, ridge2)) * (1.0 - along1));
+        lcrack = max(lcrack, 0.22 * (1.0 - smoothstep(0.0, 0.18 + cw1, ridge1)) * along1);
         float boil = sin(r * 3.0 - TAU * gFlow) * sin(xr.x * 2.1 + xr.y * 1.7);
         float crust = (1.0 - lcrack) * (1.0 - open);
         float Tl = (0.74 + 0.1 * (gHeat - 0.5)) * (1.0 - 0.42 * crust) + 0.14 * lcrack + (0.12 + 0.1 * boil) * open * gErupt;
@@ -884,24 +923,26 @@ void main() {
       float tone = 0.7 + 0.3 * id + 0.3 * bump * ropeKeep;
       albedo = (vec3(0.16) + u_secondary * 0.05) * tone * mix(1.0, 0.45, glassy);
       gloss = mix(0.35, 0.95, glassy);
-      // Hot rock: groove walls glow just above the lava.
+      // Hot rock: groove walls glow just above the lava, a little cooler.
       float hotWall = (1.0 - smoothstep(0.0, 0.05, rock - lavaY)) * (1.0 - smoothstep(-0.005, 0.03, Pl.gap)) * mask;
       vec3 heatS = mrHeat(seamT);
-      emit = heatS * hotWall * 0.48;
+      emit = mrHeat(seamT * 0.88) * hotWall * 0.5;
       // The crack as coverage of the pixel footprint (far seams fade
-      // smoothly instead of aliasing), plus a soft heat halo on hot rims.
+      // smoothly instead of aliasing), and the heat soaking softly into
+      // the slab beside a hot crack (radiance falls off with distance).
       float wEff = max(Pl.width, 0.002);
       float cover = wEff / max(wEff, fp * 1.2) * exp(-max(Pl.gap, 0.0) / max(fp * 1.2, 0.004));
-      emit += heatS * (cover + 0.1 * hot * exp(-max(Pl.gap, 0.0) / 0.03)) * mask;
-      // Hairline cooling cracks in the slab next to a hot seam (they fade
-      // out with the footprint, so distant pixels skip them).
-      if (fp < 0.3 && hot > 0.05) {
-        float hair = abs(mrNoise((x / gS - Pl.siteA) * 7.0 + Pl.hA * 31.0) - 0.5);
-        float hairW = 0.035 + fp * 3.0;
-        float hairGlow = (1.0 - smoothstep(0.0, hairW, hair)) * 0.035 / hairW
-                       * exp(-max(Pl.gap, 0.0) / 0.12) * hot * (1.0 - smoothstep(0.08, 0.3, fp));
-        emit += heatS * 0.6 * hairGlow * mask;
-      }
+      // It reaches zero well before the plate's medial axis, where the
+      // governing seam (and its temperature) switches.
+      float soak = sq(1.0 - smoothstep(0.0, 0.1 + 0.1 * hot, max(Pl.gap, 0.0))) * (0.05 + 0.3 * hot);
+      emit += (heatS * cover + mrHeat(seamT * 0.8) * soak) * mask;
+      // Thin-crust patches: a dull glow shining through the slab from below,
+      // breathing slowly (a seed-anchored field across the whole crust).
+      float thin = smoothstep(0.6, 0.88, mrNoise(x * 0.42 + gSeedOff * 0.13) + 0.12 * (bump + 0.5));
+      float subT = (0.5 + 0.08 * breathe + 0.1 * gLevel) * (1.0 - 0.25 * gErupt);
+      emit += mrHeat(subT) * thin * 0.55 * mask * (1.0 - 0.6 * glassy);
+      // Glow spill: the air and banks over an open channel glow softly.
+      emit += mrHeat(0.72) * 0.07 * smoothstep(0.04, 0.3, Pl.river) * gSplit * (1.0 - lakeM) * mask;
       ao = mix(1.0, mix(0.35, 1.0, smoothstep(-0.02, 0.12, Pl.gap)) * (1.0 - 0.25 * (1.0 - ec)), mask);
       // Beyond the lava field: the caldera wall, layered rock.
       if (mask < 1.0) {
@@ -925,7 +966,8 @@ void main() {
     vec3 light = keyCol * (0.3 + diff);
     // Seam light: falls off away from the seam, brightest on faces turned to it.
     vec3 Ls = normalize(vec3(sn.x, -0.2, sn.y));
-    float seamFall = exp(-max(Pl.gap, 0.0) * gS / (0.05 + 0.45 * Pl.width * gS));
+    // Compact: it ends before the plate's medial axis (no wedge seams).
+    float seamFall = sq(1.0 - smoothstep(0.0, 0.06 + 0.5 * Pl.width, max(Pl.gap, 0.0)));
     vec3 seamHeat = mrHeat(seamT);
     light += seamHeat * 0.7 * seamFall * (0.25 + 0.75 * max(dot(N, Ls), 0.0)) * mask;
     // Field glow: the lit haze and the whole lava field seen from the wall.
