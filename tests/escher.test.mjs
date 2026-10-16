@@ -55,20 +55,14 @@ function frames(seed, development) {
         }))
     ).map((tread) => {
       let p = [...tread.centre];
-      if (frame === 1) [p[0], p[1]] = rotate([p[0], p[1]], (Math.PI / 2) * rel);
-      if (frame === 2)
-        [p[1], p[2]] = rotate([p[1], p[2]], (-Math.PI / 2) * rel);
-      if (frame)
-        p = p.map(
-          (v, i) =>
-            v * rel +
-            [
-              [0, 0, 0],
-              [-1.45, 0, -0.8],
-              [1.2, 0.55, -1.3],
-            ][frame][i] *
-              rel,
-        );
+      if (frame) {
+        p = subtract(p, [-1.375, -0.715, 0]);
+        if (frame === 1)
+          [p[0], p[1]] = rotate([p[0], p[1]], (Math.PI / 2) * rel);
+        else [p[1], p[2]] = rotate([p[1], p[2]], (-Math.PI / 2) * rel);
+        const landing = stairIdentity(seed)[frame === 1 ? 30 : 6].centre;
+        p = p.map((v, i) => v * rel * 0.65 + landing[i]);
+      }
       return {
         id: frame * ESCHER_STEPS + tread.id,
         seed,
@@ -278,7 +272,12 @@ test("shader is pinned to the tested covering chart, exact intersections and cou
     "abs(perpendicular - edge) > 0.62 && abs(pierPerpendicular - edge) > 1.02",
     "float flightAt = 5.5 - 5.5 * cos(id * 6.28318530718 / 48.0);",
     "depth > -0.24 && depth < 0.0",
-    "vec3 ivory = mix(u_secondary, vec3(1.0), 0.56);",
+    "vec3 ivory = mix(u_secondary, vec3(1.0), 0.52);",
+    "gFlightScale = gRel * 0.65;",
+    "return p + esLanding(frame);",
+    "float storey = floor(h / 2.7)",
+    "esGrain(stoneUV * 14.0)",
+    "col * exp(-recursiveDepth * 0.36)",
     "uv *= exp(gInf * 0.14 * sin(gCamera));",
     "esShadow(p + n * 0.008, key)",
     "1.0 + 0.018 * u_kick",
@@ -330,7 +329,7 @@ test("slot-three lantern ascent has full world-specific grooves and bounded loca
       assert.ok(head >= 0 && head < span);
       for (let tread = 0; tread < span; tread++) {
         const behind = (head - tread + span) % span;
-        const wake = Math.exp(-behind * 0.48);
+        const wake = Math.exp(-behind * 0.72);
         assert.ok(Number.isFinite(wake) && wake >= 0 && wake <= 1);
       }
     }
@@ -477,10 +476,55 @@ test("gravity stair frames are clean orthogonal flights, not overlapping ring co
     for (let i = 1; i < flight.length; i++)
       near(
         Math.hypot(...subtract(flight[i].centre, flight[i - 1].centre)),
-        Math.hypot(0.25, 0.13),
+        Math.hypot(0.25, 0.13) * 0.65,
       );
   }
   assert.match(escher.fragment, /esStraight\(esFrame\(p, float\(frame\)\)\)/);
+});
+
+test("gravity flights grow from fixed visible loop landings at every intermediate development", () => {
+  const ring = stairIdentity(11001);
+  for (let i = 0; i <= 200; i++) {
+    const development = i / 200;
+    const bodies = frames(11001, development);
+    for (const [frame, anchor] of [
+      [1, 30],
+      [2, 6],
+    ]) {
+      const first = bodies.find((t) => t.id === frame * 48);
+      first.centre.forEach((v, axis) => near(v, ring[anchor].centre[axis]));
+      const last = bodies.find((t) => t.id === frame * 48 + 11);
+      near(
+        Math.hypot(...subtract(last.centre, first.centre)),
+        Math.hypot(2.75, 1.43) * smooth(development) * 0.65,
+      );
+    }
+  }
+  assert.match(escher.fragment, /esCentre\(frame < 1.5 \? 30.0 : 6.0\)/);
+  assert.match(
+    escher.fragment,
+    /p \/ max\(gFlightScale, 0.001\) \+ esFlightCentre\(0.0\)/,
+  );
+});
+
+test("masonry and lantern hierarchy are surface-local and recursion loses contrast", () => {
+  for (const source of [
+    "float e = max(0.007, t * gPixel * 0.3)",
+    "float contact = smoothstep(-0.13, -0.08, local.x)",
+    "sin(stoneUV.x * 73.0 + stoneUV.y * 41.0)",
+    "dot(n, key) > 0.0 ? esShadow(p + n * 0.008, key) : 1.0",
+    "exp(-gPixel * t * 150.0)",
+    "max(dot(n, delta * inversesqrt(max(r2, 0.00001))), 0.0)",
+    "exp(-behind * 0.72) * u_rhythm.w",
+    "col *= 1.0 - roof * 0.75",
+    "col * exp(-recursiveDepth * 0.36)",
+  ])
+    assert.ok(escher.fragment.includes(source), source);
+  for (const behind of [0, 1, 2, 3, 12, 47]) {
+    const wake = Math.exp(-behind * 0.72);
+    assert.ok(wake > 0 && wake <= 1);
+    if (behind >= 4) assert.ok(wake < 0.06);
+  }
 });
 
 test("one nearest column per wall is an exact conservative candidate", () => {
