@@ -150,8 +150,7 @@ test("fold/kink dynamics are periodic, non-rigid and reversible without material
         const a = sheetPoint(u, 0.3, sheet, dev, 1.2);
         const b = sheetPoint(u, 0.3, sheet, dev + 1e-5, 1.2);
         assert.ok(a.every(Number.isFinite));
-        // The 512-unit reach and open-curve morph have a larger analytic
-        // derivative than the former 272-unit cylinder; still C1 and bounded.
+        // The open-curve morph and 212-unit peak reach remain C1 and bounded.
         assert.ok(distance(a, b) < 0.008, `development Lipschitz ${dev}`);
         assert.deepEqual(
           a,
@@ -190,11 +189,11 @@ test("CPU mirror is pinned to the shader geometry coefficients", () => {
     "(3.+6.*rise)*u_params[2]*kink+1.7*sin(9.*theta-2.*phase)",
     "14.+sheet*3.+6.*sin(1.6*theta+phase+sheet)+3.5*sin(4.3*theta-phase)+.55*sin(23.*theta-phase)",
     "theta*35.+24.*sin(w)",
-    "7.+sheet*33.+16.*sin(theta*1.3+sheet*1.7)+ripple*.65",
+    "25.+sheet*33.+16.*sin(theta*1.3+sheet*1.7)+ripple*.65",
     "base.xz=mix(base.xz,overhead*u_params[5],crown)",
-    "(62.+30.*rise+420.*crown)*u_params[3]*(.85+.15*sin(4.*theta-phase+sheet))",
+    "(62.+30.*rise+120.*crown)*u_params[3]*(.85+.15*sin(4.*theta-phase+sheet))",
     "eye=vec3(1.4*sin(a),2.2+.16*sin(2.*a)+.8*c,1.1*cos(a))",
-    "pitch=.30+.08*smoothstep(0.,1.,avDev())+.40*c+u_params[6]",
+    "pitch=.30+.08*smoothstep(0.,1.,avDev())+.12*c+u_params[6]",
     "R=vec3(cos(yaw),0.,-sin(yaw))",
     "mix(1.22,.80,c)*(1.+.018*u_kick)/mix(1.,max(1.,u_params[5]),c)",
   ])
@@ -227,13 +226,16 @@ test("the lake mirror obeys reflection geometry; camera has no roll and never en
   assert.match(shaders, /1\.\+\.018\*u_kick/);
 });
 
-test("open overhead sheets converge above the viewer while retaining a horizon sliver", () => {
+test("open overhead sheets converge above the frame while retaining the lake and horizon", () => {
   for (let phase = 0; phase < 2 * Math.PI; phase += 0.2) {
     const c = camera(2, phase);
     const vp = zenith(c.right, c.up, c.forward, c.focal);
-    assert.ok(Math.abs(vp[0]) < 0.1 && vp[1] > 0.7 && vp[1] < 0.95);
-    const horizon = -c.focal * c.forward[1] / c.up[1];
-    assert.ok(horizon > -0.85 && horizon < -0.7, "bottom 7–15% retains scale");
+    assert.ok(Math.abs(vp[0]) < 0.1 && vp[1] > 1.4 && vp[1] < 1.7);
+    const horizon = (-c.focal * c.forward[1]) / c.up[1];
+    assert.ok(
+      horizon > -0.5 && horizon < -0.38,
+      "bottom quarter retains lake and scale",
+    );
     let left = Infinity,
       right = -Infinity,
       visible = 0;
@@ -372,22 +374,41 @@ test("landscape and reflection use resolved frost, cracks, snow normals, mountai
     aurora.geometry.fragment,
     /rayCore=mix\(rayCore,\.1185,v_mirror\*\.8\)/,
   );
-  assert.match(aurora.geometry.fragment, /smoothstep\(\.025,\.27,h\)/);
+  assert.match(aurora.geometry.fragment, /smoothstep\(\.012,\.12,h\)/);
   assert.match(aurora.geometry.fragment, /u_accent\*edge\*\.025/);
 });
 
-test("three bounded family gestures act on the signature, and energy never multiplies exposure", () => {
+test("four bounded family gestures act on the signature, and energy never multiplies exposure", () => {
   assert.deepEqual(
     aurora.rhythm.map((r) => [r.slot, r.defaults.length]),
     [
       [0, 4],
       [1, 8],
       [2, 16],
+      [3, 16],
     ],
   );
+  const signature = aurora.rhythm.find((r) => r.slot === 3);
+  assert.equal(signature.id, "curtain-surge");
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const hits = aurora.rhythm.reduce((sum, r) => {
+      const p = r.styles[style];
+      assert.ok(p.steps.filter((x) => x > 0).length >= 2, `${r.id}/${style}`);
+      return (
+        sum + (p.steps.filter((x) => x > 0).length * 4 * p.division) / p.length
+      );
+    }, 0);
+    assert.ok(hits >= minimum, `${style}: ${hits} hits/bar`);
+  }
+  for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
+    assert.ok(aurora.geometry.fragment.includes(uniform));
   assert.match(aurora.geometry.fragment, /rays\*heightFade\*cohort/);
-  assert.match(aurora.geometry.fragment, /sweep\*rays/);
-  assert.match(aurora.geometry.fragment, /u_accent\*edge\*foldPulse/);
+  assert.match(aurora.geometry.fragment, /sweep\*\(rays/);
+  assert.match(aurora.geometry.fragment, /edge\*\.7\+lowerGlow\*2\./);
   assert.match(aurora.geometry.fragment, /rayFoot=max\(fwidth\(rayPhase\)/);
   assert.match(aurora.geometry.fragment, /rayCore=mix\(rayCore,\.1185/);
   assert.deepEqual(Object.keys(aurora.energy).sort(), ["detail", "travel"]);

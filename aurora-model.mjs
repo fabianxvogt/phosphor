@@ -57,7 +57,7 @@ export function sheetPoint(
   const bend = theta + 0.17 * fold * Math.sin(5 * theta - phase + sheet);
   const overheadX = theta * 35 + 24 * Math.sin(w);
   const overheadZ =
-    7 + sheet * 33 + 16 * Math.sin(theta * 1.3 + sheet * 1.7) + ripple * 0.65;
+    25 + sheet * 33 + 16 * Math.sin(theta * 1.3 + sheet * 1.7) + ripple * 0.65;
   const z = (8 + r * Math.cos(bend)) * (1 - crown) + overheadZ * spread * crown;
   const x = r * Math.sin(bend) * (1 - crown) + overheadX * spread * crown;
   const base =
@@ -67,7 +67,7 @@ export function sheetPoint(
     3.5 * Math.sin(4.3 * theta - phase) +
     0.55 * Math.sin(23 * theta - phase);
   const length =
-    (62 + 30 * rise + 420 * crown) *
+    (62 + 30 * rise + 120 * crown) *
     height *
     (0.85 + 0.15 * Math.sin(4 * theta - phase + sheet));
   return [
@@ -91,7 +91,7 @@ export const dot = (a, b) => a.reduce((sum, x, i) => sum + x * b[i], 0);
 export function camera(development, phase = 0, tilt = 0, spread = 1, kick = 0) {
   const crown = smooth(1, 2, development);
   const yaw = 0.055 * Math.sin(phase);
-  const pitch = 0.3 + 0.08 * smooth(0, 1, development) + 0.4 * crown + tilt;
+  const pitch = 0.3 + 0.08 * smooth(0, 1, development) + 0.12 * crown + tilt;
   const forward = [
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),

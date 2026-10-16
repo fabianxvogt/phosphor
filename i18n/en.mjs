@@ -24,6 +24,8 @@ export default {
   "A local cohort of persistent field-aligned rays catches a travelling pulse.": "A local cohort of persistent field-aligned rays catches a travelling pulse.",
   "A soft excitation travels upward along the existing magnetic curtain.": "A soft excitation travels upward along the existing magnetic curtain.",
   "A few folds on the lower auroral edge receive a rare accent.": "A few folds on the lower auroral edge receive a rare accent.",
+  "Curtain surge": "Curtain surge",
+  "An excitation front rolls across the folded curtain and its lake reflection, cresting every second bar.": "An excitation front rolls across the folded curtain and its lake reflection, cresting every second bar.",
   "Polar silence": "Polar silence",
   "Curtain signals": "Curtain signals",
   "Magnetic midnight": "Magnetic midnight",

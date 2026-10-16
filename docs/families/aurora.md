@@ -1,84 +1,66 @@
 # Aurora Veil / Polarlicht-Schleier
 
-Family **106**, renderer `aurora`, world **`aurora-veil`**. Glow / Glühen → Curtains / Vorhänge → Corona / Korona. All eight look names, IDs, seeds, schema keys and preset values remain unchanged. No engine or registration changes in this revision.
+Family **106**, renderer `aurora`, world `aurora-veil`. Glow / Glühen → Curtains / Vorhänge → Corona / Korona. Eight look IDs, names, seeds and parameter values are unchanged. This night-continuation revision is by **openai-codex/gpt-6.1-sol**.
 
-## Round-three direction and review
+## Algorithm and states
 
-The previous overhead composition was a closed radial starburst with a dark centre. The approaching arcs now unfold into three **open, returning S-folded sheets**, including a near sheet passing overhead and two receding sheets. A wider, less vertical crane keeps the zenith in the upper frame and a thin mountain/lake strip at the bottom. Perspective convergence is still real, but it no longer needs a circular luminous base or contained ragged outer silhouette.
-
-The lower edge has a sharply filtered, fragment-space travelling hem, backed by a narrow emission layer rather than an isolated bright outline. Two filament octaves and incoherent vertical excitation add fine structure. Upper ray tips and open material ends fade smoothly. Stars remain visible between the additive sheets.
-
-The inlet has seeded cellular pressure cracks, dark crack troughs, granular frost, filtered ice needles and stronger broken specular reflections of the actual curtain mesh. Wind-packed snow gains fine crust albedo. It is no longer just a dark purple-grey fill, although the terrain is still analytical shading rather than displaced geometry.
-
-**Honest rating: 8/10, not 9.** A fresh 30-second Liquid Chrome reference was compared with the baseline and final contact strips and matching full-size stills. Aurora's environment, hem and ice are better resolved, but its long straight rays can still read as a procedural fan, particularly in pale palettes. Chrome's material finish remains superior. This revision does not claim photographic atmospheric transport.
-
-## Signature mathematics and continuity
-
-Three persistent **384 × 12 quad** material grids follow
+Three persistent **384 × 12** quad material grids follow
 
 `P(u,v) = C(u,development,phase,seed) + v L(u,development,phase) B`,
 
-where **B = (0.035, 1, −0.025)**. Every field line is straight and parallel at every development value. Material IDs, topology and seed identity never reset on development, energy changes or reversal. `aurora-model.mjs` mirrors the shader curve, hem and camera in double precision.
+where **B = (0.035, 1, −0.025)**. All field lines are straight and parallel. The angle and material IDs never reset on development, reversal or energy changes. `aurora-model.mjs` mirrors the shader geometry and camera in double precision. C1 smoothsteps unfold the same seeded circular arcs into open, returning S-folded sheets. There is no picture crossfade or state-triggered flash.
 
-- Persistent material angle: `θ = (u−0.5)·6.18 + 0.24·sheet + seedOffset`.
-- Nested travelling fold: `sin(w + 0.65 sin(2w−phase))`, with `w = 2.3θ + phase + 2.3·sheet`.
-- Opening arcs retain radial pleats and angular bends; the corona smoothly unfolds them into `x = 35θ + 24 sin(w)`, `z = 7 + 33·sheet + 16 sin(1.3θ + 1.7·sheet) + 0.65·ripple`, scaled by spread. The x derivative actually reverses along the curve: these are folded sheets, not monotone fan bases.
-- Base height combines asymmetric 1.6θ / 4.3θ waves and a small 23θ scallop. Ray reach grows from 62 through 92 to 512 world units, before the local height modulation.
-- The sub-quad hem offset is `0.005 + (1−0.5·crown)·[0.0014 sin(61τu−3phase+sheet) + 0.0008 sin(137τu+2phase)]`. Its narrow Gaussian emission uses derivative-scaled width; fine kinks do not inherit the coarse vertical mesh rows.
+- **Glow (0):** distant folded hems across the full sky, over the frozen inlet.
+- **Curtains (1):** deeper pleats and persistent fine vertical rays.
+- **Corona (2):** open near/far curtains approach the overhead magnetic direction. The convergence point is now **above** the landscape frame instead of forming a contained radial fan. Base depth is `25 + 33·sheet + 16 sin(1.3θ + 1.7·sheet) + 0.65·ripple`; unmodulated ray reach develops **62 → 92 → 212**, reduced from the former 512-unit peak.
 
-For camera basis R/U/F and focal length f, the exact field-line vanishing point is `f·(B·R,B·U)/(B·F)`. Tests independently project finite endpoints and the infinite-height limit. Development uses C1 smoothstep morphs; no state switches, image dissolves or respawning.
+The other looks remain Icebound Arc (wide/low), Silent Meridian (narrow/tall), Pleated Night (dense folds), Zenith Bloom (narrow crown), and Magnetic Thaw (wide transition/strong mirror). The first three states share seed 1061 and identical non-development parameters.
 
-## Rendering and landscape
+## Look changes
 
-The full-resolution mesh draws **165,888 additive vertices**, including exact y-reflected copies: approximately **2.53 MiB** per seed. No volume march, reduced-resolution visual pass or engine extension. A larger far plane includes the extended ray tips in all saved height settings.
+Peak pitch is reduced from 0.78 to **0.50 radians**, retaining roughly the lower quarter for mountains and lake; the closed roll-free camera orbit and 1.8% maximum kick focal punch remain. The closest peak sheet sits farther away, separating layered folds rather than placing a starburst at the top edge.
 
-Footprint-filtered Gaussian hair and a second filament octave retain structure when the finest rays become sub-pixel. Vertical excitation is decorrelated between rays, avoiding coherent horizontal shimmer bands. Corona concentrates broad emission near the hem instead of filling long spotlight wedges. Distance and sheet-index attenuation separate near/far layers. Primary colours the low emission, secondary the upper rays; accent remains confined to the hem and sparse rhythm gestures. All colour is palette-derived. Native 960×540 float-picture peaks are approximately **1.89 / 2.67 / 3.89** in Glow / Curtains / Corona; the corresponding above-one populations are **872 / 999 / 8042 pixels**, not full-frame flashes.
+Saturated primary emission near the hem changes to stronger secondary rays over material heights 0.012–0.12. Unnecessary white mixing is removed from ray emission. A thicker, uneven lower emission layer supports the fine edge; broad filaments carry spatially varying excitation instead of uniform streaks. Field-aligned Gaussian hair is footprint-filtered, including a second octave when the finest rays become sub-pixel. Upper tips and open ends fade. Distance, facing and sheet-index attenuation separate the additive layers.
 
-Two mountain ranges, snow caps, winding banks, drift normals, granular crust and a multiscale star field remain. A bounded 3×3 seeded nearest-two-cell query forms irregular pressure-crack bisectors beneath the ice. Derivative filtering and distance loss keep fine frost/needles from becoming unresolved sparkles.
+Actual y-reflected curtain geometry supplies the lake image. Fresnel, winding shore masking, frost-dependent attenuation and perturbed material coordinates break it up. Reflection gain is increased 1.8×. Seeded pressure cracks, granular frost, snow normals, two mountain ranges and stars remain unchanged. This is shaded analytical terrain and rough-ice approximation, not displaced snow or volumetric light transport.
 
-The actual mirrored curtain geometry supplies the lake's specular image. Fresnel, shore masking, frost-dependent attenuation, perturbed material coordinates and averaged fine filaments break it up. This is an inexpensive rough-ice approximation, **not** a microfacet convolution. Snow and mountains have no true displaced silhouettes or cast shadows.
+## Energy and endlessness
 
-## Camera, states and looks
+Energy changes travel speed (×0.75–1.35), filtered filament detail, gap occupancy and ray reach, **not master exposure**. Low energy retains a composed full-width sky and readable ground. Two integrated 2π-periodic clocks own material travel (`0.22·travel`) and camera movement (`0.025`). No shader `u_time`, re-anchoring or temporal random grain is added.
 
-A closed, roll-free x/z camera path provides parallax; eye height grows from 2.2 to 3.0 plus ±0.16 drift. Pitch develops **0.30 → 0.38 → 0.78 radians** and focal length **1.22 → 1.22 → 0.80**. In the default Corona framing the zenith is around short-side y=0.85 and the horizon around y=−0.79, retaining a landscape scale cue instead of removing the world below. The yaw-defined right vector is continuous. Kick focal punch stays bounded at **1.8%**. Projection uses the short side and was reviewed in portrait as well as landscape.
+## Rhythm
 
-| Look | Development / composition |
-| --- | --- |
-| Glow | 0: full-sky distant hems over the frozen inlet |
-| Curtains | 1: deep travelling folds and finely structured vertical rays |
-| Corona | 2: near overhead sheet, layered receding curtains and upper-frame zenith |
-| Icebound Arc | 0.25: wider, lower-reaching, slower curtains |
-| Silent Meridian | 0.8: narrow composition, tall rays, restrained folds |
-| Pleated Night | 1.15: wide, dense, strongly pleated curtain |
-| Zenith Bloom | 2: narrow, high-reaching overhead perspective |
-| Magnetic Thaw | 1.65: wide intermediate crane, strong frozen reflection |
+All four gestures have independent restrained/driving/accented loops. Existing count-selected/motion tracks remain at ≤2 hits/bar; their visible emission is strengthened without camera shake.
 
-The world states retain **seed 1061 and identical non-development parameters**. Energy changes travel speed (×0.75–1.35) and filament detail, never exposure or development. Three bounded 4/8/16-beat gestures remain: Ray packet, Upward fold, Polar hem.
+| Slot | Gesture                         | Mapping                                                                                                                                            |
+| ---- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | Ray packet                      | Persistent field-ray cohort catches a stronger local pulse                                                                                         |
+| 1    | Upward fold                     | Excitation climbs through existing filaments                                                                                                       |
+| 2    | Polar hem                       | Sparse selected hems and supporting lower air glow                                                                                                 |
+| 3    | **Curtain surge / Vorhangwoge** | A count-addressed excitation front moves across a folded sheet and upward through its rays, with a local accent crest and actual mirrored response |
 
-Two integrated **2π-periodic** clocks own material travel (`0.22·travel`) and camera movement (`0.025`). Every phase use is periodic; no shader `u_time` or rate-change re-anchoring. Native paused reversal **0.7 → 1.83 → 0.7** has zero differing float-picture values and keeps the same mesh object. Native wrap/rate checks pass 3600, 4096 and 43200 seconds.
+The signature consumes `u_rhythm.w`, `u_rhythmHit.w` and `u_rhythmCount.w`. Its width is local to material coordinates, not a whole-frame brightness change. The hit only adds a small hot edge; the envelope carries the rolling front. No limiter changes.
 
-## Measured cost
+Preset names remain **Polar silence**, **Curtain signals**, **Magnetic midnight**. Their total family density is **2.5 / 7.75 / 11.5 hits/bar**. Driving slot 3 has eighth-step positions **0,2,4,6 | 8,10,12,14,15** in a 16-step/two-bar loop; the second bar has an extra strong crest and late fill. Accented has sixteenth positions **0,2,4,6,8,10,13 | 16,18,20,22,24,26,28,30**. Restrained uses positions **4,15,29** in a 32-eighth-step/four-bar loop. The existing ray packet and polar hem also interlace three-bar figures.
 
-Native headless Chrome 155 / ANGLE Metal / Apple M3 Pro; 12 synchronous samples per state, energy 0.95, including post. Baseline is **c161fd1**, measured before this revision. Shared-machine throughput, not external-display cadence qualification.
+## Cost and verification (2026-10-16)
 
-| State | 1080p p50 baseline → final | Final p95 | 4K p50 baseline → final | Final p95 |
-| --- | --- | --- | --- | --- |
-| Glow | 2.9 → **3.3 ms** | 3.6 ms | 6.8 → **8.8 ms** | 9.7 ms |
-| Curtains | 2.5 → **3.2 ms** | 4.0 ms | 7.1 → **10.3 ms** | 11.3 ms |
-| Corona | 3.1 → **3.8 ms** | 4.6 ms | 8.4 → **12.5 ms** | 13.6 ms |
+Native Chrome / ANGLE Metal / Apple M3 Pro, synchronous throughput including post, **64 samples/state**, energy 0.95. Shared-GPU results are not venue/display-cadence qualification.
 
-Richer full-resolution frost/cracks and longer overlapping rays increase cost. All three states pass this new world's assigned **≤8 ms / ≤16 ms** p50 limits. Supplemental eight-look profiles also pass. No GL/GPU errors or non-finite uploads.
+| State    | 1080p p50 / p95 | 4K p50 / p95  | Final ABBA p50 delta vs main |
+| -------- | --------------- | ------------- | ---------------------------- |
+| Glow     | 2.9 / 3.1 ms    | 8.5 / 10.4 ms | −5.9%                        |
+| Curtains | 3.0 / 3.9 ms    | 8.6 / 10.2 ms | 0%                           |
+| Corona   | 3.3 / 4.5 ms    | 9.8 / 11.3 ms | +9.7% (+0.3 ms)              |
 
-## Verification and visual rounds
+Absolute p50 budgets pass. **The pair tool exits 1** because Corona exceeds its stricter 5% relative gate. Earlier contended short runs gave Corona 4K p50 12.2–16.3 ms and paired deltas +5.7% to +66.7%; these logs are retained, not discarded. Topology is still 165,888 additive vertices, including reflections; no new passes or caches.
 
-- `node --test tests/aurora.test.mjs tests/time.test.mjs`: **24/24 pass**. Tests cover field-line parallelism/convergence, C1 periodic/reversible folds, actual returning S-folds, travelling hem bounds, shader/model coefficients, mirror law, full-width opening, open corona/horizon framing, camera continuity, landscape filtering, presets and rhythm. World lookup is explicitly `worlds.find((w) => w.id === "aurora-veil")`, never registry position.
-- Native **108 late-time frames**: nine development values, two energies, three palettes and two late epochs; zero errors. Float-picture reversal and HDR probes, portrait states, three-palette Curtains and native 4K Corona inspected.
-- Typecheck, build and native DE/EN i18n smoke pass. Full CPU suite: **746 pass, 9 skip, 3 expected baked-preview/editorial failures** in untouched catalog tests. Integration owns baking/curation.
-- Baseline + reference + **eight filmed revisions**: open sheets/wide crane and hem; integrated lower emission/cellular ice; finer kinks/near-sheet placement; longer tips/depth attenuation; second filament octave/wider span; true returning folds/reduced upper broad fill; overhead near-sheet placement; final frost anti-aliasing. Superseded MP4s were deleted; all iteration strips remain.
-- Final eight-look energy ladder, Glacier extra-look film and Ember reverse film reviewed.
+- `npm test`: 977 pass, 21 skip, zero failures (998 total).
+- Typecheck, build, native DE/EN i18n smoke and scoped Prettier checks pass.
+- Family/continuity, authored world rhythms and flash pipeline targeted suite: 53/53 pass.
+- `scripts/verify-aurora.mjs --rig --port 48822`: 81 development/energy/palette combinations, 3600/43200-second probes, eight saved looks, three portrait states, 241-frame reversal with unchanged slot, **zero differing float-picture values** on frozen 0.7→1.83→0.7 reversal, three HDR probes and 180-frame **limiter-enabled** smoke. Zero GL errors/non-finite values. Low-energy matrix frames exceed 10% lit pixels.
+- Before, M4 minimum and three filmed look rounds inspected. Reviewer evidence: `artifacts/look-review/aurora-veil-r3/aurora-veil-{sheet,rhythm}.png`, `aurora-veil.mp4`, `grids.md`. Matrix, JSON and all test/performance logs: `artifacts/look-review/aurora-veil-r3-checks/`.
 
-Evidence is under the worker's absolute `output/round3/`; exact paths, branch and final commit are in `output/report.md`.
+## Remaining weaknesses
 
-## Remaining limits
-
-Still **8/10**: the long field-aligned rays retain a graphic fan-like read in some phases and palettes. Fine hem motion and ice detail are stronger, but natural aurora has richer volumetric excitation and irregular thickness. Mountains remain soft analytical silhouettes and snow/ice are shaded planes. Low projector contrast suppresses the terrain. No physical 12-hour endurance or venue-cadence acceptance is claimed.
+**Self-assessed L≈7, not an independent pass.** The persistent field mathematics remains somewhat graphic: long straight rays and overlapping hems can still suggest stage-light wedges, particularly in pale palettes. Terrain is subdued and analytical; the peak has better spatial anchoring but less dramatic overhead convergence. Signature colour patches and reflection are visible, while the perceived rolling motion deserves independent judgement from the film. No physical twelve-hour soak or venue qualification is claimed.

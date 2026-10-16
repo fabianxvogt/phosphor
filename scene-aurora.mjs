@@ -16,7 +16,7 @@ float avFocal(){
 void avCamera(out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
  float a=u_clock[1],c=smoothstep(1.,2.,avDev());
  eye=vec3(1.4*sin(a),2.2+.16*sin(2.*a)+.8*c,1.1*cos(a));
- float yaw=.055*sin(a),pitch=.30+.08*smoothstep(0.,1.,avDev())+.40*c+u_params[6];
+ float yaw=.055*sin(a),pitch=.30+.08*smoothstep(0.,1.,avDev())+.12*c+u_params[6];
  F=vec3(sin(yaw)*cos(pitch),sin(pitch),cos(yaw)*cos(pitch));
  // Yaw-defined right stays continuous even when an extra look passes zenith.
  R=vec3(cos(yaw),0.,-sin(yaw));U=cross(F,R);
@@ -34,9 +34,9 @@ vec3 avPoint(vec2 uv,float sheet){
  vec3 base=vec3(r*sin(bend),bottom,8.+r*cos(bend));
  // The approaching arcs unfold into open, meandering sheets, not concentric
  // cylinders. Their supporting field lines still meet at the same zenith.
- vec2 overhead=vec2(theta*35.+24.*sin(w),7.+sheet*33.+16.*sin(theta*1.3+sheet*1.7)+ripple*.65);
+ vec2 overhead=vec2(theta*35.+24.*sin(w),25.+sheet*33.+16.*sin(theta*1.3+sheet*1.7)+ripple*.65);
  base.xz=mix(base.xz,overhead*u_params[5],crown);
- float len=(62.+30.*rise+420.*crown)*u_params[3]*(.85+.15*sin(4.*theta-phase+sheet));
+ float len=(62.+30.*rise+120.*crown)*u_params[3]*(.85+.15*sin(4.*theta-phase+sheet));
  return base+AV_B*len*uv.y;
 }
 float avHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7))+u_seed*.17)*43758.5453);}
@@ -95,7 +95,7 @@ uniform float u_params[8];
 uniform float u_clock[4];
 uniform vec2 u_resolution;
 uniform vec3 u_primary,u_secondary,u_accent;
-uniform vec4 u_rhythm,u_rhythmCount;
+uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 in vec2 v_uv;
 in vec3 v_world,v_normal;
 flat in float v_sheet,v_mirror;
@@ -138,18 +138,20 @@ void main(){
  // The corona must not collapse to a handful of broad zoom-blur spokes.
  float rays=rayCore*(.25+.75*fine)+midRay*.28;
  float gaps=.24+.76*pow(.5+.5*sin(u*17.+1.8*sin(u*5.-phase)+v_sheet),2.);
+ gaps=mix(gaps*gaps,sqrt(gaps),u_level);
  float folds=.35+.65*pow(.5+.5*sin(u*9.+phase+v_sheet),2.);
  float detail=mix(.23,.76,clamp(u_params[4]+u_level*.25,0.,1.));
  float density=mix(.20+folds*.18,.10+rays*1.10+folds*.22,detail)*gaps;
  // At the zenith, the long rays must be hair inside empty air, not broad
  // filled spotlight wedges. Concentrate sheet glow near its folded hem.
- density=mix(density,(.016+rays*.85+folds*.045)*gaps,crown);
+ density=mix(density,(.025+rays*.65+folds*.085)*gaps,crown);
  density*=.65+.35*sin(u*27.+.7*sin(h*9.+u*6.)-phase);
  // Fine vertical excitation travels inside stable field-aligned filaments.
- float shimmer=.80+.20*sin(h*83.+u*19.-3.*phase+6.*sin(u*93.));
+ float shimmer=(.80+.20*sin(h*83.+u*19.-3.*phase+6.*sin(u*93.)))
+  *(.55+.45*pow(.5+.5*sin(u*11.+sin(u*3.-phase)+h*17.-phase),2.));
  density*=shimmer;
  float tip=.48+.25*sin(u*7.-phase)+.15*sin(u*19.+phase);
- float reach=.72+.28*sin(u*11.+1.7*sin(u*3.-phase)+v_sheet);
+ float reach=(.72+.28*sin(u*11.+1.7*sin(u*3.-phase)+v_sheet))*mix(.55,1.,u_level);
  float heightFade=exp(-max(h,0.)*(mix(3.8,1.5,crown)+1.8*(1.-reach)))*(1.-smoothstep(tip*reach,1.,h));
  float hemWidth=max(.0018,fwidth(h)*.85);
  float edge=exp(-pow((h-.0025)/hemWidth,2.))*.0025/hemWidth;
@@ -159,19 +161,28 @@ void main(){
  float cohort=exp(-pow((sin(u-u_rhythmCount.x*.73-v_sheet)*4.),2.))*u_rhythm.x;
  float sweep=exp(-pow((h-(1.-u_rhythm.y))/.12,2.))*u_rhythm.y;
  float foldPulse=exp(-pow(sin(u*2.-u_rhythmCount.z*.41)*5.,2.))*u_rhythm.z;
- vec3 ink=mix(u_primary,mix(u_secondary,vec3(1.),.10),smoothstep(.025,.27,h));
+ vec3 ink=mix(u_primary,u_secondary*1.7,smoothstep(.012,.12,h));
  float endFade=smoothstep(0.,.08,v_uv.x)*(1.-smoothstep(.92,1.,v_uv.x));
- float lowerGlow=exp(-max(h,0.)*44.)*(.14+.30*folds)*gaps;
- vec3 col=ink*(density*heightFade*(1.65-rise*.2)+lowerGlow+edge*.22)*baseFade*optical*endFade*.8;
- col+=ink*rays*heightFade*cohort*.25*endFade;
+ float lowerGlow=exp(-max(h,0.)*36.)*(.18+.48*folds)*gaps;
+ vec3 col=ink*(density*heightFade*(1.65-rise*.2)+lowerGlow+edge*.10)*baseFade*optical*endFade*.8;
+ col+=ink*rays*heightFade*cohort*1.8*endFade;
  // A broad emission layer under the filaments reads as ionised air,
  // not just a set of electric wires. Its lower edge remains the hero.
  float veil=exp(-pow((h-.035)/mix(.20,.065,crown),2.))*(.13+.24*folds)*gaps;
  col+=ink*veil*baseFade*endFade*(1.-.25*rise);
- col+=u_secondary*sweep*rays*.3;
- col+=u_accent*edge*foldPulse*.35*endFade;
+ col+=u_secondary*sweep*(rays+.12*folds)*1.3*endFade*baseFade;
+ col+=u_accent*(edge*.7+lowerGlow*2.)*foldPulse*endFade*baseFade;
+ // A count-addressed excitation rolls through the persistent material,
+ // not the whole framebuffer. Strong second-bar crests share the lake mirror.
+ float surgeAge=1.-clamp(u_rhythm.w,0.,1.);
+ float surgeAngle=mod(u_rhythmCount.w*.79,AV_TAU);
+ float surgeDelta=sin((u-surgeAngle-surgeAge*.8)*.5);
+ float surge=exp(-pow(surgeDelta/.21,2.))*u_rhythm.w;
+ float surgeFront=exp(-pow((h-.025-surgeAge*.38)/.10,2.));
+ col+=mix(u_secondary,u_accent,.8)*surge*(lowerGlow*3.+(density+.16)*heightFade*surgeFront*4.)*endFade*baseFade;
+ col+=u_accent*edge*surge*u_rhythmHit.w*.12*endFade*baseFade;
  col+=u_accent*edge*.025*endFade*baseFade;
- col+=mix(u_primary,vec3(1.),.12)*rays*edge*.55*(1.+.25*u_kick)*endFade;
+ col+=u_primary*rays*edge*.42*(1.+.25*u_kick)*endFade;
  // An almost edge-on triangle is an unresolved slice of the sheet.
  // Fade only that vanishing footprint rather than sparkling at its edge.
  float coverage=1.-smoothstep(.006,.035,fwidth(v_uv.x));
@@ -182,7 +193,7 @@ void main(){
  if(v_mirror>.5){
   vec3 mp=vec3(v_world.x,-v_world.y,v_world.z);
   float fres=.30+.65*pow(1.-abs(normalize(mp-eye).y),3.);
-  col*=avIce(floorP.xz)*frost*fres*u_params[7]*exp(-length(floorP.xz)*.003);
+  col*=avIce(floorP.xz)*frost*fres*u_params[7]*1.8*exp(-length(floorP.xz)*.003);
  }
  outColor=vec4(max(col,vec3(0.)),0.);
 }
@@ -407,40 +418,142 @@ export default {
   type: { key: "development", values: [0, 1, 2] },
   energy: { travel: { mul: [0.75, 1.35] }, detail: [0, 0.15] },
   beat: { punch: 0.08, pulse: 0.08 },
-  rhythmStyles: { restrained: "Polar silence", driving: "Curtain signals", accented: "Magnetic midnight" },
+  rhythmStyles: {
+    restrained: "Polar silence",
+    driving: "Curtain signals",
+    accented: "Magnetic midnight",
+  },
   rhythm: [
     familyEffect(
       "ray-packet",
       0,
       "Ray packet",
       "A local cohort of persistent field-aligned rays catches a travelling pulse.",
-      { period: 4, strength: 0.6, duration: 1.5, steps: "X...", styles: {
-        restrained: { steps: "X....... | .......x | ...X.... | ........", division: 2, strength: 0.5, duration: 1.8 },
-        driving: { steps: "X.....x. | ..X...x.", division: 2, strength: 0.76, duration: 0.9 },
-        accented: { steps: "X........x...... | .....X.......x.. | ...X.......x....", division: 4, strength: 0.9, duration: 0.85 },
-      } },
+      {
+        period: 4,
+        strength: 0.6,
+        duration: 1.5,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X....... | .......x | ...X.... | ........",
+            division: 2,
+            strength: 0.5,
+            duration: 1.8,
+          },
+          driving: {
+            steps: "X.....x. | ..X...x.",
+            division: 2,
+            strength: 0.76,
+            duration: 0.9,
+          },
+          accented: {
+            steps: "X........x...... | .....X.......x.. | ...X.......x....",
+            division: 4,
+            strength: 0.9,
+            duration: 0.85,
+          },
+        },
+      },
     ),
     familyEffect(
       "upward-fold",
       1,
       "Upward fold",
       "A soft excitation travels upward along the existing magnetic curtain.",
-      { period: 8, strength: 0.65, duration: 2.5, kind: "motion", steps: "X.......", styles: {
-        restrained: { steps: ".....x.. | ........ | ......X. | ........", division: 2, strength: 0.52, duration: 2 },
-        driving: { steps: "...X.... | .......x | .....X.. | ........", division: 2, strength: 0.78, duration: 1.75 },
-        accented: { steps: ".......X........ | ............x... | .....X.......... | ..........x.....", division: 4, strength: 0.92, duration: 1.5 },
-      } },
+      {
+        period: 8,
+        strength: 0.65,
+        duration: 2.5,
+        kind: "motion",
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: ".....x.. | ........ | ......X. | ........",
+            division: 2,
+            strength: 0.52,
+            duration: 2,
+          },
+          driving: {
+            steps: "...X.... | .......x | .....X.. | ........",
+            division: 2,
+            strength: 0.78,
+            duration: 1.75,
+          },
+          accented: {
+            steps:
+              ".......X........ | ............x... | .....X.......... | ..........x.....",
+            division: 4,
+            strength: 0.92,
+            duration: 1.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "polar-hem",
       2,
       "Polar hem",
       "A few folds on the lower auroral edge receive a rare accent.",
-      { period: 16, strength: 0.65, duration: 3, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | ...X....", division: 2, strength: 0.52, duration: 2.5 },
-        driving: { steps: "........ | ......x. | ........ | ....X...", division: 2, strength: 0.78, duration: 2 },
-        accented: { steps: ".............x.. | ........X....... | ............X...", division: 4, strength: 0.92, duration: 1.5 },
-      } },
+      {
+        period: 16,
+        strength: 0.65,
+        duration: 3,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ......x. | ........ | ...X....",
+            division: 2,
+            strength: 0.52,
+            duration: 2.5,
+          },
+          driving: {
+            steps: "........ | ......x. | ........ | ....X...",
+            division: 2,
+            strength: 0.78,
+            duration: 2,
+          },
+          accented: {
+            steps: ".............x.. | ........X....... | ............X...",
+            division: 4,
+            strength: 0.92,
+            duration: 1.5,
+          },
+        },
+      },
+    ),
+    familyEffect(
+      "curtain-surge",
+      3,
+      "Curtain surge",
+      "An excitation front rolls across the folded curtain and its lake reflection, cresting every second bar.",
+      {
+        period: 8,
+        strength: 0.9,
+        duration: 0.8,
+        steps: "X.x.x.x.x.x.x.x.",
+        division: 2,
+        styles: {
+          restrained: {
+            steps: "....X... | .......x | ........ | .....X..",
+            division: 2,
+            strength: 0.65,
+            duration: 1.4,
+          },
+          driving: {
+            steps: "X.x.x.x. | X.x.X.xx",
+            division: 2,
+            strength: 0.95,
+            duration: 0.42,
+          },
+          accented: {
+            steps: "X.x.x.X.x.x..x.. | X.x.X.x.x.x.x.x.",
+            division: 4,
+            strength: 1,
+            duration: 0.38,
+          },
+        },
+      },
     ),
   ],
   // All uses of phase are integer multiples inside sin/cos. Development
