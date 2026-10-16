@@ -622,6 +622,8 @@ void main() {
   vec3 up = cross(rt, fw);
   float kick = gKick;
   float focal = 1.55 * (1.0 + 0.02 * kick);
+  // A longer lens for the eruption: the fountain fills the frame.
+  focal *= 1.0 + 0.2 * gErupt;
   vec2 uv = rot2(0.03 * sin(az * 2.0)) * (aspectUV() * 2.0);
   // Small refractive displacement in the hot near-ground air, not camera shake.
   float shimmerPhase = sin(TAU * gFlow);
@@ -1130,7 +1132,7 @@ void main() {
           float drop = exp(-sq(du / sig)) * (wd / sig) * streak;
           float env = smoothstep(bottom - 0.5, bottom + 1.0, hy) * (1.0 - smoothstep(top - 1.6, top + 0.5, hy));
           float T = (fall ? 0.8 - 0.14 * (1.0 - hy / max(top, 1.0)) : 1.06 - 0.2 * hy / max(gFountH, 1.0)) - 0.04 * fi + 0.12 * h.y;
-          add += mrHeat(T) * drop * env * gErupt * (side == 0 ? 1.0 : 0.55) * 1.5;
+          add += mrHeat(T) * drop * env * gErupt * (side == 0 ? 1.0 : 0.55) * 1.9;
         }
       }
     }
