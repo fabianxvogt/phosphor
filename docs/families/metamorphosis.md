@@ -51,13 +51,13 @@ Static mesh remains **93,504 vertices**; fixed tessellation, one geometry draw p
 
 | Development | 1080p p50 / p95 | 4K p50 / p95 |
 | ----------- | --------------- | ------------ |
-| Filaments   | 1.8 / 2.1 ms    | 4.9 / 5.4 ms |
-| Membrane    | 2.0 / 2.3 ms    | 4.8 / 5.2 ms |
-| Blossom     | 2.7 / 3.2 ms    | 4.9 / 5.4 ms |
+| Filaments   | 1.9 / 2.8 ms    | 4.7 / 5.2 ms |
+| Membrane    | 1.9 / 2.6 ms    | 4.9 / 5.2 ms |
+| Blossom     | 1.9 / 2.8 ms    | 5.0 / 5.6 ms |
 
-The required shared ABBA pair against main yielded p50 deltas **+30%, +5.3%, 0%** at 1080p and **0%, +2.2%, −8.8%** at 4K. The 1080p pair exits nonzero on its +5% gate despite absolute cost staying far below budget. Shared GPU contention produces large tails; no failed samples were discarded. The stock pair routes scene source, not `metamorphosis-geometry.mjs`, so both candidates use the new centre layout: these are shader comparisons, not a complete historical-layout comparison. CLI correction: the profiler supports `--families`, not the brief's `--family`.
+Night-continuation profiles above are retained under `artifacts/verification/unfolding-r3/resume/`. The required shared ABBA pair against main yielded p50 deltas **+8%, +12.5%, −12.5%** at 1080p (reference `5e35c8b`) and **+2.2%, +6.7%, +2.1%** at 4K (`acfdd9d`). Both pairs exit nonzero on their +5% gate despite absolute cost staying far below budget. Earlier retained pairs measured +30%/+5.3%/0% and 0%/+2.2%/−8.8%, respectively. Shared GPU contention produces large tails; no failed samples were discarded. The stock pair routes scene source, not `metamorphosis-geometry.mjs`, so both candidates use the new centre layout: these are shader comparisons, not a complete historical-layout comparison. CLI correction: the profiler supports `--families`, not the brief's `--family`.
 
-Verification: `npm test` 970 pass / 21 opt-in skipped / 0 fail; typecheck; built DE/EN native-GPU i18n test; Prettier on owned code/docs. Family tests cover seeded identity/preset validation, reversible continuity, exact membrane seams including maximum flush, all four gesture slots/styles, density and spacing, structural energy, top-state size and maximum-gesture portrait/landscape bounds through 43,200 seconds. `verify-metamorphosis.mjs` checks all six looks × three energies × own/Ember/Glacier palettes, square/portrait reversals with unchanged mesh/time, and late geometry compilation: 56 cases, zero GL errors/non-finite values.
+Verification after preserving the dirty continuation and merging main: `npm test -- --test-concurrency=2` **971 pass / 21 opt-in skipped / 0 fail**; typecheck; build and DE/EN native-GPU i18n test; Prettier on owned formatted code/docs; refreshed final review film/grids. The initial unbounded-concurrency test rerun hit the 120-second harness timeout; the complete bounded rerun took 382 seconds. Family tests cover seeded identity/preset validation, reversible continuity, exact membrane seams including maximum flush, all four gesture slots/styles, density and spacing, structural energy, top-state size and maximum-gesture portrait/landscape bounds through 43,200 seconds. The preserved `verify-metamorphosis.mjs` run checks all six looks × three energies × own/Ember/Glacier palettes, square/portrait reversals with unchanged mesh/time, and late geometry compilation: 56 cases, zero GL errors/non-finite values. No family rendering source changed during continuation; current native profiles also report zero GL/non-finite errors.
 
 Final evidence in the worktree:
 
