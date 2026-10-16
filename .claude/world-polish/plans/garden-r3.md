@@ -34,6 +34,29 @@ Slot 3 uses w envelope/hit/count: a selected spatial cohort launches a fan of ri
 - Final default/Ember/Glacier captures and portrait reversal read. Honest self-assessment L=7, not an independent pass: low state remains sparse, distant cards/petal surfaces are too repetitive, and pollen is readable but not unforgettable. No claim of reaching 8.
 - Native p50 stays inside 8/16 ms. ABBA pairs are +38–68% at 1080p / +29–76% at 4K vs terrain main; explicit conceptual-rework cost, not a +5% pair-gate pass.
 
+## r4
+
+Independent r3: L6.5/G7.5/E6, overall 6.5. Keep the continuous chemical meadow, blue/lime/rare-pink hierarchy, buds→cups→blossoms, smooth flight and named polyrhythmic grids. Reused worktree and merged main before work; pre-existing untracked garden-wip.patch is untouched.
+
+Priority response before building:
+
+1. Pollen: select a narrow camera-relative patch, count moves it between hits. Replace hairline ribbons with soft screen-sized curved drifting motes; selected blooms flare pink and unfurl; ground ring expands from the same focus.
+2. Breakdown: enlarge sleeping buds without opening them; add persistent backlit, tapered grass geometry throughout the foreground. Replace reflective oil pools with matte moss/chemical root texture and subtle fireflies.
+3. Hierarchy/framing: dim/narrow the horizon, retain layered clouds and add parallax ridges. A bounded smooth crane starts above sleeping buds and lowers among mature stems; phase breathing is continuous and development reverses safely.
+4. Secondary gestures: expose a travelling sap front separately from the pollen envelope; run it up stems and petal margins, not through a global brightness multiplier. Cohort explicitly flexes selected petals.
+5. Peak: strengthen sparse clustered hero size/height/species variation, veins and rims; reduce broad lime emission and clamp near-camera saturated highlights. Keep blue petal bodies.
+6. Wedges: remove smooth reflective ground bands that project into radial wedges; check opaque/distant geometry and clipping in the film, retaining only matte ground and properly tapered grass.
+
+Three mandatory change/capture/read/critique rounds, then final default capture, two extra palettes, all-look energy/portrait/reversal/late/fallback verifier, full tests/i18n/typecheck/format and 1080p/4K/pair profiling. Density targets ≥6/8 driving/accented across tracks; preserve 2/3/4-bar accented polyrhythm and sparse signature. No shared renderer changes.
+
+### r4 executed film critiques
+
+- Round 1 (`garden-r4-round1`): read sheet + rhythm. Pollen now dots/ring rather than scratches and reflections/wedges are absent, but the low peak camera made a bright canopy stripe above too much dark stem space; sky became too black. Not acceptable.
+- Round 2 (`garden-r4-round2`): read both sheets. Raised the peak eye and varied pitch, restored a deep blue sky, stronger grass and pink petal opening. Signature local patch is visible, but normal flowers remain too bright/flat and closed buds have serrated rims. Overfilled experimental grids rejected: original syncopated patterns already meet density.
+- Round 3 (`garden-r4-round3`): read both sheets. Added tapered bud tips, botanical vein/midrib texture and directional material, but over-darkened the whole plant; low buds lost their luminous sleeping identity. Ring/patch now coherent; small motes do not read as rain.
+- Round 4 (`garden-r4-round4`): read both sheets. Restored saturated blue bud emission, shortened/dimmed grass, enlarged only the pollen-selected blossoms, made the pink cluster/ring unmistakable and raised margin-wave strength. Distinct pointed cup and curled open forms, hero veins and saturated throats remain readable. Final patch bound reduced .24→.21 to stay below one-third landscape frame width. Still weaker: lower-energy foreground is deliberately dim and far cards repeat. Self-assessment L7.5; independent acceptance is not claimed.
+- Read portrait, reversal and 12-hour verifier frames: no giant camera-entry petals, no wedges, identity retained. Cost at 1080p 3.9–4.5 ms p50, at 4K 8.0–10.8 ms; all under absolute budgets. Initial i18n ran against missing/stale dist and timed out; built then reran native DE/EN successfully. Profiling brief's singular `--family` is unsupported; used documented `--families`.
+
 ## Cost / checks
 
 Main risk: 4096 instances and detailed far images repeat expensive vertex work. Profile early, remove redundant per-vertex noise/integration work before reducing detail. Budgets 8 ms 1080p / 16 ms 4K p50; report pair delta under fleet load. Float-target fallback must keep a garden (not silently hide all flowers). Check low/mid/high energy, all looks, reversal, three palettes, portrait, late time, finite data, GL errors. Full tests/typecheck/i18n/format and family continuity/preset/slot-3 tests required.
