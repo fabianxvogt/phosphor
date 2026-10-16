@@ -2201,6 +2201,8 @@ export default {
   "One latitude torus of Villarceau circles glows along its edges.": "One latitude torus of Villarceau circles glows along its edges.",
   "Meridian link": "Meridian link",
   "Fibres over one meridian glow through every nested torus at once.": "Fibres over one meridian glow through every nested torus at once.",
+  "Fibre current": "Fibre current",
+  "A luminous head and soft wake travel along a braid of linked circles.": "A luminous head and soft wake travel along a braid of linked circles.",
   "Quiet fibres": "Quiet fibres",
   "Linked circles": "Linked circles",
   "Meridian braid": "Meridian braid",

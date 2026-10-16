@@ -2201,6 +2201,8 @@ export default {
   "One latitude torus of Villarceau circles glows along its edges.": "Ein Breitentorus aus Villarceau-Kreisen leuchtet an seinen Rändern.",
   "Meridian link": "Meridianverkettung",
   "Fibres over one meridian glow through every nested torus at once.": "Die Fasern über einem Meridian leuchten zugleich durch alle verschachtelten Tori.",
+  "Fibre current": "Faserstrom",
+  "A luminous head and soft wake travel along a braid of linked circles.": "Ein leuchtender Kopf mit sanfter Lichtspur wandert entlang eines Geflechts verketteter Kreise.",
   "Quiet fibres": "Stille Fasern",
   "Linked circles": "Verbundene Kreise",
   "Meridian braid": "Meridiangeflecht",

@@ -70,7 +70,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | Geometric Caustics | caustics | Snell refraction through a moving heightfield | Point Waves / Crossing Wave Banks / Lens Sheet | 8 |
 | Space Colonization | colonization | Nearest-branch attraction and reached-point removal | Canopy / Root Fan / Coral Arbor | 8 |
 | [Living Forms](families/metamorphosis.md) | metamorphosis | Connected parametric surface deformation | Filaments / Membrane / Blossom | 6 |
-| [Linked Fibres](families/fibration.md) (world Hopf Bloom) | fibration | Stereographic Hopf fibres as lit tube meshes | Torus / Nest / Bundle | 8 |
+| [Linked Fibres](families/fibration.md) (world Hopf Bloom) | fibration | Exact linked Hopf tubes with travelling fibre currents | Torus / Nest / Bundle | 8 |
 | [Crystal Habit](families/crystal.md) | crystal | Lattice-aligned growth of faceted hexagonal prisms | Seeds / Lattice / Hall | 8 |
 | [Polyhedral Folding](families/fold.md) | fold | Dyed paper nets close along exact hinges, then form a V-folded storm with sector crease snaps | Sheet / Fold / Shards | 8 |
 | [Density Waves](families/nebula.md) | nebula | Zel'dovich web, density-wave orbits and Sedov–Taylor shells on one star population | Dust / Spiral / Nova | 7 |
