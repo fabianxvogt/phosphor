@@ -128,42 +128,66 @@ test("integer teeth, common module, 20-degree pressure angle and correct pitch t
 });
 
 test("shared tooth bevels never fold, tear or cross at involute tips", () => {
-  const cross = (a, b, p) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
-  for (const n of [24, 40, 56]) for (const detail of [1, 3]) {
-    const p = toothProfile(n, detail), f = bevelProfile(p, GEAR_BEVEL);
-    assert.equal(f.length, p.length);
-    for (let i = 0; i < f.length; i++) {
-      assert.ok(f[i].every(Number.isFinite));
-      assert.ok(distance(f[i], p[i]) <= 0.0160001);
-      assert.ok(distance(f[i], f[(i + 1) % f.length]) > 0.0001);
-      for (let j = i + 2; j < f.length; j++) {
-        if (i === 0 && j === f.length - 1) continue;
-        const a = f[i], b = f[(i + 1) % f.length], c = f[j], d = f[(j + 1) % f.length];
-        assert.ok(!(cross(a, b, c) * cross(a, b, d) < -1e-18 && cross(c, d, a) * cross(c, d, b) < -1e-18), `crossed bevel: N=${n}, detail=${detail}`);
+  const cross = (a, b, p) =>
+    (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+  for (const n of [24, 40, 56])
+    for (const detail of [1, 3]) {
+      const p = toothProfile(n, detail),
+        f = bevelProfile(p, GEAR_BEVEL);
+      assert.equal(f.length, p.length);
+      for (let i = 0; i < f.length; i++) {
+        assert.ok(f[i].every(Number.isFinite));
+        assert.ok(distance(f[i], p[i]) <= 0.0160001);
+        assert.ok(distance(f[i], f[(i + 1) % f.length]) > 0.0001);
+        for (let j = i + 2; j < f.length; j++) {
+          if (i === 0 && j === f.length - 1) continue;
+          const a = f[i],
+            b = f[(i + 1) % f.length],
+            c = f[j],
+            d = f[(j + 1) % f.length];
+          assert.ok(
+            !(
+              cross(a, b, c) * cross(a, b, d) < -1e-18 &&
+              cross(c, d, a) * cross(c, d, b) < -1e-18
+            ),
+            `crossed bevel: N=${n}, detail=${detail}`,
+          );
+        }
       }
     }
-  }
 });
 
 test("point sun: exact tilted planet centres, inverse-square falloff and finite soft eclipses", () => {
   for (const dev of [0, 0.2, 0.7, 1, 1.5, 2]) {
     const sun = sunPosition(dev);
-    for (let i = 0; i < 5; i++) for (const phase of [0, 0.7, 17, 43200 * 0.065]) {
-      const p = planetPosition(i, phase, dev);
-      const t = Math.max(0, Math.min(1, (dev - 0.06) / 0.79));
-      const growth = t * t * (3 - 2 * t);
-      close(distance(p, sun), Math.hypot(1.3 + i * 0.49, 0.14) * growth);
-      close(p[0], (1.3 + i * 0.49) * Math.cos(phase * ORBITS[i] + i * 1.73) * growth);
-      close(distance(planetPosition(i, phase + 30 * Math.PI, dev), p), 0, 1e-10);
-      assert.ok(p.every(Number.isFinite));
-    }
+    for (let i = 0; i < 5; i++)
+      for (const phase of [0, 0.7, 17, 43200 * 0.065]) {
+        const p = planetPosition(i, phase, dev);
+        const t = Math.max(0, Math.min(1, (dev - 0.06) / 0.79));
+        const growth = t * t * (3 - 2 * t);
+        close(distance(p, sun), Math.hypot(1.3 + i * 0.49, 0.14) * growth);
+        close(
+          p[0],
+          (1.3 + i * 0.49) * Math.cos(phase * ORBITS[i] + i * 1.73) * growth,
+        );
+        close(
+          distance(planetPosition(i, phase + 30 * Math.PI, dev), p),
+          0,
+          1e-10,
+        );
+        assert.ok(p.every(Number.isFinite));
+      }
   }
-  const p = [0, 0, 0], light = [0, 0, 10];
+  const p = [0, 0, 0],
+    light = [0, 0, 10];
   close(sphereVisibility(p, light, [0, 0, 5], 1), 0);
   close(sphereVisibility(p, light, [3, 0, 5], 1), 1);
   close(sphereVisibility(p, light, [0, 0, -1], 1), 1);
   close(sphereVisibility(p, light, [0, 0, 11], 1), 1);
-  assert.ok(sphereVisibility(p, light, [1, 0, 5], 1) > 0 && sphereVisibility(p, light, [1, 0, 5], 1) < 1);
+  assert.ok(
+    sphereVisibility(p, light, [1, 0, 5], 1) > 0 &&
+      sphereVisibility(p, light, [1, 0, 5], 1) < 1,
+  );
   for (const r of [0, 0.2, 1, 10, 100]) {
     assert.ok(Number.isFinite(sunIrradiance(r)));
     assert.ok(sunIrradiance(r + 0.01) < sunIrradiance(r));
@@ -174,16 +198,26 @@ test("point sun: exact tilted planet centres, inverse-square falloff and finite 
 });
 
 test("the palette's warm anchor owns the alloy, not a hard-coded brass RGB", () => {
-  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const rgb = (hex) =>
+    [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
   for (const palette of PALETTES) {
-    const p = rgb(palette.colors.primary), s = rgb(palette.colors.secondary);
+    const p = rgb(palette.colors.primary),
+      s = rgb(palette.colors.secondary);
     const alloy = brassColor(p, s);
     for (let i = 0; i < 3; i++)
-      assert.ok(alloy[i] >= Math.min(p[i], s[i]) && alloy[i] <= Math.max(p[i], s[i]));
+      assert.ok(
+        alloy[i] >= Math.min(p[i], s[i]) && alloy[i] <= Math.max(p[i], s[i]),
+      );
     if (palette.id === "phosphor")
-      assert.ok(distance(alloy, p) < distance(alloy, s) * 0.1, "yellow, not the blue secondary");
+      assert.ok(
+        distance(alloy, p) < distance(alloy, s) * 0.1,
+        "yellow, not the blue secondary",
+      );
     if (palette.id === "symbiosis")
-      assert.ok(distance(alloy, s) < distance(alloy, p) * 0.1, "ochre, not the mint primary");
+      assert.ok(
+        distance(alloy, s) < distance(alloy, p) * 0.1,
+        "ochre, not the mint primary",
+      );
   }
   assert.match(scene.geometry.fragment, /ss\(-\.06,\.06,p-s\)\*\.84\+\.08/);
 });
@@ -192,28 +226,40 @@ test("Orrery sun stays centred and the crossed armillary fills the short side fo
   const sub = (a, b) => a.map((v, i) => v - b[i]);
   const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0);
   const norm = (a) => a.map((v) => v / Math.hypot(...a));
-  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const cross = (a, b) => [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
   for (let phase = 0; phase < TAU; phase += 0.1) {
-    const c = camera(1, phase), F = norm(sub(c.target, c.eye));
-    const R = norm(cross(F, [0, 1, 0])), U = cross(R, F);
+    const c = camera(1, phase),
+      F = norm(sub(c.target, c.eye));
+    const R = norm(cross(F, [0, 1, 0])),
+      U = cross(R, F);
     const sun = sub(sunPosition(1), c.eye);
     close(dot(sun, R), 0);
     close(dot(sun, U), 0);
-    const xs = [], ys = [];
-    for (let i = 0; i < 3; i++) for (let theta = 0; theta < TAU; theta += 0.02) {
-      const p = armillaryPosition(i, theta), q = sub(p, c.eye), z = dot(q, F);
-      assert.ok(z > 2, "no near-plane crossing");
-      xs.push(dot(q, R) * 1.42 * 1.09 / z);
-      ys.push(dot(q, U) * 1.42 * 1.09 / z);
-      close(distance(armillaryPosition(i, theta + TAU), p), 0);
-    }
+    const xs = [],
+      ys = [];
+    for (let i = 0; i < 3; i++)
+      for (let theta = 0; theta < TAU; theta += 0.02) {
+        const p = armillaryPosition(i, theta),
+          q = sub(p, c.eye),
+          z = dot(q, F);
+        assert.ok(z > 2, "no near-plane crossing");
+        xs.push((dot(q, R) * 1.42 * 1.09) / z);
+        ys.push((dot(q, U) * 1.42 * 1.09) / z);
+        close(distance(armillaryPosition(i, theta + TAU), p), 0);
+      }
     const height = (Math.max(...ys) - Math.min(...ys)) / 2;
     const width = (Math.max(...xs) - Math.min(...xs)) / 2;
     assert.ok(height >= 0.6 && height <= 0.8, `height ${height}`);
-    assert.ok(width >= 0.8 && width <= 0.90, `width ${width}`);
+    assert.ok(width >= 0.8 && width <= 0.9, `width ${width}`);
     // The same short-side projection is used in landscape and portrait;
     // even the bounded 1.8% kick cannot crop a meridian at either aspect.
-    assert.ok(Math.max(...xs.map(Math.abs), ...ys.map(Math.abs)) * 1.018 < 0.95);
+    assert.ok(
+      Math.max(...xs.map(Math.abs), ...ys.map(Math.abs)) * 1.018 < 0.95,
+    );
   }
 });
 
@@ -320,7 +366,10 @@ test("geometry identity is seed-only, finite, deterministic and includes 225 act
   };
   let a = createGeometry(10901);
   assert.equal(a.length % STRIDE, 0);
-  assert.ok(a.length / STRIDE < 1890000, "smaller than the prior 1,966,938-vertex buffer");
+  assert.ok(
+    a.length / STRIDE < 1890000,
+    "smaller than the prior 1,966,938-vertex buffer",
+  );
   const objects = new Map();
   for (let i = 0; i < a.length; i += STRIDE) {
     for (let j = 0; j < STRIDE; j++) assert.ok(Number.isFinite(a[i + j]));
@@ -329,20 +378,39 @@ test("geometry identity is seed-only, finite, deterministic and includes 225 act
   }
   assert.equal(objects.size, 225);
   const outer = new Set();
-  let hoopVertices = 0, frontTriangles = 0;
+  let hoopVertices = 0,
+    frontTriangles = 0;
   for (let i = 0; i < a.length; i += STRIDE * 3) {
     // First cathedral driver: its reduced annulus fan must preserve every
     // exact involute/bevel point and never fold a triangle through the bore.
-    if (a[i + 9] === 1 && a[i + 11] === 0 && a[i + 12] === 2 &&
-        Math.abs(a[i + 2] - 0.26) < 1e-6 && a[i + 5] === 1) {
-      const p = [0, 1, 2].map((j) => [a[i + j * STRIDE], a[i + j * STRIDE + 1]]);
-      assert.ok((p[1][0] - p[0][0]) * (p[2][1] - p[0][1]) -
-        (p[1][1] - p[0][1]) * (p[2][0] - p[0][0]) > -1e-8);
-      for (const v of p) if (Math.hypot(...v) > 1.3) outer.add(v.map((x) => x.toFixed(5)).join(","));
+    if (
+      a[i + 9] === 1 &&
+      a[i + 11] === 0 &&
+      a[i + 12] === 2 &&
+      Math.abs(a[i + 2] - 0.26) < 1e-6 &&
+      a[i + 5] === 1
+    ) {
+      const p = [0, 1, 2].map((j) => [
+        a[i + j * STRIDE],
+        a[i + j * STRIDE + 1],
+      ]);
+      assert.ok(
+        (p[1][0] - p[0][0]) * (p[2][1] - p[0][1]) -
+          (p[1][1] - p[0][1]) * (p[2][0] - p[0][0]) >
+          -1e-8,
+      );
+      for (const v of p)
+        if (Math.hypot(...v) > 1.3)
+          outer.add(v.map((x) => x.toFixed(5)).join(","));
       frontTriangles++;
     }
-    if (a[i + 9] === 0 && a[i + 11] === 0 && a[i + 12] === 2 &&
-        a[i + 14] === 4.5 && Math.hypot(a[i], a[i + 1]) > 4) {
+    if (
+      a[i + 9] === 0 &&
+      a[i + 11] === 0 &&
+      a[i + 12] === 2 &&
+      a[i + 14] === 4.5 &&
+      Math.hypot(a[i], a[i + 1]) > 4
+    ) {
       // Rounded bearing hoop, not an extruded rectangle: its varying unit
       // normals follow a six-sided circular cross-section with smooth light.
       close(Math.hypot(a[i + 3], a[i + 4], a[i + 5]), 1, 1e-6);
@@ -350,7 +418,10 @@ test("geometry identity is seed-only, finite, deterministic and includes 225 act
     }
   }
   for (const p of bevelProfile(toothProfile(56, 1), GEAR_BEVEL))
-    assert.ok(outer.has(p.map((x) => x.toFixed(5)).join(",")), "outer involute preserved");
+    assert.ok(
+      outer.has(p.map((x) => x.toFixed(5)).join(",")),
+      "outer involute preserved",
+    );
   assert.equal(frontTriangles, toothProfile(56, 1).length + 56 + 12);
   assert.equal(hoopVertices, 96 * 6 * 6);
   const hash = fingerprint(a);
@@ -385,87 +456,144 @@ test(
           [360, 640],
           [3840, 2160],
         ])
-          for (const index of [0, 1, 2]) for (const level of [0.1, 0.5, 0.9]) {
-            const snapshot = presetSnapshot(scene, index);
-            snapshot.palette = PALETTES.find((p) => p.id === palette).colors;
-            await lab.page.evaluate(renderLook, {
-              sceneId: "orrery",
-              index,
-              snapshot,
-              width,
-              height,
-              frames: 2,
-              level,
-              capture: false,
-              pollHealth: false,
-            });
-            const row = await lab.page.evaluate(
-              ({ index, palette, width, height, level }) => {
-                const { engine } = window.__phosphorLab,
-                  s = engine.slots.at(-1);
-                s.time = 43200;
-                engine.drawSlot(s, 0);
-                engine.present();
-                const canvas = document.createElement("canvas");
-                canvas.width = 64;
-                canvas.height = 36;
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(engine.canvas, 0, 0, 64, 36);
-                const pixels = ctx.getImageData(0, 0, 64, 36).data;
-                let sum = 0,
-                  peak = 0;
-                for (let j = 0; j < pixels.length; j += 4) {
-                  sum += pixels[j] + pixels[j + 1] + pixels[j + 2];
-                  peak = Math.max(
+          for (const index of [0, 1, 2])
+            for (const level of [0.1, 0.5, 0.9]) {
+              const snapshot = presetSnapshot(scene, index);
+              snapshot.palette = PALETTES.find((p) => p.id === palette).colors;
+              await lab.page.evaluate(renderLook, {
+                sceneId: "orrery",
+                index,
+                snapshot,
+                width,
+                height,
+                frames: 2,
+                level,
+                capture: false,
+                pollHealth: false,
+              });
+              const row = await lab.page.evaluate(
+                ({ index, palette, width, height, level }) => {
+                  const { engine } = window.__phosphorLab,
+                    s = engine.slots.at(-1);
+                  s.time = 43200;
+                  engine.drawSlot(s, 0);
+                  engine.present();
+                  const canvas = document.createElement("canvas");
+                  canvas.width = 64;
+                  canvas.height = 36;
+                  const ctx = canvas.getContext("2d");
+                  ctx.drawImage(engine.canvas, 0, 0, 64, 36);
+                  const pixels = ctx.getImageData(0, 0, 64, 36).data;
+                  let sum = 0,
+                    peak = 0;
+                  for (let j = 0; j < pixels.length; j += 4) {
+                    sum += pixels[j] + pixels[j + 1] + pixels[j + 2];
+                    peak = Math.max(
+                      peak,
+                      pixels[j],
+                      pixels[j + 1],
+                      pixels[j + 2],
+                    );
+                  }
+                  const screenshot =
+                    (width === 360 && palette === "symbiosis" && index === 1) ||
+                    (width === 3840 && palette === "silver" && index === 2);
+                  let png = null;
+                  if (screenshot) {
+                    const c = document.createElement("canvas");
+                    c.width = width;
+                    c.height = height;
+                    c.getContext("2d").drawImage(engine.canvas, 0, 0);
+                    png = c.toDataURL("image/png").split(",")[1];
+                  }
+                  return {
+                    index,
+                    palette,
+                    width,
+                    height,
+                    level,
+                    time: s.time,
+                    mean: sum / (64 * 36 * 3),
                     peak,
-                    pixels[j],
-                    pixels[j + 1],
-                    pixels[j + 2],
-                  );
-                }
-                const screenshot =
-                  (width === 360 && palette === "symbiosis" && index === 1) ||
-                  (width === 3840 && palette === "silver" && index === 2);
-                let png = null;
-                if (screenshot) {
-                  const c = document.createElement("canvas");
-                  c.width = width;
-                  c.height = height;
-                  c.getContext("2d").drawImage(engine.canvas, 0, 0);
-                  png = c.toDataURL("image/png").split(",")[1];
-                }
-                return {
-                  index,
-                  palette,
-                  width,
-                  height,
-                  level,
-                  time: s.time,
-                  mean: sum / (64 * 36 * 3),
-                  peak,
-                  glError: engine.gl.getError(),
-                  nonFinite: engine.counters.nonFinite,
-                  late:
-                    engine.programsFor(s) ===
-                    engine.programs.get("orrery").late,
-                  png,
-                };
-              },
-              { index, palette, width, height, level },
-            );
-            assert.equal(row.glError, 0);
-            assert.equal(row.nonFinite, 0);
-            assert.ok(row.peak > 40);
-            assert.ok(row.mean > 1);
-            assert.equal(row.late, true);
-            if (row.png)
-              await writeFile(
-                new URL(`${palette}-${width}-${index}-${level}.png`, out),
-                Buffer.from(row.png, "base64"),
+                    glError: engine.gl.getError(),
+                    nonFinite: engine.counters.nonFinite,
+                    late:
+                      engine.programsFor(s) ===
+                      engine.programs.get("orrery").late,
+                    png,
+                  };
+                },
+                { index, palette, width, height, level },
               );
-            delete row.png;
-            rows.push(row);
-          }
+              assert.equal(row.glError, 0);
+              assert.equal(row.nonFinite, 0);
+              assert.ok(row.peak > 40);
+              assert.ok(row.mean > 1);
+              assert.equal(row.late, true);
+              if (row.png)
+                await writeFile(
+                  new URL(`${palette}-${width}-${index}-${level}.png`, out),
+                  Buffer.from(row.png, "base64"),
+                );
+              delete row.png;
+              rows.push(row);
+            }
+      // Isolate slot 3 with fixed geometry/time and all other envelopes zero.
+      // Leave the shared limiter intact; this measures a local mechanism event.
+      await lab.page.evaluate(renderLook, {
+        sceneId: "orrery",
+        index: 2,
+        width: 640,
+        height: 360,
+        frames: 2,
+        level: 0.85,
+        capture: false,
+        pollHealth: false,
+      });
+      const signature = await lab.page.evaluate(() => {
+        const { engine } = window.__phosphorLab;
+        const slot = engine.slots.at(-1);
+        slot.time = 22;
+        const frame = (value, count) => {
+          slot.rhythm.values.fill(0);
+          slot.rhythm.hits.fill(0);
+          slot.rhythm.counts.fill(0);
+          slot.rhythm.values[3] = value;
+          slot.rhythm.counts[3] = count;
+          engine.drawSlot(slot, 0);
+          engine.present();
+          const canvas = document.createElement("canvas");
+          canvas.width = 160;
+          canvas.height = 90;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(engine.canvas, 0, 0, 160, 90);
+          return ctx.getImageData(0, 0, 160, 90).data;
+        };
+        const delta = (a, b) => {
+          let changed = 0;
+          for (let i = 0; i < a.length; i += 4)
+            if (
+              Math.max(...[0, 1, 2].map((c) => Math.abs(a[i + c] - b[i + c]))) >
+              3
+            )
+              changed++;
+          return changed / (a.length / 4);
+        };
+        const muted = frame(0, 0),
+          mutedCount = frame(0, 7);
+        const early = frame(0.8, 1),
+          travelling = frame(0.45, 1);
+        return {
+          muteDelta: delta(muted, mutedCount),
+          eventDelta: delta(muted, early),
+          travelDelta: delta(early, travelling),
+          glError: engine.gl.getError(),
+        };
+      });
+      assert.equal(signature.muteDelta, 0);
+      assert.ok(signature.eventDelta > 0.005, JSON.stringify(signature));
+      assert.ok(signature.travelDelta > 0.005, JSON.stringify(signature));
+      assert.equal(signature.glError, 0);
       const reversal = await lab.page.evaluate(() => {
         const { engine } = window.__phosphorLab,
           s = engine.slots.at(-1),
@@ -498,7 +626,7 @@ test(
       assert.deepEqual(lab.errors, []);
       await writeFile(
         new URL("health.json", out),
-        JSON.stringify({ rows, reversal }, null, 2),
+        JSON.stringify({ rows, signature, reversal }, null, 2),
       );
     } finally {
       await runtime.stop();
@@ -515,11 +643,18 @@ test("rhythm acts locally on the signature; parameter-dependent phases use integ
   assert.equal(scene.rhythm.length, 4);
   const signature = scene.rhythm.find((r) => r.slot === 3);
   assert.equal(signature.id, "escapement-strike");
-  for (const [style, minimum] of [["restrained", 2], ["driving", 6], ["accented", 8]]) {
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
     assert.ok(signature.styles[style]);
     const pattern = defaultPattern(scene.rhythm, style);
-    const hitsPerBar = pattern.tracks.reduce((sum, t) =>
-      sum + t.steps.filter((v) => v > 0).length * t.division * 4 / t.length, 0);
+    const hitsPerBar = pattern.tracks.reduce(
+      (sum, t) =>
+        sum + (t.steps.filter((v) => v > 0).length * t.division * 4) / t.length,
+      0,
+    );
     assert.ok(hitsPerBar >= minimum, `${style}: ${hitsPerBar} hits/bar`);
     assert.ok(signature.styles[style].steps.filter((v) => v > 0).length >= 2);
   }

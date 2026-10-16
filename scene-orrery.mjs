@@ -187,16 +187,17 @@ void main(){
  ao*=1.-.28*exp(-pow((rad-.255)/.045,2.))*ss(.4,.15,v_local.z);
  // Warm alloy and cool environment are distinct palette-owned materials.
  // The accent is blended into the alloy, never used as a flat pink fill.
- vec3 alloy=mix(brass(),u_accent,.30);
- vec3 metal=mix(alloy,u_secondary,min(.23,v_surface.w*.05));
- vec3 bright=mix(metal,vec3(1.),.16);
+ vec3 alloy=brass()*mix(vec3(1.),u_accent,.42)+u_accent*.06;
+ vec3 metal=mix(alloy,u_secondary,min(.18,v_surface.w*.04));
+ vec3 bright=mix(metal,vec3(1.),.10);
  vec3 col=metal*(.035+.18*nl)*ao*grooves;
  col+=mix(bright,u_secondary,.18)*(card*1.25+strip*2.2+ceiling*.18+broad*.22)*u_params[3]*ao*grooves;
  // Energy resolves a second scale of engraved dial indices, not exposure.
  float theta=atan(v_local.y,v_local.x);
  float aa=max(fwidth(theta)*48.,.012);
  float graduations=1.-ss(.10,.10+aa,abs(sin(theta*48.)));
- float dial=ss(.67,.69,rad)*(1.-ss(.74,.76,rad))*step(v_tag.x,.5);
+ float major=1.-ss(.16,.16+aa*.25,abs(sin(theta*12.)));
+ float dial=ss(.60,.62,rad)*(1.-ss(.79+major*.04,.81+major*.04,rad))*step(v_tag.x,.5);
  col*=1.-dial*.55;
  col+=mix(bright,u_secondary,.4)*dial*graduations*ss(.15,.8,u_level)*.85;
  col+=mix(metal,vec3(1.),.28)*spec*2.4*u_params[3];
@@ -241,10 +242,10 @@ void main(){
  float strike=clamp(u_rhythm.w,0.,1.);
  vec3 origin=sunPosition()+vec3(mod(floor(u_rhythmCount.w),2.)*4.-2.,0.,0.);
  float travel=length((v_p-origin)*vec3(1.,1.,.6))-(1.-strike)*10.;
- float stress=exp(-travel*travel*7.)*min(1.,strike*6.);
+ float stress=exp(-travel*travel*2.8)*min(1.,strike*6.);
  float bearing=exp(-pow((rad-.29)/.06,2.));
  float struckMetal=max(ss(.66,.91,rad),bearing)*(step(v_tag.x,.5)+.32*step(4.5,v_tag.x)*step(v_tag.x,5.5));
- col+=mix(u_accent,brass(),.22)*stress*struckMetal*3.4;
+ col+=mix(brass(),u_accent,.45)*stress*struckMetal*2.8;
  float distance=length(eye-v_p);
  col=mix(fogColor(),col,exp(-max(distance-4.,0.)*.075));
  col+=atmosphere(eye,-V,distance);
@@ -374,51 +375,140 @@ export default {
   type: { key: "development", values: [0, 1, 2] },
   energy: { speed: { mul: [0.65, 1.35] }, glide: { mul: [0.75, 1.4] } },
   beat: { punch: 0.035, pulse: 0.025 },
-  rhythmStyles: { restrained: "Sleeping gears", driving: "Brass escapement", accented: "Cathedral clock" },
+  rhythmStyles: {
+    restrained: "Sleeping gears",
+    driving: "Brass escapement",
+    accented: "Cathedral clock",
+  },
   rhythm: [
     familyEffect(
       "escapement-tick",
       0,
       "Escapement tick",
       "The anchor rocks and the engaged involute tooth rims catch a local accent.",
-      { period: 4, duration: 0.65, strength: 0.65, steps: "X...", styles: {
-        restrained: { steps: "X...x... | ..X....x", division: 2, strength: 0.55, duration: 0.4 },
-        driving: { steps: "X.x.X.x.X.x.X.xx", division: 4, strength: 0.8, duration: 0.18 },
-        accented: { steps: "XxxxXx.xXxxxXxXx | Xx.xXxxxXxXxXxXX", division: 4, strength: 0.94, duration: 0.14 },
-      } },
+      {
+        period: 4,
+        duration: 0.65,
+        strength: 0.65,
+        steps: "X...",
+        styles: {
+          restrained: {
+            steps: "X...x... | ..X....x",
+            division: 2,
+            strength: 0.55,
+            duration: 0.4,
+          },
+          driving: {
+            steps: "X.x.X.x.X.x.X.xx",
+            division: 4,
+            strength: 0.8,
+            duration: 0.18,
+          },
+          accented: {
+            steps: "XxxxXx.xXxxxXxXx | Xx.xXxxxXxXxXxXX",
+            division: 4,
+            strength: 0.94,
+            duration: 0.14,
+          },
+        },
+      },
     ),
     familyEffect(
       "ratio-cohort",
       1,
       "Ratio cohort",
       "A persistent shaft cohort catches a white glint without changing its meshing speed.",
-      { period: 8, duration: 2, strength: 0.7, steps: "X.......", styles: {
-        restrained: { steps: ".....x.. | .......X", division: 2, strength: 0.55, duration: 1.2 },
-        driving: { steps: "...X...x | ..X...x.", division: 2, strength: 0.82, duration: 0.65 },
-        accented: { steps: "...X.......x.... | ......X.......x. | .X.......x......", division: 4, strength: 0.94, duration: 0.6 },
-      } },
+      {
+        period: 8,
+        duration: 2,
+        strength: 0.7,
+        steps: "X.......",
+        styles: {
+          restrained: {
+            steps: ".....x.. | .......X",
+            division: 2,
+            strength: 0.55,
+            duration: 1.2,
+          },
+          driving: {
+            steps: "...X...x | ..X...x.",
+            division: 2,
+            strength: 0.82,
+            duration: 0.65,
+          },
+          accented: {
+            steps: "...X.......x.... | ......X.......x. | .X.......x......",
+            division: 4,
+            strength: 0.94,
+            duration: 0.6,
+          },
+        },
+      },
     ),
     familyEffect(
       "clockwork-wave",
       2,
       "Clockwork wave",
       "A bounded light wave follows tooth rims out through the cathedral.",
-      { period: 16, duration: 3.5, strength: 0.75, steps: "X...............", styles: {
-        restrained: { steps: "........ | ........ | ........ | ......X.", division: 2, strength: 0.6, duration: 2.5 },
-        driving: { steps: "........ | .....x.. | ........ | .......X", division: 2, strength: 0.84, duration: 1.8 },
-        accented: { steps: "............x... | ..........X...x. | ................ | ............X..x", division: 4, strength: 0.98, duration: 0.5 },
-      } },
+      {
+        period: 16,
+        duration: 3.5,
+        strength: 0.75,
+        steps: "X...............",
+        styles: {
+          restrained: {
+            steps: "........ | ........ | ........ | ......X.",
+            division: 2,
+            strength: 0.6,
+            duration: 2.5,
+          },
+          driving: {
+            steps: "........ | .....x.. | ........ | .......X",
+            division: 2,
+            strength: 0.84,
+            duration: 1.8,
+          },
+          accented: {
+            steps:
+              "............x... | ..........X...x. | ................ | ............X..x",
+            division: 4,
+            strength: 0.98,
+            duration: 0.5,
+          },
+        },
+      },
     ),
     familyEffect(
       "escapement-strike",
       3,
       "Escapement strike",
       "An alternating pallet strike sends a narrow luminous stress front through gear faces, bearings and armillary rings.",
-      { period: 16, duration: 1.1, strength: 0.9, steps: "X.......x.......", styles: {
-        restrained: { steps: "........ | ......X. | ........ | ....x...", division: 2, strength: 0.78, duration: 1.5 },
-        driving: { steps: "X....... | .....X.. | ..x..... | ......X.", division: 2, strength: 0.94, duration: 0.85 },
-        accented: { steps: "X....... | ...X.... | ......x. | X.....X.", division: 2, strength: 1, duration: 0.7 },
-      } },
+      {
+        period: 16,
+        duration: 1.1,
+        strength: 0.9,
+        steps: "X.......x.......",
+        styles: {
+          restrained: {
+            steps: "........ | ......X. | ........ | ....x...",
+            division: 2,
+            strength: 0.78,
+            duration: 1.5,
+          },
+          driving: {
+            steps: "X....... | .....X.. | ..x..... | ......X.",
+            division: 2,
+            strength: 0.94,
+            duration: 0.85,
+          },
+          accented: {
+            steps: "X....... | ...X.... | ......x. | X.....X.",
+            division: 2,
+            strength: 1,
+            duration: 0.7,
+          },
+        },
+      },
     ),
   ],
   // 56/24=7/3 and 56/40=7/5. A drive period of 30π completes
