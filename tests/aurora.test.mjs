@@ -298,7 +298,7 @@ test("the sharply filtered hem has fine travelling kinks and soft, multi-octave 
   for (const token of [
     ".0014*sin(u*61.-3.*phase+v_sheet)",
     ".0008*sin(u*137.+2.*phase)",
-    "hemWidth=max(.0018,fwidth(h)*.85)",
+    "hemWidth=max(.004+v_sheet*.003,fwidth(h)*.85)",
     "midFoot=fwidth(midPhase)",
     "1.-smoothstep(tip*reach,1.,h)",
     "mix(.20,.065,crown)",
@@ -369,13 +369,17 @@ test("landscape and reflection use resolved frost, cracks, snow normals, mountai
     "float crust=",
   ])
     assert.ok(aurora.fragment.includes(token), token);
-  assert.match(aurora.geometry.fragment, /u\+=\(rough-\.5\)\*\.065/);
+  assert.match(aurora.geometry.fragment, /u\+=wave\*\.014/);
   assert.match(
     aurora.geometry.fragment,
-    /rayCore=mix\(rayCore,\.1185,v_mirror\*\.8\)/,
+    /rayCore=mix\(rayCore,\.1185,v_mirror\)/,
   );
   assert.match(aurora.geometry.fragment, /smoothstep\(\.012,\.12,h\)/);
-  assert.match(aurora.geometry.fragment, /u_accent\*edge\*\.025/);
+  assert.match(aurora.geometry.fragment, /fwidth\(wavePhase\)/);
+  assert.match(aurora.geometry.fragment, /exp\(-v_sheet\*\.68\)/);
+  assert.match(aurora.geometry.fragment, /float transmission=/);
+  assert.match(aurora.geometry.fragment, /float packet=avNoise/);
+  assert.match(aurora.geometry.fragment, /hem\+=\.022\*avNoise/);
 });
 
 test("four bounded family gestures act on the signature, and energy never multiplies exposure", () => {
@@ -414,6 +418,42 @@ test("four bounded family gestures act on the signature, and energy never multip
   assert.deepEqual(Object.keys(aurora.energy).sort(), ["detail", "travel"]);
   assert.ok(aurora.energy.travel.mul[1] / aurora.energy.travel.mul[0] <= 2);
   assert.doesNotMatch(shaders, /u_time|u_level\s*\*\s*col|col\s*\*=\s*u_level/);
+});
+
+test("two-bar crest travels in order, has a fading wake, and shares bearing with its mirror", () => {
+  const fragment = aurora.geometry.fragment;
+  for (const token of [
+    "phrase=fract(u_beat/8.)",
+    "bearing=atan(v_world.x-eye.x,v_world.z-eye.z)",
+    "crest=-1.25+2.5*phrase",
+    "wake=exp(-pow((behind+.16)/.24,2.))*.30",
+    "arrival=mix(.65,2.,smoothstep(.42,.62,phrase))",
+    "surge=(front+wake)*u_rhythm.w*arrival",
+  ])
+    assert.ok(fragment.includes(token), token);
+  const crest = (beat) => -1.25 + 2.5 * ((beat / 8) % 1);
+  let previous = crest(0);
+  for (let beat = 0.125; beat < 8; beat += 0.125) {
+    const current = crest(beat);
+    assert.ok(current > previous, "never hops to an unrelated fold");
+    previous = current;
+  }
+  for (const beat of [0, 0.5, 3, 4, 6, 7.5]) {
+    assert.equal(crest(beat), crest(beat + 8));
+    const arrival =
+      0.65 + 1.35 * Math.max(0, Math.min(1, (beat / 8 - 0.42) / 0.2));
+    assert.ok(arrival >= 0.65 && arrival <= 2);
+  }
+  // A reflected point has identical x/z bearing; no screen-space duplicate.
+  for (const y of [14, 30, 90]) {
+    const real = [9, y, 34],
+      mirror = [9, -y, 34];
+    assert.equal(
+      Math.atan2(real[0], real[2]),
+      Math.atan2(mirror[0], mirror[2]),
+    );
+  }
+  assert.doesNotMatch(fragment, /col\+=u_primary\*rays\*edge\*\.42/);
 });
 
 test("integrated phases retain identity on reversals/rate changes at 12 hours", () => {
