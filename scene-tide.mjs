@@ -220,8 +220,8 @@ float tdFlowClock() {
 }
 // The frequencies are integer harmonics of one periodic integrated clock.
 // k = omega^2/g, NEVER k proportional to omega (non-dispersive water).
-// The long swell runs away from the coastal camera (toward the moon), so
-// the foam on its back slopes faces the viewer.
+// The swell runs obliquely toward the coastal camera: breaking faces and
+// tumbling lips face the viewer, and crests sweep diagonally across frame.
 vec4 tdWave(int i) {
   float j=float(i);
   float harmonic = i==0?2.:i==1?3.:i==2?4.:i==3?5.:i==4?7.:10.;
@@ -229,7 +229,7 @@ vec4 tdWave(int i) {
   float spread = i==0?0.:i==1?-.32:i==2?.38:i==3?-.55:i==4?.8:-1.05;
   float omega = .35 * harmonic;
   float k = omega * omega / 9.81;
-  float angle = -1.5708 + spread + .3*(tdHash(vec2(j+17., float(u_seedBits%997u)))-.5);
+  float angle = 1.0208 + spread + .3*(tdHash(vec2(j+17., float(u_seedBits%997u)))-.5);
   float phase = -mod(tdWaveClock()*harmonic,TAU) + TAU*tdHash(vec2(j+71.,float(u_seedBits%991u)));
   float swell=smoothstep(0.,1.,u_params[0]);
   float amp=amplitude*u_params[2]*mix(.48,2.35,swell);
@@ -255,9 +255,11 @@ vec3 tdBowlExact(vec2 p) {
   vec2 gradient=dr*p/r+da*vec2(-p.y,p.x)/(r*r);
   return gVortex*vec3(depression+lip+spiral,gradient);
 }
+// Handoff: the twist winds the existing crests first (1.0-1.6), the bowl
+// deepens after it (1.2-2.0) and the camera cranes in between (1.1-1.9).
 void tdSetup() {
-  gVortex=smoothstep(1.,2.,u_params[0]);
-  gTwist=-3.5*gVortex;
+  gVortex=smoothstep(1.2,2.,u_params[0]);
+  gTwist=-3.5*smoothstep(1.,1.6,u_params[0]);
   gFlow=mod(tdFlowClock(),TAU);
 }
 `;
@@ -433,13 +435,13 @@ float tdIntersect(vec3 ro, vec3 rd) {
 // Moon glints: one tilted micro-facet per cell of material coordinate. Each
 // glint is a Gaussian point inside its cell; subpixel glints conserve flux and
 // fade into the smooth glitter lobe instead of shimmering.
-float tdGlints(vec2 q, vec3 n, vec3 hv, float fp) {
-  vec2 g=q/.22, cell=floor(g), f=fract(g);
+float tdGlints(vec2 q, vec3 n, vec3 hv, float fp, float size) {
+  vec2 g=q/size, cell=floor(g), f=fract(g);
   float r1=tdHash(cell+3.1), r2=tdHash(cell+7.7), r3=tdHash(cell+13.);
-  vec2 tilt=(vec2(r1,r2)-.5)*.75+.06*vec2(cos(3.*gWavePhase+TAU*r3),sin(4.*gWavePhase+TAU*r1));
+  vec2 tilt=(vec2(r1,r2)-.5)*.8+.14*vec2(cos(3.*gWavePhase+TAU*r3),sin(4.*gWavePhase+TAU*r1));
   float aligned=pow(max(0.,dot(normalize(n+vec3(tilt.x,0.,tilt.y)),hv)),160.);
   vec2 center=.25+.5*vec2(r3,tdHash(cell+19.));
-  float cellFp=fp/.22;
+  float cellFp=fp/size;
   float variance=.003+min(.02,cellFp*cellFp*.7);
   return aligned*exp(-dot(f-center,f-center)/variance)*(.003/variance)
     *(1.-smoothstep(.15,.45,cellFp));
@@ -454,8 +456,8 @@ float tdFoamStreaks(vec2 q, float fill, float fp) {
   float n=.6*tdNoise(g)+.4*tdNoise(g*vec2(2.3,1.7)+vec2(5.1,1.7));
   float cellFp=fp*.7;
   float aa=.12+.6*cellFp;
-  float coverage=smoothstep(1.-fill-aa,1.-fill+aa,n)*smoothstep(0.,.08,fill);
-  return mix(mix(coverage,fill,.2),fill,smoothstep(.5,1.2,cellFp));
+  float coverage=smoothstep(1.-.78*fill-aa,1.-.78*fill+aa,n)*smoothstep(0.,.08,fill);
+  return mix(mix(coverage,.5*fill,.06),.5*fill,smoothstep(.5,1.2,cellFp));
 }
 void main() {
   tdSetup();
@@ -481,11 +483,12 @@ void main() {
   // two thirds. Peak: a full orbit; high eye cranes overhead, low eye drops
   // to the lip. All terms are periodic in the orbit clock.
   float high=smoothstep(.7,1.,eye), lowEye=1.-smoothstep(0.,.25,eye);
-  float radius=mix(54.+3.*cos(orbit),45.+2.*cos(2.*orbit)-20.*high,gVortex);
+  float crane=smoothstep(1.1,1.9,u_params[0]);
+  float radius=mix(54.+3.*cos(orbit),45.+2.*cos(2.*orbit)-20.*high,crane);
   float coastal=gWaveHeight+4.6*gVortex+.5+2.6*eye;
-  vec3 ro=vec3(mix(12.*sin(orbit),radius*sin(orbit),gVortex),
-    mix(coastal,35.+12.*eye+10.*high-22.*lowEye+2.*sin(orbit),gVortex),mix(radius,radius*cos(orbit),gVortex));
-  vec3 target=mix(vec3(.5*ro.x,ro.y-18.5,ro.z-84.),vec3(0.,-5.,0.),gVortex);
+  vec3 ro=vec3(mix(12.*sin(orbit),radius*sin(orbit),crane),
+    mix(coastal,35.+12.*eye+10.*high-22.*lowEye+2.*sin(orbit),crane),mix(radius,radius*cos(orbit),crane));
+  vec3 target=mix(vec3(.5*ro.x,ro.y-18.5,ro.z-84.),vec3(0.,-5.,0.),crane);
   vec3 fw=normalize(target-ro), rt=normalize(cross(fw,vec3(0,1,0))), up=cross(rt,fw);
   vec2 uv=2.*aspectUV();
   float focal=1.5*(1.+.022*u_kick);
@@ -515,6 +518,21 @@ void main() {
     // Three band-limited capillary trains (integer clock harmonics) alter
     // normals, not the silhouette; crossing directions avoid glitter stripes.
     float keep=1.-smoothstep(.12,.5,footprint);
+    // Far water: the bilinear table normal is only C0 and its 0.5 m cells
+    // show in the sharp moon lobe. Fade to an analytic, band-limited normal
+    // (no inversion; each mode Gaussian-filtered by the footprint). Inside
+    // the twisted zone the table stays authoritative.
+    float farWeight=smoothstep(.15,.5,footprint)*mix(1.,smoothstep(35.,55.,r),-gTwist/3.5);
+    // Only where the cells could show: inside the moon's specular lobe.
+    // (The maelstrom's high orbit sees little far moon lobe: skip there.)
+    if(gVortex<.999 && farWeight>0. && dot(normal,normalize(gMoon-rd))>.9) {
+      vec2 g=vec2(0.);
+      for(int i=0;i<6;i++) {
+        vec4 w=gW[i];
+        g+=w.z*w.xy*cos(dot(w.xy,p.xz)+w.w)*exp(-.5*sq(gK[i]*footprint));
+      }
+      normal=normalize(mix(normal,normalize(vec3(-g.x,1.,-g.y)),farWeight));
+    }
     // World coordinates, not the bilinear material table: no cell kinks.
     vec2 micro=vec2(.83,.56)*sin(dot(p.xz,vec2(2.6,1.75))-5.*gWavePhase)
       +vec2(-.45,.89)*sin(dot(p.xz,vec2(-1.6,3.2))-6.*gWavePhase+1.3)
@@ -522,17 +540,29 @@ void main() {
     normal=normalize(normal+vec3(micro.x,0.,micro.y)*.045*(.35+.65*wind)*keep);
     vec3 reflected=reflect(rd,normal);
     float fresnel=.025+.975*pow(1.-max(0.,dot(-rd,normal)),5.);
-    vec3 water=u_secondary*(.012+.012*normal.y);
+    vec3 water=u_secondary*(.005+.005*normal.y);
     water*=.45+.55*smoothstep(-26.,3.,h);
     col=mix(water,tdSky(reflected,false),fresnel);
     float key=max(0.,dot(normal,normalize(vec3(-.4,.7,-.5))));
     float rim=pow(1.-max(0.,dot(normal,-rd)),2.);
     vec3 moonLight=mix(u_secondary,vec3(1.),.72);
-    col+=u_secondary*(.016+.1*key)+moonLight*.016*rim;
+    // No matte key lift on open water (it flattened Calm into a slab); a
+    // little remains for the steep Swell faces and the funnel walls.
+    col+=u_secondary*(.003+.05*key*key*max(gSwell,gVortex))+moonLight*.012*rim;
     vec3 halfVector=normalize(gMoon-rd);
     float nh=max(0.,dot(normal,halfVector));
-    float glitter=pow(nh,180.)*.7+pow(nh,40.)*.1+pow(nh,10.)*.03+pow(nh,3.)*.006;
-    if(nh>.85) glitter+=tdGlints(q,normal,halfVector,glintFootprint)*22.;
+    // Broad moon-facing band on every slope that tilts toward the moon,
+    // narrow core, and two octaves of shimmering micro-facet glints
+    // (0.22 m near, 1.1 m far) that widen the path into a field of sparks.
+    float glitter=pow(nh,180.)*.4+pow(nh,60.)*.16+pow(nh,14.)*.12+pow(nh,4.)*.02;
+    // Long swells catch the low moon: slopes tilted toward it carry broad
+    // soft bands, troughs stay black; perspective packs them toward the
+    // horizon, where the Fresnel reflection is strongest.
+    float towardMoon=dot(normal.xz,normalize(gMoon.xz))/max(normal.y,.2);
+    col+=moonLight*smoothstep(0.,.08,towardMoon)*(.15+.85*fresnel)*.13;
+    if(nh>.85) glitter+=tdGlints(q,normal,halfVector,glintFootprint,.22)*22.;
+    if(nh>.85 && gVortex<1.) glitter+=tdGlints(q+vec2(17.3,5.1),normal,halfVector,glintFootprint,1.1)
+      *30.*smoothstep(.05,.2,glintFootprint)*(1.-gVortex);
     col+=moonLight*glitter*(.25+.75*fresnel);
 
     // Breaking foam. The analytic swell signal gives a local phase psi and a
@@ -541,15 +571,25 @@ void main() {
     // gated by the group envelope: where the phase is undefined the gate is 0.
     float throatFade=mix(1.,smoothstep(5.,12.,r),gVortex);
     float threshold=mix(1.45,.65,u_level);
+    // A seeded shoal in front of the coast: big swells steepen and break
+    // over it, so the near field almost always holds a breaking crest. Its
+    // place never moves; its effect scales with swell height (none in Calm)
+    // and yields to the maelstrom.
+    float shoal=0.;
+    if(gVortex<1.) {
+      vec2 shoalOffset=p.xz-vec2(-5.+10.*tdHash(vec2(5.,float(u_seedBits%983u))),30.);
+      shoal=exp(-sq(shoalOffset.x)/1600.-sq(shoalOffset.y)/600.)*gSwell*(1.-gVortex);
+    }
+    threshold-=.55*shoal;
     // Short waves break preferentially on the crests of the long swell, so
     // whitecaps line up along the swell crests across the frame.
     float swellCrest=sin(dot(gW[0].xy,q)+gW[0].w);
     float breaking=smoothstep(threshold,threshold+.5,envelope/.6242)*throatFade
-      *(.35+.65*smoothstep(-.3,.8,swellCrest))
+      *mix(.35+.65*smoothstep(-.3,.8,swellCrest),1.,shoal)
       // Near the maelstrom the current steepens the sea; far water calms.
       *mix(1.,.3+.7*exp(-sq(r/45.)),gVortex);
     float age=mod(1.5707963-atan(foamData.x,foamData.y),TAU);
-    float kappa=mix(.6,2.4,u_level);
+    float kappa=mix(.6,1.7,u_level);
     float floorDecay=exp(-TAU/kappa);
     float fill=(exp(-age/kappa)-floorDecay)/(1.-floorDecay)*smoothstep(0.,.1+phaseAA,age);
     // One-sided front: a sharp leading edge at the crest, a longer tumble
@@ -569,18 +609,39 @@ void main() {
     // c_g = omega/(2k): envelope wavenumber 2k/n per unit of clock.
     float packet=pow(.5+.5*cos(2.*gK[3]/5.*dot(gD[3],q)-gWavePhase),6.);
     float hot=smoothstep(.55,1.,breaking/max(throatFade,.001))*throatFade;
-    float frontLight=front*(1.+1.6*packet*u_rhythm.x)*(1.+.3*u_kick*hot);
+    // Tumbling knots travel along the lip (periodic in the wave clock);
+    // water cascading down the lit face streaks across the crest.
+    vec2 crestAxes=vec2(dot(q,vec2(-gD[0].y,gD[0].x)),dot(q,gD[0]));
+    // Texture noise only where a breaking front exists (most funnel and
+    // calm pixels skip it).
+    // The texture fades out across the peak (thin wound fronts), so the
+    // full maelstrom skips it continuously.
+    float knots=1., tumble=.68, cascade=.65;
+    if(breaking>.001 && gVortex<1.) {
+      knots=mix(.55+.9*tdNoise(vec2(crestAxes.x*.22,0.)+1.5*vec2(cos(gWavePhase),sin(gWavePhase))),1.,gVortex);
+    // Fine whitewater texture across the lip: tumbling streaks, resolved
+    // to their mean when smaller than a pixel.
+      tumble=mix(mix(.35+.65*tdNoise(vec2(crestAxes.x*1.3,crestAxes.y*.5)),.68,smoothstep(.3,.8,footprint)),.68,gVortex);
+      cascade=mix(mix(.3+.7*tdNoise(vec2(crestAxes.x*.8,crestAxes.y*.15)),.65,smoothstep(.5,1.2,footprint)),.65,gVortex);
+    }
+    float frontLight=front*knots*tumble*(1.+1.6*packet*u_rhythm.x)*(1.+.3*u_kick*hot);
     // Throat light: a glowing eye inside the funnel lights the walls from below.
     float depth=exp(min(0.,h)*.072*gVortex);
     col*=mix(1.,depth,gVortex);
     // Moonlit foam matter, then biolight (primary) where the crest tumbles.
-    col=mix(col,moonLight*(.05+.12*key)*mix(1.,depth,gVortex),lace*.6);
-    float living=frontLight*2.6+lace*foamFill*1.+armCore*2.3+armBand*.9;
+    col=mix(col,moonLight*(.05+.12*key)*mix(1.,depth,gVortex),lace*mix(.35,.6,gVortex));
+    // Swell keeps its lips in display range for texture; the maelstrom's thin
+    // wound fronts keep their wave-6 HDR strength.
+    float living=frontLight*mix(1.1,3.8,gVortex)+lace*foamFill*mix(.32,1.,gVortex)+armCore*2.3+armBand*.9;
     living+=armCore*exp(-sq((r-(6.+30.*u_rhythm.y))/3.5))*u_rhythm.y*3.;
     living+=gVortex*exp(-sq((r-(6.+40.*(1.-u_rhythm.z)))/2.2))*u_rhythm.z*.45;
     col+=u_primary*living*glow*1.3;
-    col+=mix(u_primary,vec3(1.),.6)*(frontLight*(.5+hot)+armCore*.4)*glow;
+    col+=mix(u_primary,vec3(1.),.6)*(frontLight*mix(.25+.9*hot,1.2*(.5+hot),gVortex)+armCore*.4)*glow;
     col+=mix(u_primary,u_secondary,.4)*breaking*exp(-sq(behind/1.))*.12*glow*(.6+.4*normal.y);
+    // The tumbling lip lights the wave face ahead of it (toward the viewer):
+    // continuous at the crest, decaying down the face.
+    float face=breaking*exp(behind/.3)*smoothstep(.06,-.06,behind);
+    col+=u_primary*face*cascade*.22*glow*(.4+.6*max(0.,dot(normal,-rd)));
     col+=u_accent*front*hot*smoothstep(.8,1.,breaking)*(.5+packet)*1.2*glow;
     vec3 toEye=vec3(0.,-36.,0.)-p;
     float eyeDistance=length(toEye);

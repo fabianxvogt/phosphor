@@ -32,7 +32,7 @@ const SPREAD = [0, -0.32, 0.38, -0.55, 0.8, -1.05];
 const TWIST = -3.5;
 // The maelstrom's coordinate twist y = R(phi(r)) x, phi = TWIST v e^{-r²/900}.
 function twistAngle(x, dev) {
-  return TWIST * smooth(1, 2, dev) * Math.exp(-(x[0] ** 2 + x[1] ** 2) / 900);
+  return TWIST * smooth(1, 1.6, dev) * Math.exp(-(x[0] ** 2 + x[1] ** 2) / 900);
 }
 function twist(x, dev) {
   const a = twistAngle(x, dev),
@@ -56,7 +56,7 @@ function waves(seed, dev, height = 1, clock = 0) {
     const omega = 0.35 * n,
       k = (omega * omega) / GRAVITY;
     const angle =
-      -1.5708 + SPREAD[i] + 0.3 * (hash(i + 17, seed % 997) - 0.5);
+      1.0208 + SPREAD[i] + 0.3 * (hash(i + 17, seed % 997) - 0.5);
     return {
       id: i,
       k,
@@ -120,7 +120,7 @@ function bowl(p, dev, flow = 0) {
     (env * (0.44 - 0.0336 * Math.cos(m)) * Math.cos(phase) +
       derivative * Math.sin(phase));
   const da = 0.8 * (5 + 0.84 * Math.cos(m)) * Math.cos(phase) * env;
-  const v = smooth(1, 2, dev);
+  const v = smooth(1.2, 2, dev);
   return {
     h: v * (depression + lip + 0.8 * Math.sin(phase) * env),
     gradient: [
@@ -294,7 +294,9 @@ test("identity persists and development reverses without a phase or position res
       assert.ok(Number.isFinite(h));
     }
   }
-  assert.ok(maxStep < 0.007, `development Lipschitz check ${maxStep}`);
+  // The twist winds over development 1.0-1.6: 1e-4 of development moves
+  // the surface by < 1 cm anywhere.
+  assert.ok(maxStep < 0.01, `development Lipschitz check ${maxStep}`);
   for (const edge of [0, 1, 2]) {
     const eps = 1e-5,
       x = [17, 8];
@@ -449,7 +451,8 @@ test("gated foam is continuous through phase dislocations and the crest wrap", (
 
 test("the vortex twist is a radius-preserving bijection with an exact pullback", () => {
   assert.match(tide.fragment, /float a=gTwist\*exp\(-dot\(x,x\)\/900\.\)/);
-  assert.match(tide.fragment, /gTwist=-3\.5\*gVortex/);
+  assert.match(tide.fragment, /gTwist=-3\.5\*smoothstep\(1\.,1\.6,u_params\[0\]\)/);
+  assert.match(tide.fragment, /gVortex=smoothstep\(1\.2,2\.,u_params\[0\]\)/);
   const field = (y) => Math.sin(0.21 * y[0] - 0.13 * y[1]) + 0.4 * Math.cos(0.33 * y[1]);
   const gradientAt = (y) => [
     0.21 * Math.cos(0.21 * y[0] - 0.13 * y[1]),
@@ -520,8 +523,10 @@ test("line coverage conserves flux at 540p, 1080p and 4K; spiral seams are exact
 });
 
 test("biolight is HDR and locally kick-modulated; points conserve subpixel flux", () => {
-  assert.match(tide.fragment, /frontLight=front\*\(1\.\+1\.6\*packet\*u_rhythm.x\)\*\(1\.\+\.3\*u_kick\*hot\)/);
+  assert.match(tide.fragment, /frontLight=front\*knots\*tumble\*\(1\.\+1\.6\*packet\*u_rhythm.x\)\*\(1\.\+\.3\*u_kick\*hot\)/);
   assert.match(tide.fragment, /col\+=u_primary\*living\*glow\*1\.3/);
+  // Knots travel along the lip with whole wave-clock turns: periodic.
+  assert.match(tide.fragment, /1\.5\*vec2\(cos\(gWavePhase\),sin\(gWavePhase\)\)/);
   assert.match(tide.fragment, /mistT<t/);
   // Gesture x travels at the true group velocity of mode 3:
   // envelope wavenumber K per unit clock Omega=1 gives c = 1/K = n/(2k).
@@ -643,10 +648,10 @@ test("swell-signal bank preserves the foam phase without caching colour", (t) =>
   t.diagnostic(JSON.stringify(errors));
   for (const [dev, e] of Object.entries(errors)) {
     // The twisted peak compresses the short modes near the throat: the
-    // bilinear table then shifts a breaking front by < 0.08 rad (~1.3 % of
+    // bilinear table then shifts a breaking front by < 0.1 rad (~1.6 % of
     // its wavelength); the open ocean stays below 0.025 rad.
     assert.ok(
-      e.phase < (Number(dev) < 2 ? 0.025 : 0.08),
+      e.phase < (Number(dev) <= 1 ? 0.025 : 0.1),
       `${dev}: breaking-front phase error ${e.phase} rad`,
     );
     assert.ok(e.material < 0.05, `${dev}: material error ${e.material} m`);
@@ -715,7 +720,7 @@ test("ray-specific slabs bound the exact ocean, including the deep throat", (tc)
   for (const dev of [0, 0.5, 1, 1.5, 2])
     for (const seed of [10301, 10303]) {
       const w = waves(seed, dev, 1.3, 1.8),
-        v = smooth(1, 2, dev);
+        v = smooth(1.2, 2, dev);
       const height = w.reduce((s, a) => s + a.amplitude, 0);
       const ro = [0, 9 + 33 * v, 47];
       for (const dx of [-0.7, -0.3, 0, 0.3, 0.7])
@@ -779,16 +784,18 @@ test("ray-specific slabs bound the exact ocean, including the deep throat", (tc)
 // Mirror of the shader camera: coastal sway, crane and orbit; eye > 0.7
 // cranes overhead, eye < 0.25 drops toward the lip.
 function camera(dev, phase, eyeParam = 0.4, height = 1) {
-  const v = smooth(1, 2, dev),
+  // Bowl (clearance) and crane follow separate, overlapping schedules.
+  const bowlWeight = smooth(1.2, 2, dev),
+    v = smooth(1.1, 1.9, dev),
     high = smooth(0.7, 1, eyeParam),
     low = 1 - smooth(0, 0.25, eyeParam);
   const upper = waves(10301, dev, height).reduce((s, w) => s + w.amplitude, 0);
   const radius =
     (54 + 3 * Math.cos(phase)) * (1 - v) +
     (45 + 2 * Math.cos(2 * phase) - 20 * high) * v;
-  const coastal = upper + 4.6 * v + 0.5 + 2.6 * eyeParam;
+  const coastal = upper + 4.6 * bowlWeight + 0.5 + 2.6 * eyeParam;
   return {
-    upper: upper + 4.6 * v,
+    upper: upper + 4.6 * bowlWeight,
     position: [
       12 * Math.sin(phase) * (1 - v) + radius * Math.sin(phase) * v,
       coastal * (1 - v) +
@@ -800,11 +807,12 @@ function camera(dev, phase, eyeParam = 0.4, height = 1) {
 
 test("camera remains above the sea; kick bounded; energy never changes development", () => {
   assert.match(tide.fragment, /coastal=gWaveHeight\+4\.6\*gVortex\+\.5\+2\.6\*eye/);
+  assert.match(tide.fragment, /crane=smoothstep\(1\.1,1\.9,u_params\[0\]\)/);
   assert.match(
     tide.fragment,
-    /mix\(12\.\*sin\(orbit\),radius\*sin\(orbit\),gVortex\)/,
+    /mix\(12\.\*sin\(orbit\),radius\*sin\(orbit\),crane\)/,
   );
-  assert.match(tide.fragment, /mix\(radius,radius\*cos\(orbit\),gVortex\)/);
+  assert.match(tide.fragment, /mix\(radius,radius\*cos\(orbit\),crane\)/);
   assert.match(tide.fragment, /35\.\+12\.\*eye\+10\.\*high-22\.\*lowEye\+2\.\*sin\(orbit\)/);
   for (let dev = 0; dev <= 2; dev += 0.01)
     for (const eyeParam of [0, 0.1, 0.25, 0.4, 0.7, 1])
@@ -834,7 +842,7 @@ test("camera remains above the sea; kick bounded; energy never changes developme
     assert.ok(Math.hypot(over[0], over[2]) >= 23 && over[1] > 50);
   }
   // The development sweep is C1: no camera jerk at the state boundaries.
-  for (const edge of [1, 2]) {
+  for (const edge of [1.1, 1.9]) {
     const e = 1e-5,
       a = camera(edge - e, 0.7).position,
       b = camera(edge + Math.min(e, 2 - edge || e), 0.7).position;
@@ -908,5 +916,12 @@ test("Calm has no breaking foam at any energy; only faint biolight sparks", () =
       }
     }
   assert.match(tide.fragment, /sparkGate=smoothstep\(\.15,\.7,compress\)/);
+  // The seeded shoal biases breaking near the coastal camera; it scales
+  // with swell height (zero in Calm) and yields to the maelstrom.
+  assert.match(tide.fragment, /\*gSwell\*\(1\.-gVortex\);\s*\}\s*threshold-=\.55\*shoal;/);
+  // Far-field normals: each mode Gaussian-filtered by the footprint; the
+  // table stays authoritative inside the twisted zone.
+  assert.match(tide.fragment, /exp\(-\.5\*sq\(gK\[i\]\*footprint\)\)/);
+  assert.match(tide.fragment, /mix\(1\.,smoothstep\(35\.,55\.,r\),-gTwist\/3\.5\)/);
   assert.match(tide.fragment, /tdPoints\(q\*\.8,footprint\*\.8,\.004,\.8\)/);
 });
