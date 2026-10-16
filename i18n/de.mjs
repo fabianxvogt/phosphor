@@ -113,6 +113,8 @@ export default {
   "A soft stage light reveals the three stair orientations.": "Ein weiches Bühnenlicht macht die drei Treppenausrichtungen sichtbar.",
   "Recursive lantern": "Rekursive Laterne",
   "The walking lanterns breathe together through every recursive level.": "Die wandernden Laternen atmen gemeinsam durch jede rekursive Ebene.",
+  "Lantern ascent": "Laternenaufstieg",
+  "Lanterns ignite three treads higher on each hit, carrying a luminous wake through every impossible gravity.": "Bei jedem Schlag entzünden sich die Laternen drei Stufen höher und ziehen eine leuchtende Spur durch jede unmögliche Schwerkraft.",
   "Empty landings": "Leere Absätze",
   "Lantern steps": "Laternenschritte",
   "Endless ascent": "Endloser Aufstieg",
