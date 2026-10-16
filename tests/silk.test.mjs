@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
+import { defaultPattern, samplePattern } from "../rhythm.mjs";
 import { defaultWorlds, continuousDevelopment } from "../worlds.mjs";
 import {
   STRIPS,
@@ -58,9 +59,45 @@ test("silk: registered world, eight valid looks and identical state parameters",
     }
   assert.deepEqual(
     scene.rhythm.map((r) => r.defaults.length),
-    [4, 8, 16],
+    [4, 8, 16, 8],
   );
   assert.equal(scene.stage.length, 3);
+});
+
+test("silk: whip-crack signature and full authored grids stay bounded", () => {
+  assert.deepEqual(
+    scene.rhythm.map((r) => r.slot),
+    [0, 1, 2, 3],
+  );
+  assert.equal(scene.rhythm[3].id, "whip-crack");
+  assert.match(scene.geometry.vertex, /ssDrapedPoint/);
+  for (const source of [scene.geometry.vertex, scene.geometry.fragment]) {
+    assert.match(source, /u_rhythm\.w/);
+    assert.match(source, /u_rhythmHit\.w/);
+    assert.match(source, /u_rhythmCount\.w/);
+  }
+  for (const [style, minimum] of [
+    ["restrained", 2],
+    ["driving", 6],
+    ["accented", 8],
+  ]) {
+    const pattern = defaultPattern(scene.rhythm, style);
+    const density = pattern.tracks.reduce(
+      (n, t) =>
+        n + (t.steps.filter((v) => v > 0).length * t.division * 4) / t.length,
+      0,
+    );
+    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+    assert.ok(
+      scene.rhythm[3].styles[style].steps.filter((v) => v > 0).length >= 2,
+    );
+    for (let beat = 0; beat < 64; beat += 0.07) {
+      const result = samplePattern(pattern, scene.rhythm, beat, beat - 0.07);
+      assert.ok(
+        result.values.every((v) => Number.isFinite(v) && v >= 0 && v <= 1),
+      );
+    }
+  }
 });
 
 test("Strouhal frequency: measured positive zero crossings agree with St U/L", () => {
@@ -159,8 +196,10 @@ test("material mesh: seed-only creation, persistent ids and joined veil seams", 
   for (let id = 0; id < MOTES; id++) {
     const start = (ADDITIVE_FROM + id * 6) * STRIDE;
     assert.equal(a[start + 2], -1 - id);
-    assert.deepEqual(Array.from(a.slice(start + 3, start + 6)),
-      identity(1811, STRIPS + id).map(Math.fround));
+    assert.deepEqual(
+      Array.from(a.slice(start + 3, start + 6)),
+      identity(1811, STRIPS + id).map(Math.fround),
+    );
   }
   assert.ok(a.every(Number.isFinite));
   for (let id = 0; id < STRIPS; id++) {
@@ -224,20 +263,33 @@ test("banners have curved centre lines, distinct widths and foreground depth", (
   const widths = [];
   let bent = 0;
   for (let id = 0; id < STRIPS; id++) {
-    const rnd = identity(1811, id), state = {development: 1, phase: 1.1};
-    const a = point(0, .5, id, rnd, state), b = point(1, .5, id, rnd, state);
-    const chord = b.map((x, k) => x - a[k]), length = Math.hypot(...chord);
+    const rnd = identity(1811, id),
+      state = { development: 1, phase: 1.1 };
+    const a = point(0, 0.5, id, rnd, state),
+      b = point(1, 0.5, id, rnd, state);
+    const chord = b.map((x, k) => x - a[k]),
+      length = Math.hypot(...chord);
     let bend = 0;
     for (let i = 1; i < 20; i++) {
-      const p = point(i / 20, .5, id, rnd, state).map((x, k) => x - a[k]);
+      const p = point(i / 20, 0.5, id, rnd, state).map((x, k) => x - a[k]);
       const along = p.reduce((sum, x, k) => sum + x * chord[k], 0) / length;
-      bend = Math.max(bend, Math.sqrt(Math.max(0, p.reduce((s,x)=>s+x*x,0) - along * along)));
+      bend = Math.max(
+        bend,
+        Math.sqrt(
+          Math.max(0, p.reduce((s, x) => s + x * x, 0) - along * along),
+        ),
+      );
     }
     if (bend > 1.5) bent++;
-    widths.push(distance(point(.5, 0, id, rnd, state), point(.5, 1, id, rnd, state)));
+    widths.push(
+      distance(point(0.5, 0, id, rnd, state), point(0.5, 1, id, rnd, state)),
+    );
   }
   assert.ok(bent >= 24, `${bent} genuinely curved ribbons`);
-  assert.ok(Math.max(...widths) / Math.min(...widths) > 4, "not identical strips");
+  assert.ok(
+    Math.max(...widths) / Math.min(...widths) > 4,
+    "not identical strips",
+  );
 });
 
 test("development remains continuous, reversible and clock-periodic", () => {
@@ -271,7 +323,7 @@ test("development remains continuous, reversible and clock-periodic", () => {
     assert.doesNotMatch(source, /u_time/);
 });
 
-test("camera cranes below the formed vortex, then rises into its hollow axis", () => {
+test("camera approaches the hollow axis without a final development-driven rise", () => {
   let nearest = Infinity;
   for (const d of [0, 0.5, 1, 1.25, 1.5, 1.65, 1.75, 1.8, 1.85, 1.9, 2])
     for (let a = 0; a < TAU; a += 0.6) {
@@ -298,7 +350,12 @@ test("camera cranes below the formed vortex, then rises into its hollow axis", (
           }
       assert.ok(distance(camera(d, a).eye, camera(d, a + TAU).eye) < 1e-10);
     }
-  assert.ok(nearest > 0.16, `camera clearance ${nearest}`);
+  // Signature displacement is bounded by .1 world units, leaving the .1 near plane clear.
+  assert.ok(
+    nearest > 0.2,
+    `camera clearance including ripple ${nearest - 0.1}`,
+  );
+  assert.deepEqual(camera(1.85).eye, camera(2).eye);
   assert.ok(camera(2).eye[1] < -3);
   let previous = camera(0).eye;
   for (let d = 0.001; d <= 2; d += 0.001) {
