@@ -263,6 +263,24 @@ test("Orrery sun stays centred and the crossed armillary fills the short side fo
   }
 });
 
+test("middle-state foreground banks persist and stress only lights solid faces", () => {
+  const driver = makeTrain()[0];
+  for (const group of [2, 3]) {
+    const pose = trainPose(driver, group, 1);
+    close(pose.center[2], 3);
+    close(Math.abs(pose.center[0]), 4.6);
+    assert.ok(camera(1, 0).eye[2] - pose.center[2] < 6);
+  }
+  assert.match(scene.geometry.vertex, /v_surface.x=abs\(a_normal.z\)/);
+  assert.match(scene.geometry.fragment, /struckMetal=.*v_surface.x/);
+  assert.match(
+    scene.geometry.fragment,
+    /contactPoint.*vec2\(side\*\.65,\.48\)/,
+  );
+  assert.match(scene.geometry.fragment, /ss\(\.05,\.18,strike\)/);
+  assert.match(scene.geometry.vertex, /C.x-=1.2\*opening/);
+});
+
 test("EVERY mesh in all 25 trains: exact pitch distance, no slip and tooth-to-gap phase", () => {
   let meshes = 0;
   for (const seed of [10901, 1776, 2401]) {
@@ -441,7 +459,7 @@ test(
     const { renderLook } = await import("./browser/client.mjs");
     const { PALETTES } = await import("../palettes.mjs");
     const { mkdir, writeFile } = await import("node:fs/promises");
-    const out = new URL("../artifacts/orrery/round3-gpu/", import.meta.url);
+    const out = new URL("../artifacts/orrery/r4-gpu/", import.meta.url);
     await mkdir(out, { recursive: true });
     const flag = process.argv.indexOf("--port");
     const port = flag < 0 ? 48783 : Number(process.argv[flag + 1]);

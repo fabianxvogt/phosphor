@@ -84,6 +84,10 @@ void main(){
  float kind=a_motion.z,group=a_motion.w;
  bool mirror=group<0.;if(mirror)group=-group-10.;
  vec3 p=a_position,n=a_normal,C=a_center;
+ if(group==1.&&kind>.5&&kind<1.5&&a_surface.w>.8){
+  vec3 planetCenter=vec3(a_surface.y,0.,.14);
+  p=planetCenter+(p-planetCenter)*(1.-.48*hall);
+ }
  float angle=a_motion.x*drive()+a_motion.y;
  // Every shaft uses the same integrated drive. No kick can shear a mesh.
  if(kind>2.5&&kind<3.5)angle=(group==51.?.25:.12)*sin(drive()*12.)+.10*clamp(u_kick+u_rhythm.x,0.,1.)+.13*clamp(u_rhythm.w+u_rhythmHit.w,0.,1.)*(mod(floor(u_rhythmCount.w),2.)*2.-1.);
@@ -104,7 +108,7 @@ void main(){
     p.xz=mr*p.xz;n.xz=mr*n.xz;
    }
  }else if(group>=50.){
-   growth=.001+.999*hall;p*=growth;C.z-=12.*(1.-hall);
+   growth=.001+.999*max(hall,.8*opening);p*=growth;C.z-=3.*(1.-hall);
  }else if(group>=2.){
    // Visible layered trains from frame one; the walls unfold and enclose us.
    float side=mod(group-2.,3.);
@@ -120,11 +124,14 @@ void main(){
     mat2 rr=mat2(cos(roof),sin(roof),-sin(roof),cos(roof));
     rel.yz=rr*rel.yz;p.yz=rr*p.yz;n.yz=rr*n.yz;
    }
-   float width=group<4.?4.6+1.2*opening:5.8;
+   float width=group<4.?4.6+1.2*hall:5.8;
    C.xy=(side<.5?vec2(-width,0.):side<1.5?vec2(width,0.):vec2(0.,5.5))+rel.xy;
-   C.z+=rel.z-3.*opening*(1.-hall)+(group<4.?4.*(1.-opening):0.);
+   C.z+=rel.z+(group<4.?(4.+opening)*(1.-hall):-3.*opening*(1.-hall));
  }
- if(group==0.){float scale=1.-.12*opening;p*=scale;C.xy*=scale;C.z-=1.1*opening*(1.-hall);}
+ if(group==0.){float scale=1.-.12*opening;p*=scale;C.xy*=scale;C.z-=1.1*opening*(1.-hall);
+  // The fork remains in front of the sun, not hidden behind its disc.
+  if(kind>2.5&&kind<3.5){p*=1.4;C.x-=1.2*opening;C.y+=.45*opening;C.z+=2.1*opening;}
+ }
  if(group<2.)C.z-=6.5*hall;
  p+=C;
  vec3 eye,R,U,F;rig(eye,R,U,F);
@@ -136,7 +143,7 @@ void main(){
  }
  if(mirror){p.y=-11.-p.y;n.y=-n.y;}
  v_local=a_position;v_p=p;v_n=n;
- v_surface=a_surface;v_eye=eye;
+ v_surface=a_surface;v_surface.x=abs(a_normal.z);v_eye=eye;
  float cohort=1.-step(.5,abs(mod(a_surface.z+floor(u_rhythmCount.y),9.)-4.));
  v_tag=vec3(kind,mirror?-1.:group,cohort);
  vec3 q=p-eye;vec3 view=vec3(dot(q,R),dot(q,U),dot(q,F));
@@ -152,7 +159,7 @@ uniform float u_time,u_kick,u_level;
 uniform float u_params[8];
 uniform vec2 u_resolution;
 uniform vec3 u_primary,u_secondary,u_accent;
-uniform vec4 u_rhythm,u_rhythmCount;
+uniform vec4 u_rhythm,u_rhythmCount,u_rhythmHit;
 ${lateClockGlsl}
 ${common}
 out vec4 outColor;
@@ -174,7 +181,7 @@ void main(){
  vec3 reflection=reflect(-V,N);
  // Directional environment cards. Empty directions stay dark, so bevels
  // and cylinders carry reflections instead of a uniform lavender fill.
- float card=pow(max(dot(reflection,normalize(vec3(-.7,.8,.45))),0.),12.);
+ float card=pow(max(dot(reflection,normalize(vec3(-.7,.8,.45))),0.),28.);
  float strip=pow(max(dot(reflection,normalize(vec3(.8,.25,.6))),0.),64.);
  float ceiling=pow(max(dot(reflection,normalize(vec3(.1,1.,-.3))),0.),6.);
  float broad=pow(max(dot(reflection,normalize(vec3(-.15,.4,.9))),0.),3.);
@@ -187,11 +194,12 @@ void main(){
  ao*=1.-.28*exp(-pow((rad-.255)/.045,2.))*ss(.4,.15,v_local.z);
  // Warm alloy and cool environment are distinct palette-owned materials.
  // The accent is blended into the alloy, never used as a flat pink fill.
- vec3 alloy=brass()*mix(vec3(1.),u_accent,.42)+u_accent*.06;
+ vec3 alloy=brass()*mix(vec3(1.),u_accent,.48)+u_accent*.025;
+ alloy=mix(alloy,alloy*alloy/max(max(alloy.r,alloy.g),max(alloy.b,.001)),.3)*1.12;
  vec3 metal=mix(alloy,u_secondary,min(.18,v_surface.w*.04));
- vec3 bright=mix(metal,vec3(1.),.10);
- vec3 col=metal*(.035+.18*nl)*ao*grooves;
- col+=mix(bright,u_secondary,.18)*(card*1.25+strip*2.2+ceiling*.18+broad*.22)*u_params[3]*ao*grooves;
+ vec3 bright=mix(metal,vec3(1.),.035);
+ vec3 col=metal*(.045+.30*nl)*ao*grooves;
+ col+=mix(bright,u_secondary,.18)*(card*.85+strip*2.2+ceiling*.10+broad*.08)*u_params[3]*ao*grooves;
  // Energy resolves a second scale of engraved dial indices, not exposure.
  float theta=atan(v_local.y,v_local.x);
  float aa=max(fwidth(theta)*48.,.012);
@@ -200,7 +208,7 @@ void main(){
  float dial=ss(.60,.62,rad)*(1.-ss(.79+major*.04,.81+major*.04,rad))*step(v_tag.x,.5);
  col*=1.-dial*.55;
  col+=mix(bright,u_secondary,.4)*dial*graduations*ss(.15,.8,u_level)*.85;
- col+=mix(metal,vec3(1.),.28)*spec*2.4*u_params[3];
+ col+=mix(metal,vec3(1.),.10)*spec*2.4*u_params[3];
  col+=mix(metal,u_primary,.18)*rim*.35;
  float core=step(1.5,v_tag.x)*step(v_tag.x,2.5);
  float planet=step(.8,v_surface.w)*step(.5,v_tag.x)*step(v_tag.x,1.5);
@@ -219,33 +227,46 @@ void main(){
    vec3 delta=planetPosition(i)-v_p;
    float t=dot(delta,lightDir);
    float miss=length(delta-lightDir*t);
-   float r=(.26+float(i)*.045)*opening;
+   float r=(.26+float(i)*.045)*opening*(1.-.48*ss(1.,2.,u_params[0]));
    visibility*=mix(1.,ss(r*.65,r*1.3,miss),step(.05,t)*step(t,sd-.1));
   }
  }
  float sun=opening*visibility*10./(.7+sd*sd);
- vec3 sunColor=mix(alloy,vec3(1.),.18);
- col+=metal*sunColor*(.12+.58*sn)*sun;
+ vec3 sunColor=mix(alloy,vec3(1.),.06);
+ col+=metal*sunColor*(.12+.38*sn)*sun;
  vec3 SH=normalize(V+S/max(sd,.001));
  col+=sunColor*pow(max(dot(N,SH),0.),70.)*sun*2.*u_params[3];
- vec3 coreLight=mix(alloy,mix(alloy,vec3(1.),.55),ss(.1,.95,nv));
- col=mix(col,coreLight*(1.2+2.8*pow(nv,.7))*u_params[3],core);
+ vec3 coreLight=mix(alloy,mix(alloy,vec3(1.),.25),ss(.1,.95,nv));
+ col=mix(col,coreLight*(.65+1.8*pow(nv,.7))*u_params[3],core);
  // Three local gestures: escapement, engaged tooth rims, ratio cohort.
  float tooth=ss(.86,.97,rad)*step(v_tag.x,.5);
  float contact=pow(max(0.,cos(atan(v_local.y,v_local.x)*4.+u_rhythmCount.x*1.5707963)),8.);
  col+=u_accent*tooth*clamp(u_rhythm.x,0.,1.)*contact*2.8;
- col+=mix(u_secondary,vec3(1.),.16)*v_tag.z*clamp(u_rhythm.y,0.,1.)*ss(.55,.92,rad)*step(v_tag.x,.5)*1.8;
+ float cohortRim=exp(-pow((rad-.84)/.055,2.))*v_surface.x+tooth*.2;
+ col+=mix(u_secondary,vec3(1.),.08)*v_tag.z*clamp(u_rhythm.y,0.,1.)*cohortRim*step(v_tag.x,.5)*2.2;
  float front=length(v_p.xy)-(1.-clamp(u_rhythm.z,0.,1.))*14.;
  col+=u_accent*exp(-front*front*2.)*min(1.,u_rhythm.z*5.)*tooth*2.2;
  // A strike propagates on the real mechanism, never a screen-space ring.
  // Alternating pallet origins are count-selected; managed mute is exact zero.
  float strike=clamp(u_rhythm.w,0.,1.);
- vec3 origin=sunPosition()+vec3(mod(floor(u_rhythmCount.w),2.)*4.-2.,0.,0.);
- float travel=length((v_p-origin)*vec3(1.,1.,.6))-(1.-strike)*10.;
- float stress=exp(-travel*travel*2.8)*min(1.,strike*6.);
- float bearing=exp(-pow((rad-.29)/.06,2.));
- float struckMetal=max(ss(.66,.91,rad),bearing)*(step(v_tag.x,.5)+.32*step(4.5,v_tag.x)*step(v_tag.x,5.5));
- col+=mix(brass(),u_accent,.45)*stress*struckMetal*2.8;
+ float side=mod(floor(u_rhythmCount.w),2.)*2.-1.;
+ float openingStrike=ss(0.,1.,u_params[0]),hallStrike=ss(1.,2.,u_params[0]);
+ float palletAngle=.12*sin(drive()*12.)+.10*clamp(u_kick+u_rhythm.x,0.,1.)+.13*clamp(strike+u_rhythmHit.w,0.,1.)*side;
+ vec2 contactPoint=mat2(cos(palletAngle),sin(palletAngle),-sin(palletAngle),cos(palletAngle))*vec2(side*.65,.48)*1.4*(1.-.12*openingStrike);
+ vec3 origin=vec3(contactPoint+vec2(-1.2*openingStrike,.8*(1.-.12*openingStrike)+.45*openingStrike),.45+2.1*openingStrike-1.1*openingStrike*(1.-hallStrike)-6.5*hallStrike);
+ float travel=length((v_p-origin)*vec3(1.,1.,.7))-(1.-strike)*8.;
+ float stress=(1.-ss(.08,.24,abs(travel)))*ss(.05,.18,strike);
+ float bearing=exp(-pow((rad-.29)/.045,2.));
+ float struckMetal=max(ss(.38,.65,rad),bearing)*step(v_tag.x,.5)*v_surface.x;
+ col+=mix(u_accent,brass(),.22)*stress*struckMetal*5.;
+ float pallet=step(2.5,v_tag.x)*step(v_tag.x,3.5)*step(v_tag.y,.5);
+ float tip=ss(.35,.65,side*v_local.x)*ss(.38,.48,v_local.y)*(1.-ss(.61,.73,v_local.y));
+ float bothTips=ss(.35,.65,abs(v_local.x))*ss(.38,.48,v_local.y)*(1.-ss(.61,.73,v_local.y));
+ col+=pallet*(.22*bothTips+tip*ss(.64,.86,strike)*6.)*mix(u_accent,brass(),.15);
+ // Spatial hierarchy: detailed remote banks are shadows, not rival heroes.
+ float distant=step(2.,v_tag.y);
+ col*=mix(1.,.62*exp(-max(length(eye-v_p)-7.,0.)*.065),distant);
+ col*=1.-.48*step(4.5,v_tag.x)*step(v_tag.x,5.5)*hallStrike;
  float distance=length(eye-v_p);
  col=mix(fogColor(),col,exp(-max(distance-4.,0.)*.075));
  col+=atmosphere(eye,-V,distance);
@@ -284,7 +305,8 @@ void main(){
   vec2 fw=fwidth(cell);
   float seam=max(ss(.47-fw.x,.49,edge.x),ss(.47-fw.y,.49,edge.y));
   float pool=1./(1.+p.x*p.x*.12+p.z*p.z*.01);
-  col+=mix(u_primary,u_secondary,.7)*.18*pool*exp(-t*.035)*(1.-.55*seam)*hall;
+  float enclosure=max(hall,.6*ss(0.,1.,u_params[0]));
+  col+=mix(u_primary,u_secondary,.7)*.18*pool*exp(-t*.035)*(1.-.55*seam)*enclosure;
  }
  col+=atmosphere(eye,rd,40.);
  outColor=vec4(max(col,vec3(0.)),1.);

@@ -53,9 +53,11 @@ export function bevelProfile(points, width) {
     return [(b[1] - a[1]) / len, (a[0] - b[0]) / len];
   });
   return points.map((p, k) => {
-    const a = normals[(k + points.length - 1) % points.length], b = normals[k];
+    const a = normals[(k + points.length - 1) % points.length],
+      b = normals[k];
     const len = Math.hypot(a[0] + b[0], a[1] + b[1]);
-    const nx = (a[0] + b[0]) / Math.max(len, 1e-9), ny = (a[1] + b[1]) / Math.max(len, 1e-9);
+    const nx = (a[0] + b[0]) / Math.max(len, 1e-9),
+      ny = (a[1] + b[1]) / Math.max(len, 1e-9);
     const d = Math.min(width * 2, width / Math.max(nx * b[0] + ny * b[1], 0.5));
     return [p[0] - nx * d, p[1] - ny * d];
   });
@@ -113,7 +115,8 @@ const smooth = (a, b, x) => {
 // Palette-owned alloy selection, mirrored by brass() in the shader.
 export function brassColor(primary, secondary) {
   const warmth = ([r, g, b]) => r + 0.35 * g - b;
-  const t = smooth(-0.06, 0.06, warmth(primary) - warmth(secondary)) * 0.84 + 0.08;
+  const t =
+    smooth(-0.06, 0.06, warmth(primary) - warmth(secondary)) * 0.84 + 0.08;
   return secondary.map((v, i) => v * (1 - t) + primary[i] * t);
 }
 export function developmentPose(development) {
@@ -129,24 +132,37 @@ export function sunPosition(dev) {
   return [0, 0, 1.35 * smooth(0.06, 0.85, dev) - 6.5 * cathedral];
 }
 export function planetPosition(i, phase, dev = 1, tilt = 0.8) {
-  const growth = smooth(0.06, 0.85, dev), opening = smooth(0, 1, dev);
-  const p = orbitPosition(i, phase, growth), s = sunPosition(dev);
-  const angle = (0.4 + 0.85 * (i % 3) / 2) * tilt * opening;
-  return [p[0], p[1] * Math.cos(angle) - p[2] * Math.sin(angle),
-    s[2] + p[1] * Math.sin(angle) + p[2] * Math.cos(angle)];
+  const growth = smooth(0.06, 0.85, dev),
+    opening = smooth(0, 1, dev);
+  const p = orbitPosition(i, phase, growth),
+    s = sunPosition(dev);
+  const angle = (0.4 + (0.85 * (i % 3)) / 2) * tilt * opening;
+  return [
+    p[0],
+    p[1] * Math.cos(angle) - p[2] * Math.sin(angle),
+    s[2] + p[1] * Math.sin(angle) + p[2] * Math.cos(angle),
+  ];
 }
 export function armillaryPosition(i, theta, dev = 1) {
-  const { opening } = developmentPose(dev), growth = smooth(0.06, 0.85, dev);
+  const { opening } = developmentPose(dev),
+    growth = smooth(0.06, 0.85, dev);
   const radius = (3.65 + i * 0.15) * growth;
-  const x = radius * Math.cos(theta), y = radius * Math.sin(theta);
-  const tilt = (0.28 + 0.43 * i) * opening, meridian = i * 0.85 * 1.23 * opening;
-  const z = y * Math.sin(tilt), sun = sunPosition(dev);
-  return [x * Math.cos(meridian) - z * Math.sin(meridian),
-    y * Math.cos(tilt), sun[2] + x * Math.sin(meridian) + z * Math.cos(meridian)];
+  const x = radius * Math.cos(theta),
+    y = radius * Math.sin(theta);
+  const tilt = (0.28 + 0.43 * i) * opening,
+    meridian = i * 0.85 * 1.23 * opening;
+  const z = y * Math.sin(tilt),
+    sun = sunPosition(dev);
+  return [
+    x * Math.cos(meridian) - z * Math.sin(meridian),
+    y * Math.cos(tilt),
+    sun[2] + x * Math.sin(meridian) + z * Math.cos(meridian),
+  ];
 }
 export const sunIrradiance = (distance) => 10 / (0.7 + distance * distance);
 export function sphereVisibility(point, light, center, radius) {
-  const ray = light.map((v, k) => v - point[k]), distance = Math.hypot(...ray);
+  const ray = light.map((v, k) => v - point[k]),
+    distance = Math.hypot(...ray);
   const dir = ray.map((v) => v / Math.max(distance, 0.001));
   const delta = center.map((v, k) => v - point[k]);
   const t = delta.reduce((s, v, k) => s + v * dir[k], 0);
@@ -173,14 +189,19 @@ export function trainPose(g, group, dev) {
   const scale = (0.68 + 0.32 * h) * (side === 2 ? 0.86 : 1);
   const lean = group < 4 ? 0.3 + 0.82 * h : 0.72 + 0.4 * h;
   const turn = side === 0 ? lean : side === 1 ? -lean : 0;
-  const width = group < 4 ? 4.6 + 1.2 * opening : 5.8;
-  const x = g.x * scale, y = g.y * scale;
+  const width = group < 4 ? 4.6 + 1.2 * h : 5.8;
+  const x = g.x * scale,
+    y = g.y * scale;
   const roof = side === 2 ? 0.86 + 0.3 * h : 0;
   return {
     center: [
       (side === 0 ? -width : side === 1 ? width : 0) + x * Math.cos(turn),
       (side === 2 ? 5.5 : 0) + y * Math.cos(roof),
-      -2 - layer * 4.7 + x * Math.sin(turn) + y * Math.sin(roof) - 3 * opening * (1 - h) + (group < 4 ? 4 * (1 - opening) : 0),
+      -2 -
+        layer * 4.7 +
+        x * Math.sin(turn) +
+        y * Math.sin(roof) +
+        (group < 4 ? (4 + opening) * (1 - h) : -3 * opening * (1 - h)),
     ],
     radius: pitchRadius(g.teeth) * scale,
     ratio: g.ratio,
@@ -192,11 +213,18 @@ export function camera(dev, phase) {
   const hero = o - h;
   return {
     eye: [
-      1.8 + 0.85 * Math.sin(phase) - 1.2 * h - hero * (1.35 + 0.3 * Math.sin(phase)),
+      1.8 +
+        0.85 * Math.sin(phase) -
+        1.2 * h -
+        hero * (1.35 + 0.3 * Math.sin(phase)),
       -1.5 + 0.35 * Math.cos(phase) + 1.9 * h + 1.8 * hero,
       4.6 + 4.3 * o - 7.7 * h + 1.5 * h * Math.sin(phase),
     ],
-    target: [0.1 * Math.cos(phase) * (1 - hero), 0.1 - 0.3 * h - 0.1 * hero, -0.6 - 7 * h + 1.95 * hero],
+    target: [
+      0.1 * Math.cos(phase) * (1 - hero),
+      0.1 - 0.3 * h - 0.1 * hero,
+      -0.6 - 7 * h + 1.95 * hero,
+    ],
   };
 }
 // Position, normal, rotation centre, (ratio,phase,kind,group),
@@ -267,15 +295,41 @@ export function createGeometry(seed) {
   // Round cross-section on cathedral bearing hoops: a flat extruded ring
   // seen edge-on became a broad rectangular reflection card on the right.
   const torus = (major, minor, z) => {
-    const count = 96, sides = 6;
-    const normal = (a, b) => [Math.cos(a) * Math.cos(b), Math.sin(a) * Math.cos(b), Math.sin(b)];
-    const point = (a, b) => [(major + minor * Math.cos(b)) * Math.cos(a), (major + minor * Math.cos(b)) * Math.sin(a), z + minor * Math.sin(b)];
-    for (let i = 0; i < count; i++) for (let j = 0; j < sides; j++) {
-      const a = i * TAU / count, b = (i + 1) * TAU / count;
-      const u = j * TAU / sides, v = (j + 1) * TAU / sides;
-      tri(point(a, u), point(b, u), point(b, v), normal(a, u), normal(b, u), normal(b, v));
-      tri(point(a, u), point(b, v), point(a, v), normal(a, u), normal(b, v), normal(a, v));
-    }
+    const count = 96,
+      sides = 6;
+    const normal = (a, b) => [
+      Math.cos(a) * Math.cos(b),
+      Math.sin(a) * Math.cos(b),
+      Math.sin(b),
+    ];
+    const point = (a, b) => [
+      (major + minor * Math.cos(b)) * Math.cos(a),
+      (major + minor * Math.cos(b)) * Math.sin(a),
+      z + minor * Math.sin(b),
+    ];
+    for (let i = 0; i < count; i++)
+      for (let j = 0; j < sides; j++) {
+        const a = (i * TAU) / count,
+          b = ((i + 1) * TAU) / count;
+        const u = (j * TAU) / sides,
+          v = ((j + 1) * TAU) / sides;
+        tri(
+          point(a, u),
+          point(b, u),
+          point(b, v),
+          normal(a, u),
+          normal(b, u),
+          normal(b, v),
+        );
+        tri(
+          point(a, u),
+          point(b, v),
+          point(a, v),
+          normal(a, u),
+          normal(b, v),
+          normal(a, v),
+        );
+      }
   };
   const box = (x0, x1, y0, y1, z0, z1) => {
     quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1]);
@@ -321,7 +375,8 @@ export function createGeometry(seed) {
       const normal = [b[1] - a[1], a[0] - b[0], 0],
         l = Math.hypot(...normal);
       const n = normal.map((v) => v / Math.max(l, 1e-12));
-      const aa = front[k], bb = front[(k + 1) % pts.length];
+      const aa = front[k],
+        bb = front[(k + 1) % pts.length];
       const ai = [
         (inner * a[0]) / Math.hypot(...a),
         (inner * a[1]) / Math.hypot(...a),
@@ -339,7 +394,7 @@ export function createGeometry(seed) {
         const perTooth = pts.length / teeth;
         const first = pts[Math.floor(k / perTooth) * perTooth];
         const l = Math.hypot(...first);
-        const anchor = [inner * first[0] / l, inner * first[1] / l, z];
+        const anchor = [(inner * first[0]) / l, (inner * first[1]) / l, z];
         tri(anchor, aa, bb, [0, 0, 1]);
         if (k % perTooth === perTooth - 1) tri(anchor, bb, bi, [0, 0, 1]);
       }
@@ -379,7 +434,13 @@ export function createGeometry(seed) {
         [0, 0, 1],
       );
       if (detail > 1)
-        quad(pp(r * 0.12, w, -z), pp(inner, w, -z), pp(inner, -w, -z), pp(r * 0.12, -w, -z), [0, 0, -1]);
+        quad(
+          pp(r * 0.12, w, -z),
+          pp(inner, w, -z),
+          pp(inner, -w, -z),
+          pp(r * 0.12, -w, -z),
+          [0, 0, -1],
+        );
       quad(
         pp(r * 0.12, w, -z),
         pp(inner, w, -z),
@@ -457,10 +518,12 @@ export function createGeometry(seed) {
   material = 0.25;
   radius = 0.8;
   sphere(0.075, 0, 0, 0, 16);
-  box(-0.045, 0.045, 0, 0.8, -0.04, 0.04);
-  box(-0.66, 0.66, 0.7, 0.78, -0.04, 0.04);
-  for (const x of [-0.65, 0.65])
-    box(x - 0.035, x + 0.035, 0.42, 0.78, -0.04, 0.04);
+  box(-0.065, 0.065, 0, 0.8, -0.06, 0.06);
+  box(-0.7, 0.7, 0.68, 0.8, -0.06, 0.06);
+  for (const x of [-0.65, 0.65]) {
+    box(x - 0.055, x + 0.055, 0.42, 0.78, -0.06, 0.06);
+    sphere(0.14, x, 0.48, 0.045, 12);
+  }
   // Crossed armillary meridians: thick, rigid polished brass circles.
   for (let i = 0; i < 3; i++) {
     serial++;
@@ -509,11 +572,17 @@ export function createGeometry(seed) {
     for (let j = 0; j < points.length - 1; j++) {
       const a = points[j],
         b = points[j + 1];
-      const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
-      const l = Math.hypot(dx, dy, dz), xy = Math.hypot(dx, dy);
-      const nx = xy > 1e-9 ? -dy / xy : 1, ny = xy > 1e-9 ? dx / xy : 0;
+      const dx = b[0] - a[0],
+        dy = b[1] - a[1],
+        dz = b[2] - a[2];
+      const l = Math.hypot(dx, dy, dz),
+        xy = Math.hypot(dx, dy);
+      const nx = xy > 1e-9 ? -dy / xy : 1,
+        ny = xy > 1e-9 ? dx / xy : 0;
       // Orthonormal frame for a genuine round tube on arbitrary 3D trusses.
-      const bx = -dz * ny / l, by = dz * nx / l, bz = (dx * ny - dy * nx) / l;
+      const bx = (-dz * ny) / l,
+        by = (dz * nx) / l,
+        bz = (dx * ny - dy * nx) / l;
       for (let k = 0; k < 8; k++) {
         const u = (k * TAU) / 8,
           v = ((k + 1) * TAU) / 8;
@@ -522,7 +591,11 @@ export function createGeometry(seed) {
           p[1] + (ny * Math.cos(t) + by * Math.sin(t)) * thickness,
           p[2] + bz * Math.sin(t) * thickness,
         ];
-        const norm = (t) => [nx * Math.cos(t) + bx * Math.sin(t), ny * Math.cos(t) + by * Math.sin(t), bz * Math.sin(t)];
+        const norm = (t) => [
+          nx * Math.cos(t) + bx * Math.sin(t),
+          ny * Math.cos(t) + by * Math.sin(t),
+          bz * Math.sin(t),
+        ];
         tri(pos(a, u), pos(b, u), pos(b, v), norm(u), norm(u), norm(v));
         tri(pos(a, u), pos(b, v), pos(a, v), norm(u), norm(v), norm(v));
       }
@@ -574,15 +647,39 @@ export function createGeometry(seed) {
       // Paired round carriers replace a broad, white-reflecting flat slab.
       // Open space between the rods keeps the near right edge mechanical.
       for (const offset of [-0.14, 0.14])
-        tube([[x + offset, -5.5, 0], [x + offset, 5.1, 0]], 0.085);
+        tube(
+          [
+            [x + offset, -5.5, 0],
+            [x + offset, 5.1, 0],
+          ],
+          0.085,
+        );
       box(x - 0.12, x + 0.12, -3.7, -3.45, -4.7, 0);
       box(x - 0.12, x + 0.12, 3.9, 4.1, -4.7, 0);
-      tube([[x, -4.7, 0], [x, 3.9, -4.7]], 0.075);
-      tube([[x, 3.9, 0], [x, -4.7, -4.7]], 0.075);
+      tube(
+        [
+          [x, -4.7, 0],
+          [x, 3.9, -4.7],
+        ],
+        0.075,
+      );
+      tube(
+        [
+          [x, 3.9, 0],
+          [x, -4.7, -4.7],
+        ],
+        0.075,
+      );
     }
     for (const x of [-3, 0, 3]) {
       box(x - 0.07, x + 0.07, 5.5, 5.64, -4.7, 0);
-      tube([[x - 1.5, 5.5, 0], [x + 1.5, 5.5, -4.7]], 0.06);
+      tube(
+        [
+          [x - 1.5, 5.5, 0],
+          [x + 1.5, 5.5, -4.7],
+        ],
+        0.06,
+      );
     }
   }
   // A monumental pendulum hangs in the central nave. Only this rigid body
@@ -594,7 +691,7 @@ export function createGeometry(seed) {
   material = 0.45;
   box(-0.085, 0.085, -6.2, 0.1, -0.1, 0.1);
   sphere(0.22, 0, 0, 0, 24);
-  sphere(0.95, 0, -5.8, 0, 40);
+  sphere(0.5, 0, -5.8, 0, 40);
   // Hanging chain loops and deep transmission shafts give human-scale cues.
   for (const x of [-3.8, 3.8]) {
     center = [x, 4.8, -0.8];
@@ -604,7 +701,7 @@ export function createGeometry(seed) {
       serial++;
       const pts = [];
       for (let k = 0; k <= 16; k++) {
-        const a = k * TAU / 16;
+        const a = (k * TAU) / 16;
         pts.push([0.085 * Math.cos(a), -j * 0.29 + 0.17 * Math.sin(a), 0]);
       }
       tube(pts, 0.023);
