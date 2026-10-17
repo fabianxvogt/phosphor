@@ -307,7 +307,7 @@ const AUTHORED = [
     id: "ink-bloom",
     name: "Ink Bloom",
     description:
-      "A falling dye ring folds into hanging plumes and an outward crown, with translucent pigment bursts on musical fills.",
+      "One falling dye ring opens into a tilted crown of folded pigment; local fills peel away into branching streams.",
     states: [
       { name: "Drop", look: "ink:Drop" },
       { name: "Plumes", look: "ink:Plumes" },
@@ -454,6 +454,18 @@ const HISTORY = [
       { name: "Ceiling", look: "kinetic:Still Ceiling" },
       { name: "Waves", look: "kinetic:Wave Choreography" },
       { name: "Sculpture", look: "kinetic:Floating Sculpture" },
+    ],
+  },
+  // Ink Bloom before r5's tilted plume and peeling stream material.
+  {
+    id: "ink-bloom",
+    name: "Ink Bloom",
+    description:
+      "A falling dye ring folds into hanging plumes and an outward crown, with translucent pigment bursts on musical fills.",
+    states: [
+      { name: "Drop", look: "ink:Drop" },
+      { name: "Plumes", look: "ink:Plumes" },
+      { name: "Nebula", look: "ink:Nebula" },
     ],
   },
 ];

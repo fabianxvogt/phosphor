@@ -18,6 +18,7 @@ import ink, {
   inkSheetIntegral,
   inkEventProgress,
   inkAngle,
+  inkPlumePoint,
 } from "../scene-ink.mjs";
 import scenes from "../scenes.mjs";
 import { catalogLooks } from "../catalog.mjs";
@@ -232,6 +233,47 @@ test("cascade morph is continuous and reversible: lobes neck, pinch and re-absor
     assert.ok(ink.fragment.includes(source), source);
 });
 
+test("affine plume is reversible, continuous and transforms rays without normalising local depth", () => {
+  const p = [0.7, -0.8, 1.1];
+  const ro = [1.2, 0.5, 4.8];
+  const rd = [-0.2, 0.1, -Math.sqrt(0.95)];
+  let previous = inkPlumePoint(p, 0);
+  for (let i = 0; i <= 2000; i++) {
+    const dev = i / 1000;
+    const world = inkPlumePoint(p, dev);
+    const recovered = inkPlumePoint(world, dev, true);
+    recovered.forEach((v, j) => assert.ok(Math.abs(v - p[j]) < 1e-12));
+    world.forEach((v, j) => assert.ok(Math.abs(v - previous[j]) < 0.001));
+    previous = world;
+    const eye = inkPlumePoint(ro, dev, true);
+    const direction = inkPlumePoint(rd, dev, true);
+    // Affine intersection t is still WORLD ray depth. Normalising the
+    // inverse-transformed direction would invalidate native integration.
+    for (const t of [0, 1, 4.5]) {
+      const point = inkPlumePoint(
+        ro.map((v, j) => v + t * rd[j]),
+        dev,
+        true,
+      );
+      point.forEach((v, j) =>
+        assert.ok(Math.abs(v - eye[j] - t * direction[j]) < 1e-12),
+      );
+    }
+  }
+  assert.ok(inkPlumePoint([0, 1, 0], 2)[1] > inkPlumePoint([0, 1, 0], 0)[1]);
+  assert.match(
+    ink.fragment,
+    /localEye=inkUnplume\(eye\), localRd=inkUnplume\(rd\)/,
+  );
+  assert.match(
+    ink.fragment,
+    /a=inkPlume\(a\); b=inkPlume\(b\); c=inkPlume\(c\)/,
+  );
+  // A fill may travel beyond Drop's coordinate atlas: its active branches
+  // must bypass the group box (per-curve sphere rejection still applies).
+  assert.match(ink.fragment, /if \(end>start \|\| gBurst>0\.001\) inkStrands/);
+});
+
 test("sheet integral reference and characteristic dye have no opaque isosurfaces", () => {
   // Numerical integral of rho exp(-d^2/w^2) along a ray crossing a sheet at
   // angle: rho w sqrt(pi) / |cos|.
@@ -286,6 +328,34 @@ test("native quartic quadrature resolves sub-step sheets, including reverse rays
   }
 });
 
+test("native support guards exclude only empty water and enter with signed distance, not bright slabs", () => {
+  // Beyond rho 1.1 both finite sheet support and rolled-sheet windows are
+  // empty. The remaining absorbing Gaussian is < 1e-30, even at full opacity.
+  for (const radius of [1, 1.15, 1.3])
+    for (const rho of [1.1, 1.3, 1.8, 3])
+      for (let k = 0; k < 64; k++) {
+        const a = (k * TAU) / 64;
+        const x = rho * Math.cos(a),
+          y = rho * Math.sin(a);
+        const r = Math.max(radius + x, 0.08);
+        const e = Math.exp(-(rho * rho) / INK_FLOW.aa);
+        const f = INK_FLOW.k * e - 0.5 * INK_FLOW.U;
+        const gx = 2 * r * f - (2 * r * r * INK_FLOW.k * e * x) / INK_FLOW.aa;
+        const gy = -(2 * r * r * INK_FLOW.k * e * y) / INK_FLOW.aa;
+        const skin = (r * r * f - 0.4) / Math.max(Math.hypot(gx, gy), 0.35);
+        assert.ok(skin < -0.1);
+        assert.ok(9 * Math.exp(-((rho / 0.13) ** 2)) < 1e-29);
+        for (const scale of [0.05, 0.15, 0.3, 0.36]) {
+          const w = 0.018 * Math.max(scale / 0.3, 0.5);
+          assert.equal(inkSheetIntegral(skin * scale, skin * scale, w, 1), 0);
+        }
+      }
+  assert.ok(Math.abs(16 / 9 / TAU - 0.28294) < 0.000003);
+  assert.match(ink.fragment, /if \(!activeP && !activeD\)/);
+  assert.match(ink.fragment, /prevP=-0\.5; prevD=-0\.5\*gRd/);
+  assert.match(ink.fragment, /if \(fresh\) \{ sP=0\.28294\*wfP\*len/);
+});
+
 test("native range-reduced angle preserves sheet phase in every quadrant", () => {
   for (let i = 0; i <= 10000; i++) {
     const a = -Math.PI + (2 * Math.PI * i) / 10000;
@@ -295,7 +365,7 @@ test("native range-reduced angle preserves sheet phase in every quadrant", () =>
   assert.equal(inkAngle([0, 0]), 0);
 });
 
-test("packet flight recovers envelope progress, keeps four filaments and fill timing", () => {
+test("peeling tongue recovers envelope progress, keeps four branches and fill timing", () => {
   for (let i = 0; i <= 100; i++) {
     const progress = i / 100;
     const x = 1 - progress;
@@ -307,8 +377,12 @@ test("packet flight recovers envelope progress, keeps four filaments and fill ti
   assert.match(ink.fragment, /dir\*0\.62\*fly/);
   assert.match(
     ink.fragment,
-    /inkLayer\(heart\.x\*dense,heart\.y,accent\*0\.03/,
+    /inkCurve\(ro,rd,o-dir\*0\.15,c\+up2\*rad,hook,0\.028,0\.035,accent\*0\.03/,
   );
+  assert.match(ink.fragment, /inkBez\(o-dir\*0\.12,c\+up2\*rad\*1\.8,hook,u\)/);
+  assert.match(ink.fragment, /0\.3\+0\.13\*float\(i\)/);
+  assert.doesNotMatch(ink.fragment, /shell\.x-|heart\.x|float rim=/);
+  assert.match(ink.fragment, /q\.xy\+=vec2\(0\.025,0\.065\)\*u_rhythm\.z/);
   assert.match(ink.fragment, /inkMiss\(ro,rd,centre,radius\)/);
   const density = (style) =>
     ink.rhythm.reduce((sum, gesture) => {
@@ -336,8 +410,8 @@ test("packet flight recovers envelope progress, keeps four filaments and fill ti
 });
 
 test("guttered half-float coordinate atlas has bijective nodes and matching shader layout", () => {
-  const grid = [64, 96, 64],
-    tile = [66, 98],
+  const grid = [48, 80, 48],
+    tile = [50, 82],
     columns = 16,
     atlas = [tile[0] * columns, tile[1] * Math.ceil(grid[2] / columns)];
   assert.deepEqual(ink.precompute.size, atlas);
@@ -363,12 +437,12 @@ test("guttered half-float coordinate atlas has bijective nodes and matching shad
       }
   assert.equal(addresses.size, grid[0] * grid[1] * grid[2]);
   for (const source of [
-    "const vec3 INK_GRID=vec3(64,96,64);",
-    "const vec2 INK_TILE=vec2(66,98);",
-    "const vec2 INK_ATLAS=vec2(1056,392);",
+    "const vec3 INK_GRID=vec3(48,80,48);",
+    "const vec2 INK_TILE=vec2(50,82);",
+    "const vec2 INK_ATLAS=vec2(800,246);",
   ])
     assert.ok(ink.fragment.includes(source), source);
-  assert.ok(ink.precompute.fragment.includes("int z=(py/98)*16+pixel.x/66;"));
+  assert.ok(ink.precompute.fragment.includes("int z=(py/82)*16+pixel.x/50;"));
   // Trilinear interpolation of a 1-Lipschitz distance errs by at most half a
   // cell diagonal; the skip subtracts more than that.
   assert.match(

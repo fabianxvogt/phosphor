@@ -104,6 +104,19 @@ export function inkCascade(development, finger = 0.9, level = 0.5, spread = 1) {
   };
 }
 
+// Reversible affine plume coordinates. The same transform applies to the
+// native volume, feed streams and shed pigment; no state-dependent reset.
+export function inkPlumePoint([x, y, z], development, inverse = false) {
+  const crown = smooth(1, 2, Math.min(2, Math.max(0, development)));
+  const height = 1.3 + 0.5 * crown;
+  if (inverse) {
+    x /= 1.08;
+    z /= 0.9;
+    return [x, (y - 0.55 * x - 0.22 * z) / height, z];
+  }
+  return [1.08 * x, height * y + 0.55 * x + 0.22 * z, 0.9 * z];
+}
+
 const schema = [
   {
     key: "development",
@@ -312,8 +325,9 @@ void inkCamera() {
   // ring. The centre and distance follow each state's bounding box so the
   // cascade fills about three quarters of the short side.
   float az=orbit+0.35, el=mix(0.2+0.12*sin(2.0*orbit+0.6),0.1+0.08*sin(2.0*orbit+0.6),gPortrait);
-  gCentre=vec3(0.0,0.45-0.95*gG1+0.62*gG2+gPortrait*(0.15-0.1*gG1),0.0);
-  gDist=4.9*(1.0+0.10*gG1+0.27*gG2)*max(u_params[7],0.88)*(1.0+0.12*gPortrait);
+  gCentre=vec3(0.0,0.40-0.60*gG1+0.35*gG2+gPortrait*(0.15-0.1*gG1),0.0);
+  gCentre.y*=1.3+0.5*gG2;
+  gDist=4.55*(1.0+0.16*gG1+0.18*gG2)*max(u_params[7],0.88)*(1.0+0.14*gPortrait);
   gEye=gCentre+gDist*vec3(cos(el)*sin(az),sin(el),cos(el)*cos(az));
   gFw=normalize(gCentre-gEye);
   gRight=normalize(cross(gFw,vec3(0,1,0)));
@@ -399,6 +413,14 @@ vec3 inkPolar(vec3 p) {
   float bulge=0.16*gBulge*exp(9.0*(dot(p.xz,gBurstXZ)/max(r,1e-5)-1.0));
   return vec3(r-gRP*(1.0+0.55*gLobeAmp*w)-bulge,p.y+gRP*gLobeAmp*w+0.6*bulge,r);
 }
+vec3 inkPlume(vec3 p) {
+  return vec3(1.08*p.x,(1.3+0.5*gG2)*p.y+0.55*p.x+0.22*p.z,0.9*p.z);
+}
+vec3 inkUnplume(vec3 p) {
+  p.x/=1.08; p.z/=0.9;
+  p.y=(p.y-0.55*p.x-0.22*p.z)/(1.3+0.5*gG2);
+  return p;
+}
 float inkPsi(vec3 q) {
   return q.z*q.z*(INK_K*exp(-dot(q.xy,q.xy)/INK_AA)-0.5*INK_U);
 }
@@ -415,6 +437,12 @@ vec3 inkFlow(vec3 p) {
   vec2 er=p.xz/max(r,1e-5);
   float lo=0.1, hi=0.55, st=clamp((rho-lo)/(hi-lo),0.0,1.0);
   float env=gTurb*st*st*(3.0-2.0*st), denv=gTurb*6.0*st*(1.0-st)/(hi-lo);
+  // Shear belongs to the dye atmosphere, not the whole tank. Include both
+  // product-rule terms so the compact vector-potential curl stays solenoidal.
+  float outer=clamp((rho-0.55)/0.45,0.0,1.0);
+  float fall=1.0-outer*outer*(3.0-2.0*outer);
+  denv=denv*fall-env*6.0*outer*(1.0-outer)/0.45;
+  env*=fall;
   vec3 gradEnv=denv*vec3(q.x/rho*er.x,q.y/rho,q.x/rho*er.y);
   vec3 v=vec3(0);
   for (int i=0;i<6;++i) {
@@ -474,9 +502,9 @@ vec3 inkExtent() {
   return vec3(rr,0.5*(hi-lo),rr);
 }
 vec3 inkOffset() { return vec3(0.0,0.5*(-0.05-1.0*gG1+1.05*gG2),0.0); }
-const vec3 INK_GRID=vec3(64,96,64);
-const vec2 INK_TILE=vec2(66,98);
-const vec2 INK_ATLAS=vec2(1056,392);
+const vec3 INK_GRID=vec3(48,80,48);
+const vec2 INK_TILE=vec2(50,82);
+const vec2 INK_ATLAS=vec2(800,246);
 vec2 inkAddress(vec2 xy, float z) {
   return (vec2(mod(z,16.0),floor(z/16.0))*INK_TILE+xy+1.5)/INK_ATLAS;
 }
@@ -486,7 +514,9 @@ vec2 inkAddress(vec2 xy, float z) {
 vec4 inkCell(vec3 p) {
   vec3 X=inkOrigin(p);
   vec3 q=inkPolar(X);
-  q.xy+=0.02*(0.3+u_level)*vec2(inkNoise(X*10.0+gSeed),inkNoise(X.zxy*11.0-gSeed));
+  q.xy+=0.05*(0.6+u_level)*vec2(inkNoise(X*8.0+gSeed),inkNoise(X.zxy*9.0-gSeed));
+  float front=1.6-3.6*(u_rhythm.z>0.001?inkProgress(u_rhythm.z,0.9):1.0);
+  q.xy+=vec2(0.025,0.065)*u_rhythm.z*exp(-sq((p.y-front)/0.35));
   float fade;
   vec3 dl=inkDaughter(X,fade);
   vec2 daughter=fade>0.001?dl.xy/max(fade,0.03):vec2(9);
@@ -591,6 +621,7 @@ vec3 inkBez(vec3 a, vec3 b, vec3 c, float t) {
 }
 // A quadratic strand a-b-c as four tapered tube segments.
 void inkCurve(vec3 ro, vec3 rd, vec3 a, vec3 b, vec3 c, float s0, float s1, vec3 col, float amount) {
+  a=inkPlume(a); b=inkPlume(b); c=inkPlume(c);
   vec3 centre=(a+b+c)/3.0;
   float radius=max(length(a-centre),max(length(b-centre),length(c-centre)))+4.0*max(s0,s1);
   if (inkMiss(ro,rd,centre,radius)) return;
@@ -598,7 +629,7 @@ void inkCurve(vec3 ro, vec3 rd, vec3 a, vec3 b, vec3 c, float s0, float s1, vec3
   for (int i=1;i<=4;++i) {
     float u=float(i)*0.25;
     vec3 next=inkBez(a,b,c,u);
-    float s=mix(s0,s1,u-0.125);
+    float s=mix(s0,s1,u-0.125)*(0.75+0.35*sin(3.0*u+gPhase));
     vec2 k=inkTube(ro,rd,prev,next,inkWidth(s,length(prev-ro)));
     inkLayer(k.x*amount,k.y,col,9.0);
     prev=next;
@@ -607,32 +638,30 @@ void inkCurve(vec3 ro, vec3 rd, vec3 a, vec3 b, vec3 c, float s0, float s1, vec3
 void inkStrands(vec3 ro, vec3 rd, vec3 thin, vec3 edge, vec3 accent, float band) {
   gFrontC=vec4(0,0,0,1); gBackC=vec4(0,0,0,1);
   float lit=0.9+0.5*u_level;
-  // Drop stem: three strands twist from the ring's inner top up to the
+  // Drop stem: two streams twist from the ring's inner top up to the
   // source and pinch away as the ring develops.
   float stem=1.0-smoothstep(0.15,0.75,gG1);
   if (stem>0.01) {
-    for (int i=0;i<3;++i) {
-      float a=gLobe+float(i)*2.094+0.3*sin(gPhase+float(i));
+    for (int i=0;i<2;++i) {
+      float a=gLobe+float(i)*3.1416+0.3*sin(gPhase+float(i));
       vec3 p0=inkLocal(vec2(cos(a),sin(a)),vec3(0.46,0.32,0.0));
       vec3 p1=inkLocal(vec2(cos(a+0.8),sin(a+0.8)),vec3(0.16,0.55,0.0));
       vec3 p2=inkLocal(vec2(cos(a+1.6),sin(a+1.6)),vec3(0.085,0.95,0.0));
-      vec3 p3=inkLocal(vec2(cos(a+2.8),sin(a+2.8)),vec3(0.13+0.05*sin(gPhase+float(i)),1.30,0.0));
-      vec3 p4=inkLocal(vec2(cos(a+4.0),sin(a+4.0)),vec3(0.06,1.75,0.0));
-      inkCurve(ro,rd,p0,p1,p2,0.026,0.016,thin*lit,stem);
-      inkCurve(ro,rd,p2,p3,p4,0.016,0.008,mix(thin,edge,0.3)*lit,stem*0.85);
+      vec3 p3=inkLocal(vec2(cos(a+2.8),sin(a+2.8)),vec3(0.24+0.08*sin(gPhase+float(i)),1.13,0.0));
+      vec3 p4=inkLocal(vec2(cos(a+4.0),sin(a+4.0)),vec3(0.09,1.25,0.0));
+      inkCurve(ro,rd,p0,p1,p2,0.105,0.065,thin*lit*0.4,stem*0.8);
+      inkCurve(ro,rd,p2,p3,p4,0.065,0.018,mix(thin,edge,0.3)*lit*0.4,stem*0.7);
     }
-    vec2 column=inkTube(ro,rd,vec3(0,0.55,0),vec3(0,1.75,0),inkWidth(0.07,gDist));
-    inkLayer(column.x*stem,column.y,mix(thin,edge,0.5)*lit*0.6,1.2);
   }
-  // Tendrils: each lobe hangs one to three strands down to its daughter;
-  // energy adds strands and makes them wander.
+  // Each lobe feeds one broad bowed stream into its daughter. Energy
+  // increases its reach and lateral wandering, not a redundant wire count.
   if (gDFade>0.01) {
     float reach=1.0+0.25*u_rhythm.y;
     for (int k=0;k<7;++k) {
       if (float(k)>=gN) break;
       float a=gLobe+float(k)*TAU/gN;
-      for (int j=0;j<3;++j) {
-        float on=j==0?1.0:smoothstep(0.2*float(j),0.2*float(j)+0.3,u_level);
+      for (int j=0;j<1;++j) {
+        float on=1.0;
         if (on<0.01) continue;
         float side=j==0?0.0:(j==1?1.0:-1.0);
         float aj=a+0.1*side*(1.0+0.4*gG2);
@@ -643,52 +672,47 @@ void inkStrands(vec3 ro, vec3 rd, vec3 thin, vec3 edge, vec3 accent, float band)
         l2=mix(l0,l2,reach);
         vec3 l1=mix(l0,l2,0.5)+vec3(0.28+0.3*gG2+0.1*side,0.22+0.25*gG2,(0.18+0.22*u_level)*wob);
         vec3 p0=inkLocal(cs,l0), p1=inkLocal(cs,l1), p2=inkLocal(cs,l2);
-        float s=(j==0?0.017:0.011)*(0.8+0.4*gRd/0.36);
+        float s=(j==0?0.058:0.032)*(0.8+0.4*gRd/0.36);
         float hp=exp(-sq((p1.y-band)/0.3))*u_rhythm.z;
-        inkCurve(ro,rd,p0,p1,p2,s,0.6*s,mix(thin,edge,0.15*float(j))*lit*(1.0+2.0*hp),gDFade*on*0.6);
+        inkCurve(ro,rd,p0,p1,p2,0.4*s,1.4*s,mix(thin,edge,0.15*float(j))*lit*(0.35+0.65*hp),gDFade*on*0.6);
       }
     }
   }
-  // Ink burst: one dense packet leaves the bulged rim sector, flies about
-  // 0.6 units, then unrolls into four filaments and fades.
+  // Ink burst: a hooked tongue peels from its parent into four unequal
+  // branches. No shell subtraction or rotationally symmetric neon bead.
   if (gBurst>0.001) {
     float pr=gBurstPr;
     vec3 radial=vec3(gBurstXZ.x,0.0,gBurstXZ.y), tang=vec3(-gBurstXZ.y,0.0,gBurstXZ.x);
     vec3 o=radial*(gRP+0.32)+vec3(0.0,gPeak.y+0.05,0.0);
     vec3 dir=normalize(radial*0.8+vec3(0.0,-0.5,0.0)+tang*0.25);
     float fly=smoothstep(0.0,0.6,pr);
-    float unroll=smoothstep(0.4,0.95,pr);
+    float unroll=smoothstep(0.15,0.9,pr);
     float fade=1.0-smoothstep(0.75,1.0,pr);
     vec3 c=o+dir*0.62*fly+tang*0.08*sin(3.0*fly);
     float rad=0.13+0.06*fly+0.06*unroll-0.01*min(u_rhythmHit.w,1.0);
     float dense=(1.0-0.85*unroll)*fade;
-    // A scalloped accent puff (five lobes round the shell) around a dark,
-    // absorbing heart.
     vec3 side=normalize(cross(dir,vec3(0,1,0)));
     vec3 up2=cross(side,dir);
-    // Dark heart first: it hides the body behind the packet.
-    vec2 heart=inkBall(ro,rd,c,0.45*rad);
-    inkLayer(heart.x*dense,heart.y,accent*0.03,26.0);
-    // Limb-bright shell: a ball minus its inner ball reads as a curled rim.
-    vec2 shell=inkBall(ro,rd,c,rad);
-    float rim=max(shell.x-1.3*inkBall(ro,rd,c,0.75*rad).x,0.0);
-    inkLayer(rim*dense,shell.y,accent*1.4,16.0);
-    for (int i=0;i<5;++i) {
-      float a=float(i)*1.2566+2.0*fly;
-      vec2 lobe=inkBall(ro,rd,c+(side*cos(a)+up2*sin(a))*rad*1.05-dir*0.2*rad,0.3*rad);
-      inkLayer(lobe.x*dense,lobe.y,accent*1.5,14.0);
+    vec3 hook=c+side*rad*(0.7+unroll)+up2*rad*0.3+dir*0.25*unroll;
+    inkCurve(ro,rd,o-dir*0.22,c+up2*rad*1.8,hook,0.09,0.14*(1.0-0.7*unroll),accent*0.9,dense*1.2);
+    // Dilute concentrations stretch along the peeling tongue, never a
+    // hollow shell: overlapping off-axis puffs dissolve into its branches.
+    for (int i=0;i<3;++i) {
+      float u=(float(i)+0.5)/3.0;
+      vec3 puff=inkBez(o-dir*0.12,c+up2*rad*1.8,hook,u);
+      vec2 k=inkBall(ro,rd,inkPlume(puff+side*0.04*sin(float(i)*2.3)),rad*(0.55+0.35*u));
+      inkLayer(k.x*dense,k.y,accent*0.6,3.5);
     }
+    // An offset absorbing concentration ridge, not a circular hole.
+    inkCurve(ro,rd,o-dir*0.15,c+up2*rad,hook,0.028,0.035,accent*0.03,dense*1.5);
     for (int i=0;i<4;++i) {
-      float a=float(i)*1.5708+0.6+1.4*unroll;
+      float a=float(i)*1.1+0.35+0.8*unroll;
       vec3 off=(side*cos(a)+up2*sin(a));
-      vec3 q0=o+off*0.03;
+      vec3 q0=mix(o,hook,0.3*unroll)+off*0.03;
       vec3 q1=c-dir*rad*0.6+off*rad*(0.5+0.4*unroll);
-      vec3 q2=c+dir*(0.08+0.4*unroll)+off*(rad+0.35*unroll)+tang*0.12*unroll*sin(a);
-      float s=0.014+0.005*float(i%2);
-      vec2 f0=inkTube(ro,rd,q0,q1,inkWidth(s,length(q0-ro)));
-      inkLayer(f0.x*fade,f0.y,accent*(0.9+0.6*fly),7.0);
-      vec2 f1=inkTube(ro,rd,q1,q2,inkWidth(s*0.8,length(q1-ro)));
-      inkLayer(f1.x*fade*unroll,f1.y,accent*1.2,7.0);
+      vec3 q2=c+dir*(0.08+(0.3+0.13*float(i))*unroll)+off*(rad+0.35*unroll)+tang*0.12*unroll*sin(a);
+      float s=0.021+0.006*float(i%2);
+      inkCurve(ro,rd,q0,q1,q2,s,0.012,accent*(1.0+0.3*fly),fade*(0.3+0.7*unroll));
     }
   }
 }
@@ -708,7 +732,7 @@ void main() {
   float aspect=u_resolution.x/u_resolution.y;
   vec2 uv=(v_uv-0.5)*u_resolution/min(u_resolution.x,u_resolution.y)*2.0;
   // Slow off-centre drift of the composition over phrases.
-  vec2 shift=vec2(0.2*sin(2.0*gOrbit+0.7)*(1.0-gPortrait),0.05*sin(3.0*gOrbit));
+  vec2 shift=vec2((-0.2+0.08*sin(2.0*gOrbit+0.7))*(1.0-gPortrait),0.05*sin(3.0*gOrbit));
   vec2 view=uv-shift;
   float aspectFit=aspect<1.0?mix(0.72,1.0,aspect):0.92+0.08*smoothstep(1.0,1.6,aspect);
   float focal=(2.4+0.048*u_kick)*aspectFit;
@@ -720,7 +744,7 @@ void main() {
   vec3 thin=u_primary*u_primary*u_primary/(topP*topP);
   float top=max(max(u_secondary.r,u_secondary.g),max(u_secondary.b,0.04));
   vec3 deep=u_secondary*u_secondary/top;
-  vec3 edge=mix(thin,deep,0.7);
+  vec3 edge=mix(thin,deep,0.9);
   float topA=max(max(u_accent.r,u_accent.g),max(u_accent.b,0.04));
   vec3 accent=u_accent*u_accent/topA;
   // The tank: a dim backlit water volume, darker toward the floor, with two
@@ -732,14 +756,19 @@ void main() {
   bg+=mix(thin,deep,0.6)*0.03*inkMotes(uv,5.0,10.0,vec2(1.1*sin(gOrbit),-10.0*rise),0.3);
 
   float band=1.6-3.6*(u_rhythm.z>0.001?inkProgress(u_rhythm.z,0.9):1.0);
-  inkStrands(eye,rd,thin,edge,accent,band);
-
   vec3 bound=inkExtent(), offset=inkOffset();
-  vec3 inv=sign(rd+vec3(1e-8))/max(abs(rd),vec3(1e-6));
-  vec3 lo=(offset-bound-eye)*inv, hi=(offset+bound-eye)*inv;
+  // Intersect the exact affine volume, not its enlarged world AABB. The
+  // unnormalised local direction retains world ray-depth units.
+  vec3 localEye=inkUnplume(eye), localRd=inkUnplume(rd);
+  vec3 inv=sign(localRd+vec3(1e-8))/max(abs(localRd),vec3(1e-6));
+  vec3 lo=(offset-bound-localEye)*inv, hi=(offset+bound-localEye)*inv;
   vec3 nearV=min(lo,hi), farV=max(lo,hi);
   float start=max(0.0,max(max(nearV.x,nearV.y),nearV.z));
   float end=min(min(farV.x,farV.y),farV.z);
+  // Reject empty water for source/receiving streams. A burst can fly beyond
+  // the Drop atlas, so never apply this group rejection while it is active.
+  gFrontC=vec4(0,0,0,1); gBackC=vec4(0,0,0,1);
+  if (end>start || gBurst>0.001) inkStrands(eye,rd,thin,edge,accent,band);
   vec3 col=vec3(0);
   float trans=1.0;
   float mu=dot(rd,gLight), phase=0.1+0.9*inkPhase(mu,0.55)/inkPhase(1.0,0.55);
@@ -753,33 +782,52 @@ void main() {
     // Analytic interval quadrature needs no screen-space jitter at all.
     float t=start+0.5*stepLen;
     float prevP=9.0, prevD=9.0, prevFP=0.0, prevKP=0.0, prevTP=0.0, prevFD=0.0, prevKD=0.0, prevTD=0.0;
-    bool havePrev=false;
+    bool havePrev=false, prevActiveP=false, prevActiveD=false;
     for (int i=0;i<INK_STEP_CAP;++i) {
       if (i>=limit || t>end || trans<0.04) break;
       vec3 p=eye+rd*t;
-      vec4 s=inkSample(p,offset,bound);
+      vec3 local=inkUnplume(p);
+      vec4 s=inkSample(local,offset,bound);
       float support=min(length(s.xy)-0.8,gDFade>0.001?(length(s.zw)-0.8)*gRd:9.0);
-      float skip=0.45*max(support,0.0)-skipMargin;
+      float skip=0.28*max(support,0.0)-skipMargin;
       if (skip>stepLen) { t+=min(skip,0.6); havePrev=false; continue; }
-      vec3 X=p;
-      float skinP, skinD, fade=gDFade;
+      // Finite sheet/roll support ends below rho .8; this 1.1-unit guard
+      // includes the quartic width, native pleat and an empty entry interval.
+      // Avoid exp/angle/quadrature in water, independently for each body.
+      bool activeP=length(s.xy)<1.1;
+      bool activeD=gDFade>0.001 && length(s.zw)<1.1;
+      if (!activeP && !activeD) { t+=stepLen; havePrev=false; continue; }
+      vec3 X=local;
+      float skinP=9.0, skinD=9.0, fade=gDFade;
       vec3 q=vec3(s.xy,max(gRP+s.x,0.08));
-      vec4 rP=inkRing(q,1.0,gTurns,skinP);
+      vec4 rP=activeP?inkRing(q,1.0,gTurns,skinP):vec4(0,0,1,9);
       vec3 dl=vec3(s.zw,max(1.0+s.z,0.08));
-      vec4 rD=fade>0.001?inkRing(dl,gRd,0.6+0.4*gTurns,skinD):vec4(0,0,1,9);
-      if (fade<=0.001) skinD=9.0;
+      vec4 rD=activeD?inkRing(dl,gRd,0.6+0.4*gTurns,skinD):vec4(0,0,1,9);
+      float phiX=inkAngle(X.xz);
+      float pleat=sin(7.0*phiX+2.0*rP.y+gPhase);
+      rP.x+=0.85*pleat;
+      rD.x+=0.55*sin(9.0*phiX+2.0*rD.y-gPhase);
+      skinP+=0.025*pleat;
+      bool fresh=!havePrev || activeP!=prevActiveP || activeD!=prevActiveD;
+      float len=min(stepLen,max(t-start,0.0001));
+      prevActiveP=activeP; prevActiveD=activeD;
       float FP=rP.x+gRoll-rP.y, FD=rD.x+gRoll-rD.y;
-      if (havePrev) {
+      if (!fresh) {
         FP=prevFP+(rP.x-prevKP)-inkWrap(rP.y-prevTP);
         FD=prevFD+(rD.x-prevKD)-inkWrap(rD.y-prevTD);
+      } else {
+        // Enter from dye-free water, not a constant-density slab. A signed
+        // outer distance plus mean winding avoids a bright false contour.
+        prevP=-0.5; prevD=-0.5*gRd; prevFP=FP; prevFD=FD;
+        havePrev=true;
       }
       float w=inkWidth(0.012,t), ws=inkWidth(0.015,t);
-      float len=havePrev?stepLen:0.5*stepLen;
       float iP=inkSheet(havePrev?prevP:skinP,skinP,w,len);
       float iD=inkSheet(havePrev?prevD:skinD,skinD,w*max(gRd/0.3,0.5),len);
       float wfP=min(ws*rP.z,1.2), wfD=min(1.4*ws*rD.z,1.2);
       float sP=inkSpiral(havePrev?prevFP:FP,FP,wfP,len);
       float sD=inkSpiral(havePrev?prevFD:FD,FD,wfD,len);
+      if (fresh) { sP=0.28294*wfP*len; sD=0.28294*wfD*len; }
       // Where a step turns too far round a small core to unwrap its angle,
       // use the train's mean density instead of aliasing.
       sP=mix(sP,0.28294*wfP*len,smoothstep(0.7,1.4,len/max(rP.w,1e-3)));
@@ -789,29 +837,29 @@ void main() {
       havePrev=true;
       // Torn coverage; skins thin out on the leading (lower) side and fade
       // beyond the atmosphere, so no infinite wake tube appears.
-      float cov=smoothstep(-0.5,0.6,sin(dot(X,vec3(2.3,1.6,2.3))+gSeed)
-        +0.45*sin(dot(X,vec3(-3.1,4.3,2.7))+gPhase));
-      float ampP=cov*(1.0-smoothstep(0.55,0.72,rP.w))*mix(0.45,1.0,smoothstep(-0.45,0.25,q.y));
-      float ampD=(0.7+0.3*cov)*fade*(1.0-smoothstep(0.55,0.72,rD.w));
+      float fold=sin(dot(X,vec3(3.1,2.2,2.3))+gSeed)+0.55*sin(dot(X,vec3(-5.1,6.3,4.7))+gPhase);
+      float cov=smoothstep(-0.15,0.65,fold);
+      float ampP=cov*cov*(1.0-smoothstep(0.4,0.6,rP.w))*mix(0.25,1.0,smoothstep(-0.45,0.25,s.y));
+      float ampD=(0.2+0.8*cov)*fade*(1.0-smoothstep(0.4,0.6,rD.w));
       float envP=exp(-sq(rP.w/0.3))*smoothstep(0.03,0.1,rP.w)*(1.0-smoothstep(0.32,0.46,rP.w));
       float envD=fade*exp(-sq(rD.w/0.3))*smoothstep(0.03,0.1,rD.w)*(1.0-smoothstep(0.32,0.46,rD.w));
       float inv=1.0/max(len,1e-4);
-      float sheet=(ampP*iP+0.8*ampD*iD)*inv*5.0;
-      float roll=(envP*sP+0.65*envD*sD)*inv*24.0;
-      float core=9.0*exp(-sq(rP.w/0.13));
+      float sheet=(ampP*iP+0.8*ampD*iD)*inv*8.0;
+      float roll=(envP*sP+0.65*envD*sD)*inv*18.0;
+      float core=9.0*exp(-sq(rP.w/0.13))+1.5*fade*exp(-sq(rD.w/0.13));
       float tot=sheet+roll+core;
       if (tot>0.002) {
         // Ring-roll highlight sweeping round the primary's rolled rim.
-        float phiX=inkAngle(X.xz);
         float sweep=gSweep*exp(6.0*(cos(phiX-gSweepPhi)-1.0))*exp(-sq((rP.w-0.28)/0.2));
         float wave=u_rhythm.z*exp(-sq((p.y-band)/0.28));
         float tau=tot*len*sigmaScale;
         float a=1.0-exp(-tau);
         float rhoS=min(rP.w,rD.w);
         float shadow=exp(-2.2*(1.0-smoothstep(0.12,INK_RS,rhoS)));
-        float fog=exp(-0.22*max(t-gDist+0.8,0.0));
-        vec3 cRoll=thin*(1.0+3.2*sweep)*(0.1+7.0*phase*shadow);
-        vec3 cSkin=edge*(0.06+2.6*phase);
+        float fog=exp(-0.42*max(t-gDist+0.8,0.0));
+        float nearKey=0.65+0.7*exp(2.0*(cos(phiX-gFacing+0.35)-1.0));
+        vec3 cRoll=thin*(1.0+3.2*sweep)*(0.08+7.0*phase*shadow)*nearKey;
+        vec3 cSkin=edge*(0.03+2.6*phase)*exp(-0.9*sheet*len);
         vec3 cCore=thin*0.012;
         vec3 light=(roll*cRoll+sheet*cSkin+core*cCore)/tot*(1.0+1.6*wave)*lit*fog;
         col+=trans*a*light;
@@ -832,13 +880,13 @@ export default {
   number: 112,
   name: "Ink Bloom",
   description:
-    "A falling dye ring folds into hanging plumes and an outward crown, with translucent pigment bursts on musical fills.",
+    "One falling dye ring opens into a tilted crown of folded pigment; local fills peel away into branching streams.",
   development: "development",
   schema,
   presets,
   fragment,
   precompute: {
-    size: [1056, 392],
+    size: [800, 246],
     filter: "linear",
     format: "rgba16f",
     fragment: `${material}\n${lattice}
@@ -846,9 +894,9 @@ void main() {
   inkSetup();
   ivec2 pixel=ivec2(gl_FragCoord.xy);
   int py=pixel.y;
-  int z=(py/98)*16+pixel.x/66;
+  int z=(py/82)*16+pixel.x/50;
   // A duplicate-node gutter isolates each Z slice under bilinear filtering.
-  vec3 cell=vec3(clamp(pixel.x%66-1,0,63),clamp(py%98-1,0,95),z);
+  vec3 cell=vec3(clamp(pixel.x%50-1,0,47),clamp(py%82-1,0,79),z);
   vec3 p=(cell/(INK_GRID-1.0)*2.0-1.0)*inkExtent()+inkOffset();
   outColor=inkCell(p);
 }`,
@@ -939,7 +987,7 @@ void main() {
       "pigment-wave",
       2,
       "Pigment wave",
-      "A backlit band travels down the cascade, lighting skins and tendrils generation by generation.",
+      "A descending concentration front bends the pigment folds and lights the receiving streams generation by generation.",
       {
         period: 16,
         strength: 0.6,
@@ -973,7 +1021,7 @@ void main() {
       "ink-burst",
       3,
       "Ink burst",
-      "On fills one rim sector curls out and ejects a dense, dark-hearted pigment packet that flies off and unrolls into thin filaments.",
+      "On fills one rim sector peels into a hooked pigment tongue, stretches away and dissolves into four unequal branches.",
       {
         period: 16,
         strength: 0.9,
