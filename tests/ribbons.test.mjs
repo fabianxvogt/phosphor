@@ -181,8 +181,8 @@ test("identity is fixed per seed and independent of development", () => {
 });
 
 test("twisting ribbon frames stay orthonormal with one unsigned side vector", () => {
-  // In the tangent's normal plane W and B rotate without changing width.
-  for (let twist = -0.65; twist <= 0.65; twist += 0.01) {
+  // Optical normals remain orthonormal even when the silhouette turns edge-on.
+  for (let twist = -1.42; twist <= 1.42; twist += 0.01) {
     const W = [Math.cos(twist), Math.sin(twist)];
     const N = [-Math.sin(twist), Math.cos(twist)];
     assert.ok(Math.abs(Math.hypot(...W) - 1) < 1e-12);
@@ -235,7 +235,7 @@ test("slot-3 relay is a bounded monotone tail-to-head event with a finite wake",
   assert.match(scene.simulation.fragment, /u_rhythmHit\.w > 0/);
   assert.match(scene.simulation.fragment, /max\(u_rhythm\.w, u_rhythmHit\.w\)/);
   assert.match(scene.simulation.fragment, /mod\(u_rhythmCount\.w, 3\.\)/);
-  assert.match(scene.simulation.fragment, /old \+ 1\. \/ 45\./);
+  assert.match(scene.simulation.fragment, /old \+ 1\. \/ 72\./);
   let last = 1;
   for (const age of [0.1, 0.25, 0.4, 0.55, 0.7]) {
     let best = -1,
@@ -258,7 +258,7 @@ test("slot-3 relay is a bounded monotone tail-to-head event with a finite wake",
       [0, 0],
       "secondary cohorts stay quiet",
     );
-    const head = 1.08 - 1.4 * age;
+    const head = 0.96 - 1.08 * age;
     assert.ok(
       relayPacket(head + 0.07, 0.001, age, 1, 0)[1] > 0,
       "wake trails toward the tail",
@@ -267,6 +267,26 @@ test("slot-3 relay is a bounded monotone tail-to-head event with a finite wake",
       relayPacket(head - 0.07, 0.001, age, 1, 0)[1] === 0,
       "no wake ahead of front",
     );
+  }
+});
+
+test("flat band silhouettes taper continuously and the relay leaves a dim contiguous wake", () => {
+  assert.match(scene.geometry.vertex, /abs\(cos\(twist\)\)/);
+  assert.match(scene.geometry.vertex, /1\. - smoothstep\(\.76, 1\., s\)/);
+  assert.match(scene.geometry.fragment, /float fold = \.22 \* a/);
+  assert.match(scene.geometry.fragment, /float hierarchy = mix/);
+  assert.match(scene.geometry.fragment, /smoothstep\(\.02, \.12,/);
+  for (const age of [0.15, 0.3, 0.45, 0.6, 0.75]) {
+    const head = 0.96 - 1.08 * age;
+    const [hot] = relayPacket(head, 0.001, age, 1, 0);
+    let previous = Infinity;
+    for (const distance of [0.04, 0.08, 0.12, 0.2, 0.3]) {
+      const [core, wake] = relayPacket(head + distance, 0.001, age, 1, 0);
+      assert.ok(wake > 0 && wake < previous, "contiguous diminishing wake");
+      if (distance >= 0.08) assert.ok(core < hot * 0.01, "compact front");
+      previous = wake;
+    }
+    assert.deepEqual(relayPacket(head, 0.02, age, 1, 0), [0, 0]);
   }
 });
 
