@@ -3,56 +3,50 @@ import assert from "node:assert/strict";
 import scenes from "../scenes.mjs";
 import { presetSnapshot } from "../session.mjs";
 import { defaultPattern } from "../rhythm.mjs";
-import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
+import {
+  continuousDevelopment,
+  defaultWorlds,
+  validateWorlds,
+} from "../worlds.mjs";
 import {
   ADDITIVE_FROM,
   ATTRIBUTES,
-  CENTER,
-  FORM,
-  FOCAL_RISE,
-  FRAME_GAIN,
-  MORPH_FIT,
-  SADDLE_FIT,
-  HERO_DISTANCE,
-  HERO_PARALLAX,
+  CEILING,
+  FOCAL,
   HALF,
   HANG,
   HOLD,
+  KICK_STRENGTH,
   KIND,
   N,
+  RADIUS,
   RING,
   RIPPLE_BOUND,
   SPACING,
   STRIDE,
-  TILT,
-  SURFACE_COLS,
-  SURFACE_ROWS,
   VMAX,
   ball,
   camera,
+  cascadeLight,
   chorus,
   columnSpan,
   createGeometry,
   focalLength,
+  foldHeight,
   hazeLayer,
-  KICK_STRENGTH,
+  installationHeight,
   rhythmGain,
   ringHeight,
   ringLight,
   rippleHeight,
   seedAngles,
-  sculptureUV,
-  sculpture,
-  sculptureDerivatives,
-  shimmerAt,
   waveHeight,
 } from "../kinetic-model.mjs";
-
 const scene = scenes.find((s) => s.id === "kinetic");
-const TAU = Math.PI * 2;
+const TAU = 2 * Math.PI;
 const close = (a, b, eps, label = "") =>
-  assert.ok(Math.abs(a - b) <= eps, `${label} ${a} != ${b} (±${eps})`);
-const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  assert.ok(Math.abs(a - b) <= eps, `${label}: ${a} != ${b}`);
+const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 const base = {
   dev: 0,
   W: 0.7,
@@ -64,35 +58,48 @@ const base = {
   size: 1,
   seed: 1216,
 };
-
-test("kinetic is a registered continuous world with three authored states", () => {
-  assert.ok(scene);
+test("kinetic preserves three continuous states, eight look identities and finite presets", () => {
   assert.equal(scene.number, 102);
   assert.equal(scene.development, "development");
   const world = defaultWorlds(
     scenes.flatMap((s) => s.presets.map((p) => `${s.id}:${p.name}`)),
   ).find((w) => w.id === "kinetic-rain");
-  assert.ok(world, "world kinetic-rain is playable");
-  assert.equal(world.name, "Kinetic Rain");
   assert.deepEqual(
     world.states.map((s) => s.name),
     ["Ceiling", "Waves", "Sculpture"],
   );
-  const clips = world.states.map((state) => {
-    const index = scene.presets.findIndex(
-      (p) => `kinetic:${p.name}` === state.look,
-    );
-    return { snapshot: presetSnapshot(scene, index) };
-  });
+  const clips = world.states.map((state) => ({
+    snapshot: presetSnapshot(
+      scene,
+      scene.presets.findIndex((p) => `kinetic:${p.name}` === state.look),
+    ),
+  }));
   assert.deepEqual(continuousDevelopment(clips, scene)?.positions, [0, 1, 2]);
-  assert.ok(scene.presets.length >= 6);
-  assert.equal(scene.rhythm.length, 4);
+  const known = scenes.flatMap((s) =>
+    s.presets.map((p) => `${s.id}:${p.name}`),
+  );
+  const saved = {
+    ...structuredClone(world),
+    description:
+      "Thousands of glowing spheres on threads hang level under the ceiling, break into interfering wave choreographies and gather into one floating surface that morphs from sphere to torus, Möbius band and saddle. The same spheres throughout.",
+  };
+  assert.deepEqual(
+    validateWorlds([saved], known, scenes),
+    [world],
+    "r3 authored save upgrades through HISTORY",
+  );
+  saved.description = "My own suspended installation";
+  assert.equal(
+    validateWorlds([saved], known, scenes)[0].description,
+    saved.description,
+    "custom copy is preserved",
+  );
+  assert.equal(scene.presets.length, 8);
   for (const preset of scene.presets)
     for (const field of scene.schema) {
-      const value = preset.params[field.key];
-      assert.ok(Number.isFinite(value), `${preset.name}.${field.key}`);
+      const v = preset.params[field.key];
       assert.ok(
-        value >= field.min && value <= field.max,
+        Number.isFinite(v) && v >= field.min && v <= field.max,
         `${preset.name}.${field.key}`,
       );
     }
@@ -100,88 +107,57 @@ test("kinetic is a registered continuous world with three authored states", () =
     ATTRIBUTES.reduce((a, b) => a + b),
     STRIDE,
   );
-  assert.ok(N * N >= 4096, "thousands of spheres");
+  assert.ok(N * N >= 4096);
 });
-
-test("kinetic authors a bounded slot-3 cascade and full distinct grids", () => {
-  const signature = scene.rhythm.find((effect) => effect.slot === 3);
+test("four authored gestures retain slot 3, independent placements, recovery and full grids", () => {
+  assert.equal(scene.rhythm.length, 4);
+  const signature = scene.rhythm.find((fx) => fx.slot === 3);
   assert.equal(signature.id, "drop-cascade");
-  for (const [style, minimum] of [
+  for (const [style, min] of [
     ["restrained", 2],
     ["driving", 6],
     ["accented", 8],
   ]) {
-    const loop = signature.styles[style];
-    const hits = loop.steps.flatMap((value, index) =>
-      value > 0 ? [index] : [],
-    );
+    const loop = signature.styles[style],
+      hits = loop.steps.flatMap((v, i) => (v > 0 ? [i] : []));
     assert.ok(hits.length >= 2);
-    const gaps = hits.map(
-      (hit, index) =>
-        (hits[(index + 1) % hits.length] +
-          (index === hits.length - 1 ? loop.length : 0) -
-          hit) /
-        loop.division,
-    );
-    assert.ok(loop.duration < Math.min(...gaps), `${style} cascade settles`);
-    const pattern = defaultPattern(scene.rhythm, style);
-    const density = pattern.tracks.reduce(
-      (sum, track) =>
-        sum +
-        (track.steps.filter(Boolean).length * track.division * 4) /
-          track.length,
+    for (let i = 0; i < hits.length; i++) {
+      const gap =
+        (hits[(i + 1) % hits.length] +
+          (i === hits.length - 1 ? loop.length : 0) -
+          hits[i]) /
+        loop.division;
+      assert.ok(loop.duration < gap, `${style} settles`);
+    }
+    const p = defaultPattern(scene.rhythm, style);
+    const density = p.tracks.reduce(
+      (s, t) =>
+        s + (t.steps.filter(Boolean).length * t.division * 4) / t.length,
       0,
     );
-    assert.ok(density >= minimum, `${style}: ${density} hits/bar`);
+    assert.ok(density >= min, `${style}: ${density}`);
   }
-  for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
-    assert.ok(scene.geometry.vertex.includes(uniform), uniform);
-  assert.match(scene.geometry.vertex, /cascade=exp\(-pow/);
-});
-
-test("the shaders are built from the model's constants", () => {
-  const vertex = scene.geometry.vertex;
-  for (const snippet of [
-    `N=${N}.`,
-    `SP=${SPACING}`,
-    `HANG=${HANG}`,
-    `HOLD=${HOLD}`,
-    `FSPH=${FORM.sphere}`,
-    `FTR=${FORM.torusR}`,
-    `FMW=${FORM.mobiusW}`,
-    `FSK=${FORM.saddleK}`,
-    `RREACH=${RING.reach}`,
-    `TC=${Math.cos(TILT).toFixed(7)}`,
-    `vec2 dims=vec2(${SURFACE_COLS}.,${SURFACE_ROWS}.);`,
-    `FOCAL+(${FOCAL_RISE}+fit)*peak`,
-    `dot(w,vec4(${FRAME_GAIN.map((x) => (x === 0 ? "0." : String(x))).join(",")}))+${MORPH_FIT}*(1.-dot(w,w))`,
-    `rs=clamp(.46*sqrt(length(du)*length(dv)),.014,.055)`,
-    `crest=max(rp,0.)*sst(0.,.06,kick/max(gain,1e-5))`,
-  ])
-    assert.ok(vertex.includes(snippet), snippet);
-  assert.equal(scene.geometry.additiveFrom, ADDITIVE_FROM);
-  // Clock periods match every use: wave phase ×1/×2/×3 (2π), four forms (4),
-  // turn ×1 and drift ×½ (4π), camera angle (2π).
-  assert.deepEqual(
-    scene.clocks.map((c) => c.period),
-    [TAU, 4, 2 * TAU, TAU],
+  assert.ok(
+    scene.rhythm[1].styles.accented.length % 16 !== 0,
+    "non-square accent loop retained",
   );
-  for (const source of [scene.fragment, vertex, scene.geometry.fragment])
-    assert.doesNotMatch(source, /mod\(\s*u_time/);
+  for (const uniform of ["u_rhythm.w", "u_rhythmHit.w", "u_rhythmCount.w"])
+    assert.ok(scene.geometry.vertex.includes(uniform));
+  assert.match(scene.geometry.vertex, /mirrored\?\.14:0\./);
+  assert.match(scene.geometry.vertex, /mod\(a_cell.x,8\.\)<\.5&&mod/);
+  assert.doesNotMatch(
+    scene.geometry.fragment,
+    /u_rhythm/,
+    "cables cannot be rhythm wireframe",
+  );
 });
-
-test("geometry: deterministic, finite, seed-dependent; identity is the grid index", () => {
-  const a = createGeometry(1216),
-    again = createGeometry(1216),
-    b = createGeometry(1217);
-  assert.deepEqual(a, again);
-  assert.notDeepEqual(a, b);
+test("geometry is deterministic, development-free and keeps lamp/mirror/cable identities", () => {
+  const a = createGeometry(1216);
+  assert.deepEqual(a, createGeometry(1216));
+  assert.notDeepEqual(a, createGeometry(1217));
   assert.ok(a.every(Number.isFinite));
   assert.equal(a.length, N * N * 3 * 6 * STRIDE);
   assert.equal(ADDITIVE_FROM, 2 * N * N * 6);
-  // Development is not an input of the generator: each block (sphere,
-  // mirror, thread) lists every (i, j) exactly once in the same order, so a
-  // sphere, its reflection and its thread share one identity in all states.
   assert.equal(createGeometry.length, 1);
   for (const [k, kind] of [KIND.sphere, KIND.reflection, KIND.thread].entries())
     for (let s = 0; s < N * N; s += 97) {
@@ -189,557 +165,295 @@ test("geometry: deterministic, finite, seed-dependent; identity is the grid inde
       assert.equal(a[o], s % N);
       assert.equal(a[o + 1], Math.floor(s / N));
       assert.equal(a[o + 4], kind);
-      assert.equal(a[o + 5], a[s * 6 * STRIDE + 5], "same random identity");
+      assert.equal(a[o + 5], a[s * 6 * STRIDE + 5]);
     }
 });
-
-test("choreography weights are a smooth partition of unity with holds", () => {
+test("shader shares model constants and a single injective heightfield law", () => {
+  for (const token of [
+    `N=${N}.`,
+    `SP=${SPACING}`,
+    `HANG=${HANG}`,
+    `CEIL=${CEILING}`,
+    `R0=${RADIUS}`,
+    `FOCAL=${FOCAL}`,
+    `HOLD=${HOLD}`,
+  ])
+    assert.ok(scene.geometry.vertex.includes(token), token);
+  assert.match(scene.geometry.vertex, /P=vec3\(g.x,y\+ring,g.y\)/);
+  assert.doesNotMatch(
+    scene.geometry.vertex,
+    /sculpt\(|sculptDerivatives|a_cell.y\*N\+a_cell.x/,
+  );
+  for (const source of [
+    scene.geometry.vertex,
+    scene.geometry.fragment,
+    scene.fragment,
+  ])
+    assert.doesNotMatch(source, /mod\(\s*u_time/);
+  assert.deepEqual(
+    scene.clocks.map((c) => c.period),
+    [TAU, 4, 2 * TAU, TAU],
+  );
+});
+test("choreography is a periodic smooth partition with held forms", () => {
   for (let M = 0; M < 8; M += 0.013) {
     const w = chorus(M);
     close(
-      w.reduce((x, y) => x + y),
+      w.reduce((a, b) => a + b),
       1,
       1e-12,
     );
     assert.ok(w.every((x) => x >= 0));
-    const f = M - Math.floor(M);
-    if (f < HOLD) assert.equal(w[Math.floor(M) % 4], 1, `hold at ${M}`);
+    if (M - Math.floor(M) < HOLD) assert.equal(w[Math.floor(M) % 4], 1);
+    for (let i = 0; i < 4; i++) close(w[i], chorus(M + 4)[i], 1e-12);
   }
-  // Continuous across every integer (the next form is fully in place).
-  for (let k = 1; k <= 8; k++) {
-    const before = chorus(k - 1e-9),
-      after = chorus(k + 1e-9);
-    for (let i = 0; i < 4; i++) close(before[i], after[i], 1e-6, `M=${k}`);
-  }
+  for (let k = 1; k < 8; k++)
+    for (let i = 0; i < 4; i++)
+      close(chorus(k - 1e-9)[i], chorus(k + 1e-9)[i], 1e-8);
 });
-
-test("height functions: travelling waves, faint ripple and a ring that never pops", () => {
-  const seed = seedAngles(1216).wave;
-  for (let n = 0; n < 400; n++) {
-    const x = -HALF + (((n * 37) % 101) / 100) * 2 * HALF,
-      z = -HALF + (((n * 53) % 97) / 96) * 2 * HALF,
-      W = n * 0.173;
-    assert.ok(Math.abs(rippleHeight(x, z, W)) <= RIPPLE_BOUND + 1e-12);
-    const rho = Math.hypot(x, z),
-      th = Math.atan2(z, x);
-    const at = (r, t, W2, w) =>
-      waveHeight(r * Math.cos(t), r * Math.sin(t), W2, w, 0.2, 0, seed);
-    // Radial choreography: crests move outwards at 2/1.15 units per radian.
-    close(
-      at(rho + (2 * 0.37) / 1.15, th, W + 0.37, [0, 1, 0, 0]),
-      at(rho, th, W, [0, 1, 0, 0]),
-      1e-9,
-    );
-    // Spiral: the three arms rotate rigidly by 2/3 rad per radian of phase
-    // (away from the centre, where the arms fade in).
-    if (rho > 2.7)
-      close(
-        at(rho, th + (2 * 0.21) / 3, W + 0.21, [0, 0, 1, 0]),
-        at(rho, th, W, [0, 0, 1, 0]),
-        1e-6,
-      );
-    // Standing interference: nodes stay put; the height is separable in time.
-    const s0 = at(rho, th, 0, [0, 0, 0, 1]);
-    close(at(rho, th, W, [0, 0, 0, 1]), s0 * Math.cos(2 * W), 1e-9);
-    // Every choreography is bounded by its amplitude sum.
-    for (let c = 0; c < 4; c++) {
-      const w = [0, 0, 0, 0];
-      w[c] = 1;
-      assert.ok(Math.abs(at(rho, th, W, w)) <= 0.34 + 1e-12);
-    }
-  }
-  for (const level of [0, 0.1, 0.5, 0.9, 1]) {
-    const launch = KICK_STRENGTH * rhythmGain(level);
-    for (let rho = 0; rho < 18; rho += 0.1) {
-      close(ringHeight(rho, 0, level), 0, 0);
-      close(
-        ringHeight(rho, launch, level),
-        0,
-        1e-15,
-        "launch at the authored strength",
-      );
-      for (let k = 0; k <= launch; k += 0.05)
-        assert.ok(Math.abs(ringHeight(rho, k, level)) <= RING.amp * k + 1e-12);
-    }
-  }
-});
-
-test("states: level ceiling, wave heightfield, exact parametric surfaces", () => {
-  const seed = seedAngles(1216).wave;
-  for (let j = 0; j < N; j += 7)
-    for (let i = 0; i < N; i += 5) {
-      const x = (i - (N - 1) / 2) * SPACING,
-        z = (j - (N - 1) / 2) * SPACING;
-      // Ceiling: on the lattice, level within the faint ripple.
-      const c = ball(i, j, { ...base, dev: 0 });
-      close(c.p[0], x, 1e-12);
-      close(c.p[2], z, 1e-12);
-      assert.ok(Math.abs(c.p[1] - HANG) <= RIPPLE_BOUND + 1e-12);
-      // Waves: a pure heightfield over the same lattice point.
-      const amp = 1.3;
-      const w = ball(i, j, { ...base, dev: 1, amp, M: 2.2 });
-      close(w.p[0], x, 1e-12);
-      close(w.p[2], z, 1e-12);
-      close(
-        w.p[1],
-        HANG + waveHeight(x, z, base.W, chorus(2.2), base.Phi, 0, seed) * amp,
-        1e-12,
-      );
-      assert.equal(w.sig, 0);
-    }
-  // Sculpture: during a hold every sphere lies on the form's implicit surface.
-  const unrotate = (p, Phi) => {
-    const q = [p[0] - CENTER[0], p[1] - CENTER[1], p[2] - CENTER[2]];
-    const c = Math.cos(-Phi),
-      s = Math.sin(-Phi);
-    const x = c * q[0] - s * q[2],
-      z0 = s * q[0] + c * q[2];
-    const ct = Math.cos(-TILT),
-      st = Math.sin(-TILT);
-    return [x, ct * q[1] - st * z0, st * q[1] + ct * z0];
-  };
-  let checked = 0;
-  for (let j = 0; j < N; j += 3)
-    for (let i = 0; i < N; i += 3) {
-      // Undo the turn, the tilt and the breathing scale of this sphere.
-      const k = shimmerAt(...sculptureUV(i, j), base.W, base.detail);
-      const at = (M) => {
-        const b = ball(i, j, { ...base, dev: 2, M });
-        assert.equal(b.sig, 1);
-        return unrotate(b.p, base.Phi).map((x) => x / k);
-      };
-      const [sx, sy, sz] = at(0.3);
-      close(Math.hypot(sx, sy, sz), FORM.sphere, 1e-9, "sphere");
-      const [tx, ty, tz] = at(1.3);
-      close(
-        (Math.hypot(tx, tz) - FORM.torusR) ** 2 + ty * ty,
-        FORM.torusr ** 2,
-        1e-9,
-        "torus",
-      );
-      // Möbius band: the offset from the centre circle lies along the
-      // half-angle direction (cos θ/2, sin θ/2) and within the half width.
-      const [mx, my, mz] = at(2.3);
-      const th = Math.atan2(mz, mx),
-        dr = Math.hypot(mx, mz) - FORM.mobiusR;
-      close(
-        dr * Math.sin(th / 2) - my * Math.cos(th / 2),
-        0,
-        1e-9,
-        "möbius ruling",
-      );
-      assert.ok(Math.hypot(dr, my) <= FORM.mobiusW + 1e-9);
-      // Wave saddle: y = k r² cos 2θ + a r sin(2.6 r − 2W).
-      const [px, py, pz] = at(3.3);
-      const r = Math.hypot(px, pz),
-        a = Math.atan2(pz, px);
-      close(
-        py,
-        FORM.saddleK * r * r * Math.cos(2 * a) +
-          FORM.saddleWave * r * Math.sin(2.6 * r - 2 * base.W),
-        1e-9,
-        "saddle",
-      );
-      checked++;
-    }
-  assert.ok(checked > 600);
-  // The seed shifts the cycle by whole forms only (holds stay holds): the
-  // Möbius Drift seed opens on the band.
-  const drift = scene.presets.find((p) => p.name === "Möbius Drift");
-  for (let s = 0; s < N * N; s += 101) {
-    const i = s % N,
-      j = Math.floor(s / N);
-    const k = shimmerAt(...sculptureUV(i, j), base.W, 0);
-    const [mx, my, mz] = unrotate(
-      ball(i, j, { ...base, dev: 2, M: 0.3, seed: drift.seed }).p,
-      base.Phi,
-    ).map((x) => x / k);
-    const th = Math.atan2(mz, mx),
-      dr = Math.hypot(mx, mz) - FORM.mobiusR;
-    close(
-      dr * Math.sin(th / 2) - my * Math.cos(th / 2),
-      0,
-      1e-9,
-      "möbius drift",
-    );
-  }
-});
-
-test("clock phases wrap exactly: every position is periodic in its clock's period", () => {
-  for (const dev of [0.3, 1, 1.6, 2])
-    for (let s = 0; s < N * N; s += 211) {
-      const i = s % N,
-        j = Math.floor(s / N);
-      const p = ball(i, j, { ...base, dev, detail: 0.7 }).p;
-      for (const shift of [
-        { W: base.W + TAU },
-        { M: base.M + 4 },
-        { Phi: base.Phi + 2 * TAU },
-      ]) {
-        const q = ball(i, j, { ...base, dev, detail: 0.7, ...shift }).p;
-        assert.ok(dist(p, q) < 1e-9, `${dev} ${JSON.stringify(shift)}`);
+test("open folded peak preserves air, floor clearance and motor addresses at all developments", () => {
+  let min = Infinity,
+    max = -Infinity,
+    spread = 0;
+  for (let M = 0; M < 4; M += 0.37)
+    for (const W of [0, 1.3, 3.7, 5.6])
+      for (const dev of [0, 0.5, 1, 1.25, 1.5, 1.75, 2]) {
+        let lo = Infinity,
+          hi = -Infinity;
+        for (let j = 0; j < N; j += 5)
+          for (let i = 0; i < N; i += 5) {
+            const b = ball(i, j, {
+              ...base,
+              M,
+              W,
+              dev,
+              amp: 1.6,
+              detail: 1,
+              size: 1.5,
+              kick: 0.8,
+              level: 0.9,
+            });
+            close(b.p[0], (i - (N - 1) / 2) * SPACING, 1e-12);
+            close(b.p[2], (j - (N - 1) / 2) * SPACING, 1e-12);
+            assert.ok(
+              b.r * 2 < SPACING * 0.7,
+              "air between horizontal lamp neighbours",
+            );
+            assert.ok(b.p.every(Number.isFinite) && b.n.every(Number.isFinite));
+            close(Math.hypot(...b.n), 1, 1e-12);
+            min = Math.min(min, b.p[1] - b.r);
+            max = Math.max(max, b.p[1] + b.r);
+            lo = Math.min(lo, b.p[1]);
+            hi = Math.max(hi, b.p[1]);
+          }
+        if (dev === 2) spread = Math.max(spread, hi - lo);
       }
-    }
-  const a = camera(1.2, 0.4),
-    b = camera(1.2, 0.4 + TAU);
-  assert.ok(dist(a.eye, b.eye) < 1e-12 && dist(a.target, b.target) < 1e-12);
+  assert.ok(min > 0.35, `floor ${min}`);
+  assert.ok(max < CEILING - 1, `motor clearance ${max}`);
+  assert.ok(spread > 3, "peak has actual height staggering");
 });
-
-test("development is continuous (Lipschitz) and identity persists", () => {
-  // A bounded step in development moves every sphere a bounded distance:
-  // no jumps anywhere in 0 … 2, forward or back.
+test("quiet canopy has a gentle sculptural crest, waves and folds are bounded", () => {
+  const seed = seedAngles(1216).wave;
+  for (let k = 0; k < 300; k++) {
+    const x = -HALF + (((k * 37) % 101) / 100) * 2 * HALF,
+      z = -HALF + (((k * 53) % 97) / 96) * 2 * HALF,
+      W = k * 0.173;
+    assert.ok(Math.abs(rippleHeight(x, z, W)) <= RIPPLE_BOUND + 1e-12);
+    for (let form = 0; form < 4; form++) {
+      const w = [0, 0, 0, 0];
+      w[form] = 1;
+      assert.ok(Math.abs(waveHeight(x, z, W, w, 0.2, 1, seed)) <= 0.4 + 1e-12);
+      assert.ok(Math.abs(foldHeight(x, z, W, w, 0.2)) <= 1.8 + 1e-12);
+    }
+    const state = { ...base, dev: 1, W, amp: 1.3 };
+    const b = ball(k % N, Math.floor(k / N), state);
+    close(b.p[1], installationHeight(b.p[0], b.p[2], state), 1e-12);
+  }
+});
+test("development is bounded and reversal retraces exactly, no gather-knot interpolation", () => {
   const step = 0.002;
   let worst = 0;
-  for (let s = 0; s < N * N; s += 37) {
+  for (let s = 0; s < N * N; s += 103) {
     const i = s % N,
       j = Math.floor(s / N);
-    let prev = ball(i, j, { ...base, detail: 0.5, amp: 1.6, dev: 0 }).p;
+    let prev = ball(i, j, { ...base, amp: 1.6, detail: 1 }).p;
     for (let dev = step; dev <= 2 + 1e-9; dev += step) {
-      const p = ball(i, j, { ...base, detail: 0.5, amp: 1.6, dev }).p;
+      const p = ball(i, j, { ...base, dev, amp: 1.6, detail: 1 }).p;
       worst = Math.max(worst, dist(p, prev) / step);
       prev = p;
     }
   }
-  assert.ok(worst < 60, `Lipschitz ${worst}`);
-  // Reversal retraces the same path (pure function of development).
-  const fwd = ball(13, 61, { ...base, dev: 1.37 }).p;
+  assert.ok(worst < 6, `development slope ${worst}`);
+  const before = ball(13, 61, { ...base, dev: 1.37 });
   ball(13, 61, { ...base, dev: 1.9 });
-  assert.deepEqual(ball(13, 61, { ...base, dev: 1.37 }).p, fwd);
+  assert.deepEqual(ball(13, 61, { ...base, dev: 1.37 }), before);
 });
-
-// Kick envelope as rhythm.mjs shapes it, times the engine's energy gain:
-// strength · d²(3 − 2d) · gain(level), d the remaining fraction of the
-// gesture's duration (in beats).
+test("positions, camera and lens wrap seamlessly at every integrated clock period", () => {
+  for (const dev of [0, 0.7, 1, 1.5, 2])
+    for (let s = 0; s < N * N; s += 211) {
+      const i = s % N,
+        j = Math.floor(s / N),
+        b = ball(i, j, { ...base, dev, detail: 1 });
+      for (const shift of [
+        { W: base.W + TAU },
+        { M: base.M + 4 },
+        { Phi: base.Phi + 2 * TAU },
+      ])
+        assert.ok(
+          dist(b.p, ball(i, j, { ...base, dev, detail: 1, ...shift }).p) < 1e-9,
+        );
+      close(focalLength(dev, 1) / focalLength(dev, 0), 1.02, 1e-12);
+      assert.ok(dist(camera(dev, 0.4).eye, camera(dev, 0.4 + TAU).eye) < 1e-12);
+    }
+});
 const envelope = (beats, duration, strength, level) => {
   const d = Math.max(0, 1 - beats / duration);
   return strength * d * d * (3 - 2 * d) * rhythmGain(level);
 };
-
-test("motors stay within their speed envelope at every development", () => {
-  const kickFx = scene.rhythm.find((r) => r.slot === 0).defaults;
-  assert.equal(kickFx.strength, KICK_STRENGTH);
-  const bps = 140 / 60;
-  const maxRate = (k) =>
-    scene.clocks[k].rate(
-      scene.schema.map((f) => f.max),
-      1,
-    );
-  const rates = { W: maxRate(0), M: maxRate(1), Phi: maxRate(2) };
-  const dt = 1 / 240;
+test("motor speeds stay bounded even at maximum clocks, detail and amplitude", () => {
+  const dt = 1 / 240,
+    bps = 140 / 60,
+    p = scene.schema.map((f) => f.max),
+    rates = scene.clocks.map((c) => c.rate(p, 1));
   let worst = 0;
   for (const level of [0.3, 1])
     for (const dev of [0, 0.5, 1, 1.25, 1.5, 1.75, 2])
       for (const t0 of [0.31, 0.62, 1.05, 1.7, 2.6, 5.3, 9.9, 12.4])
-        for (let s = 0; s < N * N; s += 17) {
-          const i = s % N,
-            j = Math.floor(s / N);
+        for (let s = 0; s < N * N; s += 67) {
           const at = (t) =>
-            ball(i, j, {
+            ball(s % N, Math.floor(s / N), {
+              ...base,
               dev,
-              W: t * rates.W,
-              M: t * rates.M,
-              Phi: t * rates.Phi,
-              kick: envelope(
-                (t * bps) % kickFx.length,
-                kickFx.duration,
-                kickFx.strength,
-                level,
-              ),
+              W: t * rates[0],
+              M: t * rates[1],
+              Phi: t * rates[2],
+              kick: envelope((t * bps) % 4, 3.5, KICK_STRENGTH, level),
               level,
               detail: 1,
               amp: 1.6,
-              size: 1,
-              seed: 1216,
             }).p;
-          // Includes the launch instants: at the authored strength the
-          // ring starts on the axis with zero amplitude.
-          const v = dist(at(t0 + dt), at(t0)) / dt;
-          worst = Math.max(worst, v);
+          worst = Math.max(worst, dist(at(t0 + dt), at(t0)) / dt);
         }
-  assert.ok(worst <= VMAX, `fastest sphere ${worst.toFixed(3)} > ${VMAX}`);
-  assert.ok(worst > 0.3, "the waves actually move");
-  // Launches across a bar line are continuous at the authored strength.
-  for (const level of [0.1, 0.6, 1]) {
-    const before = envelope(
-        kickFx.length - 1e-9,
-        kickFx.duration,
-        KICK_STRENGTH,
-        level,
-      ),
-      after = envelope(0, kickFx.duration, KICK_STRENGTH, level);
-    for (let rho = 0; rho < 18; rho += 0.05)
+  assert.ok(worst < VMAX, `motor speed ${worst}`);
+  assert.ok(worst > 0.3);
+});
+test("camera dollies out before rising and remains clear of the installation", () => {
+  let nearest = Infinity,
+    step = 0;
+  for (let dev = 0; dev <= 2.0001; dev += 0.05)
+    for (let a = 0; a < TAU; a += 0.45) {
+      const eye = camera(dev, a).eye;
+      step = Math.max(step, dist(eye, camera(dev + 0.001, a).eye));
+      for (let s = 0; s < N * N; s += 31) {
+        const b = ball(s % N, Math.floor(s / N), {
+          ...base,
+          dev,
+          amp: 1.6,
+          detail: 1,
+          W: a * 3,
+          M: a * 0.6,
+          kick: 0.5,
+        });
+        nearest = Math.min(nearest, dist(b.p, eye) - b.r * 1.5);
+      }
+    }
+  assert.ok(nearest > 0.45, `clearance ${nearest}`);
+  assert.ok(step < 0.045, `camera slope ${step}`);
+  for (const a of [0, 1, 2, 4])
+    assert.ok(
+      Math.hypot(camera(1.6, a).eye[0], camera(1.6, a).eye[2]) > 19,
+      "outside footprint before crane",
+    );
+});
+test("kick front starts continuously, stays local and remains readable at low energy", () => {
+  for (const level of [0.1, 0.6, 1])
+    for (let rho = 0; rho < 18; rho += 0.05) {
+      close(ringHeight(rho, 0, level), 0, 0);
       close(
-        ringHeight(rho, before, level),
-        ringHeight(rho, after, level),
-        1e-9,
-      );
-  }
-  // Any other strength gives a bounded kick response, never a pop across
-  // the lattice.
-  for (const strength of [0.2, 0.5, 1])
-    for (const level of [0.1, 0.6, 1]) {
-      let step = 0;
-      const k = strength * rhythmGain(level);
-      for (let rho = 0; rho < 18; rho += 0.02)
-        step = Math.max(step, Math.abs(ringHeight(rho, k, level)) * 1.6);
-      assert.ok(step <= 0.16, `${strength}/${level}: ${step}`);
-    }
-});
-
-test("the camera stays clear of every sphere and never jumps", () => {
-  let nearest = Infinity;
-  for (const dev of [0, 0.5, 1, 1.3, 1.6, 2])
-    for (let a = 0; a < TAU; a += TAU / 24) {
-      const { eye } = camera(dev, a, base.Phi);
-      for (const kick of [0, 0.5])
-        for (let s = 0; s < N * N; s += 7) {
-          const b = ball(s % N, Math.floor(s / N), {
-            ...base,
-            dev,
-            kick,
-            amp: 1.6,
-            detail: 1,
-            M: a * 0.6,
-            W: a * 3,
-          });
-          nearest = Math.min(nearest, dist(b.p, eye) - b.r * 1.5);
-        }
-    }
-  assert.ok(nearest > 0.45, `camera clearance ${nearest}`);
-  let prev = camera(0, 0).eye;
-  for (let dev = 0.001; dev <= 2; dev += 0.001) {
-    const { eye } = camera(dev, 0);
-    assert.ok(dist(eye, prev) < 0.12);
-    prev = eye;
-  }
-});
-
-test("surface reindexing covers a complete balanced grid without changing identities", () => {
-  const seen = new Set();
-  assert.equal(SURFACE_COLS * SURFACE_ROWS, N * N);
-  for (let j = 0; j < N; j++)
-    for (let i = 0; i < N; i++) {
-      const [u, v] = sculptureUV(i, j);
-      assert.ok(u > 0 && u < 1 && v > 0 && v < 1);
-      seen.add(
-        `${Math.floor(u * SURFACE_COLS)},${Math.floor(v * SURFACE_ROWS)}`,
+        ringHeight(rho, KICK_STRENGTH * rhythmGain(level), level),
+        0,
+        1e-15,
       );
     }
-  assert.equal(seen.size, N * N);
-});
-
-test("ring light is bounded and equally legible at low and high energy", () => {
   let peak = 0;
   for (let kn = 0; kn <= 1; kn += 0.025)
-    for (let rho = 0; rho <= RING.reach + 5; rho += 0.2) {
-      const low = ringLight(rho, kn * KICK_STRENGTH * rhythmGain(0.1), 0.1);
-      const high = ringLight(rho, kn * KICK_STRENGTH * rhythmGain(0.9), 0.9);
+    for (let rho = 0; rho < 18; rho += 0.2) {
+      const low = ringLight(rho, kn * KICK_STRENGTH * rhythmGain(0.1), 0.1),
+        high = ringLight(rho, kn * KICK_STRENGTH * rhythmGain(0.9), 0.9);
       close(low, high, 1e-12);
       assert.ok(low >= 0 && low <= 1);
       peak = Math.max(peak, low);
-      close(ringLight(rho, 0, 0.1), 0, 0);
-      close(ringLight(rho, KICK_STRENGTH * rhythmGain(0.1), 0.1), 0, 0);
+      assert.ok(Math.abs(ringHeight(rho, kn, 1)) <= RING.amp * kn + 1e-12);
     }
   assert.ok(peak > 0.9);
 });
-
-test("all four peak forms fill the short side, stay above the mirror and fit portrait", () => {
-  const sub = (a, b) => a.map((v, k) => v - b[k]);
-  const dot = (a, b) => a.reduce((s, v, k) => s + v * b[k], 0);
-  const cross = (a, b) => [
-    a[1] * b[2] - a[2] * b[1],
-    a[2] * b[0] - a[0] * b[2],
-    a[0] * b[1] - a[1] * b[0],
-  ];
-  const norm = (a) => a.map((v) => v / Math.hypot(...a));
-  // Include the blends, not just holds: the old framing missed a 52%
-  // saddle→sphere midpoint while its four held-form tests still passed.
-  for (let M = 0.1; M < 4; M += 0.15)
-    for (let a = 0; a < TAU; a += 0.9)
-      for (let Phi = 0; Phi < TAU; Phi += 0.9)
-        for (const W of [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]) {
-          const { eye, target } = camera(2, a, Phi, M);
-          const F = norm(sub(target, eye)),
-            R = norm(cross(F, [0, 1, 0])),
-            U = cross(R, F);
-          let x0 = Infinity,
-            x1 = -Infinity,
-            y0 = Infinity,
-            y1 = -Infinity;
-          for (let index = 0; index < N * N; index += 17) {
-            const p = sculpture(
-              ...sculptureUV(index % N, Math.floor(index / N)),
-              chorus(M),
-              W,
-              Phi,
-              1,
-            ).map((x, i) => x + CENTER[i]);
-            // Conservative maximum pearl radius: no need to evaluate normals
-            // millions of times just to project the identical position law.
-            assert.ok(
-              p[1] - 0.055 * 1.5 > 0,
-              `floor clearance ${M}/${a}/${Phi}`,
-            );
-            const c = sub(p, eye),
-              z = dot(c, F);
-            const x = (dot(c, R) / z) * focalLength(2, 0, M),
-              y = (dot(c, U) / z) * focalLength(2, 0, M);
-            x0 = Math.min(x0, x);
-            x1 = Math.max(x1, x);
-            y0 = Math.min(y0, y);
-            y1 = Math.max(y1, y);
-          }
-          // Height, NOT max(width,height): the latter passed a 30%-high edge-on
-          // band. Include the maximum 2% kick when enforcing the upper bound.
-          const height = (y1 - y0) / 2;
-          assert.ok(
-            height > 0.6 && height * 1.02 < 0.8,
-            `short-side height ${height}, ${M}/${a}/${Phi}`,
-          );
-          assert.ok(
-            Math.max(Math.abs(x0), Math.abs(x1), Math.abs(y0), Math.abs(y1)) *
-              1.02 <
-              0.99,
-            `portrait edge ${x0}/${x1}/${y0}/${y1}`,
-          );
-        }
-  for (const dev of [0, 0.4, 1, 1.4, 2])
-    close(focalLength(dev, 1) / focalLength(dev, 0), 1.02, 1e-12);
-});
-
-test("the lens fit is smooth, periodic and threads are culled only after fading to zero", () => {
-  for (let M = 0; M < 4; M += 0.007) {
-    close(focalLength(2, 0, M), focalLength(2, 0, M + 4), 1e-12);
-    close(focalLength(2, 0, M, 6006), focalLength(2, 0, M + 2), 1e-12);
+test("signature is a narrow descending physical-height front with a delayed mirror and exact silence", () => {
+  let previous = Infinity;
+  for (const progress of [0.15, 0.3, 0.5, 0.7, 0.85]) {
+    const env = 0.96 * rhythmGain(0.85) * (1 - progress),
+      front = 5.65 - 5.5 * progress;
+    assert.ok(front < previous);
+    previous = front;
+    assert.ok(cascadeLight(front, env, 0.85) > 0.99);
     assert.ok(
-      focalLength(2, 0, M) >= 1.62 - 1e-12 && focalLength(2, 0, M) < 2.05,
+      cascadeLight(front + 0.5, env, 0.85) < 0.001,
+      "half a metre away stays dark",
     );
+    const echo = 5.65 - 5.5 * (progress - 0.14);
     assert.ok(
-      Math.abs(focalLength(2, 0, M + 0.0001) - focalLength(2, 0, M)) < 0.0007,
+      cascadeLight(echo, env, 0.85, 0.14) > (progress > 0.22 ? 0.99 : 0),
+      "delayed echo is still higher, with a soft delayed launch",
     );
-    close(focalLength(0, 0, M), 1.4, 1e-12);
-    close(focalLength(2, 1, M) / focalLength(2, 0, M), 1.02, 1e-12);
   }
-  assert.match(scene.geometry.vertex, /if\(a_kind>1\.5&&sig>=1\.\)/);
-  assert.match(scene.geometry.vertex, /v_focal=Fk;/);
-  assert.match(scene.geometry.fragment, /pixA=2\.\/\(v_focal\*/);
-  assert.match(scene.fragment, /if\(peak<=0\.\)return FOCAL/);
-  assert.match(scene.geometry.fragment, /1\.-sst\(\.9,1\.,v_info\.z\)/);
-  assert.ok(
-    scene.geometry.vertex.indexOf("a_kind>1.5&&sig>=1.") <
-      scene.geometry.vertex.indexOf("vec3 p=sculpt"),
-  );
-});
-
-test("mirror culling includes ring motion, sphere radius, blur and the impostor pixel apron", () => {
-  const maxHeight = CENTER[1] + FORM.saddleR * 1.03 + 0.6 * RING.amp * 1.6;
-  assert.ok(
-    0.004 * maxHeight + 0.001 < 0.03,
-    "blur + perspective-radius margin",
-  );
-  const vertex = scene.geometry.vertex;
-  assert.match(vertex, /a_kind>\.5&&a_kind<1\.5&&sig>=1\./);
-  assert.match(
-    vertex,
-    /bound=\.055\*size\+\.6\*RAMP\*kick\*amp\+\.03\+4\.\*length\(c\)/,
-  );
-  assert.match(vertex, /bound\*sqrt\(vec2\(1\.\)\+slope\*slope\)/);
-  assert.ok(
-    vertex.indexOf("Conservative top-state mirror") <
-      vertex.indexOf("vec3 du,dv;sculptDerivatives"),
-  );
-});
-
-test("hero camera follows the tilted normal with bounded periodic parallax, not energy", () => {
-  for (let a = 0; a < TAU; a += 0.2)
-    for (let Phi = 0; Phi < TAU; Phi += 0.3) {
-      const { eye } = camera(2, a, Phi);
-      const q = eye.map((x, i) => x - CENTER[i]);
-      const normal = [
-        -Math.sin(TILT) * Math.sin(Phi),
-        Math.cos(TILT),
-        Math.sin(TILT) * Math.cos(Phi),
-      ];
-      close(
-        q.reduce((s, x, i) => s + x * normal[i], 0),
-        HERO_DISTANCE,
-        1e-12,
-      );
-      close(Math.hypot(...q), Math.hypot(HERO_DISTANCE, HERO_PARALLAX), 1e-12);
-      assert.ok(dist(eye, camera(2, a + TAU, Phi + 2 * TAU).eye) < 1e-12);
-    }
-  assert.ok(scene.geometry.vertex.includes(`${SADDLE_FIT}*w.w`));
-  assert.match(scene.geometry.vertex, /\.85\+\.15\*max\(s01,sig\)/);
-  assert.match(scene.fragment, /layer\*\(\.032\+\.009\*\(1\.-s01\)\)/);
-});
-
-test("analytic surface differentials agree with independent tiny finite differences", () => {
-  const eps = 1e-6;
-  for (let M = 0; M < 4; M += 0.19)
-    for (let k = 1; k < 25; k++) {
-      const u = k / 26,
-        v = (((k * 17) % 29) + 1) / 31,
-        w = chorus(M);
-      const at = (u, v) => sculpture(u, v, w, 1.3, 2.1, 1);
-      const derivatives = sculptureDerivatives(u, v, w, 1.3, 2.1, 1);
-      for (let axis = 0; axis < 2; axis++) {
-        const a = at(u + (axis === 0 ? eps : 0), v + (axis === 1 ? eps : 0));
-        const b = at(u - (axis === 0 ? eps : 0), v - (axis === 1 ? eps : 0));
-        for (let i = 0; i < 3; i++)
-          close(
-            derivatives[axis][i],
-            (a[i] - b[i]) /
-              (2 * eps * (axis === 0 ? SURFACE_COLS : SURFACE_ROWS)),
-            1e-8,
-          );
+  for (let y = -1; y < 10; y += 0.05)
+    for (const level of [0, 0.1, 0.5, 0.9, 1])
+      for (const lag of [0, 0.14]) {
+        assert.equal(
+          cascadeLight(y, 0, level, lag),
+          0,
+          "muted track leaves no residual mirror band",
+        );
+        for (const d of [0, 0.1, 0.5, 0.9, 1]) {
+          const v = cascadeLight(y, d * 0.96 * rhythmGain(level), level, lag);
+          assert.ok(Number.isFinite(v) && v >= 0 && v <= 1);
+        }
       }
-    }
-  assert.doesNotMatch(scene.geometry.vertex, /sculpt\(uv[+-]/);
 });
-
-test("haze glow: the closed form equals numeric integration", () => {
-  const simpson = (f, a, b, n = 20000) => {
-    if (!(b > a)) return 0;
+test("analytic haze and footprint span agree with numerical integration and ray samples", () => {
+  const simpson = (f, a, b, n = 10000) => {
     const h = (b - a) / n;
     let s = f(a) + f(b);
-    for (let k = 1; k < n; k++) s += f(a + k * h) * (k % 2 ? 4 : 2);
+    for (let i = 1; i < n; i++) s += f(a + i * h) * (i % 2 ? 4 : 2);
     return (s * h) / 3;
   };
-  let rnd = 7;
-  const random = () => ((rnd = (rnd * 16807) % 2147483647) - 1) / 2147483646;
-  for (let n = 0; n < 60; n++) {
+  let seed = 7;
+  const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  for (let n = 0; n < 40; n++) {
     const o = random() * 6,
       d = (random() * 2 - 1) * (n % 7 === 0 ? 1e-9 : 1),
       t0 = random() * 4,
-      t1 = t0 + random() * 30,
-      h = HANG,
-      sA = 0.4,
-      sB = 0.8,
-      F = 9;
-    const f = (t) => {
-      const g = o + d * t - h;
-      return Math.exp((g > 0 ? -g / sA : g / sB) - t / F);
-    };
-    const exact = hazeLayer(o, d, t0, t1, h, sA, sB, F);
-    const numeric = simpson(f, t0, t1);
-    assert.ok(Number.isFinite(exact));
-    close(exact, numeric, 2e-6 + 2e-5 * numeric, `ray ${n}`);
-  }
-  // The footprint span equals a brute-force scan of the column.
-  for (let n = 0; n < 40; n++) {
+      t1 = t0 + random() * 30;
+    const exact = hazeLayer(o, d, t0, t1, HANG, 0.7, 1.4, 18);
+    const numeric = simpson(
+      (t) => {
+        const g = o + d * t - HANG;
+        return Math.exp((g > 0 ? -g / 0.7 : g / 1.4) - t / 18);
+      },
+      t0,
+      t1,
+    );
+    close(exact, numeric, 2e-6 + 2e-5 * numeric);
     const ox = random() * 30 - 15,
       oz = random() * 30 - 15,
-      a = random() * TAU;
-    const dx = Math.cos(a),
+      a = random() * TAU,
+      dx = Math.cos(a),
       dz = Math.sin(a),
-      e = 10,
-      T = 40;
-    const [t0, t1] = columnSpan(ox, oz, dx, dz, e, T);
-    for (let t = 0; t <= T; t += 0.05) {
-      const inside = Math.abs(ox + dx * t) <= e && Math.abs(oz + dz * t) <= e;
-      const claimed = t >= t0 && t <= t1 && t1 > t0;
-      if (Math.abs(t - t0) > 0.06 && Math.abs(t - t1) > 0.06)
-        assert.equal(claimed, inside, `ray ${n} t=${t}`);
-    }
+      [u, v] = columnSpan(ox, oz, dx, dz, 10, 40);
+    for (let t = 0; t <= 40; t += 0.05)
+      if (Math.abs(t - u) > 0.06 && Math.abs(t - v) > 0.06)
+        assert.equal(
+          t >= u && t <= v && v > u,
+          Math.abs(ox + dx * t) <= 10 && Math.abs(oz + dz * t) <= 10,
+        );
   }
 });

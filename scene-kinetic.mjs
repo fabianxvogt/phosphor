@@ -3,87 +3,75 @@ import {
   ADDITIVE_FROM,
   ATTRIBUTES,
   CEILING,
-  CENTER,
   FOCAL,
-  FOCAL_RISE,
-  FRAME_GAIN,
-  MORPH_FIT,
-  SADDLE_FIT,
-  HERO_DISTANCE,
-  HERO_PARALLAX,
-  FORM,
-  HALF,
   HANG,
   HOLD,
   KICK_STRENGTH,
   N,
   RADIUS,
   RING,
-  RMAX,
   SPACING,
-  STAGGER,
-  SURFACE_COLS,
-  SURFACE_ROWS,
-  TILT,
   createGeometry,
 } from "./kinetic-model.mjs";
-// Kinetic Rain: a club kinetic installation. 9216 glowing spheres hang on
-// threads from a motor ceiling; one index lattice carries every state.
-// Ceiling (level, faint ripple) → Waves (interfering travelling-wave
-// choreographies, kick rings) → Sculpture (the lattice becomes the (u, v)
-// grid of one parametric surface morphing sphere → torus → Möbius → saddle).
-// Positions are a pure function of (index, development, clocks), mirrored on
-// the CPU in kinetic-model.mjs. Each sphere is a ray-traced impostor that
-// also carries the lighting of the surface it belongs to, so thousands of
-// points read as one coherent, lit surface.
-const f = (x) => {
-  const s = String(x);
-  return s.includes(".") || s.includes("e") ? s : `${s}.`;
-};
+const f = (x) => (Number.isInteger(x) ? `${x}.` : String(x));
 const common = `
-const float N=${f(N)},SP=${f(SPACING)},HANG=${f(HANG)},CEIL=${f(CEILING)},R0=${f(RADIUS)};
-const float RMAX=${RMAX.toFixed(6)},STAGGER=${f(STAGGER)},FOCAL=${f(FOCAL)},HOLD=${f(HOLD)};
-const vec3 CENTER=vec3(${CENTER.map(f).join(",")});
+const float N=${f(N)},SP=${f(SPACING)},HANG=${f(HANG)},CEIL=${f(CEILING)},R0=${f(RADIUS)},FOCAL=${f(FOCAL)},HOLD=${f(HOLD)};
 const float RREACH=${f(RING.reach)},RWIDTH=${f(RING.width)},RAMP=${f(RING.amp)},RWAVE=${f(RING.wave)},RGROW=${f(RING.grow)},KSTR=${f(KICK_STRENGTH)};
-const float FSPH=${f(FORM.sphere)},FTR=${f(FORM.torusR)},FTr=${f(FORM.torusr)},FMR=${f(FORM.mobiusR)},FMW=${f(FORM.mobiusW)};
-const float FSR=${f(FORM.saddleR)},FSK=${f(FORM.saddleK)},FSW=${f(FORM.saddleWave)};
-const float TC=${Math.cos(TILT).toFixed(7)},TS=${Math.sin(TILT).toFixed(7)};
-const float NEARZ=.05,FARZ=60.,FOGK=.05,EXT=${(HALF + 0.6).toFixed(3)};
-#define K_TAU 6.28318530718
+const float NEARZ=.05,FARZ=80.,FOGK=.025,EXT=12.475;
 #define DEV clamp(u_params[0],0.,2.)
+#define TAU 6.28318530718
 float sst(float a,float b,float x){float t=clamp((x-a)/(b-a),0.,1.);return t*t*(3.-2.*t);}
-vec4 chorus(float M){
- float c=floor(M),s=sst(HOLD,1.,M-c);
- vec4 I=vec4(0.,1.,2.,3.);
- return (1.-s)*vec4(equal(I,vec4(mod(c,4.))))+s*vec4(equal(I,vec4(mod(c+1.,4.))));
-}
-float seedAngle(float k){return K_TAU*fract(mod(u_seed,8192.)*k);}
+vec4 chorus(float M){float c=floor(M),s=sst(HOLD,1.,M-c);vec4 I=vec4(0.,1.,2.,3.);return (1.-s)*vec4(equal(I,vec4(mod(c,4.))))+s*vec4(equal(I,vec4(mod(c+1.,4.))));}
+float seedAngle(float k){return TAU*fract(mod(u_seed,8192.)*k);}
 void cameraRig(float dev,out vec3 eye,out vec3 R,out vec3 U,out vec3 F){
- float s2=sst(1.,2.,dev),a=u_clock[3]+seedAngle(.7548776662);
- float radius=6.+.4*sin(2.*a),height=.75+.1*sin(3.*a);
- float c=cos(u_clock[2]),s=sin(u_clock[2]),ca=cos(a),sa=sin(a);
- vec3 hero=CENTER+${f(HERO_DISTANCE)}*vec3(-TS*s,TC,TS*c)
-  +${f(HERO_PARALLAX)}*vec3(c*ca-TC*s*sa,-TS*sa,s*ca+TC*c*sa);
- vec3 travel=vec3(sst(1.85,2.,dev),sst(1.75,1.97,dev),sst(1.85,2.,dev));
- eye=mix(vec3(radius*ca,height,radius*sa),hero,travel);
- float side=.9*(1.-s2);
- float aim=.25*s2*chorus(u_clock[1]+mod(u_seed,4.)).z;
- vec3 target=vec3(-sin(a)*side+aim*c,2.2-.3*sst(0.,1.,dev)+.05*s2,cos(a)*side+aim*s);
+ float a=u_clock[3]+seedAngle(.7548776662),f=sst(1.,1.65,dev),rise=sst(1.6,2.,dev);
+ float radius=6.+.4*sin(2.*a)+14.*f,height=.75+.1*sin(3.*a)+4.75*rise;
+ eye=vec3(radius*cos(a),height,radius*sin(a));
+ float side=.9+sst(1.,2.,dev);
+ vec3 target=vec3(-sin(a)*side,2.5-2.3*sst(1.,2.,dev),cos(a)*side);
  F=normalize(target-eye);R=normalize(cross(F,vec3(0.,1.,0.)));U=cross(R,F);
 }
-float focal(){
- float peak=sst(1.,2.,DEV);
- if(peak<=0.)return FOCAL*(1.+.02*clamp(u_kick,0.,1.));
- vec4 w=chorus(u_clock[1]+mod(u_seed,4.));
- // Compensate contraction, especially the saddle's folding transition.
- // The normal-following camera keeps held bands from ever turning edge-on.
- float fit=dot(w,vec4(${FRAME_GAIN.map(f).join(",")}))+${f(MORPH_FIT)}*(1.-dot(w,w))+${f(SADDLE_FIT)}*w.w*(1.-w.w);
- return (FOCAL+(${f(FOCAL_RISE)}+fit)*peak)*(1.+.02*clamp(u_kick,0.,1.));
+float focal(){return (FOCAL+.38*sst(1.,2.,DEV))*(1.+.02*clamp(u_kick,0.,1.));}
+`;
+const heightfield = `
+float rippleH(vec2 p,float W){return .14*sin(.42*p.x+.27*p.y-W)+.1*sin(.31*p.y-.38*p.x-W+1.3)+.22*exp(-pow((length(p)-5.)/3.,2.));}
+float waveH(vec2 p,float W,vec4 w,float Phi,float detail,float base){
+ float a=base+.5*Phi,b=a+2.2;
+ vec2 d1=vec2(cos(a),sin(a)),d2=vec2(cos(b),sin(b));
+ float rho=length(p),th=atan(p.y,p.x+1e-7);
+ float h0=.17*sin(1.25*dot(d1,p)-2.*W)+.17*sin(1.05*dot(d2,p)-2.*W);
+ float h1=.27*sin(1.15*rho-2.*W);
+ float h2=.25*sin(.95*rho+3.*th-2.*W)*sst(.4,2.6,rho);
+ float h3=.32*sin(.85*dot(d1,p))*sin(.85*dot(vec2(-d1.y,d1.x),p))*cos(2.*W);
+ return dot(w,vec4(h0,h1,h2,h3))+.06*detail*sin(2.9*dot(d2,p)+1.7*rho-3.*W);
 }
-vec3 tone(float h){
- // Saturated frosted glass body; only the narrow specular lobe goes hot.
- return mix(u_secondary,u_primary,sst(.12,.88,h));
-}`;
+float foldH(vec2 p,float W,vec4 w,float Phi){
+ float a=Phi*.5,q=dot(vec2(cos(a),sin(a)),p),t=dot(vec2(-sin(a),cos(a)),p),r=length(p),th=atan(p.y,p.x+1e-7);
+ float h0=1.35*sin(.42*q-W)+.38*cos(.32*t+W);
+ float h1=1.55*cos(.43*r-W)+.25*sin(.3*q+W);
+ float h2=1.35*sin(.38*r+2.*th-W)*sst(0.,3.,r)+.3*cos(.3*t-W);
+ float h3=1.35*sin(.34*q-W)*cos(.28*t)+.35*sin(.3*t+W);
+ return dot(w,vec4(h0,h1,h2,h3));
+}
+float heightAt(vec2 p,float W,vec4 w,float Phi,float detail,float amp){
+ float wave=waveH(p,W,w,Phi,detail,seedAngle(.6180339887))*amp;
+ float tiers=.09*sin(TAU*p.x/(SP*5.))+.06*cos(TAU*p.y/(SP*7.));
+ return HANG+mix(mix(rippleH(p,W),wave,sst(0.,1.,DEV)),foldH(p,W,w,Phi)*(.68+.22*amp),sst(1.,2.,DEV))+tiers*(.2+.8*sst(1.,2.,DEV));
+}
+float ringP(float rho,float kick){
+ float kn=clamp(kick/(KSTR*(.12+.88*sst(0.,1.,u_level))),0.,1.);
+ float front=RREACH*(1.-kn),x=(rho-front)/RWIDTH;
+ return sst(0.,RGROW,front)*exp(-x*x)*cos(RWAVE*x);
+}
+// A physical-height address, not index depth or a broad colour cap. The
+// reflected population follows the same falling front a little later.
+float cascadeAt(float y,float envelope,float lag){
+ float d=clamp(envelope/(.96*(.12+.88*sst(0.,1.,u_level))),0.,1.);
+ float progress=clamp(1.-d-lag,0.,1.);
+ float front=5.65-5.5*progress;
+ return exp(-pow((y-front)/.14,2.))*sst(0.,.08,progress)*(1.-sst(.94,1.,progress))*sst(0.,.035,d);
+}
+`;
 const vertex = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 a_cell;
@@ -97,241 +85,72 @@ uniform float u_params[8];
 uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 uniform vec3 u_primary,u_secondary,u_accent;
 ${common}
+${heightfield}
 out vec3 v_ray;
 out vec2 v_q;
 flat out vec3 v_c,v_col;
 flat out vec4 v_info;
 flat out float v_focal;
-const float TAU=6.28318530718,PI=3.14159265359;
-float rippleH(vec2 p,float W){return .045*sin(.42*p.x+.27*p.y-W)+.03*sin(.31*p.y-.38*p.x-W+1.3);}
-float waveH(vec2 p,float W,vec4 w,float Phi,float detail,float base){
- float a=base+.5*Phi,b=a+2.2;
- vec2 d1=vec2(cos(a),sin(a)),d2=vec2(cos(b),sin(b));
- float rho=length(p),th=atan(p.y,p.x+1e-7);
- float h0=.17*sin(1.25*dot(d1,p)-2.*W)+.17*sin(1.05*dot(d2,p)-2.*W);
- float h1=.27*sin(1.15*rho-2.*W);
- float h2=.25*sin(.95*rho+3.*th-2.*W)*sst(.4,2.6,rho);
- float h3=.32*sin(.85*dot(d1,p))*sin(.85*dot(vec2(-d1.y,d1.x),p))*cos(2.*W);
- float fine=.06*detail*sin(2.9*dot(d2,p)+1.7*rho-3.*W);
- return dot(w,vec4(h0,h1,h2,h3))+fine;
-}
-// Kick ring (kinetic-model.mjs ringProfile): the envelope is normalised by
-// the authored strength and the engine's energy gain, so the front starts
-// on the axis.
-float ringP(float rho,float kick){
- float kn=clamp(kick/(KSTR*(.12+.88*sst(0.,1.,u_level))),0.,1.);
- float front=RREACH*(1.-kn),x=(rho-front)/RWIDTH;
- return sst(0.,RGROW,front)*exp(-x*x)*cos(RWAVE*x);
-}
-vec3 sculpt(vec2 uv,vec4 w,float W,float Phi,float detail){
- float th=TAU*uv.x;vec3 p=vec3(0.);
- if(w.x>0.){float ph=PI*uv.y;p+=w.x*FSPH*vec3(sin(ph)*cos(th),cos(ph),sin(ph)*sin(th));}
- if(w.y>0.){float ps=PI*.5-TAU*uv.y,R=FTR+FTr*cos(ps);p+=w.y*vec3(R*cos(th),FTr*sin(ps),R*sin(th));}
- if(w.z>0.){float m=FMW*(1.-2.*uv.y),R=FMR+m*cos(th*.5);p+=w.z*vec3(R*cos(th),m*sin(th*.5),R*sin(th));}
- if(w.w>0.){float r=FSR*sqrt(.02+.98*uv.y);
-  p+=w.w*vec3(r*cos(th),FSK*r*r*cos(2.*th)+FSW*r*sin(2.6*r-2.*W),r*sin(th));}
- float shimmer=1.+(.01+.02*detail)*sin(TAU*(5.*uv.x+3.*uv.y)-2.*W);
- p.yz=vec2(TC*p.y-TS*p.z,TS*p.y+TC*p.z);
- float c=cos(Phi),s=sin(Phi);
- return vec3(c*p.x-s*p.z,p.y,s*p.x+c*p.z)*shimmer;
-}
-// Exact differential of the same blended position law. Two derivative
-// vectors replace four complete neighbouring surface evaluations.
-void sculptDerivatives(vec2 uv,vec4 w,float W,float Phi,float detail,vec3 p,out vec3 du,out vec3 dv){
- float th=TAU*uv.x,c=cos(th),s=sin(th);
- du=vec3(0.);dv=vec3(0.);
- if(w.x>0.){
-  float ph=PI*uv.y,sp=sin(ph),cp=cos(ph);
-  du+=w.x*TAU*FSPH*sp*vec3(-s,0.,c);
-  dv+=w.x*PI*FSPH*vec3(cp*c,-sp,cp*s);
- }
- if(w.y>0.){
-  float ps=PI*.5-TAU*uv.y,sp=sin(ps),cp=cos(ps),r=FTR+FTr*cp;
-  du+=w.y*TAU*r*vec3(-s,0.,c);
-  dv+=w.y*TAU*FTr*vec3(sp*c,-cp,sp*s);
- }
- if(w.z>0.){
-  float m=FMW*(1.-2.*uv.y),ch=cos(th*.5),sh=sin(th*.5),r=FMR+m*ch,dr=-.5*TAU*m*sh;
-  du+=w.z*vec3(dr*c-TAU*r*s,.5*TAU*m*ch,dr*s+TAU*r*c);
-  dv+=w.z*(-2.*FMW)*vec3(ch*c,sh,ch*s);
- }
- if(w.w>0.){
-  float r=FSR*sqrt(.02+.98*uv.y),a=2.6*r-2.*W,dr=.49*FSR*FSR/r;
-  du+=w.w*TAU*vec3(-r*s,-2.*FSK*r*r*sin(2.*th),r*c);
-  dv+=w.w*dr*vec3(c,2.*FSK*r*cos(2.*th)+FSW*(sin(a)+2.6*r*cos(a)),s);
- }
- du.yz=vec2(TC*du.y-TS*du.z,TS*du.y+TC*du.z);
- dv.yz=vec2(TC*dv.y-TS*dv.z,TS*dv.y+TC*dv.z);
- float cp=cos(Phi),sp=sin(Phi);
- du=vec3(cp*du.x-sp*du.z,du.y,sp*du.x+cp*du.z);
- dv=vec3(cp*dv.x-sp*dv.z,dv.y,sp*dv.x+cp*dv.z);
- float a=(.01+.02*detail),phase=TAU*(5.*uv.x+3.*uv.y)-2.*W;
- float sh=1.+a*sin(phase),ds=a*cos(phase)*TAU;
- du=(du*sh+p*(ds*5./sh))/${f(SURFACE_COLS)};
- dv=(dv*sh+p*(ds*3./sh))/${f(SURFACE_ROWS)};
-}
 void main(){
- // The seed picks the first form / choreography (whole steps: a hold).
- float dev=DEV,W=u_clock[0],M=u_clock[1]+mod(u_seed,4.),Phi=u_clock[2];
- float amp=u_params[2],detail=clamp(u_params[3],0.,1.),size=u_params[7];
- float kick=clamp(u_kick,0.,1.);
+ float dev=DEV,W=u_clock[0],Phi=u_clock[2],amp=u_params[2],detail=clamp(u_params[3],0.,1.),size=u_params[7];
+ vec4 w=chorus(u_clock[1]+mod(u_seed,4.));
  vec2 g=(a_cell-(N-1.)*.5)*SP;
- float rho=length(g);
- float s01=sst(0.,1.,dev),s12=clamp(dev-1.,0.,1.);
- float sig=sst(0.,1.,s12*(1.+STAGGER)-STAGGER*rho/RMAX);
- // The cables fade continuously before the free sculpture is complete.
- // Reject their now-zero triangles before five surface/normal evaluations.
- if(a_kind>1.5&&sig>=1.){gl_Position=vec4(0.,0.,2.,1.);v_ray=vec3(0.);return;}
+ float kick=clamp(u_kick,0.,1.),rho=length(g),rp=ringP(rho,kick);
+ float y=heightAt(g,W,w,Phi,detail,amp),ring=RAMP*kick*rp*amp;
+ vec3 P=vec3(g.x,y+ring,g.y);
+ float r=R0*size*(1.+.2*sst(1.,2.,dev));
  vec3 eye,R,U,F;cameraRig(dev,eye,R,U,F);
- float A=u_resolution.x/u_resolution.y,Fk=focal();
+ float Fk=focal(),A=u_resolution.x/u_resolution.y;
  v_focal=Fk;
- vec4 w=chorus(M);
- float rp=ringP(rho,kick),ring=RAMP*kick*rp*amp;
- float base=seedAngle(.6180339887);
- vec3 pg=vec3(0.),ng=vec3(0.,1.,0.);float hg=.5;
- if(sig<1.){
-  float e=SP*.5;
-  vec4 hx=vec4(g.x+e,g.x-e,g.x,g.x),hz=vec4(g.y,g.y,g.y+e,g.y-e);
-  float y0=rippleH(g,W),y=y0+s01*(waveH(g,W,w,Phi,detail,base)*amp-y0);
-  vec4 hh;
-  for(int k=0;k<4;k++){vec2 q=vec2(hx[k],hz[k]);float r0=rippleH(q,W);hh[k]=r0+s01*(waveH(q,W,w,Phi,detail,base)*amp-r0);}
-  pg=vec3(g.x,HANG+y+ring,g.y);
-  ng=normalize(vec3(-(hh.x-hh.y)/(2.*e),1.,-(hh.z-hh.w)/(2.*e)));
-  hg=clamp(.5+(y+ring)*1.15+.22*(1.-s01)*y0/.075,0.,1.);
- }
- vec3 ps=vec3(0.),ns=vec3(0.,1.,0.);float rs=R0,hs=.5;
- if(sig>0.){
-  float index=a_cell.y*N+a_cell.x;
-  vec2 dims=vec2(${f(SURFACE_COLS)},${f(SURFACE_ROWS)});
-  vec2 uv=(vec2(mod(index,dims.x),floor(index/dims.x))+.5)/dims,e=.5/dims;
-  vec3 p=sculpt(uv,w,W,Phi,detail);
-  // Conservative top-state mirror frustum test before differential
-  // evaluation and lighting. Includes maximum ring motion, globe
-  // radius, reflected blur and expanded impostor AA support.
-  if(a_kind>.5&&a_kind<1.5&&sig>=1.){
-   vec3 mirror=CENTER+p;mirror.y=-mirror.y;
-   vec3 c=mirror-eye;
-   vec3 cv=vec3(dot(c,R),dot(c,U),dot(c,F));
-   vec2 slope=vec2(max(A,1.)/Fk,1./(Fk*min(A,1.)));
-   float bound=.055*size+.6*RAMP*kick*amp+.03+4.*length(c)/(Fk*min(u_resolution.x,u_resolution.y));
-   if(any(greaterThan(abs(cv.xy)-cv.z*slope,bound*sqrt(vec2(1.)+slope*slope)))){
-    gl_Position=vec4(0.,0.,2.,1.);v_ray=vec3(0.);return;
-   }
-  }
-  vec3 du,dv;sculptDerivatives(uv,w,W,Phi,detail,p,du,dv);
-  vec3 cr=cross(dv,du);float cl=length(cr);
-  ns=cl>1e-9?cr/cl:vec3(0.,1.,0.);
-  ps=CENTER+p+ns*ring*.6;
-  if(ns.y<0.)ns=-ns;
-  rs=clamp(.46*sqrt(length(du)*length(dv)),.014,.055);
-  hs=clamp(.5+.34*p.y,0.,1.);
- }
- vec3 P=mix(pg,ps,sig);
- vec3 Ns=normalize(mix(ng,ns,sig)+vec3(0.,1e-4,0.));
- float r=size*mix(R0,rs,sig),hue=mix(hg,hs,sig);
- // Surface light: every sphere carries the shading of the surface it
- // belongs to (facing ratio, glint, rim), so the lattice reads as one sheet.
- vec3 V=normalize(eye-P);
- vec3 Nv=dot(Ns,V)<0.?-Ns:Ns;
- float facing=max(dot(Nv,V),0.);
- vec3 L=normalize(vec3(-eye.x*.35,2.6,-eye.z*.35));
  bool mirrored=a_kind>.5&&a_kind<1.5;
- float glint=0.;
- if(!mirrored||sig<1.){
-  vec3 Hh=normalize(L+V);
-  glint=pow(max(dot(Nv,Hh),0.),28.);
- }
- glint*=mirrored?1.-sig:1.;
- float glint2=0.;
- if(sig<1.){
-  vec3 L2=normalize(vec3(eye.z,-1.4,-eye.x));
-  glint2=pow(max(dot(Nv,normalize(L2+V)),0.),18.);
- }
- float rim=pow(1.-facing,3.);
- float glow=u_params[4];
- vec3 col=tone(hue);
- // Kick ring crests and lattice lines are the rare accent.
- // Light outlives the small motor displacement, making the travelling
- // front readable even at breakdown energy. The launch still grows from 0.
+ // Three lanes of material hierarchy: dark sapphire body, a selected crest
+ // of luminous cores, and rare hot rhythm fronts. No surface-normal shell.
+ float crestShape=exp(-pow((y-HANG-(.04+1.1*sst(1.,2.,dev)))/(.07+.35*sst(1.,2.,dev)),2.));
+ crestShape*=.25+.75*exp(-pow((rho-5.)/3.2,2.));
+ float nearLight=exp(-length(P-eye)*.015);
+ vec3 body=mix(u_secondary,u_primary,.12+.55*crestShape);
+ float cohort=.3+.7*sst(.4,.9,a_rnd);
+ vec3 emit=body*(.8+.3*cohort)*nearLight;
+ emit+=mix(u_primary,u_secondary,.12)*crestShape*(1.0+1.8*cohort)*nearLight;
+ // Rare fixed hot centres are embedded in the frosted lamp, not random
+ // temporal grain. Seed identity is stable even while paused/reversed.
+ emit+=mix(u_secondary,vec3(1.),.24)*step(.965,a_rnd)*(.4+.8*crestShape)*nearLight;
  float gain=KSTR*(.12+.88*sst(0.,1.,u_level));
  float crest=max(rp,0.)*sst(0.,.06,kick/max(gain,1e-5));
- // Narrow travelling front, not a full-surface brightness beat. At the
- // ceiling it descends through index-depth; on the sculpture through height.
- float drop=clamp(u_rhythm.w/(.96*(.12+.88*sst(0.,1.,u_level))),0.,1.);
- float address=mix(a_cell.y/(N-1.),clamp((P.y-CENTER.y+2.5)/5.,0.,1.),sig);
- float tilt=(mod(u_rhythmCount.w,2.)-.5)*.12*(a_cell.x/(N-1.)-.5);
- float front=1.18*drop-.09;
- float cascade=exp(-pow((address+tilt-front)*18.,2.))*sst(0.,.12,drop);
- float launch=clamp(u_rhythmHit.w,0.,1.)*sst(.88,1.,address);
- float lattice=float(mod(a_cell.x,8.)<.5||mod(a_cell.y,8.)<.5)*clamp(u_rhythm.z,0.,1.);
  float q=(a_cell.x+a_cell.y)/(2.*N);
- float sweep=exp(-pow((q-(1.-clamp(u_rhythm.y,0.,1.)))*11.,2.))*min(1.,u_rhythm.y*4.);
- float tw=0.;
- if(sig<1.){
-  float slot=floor(u_time*1.3+a_rnd*9.);
-  tw=step(1.-(.006+.05*detail),fract(sin(slot*12.9898+a_rnd*78.233)*43758.5453))*sin(PI*fract(u_time*1.3+a_rnd*9.));
- }
- // Coherent key/rim lighting owns Sculpture, not random twinkles or a
- // second specular lobe. Fade both to zero before skipping their work.
- glint2*=1.-sig;tw*=1.-sig;
- // Occlusion proxy for the sculpture: spheres near its axis (the torus
- // hole, the saddle's centre, the band's inner rim) sit deeper in the form.
- float ao=mix(1.,.3+.7*sst(.3,1.6,length(P-CENTER)),sig);
- // The level ceiling's faint ripple also travels as light: slow bands of
- // brightness drift across the lattice and fade as the waves take over.
- float sheen=1.+.5*(1.-s01)*(1.-sig)*rippleH(g,W)/.075;
- float diffuse=max(dot(Nv,L),0.);
- // The softened floor reflection needs broad form light, not duplicate
- // pin-specular work. Fade continuously to a cheap quadratic facing lobe.
- float body=facing*facing;
- if(!mirrored||sig<1.)body=mix(pow(facing,1.4),body,mirrored?sig:0.);
- vec3 emit=col*glow*(mix(.72,.17,sig)+mix(.65,.85,sig)*body+.6*sig*diffuse)*(.85+.15*max(s01,sig))*ao*sheen;
- emit+=mix(col,vec3(1.),.32)*glow*(1.35*glint+.45*glint2)*mix(1.,1.5,sig)*ao;
- emit+=u_secondary*rim*mix(.4,.9,sig)*glow*(.6+.4*max(s01,sig));
- emit+=mix(u_primary,vec3(1.),.15)*glow*crest*2.4;
- emit=mix(emit,u_accent*glow*2.,crest*.35);
- emit+=u_accent*lattice*glow*2.6;
- emit+=mix(u_secondary,u_primary,.25)*sweep*glow*3.;
- emit+=mix(u_accent,u_primary,.2)*(cascade*3.8+launch*.4)*glow;
- emit+=vec3(1.)*tw*glow*.35;
- float pixA=2./(Fk*min(u_resolution.x,u_resolution.y));
- v_info=vec4(a_kind,r,sig,crest);
- vec3 Cw;
- if(a_kind<.5){
-  Cw=P;
- }else if(a_kind<1.5){
-  Cw=vec3(P.x,-P.y,P.z);
- }else{
-  Cw=P+vec3(0.,r,0.);
- }
- vec3 c=Cw-eye;
- vec3 cv=vec3(dot(c,R),dot(c,U),dot(c,F));
- v_c=cv;v_col=emit;v_q=a_corner;
+ float sweep=exp(-pow((q-(1.-clamp(u_rhythm.y,0.,1.)))*16.,2.))*min(1.,u_rhythm.y*4.);
+ // Staggered every-eighth lamps, NOT full row/column cables or CAD edges.
+ float lattice=float(mod(a_cell.x,8.)<.5&&mod(a_cell.y+4.*mod(floor(a_cell.x/8.),2.),8.)<.5)*clamp(u_rhythm.z,0.,1.);
+ float tilt=(mod(u_rhythmCount.w,2.)-.5)*.1*(g.x/12.);
+ float cascade=cascadeAt(P.y+tilt,u_rhythm.w,mirrored?.14:0.);
+ float launch=clamp(u_rhythmHit.w,0.,1.)*sst(4.85,5.5,P.y)*.2;
+ emit+=mix(u_primary,u_secondary,.2)*crest*1.5;
+ emit+=u_secondary*sweep*2.4;
+ emit+=u_accent*lattice*3.5;
+ emit+=mix(u_accent,u_primary,.08)*(cascade*5.5+launch);
+ emit*=u_params[4];
+ v_info=vec4(a_kind,r,0.,1.);
+ v_col=emit;v_q=a_corner;
+ vec3 Cw=a_kind<.5?P:a_kind<1.5?vec3(P.x,-P.y,P.z):P+vec3(0.,r,0.);
+ vec3 c=Cw-eye,cv=vec3(dot(c,R),dot(c,U),dot(c,F));
+ v_c=cv;
  vec3 view;
+ float pixA=2./(Fk*min(u_resolution.x,u_resolution.y));
  if(a_kind<1.5){
-  // Ray-traced impostor; kind 1 is the sphere mirrored in the polished
-  // floor (opaque, so the mirror world occludes itself correctly), dimmed
-  // by Fresnel and softened with the sphere's height above the floor.
   float blur=0.,refl=1.;
-  if(a_kind>.5){
-   vec3 toM=normalize(Cw-eye);
-   float cosI=clamp(-toM.y,0.,1.);
-   refl=.55+.35*pow(1.-cosI,2.);
-   blur=.004*max(P.y,0.);
-  }
-  float L2c=dot(cv,cv);
-  float ext=r*sqrt(L2c/max(L2c-r*r,1e-6))+2.*sqrt(L2c)*pixA+blur;
-  vec3 dir=cv/sqrt(L2c);
-  vec3 ax=vec3(dir.z,0.,-dir.x);ax=dot(ax,ax)>1e-8?normalize(ax):vec3(1.,0.,0.);
+  if(mirrored){vec3 toM=normalize(Cw-eye);float cosI=clamp(-toM.y,0.,1.);refl=.28+.34*pow(1.-cosI,2.);blur=.006*max(P.y,0.);}
+  float L2c=dot(cv,cv),ext=r*sqrt(L2c/max(L2c-r*r,1e-6))+2.*sqrt(L2c)*pixA+blur;
+  vec3 dir=cv/sqrt(max(L2c,1e-8)),ax=vec3(dir.z,0.,-dir.x);
+  ax=dot(ax,ax)>1e-8?normalize(ax):vec3(1.,0.,0.);
   vec3 ay=cross(dir,ax);
   view=cv+(ax*a_corner.x+ay*a_corner.y)*ext;
   if(cv.z<NEARZ+r)view=vec3(0.,0.,-1.);
-  v_ray=view;
-  v_info.z=blur;v_info.w=refl;
+  v_ray=view;v_info.z=blur;v_info.w=refl;
  }else{
-  // Thread: from the sphere's top towards the ceiling, a resolution-scaled
-  // antialiased line, clipped at the near plane.
-  float top=min(CEIL,Cw.y+3.2);
+  // Only a sparse subset of unobtrusive real suspension threads. All
+  // lamps retain a motor address; dark cables do not become luminous mesh.
+  if(mod(a_cell.x,6.)>.5||mod(a_cell.y,6.)>.5){gl_Position=vec4(0.,0.,2.,1.);v_ray=vec3(0.);return;}
+  float top=CEIL;
   vec3 b=vec3(Cw.x,top,Cw.z)-eye;
   vec3 a3=cv,b3=vec3(dot(b,R),dot(b,U),dot(b,F));
   float zn=NEARZ*2.;
@@ -339,21 +158,15 @@ void main(){
   if(a3.z<zn)a3=mix(a3,b3,(zn-a3.z)/(b3.z-a3.z));
   if(b3.z<zn)b3=mix(b3,a3,(zn-b3.z)/(a3.z-b3.z));
   vec2 sc=vec2(Fk/max(A,1.),Fk*min(A,1.));
-  vec2 pa=a3.xy*sc/a3.z,pb=b3.xy*sc/b3.z;
-  vec2 dpx=(pb-pa)*u_resolution*.5;
+  vec2 pa=a3.xy*sc/a3.z,pb=b3.xy*sc/b3.z,dpx=(pb-pa)*u_resolution*.5;
   vec2 dir=dot(dpx,dpx)>1e-8?normalize(dpx):vec2(0.,1.);
-  vec2 perp=vec2(-dir.y,dir.x);
-  float hw=1.25*max(1.,min(u_resolution.x,u_resolution.y)/1080.);
+  float hw=1.*max(1.,min(u_resolution.x,u_resolution.y)/1080.);
   vec3 e3=a_corner.y<0.?a3:b3;
-  vec2 pe=(a_corner.y<0.?pa:pb)+perp*a_corner.x*hw*2./u_resolution;
-  float along=a_corner.y<0.?0.:top-Cw.y;
-  v_q=vec2(a_corner.x,along);
-  v_ray=vec3(0.,0.,length(e3));
-  gl_Position=vec4(pe*e3.z,(e3.z*(FARZ+NEARZ)-2.*FARZ*NEARZ)/(FARZ-NEARZ),e3.z);
-  return;
+  vec2 pe=(a_corner.y<0.?pa:pb)+vec2(-dir.y,dir.x)*a_corner.x*hw*2./u_resolution;
+  v_q=vec2(a_corner.x,a_corner.y<0.?0.:top-Cw.y);v_ray=vec3(0.,0.,length(e3));
+  gl_Position=vec4(pe*e3.z,(e3.z*(FARZ+NEARZ)-2.*FARZ*NEARZ)/(FARZ-NEARZ),e3.z);return;
  }
- gl_Position=vec4(view.x*Fk/max(A,1.),view.y*Fk*min(A,1.),
-  (view.z*(FARZ+NEARZ)-2.*FARZ*NEARZ)/(FARZ-NEARZ),view.z);
+ gl_Position=vec4(view.x*Fk/max(A,1.),view.y*Fk*min(A,1.),(view.z*(FARZ+NEARZ)-2.*FARZ*NEARZ)/(FARZ-NEARZ),view.z);
 }`;
 const surface = `#version 300 es
 precision highp float;
@@ -370,130 +183,61 @@ uniform vec3 u_primary,u_secondary,u_accent;
 ${common}
 out vec4 outColor;
 void main(){
- float kind=v_info.x;
- vec3 fogC=mix(u_secondary,u_primary,.3)*.02;
- if(kind<1.5){
-  float r=v_info.y;
-  vec3 d=normalize(v_ray);
+ vec3 fogC=mix(u_secondary,u_primary,.3)*.012;
+ if(v_info.x<1.5){
+  float r=v_info.y;vec3 d=normalize(v_ray);
   float b=dot(d,v_c),c2=max(dot(v_c,v_c)-b*b,0.),h=sqrt(c2);
-  float pixA=2./(v_focal*min(u_resolution.x,u_resolution.y));
-  float wpx=b*pixA+v_info.z;
-  float cover=clamp((r-h)/wpx+.5,0.,1.);
-  if(cover<=0.)discard;
-  float t=b-sqrt(max(r*r-c2,0.));
-  vec3 hit=d*t,n=(hit-v_c)/r;
+  float pixA=2./(v_focal*min(u_resolution.x,u_resolution.y)),wpx=b*pixA+v_info.z;
+  float cover=clamp((r-h)/max(wpx,1e-6)+.5,0.,1.);if(cover<=0.)discard;
+  float t=b-sqrt(max(r*r-c2,0.));vec3 hit=d*t,n=(hit-v_c)/r;
   float mu=max(dot(n,-d),0.);
-  // Frosted globe: bright diffuse core and a soft limb.
-  vec3 nn=normalize(n+vec3(0.,0.,1e-6));
-  float key=max(dot(nn,normalize(vec3(-.45,.65,-.6))),0.);
-  vec3 col=v_col*(.32+.38*pow(mu,.6)+.3*key);
-  col+=v_col*pow(1.-mu,2.5)*.18;
-  col*=v_info.w;
-  col=mix(fogC,col,exp(-t*FOGK));
-  col=mix(fogC*.5,col,cover);
-  float z=hit.z;
-  gl_FragDepth=clamp(((FARZ+NEARZ)-2.*FARZ*NEARZ/max(z,NEARZ))/(FARZ-NEARZ)*.5+.5,0.,1.);
+  // A luminous lens inside each dark globe: bright centre and soft limb.
+  vec3 col=v_col*(.34+.55*pow(mu,2.)+.9*pow(mu,12.));
+  col*=v_info.w;col=mix(fogC,col,exp(-t*FOGK));col=mix(fogC*.5,col,cover);
+  gl_FragDepth=clamp(((FARZ+NEARZ)-2.*FARZ*NEARZ/max(hit.z,NEARZ))/(FARZ-NEARZ)*.5+.5,0.,1.);
   outColor=vec4(max(col,vec3(0.)),1.);
  }else{
-  float side=1.-abs(v_q.x);
-  float along=v_q.y;
-  float fade=exp(-along*1.05)*sst(0.,.08,along);
-  float dist=v_ray.z;
-  float k=v_info.y/R0;
-  vec3 col=mix(v_col,vec3(1.),.2)*side*side*fade*mix(.11,.006,v_info.z)*(1.-sst(.9,1.,v_info.z))*min(k*k,1.4)*exp(-dist*FOGK);
-  outColor=vec4(max(col,vec3(0.)),1.);
+  float side=1.-abs(v_q.x),fade=exp(-v_q.y*.14)*sst(0.,.08,v_q.y);
+  outColor=vec4(mix(u_secondary,u_primary,.3)*.19*side*side*fade*exp(-v_ray.z*FOGK),1.);
   gl_FragDepth=gl_FragCoord.z;
  }
 }`;
 const background = `
 uniform float u_clock[4];
 ${common}
-// Closed form of the haze layer integral (kinetic-model.mjs hazeLayer).
-float segI(float c,float a,float t0,float t1){
- if(!(t1>t0))return 0.;
- if(abs(a)<1e-6)return (t1-t0)*exp(c+a*.5*(t0+t1));
- return (exp(c+a*t1)-exp(c+a*t0))/a;
-}
+float segI(float c,float a,float t0,float t1){if(!(t1>t0))return 0.;if(abs(a)<1e-6)return (t1-t0)*exp(c+a*.5*(t0+t1));return (exp(c+a*t1)-exp(c+a*t0))/a;}
 float hazeLayer(float o,float d,float t0,float t1,float h,float sA,float sB,float F){
- if(!(t1>t0))return 0.;
- float y0=o-h;
- vec2 ab=vec2(-y0/sA,-d/sA-1./F),bl=vec2(y0/sB,d/sB-1./F);
- bool first=y0+d*t0>=0.;
- float tc=-y0/d;
+ if(!(t1>t0))return 0.;float y0=o-h;vec2 ab=vec2(-y0/sA,-d/sA-1./F),bl=vec2(y0/sB,d/sB-1./F);
+ bool first=y0+d*t0>=0.;float tc=-y0/d;
  if(!(tc>t0&&tc<t1))return first?segI(ab.x,ab.y,t0,t1):segI(bl.x,bl.y,t0,t1);
  return first?segI(ab.x,ab.y,t0,tc)+segI(bl.x,bl.y,tc,t1):segI(bl.x,bl.y,t0,tc)+segI(ab.x,ab.y,tc,t1);
 }
-vec2 columnSpan(vec2 o,vec2 d,float e,float T){
- vec2 inv=1./(abs(d)+1e-9)*sign(d+1e-12);
- vec2 a=(-e-o)*inv,b=(e-o)*inv;
- float t0=max(0.,max(min(a.x,b.x),min(a.y,b.y))),t1=min(T,min(max(a.x,b.x),max(a.y,b.y)));
- return t1>t0?vec2(t0,t1):vec2(0.);
-}
-// ∫ s²/(s²+|o+d t-C|²) dt over [0,T]: glow of the sculpture in haze.
-float hazeBall(vec3 o,vec3 d,float T,vec3 C,float s){
- vec3 w=C-o;float tc=dot(w,d),b2=max(dot(w,w)-tc*tc,0.),q=sqrt(s*s+b2);
- return s*s/q*(atan((T-tc)/q)-atan(-tc/q))*exp(-max(tc,0.)*.06);
-}
-float poolGrid(vec2 p){float m=max(abs(p.x),abs(p.y));return sst(${f((((N - 1) / 2) * SPACING + 2.5).toFixed(3))},${f((((N - 1) / 2) * SPACING - 3.0).toFixed(3))},m);}
+vec2 columnSpan(vec2 o,vec2 d,float e,float T){vec2 inv=1./(abs(d)+1e-9)*sign(d+1e-12),a=(-e-o)*inv,b=(e-o)*inv;float t0=max(0.,max(min(a.x,b.x),min(a.y,b.y))),t1=min(T,min(max(a.x,b.x),max(a.y,b.y)));return t1>t0?vec2(t0,t1):vec2(0.);}
+float poolGrid(vec2 p){return 1.-sst(9.,14.5,max(abs(p.x),abs(p.y)));}
 void main(){
- float dev=DEV,s2=sst(1.,2.,dev),s01=sst(0.,1.,dev);
- vec3 eye,R,U,F;cameraRig(dev,eye,R,U,F);
- float A=u_resolution.x/u_resolution.y,Fk=focal();
- vec2 s=(v_uv-.5)*2.;
- vec3 rd=normalize(R*(s.x*max(A,1.)/Fk)+U*(s.y/(Fk*min(A,1.)))+F);
- vec3 hazeC=mix(u_secondary,u_primary,.6);
- vec3 fogC=mix(u_secondary,u_primary,.3)*.02;
- float glow=u_params[4];
- float T=40.;vec3 col=fogC;
- float layerH=HANG;
+ vec3 eye,R,U,F;cameraRig(DEV,eye,R,U,F);float A=u_resolution.x/u_resolution.y,Fk=focal();
+ vec2 s=(v_uv-.5)*2.;vec3 rd=normalize(R*s.x*max(A,1.)/Fk+U*s.y/(Fk*min(A,1.))+F);
+ vec3 hazeC=mix(u_secondary,u_primary,.45),fogC=hazeC*.012,col=fogC;
+ float T=55.,glow=u_params[4];
  if(rd.y<-1e-4){
-  T=-eye.y/rd.y;
-  vec3 P=eye+rd*T;
-  // Light pool on the polished floor under the installation.
-  float pool=mix(poolGrid(P.xz),1./pow(1.+dot(P.xz,P.xz)/5.,1.5),s2);
-  // Large polished tiles: faint seams and per-tile sheen as scale cue.
-  vec2 tile=P.xz/1.2;vec2 fw=fwidth(tile);
-  vec2 sd=abs(fract(tile)-.5);
-  vec2 ti=floor(tile);
-  float sheen=.85+.3*fract(sin(dot(ti,vec2(12.9898,78.233)))*43758.5453);
-  float lineAA=sst(1.,.2,max(fw.x,fw.y));
-  float seams=max(1.-sst(0.,fw.x*1.5,.5-sd.x),1.-sst(0.,fw.y*1.5,.5-sd.y))*lineAA;
-  vec3 floorC=hazeC*pool*.05*glow*(1.-.6*seams);
-  // Mirror of the haze glow in the floor (Schlick-weighted).
-  vec3 md=vec3(rd.x,-rd.y,rd.z);
-  float fres=.08+.6*pow(1.-abs(rd.y),5.);
-  // The real mirrored globes carry Sculpture's reflection. Fade the
-  // broad reflected haze wash as the ceiling gathers; avoid a second
-  // glow-ball integral over the entire downward-looking peak frame.
-  if(s2<1.){
-   vec2 ms=columnSpan(P.xz,md.xz,EXT,30.);
-   float mh=hazeLayer(0.,md.y,ms.x,ms.y,layerH,.4,1.3,12.)*(1.-s2);
-   floorC+=hazeC*mh*.105*glow*fres*sheen;
-  }
+  T=-eye.y/rd.y;vec3 P=eye+rd*T;
+  vec2 tile=P.xz/2.5,fw=fwidth(tile),sd=abs(fract(tile)-.5);
+  float seams=max(1.-sst(0.,max(fw.x*1.5,1e-6),.5-sd.x),1.-sst(0.,max(fw.y*1.5,1e-6),.5-sd.y));
+  vec3 floorC=hazeC*poolGrid(P.xz)*.035*glow*(1.-.5*seams);
+  vec3 md=vec3(rd.x,-rd.y,rd.z);vec2 span=columnSpan(P.xz,md.xz,EXT,35.);
+  float mh=hazeLayer(0.,md.y,span.x,span.y,HANG,.5,1.1,16.);
+  floorC+=hazeC*mh*.035*glow*(.1+.5*pow(1.-abs(rd.y),5.));
   col=mix(fogC,floorC,exp(-T*FOGK));
  }else if(rd.y>1e-4){
-  T=min((CEIL-eye.y)/rd.y,40.);
-  vec3 P=eye+rd*T;
-  float pool=mix(poolGrid(P.xz),1./pow(1.+dot(P.xz,P.xz)/9.,1.5),s2);
-  // Motor housings: a dark lattice of small plates over the installation.
-  vec2 cell=P.xz/SP+.5*(N-1.);vec2 fw=fwidth(cell);
-  vec2 sd=abs(fract(cell)-.5);
-  float plate=(1.-sst(.18,.18+fw.x,max(sd.x,sd.y)))*sst(.6,.15,max(fw.x,fw.y))*poolGrid(P.xz);
-  vec3 ceilC=hazeC*pool*.02*glow+hazeC*plate*.035*glow*pool;
-  col=mix(fogC,ceilC,exp(-T*FOGK));
+  T=max(0.,min((CEIL-eye.y)/rd.y,55.));vec3 P=eye+rd*T;
+  col=mix(fogC,hazeC*poolGrid(P.xz)*.012*glow,exp(-T*FOGK));
  }
- // Haze lit by the installation: a light layer at hang height while the
- // grid hangs, the sculpture's glow ball as it gathers.
- vec2 cs=columnSpan(eye.xz,rd.xz,EXT,T);
- float layer=0.,ball=0.;
- if(s2<1.)layer=hazeLayer(eye.y,rd.y,cs.x,cs.y,layerH,.4,1.3,12.);
- if(s2>0.)ball=hazeBall(eye,rd,T,CENTER,1.3);
- // Broad shafts inside the installation's footprint: smooth modulation of
- // the analytic light integral, never grainy raymarch noise.
- float tm=clamp((HANG-eye.y)/max(abs(rd.y),.08)*sign(rd.y),cs.x,max(cs.x,cs.y));
+ vec2 span=columnSpan(eye.xz,rd.xz,EXT,T);
+ float layer=hazeLayer(eye.y,rd.y,span.x,span.y,HANG,.7,1.4,18.);
+ float tm=clamp((HANG-eye.y)/max(abs(rd.y),.08)*sign(rd.y),span.x,max(span.x,span.y));
  vec2 hp=(eye+rd*tm).xz;
- float shafts=.72+.28*pow(.5+.5*cos(hp.x*.7+u_clock[0]) * cos(hp.y*.53-u_clock[0]),2.);
- col+=hazeC*glow*(mix(layer*(.032+.009*(1.-s01))*shafts,ball*.04,s2));
+ float shafts=.65+.35*pow(.5+.5*cos(hp.x*.5+u_clock[0])*cos(hp.y*.38-u_clock[0]),2.);
+ col+=hazeC*glow*layer*.032*shafts;
  outColor=vec4(max(col,vec3(0.)),1.);
 }`;
 const schema = [
@@ -582,7 +326,7 @@ export default {
   number: 102,
   name: "Kinetic Rain",
   description:
-    "Thousands of glowing spheres on threads hang level under a motor ceiling, ripple into interfering wave choreographies and gather into one floating surface that morphs from sphere to torus, Möbius band and saddle.",
+    "Thousands of luminous suspended lamps ripple into broad, open sculptural folds above a dark mirror floor. The same motor lattice persists throughout.",
   development: "development",
   schema,
   presets: [
@@ -699,7 +443,7 @@ export default {
       "lattice-lines",
       2,
       "Lattice lines",
-      "Every eighth row and column of spheres lights up, tracing the grid across the surface.",
+      "Staggered every-eighth lamp cohorts chime locally without illuminating the suspension cables.",
       {
         period: 16,
         strength: 0.7,
@@ -759,12 +503,8 @@ export default {
       },
     ),
   ],
-  // Integrated phases (scene-time.mjs): every use is periodic in its period.
-  // 0 wave phase (uses ×1, ×2, ×3 inside sin), 1 choreography / form phase
-  // (four forms), 2 sculpture turn (×1) and wave direction drift (×½, so the
-  // period is 4π), 3 camera orbit.
   clocks: [
-    { rate: (p) => 0.75 * p[1], period: 2 * Math.PI },
+    { rate: (p) => 0.52 * p[1], period: 2 * Math.PI },
     { rate: (p) => p[5] / 22, period: 4 },
     { rate: (p) => 0.12 * (0.5 + 0.5 * p[5]), period: 4 * Math.PI },
     { rate: (p) => 0.035 * p[6], period: 2 * Math.PI },

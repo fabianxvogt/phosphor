@@ -131,9 +131,9 @@ export const FAMILY_CATALOG = {
   },
   kinetic: {
     algorithm:
-      "Kinetic sphere lattice: travelling-wave heightfields and morphing parametric surfaces on one index grid",
+      "Suspended lamp lattice: interfering heightfields and open sculptural folds on persistent motor addresses",
     description:
-      "A club kinetic installation: thousands of glowing spheres on threads ripple under a motor ceiling, run interfering wave choreographies and gather into one floating surface that morphs between sphere, torus, Möbius band and saddle.",
+      "Thousands of luminous suspended lamps ripple into broad, open sculptural folds above a dark mirror floor. The same motor lattice persists throughout.",
     styles: ["geometric", "spatial"],
     variants: ["Ceiling", "Waves", "Sculpture"],
   },

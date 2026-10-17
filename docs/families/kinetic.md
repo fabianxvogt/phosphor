@@ -1,169 +1,82 @@
 # Kinetic Rain
 
-**INCREMENTAL / EMPIRICAL**, 2026-10-15. Family **102**, renderer `kinetic`, world `kinetic-rain` (**Kinetic Rain / Kinetischer Regen**). A choreographed kinetic light installation, not a cable or rigid-body simulation.
+Family **102**, renderer `kinetic`, world `kinetic-rain` (**Kinetic Rain / Kinetischer Regen**). A choreographed suspended-light installation above a dark mirror floor. **r4, openai-codex/gpt-6.1-sol**. This specification supersedes the former closed sphere/torus/Möbius renderer; its implementation and evidence remain in git and the r3 capture directory.
 
-## Algorithm and signature
+## Review-driven structural rework
 
-One seeded **96×96 lattice (9,216 spheres)** persists through every development value. Ceiling coordinates are `(i − 47.5, j − 47.5) × 0.25`, at height 2.8 with a faint travelling ripple. Waves adds four smoothly cycled heightfields: crossing plane waves, concentric waves, a three-arm spiral, and standing interference. The same index population gathers centre-first into one parametric surface.
+Independent r3 review: **L5.5 / G8.5 / E7, overall6.5**. Its five must-fixes were a rubber-torus peak, isolated late framing, knotted transition, unlit quiet canopy and ambiguous cascade/wireframe gestures. r4 changes the geometry and composition, not just glow:
 
-At Sculpture, the flattened index is bijectively reparameterised onto a **192×48** grid. This gives the Möbius band's long direction enough samples without stacking 96 excessively dense rows across its narrow width. Indices never change between forms. A smooth partition of unity with 55% holds morphs their positions among:
+- The original **96×96 = 9,216** motor addresses persist at every development. Lamps move vertically, never reindex onto a closed surface. There are no collapsed poles, overlapping wings or contracted ring skins.
+- Quiet canopy has a shallow sculptural crest and selective luminous cores over a mostly secondary-colour body. Near/far attenuation, local globe shading, rare seeded hot cores and real suspension threads establish layers.
+- Waves grow into broad open sculptural folds with small deterministic height tiers. Camera dolly clears the footprint before rising; an offset aim, retained analytic haze, suspension threads, tiled dark ground and an extensive mirrored lamp population preserve installation scale.
+- Cascade follows physical height, with a delayed light-only mirror echo. The lattice gesture selects sparse staggered lamps, never the cables.
 
-- Sphere: `(r sin φ cos θ, r cos φ, r sin φ sin θ)`, r = 1.8.
-- Torus: `((R+r cos ψ) cos θ, r sin ψ, (R+r cos ψ) sin θ)`, R = 1.5, r = 0.66.
-- Möbius band: `((R+w cos(θ/2)) cos θ, w sin(θ/2), (R+w cos(θ/2)) sin θ)`, R = 1.6, half-width 0.62; the half twist is actual geometry.
-- Travelling saddle: `y = 0.1 r² cos(2θ) + 0.07 r sin(2.6r − 2W)`, disc radius 2.22.
+**Self-assessed look:7.5/10**, not an independent acceptance claim. The dot-grid remains conspicuously regular; near/far layers can overlap in projection, and nearly monochrome palettes separate the gestures less strongly than the default. No live venue-cadence or external-projector qualification is claimed.
 
-A 0.68-radian tilt, slow vertical-axis turn and small travelling breathing wave expose the morph. The centre is 1.95 above the mirror floor. Sphere radii track the geometric mean of local parameter spacing, clamped to 0.014–0.055, keeping individual pearls visible while reading as one surface. [kinetic-model.mjs](../../kinetic-model.mjs) mirrors the shader's exact position law, normals, radius, ring, camera and haze mathematics on the CPU. Development is a pure input: reversal retraces the same geometry.
+## Position law and states
 
-## States
+A lamp `(i,j)` always has `x=(i−47.5)×0.25`, `z=(j−47.5)×0.25`. `kinetic-model.mjs` mirrors the shader's height, radius, camera, ring and cascade formulas on the CPU. Identity, geometry buffer, random seed and motor address are independent of development.
 
-All three world states share seed 1216 and identical non-development parameters.
+For `s=smoothstep(0,1,development)` and `f=smoothstep(1,2,development)`, height is
 
-| Development | EN / DE              | Composition                                                                                                                          |
-| ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 0           | Ceiling / Decke      | Low orbit beneath the seemingly endless level light ceiling; travelling sheen, dark tiled mirror, lit haze beneath the installation. |
-| 1           | Waves / Wellen       | Crossing, radial, spiral and standing heightfield choreographies; bright kick fronts traverse the same grid.                         |
-| 2           | Sculpture / Skulptur | Thousands of pearls form one hero surface, continuously cycling sphere → torus → Möbius → saddle, reflected below.                   |
+`2.8 + mix(mix(ripple,wave,s), fold,f) + tiers×(0.2+0.8f) + kickRing`.
 
-The gather uses a smooth radial delay, not a dissolve. In-between values retain the ceiling's outer wings while its centre becomes the sculpture.
+- **Ceiling / Decke (0):** two broad travelling ripples (amplitudes0.14/0.10) and a shallow Gaussian crest at radius5. Gentle height tiers and selective internal lenses prevent an unlit olive-dot plane.
+- **Waves / Wellen (1):** crossing plane waves, radial waves, a three-arm spiral and standing interference cycle with a smooth four-weight partition of unity, held for55% of each phase. Amplitude and fine detail respond to energy.
+- **Sculpture / Skulptur (2):** four open heightfields—crossing folds, concentric bowl folds, a two-arm curl and standing saddle folds—cycle through the same weights. Broad heights span roughly3m; deterministic tiers are bounded by0.15m. The convex blend stays an injective heightfield at intermediate phases and developments.
 
-## Looks (EN / DE)
+Peak fold gain is `0.68+0.22×amplitude`. Globe radius is `0.046×size×(1+0.2f)`, leaving physical air between neighbours even at maximum size. Motor ceiling is9.4m. CPU tests cover floor/motor clearance, fixed addresses, reversal, clock seams, normal finiteness and maximum motor speed3m/s. These are analytic motor choreographies, not rigid-body/cable simulation.
 
-- Still Ceiling / Stille Decke — state 0.
-- Wave Choreography / Wellenchoreografie — state 1.
-- Floating Sculpture / Schwebende Skulptur — state 2.
-- Slow Tide / Langsame Gezeiten — broad, slow waves, development 0.7.
-- Rain Curtain / Regenvorhang — held gathering transition, development 1.65.
-- Dense Swell / Dichte Dünung — quicker waves, finer ripple detail and smaller globes.
-- Möbius Drift / Möbiusdrift — starts on the half-twisted band, slow morph/orbit.
-- Night Mirror / Nachtspiegel — quiet early ceiling ripple, slow orbit, restrained glow.
+## Looks and saved sets
 
-Existing look ids/names and translations are unchanged in round 2.
+All eight names/seeds, three world states, schema keys and rhythm IDs remain unchanged:
 
-## Light, camera and depth
+Still Ceiling, Wave Choreography, Floating Sculpture, Slow Tide, Rain Curtain, Dense Swell, Möbius Drift, Night Mirror.
 
-Each globe is a depth-writing ray/sphere impostor with analytic coverage in output-pixel units. Its emission combines coherent surface-normal shading (key, specular glints, fresnel rim and central occlusion proxy) with local globe shading. Palette secondary/primary carry the body; white-mixed hot highlights feed the float/bloom path. Accent is reserved for ring crests and occasional index-lattice gestures. Threads are resolution-scaled, additive, and heavily dimmed at Sculpture so they no longer obscure its silhouette.
+**Möbius Drift** retains its legacy saved-look name and seed6006; it now opens on the curling heightfield rather than a closed half-twisted band. World description changed; the previous exact world definition is appended to `HISTORY` in `worlds.mjs`. Both dictionaries retain all old strings and add the new descriptions beside the family rhythm keys.
 
-The camera orbits continuously, without roll. It moves from radius 6 ±0.4, eye height 0.75 ±0.1, to radius **4.8 ±0.15**, eye height **1.2 ±0.1**. Focal length moves smoothly from 1.4 to 1.62. The top form normally spans roughly **60–80% of the short side**; tests conservatively allow 57–85% across independent form/camera turns, including the saddle's narrowest angle. The camera aims below the sculpture's centre to leave room for its mirror image. Portrait uses the same short-side projection. Kick focal punch is strictly **2%**.
+## Material, camera and depth
 
-The floor draws a second depth-tested mirrored sphere population: its shading is Fresnel-weighted and slightly softened with height. Large dark tiles and reflected haze supply scale, not a competing floor pattern. Haze is an analytic piecewise-exponential layer integral beneath the ceiling, transitioning to the closed-form inverse-quadratic glow integral around the sculpture. Broad smooth shaft modulation enriches the ceiling atmosphere without a raymarch or noise cells. Perspective/parallax, distance fog, coherent key/rim light, occlusion and the mirror all carry depth.
+Every lamp is a depth-writing ray/sphere impostor with output-pixel antialiasing. Its frosted body surrounds a luminous lens: secondary-colour body, a primary crest, and rare stable hot cores. Geometry no longer carries coherent surface-normal illumination that would turn the lamp field into a rubber shell. No temporal grain or random per-frame twinkle is used.
 
-## Energy and rhythm
+The early camera orbits at radius6±0.4, height0.75±0.1. It dollies14m outward over development1…1.65 and only then rises4.75m over1.6…2. The aim has a perpendicular offset0.9…1.9m and lowers toward the floor to leave room for the installation above its mirror. Focal length1.4…1.78 uses the short side in every aspect; kick lens gain is exactly2%. Camera movement depends on integrated clocks and development, not a brightness or kick jump. Very fast manual development sweeps still move the camera correspondingly quickly; there is no engine spring.
 
-Energy changes wave speed (×0.6–1.5), ripple/breathing detail (+0.5), choreography pace (×0.8–1.3), and orbit speed (×0.75–1.5), not a brightness multiplier. Quiet states stay readable at energy 0.1. Three family gestures:
+Sparse vertical suspension threads are palette-muted, additive and antialiased. Only one in36 threads is rendered, keeping them subordinate to the lamps. They are not driven by rhythm. Floor reflection is a separate depth-tested lamp population with Fresnel attenuation and height-dependent soft coverage. Analytic piecewise-exponential haze fills the footprint in every state, including the peak. The mirror is an artistic approximation, not a physically integrated glossy reflection.
 
-1. **Kick rings**, 4 beats: a bounded Gaussian/cosine wave packet runs from the axis to radius 13 as the kick envelope decays. Normalising by authored strength and energy gain prevents a launch jump. Motor displacement stays small; the emissive crest uses the normalised envelope, so the travelling ring remains visible at low energy without a camera flash.
-2. **Index sweep**, 8 beats: a luminous band runs diagonally through persistent sphere indices.
-3. **Lattice lines**, 16 beats: every eighth index row/column catches accent light.
+## Energy, clocks and rhythm
 
-## Endlessness and safety
+Energy changes wave amplitude×0.65…1.25, globe size×0.8…1.08, speed×0.6…1.5, detail+0…0.5, form pace×0.8…1.3 and orbit pace×0.75…1.5. It is not a brightness multiplier. Four integrated periodic clocks own wave phase (`0.52×speed`,2π), choreography (`morph/22`,4), direction (`0.12×(0.5+0.5×morph)`,4π) and orbit (`0.035×orbit`,2π). Bounded periodic formulas remain endless at12-hour scene times.
 
-Four integrated engine clocks own wave phase (2π), four-form choreography (4), sculpture turn / half-rate wave-direction drift (4π), and camera orbit (2π). Every use is periodic in its declared period; parameter/energy changes alter speed without phase jumps. Raw time only drives bounded decorative twinkles, without an hourly modulo. Nothing accumulates, dies out or saturates.
+1. **Kick rings, slot0:** original Gaussian/cosine motor ring, with a local luminous crest.
+2. **Index sweep, slot1:** a narrow secondary-colour diagonal lamp band.
+3. **Lattice lines, slot2:** staggered every-eighth lamp cohorts chime locally; no luminous wireframe.
+4. **Drop cascade / Tropfenkaskade, slot3:** normalised envelope moves a Gaussian front from height5.65 toward0.15. Width0.14m; alternating count-selected tilt is bounded. Mirrored lamps use progress delayed0.14, without moving their geometry. A rest gate makes zero envelope exactly silent, including the delayed mirror. Newly crossed hits affect only high launching lamps.
 
-CPU tests bound motor velocity to 3 world units/s, check camera clearance at every development, verify lattice identity and development Lipschitz continuity, and independently project all four peak forms across camera/form orientations. Authored peak spheres stay above the floor in these checks. This is not a cable solver: threads can cross while the installation gathers, and arbitrarily fast development automation is not a physical motor simulation.
+Unchanged presets: **Suspended drops / Pendulum rain / Lattice cascade**. Family densities **2.25 /6.75 /12.67 hits/bar**; syncopation, phrase fills and the accented index sweep's24-step non-square loop are preserved. Signature steps (one-based): restrained5/23 of32 eighths; driving1/5/9/13 of16 eighths; accented1/5/9/19/23/27 of32 sixteenths. Limiter untouched, no full-screen white. Offline review films use the shared deterministic capture harness; limiter-enabled native verification is separate.
 
-## Cost and verification
+## Five film rounds and evidence
 
-165,888 vertices (sphere, mirror, thread: six vertices each per sphere), six floats per vertex, about **4 MB** per seed. No engine changes or reduced-resolution colour pass.
+1. Open heightfield removed torus/knot; large still exposed dim far lamps and low framing.
+2. Corrected aim, introduced luminous lenses and crest hierarchy; large still still read too much like a dense skin.
+3. Tested larger tiers/higher crane; sheets and full-size stills exposed noisy point texture and too much foreshortening.
+4. Reduced tiers/crane and corrected late aim; recovered separated broad folds and mirror.
+5. Added subdued real suspension cues, distinguishing an installation from a floating dot surface. Final speed gate reduced the wave clock to0.52 so maximum CPU motor speed stays below3m/s.
 
-Native headless Chrome 155 / ANGLE Metal / Apple M3 Pro, 12 synchronous samples per state including post-processing, energy 0.95:
+Final reviewer evidence: **`artifacts/look-review/kinetic-rain-r4/`**, default sheet/rhythm/film, `grids.md`, large `quiet.png`, `peak.png`, `cascade.png`. Extra Ember/Glacier films and sheets in `palettes/`, Silver portrait reverse film in `portrait-reverse/`. Round1…5 directories retained. Read individual960×540 stills as well as all sheets.
 
-| State     | 1080p p50 / p95 | 4K p50 / p95 |
-| --------- | --------------- | ------------ |
-| Ceiling   | 2.2 / 2.4 ms    | 4.3 / 4.5 ms |
-| Waves     | 2.1 / 2.4 ms    | 4.6 / 4.9 ms |
-| Sculpture | 2.7 / 2.9 ms    | 8.5 / 9.1 ms |
+## Verification and native cost
 
-Earlier shared-machine runs were 2.5–3.1 ms at 1080p and 4.9–8.7 ms at 4K. All eight look-start 4K probes were ≤8.7 ms p95. These are throughput measurements, not external-display cadence or a complete morph-cycle worst-case guarantee.
+Apple M3 Pro / Chrome ANGLE Metal,30 synchronous samples/state including post; throughput, not display cadence:
 
-- `node --test tests/kinetic.test.mjs tests/time.test.mjs`: **23/23 pass**. Covers registration, presets, exact implicit forms, reindexing coverage, travelling-wave identities, ring bounds/launch continuity/low-energy visibility, geometry determinism, clock periods, velocity, camera clearance, peak framing/floor clearance, haze integral versus quadrature.
-- GPU: all states at energy 0.1 and times 3600/43200 render with zero GL errors/non-finite uploads. Ceiling mean ~17/255, peaks 150–202. Paused development 0.7 → 1.85 → 0.7 is pixel-identical. Native seam/rate-step audit passes.
-- `npm run typecheck`: passes. `node --test tests/*.test.mjs`: 666 pass, 9 skip; only three expected preview/curation catalog tests fail (L0 owns baking/curation). `npm test`: the same three failures, 672 pass, 15 skip.
-- Additional `test:i18n` browser smoke fails twice at the unrelated invalid-import toast assertion (`scripts/test-i18n.mjs:141`); no control/UI/i18n changes were made. Dictionary CPU tests pass in the full suite.
-- Reviewed default, Ember, Glacier and Silver films, full energy ladder, portrait and late-time stills. Final world film/strip: `artifacts/films/kinetic-final/kinetic-rain.{mp4,png}`. Full sculpture cycle: `artifacts/films/kinetic-morph-cycle/kinetic-floating-sculpture-silver.{mp4,png}`. Extra band look: `artifacts/films/kinetic-extra/kinetic-m-bius-drift-glacier.{mp4,png}`. Ladder: `artifacts/contact/kinetic-ladder/index.html`.
+| State     | 1080p p50/p95 ms | 4K p50/p95 ms | ABBA median Δ1080p /4K vs main |
+| --------- | ---------------- | ------------- | ------------------------------ |
+| Ceiling   | 2.4/3.8          | 4.8/5.2       | −19.4% /−5.5%                  |
+| Waves     | 2.3/3.8          | 5.1/5.5       | −14.3% /−13.0%                 |
+| Sculpture | 2.3/3.0          | 5.5/5.7       | −16.0% /−5.7%                  |
 
-## Wave 5 rework · 15 October 2026
+Geometry remains165,888 vertices, six floats/vertex (~4MB/seed). No extra pass, simulation, state texture or engine change. One height evaluation/lamp replaces reindexing, surface differentiation and normal-based shell shading.
 
-Saved identities are unchanged: every preset, seed, schema key, world/state/look ID and world definition is preserved. The CPU position law and all geometry buffers/indices are unchanged; only camera/light/zero-contribution work changed. No engine edits.
-
-Three filmed improvement rounds: (1) a bounded, choreography-aware lens fit gives narrower held forms and contracting blends more presence without enlarging the broad saddle; (2) aiming at the actual sculpture centre instead of below it makes the hero, not its reflection, own the composition, while cables fade fully before their zero triangles are culled; (3) stronger palette rim lighting separates the half-twist, and dimmer decorative twinkles stop competing with coherent surface highlights. A final performance polish passes focal length as a flat vertex varying instead of recomputing it per sphere fragment, and skips exactly zero-weight haze integrals at held states.
-
-### Framing mathematics and regression
-
-For the existing smooth partition `w`, the additional focal term is
-
-`fit = dot(w, (0.08, 0.03, 0.065, 0)) + 0.18 (1 − dot(w,w))`.
-
-It is continuous, 4-cycle-periodic, zero below development 1 and bounded below 0.18. The second term compensates contraction only while morphing. All three rendering paths share the same formula and **2%** kick limit. Sphere positions, topology and normals are not scaled to hide a framing error.
-
-The previous camera test sampled only holds. The expanded CPU projection sweep samples **the complete morph cycle**, independent camera and sculpture turns, with floor/portrait checks: approximately **55.2–82.5%** short-side extent, versus **52.4–82.7%** before (coarser diagnostic sweep). Every held/in-between tested case is now between 55% and 85%. Added lens periodicity/continuity/seed-offset and zero-thread-cull tests; original motor/implicit-surface/identity tests still pass.
-
-### Cost and evidence
-
-Standard 30-sample native probes: 1080p baseline **2.6/3.1/4.1** → final **2.3/2.4/2.4** ms; 4K baseline **6.5/8.6/11.8** → final **6.0/9.1/7.2** ms. Fleet contention caused the sequential Waves comparison to cross +5%, so the final 4K qualification uses the same optional ABBA interleaved baseline/final check as Magma (64 frames/candidate):
-
-| State     | Interleaved 4K baseline → final p50 | Final p95 |
-| --------- | ----------------------------------- | --------- |
-| Ceiling   | 7.2 → 6.7 ms                        | 8.0 ms    |
-| Waves     | 7.0 → 7.1 ms                        | 8.4 ms    |
-| Sculpture | 9.8 → 7.2 ms                        | 9.9 ms    |
-
-Every paired median is within +5%; Sculpture gains headroom despite its stronger framing. Synchronous throughput includes post; not venue cadence. The earlier 1080p paired check was 2.6→2.5, 2.6→2.6, 4.0→2.6 ms before the final zero-weight-haze optimization.
-
-Evidence root: `/Users/fabian/Development/phosphor/.fleet/phosphor-worlds-wave5-20261015162322/workers/rework-wave4/output/kinetic/`. Baseline `baseline/kinetic-rain.{mp4,png}` and baseline Möbius Drift; final `final/kinetic-rain.{mp4,png}`, Ember Möbius Drift, **70-second** Glacier full sculpture cycle, reverse portrait world, full-size band still and all-look ladder. Native verification covers 60 three-palette, low/high-energy, intermediate-development/12-hour cases plus portrait states and a 4K still, zero errors. Superseded rounds removed. Honest rating: **9/10** — a clear coherent mathematical installation; its point-lattice character remains intentional.
-
-Final wave-5 verification: `tests/kinetic.test.mjs tests/time.test.mjs` **24/24 pass**; root suite **737 pass, nine opt-in skips, zero failures** (746 total). Typecheck, build and headless native German/English UI i18n smoke pass. No catalog preview/curation files or tests were edited.
-
-## Final wave-5 review correction
-
-L0's independent film correctly exposed a gap in the previous framing test: `max(width,height)` allowed an edge-on band only ~30% high to pass. The top camera now follows the surface's **tilted normal**, at distance 4.9 with a 0.45-unit tangent orbit, rather than orbiting independently through edge-on views. The camera cranes only after the gathering lattice clears its path, then dollies inward. Both phases remain smooth, independently periodic and energy-independent. A small Möbius-weighted aim offset centres its asymmetric outline in portrait.
-
-The previous lens fit is retained with an additional `1.1 w_saddle (1 − w_saddle)` term, compensating the saddle's contracting transitions without enlarging held forms. A 16,632-case diagnostic spanning the complete four-form cycle, independent camera/form angles and four wave phases measures **61.3–75.5% short-side height**, at most **77.1% with the 2% kick**, and portrait edges within 96.3% of the clip boundary. This is height, not maximum extent. CPU regression now checks height and four wave phases; the original exact geometry, identity, motor, clock and haze tests still pass.
-
-Ceiling has stronger base emission and rim, slightly brighter motor-grid housings, a lifted minimum sheen and 28% more analytic layer haze. None is an energy-brightness multiplier.
-
-Exact analytic differentials of all four blended surfaces replace four neighbouring surface evaluations. The product rule includes the travelling shimmer; tilt/turn apply to both derivatives, and their lengths are expressed in the original 192×48 lattice-step units for pearl radii. An independent tiny finite-difference test checks every component across forms/blends. Positions, topology and sphere identities are not rescaled.
-
-A conservative top-state mirror frustum rejection runs after one position evaluation and before differential evaluation/lighting. The side-plane sphere bound includes maximum ring motion, globe radius, reflected blur and the two-pixel impostor apron; only wholly invisible reflected impostors are rejected. It changes no visible population or geometry buffers. A final cost pass fades the second specular lobe and random twinkles out of Sculpture, leaving coherent key/rim light; its real mirrored globes replace the broad reflected-haze wash, so the second glow-ball integral is not needed across the downward-looking peak frame. The softened mirror keeps broad form light rather than computing duplicate pin-specular lobes; this fades in continuously, leaving the hero's exact differential key/rim material intact. Native culled/unculled image checks and final cost evidence are in the lane's `output/final-round/` directory. No engine changes. Three fresh improvement films were reviewed in addition to the baseline; the final delivery report supersedes the earlier self-rating and timing claims above.
-
-Final paired qualification against `15fe8ef`, 256 frames/candidate/resolution, ABBA blocks: 1080p Ceiling **2.7→2.6**, Waves **2.5→2.5**, Sculpture **2.5→2.6** ms; 4K **6.7→6.6**, **6.4→6.4**, **6.6→6.8** ms. Every final state is within +5%, Sculpture +4.0%/+3.0%. These include post-processing, not venue cadence. Earlier over-budget iterations are retained in the lane evidence, not used as final qualifications. Final rating: **8.2/10**, superseding the earlier 9/10 self-rating.
-
-## Round 3 · 16 October 2026
-
-**Implementer: openai-codex/gpt-6.1-sol.** This section supersedes the earlier self-ratings and cost claims; independent current-main baseline was L5 / G2 / E1.5 (overall3.5), not the earlier implementer's8.2. Current **self-assessed look:6.5/10**, not independent acceptance.
-
-Three filmed rounds retained every state, seed, preset name and schema key. Round1 added rhythm before look polish; round2 lifted the ceiling's saturated body/rim light, removed broad white-mixed pearl limbs and slowed the four-form clock from `morph/14` to `morph/22` so shapes hold longer; round3 separated sculpture pearls (spacing-derived radius coefficient0.55→0.46, mirrored in the CPU reference), reduced white in kick crests, and made energy change wave amplitude (×0.65–1.25) and globe size (×0.8–1.08), as well as the existing pace/detail grammar. No position/topology, camera, world-definition or engine changes. The eight existing looks and three states still share their original identities.
-
-### Four-track choreography
-
-- **Slot0 Kick rings:** retains sparse motor impulses and a more saturated luminous crest.
-- **Slot1 Index sweep:** stronger secondary-colour diagonal band; driving now has six off-beat hits per two bars, duration0.38 beats, leaving gaps.
-- **Slot2 Lattice lines:** stronger local accents on the persistent index grid, not a whole-frame pulse.
-- **Slot3 Drop cascade / Tropfenkaskade:** a narrow Gaussian front drops through lamp height, blending continuously to ceiling index-depth while the lamps flatten. Envelope `u_rhythm.w` moves the front; event count alternates its tilt; the hit uniform lights only upper launching lamps. Reflected lamps carry the same event. This is a light choreography, not additional motor displacement. The peak ring is crossed by a clearly visible pink band in the default palette.
-
-Presets are unchanged in name: **Suspended drops**, **Pendulum rain**, **Lattice cascade**. Restrained signature steps5/23 of32 eighth-note steps (two hits/four bars); driving1/5/9/13 of16 eighth-note steps (two hits/bar); accented1/5/9/19/23/27 of32 sixteenth-note steps (three hits/bar with a delayed second-bar answer). Total four-track density is **2.25 /6.75 /12.67 hits/bar**. All signature loops have recovery space before their next hit. The shared flash limiter was not edited; the family verifier explicitly asserts it remains enabled. Bright events are confined to lamp cohorts.
-
-### Native verification and cost
-
-Apple M3 Pro / ANGLE Metal,30 synchronous samples per state, post included, not venue cadence:
-
-| State     | 1080p p50/p95 ms | 4K p50/p95 ms |
-| --------- | ---------------- | ------------- |
-| Ceiling   | 2.3/2.8          | 5.6/6.0       |
-| Waves     | 2.2/2.8          | 5.6/6.4       |
-| Sculpture | 2.6/2.9          | 5.8/6.2       |
-
-ABBA pair against main: initial1080p median deltas−3.7%/+12.5%/−19.4%; repeat0%/**+16.0%**/−3.7%. Waves' extra local-light work is a measurable1080p regression, though all absolute budgets pass.4K pair0%/−1.9%/0%. Both1080p runs and all raw samples are retained, not selected away.
-
-- `npm test`:975 pass,21 opt-in skips,0 failures, including family continuity/presets, slot3/density, world rhythm and pipeline flash tests.
-- Typecheck and build pass; native German/English i18n smoke passes after building dist.
-- `scripts/verify-kinetic.mjs`:45 portrait cases across energy0.1/0.5/0.9, development0/0.7/1/1.65/2 and Ember/Glacier/Silver at43200 seconds, with limiter enabled. Zero GL/nonfinite errors; minimum lit coverage20.3%, minimum mean max-channel15.6/255. This is late-time rendering evidence, not12-hour runtime cadence.
-- Prettier passes owned scene/model/tests/verifier/docs. The shared dictionaries already fail whole-file formatting on main; only the two additive family keys were inserted, avoiding unrelated translation reformatting.
-
-Reviewer evidence: `artifacts/look-review/kinetic-rain-r3/kinetic-rain-{sheet,rhythm}.png`, `.mp4`, and `grids.md`. Additional warm/cool films in `palettes/`, Silver portrait reverse film in `portrait-reverse/`,45 late-time stills and health JSON in `verification/`, timings in `perf-1080/`, `perf-4k/`, `pair-1080/`, `pair-1080-repeat/`, `pair-4k/`. Before and each of three incremental film rounds remain in adjacent directories.
-
-Remaining visual weaknesses: early ceiling still reads as regular dot rows above a large dark floor; gathering midpoint has awkward outer wings; the peak's room is empty and some pearl rows merge into ribs at review-sheet resolution. The cascade reads much more clearly than the original gestures, but Ember/Silver have less colour separation than the default palette. No independent8/10 claim.
-
-## Limits
-
-The floor mirror is a sharp mirrored population with soft sphere coverage, not physically integrated glossy reflection. Surface occlusion is a proxy, not inter-sphere ray tracing. A few morph midpoints remain narrower than the held forms; pearl rows remain visible rather than becoming a seamless solid shell. Haze is deliberately subtle against the dark room. External-projector contrast and multi-hour Stage cadence remain unmeasured.
+- `npm test`: **1,014 pass,22 opt-in skips,0 failures**, including world rhythm and flash-pipeline tests. Family14/14 pass; tests replace obsolete torus assertions with injectivity, clearance, pure reversal, motor speed, bounded descending signature, delayed mirror silence and analytic-haze quadrature.
+- Typecheck and build pass. Native DE/EN i18n smoke passes with `--native-gpu`; earlier software-mode attempts timed out (wrong rig flag), retained in logs. Core owned scene/model/tests/docs/plan pass Prettier; five shared metadata/catalog/dictionary files already differ from Prettier on main, verified against `git show`, and were not globally reformatted.
+- Native family verifier: **45 portrait cases**, energies0.1/0.5/0.9 × development0/0.7/1/1.65/2 × Ember/Glacier/Silver at scene time43200, limiter enabled. Zero GL/non-finite errors, all visible. This is late-time rendering, not a12-hour runtime soak.
+- Cost JSON: `perf-1080/`, `perf-4k/`, `pair-1080/`, `pair-4k/` under final evidence. Both resolutions improve every paired median. No absolute budget breach.
