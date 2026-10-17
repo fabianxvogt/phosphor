@@ -19,7 +19,30 @@ A saturated, double-sided washi-paper cyclone: actual folded wings catch the rak
 
 Median split doubles face vertices but not floor; may cost vertex time, expected still under budget. Keep cap bounded; no raymarch/no engine change. Never edit limiter or emulate full-screen flashes. Verify full suite/typecheck/i18n/format; native 1080p/4K probes and paired main delta. Final fixed review sheets/grids, documentation and attributed commit. Honest report if L8 remains unmet.
 
-## Executed film rounds and decisions
+## r4
+
+Reviewer priorities, in order:
+
+1. **Paper, not tiles/dice/metal:** re-author the mesh as connected broad pleated sheets. Shared cross-sections form genuine mountain/valley ridges; matte front/back pigment, folded hems and valley contact darkening replace triangle shards. This is a deliberate algorithmic change from Platonic nets to connected accordion-panel folding; retain world/family/state/preset/seed/schema/rhythm IDs and archive the old world definition in HISTORY.
+2. **Authored peak silhouette:** three large sweeping helical bands surround an open dark cavity. A few dimmer smaller sheets supply near/far scale, not thousands of confetti triangles. Use an outside camera with bounded development movement and contain the entire crown.
+3. **Structural crease-snap:** select a whole band by event count, compress its longitudinal pleats and close its crosswise V-fold. A thresholded smooth envelope produces rapid closure, a short hold and release. Pink remains a small seam cue, not the event itself. Capture frozen off/on and higher-rate event strips in addition to required half-beat evidence.
+4. **No bottom light lump:** remove the emissive source sprite. Light resolved paper faces around a dark centre; flare only grazes inner crease edges. Retain the reflected pool and floor shadows at restrained levels.
+5. **Quiet composition:** three suspended shallow-fold paper swathes with unequal depth/scale and slowly breathing folds, rather than flat star nets. Retain sparse density and lime/periwinkle distinction.
+
+Keep the three preset grooves/densities, localized accent and dark surround. Three film rounds minimum, inspect sheets AND large extracted stills. Main merged cleanly (1ef13ce); no earlier r4 WIP existed. New geometry should be much cheaper than 23k old vertices. Tests must establish shared seam coincidence, finite normals, periodicity, reversibility, bounded camera, full rhythm grids and actual structural signature displacement. Existing exact Platonic helpers are superseded, not silently claimed as the new renderer.
+
+### r4 execution and honest critique
+
+- Film 1: connected sheets read too much like regular corrugated roofing; crown cropped, bands overlapped and were underlit. Rejected.
+- Film 2: camera contains the crown, tapered sheets have separated colours/depth. Still too regular and Fold too small. Rejected.
+- Film 3: enlarged Fold, true chevrons and turned-back hems, brighter matte faces. Large stills show connected paper rather than triangles; motion is too static because camera/swirl nearly cancel.
+- Film 4: counter-rotation restores motion; unequal storm radii and coherent front/back dyes clarify the open cavity. Final full-size inspection caught striped floor shadows: increased depth separation removes 16-bit z-fighting. Final required film recaptured and both sheets, large stills and a 30fps event strip read.
+- Palette/energy matrix: phosphor/ember/glacier at energy .1/.5/.9, time 43200; portrait/square/4K, reversal and native limiter run pass. Extra Paper Lanterns/ember film read. Mesh now 7,782 × 8 floats instead of 23,184 × 28; no helper hinge loop.
+- Full tests 1013 pass/22 skip/0 fail, typecheck/build/native DE+EN pass. Owned source/docs/plan/tests format; shared files retain pre-existing whole-file formatting failures rather than changing other lanes' rows.
+- Shared paired profiler attempted but cannot load the old scene against the new helper (route omits geometry); existing family verifier routes both. Full-source paired p50 deltas: 1080p -15/-10.5/+5.6%; 4K -15.1/-8.3/-2.2%. Contended earlier peak +15.8% retained. Absolute p50 1.6–1.8ms / 4.5–4.7ms is below budget; this is throughput, not stage cadence.
+- Self-assessment L7.5, provisional Overall8.0, not independent acceptance. The paper event is now structural, but the quiet arrangement is simple and the sheet morph is not isometric. Paper interpenetration remains possible; do not claim a physical origami simulation.
+
+## Executed film rounds and decisions (r3)
 
 - Before: grey stars, metallic streaks, no signature.
 - Round1: dyed paper and slot3 bank/cohort. Targeted 48 tests pass, density 3.75/8/15. Critique: opening underlit blue; still flat triangles and long metal tails.

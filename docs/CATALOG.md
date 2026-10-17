@@ -72,7 +72,7 @@ The renderer ids below remain the keys used in saved snapshots. Counts describe 
 | [Living Forms](families/metamorphosis.md) | metamorphosis | Rolled membranes release into layered, veined blossoms | Filaments / Membrane / Blossom | 6 |
 | [Linked Fibres](families/fibration.md) (world Hopf Bloom) | fibration | Exact linked Hopf tubes with travelling fibre currents | Torus / Nest / Bundle | 8 |
 | [Crystal Habit](families/crystal.md) | crystal | Lattice-aligned growth of faceted hexagonal prisms | Seeds / Lattice / Hall | 8 |
-| [Polyhedral Folding](families/fold.md) | fold | Dyed paper nets close along exact hinges, then form a V-folded storm with sector crease snaps | Sheet / Fold / Shards | 8 |
+| [Polyhedral Folding](families/fold.md) | fold | Connected chevron-pleated sheets curl into sweeping open coils; crease strikes close whole bands | Sheet / Fold / Shards | 8 |
 | [Density Waves](families/nebula.md) | nebula | Star-forming gas bridges, density-wave arms and Cartesian torn ejecta with a travelling Starfront crest | Dust / Spiral / Nova | 7 |
 | [Starling Flock](families/murmuration.md) | murmuration | Ragged topological flock over layered dusk; silver banking fronts and falcon scatter through dark folds | Loose / Surge / Formation | 7 |
 | [Fractal Descent](families/descent.md) | descent | Raymarched multi-scale sponge with a morphing coarse carving | Corridor / Cavern / City | 8 |

@@ -1,318 +1,167 @@
 import { familyEffect } from "./family-rhythm.mjs";
 import {
   ATTRIBUTES,
-  CAMERA,
-  FACE_COUNT,
-  MAX_DEPTH,
+  PANELS,
   ORBIT_PERIOD,
   SWIRL_PERIOD,
-  STORM,
-  TEMPLATES,
   createGeometry,
 } from "./fold-geometry.mjs";
-// Polyhedral Folding: a creased sheet of Platonic nets folds along exact hinge
-// chains into closed solids that rise and tumble, then bursts into a vortex
-// of streaking shards around a light core. Development moves vertices only;
-// a 2×1 state integrates camera orbit and swirl phase in 24-bit steps.
-const f = (x) => (Math.abs(x) < 1e-12 ? 0 : x).toFixed(7);
-const v3 = (v) => `vec3(${f(v[0])},${f(v[1])},${f(v[2])})`;
-const faces = TEMPLATES.flatMap((t) =>
-  t.faces.map((face, i) => {
-    const h = t.hinge[i],
-      pts = t.flat[i],
-      c = pts.reduce(
-        (s, p) => [s[0] + p[0], s[1] + p[1], s[2] + p[2]],
-        [0, 0, 0],
-      );
-    return {
-      parent: t.parent[i] < 0 ? -1 : t.offset + t.parent[i],
-      a: h?.a ?? [0, 0, 0],
-      u: h?.u ?? [1, 0, 0],
-      phi: h?.phi ?? 0,
-      depth: t.depth[i],
-      centre: c.map((x) => x / pts.length),
-      template: t.id,
-    };
-  }),
-);
-const tables = `
-const int FACES=${FACE_COUNT};
-const int PARENT[FACES]=int[](${faces.map((x) => x.parent).join(",")});
-const vec3 HA[FACES]=vec3[](${faces.map((x) => v3(x.a)).join(",")});
-const vec3 HU[FACES]=vec3[](${faces.map((x) => v3(x.u)).join(",")});
-const float HPHI[FACES]=float[](${faces.map((x) => f(x.phi)).join(",")});
-const float DEPTH[FACES]=float[](${faces.map((x) => x.depth.toFixed(1)).join(",")});
-const int TPL[FACES]=int[](${faces.map((x) => x.template).join(",")});
-const vec3 FACE_C[FACES]=vec3[](${faces.map((x) => v3(x.centre)).join(",")});
-const vec3 SOLID[5]=vec3[](${TEMPLATES.map((t) => v3(t.solidCentre)).join(",")});`;
-const consts = `const float PI=3.14159265359,TAU=6.28318530718;`;
+// Connected pleated sheets: immutable shared cross-sections, no confetti.
 const common = `
 #define u_dev clamp(u_params[0],0.,2.)
+const float PI=3.14159265359,TAU=6.28318530718;
 float ss(float a,float b,float x){return smoothstep(a,b,x);}
 float phaseAt(int x){
  vec3 b=floor(texelFetch(u_state,ivec2(x,0),0).rgb*255.+.5);
  return (b.r*65536.+b.g*256.+b.b)/16777216.;
 }
-// Camera: an endless orbit outside the paper field, then a late low dolly
-// below the expanding vortex canopy. Raised crane looks also back away.
-void cameraAt(float dev,out vec3 cam,out vec3 f,out vec3 r,out vec3 u){
- float pc=phaseAt(0),A=TAU*pc;
- float peak=ss(1.4,2.,dev);
- float R=mix(${CAMERA.radius.toFixed(2)},${CAMERA.peakRadius.toFixed(2)},peak)+${CAMERA.sway.toFixed(2)}*sin(TAU*2.*pc)+3.5*clamp(u_params[7],0.,1.)*peak;
- float h=mix(mix(8.2,4.4,ss(0.,1.,dev)),${CAMERA.peakHeight.toFixed(2)},peak)+mix(.75,.18,peak)*sin(TAU*3.*pc+1.)+3.5*clamp(u_params[7],0.,1.);
- cam=vec3(R*cos(A),h,R*sin(A));
- vec3 target=vec3(0.,mix(mix(-1.5,1.7,ss(0.,1.,dev)),${CAMERA.peakAim.toFixed(2)},peak),0.);
+void cameraAt(out vec3 cam,out vec3 f,out vec3 r,out vec3 u){
+ float a=TAU*phaseAt(0);
+ cam=vec3(15.5*cos(a),9.+2.*u_params[7],15.5*sin(a));
+ vec3 target=vec3(0.,mix(.9,4.,ss(0.,2.,u_dev)),0.);
  f=normalize(target-cam);r=normalize(cross(vec3(0,1,0),f));u=cross(f,r);
 }
-vec3 wave(vec2 xz,float amp,float pv){
- float w=TAU*pv;
- float h=sin(.55*xz.x+w*2.)*sin(.47*xz.y-w*3.)+.5*sin(.31*(xz.x+xz.y)+w*5.);
- return vec3(0.,amp*h,0.);
-}
-float waveAmp(float dev){return .12*(1.-ss(0.,.45,dev));}
-vec3 floorNormal(vec2 xz,float amp,float pv){
- // Analytic derivatives of wave(): no four displaced wave evaluations.
- float w=TAU*pv,a=.55*xz.x+2.*w,b=.47*xz.y-3.*w,c=.31*(xz.x+xz.y)+5.*w;
- float shared=.155*cos(c);
- float hx=.55*cos(a)*sin(b)+shared,hz=.47*sin(a)*cos(b)+shared;
- return normalize(vec3(-amp*hx,1.,-amp*hz));
-}
-vec3 coreAt(float dev){return vec3(0.,mix(.9,2.1,ss(.2,1.,dev))+.5*ss(1.,2.,dev),0.);}
-float coreLight(float dev){
- return u_params[4]*(ss(.3,1.,dev)*1.2+ss(1.05,2.,dev)*1.4)*(1.+.8*u_rhythm.z);
+vec4 project(vec3 p){
+ vec3 cam,f,r,u;cameraAt(cam,f,r,u);vec3 q=p-cam;
+ vec3 v=vec3(dot(q,r),dot(q,u),dot(q,f));
+ float A=u_resolution.x/u_resolution.y,F=mix(2.8,2.25,ss(0.,2.,u_dev))*(1.+.02*u_kick);
+ return vec4(v.x*F/max(A,1.),v.y*F*min(A,1.),(v.z*80.05-8.)/79.95,v.z);
 }`;
 const vertex = `#version 300 es
 precision highp float;
 layout(location=0) in vec4 a0;
 layout(location=1) in vec4 a1;
-layout(location=2) in vec4 a2;
-layout(location=3) in vec4 a3;
-layout(location=4) in vec4 a4;
-layout(location=5) in vec4 a5;
-layout(location=6) in vec4 a6;
-uniform float u_kick;
 uniform vec2 u_resolution;
-uniform float u_params[8];
+uniform float u_params[8],u_kick;
 uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 uniform highp sampler2D u_state;
-${tables}
-${consts}
 ${common}
-out vec3 v_pos,v_normal,v_world;
-out float v_trail;
-out vec3 v_bary;
+out vec3 v_world;
+out vec2 v_uv;
+out float v_across,v_station;
 flat out vec4 v_info;
-vec3 rot(vec3 p,vec3 a,vec3 k,float t){
- vec3 v=p-a;float c=cos(t),s=sin(t);
- return a+v*c+cross(k,v)*s+k*dot(k,v)*(1.-c);
-}
-vec3 rotDir(vec3 v,vec3 k,float t){return rot(v,vec3(0.),k,t);}
-float foldS(float dev,float birth,float depth){
- float t=clamp((dev-(.05+.4*birth+.05*depth))/.25,0.,1.);
- return clamp(.14+.86*t*t*(3.-2.*t)-.16*u_rhythm.y,0.,1.);
+vec3 paper(float station,float across,float band,float snap){
+ float id=mod(band,3.),hero=1.-step(2.5,band);
+ float folded=ss(0.,1.,u_dev),storm=ss(1.,2.,u_dev);
+ float t=station/${PANELS.toFixed(1)};
+ float small=mix(.22+.035*mod(band,4.),1.,hero);
+ float turn=-TAU*phaseAt(1)+id*TAU/3.+a1.z;
+ float span=mix(.35,mix(3.9,4.1,storm),folded)*(1.-.42*snap);
+ float zig=1.-2.*mod(station,2.);
+ float theta=turn+(t-.5)*span+.07*zig*(1.-min(abs(across),1.))*folded;
+ float pleat=(1.-2.*mod(station,2.))*mix(.10,.19,folded)*(1.+1.7*snap);
+ float radius=mix(3.1,3.65+.4*id,storm)+pleat;
+ float taper=.3+.7*pow(max(sin(PI*t),0.),.55);
+ float width=small*mix(1.2,1.35,storm)*(1.+.08*u_params[3])*taper;
+ float beta=.3+.22*folded+.83*snap+.22*u_rhythm.y;
+ float av=min(abs(across),.92),hem=max(abs(across)-.92,0.);
+ float radial=radius+av*width*sin(beta)-hem*width*1.8;
+ float y=.8+t*mix(2.8,5.9,storm)+id*mix(.3,.55,storm)+sign(across)*(av*width*cos(beta)-hem*width*1.4);
+ vec3 coil=vec3(radial*cos(theta),y,radial*sin(theta));
+ vec3 sheet=vec3((t-.5)*7.6+1.1*(id-1.)+.16*zig*(1.-min(abs(across),1.)),.8+id*.52+pleat+av*.48-hem*.8+.3*sin(t*PI+id),(id-1.)*3.3+sign(across)*(av-hem)*width+.6*sin(t*TAU+id));
+ vec3 p=mix(sheet,coil,folded);
+ if(hero<.5){
+  float a=turn+band*2.399963;
+  p*=small;
+  p+=vec3(cos(a)*(5.4+.12*band),1.4+.43*band,sin(a)*(5.4+.12*band));
+ }
+ return p;
 }
 void main(){
- float dev=u_dev,kind=a1.y,pv=phaseAt(1);
- // Shadows matter near the sheet, not as huge silhouettes under the storm.
- gl_Position=vec4(2.,2.,2.,1.);
- if(kind>1.5 && dev>=1.2)return;
- float amp=waveAmp(dev);
- vec3 p,n;v_bary=vec3(1.);v_trail=0.;
- v_info=vec4(kind,a5.y,0.,0.);
- if(kind<.5){
-  p=a0.xyz+.25*wave(a0.xz,amp,pv)-vec3(0.,.22,0.);
-  n=vec3(0.,1.,0.);
- }else{
-  int g=int(a0.w+.5),t=TPL[g];
-  float birth=a1.z,scale=a2.z;
-  if(a3.w>=0.)scale*=ss(a3.w-.08,a3.w+.08,u_params[6]);
-  // Exact hinge chain: apply each face's fold from the leaf to the root.
-  vec3 q=a0.xyz,c=vec3(a6.x,0.,a6.y),nn=vec3(0.,-1.,0.);
-  int k=g;
-  for(int i=0;i<${MAX_DEPTH};i++){
-   if(PARENT[k]<0)break;
-   float ang=HPHI[k]*foldS(dev,birth,DEPTH[k]);
-   q=rot(q,HA[k],HU[k],ang);c=rot(c,HA[k],HU[k],ang);nn=rotDir(nn,HU[k],ang);
-   k=PARENT[k];
+ float kind=a0.w,band=a0.z;
+ v_info=vec4(kind,band,0.,a1.w);v_uv=a1.xy;v_across=a0.y;v_station=a0.x;
+ vec3 p;
+ if(kind<.5){p=vec3(a0.x,-.12,a0.y);}
+ else{
+  float presence=band<2.5?1.:ss(.15+.07*(band-3.)-.08,.15+.07*(band-3.)+.08,u_params[6]);
+  if(presence<=0.){gl_Position=vec4(2.,2.,2.,1.);return;}
+  float selected=1.-step(.5,abs(mod(band,3.)-mod(u_rhythmCount.w,3.)));
+  // Fast closure, plateau, softer release. Geometry does the work even
+  // with accent colour disabled. The entire connected sheet shares snap.
+  float snap=selected*ss(.12,.38,max(u_rhythm.w,.5*u_rhythmHit.w));
+  p=paper(a0.x,a0.y,band,snap);
+  if(band>2.5)p*=presence;
+  v_info.z=snap;
+  if(kind>1.5){
+   p.xz+=max(p.y+.12,0.)*vec2(.55,.32);
+   // Separate from the ground by enough for DEPTH_COMPONENT16; a tiny
+   // epsilon produces visible scanline z-fighting in the projected shadows.
+   p.y=.20;
   }
-  float L=ss(.45+.3*birth,.75+.25*birth,dev);
-  vec3 axis=normalize(mix(vec3(0.,1.,0.),vec3(sin(a3.x)*cos(a3.y),cos(a3.x),sin(a3.x)*sin(a3.y)),L)+1e-5);
-  float ang=a2.w+TAU*a3.z*pv;
-  vec3 pivot=mix(vec3(0.),SOLID[t],L)*scale;
-  vec3 base=vec3(a2.x,.06*(1.-L)+a1.w*L+.25*L*sin(TAU*2.*pv+a2.w),a2.y);
-  vec3 pA=rot(q*scale,pivot,axis,ang)+base;
-  vec3 cA=rot(c*scale,pivot,axis,ang)+base;
-  pA+=wave(pA.xz,amp,pv)*(1.-L);cA+=wave(cA.xz,amp,pv)*(1.-L);
-  vec3 nA=rotDir(nn,axis,ang);
-  // Shards leave their solid for a vortex orbit around the light core.
-  float e=ss(1.04+.5*a5.x,1.42+.5*a5.x,dev),eR=ss(0.,.55,e);
-  float oa=a4.y+TAU*a4.w*pv;
-  float tower=ss(1.,2.,dev);
-  float orbitR=a4.x*mix(1.,${STORM.radius.toFixed(2)},tower);
-  vec3 H=vec3(orbitR*cos(oa),mix(1.,${STORM.height.toFixed(2)},tower)*(a4.z+.35*sin(TAU*3.*pv+a5.z)),orbitR*sin(oa));
-  // Persistent bank per shard: still an orthonormal rigid face frame,
-  // but front and back paper surfaces catch different raking light.
-  float sector=.5+.5*cos(oa-u_rhythmCount.w*2.399963);
-  float snap=pow(sector,6.)*max(u_rhythm.w,u_rhythmHit.w*.5);
-  float bank=.38*cos(a5.w);
-  vec3 T=vec3(-sin(oa),0.,cos(oa)),B=normalize(vec3(bank*cos(oa),1.,bank*sin(oa)));
-  vec2 o=(a0.xz-a6.xy)*mix(scale,min(scale,.8)*1.1,e)*vec2(1.,mix(1.,.6,e));
-  float sa=a5.w;o=vec2(o.x*cos(sa)-o.y*sin(sa),o.x*sin(sa)+o.y*cos(sa));
-  float stretch=1.+.25*clamp(u_params[3],0.,2.)*e;
-  o.x*=stretch;
-  vec2 median=(FACE_C[g].xz-a6.xy)*vec2(1.,mix(1.,.6,e));
-  median=vec2(median.x*cos(sa)-median.y*sin(sa),median.x*sin(sa)+median.y*cos(sa));
-  median.x*=stretch;
-  vec3 hingeAxis=normalize(T*median.x+B*median.y);
-  float crease=e*(.38+.14*sin(TAU*2.*pv+a5.w)+.65*snap+.24*u_rhythm.y);
-  vec3 target=rotDir(T*o.x+B*o.y,hingeAxis,a1.x*crease);
-  p=mix(cA,H,e)+mix(pA-cA,target,eR);
-  n=normalize(mix(nA,rotDir(cross(T,B),hingeAxis,a1.x*crease),eR)+1e-5);
-  v_bary=vec3(1.-a6.z-a6.w,a6.z,a6.w);
-  float pigment=fract(sin(dot(a2.xy,vec2(12.9898,78.233))+float(g)*.17)*43758.5453);
-  v_info=vec4(kind,mix(pigment,a5.y,e),e,snap*e);
  }
- if(kind>1.5){
-  // Directional projection of the actual folded triangle, with a tiny lift
-  // above the floor to avoid depth fighting. Its soft edge is shaded below.
-  v_trail=max(p.y+.22,0.);
-  p.xz-=v_trail*vec2(-.75,-.42)/.6;
-  p.y=.25*wave(p.xz,amp,pv).y-.185;
-  n=vec3(0.,1.,0.);
- }
- vec3 cam,fw,rt,up;cameraAt(dev,cam,fw,rt,up);
- vec3 q2=p-cam;
- v_world=p;v_pos=q2;v_normal=n;
- vec3 view=vec3(dot(q2,rt),dot(q2,up),dot(q2,fw));
- float A=u_resolution.x/u_resolution.y,F=mix(2.,1.25,ss(1.,2.,dev))*(1.+.02*u_kick);
- float nearZ=.05,farZ=80.;
- gl_Position=vec4(view.x*F/max(A,1.),view.y*F*min(A,1.),
-  (view.z*(farZ+nearZ)-2.*farZ*nearZ)/(farZ-nearZ),view.z);
+ v_world=p;gl_Position=project(p);
 }`;
 const surface = `#version 300 es
 precision highp float;
-in vec3 v_pos,v_normal,v_world;
-in float v_trail;
-in vec3 v_bary;
+in vec3 v_world;
+in vec2 v_uv;
+in float v_across,v_station;
 flat in vec4 v_info;
-uniform float u_time,u_level;
+uniform float u_time,u_level,u_kick;
+uniform vec2 u_resolution;
 uniform float u_params[8];
 uniform vec3 u_primary,u_secondary,u_accent;
 uniform vec4 u_rhythm,u_rhythmHit,u_rhythmCount;
 uniform highp sampler2D u_state;
-${consts}
 ${common}
 out vec4 outColor;
-vec3 pal(float t){return mix(mix(u_secondary,u_primary,smoothstep(0.,.65,t)),u_accent,smoothstep(.65,1.,t));}
+vec3 ground(vec3 p){
+ float d=length(p.xz);
+ vec3 c=mix(u_secondary,u_primary,.35)*.018;
+ float pool=exp(-d*d*.06);
+ c+=mix(u_primary,u_secondary,.35)*pool*.055*u_params[4];
+ // Soft palette reflection beneath the folded paper, not a source sprite.
+ c+=u_primary*.04*exp(-p.x*p.x*.12-p.z*p.z*.045);
+ c+=u_secondary*.026*exp(-p.x*p.x*.18-(p.z-2.)*(p.z-2.)*.1);
+ return c*(1.-ss(12.,25.,d));
+}
 void main(){
- float dev=u_dev,kind=v_info.x,rnd=v_info.y,dist=length(v_pos);
- vec3 V=-v_pos/max(dist,1e-4);
- vec3 N=normalize(v_normal);
- bool outside=dot(N,V)>0.;
- if(!outside)N=-N;
- vec3 K=normalize(vec3(-.75,.6,-.42));
- vec3 L=coreAt(dev)-v_world;float l2=dot(L,L);L*=inversesqrt(l2);
- float I=coreLight(dev),att=I/(1.+.11*l2);
- vec3 coreC=mix(u_primary,u_accent,.12+.4*u_rhythm.z);
- vec3 fogC=mix(u_secondary,u_primary,.25)*.03;
- float fog=1.-exp(-max(dist-6.,0.)*.035);
+ float kind=v_info.x,band=v_info.y;
+ vec3 cam,f,r,u;cameraAt(cam,f,r,u);
+ vec3 V=normalize(cam-v_world);
+ vec3 N=normalize(cross(dFdx(v_world),dFdy(v_world)));
+ if(dot(N,V)<0.)N=-N;
  vec3 col;
  if(kind<.5 || kind>1.5){
-  // Paper floor: an origami crease grid lit by the raking key and the core.
-  vec2 xz=v_world.xz;
-  N=floorNormal(xz,.25*waveAmp(dev),phaseAt(1));
-  float lines=0.;
-  for(int i=0;i<3;i++){
-   float a=float(i)*PI/3.+.3;
-   float x=dot(xz,vec2(cos(a),sin(a)))/1.15;
-   float d=abs(fract(x)-.5);
-   float w=fwidth(x);
-   lines=max(lines,(1.-smoothstep(.5-w*1.3,.5,d))*smoothstep(.12,.02,w));
-  }
-  float rr=length(xz);
-  vec3 paper=mix(u_secondary,vec3(1.),.5)*.09;
-  float key=max(dot(N,K),0.);
-  float pool=I/(1.+.35*l2);
-  col=paper*(.2+1.3*key)*(1.-.6*ss(1.,2.,dev))+coreC*pool*max(dot(N,L),0.)*.2;
-  // The Sheet's high camera sees the creases from further away, and the
-  // calm state lights them more (no core yet).
-  float calm=1.-ss(.3,1.,dev);
-  col+=mix(u_primary,vec3(1.),.4)*lines*(.025+.04*key+.12*pool)*u_params[5]*(1.-ss(mix(6.,12.,calm),mix(16.,28.,calm),dist));
-  // Glossy sheet: the core reflects as a long streak towards the camera.
-  vec3 Rv=reflect(-V,N)-L,rt=normalize(cross(vec3(0.,1.,0.),V));
-  float sx=dot(Rv,rt),sy=length(Rv-rt*sx);
-  float sheen=exp(-sx*sx*700.-sy*sy*9.);
-  col+=coreC*I*sheen*.4/(1.+.02*l2);
-  col*=1.-ss(14.,25.,rr);
-  if(kind>1.5){
-   // Only the polygon perimeter casts a soft edge: no false seams along
-   // the fan triangulation. Floor relief is shallower than the paper.
-   float edge=v_bary.x;
-   float penumbra=max(fwidth(edge)*1.5,.018+.025*v_trail);
-   float shadow=ss(0.,penumbra,edge)*(1.-ss(1.,1.2,dev));
-   col*=mix(1.,.18,shadow);
-  }
+  col=ground(v_world);
+  if(kind>1.5)col*=.2;
  }else{
-  float e=v_info.z;
-  // Dyed, double-sided paper pigment; no metallic white specular.
-  vec3 paperO=mix(pal(.08+.49*rnd),vec3(1.),.12)*mix(1.1,.9,e);
-  vec3 paperI=mix(pal(.16+.37*rnd),vec3(1.),.08)*1.05;
-  vec3 base=outside?paperO:paperI;
-  float key=max(dot(N,K),0.)*(1.-.35*e),cd=dot(N,L);
-  // Lit sides face the core; backlit shards keep a faint transmission, so
-  // shards in front of the core read as silhouettes with glowing rims.
-  float core=max(cd,0.)+mix(.6,.18,e)*max(-cd,0.);
-  float nv=abs(dot(N,V)),fres=pow(1.-nv,3.);
-  float spec=pow(max(dot(N,normalize(K+V)),0.),40.);
-  vec3 tintS=pal(.04+.6*fract(rnd*2.7));
-  float paperEdge=ss(0.,.3,v_bary.x);
-  float creaseShade=mix(.65,1.,paperEdge);
-  // Broad raking gradient and an antialiased valley, not a neon outline.
-  float valley=abs(v_bary.y-v_bary.z);
-  float cw=max(fwidth(valley)*1.5,.018);
-  creaseShade*=mix(1.,.62+.18*ss(0.,cw,valley),e);
-  creaseShade*=.84+.16*ss(.05,.65,v_bary.x);
-  float fill=mix(.42,.18,e)+mix(.4,.16,e)*max(N.y,0.);
-  col=base*(fill+.9*key)*creaseShade+mix(base,mix(coreC,tintS,.45*e),.55+.3*e)*att*core*(.6+.75*e);
-  col+=u_secondary*fres*.13;
-  col+=base*spec*.035*key;
-  // Glowing rims on every polygon edge, about 1.5 px at any resolution.
-  // Folded faces glow on their polygon rim; shards on all three edges.
-  float edgeS=min(min(v_bary.x,v_bary.y),v_bary.z);
-  float edge=mix(v_bary.x,edgeS,ss(0.,.3,e));
-  float w=fwidth(edge);
-  float rim=(1.-smoothstep(0.,w*1.6,edge))*smoothstep(.6,.15,w);
-  float selected=pow(.5+.5*cos(rnd*TAU-u_rhythmCount.x*2.399963),8.);
-  float edgeHit=u_rhythm.x*selected;
-  float rimG=u_params[5]*(.08+.18*ss(.3,1.,dev)+.1*e*(.4+att))*(1.+5.*edgeHit);
-  vec3 rimC=pal(.2+.35*fract(rnd*5.3));
-  col+=mix(rimC,u_accent,edgeHit)*rim*rimG;
-  col+=u_accent*edgeHit*.45*exp(-v_bary.x*14.);
-  // Restrained transmitted core light on the folded paper wings.
-  vec3 glowC=mix(coreC,tintS,.6);
-  col+=glowC*e*(.04+.18*att)*(1.-.9*v_trail);
-  col+=u_accent*v_info.w*(.7+1.6*exp(-valley*14.));
-  col*=1.-.85*v_trail*e;
+  float id=mod(band,3.);
+  float dye=id<.5?.08:(id<1.5?.85:.22);
+  vec3 front=mix(u_primary,u_secondary,dye);
+  vec3 back=mix(front,mix(u_secondary,u_primary,dye),.28);
+  vec3 pigment=mix(front,back,gl_FrontFacing?0.:1.);
+  pigment=mix(pigment,vec3(1.),.16);
+  vec3 K=normalize(vec3(-.7,1.,.5));
+  float key=max(dot(N,K),0.);
+  float fill=.5+.12*max(N.y,0.);
+  // Mountain/valley contact darkening follows actual shared creases.
+  float valley=abs(v_across);
+  float seam=abs(fract(v_station*.5)-.5)*2.;
+  float shade=(.78+.22*ss(0.,.23,valley))*(.8+.2*ss(0.,.18,seam));
+  float fibre=fract(sin(dot(v_world,vec3(127.1,311.7,74.7)))*43758.5453);
+  col=pigment*(fill+.95*key)*shade*(.985+.03*fibre);
+  // Reflected inner light illuminates resolved faces around a dark cavity.
+  vec3 L=normalize(vec3(0.,3.2,0.)-v_world);
+  float inner=max(dot(N,L),0.)*exp(-length(v_world.xz)*.15);
+  col+=pigment*inner*.22*u_params[4]*(1.+.8*u_rhythm.z);
+  float edge=1.-ss(0.,max(fwidth(valley)*1.6,.015),1.-valley);
+  float crease=1.-ss(0.,max(fwidth(valley)*1.6,.012),valley);
+  float selected=pow(.5+.5*cos(band*2.399963-u_rhythmCount.x*2.399963),8.);
+  col+=mix(u_primary,u_secondary,.3)*edge*.045*u_params[5];
+  col+=u_accent*selected*u_rhythm.x*(edge+.25*crease)*.55*u_params[5];
+  col+=u_accent*v_info.z*crease*.7;
+  col*=band<2.5?1.:.45;
+  float fog=1.-exp(-max(length(cam-v_world)-11.,0.)*.055);
+  col=mix(col,mix(u_primary,u_secondary,.5)*.009,fog);
  }
- col=mix(col,fogC,fog);
  outColor=vec4(max(col,vec3(0.)),1.);
 }`;
-// Background: palette dark with the light core's halo, in the same camera.
 const fragment = `
-${common}
 void main(){
- float dev=u_dev;
- vec3 cam,fw,rt,up;cameraAt(dev,cam,fw,rt,up);
- float A=u_resolution.x/u_resolution.y,F=mix(2.,1.25,ss(1.,2.,dev))*(1.+.02*u_kick);
- vec2 ndc=v_uv*2.-1.;
- vec3 rd=normalize(fw+rt*(ndc.x*max(A,1.)/F)+up*(ndc.y/(F*min(A,1.))));
- vec3 c=coreAt(dev)-cam;float t=max(dot(c,rd),0.);float d=length(c-rd*t);
- float I=coreLight(dev);
- vec3 coreC=mix(u_primary,u_accent,.12+.4*u_rhythm.z);
- vec3 col=mix(u_secondary,u_primary,.25)*.03*(.7+.3*smoothstep(-.3,.4,rd.y));
- col+=coreC*I*(1.1*exp(-d*d*2.)+.1/(1.+d*d*.6));
- col+=mix(u_accent,vec3(1.),.5)*I*exp(-d*d*28.)*.8;
- outColor=vec4(col,1.);
+ vec3 c=mix(u_secondary,u_primary,.3)*.008;
+ c*=.7+.3*v_uv.y;
+ outColor=vec4(c,1.);
 }`;
 const simulation = `
 void main(){
@@ -403,7 +252,7 @@ export default {
   number: 91,
   name: "Polyhedral Folding",
   description:
-    "A creased sheet of Platonic nets folds along exact hinge chains into closed solids, which rise, tumble and burst into a vortex of streaking shards.",
+    "Connected pleated paper sheets fold into open coils, then sweep around a dark storm cavity. A crease strike closes a whole paper band.",
   development: "development",
   schema,
   presets: [
@@ -567,13 +416,13 @@ export default {
             steps: "..X..... | .....X..",
             division: 2,
             strength: 0.95,
-            duration: 0.65,
+            duration: 0.9,
           },
           accented: {
             steps: "..X.......X..... | ......X.......X.",
             division: 4,
             strength: 1,
-            duration: 0.45,
+            duration: 0.7,
           },
         },
       },

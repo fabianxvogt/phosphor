@@ -93,9 +93,9 @@ export const FAMILY_CATALOG = {
     variants: ["Horizon", "Towers", "Tunnel"],
   },
   fold: {
-    algorithm: "Rigid folding of polyhedral nets along hinge chains",
+    algorithm: "Connected chevron-pleated paper with shared section hinges",
     description:
-      "A creased sheet of Platonic nets folds along exact hinge chains into closed solids, which rise, tumble and burst into a vortex of streaking shards.",
+      "Connected pleated sheets curl into open coils and sweep around a dark cavity. Crease strikes close whole paper bands.",
     styles: ["geometric", "spatial"],
     variants: ["Sheet", "Fold", "Shards"],
   },

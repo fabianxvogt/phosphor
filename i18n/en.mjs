@@ -2427,6 +2427,9 @@ export default {
   "Crease snap": "Crease snap",
   "A sector of paper snaps into a new fold on the accent.":
     "A sector of paper snaps into a new fold on the accent.",
+  "Connected pleated sheets curl into open coils and sweep around a dark cavity. Crease strikes close whole paper bands.": "Connected pleated sheets curl into open coils and sweep around a dark cavity. Crease strikes close whole paper bands.",
+  "Connected pleated paper sheets fold into open coils, then sweep around a dark storm cavity. A crease strike closes a whole paper band.": "Connected pleated paper sheets fold into open coils, then sweep around a dark storm cavity. A crease strike closes a whole paper band.",
+  "Connected chevron-pleated paper with shared section hinges": "Connected chevron-pleated paper with shared section hinges",
   "Paper hush": "Paper hush",
   "Crease dance": "Crease dance",
   "Thousand cranes": "Thousand cranes",

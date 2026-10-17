@@ -146,7 +146,7 @@ const AUTHORED = [
     id: "origami",
     name: "Origami Storm",
     description:
-      "A creased sheet folds into floating solids, which burst into a storm of streaking shards around a core of light.",
+      "Connected pleated sheets curl into open coils and sweep around a dark cavity. Crease strikes close whole paper bands.",
     states: [
       { name: "Sheet", look: "fold:Creased Sheet" },
       { name: "Fold", look: "fold:Rising Solids" },
@@ -430,6 +430,18 @@ const HISTORY = [
       { name: "Filaments", look: "metamorphosis:First Filaments" },
       { name: "Membrane", look: "metamorphosis:Pearl Membranes" },
       { name: "Blossom", look: "metamorphosis:Open Blossom" },
+    ],
+  },
+  // Origami before the r4 connected-paper re-author; saved sets retain IDs.
+  {
+    id: "origami",
+    name: "Origami Storm",
+    description:
+      "A creased sheet folds into floating solids, which burst into a storm of streaking shards around a core of light.",
+    states: [
+      { name: "Sheet", look: "fold:Creased Sheet" },
+      { name: "Fold", look: "fold:Rising Solids" },
+      { name: "Shards", look: "fold:Shard Storm" },
     ],
   },
 ];
