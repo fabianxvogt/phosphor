@@ -80,7 +80,7 @@ void main() {
     if (cell.x >= 4 && cell.x <= 6) {
       bool hit = !u_reset && u_rhythmHit.w > 0.;
       float old = rbUnpack24(texelFetch(u_state, cell, 0));
-      float value = cell.x == 4 ? (hit ? 0. : min(.99999, old + 1. / 45.))
+      float value = cell.x == 4 ? (hit ? 0. : min(.99999, old + 1. / 72.))
                   : cell.x == 5 ? (hit ? min(.99999, max(u_rhythm.w, u_rhythmHit.w)) : old)
                   : (hit ? mod(u_rhythmCount.w, 3.) / 3. : old);
       outColor = rbPack24(u_reset ? (cell.x == 4 ? .99999 : 0.) : value);
@@ -134,11 +134,11 @@ vec2 rbRelay(float s, float rank) {
   float age = rbUnpack24(texelFetch(u_state, ivec2(4, ${RIBBONS * 6}), 0));
   float strength = rbUnpack24(texelFetch(u_state, ivec2(5, ${RIBBONS * 6}), 0));
   float cohort = floor(3. * rbUnpack24(texelFetch(u_state, ivec2(6, ${RIBBONS * 6}), 0)) + .5);
-  float selected = (1. - step(.04, rank)) * (1. - step(.5, abs(mod(floor(rank * 192.), 3.) - cohort)));
-  float front = 1.08 - 1.4 * age;
+  float selected = (1. - step(.016, rank)) * (1. - step(.5, abs(mod(floor(rank * 192.), 3.) - cohort)));
+  float front = .96 - 1.08 * age;
   float d = s - front;
-  float hot = exp(-pow(d / .06, 2.));
-  float wake = exp(-max(0., d) * 16.) * smoothstep(0., .035, d);
+  float hot = exp(-pow(d / .035, 2.));
+  float wake = exp(-max(0., d) * 8.) * smoothstep(0., .026, d);
   float gain = selected * strength * smoothstep(0., .09, age) * (1. - smoothstep(.8, .99, age));
   return vec2(hot, wake) * gain;
 }
@@ -228,7 +228,7 @@ void main() {
   vec3 fwd = normalize(target - eye);
   vec3 right = normalize(cross(fwd, vec3(sin(roll), cos(roll), 0.)));
   vec3 up = cross(right, fwd);
-  float focal = mix(mix(2.46, 2.42, mid), 2.02, peak) * (1. + .022 * u_kick);
+  float focal = mix(mix(2.46, 2.36, mid), 2.2, peak) * (1. + .022 * u_kick);
   focal *= mix(mix(.88, .76, peak), 1., smoothstep(.85, 1.5, u_resolution.x / u_resolution.y));
   float minSide = min(u_resolution.x, u_resolution.y);
 
@@ -238,18 +238,18 @@ void main() {
   float outer = smoothstep(.58, .78, a_rank) * mid;
   float nearLayer = smoothstep(.12, .14, a_rank) * (1. - smoothstep(.19, .22, a_rank)) * mid;
   float laneScale = 1. + (.25 + .75 * mid) * (1. - smoothstep(.1, .13, a_rank)) * (-.1 + .02 * floor(a_rank * 192.));
-  P *= laneScale * (1. + .48 * outer + .12 * peak + .4 * nearLayer);
-  P += right * (dot(P, right) * (.32 + .22 * peak) * panoramic);
-  T += right * (dot(T, right) * (.32 + .22 * peak) * panoramic);
+  P *= laneScale * (1. + .18 * outer + .04 * peak + .1 * nearLayer);
+  P += right * (dot(P, right) * (.25 + .18 * peak) * panoramic);
+  T += right * (dot(T, right) * (.25 + .18 * peak) * panoramic);
   T = normalize(T);
-  P += right * (.4 * sin(drift + yaw) + .16 * sin(2. * yaw)) * panoramic;
+  P += right * (.14 * sin(drift + yaw) + .08 * sin(2. * yaw)) * panoramic;
   // A camera-facing satin band with an optically twisting normal.
   vec3 toCam = eye - P;
   float depth = max(.05, dot(P - eye, fwd));
   vec3 W = cross(T, toCam);
   W = length(W) > 1e-6 ? normalize(W) : right;
   vec3 B = normalize(cross(W, T));
-  float twist = .65 * sin(TAU * (s * 1.25 + a_rank * 7.));
+  float twist = 1.3 * sin(TAU * (s * .85 + a_rank * 7.));
   // Keep the projected strip camera-facing: rotating its actual width into
   // depth makes adjacent trajectories on Aizawa's sheet interpenetrate and
   // sparkle. Rotate the optical normal instead (a satin-band impostor).
@@ -257,10 +257,12 @@ void main() {
   float head = 1. - smoothstep(0., .065, s);
   // A few broad foreground trajectories against many fine tracers give
   // scale without changing seeded ranks, population or integration.
-  float hero = exp(-a_rank * 20.);
-  float weight = .07 + 3.2 * hero + .24 * exp(-a_rank * 4.) + .22 * nearLayer;
+  float hero = exp(-a_rank * 40.);
+  float weight = .035 + 3.8 * hero + .12 * exp(-a_rank * 6.) + .08 * nearLayer;
   float width = .028 * u_params[4] * (1. + .12 * peak) * weight * mix(.65, 1.15, u_level) * mix(1., .48, s) * (1. - .55 * head * head) * presence * p0.w;
-  width *= (1. + .32 * rbRelay(s, a_rank).x) * smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, depth);
+  // Projected edge-on folds without rotating strips into neighbouring histories.
+  width *= (.14 + .86 * abs(cos(twist))) * smoothstep(0., .025, s) * (1. - smoothstep(.76, 1., s));
+  width *= (1. + .12 * rbRelay(s, a_rank).x) * smoothstep(${NEAR_FADE[0].toFixed(2)}, ${NEAR_FADE[1].toFixed(2)}, depth);
   float minWidth = 1.2 * depth / (focal * .5 * minSide);
   v_cover = clamp(width / minWidth, 0., 1.);
   width = width > 1e-5 ? max(width, minWidth) : 0.;
@@ -271,7 +273,9 @@ void main() {
   gl_Position = vec4(view.x * focal * minSide / u_resolution.x, view.y * focal * minSide / u_resolution.y,
                      (view.z * (far + near) + 2. * far * near) / (near - far), -view.z);
   // Ribbons on one surface (Aizawa's sphere) get a stable order, not z-fighting.
-  gl_Position.z += float(min(order, 24)) * 3e-5 * gl_Position.w;
+  // A continuous history-age bias also separates successive turns of the
+  // same near-coincident orbit; rank alone cannot order self-overlap.
+  gl_Position.z += (float(min(order, 24)) * 3e-5 + s * .00025) * gl_Position.w;
   // Keep W unsigned: v_across supplies the sign exactly once. Multiplying
   // both here and in the surface folded both halves onto the same normal.
   v_side = vec3(dot(W, right), dot(W, up), -dot(W, fwd));
@@ -312,23 +316,24 @@ void main() {
   // A folded, brushed band rather than a circular plastic cable. Its
   // optical normal moves the satin key across broad, dark margins.
   float a = clamp(v_across, -1., 1.);
-  float fold = .75 * a + .18 * a*a;
+  float fold = .22 * a + .035 * a*a;
   vec3 N = normalize(normalize(v_normal) + normalize(v_side) * fold);
   vec3 V = normalize(v_toCam);
   vec3 L = normalize(vec3(-.5, .75, .45));
-  float diffuse = max(0., dot(N, L)), wrap = .5 + .5 * dot(N, L);
+  float diffuse = abs(dot(N, L)), wrap = .5 + .5 * dot(N, L);
   float fresnel = pow(1. - max(0., dot(N, V)), 2.5);
-  float spec = pow(max(0., dot(N, normalize(L + V))), 36.);
+  float spec = pow(max(0., dot(N, normalize(L + V))), 24.);
   vec3 base = v_color;
   // Tails fade into the dark; heads carry the light.
   float life = pow(1. - v_s, 1.1);
-  float margin = .38 + .62 * pow(max(0., 1. - a*a), .65);
-  vec3 color = base * (.08 + 1.05 * diffuse + .12 * wrap) * (.38 + .62 * life) * margin;
+  float margin = .82 + .18 * (1. - a*a);
+  vec3 color = base * (.2 + 1.05 * diffuse + .12 * wrap) * (.38 + .62 * life) * margin;
   color += u_secondary * .08 * life;
   float selvedge = smoothstep(.78, .94, abs(a)) * (1. - smoothstep(.94, 1., abs(a)));
   color += u_primary * fresnel * .16 * life;
   color += base * selvedge * .22 * life;
-  color += mix(base, vec3(1.), .08) * spec * 1.1 * life;
+  // Broad satin key; a shallow face camber, never a circular tube normal.
+  color += mix(base, vec3(1.), .04) * spec * .85 * life;
   // Flowing light: pulses run from tail to head along every ribbon.
   float pulse = rbUnpack24(texelFetch(u_state, ivec2(3, ${RIBBONS * 6}), 0));
   float wave = pow(.5 + .5 * cos(TAU * (v_s * (2. + 4. * u_params[5]) + pulse * 3. + v_rank * 7.)), 18.);
@@ -337,12 +342,14 @@ void main() {
   color += mix(base, u_primary, .4) * run * u_rhythm.y * 1.8 * life;
   // Heads: a small accent spark (rare, ≤ a few % of lit pixels).
   color += mix(u_accent, vec3(1.), .08) * v_head * (.12 + 2.4 * u_rhythm.z) * (1. - smoothstep(.08, .14, v_rank));
+  float hierarchy = mix(1., .18, smoothstep(.026, .12, v_rank));
   color += u_primary * .9 * v_glow * (.25 + .75 * life);
+  color *= hierarchy;
   vec2 packet = rbRelay(v_s, v_rank);
   // Hot core is rare; the long saturated wake makes direction legible.
-  color = mix(color, color * .28, packet.y * .7);
-  color += mix(u_accent, vec3(1.), .12) * packet.x * 6.;
-  color += mix(u_primary, u_accent, .2) * packet.y * .45;
+  color *= 1. - .8 * packet.y;
+  color += mix(u_accent, vec3(1.), .08) * packet.x * 4.;
+  color += mix(u_primary, u_accent, .6) * packet.y * 1.25;
   color *= v_cover;
   // Peripheral ribbons supply parallax, not a second competing sculpture.
   color *= mix(1., .38, smoothstep(.12, .14, v_rank) * (1. - smoothstep(.19, .22, v_rank)));
@@ -353,7 +360,7 @@ void main() {
   float edge = 1. - abs(a);
   color = mix(g, color, smoothstep(0., max(fwidth(edge) * 1.5, .02), edge));
   vec2 border = min(gl_FragCoord.xy, u_resolution - gl_FragCoord.xy) / min(u_resolution.x, u_resolution.y);
-  float frameFade = smoothstep(0., .075, min(border.x, border.y));
+  float frameFade = smoothstep(.02, .12, min(border.x, border.y));
   color = mix(g, color, frameFade);
   outColor = vec4(pow(max(color, vec3(0.)), vec3(.92)), 1.);
 }`;

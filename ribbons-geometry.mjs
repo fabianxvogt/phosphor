@@ -118,20 +118,20 @@ export function camera(development, params, yawPhase, driftPhase) {
     -0.14 * (1 - mid) - 0.12 * peak + 0.08 * peak * Math.sin(drift),
     0.15 * peak * Math.cos(1.3 * yaw + 0.5),
   ];
-  const focal = 2.46 + (2.42 - 2.46) * mid + (2.02 - 2.42) * peak;
+  const focal = 2.46 + (2.36 - 2.46) * mid + (2.2 - 2.36) * peak;
   return { eye, target, focal, dist, pitch };
 }
 // Ribbons thin to nothing near the eye, so a fly-through never fills the lens.
 export const NEAR_FADE = [0.15, 0.45];
 
 // CPU reference of the local relay front/wake in scene-ribbons.mjs.
-// Age is fixed-tick elapsed time / 0.75 s, not a decaying beat envelope.
+// Age is fixed-tick elapsed time / 1.2 s, not a decaying beat envelope.
 export function relayPacket(s, rank, age, strength, count) {
   const selected =
-    rank < 0.04 && Math.floor(rank * 192) % 3 === count % 3 ? 1 : 0;
-  const d = s - (1.08 - 1.4 * age);
-  const hot = Math.exp(-((d / 0.06) ** 2));
-  const wake = Math.exp(-Math.max(0, d) * 16) * smoothstep(0, 0.035, d);
+    rank < 0.016 && Math.floor(rank * 192) % 3 === count % 3 ? 1 : 0;
+  const d = s - (0.96 - 1.08 * age);
+  const hot = Math.exp(-((d / 0.035) ** 2));
+  const wake = Math.exp(-Math.max(0, d) * 8) * smoothstep(0, 0.026, d);
   const gain =
     selected *
     strength *

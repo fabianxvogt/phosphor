@@ -154,7 +154,7 @@ try {
     slot.rhythmPending.fill(0);
     slot.rhythmPending[3] = 0.9;
     const samples = [];
-    for (let tick = 0; tick <= 50; tick++) {
+    for (let tick = 0; tick <= 80; tick++) {
       engine.tickSlot(slot, 1 / 60);
       const bytes = new Uint8Array(12);
       gl.bindFramebuffer(gl.FRAMEBUFFER, slot.sim[slot.si].fbo);
@@ -174,10 +174,10 @@ try {
   assert.equal(relay.samples[0].age, 0);
   assert.equal(relay.samples[0].cohort, 2);
   assert.ok(Math.abs(relay.samples[0].strength - 0.9) < 1e-5);
-  for (let i = 1; i <= 50; i++)
+  for (let i = 1; i <= 80; i++)
     assert.ok(relay.samples[i].age >= relay.samples[i - 1].age);
   assert.ok(
-    relay.samples[45].age > 0.99,
+    relay.samples[72].age > 0.99,
     "one hit, not a repeated envelope injection",
   );
   for (const [name, index, width, height] of [
@@ -208,10 +208,74 @@ try {
     });
     await writeFile(resolve(out, `${name}.png`), Buffer.from(png, "base64"));
   }
+  // A separate native RAF run exercises the unmodified asynchronous limiter.
+  // Diagnostic renderLook/film captures above intentionally disable approval.
+  await lab.page.evaluate(renderLook, {
+    sceneId: "ribbons",
+    index: 2,
+    width: 1920,
+    height: 1080,
+    level: 0.85,
+    frames: 4,
+    capture: false,
+    pollHealth: false,
+  });
+  const live = await lab.page.evaluate(async () => {
+    const { engine } = window.__phosphorLab;
+    engine.options.flashLimit = true;
+    engine.blackoutTarget = 1;
+    engine.present();
+    engine.blackoutTarget = engine.blackout = 0;
+    const start = performance.now();
+    let previous = start;
+    for (let i = 0; i < 180; i++) {
+      await new Promise((done) => requestAnimationFrame(done));
+      const now = performance.now();
+      engine.beat = 8 + ((now - start) / 1000) * 2.1;
+      engine.advance(Math.min(1 / 15, (now - previous) / 1000), false);
+      engine.present();
+      previous = now;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = engine.width;
+    canvas.height = engine.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(engine.canvas, 0, 0);
+    const bytes = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let peak = 0,
+      white = 0;
+    for (let i = 0; i < bytes.length; i += 4) {
+      peak = Math.max(peak, bytes[i], bytes[i + 1], bytes[i + 2]);
+      white += Number(Math.min(bytes[i], bytes[i + 1], bytes[i + 2]) > 240);
+    }
+    return {
+      frames: 180,
+      limiter: engine.options.flashLimit,
+      exempt: engine.flashExempt,
+      approved: engine.pipeline.displayValid,
+      limited: engine.counters.flashLimited,
+      peak,
+      whiteFraction: white / (canvas.width * canvas.height),
+      glError: engine.gl.getError(),
+      nonFinite: engine.counters.nonFinite + window.__harness.nonFiniteUploads,
+      png: canvas.toDataURL("image/png").split(",")[1],
+    };
+  });
+  assert.equal(live.limiter, true);
+  assert.equal(live.exempt, false);
+  assert.equal(live.approved, true);
+  assert.equal(live.glError, 0);
+  assert.equal(live.nonFinite, 0);
+  assert.ok(live.peak > 50 && live.whiteFraction < 0.01);
+  await writeFile(
+    resolve(out, "limiter-native.png"),
+    Buffer.from(live.png, "base64"),
+  );
+  delete live.png;
   assert.deepEqual(lab.errors, []);
   await writeFile(
     resolve(out, "checks.json"),
-    JSON.stringify({ rows, reversal, relay }, null, 2),
+    JSON.stringify({ rows, reversal, relay, live }, null, 2),
   );
   console.log(
     `PASS: ${rows.length} palette/development/energy/late frames; reversal; relay readback; aspect/4K stills`,
