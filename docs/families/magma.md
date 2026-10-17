@@ -2,7 +2,43 @@
 
 **EXPLORATORY / EMPIRICAL.** Family `magma`, number **104**, world `magma-rift`.
 
-## Current algorithm (r4, 2026-10-17)
+## Current r5 changes (2026-10-17)
+
+**Performance blocker addressed locally; independent look acceptance still pending.** The serialized main baseline recorded Rivers at 8.1 ms. This lane removes repeated work structurally, without lowering native resolution, ray-step budgets, output dimensions or flash protection.
+
+- **Geological material:** physical crust now uses two intersecting, seed-derived fault planes per persistent slab. Their negative-only relief and exact piecewise gradient use the already resolved plate data instead of four lattice hashes on every Newton step. Shading reuses that physical gradient. Matte fine grain remains once per bank pixel; the nested sine-rope normal is removed. Thin sharp secondary contacts replace broad rounded cell AO. Through-slab heat and broad bank spill are reduced; heat belongs under the lips, not on cool tops.
+- **Framing and escarpments:** the peak is deliberately offset rather than drifting back through centre. Two angular, asymmetric ridge systems overlap the outer wall; a taller near escarpment catches localized vent-facing light. Integer angular fault harmonics close at the wrap. Sampled CPU height/gradient checks stay inside the existing 11.5 / 4.13 march allowances (empirical, not a global proof). Detail intersections are clamped behind their conservative top bound.
+- **Liquid hierarchy:** a sustained narrow hot core reaches 56% of fountain height before breaking into the preserved spray packets. Cooler saturated margins surround it. Reduced lake/fountain spill and darker lake crust separate the liquid from pink illumination. The leading branching channel, yellow packets, secondary embers and later ash persist.
+- **Causal signature:** rift-pressure still approaches the vent first. The cached drainage profile now supplies localized lake exposure during that passage, and a bounded throat-heating phase bridges ground arrival to the rising packet. A signed-frame feeder prototype made artificial spokes and was rejected. No annular or screen-wide flash was added.
+
+All world/family/state/look/schema/seed/rhythm IDs and all authored grids are unchanged; no HISTORY migration. Cooling seams / Lava channels / Cinder fountain retain 2.5 / 7.75 / 14.67 family hits/bar. Slot 3 still strikes zero-based driving steps 2/10/18/26 at division 2, with 3.2-beat duration and 0.8 beat of cooling.
+
+### r5 films and self-assessment
+
+Six iterative change/capture/read rounds plus the final were inspected using current capture **v2**. Round 1 saved cost but kept padded contacts; round 2 removed them but exposed artificial lake spokes; round 3 rejected the spokes and exposed overly repetitive pointed ridge crowns; rounds 4–5 consolidated the escarpments and liquid hierarchy; round 6 tested exact base heights, rejected their extra cost without a visible benefit, and retained the conservative detail lower bound. Final removes the residual sine-rope normal and guards degenerate slab directions. Reverse Ember and Night Fountain/Glacier films were also read.
+
+**Self-assessment: L7, not an independent pass.** Banks are less plastic and the sustained liquid root is clearer, but distant escarpments remain subdued/stylized, small dark horizon projections persist, and ground propagation is subtler than the rising packet. Portrait framing favours one side strongly. None of these are claimed solved by brighter bloom.
+
+### r5 measured cost and verification
+
+Apple M3 Pro / ANGLE Metal, native buffers verified. Final absolute synchronous probes: 60 measured frames/state, including post, asynchronous approval disabled only by the existing cost harness. This is **not** a fleet-wide serialized acceptance: other lanes were not controlled. Earlier shared-load probes missed 8 ms (up to 10.5 ms in Rivers) and remain preserved. Interleaved ABBA establishes savings despite that variability; each pair has 64 frames/candidate against main `ef5b7e9` (resolved at measurement; initial merge was `d24d3a2`).
+
+| State    | Final 1080p p50/p95 ms | Final 4K p50/p95 ms | ABBA p50 delta 1080p / 4K |
+| -------- | ---------------------- | ------------------- | ------------------------- |
+| Crust    | 6.3 / 6.6              | 24.2 / 25.3         | −20.5% / −11.8%           |
+| Rivers   | 6.7 / 6.9              | 24.1 / 24.7         | −13.0% / −18.2%           |
+| Eruption | 6.8 / 7.0              | 23.4 / 24.4         | −10.5% / −12.8%           |
+
+**1080p local cost probe passes; 4K still fails in every state.** Previous 4K Stage failure is not re-labelled or certified by these cost savings. No render scaling, limiter bypass or governor weakening was introduced.
+
+- 30-second/state native 1080p Stage: p99 16.8 / 16.8 / 33.4 ms, all ≤34; actual 1920×1080, zero GPU/non-finite/page errors, zero step reductions/downgrades. Not an endurance/venue certificate.
+- Native health: 33 final shots, chiefly 1920×1080, including energy .1/.5/.9, half-states, four alternate palettes, portrait and 43,200 s; zero GL/non-finite/page errors and no empty frames. Limiter-enabled 1080p smoke: 200 measured frames, p50/p95 16.7/16.7 ms, 19 live/allocated textures, zero health errors.
+- CPU family suite 28/28, including exact fault-face gradients/bounds, hash-free physical relief, periodic sampled escarpments, protected geometry/governor invariants, delayed pressure, throat staging, muting and unchanged grid steps. Full suite, typecheck, native DE/EN, pipeline-flash, build and owned-file formatting verified (raw logs below).
+- Final reviewer evidence: `artifacts/look-review/magma-rift-r5/` (sheet, held bar-aligned rhythm strip, films, evidence JSON, grids). Iterations `magma-rift-r5-1` through `-6` remain. Numeric/native/Stage/reversal evidence: `artifacts/checks/magma-r5/`, final probes prefixed `verified-`.
+
+## Historical r4 algorithm (2026-10-17)
+
+The sections below preserve the prior implementation and measurements; the r5 changes above supersede them.
 
 One continuous raymarched volcanic field develops from cracked basalt through flowing channels into an erupting vent lake. Palette colours are ordered by luminance into a thermal ramp: dark → saturated mid-colour → accent; only the hottest matter mixes partly toward white. The Phosphor palette deliberately produces pink lava with yellow-green packet heads; Ember gives orange lava.
 

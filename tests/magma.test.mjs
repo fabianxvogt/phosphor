@@ -995,7 +995,7 @@ test("pressure reaches the vent before climbing and has a silent cooling interva
   );
   assert.match(
     src,
-    /pressureMask = mix\(pressureMask, lcrack \* \(0\.3 \+ 0\.7 \* along1\), lakeM\);/,
+    /pressureMask = mix\(pressureMask, max\(lcrack \* \(0\.3 \+ 0\.7 \* along1\), feed\), lakeM\);/,
   );
   let previous = 12;
   for (let progress = 0; progress <= 1.001; progress += 0.01) {
@@ -1015,6 +1015,136 @@ test("pressure reaches the vent before climbing and has a silent cooling interva
     /float mrTrail\(bool big\) \{ return big \? 0\.09 : 0\.055; \}/,
   );
   assert.match(src, /tail \* fragments/);
+});
+
+test("r5 physical slab faces are hash-free, negative-only and have exact face gradients", () => {
+  const slab = (x, y, hx, hy, scale) => {
+    const len = Math.max(1e-4, Math.hypot(hx - 0.5 + 0.013, hy - 0.5 + 0.027));
+    const d = [(hx - 0.5 + 0.013) / len, (hy - 0.5 + 0.027) / len];
+    const a = d.map((v) => v * (0.65 + 0.5 * hx));
+    const b = [-d[1] * (0.55 + 0.6 * hy), d[0] * (0.55 + 0.6 * hy)];
+    const fa = 0.3 + (a[0] * x + a[1] * y) / scale;
+    const fb = 0.16 + (b[0] * x + b[1] * y) / scale;
+    const f = Math.max(fa, fb),
+      g = fa > fb ? a : b;
+    return [
+      0.19 * Math.min(1, Math.max(0, f)),
+      ...g.map((v) => (f > 0 && f < 1 ? (0.19 * v) / scale : 0)),
+    ];
+  };
+  const body = src.slice(
+    src.indexOf("vec3 mrSlab("),
+    src.indexOf("// Slab top:"),
+  );
+  assert.doesNotMatch(body, /mrH2|mrNoise|u_time|gDev|gFlow|gErupt/);
+  assert.match(body, /float f = max\(fa, fb\);/);
+  const physical = src.slice(
+    src.indexOf("float mrRock("),
+    src.indexOf("float mrHeightG("),
+  );
+  assert.match(physical, /vec3 relief = mrSlab\(x, P\);/);
+  assert.doesNotMatch(physical, /mrRubble|mrNoise|mrH2/);
+  assert.match(src, /vec2 grad = gb \+ rockGrad;/);
+  assert.match(src, /s = max\(sn, a\);/);
+  assert.doesNotMatch(src, /float ropeA|float rq =/);
+  assert.ok(slab(0, 0, 0.487, 0.473, 1.1).every(Number.isFinite));
+  for (const [x, y] of points(3000, 2, 53)) {
+    const [hx, hy] = h22(x + 12, y + 21),
+      scale = 0.66 + hx * 1.1;
+    const r = slab(x, y, hx, hy, scale),
+      e = 1e-6;
+    assert.ok(r.every(Number.isFinite) && r[0] >= 0 && r[0] <= 0.19);
+    assert.ok(
+      Math.abs(
+        (slab(x + e, y, hx, hy, scale)[0] - slab(x - e, y, hx, hy, scale)[0]) /
+          (2 * e) -
+          r[1],
+      ) < 1e-4,
+    );
+    assert.ok(
+      Math.abs(
+        (slab(x, y + e, hx, hy, scale)[0] - slab(x, y - e, hx, hy, scale)[0]) /
+          (2 * e) -
+          r[2],
+      ) < 1e-4,
+    );
+  }
+});
+
+test("r5 escarpments close at the angular wrap and stay inside march allowances (sampled)", () => {
+  const wall = (x, z) => {
+    const r = Math.hypot(x, z);
+    let h = base(x, z);
+    if (r <= 19) return h;
+    const a = Math.atan2(z, x);
+    const fault = [3, 7, 17].map(
+      (n, i) =>
+        1 -
+        2 *
+          Math.abs(
+            2 * fract((a / (2 * Math.PI)) * n + [0.17, 0.36, 0.06][i]) - 1,
+          ),
+    );
+    const jag = fault[0] * 0.55 + fault[1] * 0.3 + fault[2] * 0.15;
+    const gate = smooth(19, 21, r),
+      rise = smooth(25.5 + 2.2 * jag - 3.5, 25.5 + 2.2 * jag + 5.5, r);
+    const escarpment = 0.3 + 0.7 * smooth(-0.3, 0.6, Math.sin(a + 1.2));
+    const ridgeOffset = r - 23 - 0.8 * jag;
+    const cliffFace = Math.max(
+      0,
+      1 + Math.min(ridgeOffset / 3, -ridgeOffset / 4.5),
+    );
+    h += gate * 8.4 * cliffFace * escarpment * (0.9 + 0.15 * fault[0]);
+    h +=
+      gate *
+      5.2 *
+      Math.max(0, 1 - Math.abs(r - 29 - 1.7 * jag) / 4.2) *
+      (0.9 + 0.12 * fault[0]);
+    return h + rise * (3.7 + 2 * jag + 0.2 * fault[1]);
+  };
+  assert.match(src, /fract\(a \/ TAU \* vec3\(3\.0, 7\.0, 17\.0\)/);
+  let height = 0,
+    gradient = 0;
+  for (let a = -Math.PI; a < Math.PI; a += 0.009)
+    for (let r = 19; r < 76; r += 0.07) {
+      const x = r * Math.cos(a),
+        z = r * Math.sin(a),
+        e = 0.0001;
+      height = Math.max(height, wall(x, z) + 0.18);
+      gradient = Math.max(
+        gradient,
+        Math.hypot(
+          (wall(x + e, z) - wall(x - e, z)) / (2 * e),
+          (wall(x, z + e) - wall(x, z - e)) / (2 * e),
+        ),
+      );
+    }
+  assert.ok(height < 11.5, `sampled height ${height}`);
+  assert.ok(gradient < 4.13, `sampled gradient ${gradient}`);
+  for (let r = 19; r < 76; r += 0.1)
+    assert.ok(Math.abs(wall(-r, 1e-8) - wall(-r, -1e-8)) < 1e-6);
+});
+
+test("r5 sustained liquid and localized throat bridge pressure without changing the grids", () => {
+  assert.match(src, /float coreH = gFountH \* 0\.56;/);
+  assert.match(src, /mix\(mrHeat\(T\), mrHeat\(1\.52 - 0\.1 \* hy\), core\)/);
+  assert.match(src, /T \+= 0\.25 \* throat \* \(1\.0 - hy\);/);
+  assert.match(src, /feed = smoothstep\(0\.82, 0\.98, Pl\.river\)/);
+  assert.doesNotMatch(src, /feed = .*abs\(fr\.x\)/);
+  const throat = (progress) =>
+    smooth(0.56, 0.72, progress) *
+    (1 - smooth(0.76, 0.86, progress)) *
+    smooth(0.02, 0.1, 1 - progress);
+  assert.equal(throat(0), 0);
+  assert.equal(throat(1), 0);
+  assert.ok(throat(0.7) > 0.9 && throat(0.8) > 0.5);
+  const driving = defaultPattern(magma.rhythm, "driving").tracks.find(
+    (t) => t.effect === "rift-pressure",
+  );
+  assert.deepEqual(
+    driving.steps.flatMap((value, i) => (value > 0 ? [i] : [])),
+    [2, 10, 18, 26],
+  );
 });
 
 test("style limits: palette-only colour, kick punch, roll, speed range, gestures", () => {
