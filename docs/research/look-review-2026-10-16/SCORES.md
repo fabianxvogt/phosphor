@@ -10,7 +10,7 @@ One row per world; updated after every independent re-score. "Signature effect" 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Living Mycelium | mycelium | 4.0 | 7.5 | [r5 (sol)](reviews/mycelium-r5.md) | 7.0 | 8.5 | 7.5 | no | **signal-relay:** partly—pink illumination climbs a stem into gills in rhythm 14–17; branching … | 88170d5 |
 | Afterglow Garden | garden | 4.0 | 7.5 | [r6 (sol)](reviews/garden-r6.md) | 7.0 | 8.5 | 8.0 | no | **pollen-rising:** yes—pink flowers unfurl and trails rise/fade (rhythm 1–5, 15–19; isolated ge… | 88170d5 |
-| Unfolding Garden | unfolding | 3.0 | 8.0 | [r5 (sol)](reviews/unfolding-r5.md) | 7.5 | 8.5 | 8.0 | yes | **petal-flush:** yes—pink inner-whorl fronts advance toward tips as petals release (rhythm 8–9,… | 88170d5 |
+| Unfolding Garden | unfolding | 3.0 | 8.0 | [r6 (sol)](reviews/unfolding-r6.md) | 7.5 | 8.5 | 8.0 | yes | **petal-flush:** yes—pink excitation moves from inner folds to outer petal tips (rhythm 6→7, 15… | 88170d5 |
 | Hopf Bloom | hopf-bloom | 5.0 | 7.0 | [r3 (sol)](reviews/hopf-bloom-r3.md); r4 rejected (6.5) | 6.5 | 8.5 | 7.0 | no | **fibre-current:** pink arc packets clearly visible (rhythm 5, 10, 15, 17, 23); linked-fibre th… | 62a21b3 |
 | Crystal Cavern | cavern | 4.0 | 7.0 | [r4 (sol)](reviews/cavern-r4.md) | 6.5 | 8.5 | 7.0 | no | **crystal-chime:** pink bands/cohorts clearly visible (rhythm 7, 17, 21–22); fits resonating cr… | 88170d5 |
 | Spiral Nebula | nebula | 4.0 | 7.0 | [r4 (sol)](reviews/nebula-r4.md) | 6.5 | 8.5 | 7.5 | no | **starfront:** yes—pink front advances through lower/right ejecta in rhythm 5–8 and lights the … | 88170d5 |

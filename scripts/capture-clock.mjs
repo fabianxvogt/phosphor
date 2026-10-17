@@ -9,6 +9,7 @@ export function rhythmFramePicks({
 } = {}) {
   if (
     ![fps, bpm, seconds].every((n) => Number.isFinite(n) && n > 0) ||
+    !Number.isInteger(60 / fps) ||
     !Number.isFinite(startBeat) ||
     startBeat < 0 ||
     !Number.isInteger(count) ||

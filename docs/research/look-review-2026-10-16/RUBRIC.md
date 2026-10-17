@@ -11,6 +11,8 @@ Per world, from `node scripts/look-review-capture.mjs --out artifacts/look-revie
 - `<world>.mp4`: the film itself (optional; extract stills with ffmpeg if a sheet is ambiguous).
 - `node scripts/rhythm-grid-dump.mjs --worlds <world>`: the authored rhythm presets as sixteenth-note grids (restrained / driving / accented phrase styles) with the gesture descriptions.
 
+**Energy calibration:** the existing film harness loads the first preset at its initial film energy, making that energy the clip's base. The held v2 run therefore has global **and base energy 0.85**: gesture gain is evaluated at 0.85, without additional relative parameter-curve displacement. The look arc retains its historical base of 0.2 while energy rises. These are reproducible renderer configurations, not a guarantee of identical parameters for every saved show's clip-base energy.
+
 Stills do not show motion quality; judge motion only where frames show it (lurches, stalls, popping) and say so when a call is uncertain. The existing offline `world-film.mjs` harness disables asynchronous flash approval for deterministic captures: these sheets judge the renderer, **not live photosensitivity compliance**. Limiter-enabled native verification, flash-limiter tests and real-stage timing remain separate acceptance evidence; never weaken the live limiter to match a film.
 
 Completed clean/merged worktrees may be removed after preserving evidence. Their reviewed final round directories and numeric verification reports are archived under `artifacts/preserved-worktrees/<world>-r3/artifacts/`; `artifacts/preserved-worktrees/manifest.json` maps original paths and commit hashes. This is a location change, not a new capture or re-score.

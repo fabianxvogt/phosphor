@@ -49,6 +49,8 @@ const seconds = Number(args.seconds),
   bpm = Number(args.bpm),
   width = Number(args.width),
   height = Number(args.height);
+if (!Number.isFinite(fps) || fps <= 0 || !Number.isInteger(60 / fps))
+  throw new Error("FPS must divide the 60 Hz simulation clock exactly");
 const fixedEnergy = args.energy === undefined ? null : Number(args.energy);
 if (
   fixedEnergy !== null &&
