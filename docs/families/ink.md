@@ -1,42 +1,31 @@
 # Ink Bloom / Tintenblüte
 
-Family **112**, scene `ink`, world **`ink-bloom`**. The r4 revision preserves all eight look names/seeds, schema keys, state names, world description and four gesture ids. No engine, limiter or preview changes.
+Family **112**, scene `ink`, world **`ink-bloom`**. R5 preserves all eight look names/seeds, schema keys, state names and four gesture IDs. The previous world description is appended to `worlds.mjs` HISTORY. No shared renderer, rhythm, limiter or catalog-preview edits.
 
-## Persistent body and development
+## Persistent dye and development
 
-A falling dye ring develops seeded Widnall lobes. Daughter rings descend from those same lobes, then rise and roll outward. Thin scattering sheets overlap dark absorbing cores: this is a translucent volume, not a normal-lit opaque torus.
+A falling Kelvin vortex develops seeded Widnall lobes. The same lobes feed daughters, which descend and then roll outward. Kaden's nested poloidal sheets supply the internal folds; dark absorbing concentration is separate from translucent scattering pigment.
 
-| State  | DE      | Development | Structure                                              |
-| ------ | ------- | ----------- | ------------------------------------------------------ |
-| Drop   | Tropfen | 0           | Wound parent ring and three tapering source filaments  |
-| Plumes | Fahnen  | 1           | Lobed parent, 5–7 hanging daughters and bowed tendrils |
-| Nebula | Nebel   | 2           | Wider parent, irregular daughter curls rolling outward |
+| State           | Development | Structure                                                    |
+| --------------- | ----------- | ------------------------------------------------------------ |
+| Drop / Tropfen  | 0           | Tilted rolled parent and two short curved source streams     |
+| Plumes / Fahnen | 1           | Lobed parent, 5–7 hanging daughters, bowed receiving streams |
+| Nebula / Nebel  | 2           | Taller, diagonally layered parent/daughter crown             |
 
-The reversible cascade schedule changes neither seed identity nor integrated clocks. Daughter azimuths and count `5 + (seed + 2) % 3` remain stable. Energy increases daughter scalloping, tendril population (one to three), turbulence, roll winding and motion. Development independently changes the form.
+The first three looks share seed 11201 and identical non-development parameters. Extra looks remain Quiet Infusion, Twin Currents, Silken Tributaries, Velvet Chamber and Marbled Lantern. Seed identity, daughter azimuths and count `5 + (seed + 2) % 3` do not depend on development. Reversal changes geometry continuously without resetting clocks or identity.
 
-The eight looks remain Drop, Plumes, Nebula, Quiet Infusion, Twin Currents, Silken Tributaries, Velvet Chamber and Marbled Lantern. The first three share seed 11201 and identical non-development parameters. Extra seeds span all three lobe counts.
+R5 applies one reversible affine plume transform to both native volume coordinates and analytic streams: `(1.08x, (1.3 + 0.5 crown)y + 0.55x + 0.22z, 0.9z)`. It enlarges the vertical silhouette rather than adding rings. Exact inverse-ray box intersection retains world-depth units (the local direction is intentionally **not normalized**). Camera framing is closer and offset, with a raised Plumes aim point; far folds fade more strongly than the foreground. Kick remains capped at 2% focal change.
 
-## Mathematics and native material
+## Material and native rendering
 
-- Kelvin thin-ring speed `Γ/(4πR) · (ln(8R/a) − 1/4)` sets the material clock. CPU tests retain the incompressible streamfunction velocity reference.
-- The atmosphere uses Stokes `Ψ = r²(k exp(−((r−R)²+y²)/a²) − U/2)`. A finite skin surrounds its rolled core.
-- Kaden phase `c(ρ/a)^(−3/2) − θ + roll` draws nested poloidal sheets. Small unresolved turns converge to their train's mean density rather than aliasing.
-- Six seeded vector potentials, including the envelope-gradient term of their curl, generate a divergence-free perturbation. Two backward RK2 steps transport coordinates. This is a procedural characteristic map, not a Navier–Stokes simulation.
-- The r3 density atlas blurred every edge. R4 instead caches **two poloidal coordinate pairs** (parent and daughter). Density, palette, optical extinction and lighting are evaluated at native output resolution. Daughter seam fading moves coordinates outside dye support.
-- Thin sheets use a compact quartic kernel `max(1 − (0.6 d/w)², 0)²`, with an exact polynomial interval integral. It approximates a Gaussian without requiring a ray sample inside every sheet. The periodic roll train uses the corresponding cumulative integral. The legacy `inkCross()` remains a mathematical reference only.
-- No planar fibre wave, screen-space random grain or temporal jitter. Far sheet/tube widths grow gradually behind the focus plane. A range-reduced angle approximation has tested error below 0.00021 radians.
+- Kelvin thin-core speed `Γ/(4πR) · (ln(8R/a) − 1/4)` drives the integrated material clock. CPU references retain Kelvin velocity, incompressible Stokes flow, Widnall bending and Kaden roll-up.
+- Six seeded vector potentials transport the smooth material coordinates through two backward RK2 steps. The shear envelope now decays to zero outside the atmosphere; its derivative includes both product-rule terms, so the vector-potential curl remains solenoidal. This is a procedural characteristic map, **not** a Navier–Stokes simulation.
+- The **48×80×48** coordinate lattice uses duplicate-node gutters: 50×82 tiles, 16×3 layout, **800×246 rgba16f** (about 1.6 MB). It stores parent/daughter poloidal coordinates, never colour, density, lighting or a reduced-resolution picture. The uncached analytic fallback remains available but is not performance-qualified.
+- Native compact quartic sheet integration resolves sub-step sheets. Kaden winding is integrated as a periodic train; unresolved turns converge to its mean. Native azimuthal pleats and concentration windows break uniform wrappers into unequal folds. Absorbing cores, thinner secondary-blue dilution and primary-coloured rolls remain separate.
+- The native march still honours `u_raySteps`: 22 intervals in Drop/Plumes, 21 in Nebula at engine budget 96. Empty coordinate support is rejected before expensive ring material evaluation, independently per body. A fresh interval enters from a signed outside distance and mean winding, not a constant-density slab. This is an approximation at guard entry, not an image-identity claim.
+- One broad bowed stream per daughter replaces redundant fine wires; its taper broadens at reception. Analytic Gaussian tubes integrate the curves. Group box rejection and per-curve ray/sphere rejection avoid drawing streams in empty water. An active burst bypasses the group box because its branches can fly outside Drop's coordinate atlas. Two shorter source streams replace the straight axial feed.
 
-The coordinate atlas is **64×96×64**, with 66×98 guttered tiles packed 16×4 into **1056×392 rgba16f** (about 3.3 MB). It contains no colour, lighting or reduced-resolution image. Without the optional float target, coordinates are evaluated analytically; that slower fallback is not venue-qualified.
-
-The native march uses 22 intervals in Drop/Plumes and 21 at Nebula at engine budget 96, scaling with `u_raySteps`. Step lengths cover the complete ray interval. Conservative support skips and early opacity termination avoid empty water. Analytic Gaussian tube/ball integrals draw fine source strands, tendrils and burst pigment; ray/sphere rejection avoids evaluating remote curves.
-
-## Space and palette
-
-A continuous orbit, small elevation swing, phrase-scale off-centre drift, water gradient, depth fog, core absorption and two drifting mote layers establish space. Camera centre/distance follow the development bounds; portrait has its own modest distance adjustment. Kick changes focal length by at most 2%.
-
-Dense scattering dye and tendrils use saturated primary; absorbing cores are nearly black. Secondary lights the thin skins rather than repainting half the volume. Accent exists only in the local burst packet and its four filaments. There is no full-screen white event; `flash-limiter.mjs` is unchanged.
-
-Both integrated clocks have period 2π. Material, orbit and background uses respect those periods; nothing accumulates, freezes, reseeds or resets at development boundaries. Native checks include 3600, 4096 and 43200 seconds.
+Energy increases winding, turbulence, scalloping, lobe reach and stream wandering. Development independently changes form. Colours come only from the palette: saturated primary dye, secondary thinning folds, near-black absorption, rare local accent. Water gradient, suspended motes, orbit, overlap, key light and depth falloff establish space. No temporal jitter, fullscreen white or limiter bypass is introduced.
 
 ## Rhythm
 
@@ -46,38 +35,31 @@ Both integrated clocks have period 2π. Material, orbit and background uses resp
 | driving    | Vortex bloom      | Wirbelblüte         | 6.7      |
 | accented   | Widnall flourish  | Widnall-Arabeske    | 8.3      |
 
-- Slot 0 **ring-roll**: bright local highlight sweeps around roughly half the rolled rim while its sheets wind further.
-- Slot 1 **finger-reach**: lobes and tendrils extend and relax over the authored envelope (45% envelope-scaled reach modulation).
-- Slot 2 **pigment-wave**: a descending backlit band illuminates skins and strands. Driving has a six-eighth loop; accented has a twelve-sixteenth loop: three beats against the four-beat bar.
-- Slot 3 **ink-burst / Tintenausbruch**: one curled rim sector bulges and ejects a small scalloped accent packet with a dark core. It travels 0.62 world units, then unrolls into four thin filaments and fades. Envelope progress is recovered by inverse smoothstep; event count selects one of three facing sectors, and the hit briefly pinches the puff. It is independent of development.
+All authored grids are unchanged.
 
-All signature hits are full-strength `X` at strength 0.9, preserving a consistent inverse envelope. Zero-based steps:
+- Slot 0 **ring-roll** winds and sweeps the existing folded rim.
+- Slot 1 **finger-reach** increases physical lobe/stream reach and relaxes.
+- Slot 2 **pigment-wave** now bends the parent folds as its concentration front descends, alongside the existing stream illumination. Driving repeats six eighths; accented repeats twelve sixteenths (three against four).
+- Slot 3 **ink-burst / Tintenausbruch** uses the same envelope, hit and count IDs. A facing parent sector peels into a hooked tongue; off-axis dilute concentrations stretch with it, then four unequal tapered branches spread and fade. The former spherical shell subtraction and circular dark hole are removed. The concentration ridge is curved, not a centred ball.
 
-| Style      | Division | Steps      | Duration, beats |
-| ---------- | -------- | ---------- | --------------- |
-| restrained | 2        | 14, 30     | 2.4             |
-| driving    | 2        | 14, 28, 30 | 1.8             |
-| accented   | 4        | 26, 56, 60 | 1.6             |
+Signature steps (zero-based): restrained division 2, **14/30**, duration 2.4 beats; driving division 2, **14/28/30**, duration 1.8; accented division 4, **26/56/60**, duration 1.6. Progress is recovered from the 0.9-strength envelope. Count selects three facing rim sectors, independently of development.
 
-Hits remain in the second halves of bars 2 and 4. Fewer retriggers than r3 leave time to read each packet. German/English descriptions are additive keys beside the family's existing translations.
+Both clocks have period 2π; all added uses are periodic. The plume transform has no time dependence. Native health checks include all looks at 0.1/0.5/0.9, three palettes, portrait, reversal, and 3600/4096/43200 seconds.
 
-## Verification and measured limitations
+## R5 verification and limitations
 
-R4 capture/read rounds: `artifacts/look-review/ink-bloom-r4-round1` through `round6`, plus the final **`artifacts/look-review/ink-bloom-r4/`** film, 12-frame sheet, 24-frame rhythm strip and `grids.md`. Interrupted r4 `f1` work was preserved before merging main.
+Nine numbered change → capture → read rounds are retained under `artifacts/look-review/ink-bloom-r5-1` through `-9`. Final independent evidence is **`artifacts/look-review/ink-bloom-r5/`**, including the 12-still sheet, held top-state/0.85 v2 rhythm strip aligned to beat 8, evidence JSON and grids. Historical r4 evidence remains read-only in the main checkout's `artifacts/preserved-worktrees/ink-bloom-r3/artifacts/`.
 
-Native synchronous throughput on Apple M3 Pro / ANGLE Metal, including post but excluding asynchronous flash approval:
+Native synchronous throughput on Apple M3 Pro / ANGLE Metal includes post, excludes asynchronous flash approval and is not venue cadence. Final measurements (`artifacts/ink-r5-final-postguard-*`):
 
-| State  | 1080p p50/p95 ms | 4K p50/p95 ms | Paired p50 vs main, 1080p |
-| ------ | ---------------- | ------------- | ------------------------- |
-| Drop   | 4.6 / 6.0        | 14.2 / 15.2   | +38.9%                    |
-| Plumes | 8.9 / 9.9        | 30.4 / 34.9   | +72.7%                    |
-| Nebula | 7.4 / 7.7        | 27.3 / 33.0   | +77.3%                    |
+| State  | 1080p p50/p95 ms | 4K p50/p95 ms | ABBA p50 delta vs main ef5b7e9 |
+| ------ | ---------------- | ------------- | ------------------------------ |
+| Drop   | 5.1 / 5.3        | 29.0 / 34.8   | +27.3%                         |
+| Plumes | 5.1 / 5.3        | 28.4 / 35.3   | −13.8%                         |
+| Nebula | 5.6 / 5.8        | 27.8 / 34.3   | −14.6%                         |
 
-**Not a performance pass:** Plumes exceeds the 8 ms 1080p budget, and the last two states exceed 16 ms at 4K. Shared GPU load varies, but the ABBA regression is real. Final paired p50 values were 5.0/7.6/7.8 ms versus main 3.6/4.4/4.4 ms. Replacing the original unbounded native material and tube work reduced initial 1080p 18–42 ms substantially; more optimization is still needed without sacrificing curls.
+1080p absolute budget passes this final probe; **4K fails**, and the paired gate exits 1 for Drop's real regression. The ABBA run was contended: Nebula baseline p50/p95 was 13.0/15.1 ms and final 11.1/15.0 ms. An earlier paired run showed Plumes −65.1% with baseline p95 41.3 ms, demonstrating the instability; do not treat those large gains as isolated measurements. Earlier slower probes remain preserved, not silently discarded.
 
-- Family tests cover Kelvin/Stokes/Kaden mathematics, seed identity, continuity/reversal, compact-sheet quadrature, angle error, inverse envelope, full fill timing, polyrhythmic lengths, grid density, atlas gutters and slot-3 uniforms.
-- Family/world-rhythm/pipeline-flash targeted tests: 51 pass.
-- Limiter-enabled native verifier: 48 cases covering all looks at 0.1/0.5/0.9, Ember/Glacier/Acid Yellow, portrait, reversal and late time; zero GL/non-finite errors; lit coverage 25.5–43.9%.
-- Build, native DE/EN i18n and typecheck pass. Full suite and formatting results are recorded in the lane report.
+Full suite after capture-v2 main sync: 1033 pass, 22 opt-in browser cases skipped; typecheck, build, native DE/EN i18n and 53 targeted family/rhythm/flash tests pass. Limiter-enabled native health verification: 48 cases, zero GL/non-finite errors, 20.9–43.1% lit. Scene/test/family-doc/plan formatting passes; five shared files retain pre-existing whole-file formatting warnings. Live limiter and governor are untouched. These checks do not establish venue cadence or continuous photosensitivity qualification.
 
-**Self-assessment: L 7, not an independent ≥8 pass.** Banding, oversized tint events and hard film cropping are improved. The parent/daughter identity is legible again, but early rings remain smooth, some tendrils look artificial, broad skins can resemble fabric, and 4K cost is unresolved. No independent score is claimed.
+**Self-assessment: L 6.5, not an independent pass.** The burst is no longer a neon doughnut and the crown is taller, but smooth wrapper areas, perforated daughter curls, some connector-like silhouettes and insufficient fine dissolving detail remain visible. Stills cannot establish continuous-motion quality. Do not treat completed checks or grid density as artistic acceptance.

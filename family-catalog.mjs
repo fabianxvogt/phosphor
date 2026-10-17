@@ -50,7 +50,7 @@ export const FAMILY_CATALOG = {
   },
   ink: {
     algorithm: "Characteristic-mapped Kelvin vortex dye, Widnall lobes and Kaden roll-up",
-    description: "A falling dye ring folds into hanging plumes and an outward crown, with translucent pigment bursts on musical fills.",
+    description: "One falling dye ring opens into a tilted crown of folded pigment; local fills peel away into branching streams.",
     styles: ["organic", "spatial"],
     variants: ["Drop", "Plumes", "Nebula"],
   },
