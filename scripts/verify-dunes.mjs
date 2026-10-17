@@ -18,6 +18,7 @@ const args = options({
   late: { type: "string", default: "0" },
   width: { type: "string", default: "960" },
   height: { type: "string", default: "540" },
+  fallback: { type: "boolean", default: false },
 });
 const palettes = args.palettes.split(",").map((id) => {
   const palette = PALETTES.find((p) => p.id === id);
@@ -33,9 +34,10 @@ try {
   for (const palette of palettes)
     for (const energy of args.energies.split(",").map(Number)) {
       const shots = await lab.page.evaluate(
-        async ({ palette, energy, dev, late, width, height }) => {
+        async ({ palette, energy, dev, late, width, height, fallback }) => {
           const { engine, scenes, presetSnapshot } = window.__phosphorLab;
           const scene = scenes.find((s) => s.id === "dunes");
+          if (fallback) delete scene.precompute;
           const snapshot = presetSnapshot(scene, 0);
           snapshot.palette = palette.colors;
           engine.resize(width, height);
@@ -100,6 +102,7 @@ try {
           late: Number(args.late),
           width: Number(args.width),
           height: Number(args.height),
+          fallback: args.fallback,
         },
       );
       for (const shot of shots) {
@@ -111,6 +114,7 @@ try {
           palette: palette.id,
           energy,
           late: Number(args.late),
+          fallback: args.fallback,
           ...health,
         });
         console.log(JSON.stringify(rows.at(-1)));
