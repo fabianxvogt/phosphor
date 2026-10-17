@@ -25,37 +25,37 @@ Completed clean/merged worktrees may be removed after preserving evidence. Their
 
 Composition and fill, depth (perspective, atmosphere, light, occlusion, scale cues), material that reads as what it claims to be, palette use (dark ground, saturated mid-tones, rare accent), legible signature detail, development arc (sparse → structured → full form, one identity transforming), energy visibly changing structure. Check the ten recurring failure patterns: small centred object on black; uniform glowing outlines; desaturated/beige emission; events locked to a development value; energy does nothing; morph = two pictures stacked; camera lurch; material reads as the wrong thing; artificial connectors; temporal grain.
 
-| Score | Anchor |
-| --- | --- |
-| 3–4 | Reads as a placeholder or tech demo; flat, empty or muddy. |
-| 5 | Competent shader demo; nothing anyone would film. |
-| 6 | Pleasant, coherent, but generic or with two or more failure patterns. |
-| 7 | Good world with one clear weakness a VJ audience would notice. |
-| 8 | Impressive: at the peak, people in a club would film it on their phones. No failure pattern visible; every state is a strong composition. |
-| 9 | Best in the library: a signature moment nobody has seen in a club. |
-| 10 | Unforgettable; nothing to improve. |
+| Score | Anchor                                                                                                                                    |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 3–4   | Reads as a placeholder or tech demo; flat, empty or muddy.                                                                                |
+| 5     | Competent shader demo; nothing anyone would film.                                                                                         |
+| 6     | Pleasant, coherent, but generic or with two or more failure patterns.                                                                     |
+| 7     | Good world with one clear weakness a VJ audience would notice.                                                                            |
+| 8     | Impressive: at the peak, people in a club would film it on their phones. No failure pattern visible; every state is a strong composition. |
+| 9     | Best in the library: a signature moment nobody has seen in a club.                                                                        |
+| 10    | Unforgettable; nothing to improve.                                                                                                        |
 
 ### G — Rhythm grid fullness and variation (weight 0.15)
 
 From the grid dump. Does each preset fill more than beat 1? Do tracks use off-beats, syncopation, fills every N bars, polyrhythmic lengths (for example 3 against 4)? Are the three presets clearly different in placement (not only in strength)? Do the presets fit this world (a tide surges in long swells, a clockwork ticks) rather than repeating a shared template?
 
-| Score | Anchor |
-| --- | --- |
-| 2 | Only the first step of each loop; presets differ only in strength. |
-| 5 | Some tracks fill several beats; presets barely differ. |
-| 8 | Every preset full and musical: off-beats or syncopation, a fill or polyrhythm, three presets with clearly different feel, world-specific. |
-| 10 | Grids a VJ would choose to keep; each preset plays like a distinct groove. |
+| Score | Anchor                                                                                                                                    |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 2     | Only the first step of each loop; presets differ only in strength.                                                                        |
+| 5     | Some tracks fill several beats; presets barely differ.                                                                                    |
+| 8     | Every preset full and musical: off-beats or syncopation, a fill or polyrhythm, three presets with clearly different feel, world-specific. |
+| 10    | Grids a VJ would choose to keep; each preset plays like a distinct groove.                                                                |
 
 ### E — Rhythm effect strength and fit (weight 0.25)
 
 From the rhythm strip and film. Are rhythm events visible on the beat at energy ≈ 0.85 without strobing? Is there at least one **signature effect** drawn from the world's own theme (for example a wave rolling through Moon Tide every second bar, lightning on the accent in Thunderhead, ink bursts on fills in Ink Bloom) that an audience can lock onto? Effects must stay within the flash limiter and style rules (no full-screen white, kick punch ≤ 2–3 %).
 
-| Score | Anchor |
-| --- | --- |
-| 2 | No visible response to the rhythm. |
-| 5 | Visible on close inspection; generic brightness pulsing. |
-| 8 | Clearly visible, world-specific signature effect plus secondary gestures; reads at a glance and fits the world. |
-| 10 | The rhythm makes the world feel alive; the signature effect is the moment people wait for. |
+| Score | Anchor                                                                                                          |
+| ----- | --------------------------------------------------------------------------------------------------------------- |
+| 2     | No visible response to the rhythm.                                                                              |
+| 5     | Visible on close inspection; generic brightness pulsing.                                                        |
+| 8     | Clearly visible, world-specific signature effect plus secondary gestures; reads at a glance and fits the world. |
+| 10    | The rhythm makes the world feel alive; the signature effect is the moment people wait for.                      |
 
 ## Overall
 

@@ -120,18 +120,18 @@ At least three types that pass the grayscale distinctness sheet (same palette, m
 
 Every family below is a draft until it passes (D47). Packets: `docs/families/<id>.md`.
 
-| Group | Family                                               | Status                                                                                                                  |
-| ----- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| 1     | Feedback Chapel                                      | **passed** — [packet](docs/families/feedback.md); owner sign-off 2026-10-08                                             |
-| 1     | Causal Tapestry                                      | **passed** — [packet](docs/families/tapestry.md); owner sign-off 2026-10-08 (accepted Cascade's near pairs) |
-| 1     | Cathedrals of Error                                  | **passed**, reworked as headliner (D62) — [packet](docs/families/cathedral.md); owner sign-off 2026-10-08 |
-| 1     | Interference Rituals                                 | **passed**, reworked as layered moiré (D60) — [packet](docs/families/interference.md); owner sign-off 2026-10-08          |
-| 2     | Pulse Geometry                                       | **passed**, reworked as strobe geometry (D60) — [packet](docs/families/pulse.md); owner sign-off 2026-10-08               |
-| 2     | Fractal Flight                                       | **passed**, reworked as headliner (D62) — [packet](docs/families/flight.md); owner sign-off 2026-10-08                    |
-| 3     | Melt, Acid (+ garden type)                           | draft                                                                                                                   |
-| 4     | Light Beams, Particle Swarm                          | draft                                                                                                                   |
-| 5     | Julia Observatory, Fourth Dimension, Hyperbolic Loom | draft                                                                                                                   |
-| 6     | Magnetic, Phase (reworks), Aquarium                  | draft                                                                                                                   |
+| Group | Family                                               | Status                                                                                                           |
+| ----- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1     | Feedback Chapel                                      | **passed** — [packet](docs/families/feedback.md); owner sign-off 2026-10-08                                      |
+| 1     | Causal Tapestry                                      | **passed** — [packet](docs/families/tapestry.md); owner sign-off 2026-10-08 (accepted Cascade's near pairs)      |
+| 1     | Cathedrals of Error                                  | **passed**, reworked as headliner (D62) — [packet](docs/families/cathedral.md); owner sign-off 2026-10-08        |
+| 1     | Interference Rituals                                 | **passed**, reworked as layered moiré (D60) — [packet](docs/families/interference.md); owner sign-off 2026-10-08 |
+| 2     | Pulse Geometry                                       | **passed**, reworked as strobe geometry (D60) — [packet](docs/families/pulse.md); owner sign-off 2026-10-08      |
+| 2     | Fractal Flight                                       | **passed**, reworked as headliner (D62) — [packet](docs/families/flight.md); owner sign-off 2026-10-08           |
+| 3     | Melt, Acid (+ garden type)                           | draft                                                                                                            |
+| 4     | Light Beams, Particle Swarm                          | draft                                                                                                            |
+| 5     | Julia Observatory, Fourth Dimension, Hyperbolic Loom | draft                                                                                                            |
+| 6     | Magnetic, Phase (reworks), Aquarium                  | draft                                                                                                            |
 
 ### Show gate
 

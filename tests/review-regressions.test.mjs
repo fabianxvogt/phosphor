@@ -87,12 +87,10 @@ test(
       const page = await runtime.browser.newPage();
       const result = await page.evaluate(
         ({ leaf, latch, cases }) => {
-          const gl = document
-            .createElement("canvas")
-            .getContext("webgl2", {
-              preserveDrawingBuffer: true,
-              antialias: false,
-            });
+          const gl = document.createElement("canvas").getContext("webgl2", {
+            preserveDrawingBuffer: true,
+            antialias: false,
+          });
           if (!gl) throw new Error("No WebGL2");
           gl.canvas.width = gl.canvas.height = 1;
           gl.viewport(0, 0, 1, 1);

@@ -25,11 +25,11 @@ The helper/tests assume `beat(n) = (n+1)·bpm/(60·fps)`. The renderer actually 
 For target `T = 8 + i/2`, the first eligible image is `ceil(T/0.07) − 1` (with the helper's small rounding tolerance). For every supplied pick, direct simulation of the repeated floating-point additions verified that the previous image is before its target and the chosen image is on/after it.
 
 | Strip cell (1-based) | Target beat | Saved image (0-based) | Rendered beat |
-| --- | ---: | ---: | ---: |
-| 1 — bar start | 8 | 114 | 8.05 |
-| 9 — bar start | 12 | 171 | 12.04 |
-| 17 — bar start | 16 | 228 | 16.03 |
-| 24 | 19.5 | 278 | 19.53 |
+| -------------------- | ----------: | --------------------: | ------------: |
+| 1 — bar start        |           8 |                   114 |          8.05 |
+| 9 — bar start        |          12 |                   171 |         12.04 |
+| 17 — bar start       |          16 |                   228 |         16.03 |
+| 24                   |        19.5 |                   278 |         19.53 |
 
 All 24 evidence indices exactly equal `rhythmFramePicks()`. Quantization delay is 0–28.571 ms, below one 33.333 ms image interval; these are first-after samples, not exact simultaneous beat exposures. Targets span three bars `[8,20)` sampled every half beat, with bar starts at cells 1/9/17 and whole beats at odd-numbered cells.
 
