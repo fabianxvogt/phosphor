@@ -4,7 +4,7 @@
 // lightning irradiance of the current frame. The fallback evaluates the same
 // function directly.
 export const stormVolume = `
-const vec2 stAtlas = vec2(1024,675);
+const vec2 stAtlas = vec2(1024,419);
 const vec3 stVolumeLo = vec3(-26.0,0.3,-7.0);
 const vec3 stVolumeSize = vec3(52.0,16.8,30.0);
 vec4 stHash4(vec4 n) {
@@ -95,10 +95,9 @@ void stBubbles() {
     }
   }
 }
+// Thermal bubbles are set up only where the carrier is evaluated (lattice
+// nodes near the storm, or the uncached visual path), not per cache texel.
 void stCloudSetup() {
-#ifndef PRECOMPUTED
-  stBubbles();
-#endif
   vec4 main = stCell[2];
   stAnvil = vec3(mix(main.x,-3.0,stSuper), main.w*mix(0.92,0.9,stSuper), mix(main.y,7.0,stSuper));
   stAnvilR = mix(0.6*stCellR[2],17.5,stSuper);
@@ -126,6 +125,26 @@ void stStormBox(out vec3 lo, out vec3 hi) {
   hi = vec3(min(maxX,stVolumeLo.x+stVolumeSize.x),
     min(stVolumeLo.y+stVolumeSize.y,(top+stDomeR+4.5)*u_params[2]),
     min(maxZ,stVolumeLo.z+stVolumeSize.z));
+}
+// Distance to the union of per-part bounds (each tower column, the shelf
+// bank, the anvil slab), with the same margins as stStormBox. A node far
+// from every part needs no events, bubbles or transport: in the supercell
+// the single union box covers almost the whole lattice, these parts do not.
+float stBoxDistance(vec3 p, vec3 lo, vec3 hi) { return length(max(lo-p,0.0)+max(p-hi,0.0)); }
+float stPartsDistance(vec3 p) {
+  float h = u_params[2], d = 1e3, floorY = (stBase-1.5)*h;
+  for (int i = 0; i < 5; ++i) {
+    vec4 c = stCell[i];
+    float r = stCellR[i]*1.25+3.0+0.15*(c.w-c.z);
+    float top = (c.w+(i == 2 ? stDomeR : 0.0)+4.5)*h;
+    d = min(d,stBoxDistance(p,vec3(c.x-r,floorY,c.y-r),vec3(c.x+r,top,c.y+r)));
+  }
+  if (stRise > 0.0)
+    d = min(d,stBoxDistance(p,vec3(-17.0,floorY,4.3),vec3(17.0,(stBase+5.0)*h,17.7)));
+  float ra = stAnvilR*1.25+3.0;
+  d = min(d,stBoxDistance(p,vec3(stAnvil.x-ra,(stAnvil.y-stAnvilT-5.5)*h,stAnvil.z-ra),
+    vec3(stAnvil.x+ra,(stAnvil.y+stAnvilT+5.5)*h,stAnvil.z+ra)));
+  return d;
 }
 float stSmin(float a, float b, float k) {
   float h = clamp(0.5+0.5*(b-a)/k,0.0,1.0);
@@ -313,6 +332,7 @@ float stFlashLight(vec3 p, bool occlude) {
 }
 vec4 stOptical(vec3 p) {
   float sd;
+  vec3 p0 = vec3(p.x,p.y/u_params[2],p.z);
   float density = stDensityAt(p,1,sd);
   vec2 parts = stParts;
   // Conservative empty-space distance: the carrier SDF is 1-Lipschitz and
@@ -322,7 +342,11 @@ vec4 stOptical(vec3 p) {
   float wM = stSuper*(1.0-smoothstep(0.0,2.0,parts.x-sd));
   float wA = 1.0-smoothstep(0.0,2.0,parts.y-sd);
   float lip = mix(1.55,2.0,stRise)+wA*mix(0.45,1.4,stSuper)+4.5*wM;
-  float skip = max(1e-4,(sd-2.8)*0.8/lip)*min(1.0,u_params[2]);
+  // Shell bound from the local erosion amplitude (0.5·e reach + ramp +
+  // one lattice diagonal), not the crown maximum everywhere: low flanks
+  // and bases (e≈1) get a 1.6 margin instead of 2.8. Capped at 2.8.
+  float reach = min(2.8,0.5*stErosion(p0)+1.1);
+  float skip = max(1e-4,(sd-reach)*0.8/lip)*min(1.0,u_params[2]);
   if (density <= 0.0 && sd > 3.0) return vec4(-skip,0.0,1.0,stFlashLight(p,false));
   // Nodes near the boundary carry the same transport as interior nodes, so
   // interpolation across the surface cannot print lattice cells.
@@ -332,14 +356,20 @@ vec4 stOptical(vec3 p) {
     tau += (j < 2 ? stDensityAt(p+stLight*s) : stDensityLight(p+stLight*s))*(s-last);
     last = s;
   }
+  // Torn fragments upstream of the storm shade it from the moon: a field
+  // constant along the moon ray (projected perpendicular to it) drifts
+  // across, so only some rims and crowns catch silver light, not all.
+  vec3 sp = p-stLight*dot(p,stLight);
+  float frag = stNoise(sp*vec3(0.13,0.2,0.13)+vec3(0.35*stPhase,1.7,-0.2*stPhase)).x;
+  tau += 2.8*smoothstep(0.38,0.68,frag);
   // Sky fill from above the camera side models the visible faces.
   float up = stDensityAt(p+stFill*0.7)*0.7+stDensityLight(p+stFill*2.0)*1.3;
   return vec4(density > 0.0 ? density : -skip,tau,exp(-up*0.35),stFlashLight(p,true));
 }
-const vec3 stGrid = vec3(128,80,64);
+const vec3 stGrid = vec3(128,64,48);
 // The first 35 atlas rows remain exact lightning topology and tile masks.
 ivec2 stVoxelAddress(ivec3 p) {
-  return ivec2((p.z%8)*128+p.x,35+(p.z/8)*80+p.y);
+  return ivec2((p.z%8)*128+p.x,35+(p.z/8)*64+p.y);
 }
 vec4 stVolume(vec3 p) {
 #ifdef PRECOMPUTED
@@ -347,9 +377,9 @@ vec4 stVolume(vec3 p) {
   ivec3 a = ivec3(floor(q)); vec3 f = fract(q);
 #ifdef PRECOMPUTED_LINEAR
   vec2 xy = q.xy+0.5;
-  vec2 uv0 = (vec2((a.z%8)*128,35+(a.z/8)*80)+xy)/stAtlas;
+  vec2 uv0 = (vec2((a.z%8)*128,35+(a.z/8)*64)+xy)/stAtlas;
   int z1 = min(a.z+1,int(stGrid.z)-1);
-  vec2 uv1 = (vec2((z1%8)*128,35+(z1/8)*80)+xy)/stAtlas;
+  vec2 uv1 = (vec2((z1%8)*128,35+(z1/8)*64)+xy)/stAtlas;
   return mix(texture(u_precomputed,uv0),texture(u_precomputed,uv1),f.z);
 #else
   #define stVoxel(o) texelFetch(u_precomputed,stVoxelAddress(min(a+o,ivec3(stGrid)-1)),0)

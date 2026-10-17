@@ -2,6 +2,32 @@
 
 World `thunderhead`, scene `storm`, family **107**. **Haze / Dunst → Towers / Türme → Supercell / Superzelle**. World ID, the eight look names/IDs and seeds, schema keys and rhythm IDs/defaults are unchanged; the three states share seed **10701** and identical non-development parameters. Tests find the world by ID.
 
+## Round 5: frame cost within budget, atmospheric storm
+
+Responds to the independent r4 review (L 7.0 / Overall 7.5) and the serialized performance blocker (Supercell 1080p sync p50 **9.5 ms** at 63806f5). World/state/look IDs, seeds, schema, presets and rhythm (ids, labels, styles, 2.6 / 6.5 / 8.0 hits per bar) are unchanged.
+
+**Cost, structurally** (interleaved stub probes put Supercell at ≈2.5 ms post/fixed, ≈2.8 ms lattice, ≈3.3 ms visual pass; a step heat map showed sky rays beside the storm walking 30–44 empty steps):
+
+- Optical lattice **128×80×64 → 128×64×48** nodes (−40 %; cache atlas 1024×675 → 1024×419). y spacing 0.26 stays finer than x 0.41; z (depth) is the least visible axis.
+- **Per-part cull**: nodes more than 1.2 outside every tower column, bank and anvil box (same margins as `stStormBox`) store that distance and skip events, thermal bubbles and transport. `partsDistance` in `storm-model.mjs` mirrors it; a test proves no point the eroded carrier could fill is culled. Bubbles are built only for near nodes, lattice events skip the leader frame, dark slots skip their site, and each slot evaluates one event.
+- **Relaxed empty-space stepping** (3× the strict skip, larger floor, three-step entry bisection); the skip margin follows local erosion (0.5·e + 1.1, never above the old 2.8).
+
+**Look** (each must-fix answered in material, framing and causal rhythm): drifting fragment shadows along the moon ray make silver linings selective; powder floor 0.45 → 0.22 removes the glowing outline of the thinnest periphery; aerial perspective softens far lobes; town light on the base 0.12 → 0.075. A low outflow-mist band on the far shore dissolves base, rain feet and plain into the horizon (lit by return strokes; reflected in the lake); rain curtains have ragged virga tops. Haze gets a height hierarchy (one dominant tower, an opening under the moon), a slightly higher camera target, distant rain veils and doubled low-energy lake chop, so perspective ripple lines fill the lower half. **Bolt from the blue** keeps its slot-3 grid but has a finer white-hot core with accent fringe, tapering trunk/branches, a tighter interior accent flare (only while the channel is lit), a hooked arc out of the anvil top through clear air before plunging, shorter side branches and a local mist flare at its attachment. Cirrus: two domain-warped, near-isotropic decks at different heights and drifts replace the stretched single deck; they fade out low and are only half as flash-lit.
+
+### r5 evidence and verification
+
+Film rounds `artifacts/look-review/thunderhead-r5-{1..5}/` (read and critiqued each; r5-2 rejected for sprawling branches), final reviewer evidence `artifacts/look-review/thunderhead-r5/` (sheet, rhythm sheet, films, `grids.md`). `scripts/verify-storm.mjs` (lattice layout updated, signature hook mirrored in the CPU graph): 60 late frames (min lit 47.4 %), 72 lattice scans (max overflow −0.055), 72 CPU/GPU graphs (max error 1.6×10⁻⁶), 7 aspect/palette/4K stills, zero GL/non-finite errors. `npm test` 1031 pass / 22 skipped / 0 fail (storm 27), typecheck, build, pipeline-flash, DE/EN native i18n pass.
+
+M3 Pro native, other lanes running (not serialized):
+
+| State     | 1080p p50/p95 ms | 4K p50/p95 ms | Same-session main → r5 (1080p p50) |
+| --------- | ---------------- | ------------- | ---------------------------------- |
+| Haze      | 4.9 / 5.1        | 15.7 / 16.3   | 7.3 → 5.6                          |
+| Towers    | 5.7 / 6.0        | 17.8 / 18.2   | 8.5 → 6.7                          |
+| Supercell | 6.5 / 6.9        | 19.0 / 19.9   | 9.3 → 7.4                          |
+
+Interleaved pair vs main: 1080p −16 / −20 / −18 %, 4K −7 / −14 / −13 %. 1080p meets ≤ 8 ms in every state; **4K Towers and Supercell still miss 16 ms** and are not venue-qualified. A serialized rerun is needed for acceptance. Limiter, governor, budgets and render scale are untouched.
+
 ## Round 4: turbulent connected storm, localized discharge light
 
 Responds to the independent r3 review (L 6.5, Overall 7), not the earlier implementer score. World/state/look IDs, seeds and schema are unchanged. The existing family-owned shader helpers `scene-storm-data.mjs` and `scene-storm-volume.mjs` carry the geometry/transport changes; no shared renderer or limiter changes.

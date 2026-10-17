@@ -151,23 +151,23 @@ try {
             gl = engine.gl,
             slot = engine.slots.at(-1);
           gl.bindFramebuffer(gl.FRAMEBUFFER, slot.precompute.fbo);
-          const volume = new Float32Array(1024 * 640 * 4);
-          gl.readPixels(0, 35, 1024, 640, gl.RGBA, gl.FLOAT, volume);
+          const volume = new Float32Array(1024 * 384 * 4);
+          gl.readPixels(0, 35, 1024, 384, gl.RGBA, gl.FLOAT, volume);
           const rows = new Float32Array(1024 * 3 * 4);
           gl.readPixels(0, 0, 1024, 3, gl.RGBA, gl.FLOAT, rows);
           gl.bindFramebuffer(gl.FRAMEBUFFER, null);
           // Reduce exact occupied-node extrema in the browser, avoiding a
           // multi-megabyte JSON transfer per scan. Still check every channel
           // of every node; CPU bounds below remain independently computed.
-          const minNode = [128, 80, 64],
+          const minNode = [128, 64, 48],
             maxNode = [-1, -1, -1];
           let occupied = 0,
             nonFinite = 0;
-          for (let z = 0; z < 64; z++)
-            for (let y = 0; y < 80; y++)
+          for (let z = 0; z < 48; z++)
+            for (let y = 0; y < 64; y++)
               for (let x = 0; x < 128; x++) {
                 const at =
-                  ((((z / 8) | 0) * 80 + y) * 1024 + (z % 8) * 128 + x) * 4;
+                  ((((z / 8) | 0) * 64 + y) * 1024 + (z % 8) * 128 + x) * 4;
                 for (let c = 0; c < 4; c++)
                   nonFinite += Number(!Number.isFinite(volume[at + c]));
                 if (!(volume[at] > 0)) continue;
@@ -190,7 +190,7 @@ try {
         const { lo, hi } = stormBox(snapshot.seed, development, height);
         const origin = [-26, 0.3, -7],
           size = [52, 16.8, 30],
-          grid = [128, 80, 64];
+          grid = [128, 64, 48];
         let overflow = -1e9,
           worst = null;
         const { occupied, nonFinite } = data;
@@ -233,6 +233,7 @@ try {
             bottom: texel(120 + slot, 2).slice(0, 3),
             side: texel(124 + slot, 0).slice(0, 3),
             depth: texel(124 + slot, 1).slice(0, 3),
+            signature: slot === 1 && texel(133, 1)[0] > 0.001,
           };
           for (let local = 0; local < 30; local++) {
             const s = leaderSegment(data.seed, state[3], local);
