@@ -7,11 +7,13 @@
 //     [--worlds a,b] [--port 48190] [--palette <id>]
 // Requires ffmpeg. Runs world-film.mjs once per world on the rig GPU.
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { parseArgs } from "node:util";
 import scenes from "../scenes.mjs";
 import { defaultWorlds } from "../worlds.mjs";
+import { presetSnapshot } from "../session.mjs";
+import { rhythmFramePicks } from "./capture-clock.mjs";
 
 const { values: args } = parseArgs({
   options: {
@@ -43,7 +45,6 @@ await mkdir(out, { recursive: true });
 const fps = 30,
   bpm = 126,
   seconds = Number(args.seconds);
-const beatFrames = (fps * 60) / bpm;
 for (const world of worlds) {
   const started = Date.now();
   const film = join(out, `${world}${args.palette ? `-${args.palette}` : ""}`);
@@ -79,18 +80,50 @@ for (const world of worlds) {
     "vfr",
     `${film}-sheet.png`,
   ]);
-  // Half-beat spacing from 62 % of the film: top state, energy ≈ 0.85.
-  const start = Math.round(total * 0.62);
-  const step = beatFrames / 2;
-  const picks = Array.from({ length: 24 }, (_, i) =>
-    Math.round(start + i * step),
+  // Separate held top-state capture: development/energy must not confound
+  // the rhythm judgement. Warm for two bars, then sample three aligned bars.
+  const definition = defaultWorlds(lookIds).find((w) => w.id === world);
+  const lastLook = definition.states.at(-1).look;
+  const scene = scenes.find((s) => lastLook.startsWith(`${s.id}:`));
+  const top = presetSnapshot(
+    scene,
+    scene.presets.findIndex((p) => `${scene.id}:${p.name}` === lastLook),
+  ).params[scene.development];
+  const heldDir = join(out, "rhythm-held");
+  await run(
+    "node",
+    [
+      "scripts/world-film.mjs",
+      "--world",
+      world,
+      "--rig",
+      "--port",
+      args.port,
+      "--out",
+      heldDir,
+      "--seconds",
+      "12",
+      "--from",
+      String(top),
+      "--to",
+      String(top),
+      "--energy",
+      "0.85",
+      ...(args.palette ? ["--palette", args.palette] : []),
+    ],
+    { PHOSPHOR_HEADLESS_RIG: "1" },
   );
+  const heldFilm = join(
+    heldDir,
+    `${world}${args.palette ? `-${args.palette}` : ""}.mp4`,
+  );
+  const picks = rhythmFramePicks({ fps, bpm });
   await run("ffmpeg", [
     "-loglevel",
     "error",
     "-y",
     "-i",
-    `${film}.mp4`,
+    heldFilm,
     "-vf",
     `select='${picks.map((n) => `eq(n\\,${n})`).join("+")}',scale=320:-1,tile=6x4`,
     "-frames:v",
@@ -99,6 +132,26 @@ for (const world of worlds) {
     "vfr",
     `${film}-rhythm.png`,
   ]);
+  await writeFile(
+    `${film}-evidence.json`,
+    JSON.stringify(
+      {
+        version: 2,
+        world,
+        rhythm: {
+          heldDevelopment: top,
+          energy: 0.85,
+          bpm,
+          fps,
+          startBeat: 8,
+          halfBeatFrames: picks,
+          film: heldFilm,
+        },
+      },
+      null,
+      2,
+    ),
+  );
   console.log(
     `${world}: ${((Date.now() - started) / 1000).toFixed(0)} s → ${film}-sheet.png, ${film}-rhythm.png`,
   );

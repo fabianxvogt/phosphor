@@ -7,13 +7,15 @@ Owner goal 2026-10-16: every world is genuinely impressive (**≥ 8/10 from an i
 Per world, from `node scripts/look-review-capture.mjs --out artifacts/look-review/<round>` (real GPU, 960×540, 126 BPM beat clock, authored driving rhythm, the look's own palette):
 
 - `<world>-sheet.png`: 12 stills across a 30 s film: first state held at low energy, sweep through every state while energy rises to 0.9, settle at mid energy.
-- `<world>-rhythm.png`: 24 frames at half-beat spacing (three bars) near the top state at energy ≈ 0.85, read left to right, top to bottom. Beats fall on every second frame; bar 1 starts at frame 1.
+- `<world>-rhythm.png` (**capture v2**): 24 frames at half-beat spacing from a separate film holding the world's final development and energy **0.85**. After two bars of warm-up, frames select the first rendered image on/after beats 8, 8.5, …, 19.5 (three aligned bars). Read left to right, top to bottom; beats fall on every second frame, bar starts on frames 1/9/17. `<world>-evidence.json` records the exact clock and held development.
 - `<world>.mp4`: the film itself (optional; extract stills with ffmpeg if a sheet is ambiguous).
 - `node scripts/rhythm-grid-dump.mjs --worlds <world>`: the authored rhythm presets as sixteenth-note grids (restrained / driving / accented phrase styles) with the gesture descriptions.
 
 Stills do not show motion quality; judge motion only where frames show it (lurches, stalls, popping) and say so when a call is uncertain. The existing offline `world-film.mjs` harness disables asynchronous flash approval for deterministic captures: these sheets judge the renderer, **not live photosensitivity compliance**. Limiter-enabled native verification, flash-limiter tests and real-stage timing remain separate acceptance evidence; never weaken the live limiter to match a film.
 
 Completed clean/merged worktrees may be removed after preserving evidence. Their reviewed final round directories and numeric verification reports are archived under `artifacts/preserved-worktrees/<world>-r3/artifacts/`; `artifacts/preserved-worktrees/manifest.json` maps original paths and commit hashes. This is a location change, not a new capture or re-score.
+
+**Capture v1 limitation (baseline and early rounds):** the rhythm strip was sampled from 62% into the development-sweep film. Contrary to the original label, it was not bar-aligned and development was still changing. Those are real captures, but earlier frame-by-frame claims about exact beat placement/causal motion are provisional. Preserve the historical reviews; final acceptance should be rechecked with the held, aligned v2 strip. L/look and G/grid evidence is unchanged. The scoring weights and thresholds below are unchanged.
 
 ## Sub-scores (0–10, half points allowed)
 

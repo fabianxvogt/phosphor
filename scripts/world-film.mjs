@@ -33,6 +33,7 @@ const args = options({
   bpm: { type: "string", default: "126" },
   width: { type: "string", default: "960" },
   height: { type: "string", default: "540" },
+  energy: { type: "string" },
   palette: { type: "string" },
 });
 const paletteColors =
@@ -41,13 +42,19 @@ const paletteColors =
     : PALETTES.find((p) => p.id === args.palette)?.colors;
 if (args.palette !== undefined && !paletteColors)
   throw new Error(`Unknown palette ${args.palette}`);
-if (!args.world === !args.look)
+if (Boolean(args.world) === Boolean(args.look))
   throw new Error("Pass exactly one of --world <id> or --look <scene:Preset>");
 const seconds = Number(args.seconds),
   fps = Number(args.fps),
   bpm = Number(args.bpm),
   width = Number(args.width),
   height = Number(args.height);
+const fixedEnergy = args.energy === undefined ? null : Number(args.energy);
+if (
+  fixedEnergy !== null &&
+  (!Number.isFinite(fixedEnergy) || fixedEnergy < 0 || fixedEnergy > 1)
+)
+  throw new Error("Energy must be 0–1");
 
 const ffmpeg = (argv) =>
   new Promise((done, fail) => {
@@ -122,7 +129,10 @@ try {
     const sweep = smooth(Math.min(1, Math.max(0, (u - 0.2) / 0.6)));
     const energy =
       u < 0.8 ? 0.2 + 0.7 * smooth(Math.min(1, u / 0.8)) : 0.9 - 2 * (u - 0.8);
-    return { development: plan.from + (plan.to - plan.from) * sweep, energy };
+    return {
+      development: plan.from + (plan.to - plan.from) * sweep,
+      energy: fixedEnergy ?? energy,
+    };
   });
   const batch = 15;
   for (let start = 0; start < total; start += batch) {
