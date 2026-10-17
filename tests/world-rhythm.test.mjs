@@ -74,10 +74,16 @@ for (const scene of authored)
   test(`${scene.id}: three full, distinct, named rhythm presets`, () => {
     for (const style of STYLES)
       assert.ok(scene.rhythmStyles[style], `${scene.id} names ${style}`);
-    assert.ok(scene.rhythm.length >= 3, `${scene.id} has ≥ 3 gestures`);
+    assert.equal(scene.rhythm.length, 4, `${scene.id} has four gestures`);
+    assert.ok(
+      scene.rhythm.some((effect) => effect.slot === 3),
+      `${scene.id} has a signature gesture`,
+    );
     const patterns = STYLES.map((style) => defaultPattern(scene.rhythm, style));
     assert.deepEqual(
-      defaultPattern(scene.rhythm), patterns[1], `${scene.id} defaults to driving`,
+      defaultPattern(scene.rhythm),
+      patterns[1],
+      `${scene.id} defaults to driving`,
     );
     const signatures = patterns.map((pattern) =>
       JSON.stringify(
@@ -87,23 +93,38 @@ for (const scene of authored)
     assert.equal(new Set(signatures).size, 3, `${scene.id} presets differ`);
     for (const [index, pattern] of patterns.entries()) {
       const label = `${scene.id}/${STYLES[index]}`;
+      const hitsPerBar = pattern.tracks.reduce(
+        (sum, track) =>
+          sum + (hitsOf(track).length * track.division * 4) / track.length,
+        0,
+      );
+      assert.ok(
+        hitsPerBar + 1e-8 >= [2, 6, 8][index],
+        `${label}: ${hitsPerBar} hits/bar`,
+      );
       for (const track of pattern.tracks) {
         const hits = hitsOf(track);
         assert.ok(hits.length > 0, `${label}/${track.effect} plays`);
-        const effect = scene.rhythm.find((effect) => effect.id === track.effect);
+        const effect = scene.rhythm.find(
+          (effect) => effect.id === track.effect,
+        );
         if (effect.slot < 3) {
           assert.ok(
-            effect.styles?.[STYLES[index]], `${label}/${effect.id} is authored`,
+            effect.styles?.[STYLES[index]],
+            `${label}/${effect.id} is authored`,
           );
           assert.deepEqual(
             track,
             { ...effect.styles[STYLES[index]], effect: effect.id },
             `${label} uses its authored loop, not legacy defaults`,
           );
-          const gaps = hits.map((hit, i) => (
-            hits[(i + 1) % hits.length]
-            + (i === hits.length - 1 ? track.length : 0) - hit
-          ) / track.division);
+          const gaps = hits.map(
+            (hit, i) =>
+              (hits[(i + 1) % hits.length] +
+                (i === hits.length - 1 ? track.length : 0) -
+                hit) /
+              track.division,
+          );
           assert.ok(
             track.duration < Math.min(...gaps),
             `${label}/${effect.id} settles before the next hit`,
