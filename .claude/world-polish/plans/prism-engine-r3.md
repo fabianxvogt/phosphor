@@ -36,6 +36,27 @@ Attribution conflict resolved: actual model openai-codex/gpt-6.1-sol is credited
 - Profile exposed real haze overdraw regression (peak ABBA ~+90%, 4K 42.5ms under contention). Fixed by skipping 40 diffuse sheaths at the vertex stage and retaining one median path with 41-sample power normalization. Exact spectral strips/receivers unchanged. Final capture is a fourth reviewed film round after optimization.
 - Final default/Ember/Glacier films and sheets read. Still **self-assessed L7**, not an independent pass; genuine relay-to-relay propagation is only an approximation and Shard still resembles a studio demonstration.
 
+## r4
+
+Independent r3 review read first: L6/G8.5/E6.5, Overall6.5. Main merged cleanly before changes (1ef13ce). No dirty WIP existed.
+
+1. **Breakdown space:** retain the hero/incident fan, but bring one persistent near-left optical prism into the low state, with a dim distant relay and receding arch/reflection surfaces. This changes poses, not preset/state definitions. Keep analytic glass/reflection grounding; no centered-object-on-black workaround.
+2. **Peak material/hierarchy:** replace uniform bevel priority with broad transmitted face illumination and thickness absorption; softly light selected support faces, suppress secondary edges. Preserve the opened radial core.
+3. **Signature journey:** add a tiny fixed mesh for a continuous bounded packet through hero → two actual relay centres → a separated floor receiver. Use the slot-3 envelope as travel progress, count to select neighbouring rose relays, and hold endpoint illumination briefly. This is an authored relay route, not a claim of recursive Snell transport. Existing wavelength fans retain exact optics. Verify arrival/travel/receiver in larger, sub-beat stills.
+4. **Peak spectral separation:** lower passive bundles/ghosts and reflections, spatially separate active route above/right of the lower fan, keep saturated palette bands and reserve hottest light for active relay/core. Keep all existing preset names, 8.25/14 hits/bar and polyrhythmic loops.
+
+Three film rounds minimum: spatial/material foundation → signature journey and hierarchy → final restraint after large still inspection. No added pass/texture, no limiter change; profile full-resolution cost. CPU pose reference and tests must match shader. Re-check all looks/energies, palettes, portrait, reversal and late time with native verification.
+
+### r4 film rounds / critique
+
+1. Spatial/material foundation filmed/read (`prism-engine-r4-round1`). Near-left surface and distant relay establish depth, soft supports survive; large Shard/peak stills exposed the remaining pink wireframe hierarchy. Root cause: 41 coincident internal ray quads, not insufficient glow.
+2. Added four-leg relay journey, actual receiving-face illumination and 16 non-overlapping spectral bands; normalized internal quads, reduced passive branches. Sheet/rhythm and large peak read (`round2`): journey now moves through glass rather than unrelated pink edges; lower bundle recedes. Receiver was too far right and mostly invisible.
+3. Moved receiver into view, broadened saturated packet while lowering its radiance, added delayed finite floor fold, softened arch faces and increased transmitted face contrast (`round3`). Sheets, individual peak and native matrix read. Final default/Ember/Glacier sheets and 30fps journey strip read: material and hierarchy improved, but receiver clipped the bottom on the last leg. Corrected its world Z from +0.65 to −3 before final recapture. This is a framing correction, not added glow.
+
+Retained hero/incident dispersion, reflected grounding, radial core, local colour accents and all rhythm patterns. Self-assessment target L7.5/E8/G8.5 (Overall rounds to 8), not an independent claim. Warm/monochrome palettes remain less spectrally distinct; glass transport remains analytic.
+
+Verification: full suite 1020 pass/22 opt-in skips, typecheck/build pass; native DE/EN pass after correcting i18n's flag to `--native-gpu`. 1080p/4K p50 budgets pass. Final ABBA +33.3/+7.4/+9.7% fails that script's +5% relative warning: extra foreground glass/receiver environment has measurable cost. No output-resolution reduction or safety bypass used. Final 73-case native matrix passes: minimum lit 32.5%, maximum near-white 0.0087%, eight signature-mute comparisons change 0.87–1.49% of pixels, zero GL/nonfinite/browser errors. Final sheets, large receiver still and portrait read; receiver now lands fully within the frame.
+
 ## Verification / handoff
 
 984 pass / 0 fail / 21 opt-in skips (`npm test`, 1005 total); typecheck, build, DE/EN native browser i18n, targeted family/world-rhythm/flash tests and formatted owned files pass. No catalog row change needed: world/state/look descriptions and identities are unchanged. Shared i18n files contain only two additive keys per language, placed after the existing prism descriptions.

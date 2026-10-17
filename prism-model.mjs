@@ -199,6 +199,22 @@ export function prismPose(seed, id, development, phase = 0, spacing = 1) {
       (1.65 + 0.95 * vault) *
       growth,
   ];
+  if (id === 1 || id === 2) {
+    const near = id === 1 ? [-3.65, 1.9, 2.3] : [0.8, 1.3, -5];
+    const angle =
+      (id === 1 ? -0.12 : 0.12) + 0.07 * Math.sin(phase + ident.phase);
+    const relayYaw =
+      Math.atan2(-(bay - 1.5) * 1.65, side * 2.65 * spacing) +
+      Math.PI * vault +
+      0.08 * Math.sin(phase + ident.phase);
+    return {
+      identity: ident,
+      center: near.map((x, i) => x * (1 - rise) + center[i] * rise),
+      scale: (id === 1 ? 2.25 : 0.7) * (1 - rise) + 0.8 * rise * rise,
+      angle,
+      yaw: (id === 1 ? -0.48 : 0.3) * (1 - rise) + relayYaw * rise,
+    };
+  }
   return {
     identity: ident,
     center,
@@ -214,6 +230,29 @@ export function prismPose(seed, id, development, phase = 0, spacing = 1) {
       Math.PI * vault +
       0.08 * Math.sin(phase + ident.phase),
   };
+}
+// Independent CPU reference for the authored (not recursive Snell) journey.
+export function relayRoute(seed, development, count, phase = 0, spacing = 1) {
+  const center = (id) =>
+    prismPose(seed, id, development, phase, spacing).center;
+  const vault = smooth(1, 2, development),
+    cohort = ((count % 3) + 3) % 3;
+  const mix = (a, b) => a.map((x, i) => x * (1 - vault) + b[i] * vault);
+  const hero = center(0);
+  return [
+    hero.map((x, i) => x + [-3, -0.7, 0][i]),
+    hero,
+    mix(center(2), center(9 + cohort)),
+    mix(center(1), center(11 + cohort)),
+    [2.15, 0.018, -3],
+  ];
+}
+export function relayLight(envelope, stage, hit = 0) {
+  const phase = (1 - Math.max(0, Math.min(1, envelope))) * 4;
+  return (
+    Math.exp(-(((phase - stage) / 0.42) ** 2)) *
+    smooth(0, 0.035, Math.max(envelope, hit * 0.15))
+  );
 }
 const TRI = [
   [0, 1, 0],
@@ -401,6 +440,19 @@ export function createGeometry(seed) {
               segment,
             );
       }
+  // Four spatially connected relay legs, split into non-overlapping spectral
+  // bands, followed by their own floor receiver. Fixed topology, no state.
+  for (let band = 0; band < 16; band++)
+    for (let segment = 0; segment < 5; segment++)
+      for (const [x, y] of corners)
+        push(
+          [x, y, 0],
+          [0, 0, 0],
+          0,
+          segment === 4 ? 9 : 8,
+          band / 16,
+          segment,
+        );
   // Seed is deliberately NOT a source of topology; it only selects persistent poses.
   return new Float32Array(data);
 }

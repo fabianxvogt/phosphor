@@ -27,6 +27,8 @@ import {
   traceLens,
   identity,
   prismPose,
+  relayRoute,
+  relayLight,
   createGeometry,
 } from "../prism-model.mjs";
 import { continuousDevelopment, defaultWorlds } from "../worlds.mjs";
@@ -163,7 +165,8 @@ test("the maximal topology and seed identity survive development and reversal", 
     geometry.length / STRIDE,
     ADDITIVE_FROM +
       (PRISM_COUNT + LENS_COUNT * 5) * SPECTRAL_SAMPLES * 4 * 6 +
-      PRISM_COUNT * (SPECTRAL_SAMPLES - 1) * 12,
+      PRISM_COUNT * (SPECTRAL_SAMPLES - 1) * 12 +
+      16 * 5 * 6,
   );
   assert.ok([...geometry].every(Number.isFinite));
   assert.deepEqual(geometry, createGeometry(10801));
@@ -364,6 +367,45 @@ test("diffuse scattering skips redundant sheaths, never physical spectral sheets
   // Snell/Cauchy fan (segment 2), secondary fan (5) or receivers (kind 2).
   assert.equal(SPECTRAL_SAMPLES, 41);
   assert.match(prism.geometry.vertex, /segment==2\.\|\|segment==5\./);
+});
+
+test("relay packet arrives at ordered real optical centres and a separated floor receiver", () => {
+  for (const development of [0, 0.5, 1, 1.5, 2]) {
+    for (const count of [0, 1, 2, 3000]) {
+      const route = relayRoute(10801, development, count, 0.7);
+      assert.ok(route.flat().every(Number.isFinite));
+      assert.deepEqual(route[1], prismPose(10801, 0, development, 0.7).center);
+      assert.deepEqual(route[4], [2.15, 0.018, -3]);
+      if (development === 2) {
+        assert.deepEqual(
+          route[2],
+          prismPose(10801, 9 + (count % 3), 2, 0.7).center,
+        );
+        assert.deepEqual(
+          route[3],
+          prismPose(10801, 11 + (count % 3), 2, 0.7).center,
+        );
+      }
+      const next = relayRoute(10801, development + 1e-6, count, 0.7);
+      for (let j = 0; j < 5; j++)
+        assert.ok(
+          Math.hypot(...route[j].map((x, k) => x - next[j][k])) < 0.0001,
+        );
+    }
+  }
+  for (let stage = 1; stage <= 3; stage++) {
+    near(relayLight(1 - stage / 4, stage), 1);
+    assert.ok(relayLight(1 - stage / 4, stage + 1) < 0.004);
+    assert.equal(relayLight(0, stage), 0);
+  }
+  const g = createGeometry(10801);
+  const relay = [];
+  for (let i = 0; i < g.length; i += STRIDE)
+    if (g[i + 7] === 8 || g[i + 7] === 9) relay.push(g.slice(i, i + STRIDE));
+  assert.equal(relay.length, 480);
+  assert.match(prism.geometry.vertex, /relayPoint\(segment\+1\.,b\)/);
+  assert.match(prism.geometry.fragment, /along-relayPhase\(\)/);
+  assert.match(prism.geometry.fragment, /relayLight\(3\.8\)/);
 });
 
 test("bounded signature gestures use 4/8/16 beats; rate changes cannot retime the optics after 12h", () => {
