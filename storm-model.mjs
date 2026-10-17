@@ -88,7 +88,7 @@ export function leaderSegment(seed, network, local) {
 
 // ---- Convective cells: Haze bank -> towers -> supercell with flanking line.
 const HX = [-17, -8.5, 0, 8.5, 17];
-const HT = [0, 3, 1.6, 3.4, 0.4];
+const HT = [0.8, 4.6, 1.8, -0.8, 0.6];
 const TX = [-13, -6.2, 0.3, 6.6, 13];
 const TT = [5.6, 10.4, 12, 9.6, 5.2];
 const TR = [3.5, 3.2, 3.4, 3.1, 3.3];
@@ -273,9 +273,25 @@ export function discharge(seed, slot, index, u, gain, development) {
 export function worldPoint(p, event, height = 1) {
   const axis = sub(event.bottom, event.top),
     len = length(axis);
+  let along = scale(axis, p[1]),
+    px = p[0],
+    pz = p[2];
+  if (event.signature) {
+    // r5 bolt from the blue: hooked arc (sideways first, then plunging),
+    // shortened side branches; same endpoints as the straight channel.
+    const s = Math.min(Math.max(p[1], 0), 1);
+    const hook = add(scale([axis[0], 0, axis[2]], 1 - (1 - s) ** 2), [
+      0,
+      axis[1] * s * s,
+      0,
+    ]);
+    along = mix3(along, add(hook, scale(axis, p[1] - s)), 0.65);
+    px *= 0.55;
+    pz *= 0.55;
+  }
   const q = add(
-    add(add(event.top, scale(axis, p[1])), scale(event.side, p[0] * len * 1.1)),
-    scale(event.depth, p[2] * len * 0.8),
+    add(add(event.top, along), scale(event.side, px * len * 1.1)),
+    scale(event.depth, pz * len * 0.8),
   );
   q[1] *= height;
   return q;
@@ -610,4 +626,47 @@ export function stormBox(seed, development, height = 1) {
       Math.min(maxZ, 23),
     ],
   };
+}
+
+// Union of per-part bounds (each tower column, the shelf bank, the anvil
+// slab), mirroring stPartsDistance in scene-storm-volume.mjs: lattice nodes
+// farther than 1.2 from every part skip events, bubbles and transport.
+export function partsDistance(p, seed, development, height = 1) {
+  const { rise, supercell } = stages(development);
+  const { base, cells: cs } = cells(seed, development);
+  const an = anvil(seed, development);
+  const box = (lo, hi) =>
+    Math.hypot(
+      ...[0, 1, 2].map((k) => Math.max(lo[k] - p[k], 0, p[k] - hi[k])),
+    );
+  const floorY = (base - 1.5) * height;
+  let d = 1e3;
+  cs.forEach(({ cell: c, radius }, i) => {
+    const r = radius * 1.25 + 3 + 0.15 * (c[3] - c[2]);
+    const top = (c[3] + (i === 2 ? an.dome : 0) + 4.5) * height;
+    d = Math.min(
+      d,
+      box([c[0] - r, floorY, c[1] - r], [c[0] + r, top, c[1] + r]),
+    );
+  });
+  if (rise > 0)
+    d = Math.min(d, box([-17, floorY, 4.3], [17, (base + 5) * height, 17.7]));
+  const ra = an.radius * 1.25 + 3;
+  d = Math.min(
+    d,
+    box(
+      [
+        an.centre[0] - ra,
+        (an.centre[1] - an.thickness - 5.5) * height,
+        an.centre[2] - ra,
+      ],
+      [
+        an.centre[0] + ra,
+        (an.centre[1] + an.thickness + 5.5) * height,
+        an.centre[2] + ra,
+      ],
+    ),
+  );
+  void supercell;
+  return d;
 }

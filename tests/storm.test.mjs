@@ -29,6 +29,7 @@ import {
   camera,
   carrierLipschitz,
   stormBox,
+  partsDistance,
   SEGMENTS,
   BRANCH_PROBABILITY,
   TREE_SHAPES,
@@ -321,7 +322,7 @@ test("conservative tile masks include the tortuous zigzag and AA support", () =>
   );
   assert.match(storm.fragment, /n\*len\*0\.2\*r0/);
   assert.match(storm.fragment, /n\*len\*0\.1\*r1/);
-  assert.deepEqual(storm.precompute.size, [1024, 675]);
+  assert.deepEqual(storm.precompute.size, [1024, 419]);
   assert.equal(storm.precompute.filter, "linear");
   assert.equal(storm.precompute.nearestFallback, true);
   assert.match(
@@ -395,7 +396,13 @@ test("lightning irradiance is local, monotone and attenuated inside the cloud", 
   assert.ok(flashFalloff(6) < 0.04, "distant towers must retain dark shadows");
   assert.match(
     storm.fragment,
-    /accentLocal = stSig\*0\.65\*exp\(-signatureDistance\*signatureDistance\*0\.2\)/,
+    /accentLocal = stSigLit\*exp\(-signatureDistance\*signatureDistance\*0\.6\)/,
+  );
+  // r5: the accent flare is confined to the channel neighbourhood and only
+  // while the signature channel itself carries light.
+  assert.match(
+    storm.fragment,
+    /float stSigLit = stSlot\[1\]\.x > 0\.002 \? stSig\*0\.55 : 0\.0;/,
   );
   for (const x of [-4, 0, 8]) {
     const a = [x, 0, 1],
@@ -483,8 +490,14 @@ test("empty-space skipping is conservative for the carrier field", () => {
     }
   assert.ok(worst <= 1 / 0.8, `${worst}`);
   // 4 × 1.35 peak erosion: half the maximum stays inside the 2.8 margin.
+  // r5: the margin follows the local erosion amplitude (0.5·e + 1.1 for the
+  // ramp and one lattice diagonal), never more than the old global 2.8.
   assert.match(stormVolume, /float e = mix\(1\.0,4\.0,/);
-  assert.match(stormVolume, /float skip = max\(1e-4,\(sd-2\.8\)\*0\.8\/lip\)/);
+  assert.match(
+    stormVolume,
+    /float reach = min\(2\.8,0\.5\*stErosion\(p0\)\+1\.1\);/,
+  );
+  assert.match(stormVolume, /float skip = max\(1e-4,\(sd-reach\)\*0\.8\/lip\)/);
   assert.match(
     stormVolume,
     /float lip = mix\(1\.55,2\.0,stRise\)\+wA\*mix\(0\.45,1\.4,stSuper\)\+4\.5\*wM/,
@@ -519,25 +532,25 @@ test("the camera never enters a cloud, keeps above ground and moves gently", () 
 });
 
 test("3D atlas addresses are bijective and trilinear interpolation preserves affine fields", () => {
-  const grid = [128, 80, 64],
+  const grid = [128, 64, 48],
     size = [52, 16.8, 30],
     lo = [-26, 0.3, -7];
   const address = ([x, y, z]) => [
     (z % 8) * 128 + x,
-    35 + Math.floor(z / 8) * 80 + y,
+    35 + Math.floor(z / 8) * 64 + y,
   ];
   const seen = new Set();
   for (let z = 0; z < grid[2]; z++)
     for (let y = 0; y < grid[1]; y++)
       for (let x = 0; x < grid[0]; x++) {
         const [u, v] = address([x, y, z]);
-        assert.ok(u >= 0 && u < 1024 && v >= 35 && v < 675);
+        assert.ok(u >= 0 && u < 1024 && v >= 35 && v < 419);
         seen.add(u * 1000 + v);
       }
-  assert.equal(seen.size, 128 * 80 * 64);
+  assert.equal(seen.size, 128 * 64 * 48);
   const affine = (p) => 0.7 + p[0] * 0.23 - p[1] * 0.51 + p[2] * 0.37;
   for (let j = 1; j < 100; j++) {
-    const q = [(j * 1.271) % 126, (j * 0.731) % 78, (j * 0.431) % 62];
+    const q = [(j * 1.271) % 126, (j * 0.731) % 62, (j * 0.431) % 46];
     let value = 0;
     for (let z = 0; z < 2; z++)
       for (let y = 0; y < 2; y++)
@@ -559,7 +572,8 @@ test("3D atlas addresses are bijective and trilinear interpolation preserves aff
     );
     assert.ok(Math.abs(value - exact) < 1e-12);
   }
-  assert.match(stormVolume, /const vec3 stGrid = vec3\(128,80,64\)/);
+  assert.match(stormVolume, /const vec3 stGrid = vec3\(128,64,48\)/);
+  assert.match(stormVolume, /const vec2 stAtlas = vec2\(1024,419\)/);
   assert.match(
     stormVolume,
     /const vec3 stVolumeSize = vec3\(52\.0,16\.8,30\.0\)/,
@@ -821,4 +835,29 @@ test("round 2 world: moon in frame, lake mirror exact at the waterline, bounded 
     /float width = clamp\(pixel\*2\.2,0\.0016,0\.0075\);/,
   );
   assert.match(storm.fragment, /float halo = min\(width\*9\.0,0\.04\);/);
+});
+
+test("r5 per-part lattice cull keeps every potentially cloudy node", () => {
+  // A node is culled when it lies more than 1.2 outside every part box. Any
+  // point the eroded carrier could fill (sd below the 2.7 peak erosion
+  // reach) must lie inside a part box, so no cloud is ever clipped.
+  let checked = 0;
+  for (const d of [0, 0.5, 1, 1.4, 2])
+    for (const phase of [0, 2.1, 4.4])
+      for (let i = 0; i < 2500; i++) {
+        const p = [
+          -26 + 52 * random(11, 1, i),
+          0.3 + 16.8 * random(11, 2, i),
+          -7 + 30 * random(11, 3, i),
+        ];
+        // Density is zero below base - 1.5 (shared floor of stStormBox).
+        if (p[1] < cells(10701, d).base - 1.5) continue;
+        if (carrier(p, 10701, d, phase) > 2.7) continue;
+        checked++;
+        const parts = partsDistance(p, 10701, d);
+        assert.equal(parts, 0, `d=${d} p=${p} parts=${parts}`);
+      }
+  assert.ok(checked > 1000, `${checked}`);
+  assert.match(storm.precompute.fragment, /if \(parts > 1\.2\)/);
+  assert.match(stormVolume, /float ra = stAnvilR\*1\.25\+3\.0;/);
 });

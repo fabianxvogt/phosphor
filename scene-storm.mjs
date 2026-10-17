@@ -139,9 +139,9 @@ void stLoadState() {
   }
   for (int i = 0; i < 5; ++i) { stCell[i] = stData(128+i,0); stCellR[i] = stData(128+i,1).x; }
   stBase = stData(128,1).y;
-  stSig = stData(133,1).x;
+  stSig = stData(133,1).x; stSigU = stData(133,1).y;
 #else
-  stCells(); stEvents();
+  stCells(); stEvents(); stBubbles();
 #endif
 }
 float stSegmentDistanceSq(vec2 p, vec2 a, vec2 b) {
@@ -229,14 +229,22 @@ vec3 stSky(vec3 rd, vec3 eye, float broad, float pixel, bool stars, out float ve
     +1.4*exp(-sq((az-0.55)/0.13))+0.6*exp(-sq((az-1.05)/0.06));
   col += mix(u_primary,u_secondary,0.25)*domes*0.05*exp(-up*16.0);
   veil = 0.0;
-  if (stars && rd.y > 0.015) {
-    float t = (26.0-eye.y)/rd.y;
-    vec2 q = (eye.xz+rd.xz*t)*0.02;
-    q = vec2(q.x*0.55,q.y*1.7)+0.9*vec2(cos(stPhase),sin(stPhase));
-    float n = stValue(q,1.7)*0.62+stValue(q*2.03+vec2(5.2,1.3),3.1)*0.38;
-    float cover = smoothstep(0.38,0.75,n)*smoothstep(0.015,0.16,rd.y)*exp(-t/900.0);
+  if (stars && rd.y > 0.03) {
+    // Two torn cirrus decks at different heights drift at different rates
+    // (parallax): domain-warped, nearly isotropic patches that thin out
+    // toward the horizon and into the dark, not parallel luminous bars.
+    float cover = 0.0;
+    for (int L = 0; L < 2; ++L) {
+      float fl = float(L);
+      float t = (mix(24.0,46.0,fl)-eye.y)/rd.y;
+      vec2 q = (eye.xz+rd.xz*t)*mix(0.03,0.017,fl)+mix(0.9,-0.5,fl)*vec2(cos(stPhase),sin(stPhase));
+      float w = stValue(q*0.6+vec2(3.1,7.7),5.0+fl);
+      q += 1.6*vec2(w,0.6-w);
+      float n = stValue(q*vec2(0.85,1.2),1.7+2.0*fl);
+      cover = max(cover,smoothstep(0.5,0.82,n)*mix(1.0,0.6,fl)*smoothstep(0.08,0.42,rd.y)*exp(-t/mix(420.0,700.0,fl)));
+    }
     veil = cover;
-    vec3 lit = moonTint*(0.035+0.42*stHG(0.7,dot(rd,stMoon))) + mix(mix(vec3(1),u_accent,0.25),u_secondary,0.2)*broad*0.32;
+    vec3 lit = moonTint*(0.035+0.42*stHG(0.7,dot(rd,stMoon))) + mix(mix(vec3(1),u_accent,0.25),u_secondary,0.2)*broad*0.16;
     col = col*(1.0-0.45*cover)+lit*cover*0.6;
   }
   if (stars && up > 0.04) {
@@ -293,11 +301,11 @@ void main() {
   stStormBox(lo,hi);
   vec3 moonTint = mix(stSat(u_secondary,1.3),vec3(1),0.3);
   vec3 skyLight = stSat(u_secondary,1.3)*0.12;
-  vec3 townLight = stSat(mix(u_primary,u_accent,0.45),1.3)*0.12;
+  vec3 townLight = stSat(mix(u_primary,u_accent,0.45),1.3)*0.075;
   // Cold ordinary discharges. Signature accent is added only near its
   // channel below, never as a global tint over every illuminated tower.
   vec3 flashLight = mix(mix(vec3(0.9,0.94,1.0),stSat(u_secondary,1.2),0.12),stSat(u_accent,1.1),0.1)*2.0;
-  float phase0 = mix(stHG(0.72,mu),stHG(-0.25,mu),0.3);
+  float phase0 = mix(stHG(0.68,mu),stHG(-0.25,mu),0.3);
   float phase1 = 0.35*mix(stHG(0.36,mu),stHG(-0.125,mu),0.3);
   float phase2 = 0.12*mix(stHG(0.18,mu),stHG(-0.0625,mu),0.3);
   vec3 inv = sign(rd + vec3(1e-8)) / max(abs(rd),vec3(1e-6));
@@ -307,6 +315,7 @@ void main() {
   float trans = 1.0;
   vec3 cloud = vec3(0);
   int limit = int(min(44.0,0.46*u_raySteps));
+  float stSigLit = stSlot[1].x > 0.002 ? stSig*0.55 : 0.0;
   if (farT > nearT && horizon < 1.0) {
     float t = nearT, last = nearT;
     bool entered = false;
@@ -316,10 +325,13 @@ void main() {
       if (j >= limit || t > farT || trans < 0.08) break;
       vec3 p = stEye+rd*t;
       vec4 o = stVolume(p);
-      if (o.x <= 0.0) { last = t; t += max(-o.x,0.28+0.011*t); continue; }
+      // Relaxed sphere tracing: the stored skip is a strict lower bound
+      // (global Lipschitz bound, ~4x conservative), so empty space is
+      // crossed in 3x strides; an overshoot is caught by the entry search.
+      if (o.x <= 0.0) { last = t; t += max(-o.x*3.0,0.42+0.016*t); continue; }
       if (!entered) {
         float a = last, b = t;
-        for (int k = 0; k < 2; ++k) {
+        for (int k = 0; k < 3; ++k) {
           float m = 0.5*(a+b);
           if (stVolume(stEye+rd*m).x > 0.0) b = m; else a = m;
         }
@@ -362,11 +374,13 @@ void main() {
       float tau = o.y;
       float ms = phase0*exp(-tau)+phase1*exp(-0.4*tau)+phase2*exp(-0.16*tau);
       float height = clamp((p.y/u_params[2]-stBase)/9.0,0.0,1.0);
-      float powder = mix(0.45,1.0,1.0-exp(-2.0*sigma));
+      // Powder: the thinnest periphery scatters little, so only denser
+      // wisps catch the moon (no uniform glowing outline).
+      float powder = mix(0.22,1.0,1.0-exp(-2.0*sigma));
       vec3 channelPoint;
       float signatureDistance = stChannelDistance(p,1,channelPoint);
-      float accentLocal = stSig*0.65*exp(-signatureDistance*signatureDistance*0.2);
-      vec3 localFlash = mix(flashLight,stSat(u_accent,1.25)*2.0,accentLocal);
+      float accentLocal = stSigLit*exp(-signatureDistance*signatureDistance*0.6);
+      vec3 localFlash = mix(flashLight,stSat(u_accent,1.25)*1.7,accentLocal);
       vec3 S = (moonTint*ms*1.5*powder + skyLight*o.z*(0.3+0.7*height)
         + townLight*sq(sq(1.0-height))*(0.4+1.2*(1.0-o.z)))*crevice + localFlash*o.w;
       float stepT = exp(-sigma*ds);
@@ -384,6 +398,13 @@ void main() {
       trans = 0.0;
     }
     stTFinal = trans;
+    // Aerial perspective: distant lobes sink into the moonlit night haze
+    // (softer, lower contrast), the near storm keeps its full modelling.
+    if (entered) {
+      float aerial = 0.6*(1.0-exp(-max(stTEnter-12.0,0.0)/40.0));
+      vec3 airCol = stSat(u_secondary,1.3)*0.035+moonTint*0.02*(1.0-0.5*rd.y);
+      cloud = mix(cloud,airCol*(1.0-trans),aerial);
+    }
   }
   // Per-pixel terms used after the march only (not live inside the loop).
   float level = clamp(u_level,0.0,1.0);
@@ -456,7 +477,7 @@ void main() {
         float ph = dot(g.xz,dir)*k+stTau*stRand(6,w)+stPhase*float(w+1);
         slope += dir*k*pow(0.55,fw)*cos(ph)*(1.0-smoothstep(0.6,1.6,foot*k));
       }
-      float chop = mix(0.006,0.02,level)*(1.0-smoothstep(10.0,40.0,dist)*0.6);
+      float chop = mix(0.012,0.024,level)*(1.0-smoothstep(10.0,40.0,dist)*0.6);
       slope *= chop;
       waterN = normalize(vec3(-slope.x,1.0,-slope.y));
     }
@@ -478,6 +499,8 @@ void main() {
     vec3 mq = stMoon;
     float glint = pow(max(dot(r,mq),0.0),900.0)*6.0+pow(max(dot(r,mq),0.0),120.0)*0.25;
     lakeCol = sky*fresnel + u_secondary*0.003;
+    // Ripples reflect the far mist band: perspective-scaled lines of light.
+    lakeCol += (moonTint*0.028+mix(u_primary,u_secondary,0.3)*0.012)*0.6*exp(-r.y/0.03)*fresnel;
     lakeGlint = mix(u_secondary,vec3(1),0.8)*glint*fresnel;
   }
 
@@ -486,7 +509,8 @@ void main() {
   float rainA = 0.0, rainT = 1e5;
   vec3 townCol = mix(u_primary,u_secondary,0.25)*0.05;
   vec3 rainL = vec3(0);
-  float rainAmount = u_params[7]*mix(0.5,1.25,level)*stRise;
+  // Distant rain veils hang under the quiet bank too (layered depth).
+  float rainAmount = u_params[7]*mix(0.5,1.25,level)*mix(0.55,1.0,stRise);
   float rise12 = stEye.y+12.0*rd.y/max(length(rd.xz),1e-3);
   if (rainAmount > 0.0 && rise12 < stBase*u_params[2]+0.5) {
 #ifdef PRECOMPUTED
@@ -511,18 +535,22 @@ void main() {
       float t0 = max(0.0,(-b2-s)/a2), t1 = (-b2+s)/a2;
       float tm = 0.5*(t0+t1);
       vec3 pm = stEye+rd*tm;
-      float vertical = smoothstep(-0.3,0.9,pm.y)*(1.0-smoothstep(top-2.0,top-0.2,pm.y));
+      // Ragged virga: the curtain's upper end varies along the shaft and
+      // fades softly into the base (no flat lid under the cloud).
+      float side0 = dot(pm,normalize(vec3(-rd.z,0.0,rd.x)+vec3(1e-5,0,0)));
+      float lid = top-0.4-1.6*(0.5+0.5*sin(side0*2.7+float(i)*1.9+0.5*stPhase));
+      float vertical = smoothstep(-0.3,0.9,pm.y)*(1.0-smoothstep(lid-1.8,lid+0.6,pm.y));
       if (t1 <= 0.0 || vertical <= 0.0) continue;
       float closest = sqrt(max(0.0,c2-b2*b2/a2))/rr*1.6;
       // Wind bends the shaft and spreads the rain foot near the ground.
       float across = dot(pm,tangent)+0.6*sq(1.0-pm.y/top)*(0.6+level);
-      float streak = 0.85+0.08*sin(across*17.0+float(i)*2.3)+0.07*sin(across*29.3+pm.y*0.6+sin(stPhase)*0.8);
+      float streak = (0.78+0.22*sin(across*2.3+float(i)*1.3+0.4*stPhase))*(0.94+0.04*sin(across*17.0+float(i)*2.3)+0.03*sin(across*29.3+pm.y*0.6+sin(stPhase)*0.8));
       float foot = 1.0+0.6*(1.0-smoothstep(0.0,1.2,pm.y));
       float edge = 1.0-smoothstep(0.0,foot,closest);
       edge *= edge*edge;
       float alpha = 0.6*(1.0-exp(-(t1-t0)*edge*vertical*streak*rainAmount*w*0.14));
       float flash = broad*0.5+shaftFlash[i];
-      rainL += (rainLight+flashTint*flash*0.35)*alpha*(1.0-rainA);
+      rainL += (rainLight+mix(ink,flashTint,0.35)*flash*0.35)*alpha*(1.0-rainA);
       rainA += alpha*(1.0-rainA);
       rainT = min(rainT,tm);
     }
@@ -536,6 +564,22 @@ void main() {
     back = mix(sky,groundAll,gw);
   }
   col = back*trans + cloud;
+  // Outflow mist on the far shore: the cloud base, rain feet and plain
+  // dissolve into a low moonlit band instead of ending on a hard shelf;
+  // flashes light it from inside. The lake reflects the same band.
+  float rise = rd.y-ridge;
+  vec3 mistCol = moonTint*0.028+mix(u_primary,u_secondary,0.3)*0.012+flashTint*broad*0.05;
+  float mistA = 0.6*exp(-abs(rise)/mix(0.03,0.05,stSuper))*(rise > 0.0 ? 1.0 : 0.5);
+  // Where the signature strike attaches, the mist flares locally.
+  if (stSig > 0.001 && stSlot[1].x > 0.002) {
+    vec3 q = stBottom[1]-stEye;
+    float qz = dot(q,stF);
+    if (qz > 0.5) {
+      vec2 dv = view-vec2(dot(q,stR),dot(q,stU))/qz;
+      mistCol += mix(ink,stSat(u_accent,1.2),0.4)*stSlot[1].x*stSig*exp(-dot(dv,dv)/0.02)*0.5;
+    }
+  }
+  col = mix(col,mistCol,mistA);
 
   // The storm in the lake: one lattice sample at the middle of the
   // reflected ray's chord through the storm (a soft, rippled silhouette
@@ -608,7 +652,8 @@ void main() {
     float grown = 1.0-smoothstep(stSlot[slot].z*1.02-0.04,stSlot[slot].z*1.02,rank);
     if (grown <= 0.0) continue;
     float branch = local < 18 ? 1.0 : u_params[4] * (0.5 + 0.5 * level);
-    float taper = local<18 ? 1.0 : mix(0.72,0.3,mod(float(local-18),4.0)/3.0);
+    // Channels thin toward their tips; branches thinner still and fading.
+    float taper = local<18 ? mix(1.15,0.7,float(local)/18.0) : mix(0.62,0.25,mod(float(local-18),4.0)/3.0);
     vec2 ab = endpoints.zw-endpoints.xy;
     float s = clamp(dot(view-endpoints.xy,ab)/max(dot(ab,ab),1e-10),0.0,1.0);
     float occlusion = stTransAt(length(mix(a.xyz,b.xyz,s)-stEye));
@@ -617,8 +662,9 @@ void main() {
     float glow = exp(-sq(d / (width * 4.0*taper)));
     // Windowed inside the candidate reach: no disc edge at the cut-off.
     float wide = exp(-sq(2.0*d / (halo*mix(0.6,1.0,taper))))*(1.0-smoothstep(0.6*reach,reach,d));
-    vec3 hTint = mix(haloTint,stSat(u_accent,1.35),sigK);
-    vec3 light = ink*(core*(7.0+5.0*sigK)+glow*0.8)*clear + hTint*(wide*(0.35*occlusion+0.9*occlusion*(1.0-occlusion))*(1.0+1.5*sigK)+glow*0.6*sigK*clear);
+    // Signature: a finer white-hot core with an accent fringe, not a tube.
+    vec3 hTint = mix(haloTint,stSat(u_accent,1.25),0.75*sigK);
+    vec3 light = ink*(core*(7.0+4.0*sigK)+glow*0.8)*clear + hTint*(wide*(0.35*occlusion+0.9*occlusion*(1.0-occlusion))*(1.0+0.6*sigK)+glow*0.3*sigK*clear);
     bolts += light * a.w * mix(branch,1.0,sigK) * power * grown;
     }
   }
@@ -707,7 +753,7 @@ export default {
   presets,
   fragment,
   precompute: {
-    size: [1024, 675],
+    size: [1024, 419],
     filter: "linear",
     nearestFallback: true,
     fragment: `${common}
@@ -716,8 +762,8 @@ void main() {
   stCameraSetup(); stCells(); stCloudSetup();
   int x = int(gl_FragCoord.x), row = int(gl_FragCoord.y);
   if (row >= 35) {
-    ivec3 voxel = ivec3(x%128,(row-35)%80,(row-35)/80*8+x/128);
-    if (voxel.z >= 64) { outColor = vec4(0); return; }
+    ivec3 voxel = ivec3(x%128,(row-35)%64,(row-35)/64*8+x/128);
+    if (voxel.z >= 48) { outColor = vec4(0); return; }
     vec3 p = stVolumeLo+(vec3(voxel)+0.5)/stGrid*stVolumeSize;
     // Most nodes lie far from the storm: store the distance to its bounds
     // (a lower bound of the cloud distance) and skip all transport work.
@@ -725,7 +771,9 @@ void main() {
     stStormBox(lo,hi);
     float box = length(max(lo-p,0.0)+max(p-hi,0.0));
     if (box > 2.5) { outColor = vec4(-max(1e-4,box*0.8),0,1,0); return; }
-    stEvents();
+    float parts = stPartsDistance(p);
+    if (parts > 1.2) { outColor = vec4(-max(1e-4,parts*0.8),0,1,0); return; }
+    stLean = true; stEvents(); stBubbles();
     outColor = stOptical(p);
     return;
   }
