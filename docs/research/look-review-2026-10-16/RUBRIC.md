@@ -13,6 +13,8 @@ Per world, from `node scripts/look-review-capture.mjs --out artifacts/look-revie
 
 Stills do not show motion quality; judge motion only where frames show it (lurches, stalls, popping) and say so when a call is uncertain. The existing offline `world-film.mjs` harness disables asynchronous flash approval for deterministic captures: these sheets judge the renderer, **not live photosensitivity compliance**. Limiter-enabled native verification, flash-limiter tests and real-stage timing remain separate acceptance evidence; never weaken the live limiter to match a film.
 
+Completed clean/merged worktrees may be removed after preserving evidence. Their reviewed final round directories and numeric verification reports are archived under `artifacts/preserved-worktrees/<world>-r3/artifacts/`; `artifacts/preserved-worktrees/manifest.json` maps original paths and commit hashes. This is a location change, not a new capture or re-score.
+
 ## Sub-scores (0–10, half points allowed)
 
 ### L — Look quality (weight 0.6)
