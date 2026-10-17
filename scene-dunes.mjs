@@ -4,8 +4,8 @@ import { lateClockGlsl } from "./scene-time.mjs";
 export const REPOSE_DEGREES = 34;
 export const REPOSE_SLOPE = Math.tan((REPOSE_DEGREES * Math.PI) / 180);
 export const SAND_GRAVITY = 9.81;
-// Independent of development: the material chart, dune sites and grain ids
-// persist while the camera cranes up and the storm approaches.
+// Independent of development: material chart, dune sites and grain ids
+// persist while the viewpoint rises gently and ground-connected dust approaches.
 export function barchanHeight(crosswind, downwind, height = 4, width = 11) {
   const v = crosswind / width;
   const h = height * Math.max(0, (1 - v * v) * (1 + 0.6 * v * v));
@@ -164,6 +164,10 @@ float dsHash(vec2 p) {
   vec3 q=fract(vec3(p.xyx)*.1031); q+=dot(q,q.yzx+33.33);
   return fract((q.x+q.y)*q.z);
 }
+vec2 dsStoneSite(float i) {
+  float j=i-2.;
+  return vec2(j*10.+2.*sin(i*3.7),-13.-abs(j)*5.-7.*dsHash(vec2(i,83.)));
+}
 vec3 dsNoiseSlope(vec2 p) {
   vec2 i=floor(p), raw=fract(p), derivative=6.*raw*(1.-raw);
   vec2 f=raw*raw*(3.-2.*raw);
@@ -210,14 +214,14 @@ vec4 dsLeading(vec2 world) {
   float height=d<0.?h*w*w:max(0.,h-.6745085168*d);
   float dx=d<0.?-4.*h*w*d/81.:-.6745085168;
   vec2 gradient=height>0.?vec2(dx,-dx*centreZ):vec2(0.);
-  return vec4(vec3(height,gradient)*(1.-gGrowth),abs(d));
+  return vec4(vec3(height,gradient)*(1.-.35*gGrowth),abs(d));
 }
 vec4 dsSurface(vec2 world) {
   vec4 leading=vec4(0,0,0,100);
-  if(gGrowth<1.) {
+  if(gGrowth<=1.) {
     leading=dsLeading(world);
     // The continuous ridge already dominates every possible tiled dune.
-    if(leading.x>4.4*gRelief)return leading;
+    if(leading.x>4.4*gRelief+.8)return leading;
   }
   vec2 p=world;
   float row=floor((p.y+16.)/32.);
@@ -248,11 +252,12 @@ vec4 dsSurface(vec2 world) {
   }
   chosen.yz=transpose(transform)*chosen.yz;
   float dist=max(abs(q.x),abs(q.y)*.875);
-  float f=clamp((dist-11.5)/2.5,0.,1.);
-  float edge=1.-f*f*(3.-2.*f), derivative=-6.*f*(1.-f)/2.5;
+  float f=clamp((dist-5.)/9.,0.,1.);
+  float edge=1.-f*f*(3.-2.*f), derivative=-6.*f*(1.-f)/9.;
   vec2 edgeGrad=abs(q.x)>abs(q.y)*.875?vec2(sign(q.x),0.):vec2(0.,sign(q.y)*.875);
   vec4 result=vec4(vec3(chosen.x*edge,chosen.yz*edge+chosen.x*derivative*edgeGrad)*gRelief,chosen.w);
-  return leading.x>result.x?leading:result;
+  float join=clamp(.5+.5*(leading.x-result.x)/.8,0.,1.);
+  return vec4(mix(result.xyz,leading.xyz,join)+vec3(.8*join*(1.-join),0,0),mix(result.w,leading.w,join));
 }
 // Height-only hot path: no gradient transport or brink selection in marching
 // and shadows. This is the same exact profile, not a sampled approximation.
@@ -265,11 +270,11 @@ float dsProfile(vec2 q, float h, float repose) {
 }
 float dsMacro(vec2 p) {
   float leading=0.;
-  if(gGrowth<1.) {
+  if(gGrowth<=1.) {
     float s=sin(.065*p.y), c=cos(.065*p.y);
     float d=p.x-(-2.+4.8*s+2.4*s*c), w=max(0.,1.-sq(d/9.));
-    leading=(d<0.?3.4*w*w:max(0.,3.4-.6745085168*d))*(1.-gGrowth);
-    if(leading>4.4*gRelief)return leading;
+    leading=(d<0.?3.4*w*w:max(0.,3.4-.6745085168*d))*(1.-.35*gGrowth);
+    if(leading>4.4*gRelief+.8)return leading;
   }
   float row=floor((p.y+16.)/32.); p.x+=mod(row,2.)*14.;
   vec2 cell=floor((p+vec2(14,16))/vec2(28,32)), q=p-cell*vec2(28,32);
@@ -286,28 +291,28 @@ float dsMacro(vec2 p) {
   float h=dsProfile(q,data.x,repose);
   if(data.w>0.)h=max(h,dsProfile(mat2(-.5,-.8660254,.8660254,-.5)*q,data.x*.78,repose)*data.w);
   vec2 local=p-cell*vec2(28,32);
-  float f=clamp((max(abs(local.x),abs(local.y)*.875)-11.5)/2.5,0.,1.);
-  return max(leading,h*(1.-f*f*(3.-2.*f))*gRelief);
+  float f=clamp((max(abs(local.x),abs(local.y)*.875)-5.)/9.,0.,1.);
+  float dune=h*(1.-f*f*(3.-2.*f))*gRelief;
+  float join=clamp(.5+.5*(leading-dune)/.8,0.,1.);
+  return mix(dune,leading,join)+.8*join*(1.-join);
 }
-vec4 dsDustData(float id, int kind) {
-  float cx=(id+.5)*14., random=dsHash(vec2(id,33.));
-  float storm=smoothstep(1.,2.,u_params[0]);
-  float crown=27.+storm*6.+3.*sin(cx*.047);
-  vec3 centre=vec3(cx,crown-12.+2.*random,-43.+storm*15.-6.);
-  float radius=12.+3.*random;
-  if(kind>0) {
-    int j=kind==2?1:0; float side=float(j)*2.-1.;
-    radius=4.+2.*dsHash(vec2(id,float(j)+74.));
-    centre+=vec3(side*5.5,11.+2.*sin(id*2.7+float(j)),1.5);
-    if(kind==3) {centre+=vec3(side*radius*.6,radius*.55,0.);radius*=.55;}
-  }
-  return vec4(centre,radius);
+// A real thin curved grain sheet, cached as exact vertices, not surface paint.
+vec3 dsVeilVertex(int index) {
+  float u=float(index%3)*.5, v=float(index/3)/4.;
+  float z=11.+4.*sin(gGustLane)+(v-.5)*18.;
+  float centre=-2.+4.8*sin(.065*z)+1.2*sin(.13*z);
+  float x=centre+.5+u*(4.+gVeil*2.);
+  float base=dsMacro(vec2(centre,z));
+  float curl=.25*sin(z*.65-gPhase*2.+u*4.);
+  float lift=1.+gVeil*(.25+.75*u_level)*1.5+sin(u*PI)*1.1+curl;
+  return vec3(x,base+lift,z);
 }
-vec4 dsDustFetch(float id, int kind) {
+vec3 dsVeilFetch(int index) {
 #ifdef PRECOMPUTED
-  if(id>=-16. && id<16.)return texelFetch(u_precomputed,ivec2(int(id+16.)*4+kind,136),0);
+  return texelFetch(u_precomputed,ivec2(index,136),0).xyz;
+#else
+  return dsVeilVertex(index);
 #endif
-  return dsDustData(id,kind);
 }
 // The chart has varying spacing, orientation and amplitude. Harmonics get
 // independent Gaussian pixel integrals rather than a world-distance cutoff.
@@ -329,18 +334,29 @@ void main() {
   } else if(cell.y<136) {
     int index=cell.x+(cell.y-128)*128;
     outColor=dsDuneData(vec2(index%32,index/32)-16.);
-  } else outColor=dsDustData(float(cell.x/4)-16.,cell.x%4);
+  } else {
+    gGrowth=smoothstep(0.,1.,u_params[0]);
+    gRelief=mix(.5,1.2,gGrowth)*u_params[2];
+    gVeil=clamp(u_rhythm.w+.12*u_rhythmHit.w,0.,1.);
+    gGustLane=mod(u_rhythmCount.w,7.)*2.399963;
+#ifdef PHOSPHOR_LATE
+    gPhase=mod(u_clock[0],TAU);
+#else
+    gPhase=mod(u_time*u_params[1]*1.2,TAU);
+#endif
+    outColor=vec4(dsVeilVertex(min(cell.x,14)),1.);
+  }
 }
 `;
 const fragment = `${common}
 float dsTerrain(vec2 p) { return dsMacro(p); }
 float dsIntersect(vec3 ro, vec3 rd) {
   // Exact bound for both the tiled dunes and continuous leading ridge.
-  float ceiling=max(4.4*gRelief,3.4*(1.-gGrowth));
+  float ceiling=max(4.4*gRelief,3.4*(1.-.35*gGrowth))+.2;
   if(rd.y>=0. && ro.y>ceiling) return -1.;
   float t=max(.01,(ceiling-ro.y)/min(rd.y,-.001));
   float old=t;
-  for(int i=0;i<36;i++) {
+  for(int i=0;i<28;i++) {
     vec3 p=ro+rd*t;
     if(rd.y>=0. && p.y>ceiling)break;
     float h=p.y-dsMacro(p.xz);
@@ -375,7 +391,7 @@ float dsIntersect(vec3 ro, vec3 rd) {
 }
 float dsShadow(vec3 p, vec3 l) {
   float shadow=1., t=.3;
-  float ceiling=max(4.4*gRelief,3.4*(1.-gGrowth));
+  float ceiling=max(4.4*gRelief,3.4*(1.-.35*gGrowth))+.2;
   for(int i=0;i<5;i++) {
     vec3 q=p+l*t;
     // Every later sample is above the proven heightfield bound too.
@@ -437,35 +453,35 @@ float dsGrains(vec3 q, float fp, float surface) {
 // Analytic ray-box intersection: opaque monoliths depth-test against both
 // the terrain and the dust volume. The fixed sites never depend on development.
 vec2 dsBox(vec3 ro, vec3 rd, vec3 c, vec3 b) {
-  vec3 inv=sign(rd)/max(abs(rd),vec3(.00001));
+  vec3 inv=mix(vec3(-1),vec3(1),step(vec3(0),rd))/max(abs(rd),vec3(.00001));
   vec3 a=(c-b-ro)*inv, z=(c+b-ro)*inv;
   vec3 lo=min(a,z), hi=max(a,z);
   float near=max(lo.x,max(lo.y,lo.z)), far=min(hi.x,min(hi.y,hi.z));
   return near>0.&&far>near?vec2(near,lo.x>lo.y&&lo.x>lo.z?0.:lo.y>lo.z?1.:2.):vec2(1e5,0.);
 }
-// Exact ray/sphere support gives the crown a pixel-sharp silhouette without
-// raising the volume sample count. The volume is integrated behind this skin.
-void dsDustBall(vec3 ro, vec3 rd, vec3 centre, float radius, float stretch,
-                inout vec3 hit, inout vec3 normal) {
-  vec3 local=(ro-centre)/vec3(1,stretch,1), direction=rd/vec3(1,stretch,1);
-  float a=dot(direction,direction), b=dot(local,direction), c=dot(local,local)-radius*radius;
-  float discriminant=b*b-a*c;
-  float aa=max(.001,gPixel*max(-b/a,1.)*radius*a*1.1);
-  if(discriminant < -aa)return;
-  float root=sqrt(max(0.,discriminant)), near=(-b-root)/a;
-  if(near>0. && near<hit.x+16.) {
-    vec3 n=normalize((ro+rd*near-centre)/vec3(1,stretch*stretch,1));
-    float coverage=smoothstep(-aa,aa,discriminant);
-    // Interior joins fade over a physical roll shoulder; final silhouette
-    // coverage still uses the much narrower pixel footprint above.
-    float shoulder=smoothstep(-aa,max(aa,radius*3.),discriminant);
-    float blend=clamp(.5+.5*(hit.x-near)/16.,0.,1.)*shoulder;
-    bool existing=hit.x<1e4;
-    normal=normalize(mix(normal,n,existing?blend:1.));
-    float far=existing?mix(hit.y,max(hit.y,(-b+root)/a),blend):(-b+root)/a;
-    float entry=existing?mix(hit.x,near,blend)-16.*blend*(1.-blend):near;
-    hit=vec3(entry,max(entry+.1,far),max(existing?hit.z:0.,coverage));
-  }
+// A continuous, ground-connected dust bank, not an opaque cloud skin.
+// The front curls back with height. Noise transports around that roll and
+// tears its upper edge into translucent trailing wisps.
+vec3 dsVeilTriangle(vec3 ro, vec3 rd, vec3 a, vec3 b, vec3 c) {
+  vec3 e=b-a, f=c-a, h=cross(rd,f);
+  float det=dot(e,h);
+  if(abs(det)<.00001)return vec3(1e5,0,0);
+  vec3 s=ro-a; float u=dot(s,h)/det;
+  vec3 q=cross(s,e); float v=dot(rd,q)/det;
+  float t=dot(f,q)/det;
+  return t>0. && u>=0. && v>=0. && u+v<=1.?vec3(t,u,v):vec3(1e5,0,0);
+}
+float dsDustDensity(vec3 q) {
+  float front=-48.+gStorm*18.;
+  float curl=sin(q.y*.19+gDust)*3.;
+  float coarse=dsNoise(vec2(q.x*.065+sin(q.z*.07),q.z*.075)+vec2(sin(gDust),cos(gDust)));
+  float fine=dsNoise(vec2(q.x*.23+q.z*.11+curl,q.y*.19+q.z*.09)+vec2(cos(gDust),sin(gDust)));
+  float top=14.+19.*coarse+5.*(fine-.5);
+  float nose=front+13.*exp(-sq((q.y-10.)/9.))+5.*sin(q.x*.075)+5.*coarse;
+  float body=smoothstep(-4.,5.,nose-q.z)*smoothstep(-3.5,4.,top-q.y);
+  float ragged=smoothstep(.18,.75,.55*coarse+.65*fine);
+  float base=exp(-max(q.y,0.)*.16)*smoothstep(-8.,15.,front+24.-q.z);
+  return (body*(.16+.84*ragged)+base*.5)*smoothstep(-1.,1.,q.y);
 }
 void main() {
   gGrowth=smoothstep(0.,1.,u_params[0]); gStorm=smoothstep(1.,2.,u_params[0]);
@@ -483,8 +499,8 @@ void main() {
   gRelief=mix(.5,1.2,gGrowth)*u_params[2];
   gMoon=normalize(vec3(-.75,u_params[5],-.7));
   float yaw=.08*sin(gCam);
-  vec3 ro=vec3(mix(3.,4.,gGrowth)+3.*sin(gCam),mix(5.,10.+5.*u_params[6],gGrowth)+gStorm*2.,mix(25.,33.,gGrowth));
-  vec3 target=vec3(mix(-5.,-3.,gGrowth),mix(1.6,1.5,gGrowth)+gStorm*9.,-25.);
+  vec3 ro=vec3(mix(3.,4.,gGrowth)+3.*sin(gCam),mix(5.,8.+2.*u_params[6],gGrowth)+gStorm*.5,mix(25.,33.,gGrowth));
+  vec3 target=vec3(mix(-5.,-3.,gGrowth),mix(1.6,1.5,gGrowth)+gStorm*1.5,-25.);
   vec3 fw=normalize(target-ro), rt=normalize(cross(fw,vec3(0,1,0))), up=cross(rt,fw);
   vec2 uv=aspectUV()*2.;
   vec3 rd=normalize(fw*(1.65+.025*u_kick)+rt*(uv.x+yaw)+up*uv.y);
@@ -495,6 +511,10 @@ void main() {
   vec2 footprintX=dFdx(p.xz), footprintY=dFdy(p.xz);
   vec3 rippleChart=vec3(0.);
   if(gGrowth<1.)rippleChart=dsRippleChart(p.xz);
+  else {
+    float bend=.23*p.x+.17*p.z;
+    rippleChart=vec3(6.*dot(p.xz,vec2(.55,.84))+1.5*sin(bend)-gPhase,vec2(3.3,5.04)+1.5*cos(bend)*vec2(.23,.17));
+  }
   float rippleWidth=length(vec2(dot(rippleChart.yz,footprintX),dot(rippleChart.yz,footprintY)));
   vec3 col=t<0.?dsSky(rd):dsHaze();
   if(t>0. && depth<170.) {
@@ -504,12 +524,16 @@ void main() {
     float phase=rippleChart.x;
     float filter1=exp(-.5*rippleWidth*rippleWidth), filter2=filter1*filter1*filter1*filter1;
     float amplitude=.028*u_params[3]*(.65+.35*sin(.2*p.x+.23*p.z));
-    float rippleRelief=mix(.32,0.,gGrowth)*(1.-smoothstep(.12,.35,length(grad)));
+    float rippleRelief=mix(.32,.12,gGrowth)*(1.-smoothstep(.5,1.2,length(grad)));
     float dr=amplitude*(cos(phase)*filter1+.44*cos(2.*phase)*filter2)*rippleRelief;
     grad+=dr*rippleChart.yz;
+    float sandFootprint=max(length(footprintX),length(footprintY));
+    vec3 granules=dsNoiseSlope(p.xz*7.);
+    grad+=granules.yz*.055*exp(-sq(sandFootprint*7.));
     vec3 n=normalize(vec3(-grad.x,1.,-grad.y));
     float key=max(0.,dot(n,gMoon));
     float shadow=key>.001?dsShadow(p+vec3(0,.06,0),gMoon):.08;
+    shadow=.18+.82*shadow;
     float fill=max(0.,dot(n,normalize(vec3(.4,.4,1.))));
     float ao=.5+.5*smoothstep(0.,1.,h);
     float rim=pow(1.-max(0.,dot(n,-rd)),3.);
@@ -518,9 +542,17 @@ void main() {
     float rough=mix(.93,grain*.38+.74,exp(-2.*grainFootprint*grainFootprint));
     // Pigmented shadow fields; pale mineral light belongs only to brinks.
     vec3 sandColor=mix(u_secondary,u_primary,.07);
-    col=sandColor*(.045+key*shadow*1.75)*ao*rough;
-    col+=u_primary*pow(key,4.)*shadow*.35*rough;
-    col+=u_secondary*fill*.095+u_primary*(rim*key*.055+.035*(1.-n.y));
+    col=sandColor*(.07+key*shadow*1.45)*ao*rough;
+    col+=u_secondary*fill*.13+u_primary*(rim*key*.025+.018*(1.-n.y));
+    // Filtered albedo corrugation remains on mature slopes, not glossy plates.
+    col*=1.-.08*filter1*(.5+.5*sin(phase));
+    float granularity=exp(-sq(sandFootprint*9.));
+    col*=mix(1.,.65+.7*granules.x,granularity);
+    if(gStorm>.001)for(int i=0;i<5;i++) {
+      vec2 contact=p.xz-dsStoneSite(float(i));
+      float shade=exp(-dot(contact/vec2(3.5,4.5),contact/vec2(3.5,4.5)));
+      col*=1.-gStorm*.65*shade;
+    }
     vec2 grainChart=p.xz*45., grainCell=floor(grainChart);
     float random=dsHash(grainCell+19.);
     vec2 grainPoint=fract(grainChart)-vec2(.2+.6*random,.2+.6*dsHash(grainCell+41.));
@@ -530,10 +562,10 @@ void main() {
     col+=mix(u_secondary,vec3(1.),.7)*sparkle*shadow*9.*(1.-smoothstep(.018,.055,fp));
     float brink=exp(-sq(surface.w/max(.085,fp*.65)))*smoothstep(.1,.6,h);
     float slipPacket=pow(.5+.5*sin(p.x*.42+p.z*.29-mod(u_rhythmCount.y,9.)*1.7),4.);
-    col+=mix(u_secondary,u_primary,.3)*brink*.55;
-    col+=u_primary*brink*slipPacket*u_rhythm.y*2.4;
+    col+=mix(u_secondary,u_primary,.15)*brink*.12;
+    col+=u_primary*brink*slipPacket*u_rhythm.y*1.8;
     float sheen=pow(max(0.,dot(n,normalize(gMoon-rd))),50.);
-    col+=mix(u_secondary,vec3(1.),.25)*sheen*shadow*.025;
+    col+=u_secondary*sheen*shadow*.008;
     // Saltation: ballistic arcs above the existing crest, carried along wind.
     // Launch speed .7..1.3 m/s, gravity 9.81; phase wraps only at the ground.
     float crest=exp(-sq(length(grad)-.55)/.02)*smoothstep(.25,1.,h);
@@ -546,13 +578,13 @@ void main() {
     col+=u_primary*crest*grainRun*u_rhythm.x*1.7;
     float fog=1.-exp(-depth*(.003+gStorm*.002)*u_params[7]);
     col=mix(col,dsHaze(),fog);
-    // Three depth-correct samples through the saltation veil above the brinks.
-    if(rd.y<-.03 && depth<130. && surface.w<3.5+gVeil*2.) {
-      float plume=0., veil=0.;
+    // Two depth-correct samples through quiet saltation above the brinks.
+    if(rd.y<-.03 && depth<130. && surface.w<3.5) {
+      float plume=0.;
       for(int j=0;j<2;j++) {
         // Two broad strata replace the old three-sample micro-plume.
         // The gust lifts the sand, not the camera.
-        float lift=.2+.36*float(j)+gVeil*(.25+.75*u_level)*(.5+1.4*float(j));
+        float lift=.2+.36*float(j);
         float distance=max(0.,t-lift/max(-rd.y,.08));
         vec3 q=ro+rd*distance;
         vec4 ridge=dsSurface(q.xz);
@@ -561,16 +593,10 @@ void main() {
         float curl=.5+.5*sin(q.x*.8+q.z*.33-gPhase*3.+sin(q.x*.23));
         plume+=exp(-ridge.w*.9)*exp(-height*height*2.5)*smoothstep(.02,.25,height)*streamer;
         plume+=gStorm*streamer*curl*exp(-max(height,0.)*1.6)*smoothstep(.01,.15,height)*.16;
-        if(gVeil>.002) {
-          float fold=.5+.5*sin(q.x*.65+q.z*.26+sin(q.z*.3)-gPhase*2.+gGustLane);
-          float thread=pow(.5+.5*sin(q.x*2.7+q.z*.7-height*1.9+2.*sin(q.z*.4-gPhase)),4.);
-          veil+=exp(-sq((ridge.w-.7-gVeil*1.7)/1.8))*exp(-sq((height-.4-gVeil*1.4)/1.3))
-            *smoothstep(.03,.45,height)*pow(fold,1.6)*(.2+.8*thread)*(.35+.65*streamer)*1.5;
-        }
+
       }
       col+=u_secondary*plume*.65*u_params[1]*(.6+.4*u_level+u_rhythm.x+u_rhythm.y);
-      float localVeil=veil*gVeil*(.25+.75*u_level)*u_params[1];
-      col=mix(col,col*.45+mix(u_secondary,u_accent,.8)*3.4,clamp(localVeil,0.,.78));
+
     }
     if(rd.y<-.06 && fp<.045) {
       float sand=0.;
@@ -585,93 +611,94 @@ void main() {
   }
   float monolith=1e5, face=0.;
   vec3 monoCentre=vec3(0), monoBounds=vec3(1);
+  mat2 monoTurn=mat2(1.);
   if(gStorm>.001)for(int i=0;i<5;i++) {
-    float j=float(i)-2.;
-    float high=(i==2?32.:12.+5.*dsHash(vec2(float(i),float(u_seedBits%997u))))*gStorm;
-    vec3 c=vec3(j*9.,high*.5-1.,-16.-abs(j)*4.);
-    vec3 bounds=vec3(i==2?2.5:1.4,high*.5,1.8);
-    vec2 box=dsBox(ro,rd,c,bounds);
-    if(box.x<monolith) {monolith=box.x;face=box.y;monoCentre=c;monoBounds=bounds;}
+    float high=(i==2?27.:11.+6.*dsHash(vec2(float(i),float(u_seedBits%997u))))*gStorm;
+    vec2 site=dsStoneSite(float(i));
+    vec3 c=vec3(site.x,dsMacro(site)+high*.5-2.,site.y);
+    float angle=.18+.48*dsHash(vec2(float(i),71.));
+    mat2 turn=mat2(cos(angle),-sin(angle),sin(angle),cos(angle));
+    vec3 local=ro-c, direction=rd;
+    local.xz=turn*local.xz; direction.xz=turn*direction.xz;
+    vec3 bounds=vec3(i==2?2.1:1.25,high*.5,1.6);
+    vec2 box=dsBox(local,direction,vec3(0),bounds);
+    if(box.x<monolith) {monolith=box.x;face=box.y;monoCentre=c;monoBounds=bounds;monoTurn=turn;}
   }
   if(monolith<depth) {
     depth=monolith; p=ro+rd*depth;
-    vec3 normal=face<.5?vec3(sign(p.x-monoCentre.x),0,0):face<1.5?vec3(0,sign(p.y-monoCentre.y),0):vec3(0,0,sign(p.z-monoCentre.z));
-    float stone=.75+.25*dsNoise(p.xy*vec2(5.,.7));
-    col=mix(u_secondary,u_primary,.18)*(.055+.22*max(0.,dot(normal,gMoon)))*stone;
-    col+=u_secondary*.04*max(0.,dot(normal,-rd));
-    vec3 edges=abs(abs(p-monoCentre)-monoBounds);
+    vec3 local=p-monoCentre; local.xz=monoTurn*local.xz;
+    vec3 normal=face<.5?vec3(sign(local.x),0,0):face<1.5?vec3(0,sign(local.y),0):vec3(0,0,sign(local.z));
+    normal.xz=transpose(monoTurn)*normal.xz;
+    float stone=.55+.45*dsNoise(p.xy*vec2(2.5,.7));
+    float buried=smoothstep(-monoBounds.y,-monoBounds.y+4.,local.y);
+    col=mix(u_secondary,u_primary,.08)*(.09+.65*max(0.,dot(normal,gMoon)))*stone*(.3+.7*buried);
+    col+=u_secondary*(.035*max(0.,dot(normal,-rd))+.25*max(0.,dot(normal,normalize(vec3(-.5,.4,1.)))))*stone;
+    vec3 edges=abs(abs(local)-monoBounds);
     float edge=min(max(edges.x,edges.y),min(max(edges.y,edges.z),max(edges.z,edges.x)));
     float bevel=exp(-edge/max(.045,gPixel*depth*.5));
-    col+=u_secondary*bevel*(.12+.3*max(0.,dot(normal,gMoon)));
+    col+=u_secondary*bevel*(.035+.1*max(0.,dot(normal,gMoon)));
     // Carved vertical rune columns, footprint-filtered cores and soft halos.
-    float across=face<.5?p.z-monoCentre.z:p.x-monoCentre.x;
-    float row=floor(p.y*.46), eroded=dsHash(vec2(row,monoCentre.x+31.));
-    vec2 rune=vec2(across*.7,fract(p.y*.46)-.5);
+    float across=face<.5?local.z:local.x;
+    float row=floor(p.y*.31), eroded=dsHash(vec2(row,monoCentre.x+31.));
+    vec2 rune=vec2(across*(.7+.5*eroded)+.18*sin(row*5.1),fract(p.y*.31)-.5);
     float spine=max(abs(rune.x+.05*sin(row*1.7)),abs(rune.y)-.29);
     float branch=max(abs(rune.y-rune.x*sign(eroded-.5)*.7),abs(rune.x)-.12-.18*eroded);
     float stroke=min(spine,branch)+step(eroded,.19)*.5;
     float runeWidth=max(.012,gPixel*depth*.45);
     float glyph=(1.-smoothstep(runeWidth,runeWidth*2.,stroke))*smoothstep(1.,3.,p.y);
     float halo=exp(-stroke*stroke/.012)*smoothstep(1.,3.,p.y);
-    col+=mix(u_secondary,u_primary,.8)*(glyph*1.4+halo*.12)*(.45+.12*sin(gDust));
-    col+=mix(u_primary,u_accent,.08)*.11*exp(-sq((p.y-19.)/13.));
-    col=mix(col,u_secondary*.06,1.-exp(-depth*.006));
+    float erosion=smoothstep(.4,.9,eroded)*(.15+.85*dsHash(vec2(row+17.,monoCentre.z)));
+    col+=mix(u_secondary,u_primary,.7)*(glyph*.85+halo*.06)*erosion*buried;
+    col=mix(col,dsHaze(),1.-exp(-depth*.008));
   }
-  // Sharp nested billows bound an actual Beer–Lambert dust column. Two
-  // interior samples now start at its exact surface, not eight blurred slabs
-  // spanning mostly empty air. The opaque base is deliberately much darker.
+  // A single translucent curved sheet, with a visible air gap. Nearest
+  // triangle wins once; no doubled opacity at diagonals or folded edges.
+  if(gVeil>.005) {
+    vec3 inv=mix(vec3(-1),vec3(1),step(vec3(0),rd))/max(abs(rd),vec3(.00001));
+    vec3 lo=min((vec3(-20,0,-3)-ro)*inv,(vec3(20,12,25)-ro)*inv);
+    vec3 hi=max((vec3(-20,0,-3)-ro)*inv,(vec3(20,12,25)-ro)*inv);
+    if(max(0.,max(lo.x,max(lo.y,lo.z)))<min(depth,min(hi.x,min(hi.y,hi.z)))) {
+      vec3 hit=vec3(1e5,0,0); vec2 chart=vec2(0.);
+      for(int j=0;j<4;j++)for(int k=0;k<2;k++) {
+        int a=j*3+k;
+        vec3 va=dsVeilFetch(a), vb=dsVeilFetch(a+1), vc=dsVeilFetch(a+3), vd=dsVeilFetch(a+4);
+        vec3 h=dsVeilTriangle(ro,rd,va,vb,vc);
+        if(h.x<hit.x) {hit=h;chart=vec2((float(k)+h.y)*.5,(float(j)+h.z)/4.);}
+        h=dsVeilTriangle(ro,rd,vd,vc,vb);
+        if(h.x<hit.x) {hit=h;chart=vec2((float(k)+1.-h.y)*.5,(float(j)+1.-h.z)/4.);}
+      }
+      if(hit.x<depth) {
+        float ends=pow(max(0.,sin(chart.y*PI)),1.5);
+        float tail=smoothstep(0.,.15,chart.x)*(1.-smoothstep(.35,1.,chart.x));
+        vec3 q=ro+rd*hit.x;
+        float wisps=dsNoise(vec2(chart.x*15.+sin(chart.y*18.-gPhase),chart.y*46.));
+        float grains=.7+.3*(dsNoise(q.xz*18.)-.5)*exp(-sq(gPixel*hit.x*18.));
+        float alpha=clamp(gVeil*ends*tail*(.25+.75*wisps)*grains*2.,0.,.48);
+        col=mix(col,col*.4+mix(u_secondary,u_accent,.7)*1.8,alpha);
+      }
+    }
+  }
+  // Integrate the bank through the same depth as terrain and stones. The
+  // foreground dust extends to ground, so the landscape disappears INTO it.
   if(gStorm>.001 && rd.z<-.01) {
-    float front=-43.+gStorm*15.;
-    float plane=(front-ro.z)/rd.z;
-    vec3 projected=ro+rd*plane;
-    float top=27.+gStorm*6.+3.*sin(projected.x*.047);
-    float baseCoverage=1.-smoothstep(top-13.,top-8.,projected.y);
-    vec3 hit=vec3(plane,plane+45.,baseCoverage), normal=vec3(0,0,1);
-    float cell=floor(projected.x/14.);
-    for(int k=-1;k<=1;k++) {
-      float id=cell+float(k);
-      vec4 parent=dsDustFetch(id,0);
-      dsDustBall(ro,rd,parent.xyz,parent.w,1.25,hit,normal);
-      // Asymmetric smaller turrets interrupt the large rolls' round outline.
-      for(int j=1;j<4;j++) {
-        vec4 child=dsDustFetch(id,j);
-        dsDustBall(ro,rd,child.xyz,child.w,1.,hit,normal);
-      }
+    float start=max(0.,(-8.-ro.z)/rd.z), end=min(depth,(-90.-ro.z)/rd.z);
+    if(rd.y>0.)end=min(end,(38.-ro.y)/rd.y);
+    float stepSize=max(0.,end-start)/6.;
+    float trans=1.; vec3 cloud=vec3(0.);
+    for(int i=0;i<6;i++) {
+      if(trans<.015 || stepSize<=0.)break;
+      vec3 q=ro+rd*(start+(float(i)+.5)*stepSize);
+      float density=dsDustDensity(q);
+      float alpha=1.-exp(-density*stepSize*.115*gStorm*u_params[7]);
+      float heightLight=smoothstep(0.,27.,q.y);
+      float light=exp(-density*1.8);
+      vec3 lit=u_secondary*(.28+1.3*heightLight*light);
+      float fold=exp(-sq((q.x-22.*sin(mod(u_rhythmCount.z,8.)*2.4))/10.));
+      lit+=u_primary*fold*u_rhythm.z*.3*heightLight*light;
+      cloud+=trans*alpha*lit;
+      trans*=1.-alpha;
     }
-    if(hit.x<depth && hit.z>.0001) {
-      float end=min(depth,hit.y), stepSize=max(0.,end-hit.x)/2.;
-      float trans=1.; vec3 cloud=vec3(0.);
-      vec2 roll=vec2(sin(gDust),cos(gDust));
-      vec3 skin=ro+rd*hit.x;
-      vec2 curl=vec2(sin(skin.y*.23+sin(skin.x*.13)),cos(skin.x*.17));
-      vec3 detail=dsNoiseSlope(skin.xy*vec2(.55,.35)+skin.z*.17+roll+curl*1.2);
-      // Long wind-drawn curtains break the cotton-like isotropic grain.
-      float skinFine=dsNoise(vec2(skin.x*.9+2.*sin(skin.y*.17+gDust),skin.y*.35)+skin.z*.09+roll);
-      vec3 litNormal=normalize(normal+vec3(-detail.y,-detail.z,0.)*.12);
-      float key=max(0.,dot(litNormal,normalize(vec3(-.65,.75,.28))));
-      float heightLight=smoothstep(2.,33.,skin.y);
-      vec3 dustColor=mix(u_primary,u_secondary,.92);
-      for(int i=0;i<2;i++) {
-        if(trans<.01)break;
-        vec3 q=ro+rd*(hit.x+(float(i)+.5)*stepSize);
-        vec2 chart=q.xy*.23+q.z*.12+roll+curl*.6;
-        float coarse=dsNoise(chart), fine=skinFine;
-        float density=(.25+.65*coarse+.6*fine)*smoothstep(-1.,2.,q.y);
-        float alpha=1.-exp(-density*stepSize*.25*gStorm*u_params[7]*(1.-heightLight*.55));
-        float penetration=exp(-float(i)*.38);
-        float windward=smoothstep(.18,.75,.55*coarse+.45*fine);
-        vec3 lit=dustColor*(.015+heightLight*(.035+key*.7*penetration))*(.45+.7*windward);
-        lit+=u_primary*pow(key,4.)*heightLight*windward*.09;
-        // Broad, warped light transport through folds: no sun/disc primitive.
-        float spread=exp(-sq((q.x+8.+5.*sin(q.y*.2))/22.)-sq((q.y-22.+5.*coarse)/14.));
-        float inner=spread*(.1+.9*coarse*coarse)*(.4+.6*fine)*exp(-sq((q.z-front+9.)/22.));
-        float gustFold=exp(-sq((q.x-18.*sin(mod(u_rhythmCount.z,8.)*2.4))/12.));
-        lit+=mix(u_primary,u_secondary,.25)*inner*(.32+2.6*u_rhythm.z*gustFold);
-        cloud+=trans*alpha*lit;
-        trans*=1.-alpha;
-      }
-      col=mix(col,col*trans+cloud,hit.z);
-    }
+    col=col*trans+cloud;
   }
   outColor=vec4(max(col,vec3(0)),1.);
 }

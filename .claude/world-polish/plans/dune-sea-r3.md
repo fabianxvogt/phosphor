@@ -18,6 +18,30 @@ Night-continuation priority: establish slot-3 and density before expensive visua
 
 Keep 36 terrain steps and exact data pass; reuse three plume samples rather than add a volumetric pass. Additional noise is a 4K risk; measure native 1080p/4K and ABBA main-relative delta. Do not alter limiter, engine, shared rhythm or catalog previews. Render lab's existing deterministic capture path is not photosafety certification. Verify native limiter-enabled health separately. Test all energies, reverse development, three palettes, portrait, late 43200 s; run required full tests/typecheck/i18n/format and family continuity/preset/slot-3 tests. Final report must distinguish self-assessment from independent acceptance.
 
+## r4
+
+Independent r3 result: L6 / G8.5 / E6.5, Overall6.5. Respond in reviewer order, without adding glow as a substitute for structure:
+
+1. Replace the cotton-roll: remove opaque ellipsoid skin and integrate a ground-connected heterogeneous dust bank. Irregular height/front, translucent windward fingers and depth extinction must bury the distant landscape. Keep the moon/horizon environment.
+2. Restore sand at peak: retain the seeded asymmetric dunes, but extend filtered ripples onto mature slopes, remove broad smooth mineral hotspots and hard brink lines, soften lee darkness, and lower the storm's upward camera aim so the foreground remains connected ground rather than isolated curled plates.
+3. Separate crest-veil: evaluate airborne support independently of the surface brink gate; selected crests launch detached thin sheets with a crest-to-air gap, sparse grain threads and a fading downwind tail. Keep rare local pink, never tint all dunes.
+4. Ground stones: vary orientation/site/depth, shade side planes, bury bases at the terrain height, add contact shadows and individually attenuated incisions. Atmosphere must extinguish distant stones.
+
+No schema/state/look/seed/rhythm ID changes; no HISTORY migration needed. Preserve all three grooves (2.5/7.5/12.3 hits/bar, existing five-beat polyrhythm). Film round1 for structural replacement, round2 for material/event readability, round3 for final composition/refinement; read sheets AND full-size stills. Measure full-HD/4K plus main-relative pair, run full tests/typecheck/i18n/format and limiter-enabled energy/palette/reversal/portrait/late-time verifier. Cost risk: heterogeneous volume; cap samples, avoid work outside bank bounds and remove old crown intersections.
+
+### r4 execution and remaining limits
+
+- Read the independent review before code; clean worktree, then fast-forwarded `git merge main` to 6a65394. No other worktree/main changes.
+- Round1: removed opaque ellipsoid skin; the replacement was too dim, mature slopes still looked rolled, and crest air separation was unreadable in large stills.
+- Round2: broadened compact-support shoulders, retained filtered mature ripples, introduced independently evaluated airborne strata. Full-size peak still still showed plates and faint airborne material.
+- Round3: lowered mature viewpoint, added filtered granular normals/albedo and softened lee fill. Read sheets and full-size event/peak; rejected broad pink floor streaks and border blobs.
+- Round4: retained the persistent foreground ridge and replaced projected pink strata with actual ray-intersected curved sheet geometry, cached as exact vertices. Full-size event had real separation but was too distant.
+- Round5: moved the sheet onto a nearer selected crest; shaded obelisk side planes. Event became readable but too solid.
+- Delivery iterations: reduced volume/triangle/march cost, rejected hard-threshold camouflage holes in the sheet, added smooth ridge/dune joins and their exact gradient/bounds. Read final sheets plus large event/peak, Ember still and late portrait. Final evidence `artifacts/look-review/dune-sea-r4/`.
+- Preserved all groove placements/density and palette/environment identity. Metadata/state/look/schema unchanged; no HISTORY migration. Kept limiter intact.
+- 81 native limiter-enabled energy/palette/reversal frames +54 late portrait +6 fallback frames are healthy. Full tests/typecheck/DE-EN pass (i18n needed a timeout retry). Two final main-relative pair commands timed out because main advanced to modules absent in this worktree; pinned merged-main 6a65394, with identical dunes source, completed.
+- Honest limitations: L self-assessment ~7.5, no claim of independent acceptance. Dust can read as soft flowing fog; smaller crescent horns remain sculptural and the lifted sheet can resemble cloth. 1080p p50 4.5/4.8/7.6 ms; 4K 20.3/20.9/26.5 ms misses 16 ms. Pair +25.7/+38.7/+66.7% is a real regression, not hidden by fleet contention. No safe performance shortcut found that preserved the material/event improvement.
+
 ## Executed rounds and decisions
 
 - Merged main before rhythm (fast-forward to 3a76d8f; preset commit present). No earlier WIP existed.
