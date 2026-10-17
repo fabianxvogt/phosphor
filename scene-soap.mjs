@@ -72,6 +72,52 @@ export const PLATEAU_SITES = [
   [-1, -1, 1],
 ].map((p) => p.map((x) => x / Math.sqrt(8)));
 export const PLATEAU_BORDER_ANGLE = Math.acos(-1 / 3);
+// CPU layout reference for the fixed seven persistent architectural bays.
+// Stretched peak cells are an artistic affine foam, not a pressure solver.
+export function soapLayout(
+  dev,
+  seed = 11301,
+  level = 0.5,
+  chamber = 1,
+  flow = 0.7,
+) {
+  const smooth = (a, b, x) => {
+    const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  const form = smooth(0, 1, dev),
+    cathedral = smooth(1, 2, dev);
+  const root = [
+    0.07 * Math.sin(flow) - 3 * cathedral,
+    0.06 * Math.cos(flow) - 0.45 * cathedral,
+    -0.8 * cathedral,
+  ];
+  const bays = [
+    [3, -0.35, -1.5],
+    [-0.3, 3.6, -3],
+    [-2.5, 0.4, -6],
+    [2.5, 0.5, -6],
+    [-0.3, 2.5, -10],
+    [0.35, 0.25, -9],
+  ];
+  const sizes = [1.5, 1.7, 1.2, 1.2, 1, 1.35];
+  return [root, ...bays].map((p, id) => ({
+    c: id ? root.map((v, j) => v + (p[j] * chamber - v) * cathedral) : root,
+    size: id
+      ? sizes[id - 1] *
+        (1 + 0.06 * Math.sin((id - 1) * 4.7 + (seed % 997) * 0.006302)) *
+        cathedral *
+        (0.8 + 0.2 * smooth(0, 0.9, level))
+      : 1 + 0.35 * cathedral,
+    form: id === 0 || id === 6 ? form : 0,
+    stretch:
+      id > 4
+        ? [1, 1, 1]
+        : id === 2
+          ? [1 + 0.8 * cathedral, 1 - 0.3 * cathedral, 1]
+          : [1, 1 + 0.85 * cathedral, 1],
+  }));
+}
 const base = {
   thickness: 640,
   flow: 0.8,
@@ -157,7 +203,8 @@ vec3 soapC[4];
 float soapR[4];
 float flowPhase, cameraPhase, drainPhase, form, cathedral, pixel;
 vec3 radiance, filmCentre;
-float opticalDepth, filmScale, focusDistance;
+float opticalDepth, filmScale, focusDistance, groupRayScale;
+vec3 groupStretch;
 float soapDefocus(float t) { return abs(t-focusDistance)*cathedral*.006; }
 mat2 soapTurn;
 const vec3 tetra[4] = vec3[4](vec3(1,1,1),vec3(1,-1,-1),vec3(-1,1,-1),vec3(-1,-1,1));
@@ -196,6 +243,12 @@ vec3 soapRoom(vec3 r) {
 void soapFilm(vec3 p,vec3 n,vec3 rd,float distance,float id,float edge,float coverage) {
  if(coverage<=0.0||distance<.03)return;
  vec3 q=(p-filmCentre)/filmScale; q.xz=soapTurn*q.xz;
+ // Affine piers and a spread crown remain analytical in local space.
+ // Reflection and Fresnel use the inverse-transpose world-space normal.
+ if(cathedral>0.0&&id<20.0){
+  n=normalize(n/groupStretch);rd=normalize(rd*groupStretch);
+  distance/=groupRayScale;
+ }
  float mu=clamp(abs(dot(n,rd)),0.0,1.0);
  // A smooth, cell-local thickness field: gravity drains the top, while
  // a compact vortex bends the draining layers into a whorl.
@@ -213,16 +266,20 @@ void soapFilm(vec3 p,vec3 n,vec3 rd,float distance,float id,float edge,float cov
  thickness*=1.0+.16*u_rhythm.x*exp(-sq((q.y-.25)/.8));
  // Capillary wave: each musical strike addresses existing membranes, never
  // creates or destroys a cell. A decaying envelope moves a bright thin-film
- // front out from a seeded point; only a small surface patch catches it.
- float shimmer=0.0;
- float address=mod(floor(id/4.0)+u_rhythmCount.w,3.0);
+ // front out from a fixed material point; only a small surface patch catches it.
+ float shimmer=0.0,wake=0.0;
+ // Only one persistent bay answers. The narrow capillary ridge displaces
+ // optical orders; a broader, dimmer wake records where it has travelled.
+ float address=abs(floor(id/4.0)-mod(u_rhythmCount.w,2.0));
  if(address<.5 && u_rhythm.w>.001){
-  float wavePhase=clamp(1.0-u_rhythm.w,0.0,1.0);
-  vec2 source=vec2(.32*sin(u_rhythmCount.w*2.39996323),.24);
-  float wave=exp(-sq((length(q.xy-source)-(.12+1.45*wavePhase))/.16));
-  shimmer=wave*(u_rhythm.w+.12*u_rhythmHit.w);
+  float wavePhase=clamp(1.0-sqrt(u_rhythm.w),0.0,1.0);
+  vec2 source=vec2(-.90,.3);
+  float front=length(q.xy-source)-(.10+2.8*wavePhase);
+  float wave=exp(-sq(front/.055));
+  wake=exp(-sq((front+.16)/.18))*u_rhythm.w;
+  shimmer=wave*(sqrt(u_rhythm.w)+.08*u_rhythmHit.w);
  }
- thickness*=1.0+.26*shimmer;
+ thickness*=1.0+.65*shimmer+.10*wake;
  vec3 orders=soapAiry(thickness,mu);
  float coherence=exp(-sq(soapDefocus(distance)*13.0));
  float fringe=.5+.5*coherence*sin(4.0*PI*1.333*thickness*sqrt(1.0-(1.0-mu*mu)/sq(1.333))/550.0);
@@ -232,49 +289,73 @@ void soapFilm(vec3 p,vec3 n,vec3 rd,float distance,float id,float edge,float cov
  float fresnel=.02+.98*pow(1.0-mu,3.5);
  float response=dot(orders,vec3(1.0/3.0));
  float grazing=pow(1.0-mu,12.0);
- float rim=exp(-edge/max(.006*u_params[5],distance*pixel*.85+soapDefocus(distance)*.3));
+ float rim=exp(-edge/max(.004*u_params[5],distance*pixel*.85+soapDefocus(distance)*.3));
  float localPulse=1.0+.22*u_kick+1.8*u_rhythm.y*exp(-sq(q.y-.5));
  float band=pow(fringe,3.0);
  vec3 colour=iridescence*(.008+(6.1+.8*band)*response+.10*grazing)*(.65+.35*max(dot(n,normalize(vec3(-.5,.7,.4))),0.0));
  // The room lights have radiance above one: a 4% film reflection must
  // still carry a readable curved softbox, without an opaque diffuse coat.
- colour+=reflected*(.10+.85*fresnel)*(.2+4.5*response);
- colour+=mix(iridescence,vec3(1.0),.12)*(grazing*.28+pow(1.0-mu,38.0)*.65);
- float borderLight=.22+.78*pow(max(dot(n,normalize(vec3(-.5,.7,.4))),0.0),2.0);
- colour+=mix(iridescence,u_secondary,.24)*rim*1.8*localPulse*borderLight;
+ // Most grazing film is dark and soft, not an evenly emissive wire.
+ colour*=1.0-.90*pow(1.0-mu,4.0);
+ colour+=reflected*(.06+.24*fresnel)*(.2+2.0*response);
+ float glint=pow(max(dot(n,normalize(vec3(-.5,.7,.4))),0.0),12.0);
+ colour+=iridescence*grazing*(.025+.65*glint);
+ float borderLight=.035+.965*glint;
+ colour+=mix(iridescence,u_secondary,.24)*rim*.36*localPulse*borderLight;
  float rare=pow(fringe,22.0)*pow(max(dot(n,normalize(vec3(.2,.9,.3))),0.0),8.0);
  colour+=u_accent*rare*.65*(1.0+3.0*u_rhythm.z);
- colour+=u_accent*shimmer*(.35+1.2*response)*3.8;
- float fog=exp(-distance*mix(.025,.105,cathedral));
+ colour+=mix(iridescence,u_accent,.7)*shimmer*(.35+response)*5.0;
+ colour+=iridescence*wake*.10;
+ float fog=exp(-distance*mix(.025,.075,cathedral));
  radiance+=(colour*fog+palette(.23)*.008*(1.0-fog))*coverage;
  opticalDepth+=(.04+.25*response+.1*fresnel)*coverage*fog;
 }
 // A cell is a spherical envelope clipped to its equal-pressure Voronoi
 // region. Shared faces are emitted once. Equilateral triples have 120°
 // films; the four regular-tetrahedral borders meet at acos(-1/3).
-void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float groupId) {
+void soapGroupLocal(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float groupId) {
  if(growth<.001)return;
  float size=radius*growth;
+ // Piers/crown are single large films; only the original and sanctuary
+ // carry full junctions. This avoids repeated triplets and bounds 4K cost.
+ float cellForm=(groupId<.5||groupId>5.5)?form:0.0;
  filmCentre=centre;filmScale=max(size,.001);
  vec2 bound=soapSpan(ro,rd,centre,size*1.7);
  if(bound.x>bound.y||bound.y<0.0)return;
+ // Exact one-cell case: no power planes or zero-radius cell candidates.
+ if(cellForm==0.0){
+  vec3 delta=ro-centre;float tc=-dot(delta,rd);
+  float impact=sqrt(max(dot(delta,delta)-tc*tc,0.0));
+  float footprint=max(tc*pixel/1.85,.0001)+soapDefocus(tc/groupRayScale);
+  float cover=1.0-smoothstep(size-footprint,size+footprint,impact);
+  if(cover<=0.0)return;
+  float chord=sqrt(max(size*size-impact*impact,0.0));
+  float t=tc-chord;vec3 p=ro+rd*t;
+  soapFilm(p,normalize(p-centre),rd,t,groupId*4.0,100.0,cover);
+  float back=.12*(1.0-cathedral);
+  if(back>.001){
+   t=tc+chord;p=ro+rd*t;
+   soapFilm(p,normalize(p-centre),rd,t,groupId*4.0,100.0,cover*back);
+  }
+  return;
+ }
  for(int j=0;j<4;j++) {
-  float g=j==0?1.0:form;
-  vec3 off=(tetra[j]-tetra[0]*(1.0-form))*.3535533905932738*size*form;
+  float g=j==0?1.0:cellForm;
+  vec3 off=(tetra[j]-tetra[0]*(1.0-cellForm))*.3535533905932738*size*cellForm;
   off.xy=rot2(groupId*.73)*off.xy;
   off.yz=rot2(groupId*1.13)*off.yz;
   off.xz=soapTurn*off.xz;
   soapC[j]=centre+off;
   soapR[j]=size*g;
  }
- // Every tetrahedral centre distance is size*form, including during
- // growth. Reuse this exact norm instead of taking per-candidate roots.
- float planeNorm=max(size*form,.0001);
+ // Local tetrahedral centre distances are size*cellForm during growth.
+ // Affine world-space deformation does not change these clipping planes.
+ float planeNorm=max(size*cellForm,.0001);
  for(int j=0;j<4;j++) {
   if(soapR[j]<.001)continue;
   vec3 rayOffset=ro-soapC[j];float tc=-dot(rayOffset,rd);
   float impact=sqrt(max(dot(rayOffset,rayOffset)-tc*tc,0.0));
-  float footprint=max(tc*pixel/1.85,.0001)+soapDefocus(tc);
+  float footprint=max(tc*pixel/1.85,.0001)+soapDefocus(tc/groupRayScale);
   float cover=1.0-smoothstep(soapR[j]-footprint,soapR[j]+footprint,impact);
   if(cover<=0.0)continue;
   float halfChord=sqrt(max(sq(soapR[j])-impact*impact,0.0));
@@ -293,7 +374,7 @@ void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float group
     float plane=(dot(soapC[k]+soapC[j],d)+sq(soapR[j])-sq(soapR[k]))*.5;
     clip=min(clip,(plane-dot(p,d))/planeNorm);
    }
-   float aa=max(t*pixel, .0005)+soapDefocus(t);
+   float aa=max(t*pixel, .0005)+soapDefocus(t/groupRayScale);
    soapFilm(p,normalize(p-soapC[j]),rd,t,groupId*4.0+float(j),abs(clip),cover*attenuation*smoothstep(-aa,aa,clip));
   }
  }
@@ -305,7 +386,7 @@ void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float group
   float denom=dot(rd,n);if(abs(denom)<.0001)continue;
   float t=(plane/planeNorm-dot(ro,n))/denom;if(t<.03)continue;
   vec3 p=ro+rd*t;
-  float aa=max(t*pixel,.0005)+soapDefocus(t);
+  float aa=max(t*pixel,.0005)+soapDefocus(t/groupRayScale);
   float clip=soapR[j]-length(p-soapC[j]);
   if(clip < -aa)continue; // Conservative disc rejection includes the AA fringe.
   for(int m=0;m<4;m++) {
@@ -314,8 +395,19 @@ void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float group
    float pl=(dot(soapC[m]+soapC[j],dm)+sq(soapR[j])-sq(soapR[m]))*.5;
    clip=min(clip,(pl-dot(p,dm))/planeNorm);
   }
-  soapFilm(p,dot(n,rd)>0.0?-n:n,rd,t,groupId*4.0+float(j+k)*.5,abs(clip),.45*smoothstep(-aa,aa,clip));
+  soapFilm(p,dot(n,rd)>0.0?-n:n,rd,t,groupId*4.0+float(j+k)*.5,abs(clip),.28*smoothstep(-aa,aa,clip));
  }
+}
+void soapGroup(vec3 ro,vec3 rd,vec3 centre,float radius,float growth,float groupId) {
+ if(cathedral==0.0||groupId>4.5){
+  groupStretch=vec3(1);groupRayScale=1.0;
+  soapGroupLocal(ro,rd,centre,radius,growth,groupId);return;
+ }
+ groupStretch=vec3(1.0,mix(1.0,1.85,cathedral),1.0);
+ if(groupId>1.5&&groupId<2.5)groupStretch=mix(vec3(1),vec3(1.8,.7,1),cathedral);
+ vec3 localRay=rd/groupStretch;
+ groupRayScale=length(localRay);
+ soapGroupLocal(centre+(ro-centre)/groupStretch,localRay/groupRayScale,centre,radius,growth,groupId);
 }
 void main(){
  float dev=clamp(u_params[0],0.0,2.0);form=smoothstep(0.0,1.0,dev);cathedral=smoothstep(1.0,2.0,dev);
@@ -329,30 +421,37 @@ void main(){
  soapTurn=rot2(.16*sin(cameraPhase)+seedAngle);
  vec2 uv=aspectUV()/min(u_resolution.x/u_resolution.y,1.0);
  uv+=vec2(.12*(1.0-cathedral),.035);
- float az=(.13+.10*cathedral)*sin(cameraPhase),h=(u_params[7]-.5)*1.2;
- vec3 target=vec3(0,h*.2,-4.2*cathedral);
- vec3 ro=vec3(sin(az)*(5.4+3.0*form),h+.18*sin(cameraPhase*2.0)+.16*cathedral*sin(cameraPhase),5.4+3.0*form-2.9*cathedral);
+ float az=(.13+.035*cathedral)*sin(cameraPhase),h=(u_params[7]-.5)*1.2;
+ vec3 target=vec3(.25*cathedral,h*.2+.45*cathedral,-4.2*cathedral);
+ // Compensate the growing envelope, not the number of bubbles. No shrink
+ // to a specimen between Bubble and Cluster.
+ float cameraDistance=5.4+1.15*form;
+ vec3 ro=vec3(sin(az)*cameraDistance,h+.18*sin(cameraPhase*2.0)+.16*cathedral*sin(cameraPhase),cameraDistance);
  focusDistance=length(target-ro);
  vec3 fw=normalize(target-ro),right=normalize(cross(fw,vec3(0,1,0))),up=cross(right,fw);
  vec3 rd=normalize(fw*(1.85+.19*(1.0-cathedral))*(1.0+.018*u_kick)+uv.x*right+uv.y*up);
  radiance=vec3(0);opticalDepth=0.0;
- vec3 centre=vec3(.07*sin(flowPhase),.06*cos(flowPhase),-4.2*cathedral);
- soapGroup(ro,rd,centre,1.0+.45*cathedral,1.0,0.0);
- // Persistent buttresses grow out along a nave, not a switched scene.
+ vec3 centre=vec3(.07*sin(flowPhase)-3.0*cathedral,.06*cos(flowPhase)-.45*cathedral,-.8*cathedral);
+ soapGroup(ro,rd,centre,1.0+.35*cathedral,1.0,0.0);
+ // Seven unequal bays describe a vaulted, receding void. The original
+ // bubble is the near left pier; the crown and far sanctuary never form a
+ // horizontal row of identical specimens.
+ const vec3 bays[6]=vec3[6](vec3(3.0,-.35,-1.5),vec3(-.3,3.6,-3.0),vec3(-2.5,.4,-6.0),vec3(2.5,.5,-6.0),vec3(-.3,2.5,-10.0),vec3(.35,.25,-9.0));
+ const float sizes[6]=float[6](1.5,1.7,1.2,1.2,1.0,1.35);
  for(int i=0;i<6;i++){
-  float id=float(i),side=mod(id,2.0)*2.0-1.0;
-  float row=floor(id*.5),vault=step(1.5,row);
-  vec3 c=vec3(side*mix(3.5,1.85,vault),mix(-.6,2.5,vault),mix(.3-row*4.5,-8.0,vault));
+  float id=float(i);
+  vec3 c=bays[i];
   c=mix(centre,c*u_params[6],cathedral);
-  float growth=cathedral*cathedral*(.8+.2*smoothstep(0.0,.9,u_level));
-  soapGroup(ro,rd,c,mix(1.2,.95,vault)*(1.0+.1*sin(id*4.7+seedAngle)),growth,id+1.0);
+  float growth=cathedral*(.8+.2*smoothstep(0.0,.9,u_level));
+  soapGroup(ro,rd,c,sizes[i]*(1.0+.06*sin(id*4.7+seedAngle)),growth,id+1.0);
  }
  // Smaller, seeded cells suspended beneath the vault give the giant films
  // a human scale. Their identities and closed drift paths never regenerate.
  for(int i=0;i<9;i++){
   float id=float(i),a=id*2.39996323+seedAngle;
-  vec3 c=vec3(cos(a)*(2.15+.12*sin(id)),sin(a)*2.2,-5.3+.35*sin(id*3.0+flowPhase));
+  vec3 c=vec3(cos(a)*(2.6+.12*sin(id)),sin(a)*2.6,-6.5+2.5*sin(id*3.0+flowPhase));
   float radius=(.14+.18*fract(id*.6180339)) * cathedral*cathedral;
+  groupStretch=vec3(1);groupRayScale=1.0;
   vec3 delta=ro-c;float tc=-dot(delta,rd),impact=sqrt(max(dot(delta,delta)-tc*tc,0.0));
   float aa=max(tc*pixel/1.85,.0001),cover=1.0-smoothstep(radius-aa,radius+aa,impact);
   if(radius>.001&&tc>0.0&&cover>0.0){
@@ -565,7 +664,7 @@ export default {
             steps: "X..x..X. | .X..x.X.",
             division: 2,
             strength: 0.95,
-            duration: 0.7,
+            duration: 0.95,
           },
           accented: {
             steps: "X..x..X...x..X... | ..X..x..X.......",

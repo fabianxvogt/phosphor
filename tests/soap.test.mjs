@@ -6,6 +6,7 @@ import soap, {
   filmPalettePosition,
   PLATEAU_SITES,
   PLATEAU_BORDER_ANGLE,
+  soapLayout,
 } from "../scene-soap.mjs";
 import scenes from "../scenes.mjs";
 import { catalogLooks } from "../catalog.mjs";
@@ -40,8 +41,9 @@ const rotate = (p, a, i, j) => {
   return q;
 };
 
-// Independent double-precision reference for the shader's fixed 7 x 4 cell
-// identities. Only the positions/radii develop; ids and tetra sites do not.
+// Double-precision construction from the exported seven-bay layout.
+// Potential identities persist even where a single-film bay has zero-radius
+// secondary sites; affine peak piers are tested in their own local metric.
 function cells(
   dev,
   seed = 11301,
@@ -50,31 +52,10 @@ function cells(
   level = 0.5,
   chamber = 1,
 ) {
-  const form = smooth(0, 1, dev),
-    cathedral = smooth(1, 2, dev);
-  const root = [0.07 * Math.sin(flow), 0.06 * Math.cos(flow), -4.2 * cathedral];
+  const root = soapLayout(dev, seed, level, chamber, flow);
   const seedAngle = (seed % 997) * 0.006302,
     angle = 0.16 * Math.sin(camera) + seedAngle;
-  const groups = [{ c: root, size: 1 + 0.45 * cathedral }];
-  for (let i = 0; i < 6; i++) {
-    const side = (i % 2) * 2 - 1,
-      row = Math.floor(i / 2),
-      vault = row >= 2;
-    const c = [
-      side * (vault ? 1.85 : 3.5),
-      vault ? 2.5 : -0.6,
-      vault ? -8 : 0.3 - row * 4.5,
-    ];
-    const growth = cathedral ** 2 * (0.8 + 0.2 * smooth(0, 0.9, level));
-    groups.push({
-      c: root.map((x, j) => x + (c[j] * chamber - x) * cathedral),
-      size:
-        (vault ? 0.95 : 1.2) *
-        (1 + 0.1 * Math.sin(i * 4.7 + seedAngle)) *
-        growth,
-    });
-  }
-  return groups.flatMap(({ c, size }, g) =>
+  return root.flatMap(({ c, size, form, stretch }, g) =>
     PLATEAU_SITES.map((site, j) => {
       let off = mul(sub(site, mul(PLATEAU_SITES[0], 1 - form)), size * form);
       off = rotate(off, g * 0.73, 0, 1);
@@ -82,7 +63,11 @@ function cells(
       off = rotate(off, angle, 0, 2);
       return {
         id: `${g}:${j}`,
-        c: add(c, off),
+        c: add(
+          c,
+          off.map((v, i) => v * stretch[i]),
+        ),
+        stretch,
         r: size * (j === 0 ? 1 : form),
       };
     }),
@@ -269,13 +254,17 @@ test("shared power planes are symmetric, and clipped tetra faces share one junct
     /if\(k<=j\|\|soapR\[k\]<\.001\|\|soapR\[j\]<\.001\)continue/,
   );
   assert.ok(soap.fragment.includes("clip=min(clip,(pl-dot(p,dm))/planeNorm);"));
-  assert.match(soap.fragment, /float planeNorm=max\(size\*form,\.0001\)/);
+  assert.match(soap.fragment, /float planeNorm=max\(size\*cellForm,\.0001\)/);
   assert.match(soap.fragment, /if\(clip < -aa\)continue/);
   for (const dev of [0.1, 0.5, 1, 1.5, 2]) {
     const c = cells(dev).slice(0, 4),
-      len = (1 + 0.45 * smooth(1, 2, dev)) * smooth(0, 1, dev);
+      len = (1 + 0.35 * smooth(1, 2, dev)) * smooth(0, 1, dev);
     for (let j = 0; j < 4; j++)
-      for (let k = j + 1; k < 4; k++) near(length(sub(c[k].c, c[j].c)), len);
+      for (let k = j + 1; k < 4; k++)
+        near(
+          length(sub(c[k].c, c[j].c).map((v, i) => v / c[j].stretch[i])),
+          len,
+        );
   }
 });
 
@@ -325,11 +314,11 @@ test("the camera remains outside every film over its full closed orbit", () => {
           const f = smooth(0, 1, dev),
             cathedral = smooth(1, 2, dev),
             h = (preset.params.elevation - 0.5) * 1.2;
-          const az = (0.13 + 0.1 * cathedral) * Math.sin(phase);
+          const az = (0.13 + 0.035 * cathedral) * Math.sin(phase);
           const ro = [
-            Math.sin(az) * (5.4 + 3.0 * f),
+            Math.sin(az) * (5.4 + 1.15 * f),
             h + 0.18 * Math.sin(2 * phase) + 0.16 * cathedral * Math.sin(phase),
-            5.4 + 3.0 * f - 2.9 * cathedral,
+            5.4 + 1.15 * f,
           ];
           for (const c of cells(
             dev,
@@ -340,7 +329,7 @@ test("the camera remains outside every film over its full closed orbit", () => {
             preset.params.chamber,
           ))
             assert.ok(
-              length(sub(ro, c.c)) > c.r + 0.1,
+              length(sub(ro, c.c).map((v, i) => v / c.stretch[i])) > c.r + 0.1,
               `${preset.name} camera inside ${c.id}`,
             );
         }
@@ -353,6 +342,51 @@ test("the camera remains outside every film over its full closed orbit", () => {
     "Bubble fills 75–80% of the short side",
   );
   assert.ok(soap.fragment.includes("fw*(1.85+.19*(1.0-cathedral))"));
+});
+
+test("nave has unequal receding bays and affine rays retain world distances and normals", () => {
+  const bays = soapLayout(2);
+  assert.equal(bays.length, 7);
+  assert.ok(bays[0].c[0] < -2.9 && bays[1].c[0] === 3);
+  assert.ok(bays[2].stretch[0] > 1.7 && bays[2].c[1] > 3.5);
+  assert.ok(bays[6].c[2] < -8 && bays[6].size < bays[1].size);
+  for (let dev = 0; dev <= 2; dev += 0.05)
+    for (const { stretch } of soapLayout(dev)) {
+      const ray = unit([0.3, -0.4, -1]);
+      const local = ray.map((v, i) => v / stretch[i]);
+      const rayScale = length(local);
+      const hit = unit(local).map((v, i) => v * 7 * stretch[i]);
+      near(length(hit), 7 / rayScale);
+      const n = unit([0.2, 0.7, 0.3]);
+      const tangent = cross(n, [1, 0, 0]);
+      const worldNormal = n.map((v, i) => v / stretch[i]);
+      near(
+        dot(
+          worldNormal,
+          tangent.map((v, i) => v * stretch[i]),
+        ),
+        0,
+      );
+    }
+  assert.match(soap.fragment, /n=normalize\(n\/groupStretch\)/);
+  assert.match(soap.fragment, /distance\/=groupRayScale/);
+  assert.ok(soap.fragment.includes("if(cellForm==0.0)"));
+  assert.ok(
+    soapLayout(2)
+      .slice(1, 6)
+      .every((bay) => bay.form === 0),
+  );
+  assert.equal(soapLayout(2)[6].form, 1);
+  // Narrow travelling ridge, displaced interference and a trailing wake:
+  // these must not regress to a broad accent-colour patch.
+  assert.ok(soap.fragment.includes("front/.055"));
+  assert.ok(soap.fragment.includes("(front+.16)/.18"));
+  assert.ok(soap.fragment.includes("thickness*=1.0+.65*shimmer+.10*wake"));
+  for (const envelope of [0.95, 0.6, 0.25, 0.05]) {
+    const radius = 0.1 + 2.8 * (1 - Math.sqrt(envelope));
+    const before = 0.1 + 2.8 * (1 - Math.sqrt(Math.min(1, envelope + 0.01)));
+    assert.ok(radius > before && radius < 3);
+  }
 });
 
 test("all four signature gestures are bounded and time stays continuous for 12 hours", () => {

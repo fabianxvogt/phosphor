@@ -4,7 +4,7 @@ One continuous world, `soap`, with development `0 → 2`: **Bubble → Cluster �
 
 ## Algorithm and signature mathematics
 
-Every film is an analytical intersection, not a raymarch. Four persistent sites form a regular unit-edge tetrahedron. A cell is a spherical envelope clipped to its power region; each shared power-bisector face is drawn once (`j < k`) and clipped against the remaining sites. New cells grow from zero radius; their centres move continuously out of the original bubble. The same object remains the central rose-window cluster at the peak. Six independently oriented tetrahedral groups grow from it into buttresses and a high vault; nine smaller seeded cells provide scale.
+Every film is an analytical intersection, not a raymarch. Four persistent sites form a regular unit-edge tetrahedron. A cell is a spherical envelope clipped to its power region; each shared power-bisector face is drawn once (`j < k`) and clipped against the remaining sites. New cells grow from zero radius; their centres move continuously out of the original bubble. The original cluster becomes the asymmetric near-left pier at the peak. Five persistent single-film bays form tall piers and a spread crown; a distant tetrahedral sanctuary retains the shared-film motif. Nine smaller seeded cells provide scale. The r4 layout is exposed by `soapLayout()` and is continuous through development/reversal.
 
 **Thin-film interference:** air / soap / air, refractive index `n = 1.333`. Snell's law gives `cos θt = sqrt(1 − (1 − cos² θ)/n²)`. The round-trip optical phase is `δ = 4π n d cos θt / λ`. For each s/p interface reflectance R, the symmetric-film Airy reflectance is
 
@@ -14,20 +14,20 @@ The phase reversal at the first interface makes integer orders `2 n d cos θt = 
 
 **Plateau's laws:** every equilateral site triple has three equal-tension films meeting at 120°. The four border directions at a regular tetrahedral vertex have pairwise dot product `−1/3`, hence **109.4712206°**. With equal bubble radius and centre distance, the two exterior spherical caps and the shared flat film also have three 120° outward tangents at their wet seam. Rotations and uniform scale preserve these angles.
 
-**Model limits:** these are ideal tetrahedral foam junctions, not a general surface-tension solver. Intermediate unequal-radius power cells are a continuous artistic growth path, not exact Young–Laplace equilibria. Cathedral groups are arranged as architectural clusters; their overlaps are optically layered, not globally relaxed into one space-filling foam. Back films are attenuated and layers use bounded order-independent optical-depth accumulation, rather than recursive refraction or full multiple scattering. The local Plateau geometry and Airy calculation are exact within those declared limits.
+**Model limits:** these are ideal tetrahedral foam junctions, not a general surface-tension solver. Intermediate unequal-radius power cells are a continuous artistic growth path, not exact Young–Laplace equilibria. Cathedral groups are arranged as architectural clusters; their overlaps are optically layered, not globally relaxed into one space-filling foam. Back films are attenuated and layers use bounded order-independent optical-depth accumulation, rather than recursive refraction or full multiple scattering. The local Plateau geometry and Airy calculation are exact within those declared limits. **r4 caveat:** at peak the near cluster and single-film bays are affinely stretched into piers/crown, so world-space Plateau angles there are artistic, not equilibrium angles. Bubble, Cluster and the distant sanctuary retain the undeformed construction. Rays are transformed into local space; hit distances and inverse-transpose normals return to world space for optics.
 
 ## States and looks
 
-| Look                            | Development | Character                                                                          |
-| ------------------------------- | ----------- | ---------------------------------------------------------------------------------- |
-| Bubble / Blase                  | 0           | One drifting, iridescent film, immediately composed at low energy                  |
-| Cluster / Verbund               | 1           | Four joined cells, shared membranes and readable Y-shaped liquid borders           |
-| Foam / Schaum                   | 2           | Giant rose-window cluster; near buttresses, distant vault and small floating cells |
-| Pearl Vessel / Perlengefäß      | 0.2         | Thinner, restrained film and raised viewpoint                                      |
-| Tidal Glass / Gezeitenglas      | 0.9         | High optical orders, stronger drainage and slower drift                            |
-| Quiet Junction / Stiller Knoten | 1.2         | Broad liquid borders, low viewpoint and unhurried flow                             |
-| Opal Nave / Opalschiff          | 2           | Wider cathedral, raised viewpoint and fine optical orders                          |
-| Black Pearl / Schwarze Perle    | 1.8         | Close, compact nave with broad low-order interference fields                       |
+| Look                            | Development | Character                                                                     |
+| ------------------------------- | ----------- | ----------------------------------------------------------------------------- |
+| Bubble / Blase                  | 0           | One drifting, iridescent film, immediately composed at low energy             |
+| Cluster / Verbund               | 1           | Four joined cells, shared membranes and readable Y-shaped liquid borders      |
+| Foam / Schaum                   | 2           | Asymmetric tall film piers, broad overhead crown and a dim receding sanctuary |
+| Pearl Vessel / Perlengefäß      | 0.2         | Thinner, restrained film and raised viewpoint                                 |
+| Tidal Glass / Gezeitenglas      | 0.9         | High optical orders, stronger drainage and slower drift                       |
+| Quiet Junction / Stiller Knoten | 1.2         | Broad liquid borders, low viewpoint and unhurried flow                        |
+| Opal Nave / Opalschiff          | 2           | Wider cathedral, raised viewpoint and fine optical orders                     |
+| Black Pearl / Schwarze Perle    | 1.8         | Close, compact nave with broad low-order interference fields                  |
 
 ## Motion, energy and rhythm
 
@@ -40,7 +40,7 @@ Four bounded `familyEffect` tracks act directly on the signature:
 - **Fringe order**, legacy 4 beats: local thickness excursion of at most 16%, moving interference fringes.
 - **Border breath**, legacy 8 beats: stronger regional grazing-light breath along existing Plateau borders; bounded kick contribution.
 - **Opal window**, legacy 16 beats: a stronger but rare directional highlight on a narrow upper interference order.
-- **Film shimmer**, slot 3: an expanding capillary wave temporarily changes local thickness by at most 29.12% (including the one-frame hit term), with a saturated palette-accent catchlight. `u_rhythm.w` moves and fades the wave, `u_rhythmHit.w` marks the strike, and `u_rhythmCount.w` selects one of three persistent membrane cohorts. It neither pops geometry nor changes identity. Dormant/unaddressed waves skip their expensive chart evaluation.
+- **Film shimmer**, slot 3: a narrow curved capillary ridge (chart width 0.055) bends interference orders with a 65% ridge gain (up to 70.2% including the attack term), plus a dim 10% trailing wake. `u_rhythm.w` moves and releases the front, `u_rhythmHit.w` catches the attack, and `u_rhythmCount.w` alternates the two near bays; distant neighbours stay quiet. It neither pops geometry nor changes identity. Driving duration is 0.95 beats, still shorter than its minimum one-beat gap. Dormant/unaddressed waves skip their chart evaluation.
 
 The named presets remain **Thin silence**, **Opal breathing**, **Iridescent bells**. Their family-only densities are **3.0 / 7.0 / 13.0 hits per bar**. Signature steps: restrained `[2,13]` in a 16-step eighth-note loop; driving `[0,3,6,9,12,14]` in a 16-step eighth-note loop; accented `[0,3,6,10,13,19,22,25]` in a 33-step sixteenth-note cycle. That last loop walks across the bar against the existing five-beat fringe figure. All four tracks settle before their next hit. DE/EN names and descriptions are included.
 
@@ -97,4 +97,31 @@ The 4K absolute Foam run **exceeds the 16 ms target**, despite improved interlea
 - `scripts/verify-soap.mjs --rig --port 48861`: 24 all-look energy-ladder stills (0.1/0.5/0.9), Ember/Glacier state stills, portrait peak, 243 forward/reverse frames, 3600/4096/43200-second native health checks, and 120 native RAF frames with the unmodified live limiter enabled. Zero GL/GPU/non-finite errors; no empty low-energy look. This is a bounded smoke test, not a photosensitivity certification or long-show temporal seam measurement.
 - Canonical reviewer evidence: `artifacts/look-review/soap-cathedral-r3/soap-cathedral-{sheet,rhythm}.png`, film and `grids.md`. Baseline and rounds 1–3 are retained alongside. Additional evidence: `artifacts/soap-r3-checks/`, profiles in `artifacts/soap-r3-perf/`.
 
-**Current look self-assessment: 7/10, not an independent pass.** The local pink capillary wave is plainly visible and materially appropriate; the scene still exposes repeated tetrahedral clusters, approximate additive transparency, very faint architecture at peak, and a restrained energy ladder. A genuinely spatial foam nave remains a better next step than claiming this is already an 8.
+**r3 look self-assessment: 7/10, not an independent pass.** The local pink capillary wave is plainly visible and materially appropriate; the scene still exposes repeated tetrahedral clusters, approximate additive transparency, very faint architecture at peak, and a restrained energy ladder. A genuinely spatial foam nave remains a better next step than claiming this is already an 8.
+
+## Round 4 — 2026-10-17, openai-codex/gpt-6.1-sol
+
+Supersedes the r3 layout/camera and cost descriptions above. Independent r3 review: L6/G8.5/E6.5, Overall6.5. Four change/capture/large-still critique rounds addressed its must-fixes in order:
+
+1. A seven-bay nave replaces the shallow cluster display. The original moves left into an asymmetric near pier; unequal distant side films frame an opening and far sanctuary, beneath a broad crown. Analytic affine intersections elongate the near piers rather than adding more triplets. Single-film piers reduce both repetition and cost. Blue shafts and floor pool remain.
+2. Grazing emission is suppressed by up to 90%, broad reflected-room radiance is reduced, most rims are thin/dark, and short directional arcs receive the remaining glints. Shared-face coverage is 0.28 rather than 0.45; interference surfaces dominate the internal borders.
+3. Bubble-to-Cluster camera compensation is 1.15 rather than 3 units, preserving scale through the intermediate composition. Bay growth is linear in the smooth cathedral development weight, not squared. No camera cut or phase reset.
+4. Shimmer is a narrow travelling thickness ridge with visibly displaced optical bands and a fading wake, alternating left/right near films. Existing syncopated placements, 33-step signature cycle, names and 3/7/13-hit densities remain.
+
+No state/preset/seed/schema/world-definition migration. The exact one-cell path omits zero-radius candidates and irrelevant power-plane tests; single-film bays use it too. Identity transforms skip affine normal/ray work. No limiter, engine or preview changes.
+
+### Final performance and verification
+
+Native M3 Pro / ANGLE Metal synchronous throughput including post, 36 frames/state, energy 0.95; contention affects absolute timing:
+
+| State   | 1080p p50/p95 ms | 4K p50/p95 ms | ABBA p50 delta 1080p / 4K |
+| ------- | ---------------: | ------------: | ------------------------: |
+| Bubble  |        2.5 / 2.7 |   10.0 / 11.2 |             +3.8% / +3.4% |
+| Cluster |        3.6 / 4.0 |   14.5 / 15.5 |           +15.2% / +34.1% |
+| Foam    |        4.3 / 4.5 |   14.5 / 15.0 |           −13.3% / −18.3% |
+
+Absolute p50 budgets pass. **Relative Cluster gate does not pass:** the deliberately larger film footprint costs more than r3's shrunken specimen; it remains below absolute budgets. Earlier pre-optimization runs exceeded 4K; retained in `artifacts/soap-r4-perf/` rather than hidden.
+
+Full suite 1020 pass / 22 optional skips / zero failures; typecheck, build, native DE/EN i18n and touched-file Prettier pass. Family tests now cover layout, affine ray distances/normals and inverse-space camera clearance, plus existing Airy/continuity/preset/rhythm gates. Native `verify-soap.mjs` captured 31 look/palette/portrait stills, exercised 243 forward/reverse frames, three late epochs and 120 RAF frames with the live limiter enabled: zero GL/GPU/non-finite errors. Three palettes and portrait inspected.
+
+Final reviewer evidence: `artifacts/look-review/soap-cathedral-r4/` (sheet, rhythm, MP4, grids); additional checks `artifacts/soap-r4-checks/`. Self-assessment L7.5–8, not an independent pass: architectural hierarchy and travelling events are substantially clearer, but the far sanctuary remains fairly dim and affine foam is not a physical tension solver.

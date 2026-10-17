@@ -29,6 +29,25 @@ Baseline capture then >=3 change/capture/critique rounds; final canonical sheet/
 - Verification: 985 pass / 21 optional skips / 0 failures, typecheck/build/native DE+EN pass, targeted 49 pass. 31 native verification stills, 243 reverse/forward frames, three late epochs and 120 limiter-enabled RAF frames: zero GL/GPU/non-finite errors. Three palettes and portrait inspected.
 - Final native state p50/p95 (Bubble, Cluster, Foam): 1080p 2.5/2.6, 2.8/3.3, 5.4/5.8 ms; 4K 8.9/10.1, 10.2/11.2, 17.9/18.8 ms. Foam exceeds 4K absolute target; interleaved p50 deltas are −20/−8.3/−4.2% at 1080p and −3.3/−31.3/−12.6% at 4K. Earlier contended results retained.
 
+## r4
+
+Independent r3 review is L6/G8.5/E6.5, Overall6.5. Clean worktree fast-forwarded with `git merge main`; no prior r4 WIP existed. Priority responses before building:
+
+1. Replace the shallow horizontal display with a deliberately asymmetric seven-group nave: original film becomes the left near pier, one overhead crown, alternating side bays at increasing depth and a dim far sanctuary. Keep the opening empty, use scale and atmosphere rather than adding more identical groups.
+2. Reduce broad grazing reflection, silhouette emission and internal-border light substantially. Retain interference colours as the main material; short directional grazing arcs and wet junctions alone get hot.
+3. Remove the camera's 3-unit retreat during clustering. Increase distance only to compensate actual envelope expansion, preserving the initial projected diameter; introduce peripheral bays earlier and continuously instead of late squared growth.
+4. Replace the wide pink patch with a narrow curved thickness ridge, displaced optical orders and a quieter trailing wake. Address just one near membrane cohort while neighbours remain quiet; preserve the 3/7/13-hit grids and unequal lengths.
+
+Keep exact Airy bands, transparent shared films, blue shafts and local (not global) accents. Three required film rounds will inspect sheets AND large single frames. No state/preset/seed/schema changes, no world-history migration needed. Seven group cap remains; aim to recover 4K cost by increasing depth separation and bounds rejection, not adding a renderer pass.
+
+### r4 film-round critique and decisions
+
+- Round 1: camera correction fixes the shrinking midpoint, but large spherical crown closes the opening; repeat triplets and optically hot grazing lines remain. Large peak still inspected, not just the sheet.
+- Round 2: moved crown higher, widened void, increased sanctuary size and narrowed/lengthened shimmer. Read sheet, rhythm and 960px peak: clear near/far ordering but still round specimens rather than piers.
+- Round 3: analytic affine piers and broad crown establish a tall space. Read all sheets and peak: shared-face clutter and repeated near triplets still compete; full-cell peak measured 23.9ms at 4K and rejected.
+- Round 4: keep full junctions in original + sanctuary only, use five single-film bays. Read sheet, rhythm and large peak: clear opening, film surfaces dominate; ring fronts alternate left/right rather than pink patches. Preserve blue shafts. Portrait/Ember/Glacier also inspected. Exact single-cell shortcut then recovered peak 4K budget; identity transform shortcut protects low-state cost. Canonical final sheet/rhythm re-read.
+- Final self-assessment L7.5–8, not independently certified. Far sanctuary is dim; affine peak junction angles are artistic, not equilibrium Plateau angles (declared in docs). No schema/preset/state-definition migration. Tests: 1020 pass/22 optional skips; native checks zero health errors. Final costs and the Cluster relative regression are recorded honestly in family docs/report.
+
 ## Cost risks
 
 Analytic group intersections are already expensive at peak; no extra soapGroup calls or raymarching. Shimmer costs a few local scalar ops per visible membrane, shafts bounded background math only. Evaluate pair delta honestly and simplify if expensive. Environmental lighting is an approximation, not recursive refraction or a volume solver.
