@@ -234,7 +234,7 @@ const AUTHORED = [
     id: "kinetic-rain",
     name: "Kinetic Rain",
     description:
-      "Thousands of glowing spheres on threads hang level under the ceiling, break into interfering wave choreographies and gather into one floating surface that morphs from sphere to torus, Möbius band and saddle. The same spheres throughout.",
+      "Thousands of luminous suspended lamps ripple into broad, open sculptural folds above a dark mirror floor. The same motor lattice persists throughout.",
     states: [
       { name: "Ceiling", look: "kinetic:Still Ceiling" },
       { name: "Waves", look: "kinetic:Wave Choreography" },
@@ -442,6 +442,18 @@ const HISTORY = [
       { name: "Sheet", look: "fold:Creased Sheet" },
       { name: "Fold", look: "fold:Rising Solids" },
       { name: "Shards", look: "fold:Shard Storm" },
+    ],
+  },
+  // Kinetic Rain before the r4 open suspended-fold renderer.
+  {
+    id: "kinetic-rain",
+    name: "Kinetic Rain",
+    description:
+      "Thousands of glowing spheres on threads hang level under the ceiling, break into interfering wave choreographies and gather into one floating surface that morphs from sphere to torus, Möbius band and saddle. The same spheres throughout.",
+    states: [
+      { name: "Ceiling", look: "kinetic:Still Ceiling" },
+      { name: "Waves", look: "kinetic:Wave Choreography" },
+      { name: "Sculpture", look: "kinetic:Floating Sculpture" },
     ],
   },
 ];
