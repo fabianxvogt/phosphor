@@ -116,6 +116,7 @@ try {
           JSON.stringify({ palette, energy, ...row }),
         );
       rows.push({ palette: palette ?? "own", energy, ...result });
+      console.log(`matrix: ${palette ?? "own"} / ${energy}`);
     }
   // All extra looks, portrait and square, at both extremes.
   for (let index = 0; index < 8; index++)
@@ -179,23 +180,22 @@ try {
         png: engine.canvas.toDataURL("image/png").split(",")[1],
       });
     }
-    return images;
+    const base = images[0].pixels;
+    return images.map(({ phase, png, pixels }) => {
+      let changed = 0;
+      for (let i = 0; i < base.length; i += 4)
+        if (
+          Math.max(
+            ...[0, 1, 2].map((k) => Math.abs(base[i + k] - pixels[i + k])),
+          ) > 8
+        )
+          changed++;
+      return { phase, png, changed: changed / (base.length / 4) };
+    });
   });
-  const base = signature[0].pixels;
   const differences = [];
   for (const image of signature) {
-    let changed = 0;
-    for (let i = 0; i < base.length; i += 4)
-      if (
-        Math.max(
-          ...[0, 1, 2].map((k) => Math.abs(base[i + k] - image.pixels[i + k])),
-        ) > 8
-      )
-        changed++;
-    differences.push({
-      phase: image.phase,
-      changed: changed / (base.length / 4),
-    });
+    differences.push({ phase: image.phase, changed: image.changed });
     await writeFile(
       resolve(out, `signature-${image.phase}.png`),
       Buffer.from(image.png, "base64"),

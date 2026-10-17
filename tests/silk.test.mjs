@@ -75,6 +75,10 @@ test("silk: whip-crack signature and full authored grids stay bounded", () => {
     assert.match(source, /u_rhythm\.w/);
     assert.match(source, /u_rhythmHit\.w/);
     assert.match(source, /u_rhythmCount\.w/);
+    // Finite-difference normals sample just beyond a free hem. sin(pi*v)
+    // can be negative there; GLSL pow(negative, 2.) is undefined.
+    assert.doesNotMatch(source, /pow\(sin\(panelV/);
+    assert.match(source, /cohort\*=across\*across/);
   }
   for (const [style, minimum] of [
     ["restrained", 2],
@@ -248,8 +252,8 @@ test("raking-light folds have real depth and banners span 3D directions", () => 
       "near/far ribbon layers have physical depth",
     );
     assert.ok(
-      Math.max(...directions) - Math.min(...directions) > 2.5,
-      "banners are not a bank of horizontal strips",
+      Math.max(...directions) - Math.min(...directions) > 0.8,
+      "seven layered diagonal sweeps, not horizontal slats",
     );
   }
   assert.match(scene.geometry.fragment, /mix\(u_secondary,u_primary/);
@@ -262,7 +266,7 @@ test("raking-light folds have real depth and banners span 3D directions", () => 
 test("banners have curved centre lines, distinct widths and foreground depth", () => {
   const widths = [];
   let bent = 0;
-  for (let id = 0; id < STRIPS; id++) {
+  for (let id = 0; id < STRIPS; id += 4) {
     const rnd = identity(1811, id),
       state = { development: 1, phase: 1.1 };
     const a = point(0, 0.5, id, rnd, state),
@@ -282,14 +286,74 @@ test("banners have curved centre lines, distinct widths and foreground depth", (
     }
     if (bend > 1.5) bent++;
     widths.push(
-      distance(point(0.5, 0, id, rnd, state), point(0.5, 1, id, rnd, state)),
+      distance(
+        point(0.5, 0, id, rnd, state),
+        point(0.5, 1, id + 3, rnd, state),
+      ),
     );
   }
-  assert.ok(bent >= 24, `${bent} genuinely curved ribbons`);
+  assert.ok(bent === 7, `${bent} genuinely curved cloth lengths`);
   assert.ok(
-    Math.max(...widths) / Math.min(...widths) > 4,
-    "not identical strips",
+    Math.max(...widths) / Math.min(...widths) > 1.2,
+    "seeded broad panels retain width variation",
   );
+});
+
+test("seven panels keep internal lane seams position/tangent continuous at every state", () => {
+  for (const development of [0, 0.15, 0.6, 1, 1.3, 1.7, 2])
+    for (const phase of [0, 1.5, 4.8])
+      for (let id = 0; id < STRIPS - 1; id++) {
+        if (id % 4 === 3) continue; // actual free selvedge
+        const rnd = identity(1811, id),
+          state = { development, phase };
+        assert.deepEqual(rnd, identity(1811, id + 1));
+        for (const u of [0.05, 0.31, 0.66, 0.94]) {
+          const p = point(u, 1, id, rnd, state);
+          const q = point(u, 0, id + 1, rnd, state);
+          assert.ok(distance(p, q) < 1e-12);
+          const dv1 = point(u, 1.0001, id, rnd, state).map((x, k) => x - p[k]);
+          const dv2 = point(u, 0.0001, id + 1, rnd, state).map(
+            (x, k) => x - q[k],
+          );
+          assert.ok(distance(dv1, dv2) < 1e-12);
+        }
+      }
+});
+
+test("the peak canopy joins all seven selvedges, including the periodic closing seam", () => {
+  for (const phase of [0, 1.5, 4.8])
+    for (const amplitude of [0.3, 1, 1.8])
+      for (let id = 0; id < STRIPS; id++)
+        for (const u of [0, 0.11, 0.48, 0.79, 1]) {
+          const next = (id + 1) % STRIPS;
+          const state = { development: 2, phase, amplitude, width: 1.5 };
+          const p = point(u, 1, id, identity(1811, id), state);
+          const q = point(u, 0, next, identity(1811, next), state);
+          assert.ok(distance(p, q) < 1e-10, "no free blade edges at the peak");
+          assert.ok(Math.hypot(p[0], p[2]) > 0.1, "radial pleats never invert");
+        }
+});
+
+test("vortex has a folded shrinking destination, transverse billows and no blade chart", () => {
+  for (let id = 0; id < STRIPS; id += 4) {
+    const rnd = identity(1811, id),
+      state = { development: 2, phase: 1.1 };
+    const radius = (u) => {
+      const p = point(u, 0.5, id + 1, rnd, state);
+      return Math.hypot(p[0], p[2]);
+    };
+    assert.ok(radius(1) < radius(0.55) * 0.55);
+    const left = point(0.5, 0, id, rnd, state);
+    const right = point(0.5, 1, id + 3, rnd, state);
+    const middle = point(0.5, 1, id + 1, rnd, state);
+    const chordMid = left.map((x, k) => (x + right[k]) / 2);
+    assert.ok(
+      distance(middle, chordMid) > 0.07,
+      "rounded transverse cross-section",
+    );
+  }
+  assert.match(scene.geometry.fragment, /fwidth\(panelV\)/);
+  assert.match(scene.geometry.vertex, /\.12\*ssWhip/);
 });
 
 test("development remains continuous, reversible and clock-periodic", () => {
@@ -350,10 +414,10 @@ test("camera approaches the hollow axis without a final development-driven rise"
           }
       assert.ok(distance(camera(d, a).eye, camera(d, a + TAU).eye) < 1e-10);
     }
-  // Signature displacement is bounded by .1 world units, leaving the .1 near plane clear.
+  // Signature displacement is bounded by .12 units, leaving the .1 near plane clear.
   assert.ok(
-    nearest > 0.2,
-    `camera clearance including ripple ${nearest - 0.1}`,
+    nearest > 0.22,
+    `camera clearance including ripple ${nearest - 0.12}`,
   );
   assert.deepEqual(camera(1.85).eye, camera(2).eye);
   assert.ok(camera(2).eye[1] < -3);

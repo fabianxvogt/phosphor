@@ -11,13 +11,16 @@ import {
 // One material-space front drives both the real crease and its local light.
 const whip = `
 float ssWhip(vec2 uv,float id){
- float b=ssSmooth(u_params[0]/.82),g=(id+uv.y)/SS_N;
- float cohort=1.-step(.5,abs(mod(id-u_rhythmCount.w+3.5,7.)-3.5));
+ float b=ssSmooth((u_params[0]-.35)/.47),g=(id+uv.y)/SS_N;
+ float cohort=1.-step(.5,abs(mod(floor(id/4.)-u_rhythmCount.w+3.5,7.)-3.5));
+ float panelV=(mod(id,4.)+uv.y)/4.;
+ float across=sin(panelV*3.14159265359);
+ cohort*=across*across;
  float veil=pow(.5+.5*cos(SS_TAU*(g*3.-u_rhythmCount.w/7.)),8.);
  float address=mix(veil,cohort,b);
  float envelope=clamp(u_rhythm.w+u_rhythmHit.w*.08,0.,1.);
  float centre=1.-clamp(u_rhythm.w,0.,1.);
- return exp(-pow((uv.x-centre)*14.,2.))*envelope*address;
+ return exp(-pow((uv.x-centre)*18.,2.))*sqrt(envelope)*address;
 }
 `;
 const vertex = `#version 300 es
@@ -34,10 +37,9 @@ ${GLSL}
 ${whip}
 vec3 ssDrapedPoint(vec2 uv,float id,vec3 rnd){
  vec3 p=ssPoint(uv,id,rnd);
- float t=ssSmooth(u_params[0]-1.),b=ssSmooth(u_params[0]/.82);
+ float t=ssSmooth(u_params[0]-1.);
  vec3 direction=normalize(mix(vec3(0.,0.,1.),vec3(p.x,.15,p.z),t));
- float edge=mix(1.,sin(clamp(uv.y,0.,1.)*3.14159265359),b);
- return p+direction*(.1*ssWhip(uv,id)*edge);
+ return p+direction*(.12*ssWhip(uv,id));
 }
 out vec3 v_p,v_n,v_t,v_view;
 out float v_shadow;
@@ -103,7 +105,7 @@ void main(){
  }
  vec3 V=normalize(v_view),N=normalize(v_n),T=normalize(v_t);
  if(dot(N,V)<0.)N=-N;
- float t=ssSmooth(u_params[0]-1.),b=ssSmooth(u_params[0]/.82);
+ float t=ssSmooth(u_params[0]-1.),b=ssSmooth((u_params[0]-.35)/.47);
  float light=u_clock[3];
  // The raking light exposes primary silk sheen, secondary in the undersides.
  vec3 L=normalize(mix(vec3(-.82,-.5,.26),vec3(-.65,.55,.85),t));
@@ -114,8 +116,9 @@ void main(){
  float ht=dot(H,T)/mix(.32,.42,t),hb=dot(H,C)/mix(.13,.17,t);
  float aniso=exp(-(ht*ht+hb*hb)/(nh*nh))/max(.2,sqrt(max(nl,0.)*nv));
  float g=(v_id+v_uv.y)/SS_N;
- float seam=min(v_uv.y,1.-v_uv.y);
- float fabricEdge=mix(min(g,1.-g),seam,b);
+ float panelV=(mod(v_id,4.)+v_uv.y)/4.;
+ float seam=min(panelV,1.-panelV);
+ float fabricEdge=mix(mix(min(g,1.-g),seam,b),1.,t);
  float thin=exp(-fabricEdge*85.);
  float back=pow(max(dot(-N,B),0.),2.);
  float transmitted=(.035+.7*thin)*back;
@@ -123,9 +126,9 @@ void main(){
  shadow*=mix(1.,.48+.52*ssSmooth((length(v_p.xz)-.8)/2.3),t);
  float inner=pow(max(dot(N,normalize(vec3(-v_p.x,.6,-v_p.z))),0.),2.)*t;
  vec3 dye=mix(u_secondary,u_primary,.025+.07*diffuse);
- float brightRibbon=1.-step(.5,abs(mod(v_id+2.,11.)));
- dye=mix(dye,u_accent,brightRibbon*b*.22);
- vec3 sheen=mix(mix(u_secondary,u_primary,(.22+.38*ssSmooth(aniso))*(1.-t)),u_accent,brightRibbon*b*.3);
+ float brightRibbon=1.-step(.5,abs(mod(floor(v_id/4.)+2.,7.)));
+ dye=mix(dye,u_accent,brightRibbon*b*(1.-t)*.22);
+ vec3 sheen=mix(mix(u_secondary,u_primary,(.22+.38*ssSmooth(aniso))*(1.-t)),u_accent,brightRibbon*b*(1.-t)*.3);
  float weaveFrequency=550.;
  float weaveAA=1.-smoothstep(.2,.65,max(fwidth(v_uv.x*weaveFrequency),fwidth(g*weaveFrequency)));
  float weave=1.+.025*weaveAA*sin(v_uv.x*weaveFrequency*SS_TAU)*sin(g*weaveFrequency*SS_TAU);
@@ -134,30 +137,37 @@ void main(){
  col+=mix(sheen,vec3(1.),.22)*mix(2.9,2.6,t)*aniso*u_params[4]*shadow*rake;
  // Broad silk return lobe reveals the inward faces without flattening gaps.
  float returnLight=pow(max(dot(N,normalize(vec3(.4,-.7,1.))),0.),2.);
- col+=u_secondary*(.09*returnLight+.4*inner)*(1.-.35*rim);
+ col+=u_secondary*((.09+.10*b*(1.-t))*returnLight+.4*inner)*(1.-.35*rim);
  col+=u_primary*pow(inner,4.)*.075;
  // A separate coloured grazing lobe, rather than desaturating the blue dye.
  float crossSheen=pow(max(dot(N,normalize(vec3(-.6,.25,-.7))),0.),12.);
  col+=u_primary*crossSheen*(.12+.55*t)*shadow;
  col+=mix(dye,vec3(1.),.2)*rim*(.1+.3*thin);
- float hem=(1.-smoothstep(.02,.02+fwidth(seam)*1.5,seam))*b;
+ float hem=(1.-smoothstep(.02,.02+fwidth(seam)*1.5,seam))*b*(1.-t);
  col+=mix(dye,vec3(1.),.25)*hem*.18;
  float packet=exp(-pow((v_uv.x-(1.-u_rhythm.x))*9.,2.))*u_rhythm.x;
- float cohort=1.-step(.6,abs(mod(v_id-u_rhythmCount.y,7.)));
- col+=mix(u_primary,u_secondary,.25)*packet*1.25*(.3+.7*diffuse);
+ float cohort=1.-step(.6,abs(mod(floor(v_id/4.)-u_rhythmCount.y+7.,7.)));
+ col+=mix(u_primary,u_secondary,.65)*packet*.65*(.3+.7*diffuse);
  float softHem=exp(-seam*24.)*b;
  col+=u_accent*softHem*cohort*u_rhythm.y*2.;
  float spiral=exp(-pow((v_uv.x-(1.-u_rhythm.z))*6.,2.))*u_rhythm.z;
- col+=mix(u_secondary,u_primary,.2)*spiral*1.2*(.25+.75*diffuse);
+ col+=mix(u_secondary,u_primary,.2)*spiral*.65*(.25+.75*diffuse);
  float crack=ssWhip(v_uv,v_id);
- col+=mix(u_accent,u_primary,.15)*crack*1.8*(.35+.65*nv);
+ col=mix(col,col*.55+u_accent*1.65,crack*.85);
+ // Narrow dyed wake stays behind the raised fold, never a whole-strip wash.
+ vec2 wakeUV=v_uv+vec2(.045,0.);
+ float wake=ssWhip(wakeUV,v_id);
+ col+=u_accent*wake*.45*(1.-crack);
  float depth=length(v_view);
  vec3 fog=mix(u_secondary,u_primary,.25)*(.008+.018*t);
  col=mix(fog,col,exp(-max(depth-2.,0.)*(.045+.025*t)));
+ // Feather grazing contacts: analytical sheen must not draw a sparkling
+ // one-pixel wire along a nearly tangent mesh contour.
+ col=mix(fog,col,smoothstep(.015,.065,nv));
  // Resolution-scaled coverage on free material edges; joined veil seams
  // stay invisible. This is coverage darkening, not sorted transparency.
- float edgeV=mix(min(g,1.-g),min(v_uv.y,1.-v_uv.y),b);
- float aaV=mix(fwidth(g),fwidth(v_uv.y),b)*1.5;
+ float edgeV=mix(mix(min(g,1.-g),seam,b),1.,t);
+ float aaV=mix(fwidth(g),fwidth(panelV),b)*1.5;
  float edgeU=min(v_uv.x,1.-v_uv.x),aaU=fwidth(v_uv.x)*1.5;
  float coverage=smoothstep(0.,max(aaU,1e-6),edgeU)*smoothstep(0.,max(aaV,1e-6),edgeV);
  col=mix(fog,col,coverage);

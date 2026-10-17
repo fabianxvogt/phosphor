@@ -1,86 +1,73 @@
 # Silk Storm / Seidensturm
 
-**INCREMENTAL / EMPIRICAL — round 3, 2026-10-16.** Family **111**, renderer `silk`, world **`silk-storm`**. Implementer: **openai-codex/gpt-6.1-sol**. Prescribed satin surfaces, not collision-resolving cloth. No engine, limiter, catalog-preview or world-definition changes.
+**INCREMENTAL / EMPIRICAL — r4, 2026-10-17.** Family **111**, renderer `silk`, world **`silk-storm`**. Implementer: **openai-codex/gpt-6.1-sol**. Prescribed satin charts, not collision-resolving cloth. No engine, limiter, catalog-preview or saved-world definition changes.
 
-## Algorithm and persistent identity
+## Geometry and material
 
-Twenty-eight strips have 160 × 4 cells each, followed by 112 additive, depth-tested dust quads: **108,192 vertices**, six floats each, about **2.6 MB per seed**. Only the seed creates geometry; development, energy and rhythm never replace its buffer or identities. Adjacent material coordinates join exactly at Veil.
+The same 28 persistent material lanes now form **seven broad cloth lengths**, four lanes per panel. Each lane has **160 × 12 cells**; 112 depth-tested additive dust quads follow the cloth. Total **323,232 vertices**, six floats each, **7.76 MB per seed**. Adjacent lanes share panel randomness, position and derivatives. The buffer is seed-only and never changes during development, energy or rhythm.
 
-The Strouhal carrier retains **f = St U/L**, St=.2 and L=12. The integrated tangent is `C′(s)=(cos(a sin(ks−φ)), sin(a sin(ks−φ)))`, evaluated with a Bessel series through J4. The carrier's unit-speed certificate does **not** apply to the artistically amplified complete cloth. Tests bound its sampled Jacobian instead.
+The Strouhal carrier remains **f = St U/L**, St=.2, L=12. Its integrated tangent uses the Bessel expansion through J4. The carrier's unit-speed certificate does **not** apply to the complete amplified cloth. All clocks are integrated and 2π-periodic; there is no raw shader `u_time` arithmetic.
 
-The oblique Veil chart spans 16.2 × 11.34 world units, with amplified travelling folds and a broad billow. Banners use independent seeded 3D centre lines, torsion, width variation and depth offsets. Tornado uses conical helices with `r=.45+.235s`, `θ=θ₀+(.72/.235)ln(r/.45)` and `y=sqrt(1−.235²−.72²)(s−6)`. Its carrier is unit-speed; loose outer turns, width and ruffles are artistic additions. All four clocks are integrated and 2π-periodic; no shader reads raw `u_time`.
+- **Veil:** the original oblique 16.2 × 11.34 chart, travelling satin folds and broad billow remain. Separation begins after development .35, once the camera has pulled away, keeping the opening hold continuous instead of drawing hairline black cuts across it.
+- **Banners:** seven layered diagonal sweeps replace 28 randomly oriented slats. Rounded transverse bellies, curling hems and smaller cross-width folds supply real double curvature. Actual crossings still use the depth buffer; internal lane seams are not free edges.
+- **Tornado:** the lengths nest edge-to-edge into a continuous twisted satin canopy. The shared periodic chart removes the intersecting, pointed turbine shoulders. Seven principal pleats carry nonuniform phase warps and finer folds. The conical carrier radius `.45 + .235s` returns inward above u=.48, ending at 8% of its unconstricted radius. Progressively smaller folds continue into the centre rather than surrounding a dead black opening. This final artistic chart is not the unit-speed helix tested separately.
+
+The original directional satin gradients, anisotropic sheen, filtered weave, two-sample fold-ray occlusion and palette-derived blue/violet body remain. Banners receive a selective secondary return lobe, not a global exposure lift. Grazing contacts fade softly so nearly tangent analytic highlights do not draw a bright one-pixel wire. Free edges use resolution-scaled coverage; final joined seams receive neither coverage darkening nor permanent hem outlines. Accent dye is reserved mainly for scheduled events.
 
 ## States, looks, camera and energy
 
-| Development | EN / DE           | Composition                                                                            |
-| ----------- | ----------------- | -------------------------------------------------------------------------------------- |
-| 0           | Veil / Schleier   | Large satin folds occupy the frame; distant sheet boundaries dissolve.                 |
-| 1           | Banners / Banner  | The same cloth separates into seeded, crossing, varied-width ribbons.                  |
-| 2           | Tornado / Tornado | The same lengths wind into an immersive hollow funnel with overlapping lit undersides. |
+| Development | EN / DE           | Composition                                                    |
+| ----------- | ----------------- | -------------------------------------------------------------- |
+| 0           | Veil / Schleier   | Immersive close-up folds, with distant boundaries dissolved.   |
+| 1           | Banners / Banner  | Seven broad receding satin sweeps, separated in depth.         |
+| 2           | Tornado / Tornado | Continuous pleated vortex returning into a small folded crown. |
 
-Main states retain seed **1811** and identical non-development parameters. All eight looks and their parameters/seeds are unchanged: Veil, Banners, Tornado, Raking Moon, Crosswind, Woven Night, Spindle and Satin Wake. Catalog/world wording is unchanged, so no HISTORY or catalog-row migration is required.
+All state names, seed **1811**, identical non-development state parameters, schema keys and eight preset definitions remain unchanged: Veil, Banners, Tornado, Raking Moon, Crosswind, Woven Night, Spindle and Satin Wake. The authored world definition is unchanged; no HISTORY migration or catalog wording change is needed.
 
-The camera retains the slow lateral drift and continuous approach to the vortex, but **removes the final 2.6-unit development-driven rise**. Its final eye stays at y=−3.1: the peak no longer expands suddenly through the last part of the morph. The path is not a temporal spring; fast changes through the whole approach can still move visibly. Sampled camera clearance exceeds .2 units, allowing for the new .1-unit maximum crease displacement and the .1 near plane. Short-side projection works in landscape, square and portrait. Kick focal punch remains bounded at 1.8%.
-
-Energy changes wind speed ×.7–1.3 and fold amplitude ×.75–1.2, not overall brightness. The geometry remains continuous/reversible at every energy.
-
-## Round-3 material and light
-
-Retained anisotropic sheen, filtered weave, derivative-scaled free edges, local two-sample fold-ray occlusion and actual depth occlusion. The inward faces now receive a soft secondary-coloured return lobe; a separate primary grazing lobe provides colour separation without mixing the whole cloth toward grey. The inner shadow floor is less severe. Dust persists faintly at the peak and a low-intensity axial scattered-light background replaces pure black at the far opening. These remain proxies, not volumetric transport or a physical reflection solve.
-
-Permanent accent dye is reduced, reserving stronger accent colour for scheduled events. Close broad folds can still read as metallic film, and individual edge/separation artefacts remain visible in some views. The funnel is stronger than the baseline, but this is **not a claimed independent ≥8 look pass**.
+The camera retains the r3 approach and final eye at y=−3.1, now aiming slightly off-axis. There is no final development-driven rise. Sampled clearance exceeds .22 units, allowing for .12 maximum signature displacement and the .1 near plane. This is a sampled guard, not collision detection. Energy changes wind ×.7–1.3 and fold amplitude ×.75–1.2; peak amplitude and ribbon width affect the canopy's pleat depth. Kick focal punch stays at 1.8%.
 
 ## Four rhythm gestures
 
-All events use the shared music scheduler, not development thresholds or scene-time tricks. Existing ids remain unchanged.
+All ids and authored placements remain unchanged; all four gestures use the shared scheduler.
 
-| Slot | Gesture                                               | Visible effect                                                                               |
-| ---- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 0    | Flutter packet                                        | Stronger primary sheen packet travelling along existing folds.                               |
-| 1    | Selvedge cohort                                       | Soft, wider accent illumination on one slowly addressed hem cohort.                          |
-| 2    | Vortex sweep                                          | Broader coloured light front climbing the same lengths.                                      |
-| 3    | **Whip-crack ripple / Peitschenwelle** (`whip-crack`) | An actual raised crease races along selected silk, with a matching narrow accent-light wake. |
+| Slot | Gesture                                               | Effect                                                                                                     |
+| ---- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 0    | Flutter packet                                        | Softer coloured sheen travels along existing folds.                                                        |
+| 1    | Selvedge cohort                                       | One slowly selected panel catches local hem/pleat light.                                                   |
+| 2    | Vortex sweep                                          | Secondary raking-light front climbs the material.                                                          |
+| 3    | **Whip-crack ripple / Peitschenwelle** (`whip-crack`) | A localized raised transverse crease advances along one cloth length, followed by a narrow saturated wake. |
 
-The signature reads `u_rhythm.w`, `u_rhythmHit.w` and `u_rhythmCount.w` in both mesh stages. A Gaussian front travels in material u as its envelope falls; count chooses one ribbon in seven. Veil uses a smooth global material-coordinate cohort instead so joined strips stay joined. Displacement is bounded to **.1 world units**, tapered across separated ribbon widths; normals are derived from the displaced chart. It introduces no buffer rebuild, feedback, extra pass or unbounded loop. Light and physical ridge share the same mask. English and German labels/descriptions are additive dictionary keys.
+The signature reads `.w` of envelope, hit and count. Event count selects one panel out of seven. A Gaussian material-u front and smooth squared-sine width mask drive both **actual radial displacement (≤ .12 units)** and local accent light. Normals and fold shadows sample the displaced chart. The wake trails by .045 material-u. At fixed time, isolated envelope samples .9 → .55 → .2 show the fold advancing from foreground to crown and relaxing. Muted envelopes/hits produce no displacement. Veil uses a continuous global-coordinate mask to preserve joined seams.
 
-| Preset                               | Family hits/bar | Signature steps, 1-based                                                                           |
-| ------------------------------------ | --------------- | -------------------------------------------------------------------------------------------------- |
-| **Still selvedge / Stille Webkante** | **3.0**         | 1,5,11,17,23,29 of a 32-step eighth-note loop (four bars), strength .65 / duration 1.4 beats.      |
-| **Satin current / Satinströmung**    | **8.0**         | 1,3,5,9,11,15 of a 16-step eighth-note loop (two bars), strength .9 / duration .8 beats.           |
-| **Vortex brocade / Wirbelbrokat**    | **12.1**        | 1,4,9,11,19,21,25,30 of a 32-step sixteenth-note loop (two bars), strength 1 / duration .45 beats. |
+Broad secondary packets were reduced, rather than competing with the signature as cyan-white whole-strip washes. No full-screen event, extra render pass, simulation reset or buffer rebuild is added. The shared flash limiter is untouched.
 
-Five-beat flutter figures, independent hem addresses and spaced structural fronts remain distinct; density is not supplied by accelerating structural gestures. `grids.md` records the complete grids. No full-screen white event is added. The shared flash limiter is untouched; deterministic offline film/probe helpers are not a photosensitivity certification.
+| Preset                               | Family hits/bar | Signature steps (1-based)                                                      |
+| ------------------------------------ | --------------- | ------------------------------------------------------------------------------ |
+| **Still selvedge / Stille Webkante** | **3.0**         | 1,5,11,17,23,29; 32 eighth-note steps; strength .65, duration 1.4 beats.       |
+| **Satin current / Satinströmung**    | **8.0**         | 1,3,5,9,11,15; 16 eighth-note steps; strength .9, duration .8 beats.           |
+| **Vortex brocade / Wirbelbrokat**    | **12.1**        | 1,4,9,11,19,21,25,30; 32 sixteenth-note steps; strength 1, duration .45 beats. |
 
-## Cost and verification
+Five-beat flutter figures, unequal loop lengths, off-beats and delayed structural fronts are retained. Full grids: `artifacts/look-review/silk-storm-r4/grids.md`.
 
-ANGLE Metal / Apple M3 Pro, synchronous native throughput including post, 36 samples/state. Concurrent fleet load affects absolute timing. The profiler accepts **`--families silk`**, not the brief's singular `--family` spelling.
+## Verification and cost
 
-| State   | 1080p p50 / p95 ms | 4K p50 / p95 ms |
-| ------- | ------------------ | --------------- |
-| Veil    | 2.3 / 2.5          | 6.2 / 6.9       |
-| Banners | 2.2 / 2.4          | 5.4 / 6.0       |
-| Tornado | 2.2 / 2.4          | 5.9 / 6.3       |
+Final native ANGLE Metal / Apple M3 Pro results are recorded under `artifacts/verification/silk-r4*`. Throughput includes post-processing, excludes asynchronous flash approval, and is not venue cadence. Concurrent fleet load affects measurements.
 
-All absolute p50 values satisfy 8ms/16ms budgets. Interleaved reference-main ABBA measurements (64 samples/candidate) are retained under `artifacts/verification/pair-{1080,4k}`:
+| State   | 1080p p50 / p95 ms | 4K p50 / p95 ms | Pair p50 Δ 1080p / 4K |
+| ------- | ------------------ | --------------- | --------------------- |
+| Veil    | 2.5 / 3.0          | 7.7 / 9.8       | +26.1% / +15.5%       |
+| Banners | 2.8 / 3.0          | 7.1 / 10.4      | +27.3% / +14.8%       |
+| Tornado | 2.6 / 3.0          | 7.8 / 9.9       | +28.0% / +18.5%       |
 
-| State   | 1080p p50 delta | 4K p50 delta |
-| ------- | --------------- | ------------ |
-| Veil    | +4.8%           | +1.6%        |
-| Banners | 0.0%            | +5.9%        |
-| Tornado | −4.2%           | +4.8%        |
+Absolute p50 budgets (8ms / 16ms) pass for every state. The denser mesh costs more: both ABBA pair runners **fail their strict +5% regression guard**. This is not described as a passing relative-cost gate. The pair's final 4K values were 6.7/9.0, 6.2/9.6 and 6.4/9.7ms p50/p95. Final-source samples and reference revision are retained in the profile JSON.
 
-The 4K pair's more contended Veil result was baseline 12.5/21.6 → final **12.7/15.2 ms p50/p95**. The pair runner's strict +5% guard **fails** for Banners (5.1→5.4ms), although the absolute owner budgets pass; this is not silently called a passing relative-cost gate. Crease evaluation repeats with existing normal/occlusion samples; the added cost is real.
+- `npm test`: **1018 pass / 22 skip / zero fail**; typecheck passes.
+- Family tests cover exact carrier mathematics, deterministic mesh, reversible periodic development, preset validity, four rhythm slots/density/finite envelopes, camera margin, internal position/tangent seam continuity, the periodic canopy closing seam and a non-inverting shrinking crown.
+- `scripts/verify-silk.mjs --rig --port 48740`: 126 palette/energy/development/time samples; own/Ember/Glacier, .1/.5/.9 energy, late time 43,200, paused reversal and unchanged mesh. All eight looks are captured at .1/.9 in square/portrait. Isolated signature images and a 150-frame **limiter-enabled** real-time smoke are retained. This bounded smoke is not photosensitivity or venue qualification.
+- Build, native DE/EN i18n smoke, Prettier and final GPU profiles are recorded in the r4 logs/report.
 
-- `npm test`: **986 pass, 21 skip, zero fail** (1007 total).
-- Typecheck, build and native DE/EN i18n controls smoke: **pass**.
-- Family/world-rhythm/pipeline-flash targeted suite: **48 pass**; family test covers four slots, .w usage, density, finite envelopes, original exact mathematics, deterministic geometry, reversal, periodicity and conservative camera/crease clearance.
-- `scripts/verify-silk.mjs --rig --port 48740`: 126 native palette/energy/development/time samples, all eight looks at .1/.9 in square/portrait, paused reversal and identical mesh, isolated signature phases, and a 150-frame **limiter-enabled** real-time smoke. Evidence: `artifacts/verification/silk-r3/verification.json`. Zero GL errors or non-finite uploads; low-energy sampled frames exceed 8% lit coverage. This bounded smoke is not venue qualification.
-- Prettier checks on changed formatted JS/test/probe files and `git diff --check`: pass. Existing additive dictionary formatting is retained.
+## Film rounds and limits
 
-## Film evidence and remaining limits
+Opened sheets and individual large stills for four structural rounds, then a denser-mesh detail pass and a rejected fifth chart experiment. Round 1's seven broad strips still looked like an iris; round 2's independent billows retained pointed intersections; round 3 nested the peak lengths into a continuous canopy; round 4 broke rotational regularity, preserved the early veil and strengthened secondary satin folds. Final contact feathering and denser width tessellation reduce grazing-edge aliasing. The signature's squared-sine mask uses explicit multiplication, avoiding undefined GLSL pow on negative out-of-domain hem samples used for finite-difference normals. Reparameterizing the Veil was rejected after filming because it degraded the close-up satin gradients; delaying separation until the camera clears the foreground preserved them instead. Final own/Ember/Glacier sheets and rhythm strips are in **`artifacts/look-review/silk-storm-r4/`**.
 
-Baseline plus three improvement rounds were captured and opened. Round 1 revealed desaturated return light; round 2 retained dye but framed the funnel too distantly; round 3 restored immersive framing. Clearance testing rejected two intermediate camera endpoints; the final endpoint and conservative ripple bound pass. Final signature selection/light were narrowed after isolated phase inspection.
-
-Final reviewer evidence: `artifacts/look-review/silk-storm-r3/silk-storm-{sheet,rhythm}.png`, film and `grids.md`; Ember/Glacier sheets are alongside. Portrait: `artifacts/look-review/silk-storm-r3-portrait/silk-storm.png`. Plan: `.claude/world-polish/plans/silk-storm-r3.md`.
-
-**Self-assessment, not independent score: L≈7.0.** Stronger peak composition and clear local rhythmic changes, but satin can read as glossy film, broad close panels are too regular, some ribbon intersections/edges remain hard, and the central opening is still a dark destination. The material and signature's precise travel deserve moving review rather than another inflated self-rating.
+The material is still an artistic satin approximation, and intermediate morphs are not a cloth collision solve. A very fast development sweep can still move the camera visibly. Exact signature travel is clearer in isolated samples/motion than in half-beat strips; no independent ≥8 acceptance is claimed here. Plan and per-round critique: `.claude/world-polish/plans/silk-storm-r3.md`.
