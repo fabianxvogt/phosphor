@@ -42,6 +42,7 @@ import {
   webDensity,
   sedovTaylor,
   shockFront,
+  starfront,
   worldOf,
   zeldovich,
 } from "../nebula-model.mjs";
@@ -484,20 +485,20 @@ test("filaments: Bézier edges from child to node, wound into the arms' sense, t
   if (s1 > s0)
     assert.ok(dist(edgePoint(E, s1), end) < dist(edgePoint(E, s0), end) + 1e-9);
   // Filaments are particle line sprites: the 7/8 of the dormant rows not
-  // used by motes cover every edge (150 sprites each) plus the nodes.
+  // used by motes cover every edge (50 sprites each) plus the nodes.
   assert.match(
     nebula.particles.vertex,
     /if \(!nbEdgeEval\(key, e, p, E\)\) return;/,
   );
   assert.ok(
-    EDGES * 150 + NODES - 1 <= ((SIZE[0] * SIZE[1] - ABSORBERS) * 7) / 8,
+    EDGES * 50 + NODES - 1 <= ((SIZE[0] * SIZE[1] - ABSORBERS) * 7) / 8,
   );
   assert.doesNotMatch(
     nebula.fragment,
     /for \(int e = 0; e < /,
     "no per-pixel filament loop",
   );
-  assert.match(nebula.fragment, /Static interleaved-gradient jitter/);
+  assert.match(nebula.fragment, /Static per-pixel jitter/);
   assert.doesNotMatch(nebula.fragment, /u_tick/);
 });
 
@@ -637,7 +638,7 @@ test("fixed particle budget; data atlas holds scalar fields, never a colour imag
   assert.equal(nebula.precompute.format, "rgba16f");
   assert.equal(nebula.precompute.filter, "linear");
   assert.deepEqual(nebula.precompute.size, [
-    8 * (WEB_GRID[0] + 2) + DISK_MAP,
+    8 * (WEB_GRID[0] + 2) + DISK_MAP + OCTA,
     Math.max((WEB_GRID[1] / 8) * (WEB_GRID[2] + 2), DISK_MAP, OCTA),
   ]);
   // Direct fallbacks evaluate the same fields when no float target exists.
@@ -707,6 +708,49 @@ test("Starfront occupies slot 3; all phrase styles have full, non-overlapping lo
     assert.match(source, /u_rhythmHit\.w/);
     assert.match(source, /u_rhythmCount\.w/);
   }
+});
+
+test("r4: Cartesian gas has radial depth, conservative bounds and sharp selected knots", () => {
+  assert.match(nebula.fragment, /dn \/ 1\.5/);
+  assert.match(nebula.fragment, /vec2 nbFineData\(vec2 p\)/);
+  assert.doesNotMatch(nebula.fragment, /nbOctaDecode/);
+  assert.match(nebula.precompute.fragment, /nbShellData\(x, level, clock\)/);
+  assert.match(nebula.fragment, /return nbFineData\(clamp\(q/);
+  assert.match(nebula.fragment, /ancestry = nbDiskAt/);
+  assert.match(nebula.fragment, /cloud - 1\.1 \* cavity/);
+  // Capped sprites used to disappear at exactly their size cap, erasing
+  // the nearest/most massive star-forming knots entirely.
+  assert.doesNotMatch(
+    nebula.particles.vertex,
+    /nbSmooth\(150\., 160\., size \/ res\)/,
+  );
+  const maxEdge = 0.9 + 3.8 * (0.032 + 0.025 + 0.02) + 0.55 * 0.5 + 0.08;
+  assert.ok(maxEdge < 1.58, "march bound encloses torn layer and its falloff");
+  assert.match(nebula.fragment, /R0 \* vec3\(1\.58/);
+});
+
+test("r4 Starfront has an outward leading crest, dim wake and localized sector", () => {
+  for (const count of [0, 1, 13, 143, 144, 100000]) {
+    const angle = 2.39996323 * (count % 144);
+    for (const env of [0.9, 0.7, 0.5, 0.3, 0.1]) {
+      const radius = 0.12 + 2.25 * (1 - env);
+      const point = (r, turn = 0) => [
+        r * Math.cos(angle + turn),
+        0,
+        r * Math.sin(angle + turn),
+      ];
+      const crest = starfront(point(radius), env, count);
+      const wake = starfront(point(radius - 0.22), env, count);
+      assert.ok(crest > wake && wake > 0.02 && crest <= 1.2);
+      assert.equal(starfront(point(radius, Math.PI), env, count), 0);
+      assert.equal(starfront(point(radius), 0, count), 0);
+    }
+  }
+  assert.match(nebula.fragment, /float crest = exp\(-nbSq\(dr \/ \.09\)\)/);
+  assert.match(nebula.fragment, /float wake = \.2/);
+  assert.ok(
+    nebula.rhythm.find((g) => g.slot === 3).styles.driving.duration >= 3,
+  );
 });
 
 test("shader constants follow the CPU model", () => {
