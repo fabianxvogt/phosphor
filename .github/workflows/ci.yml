@@ -8,9 +8,18 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request supersedes its running checks.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Browser checks run on software GL (SwiftShader). The look sweep and the
+# control/stage show are independent, so they run as parallel jobs; together
+# they check exactly what one `npm run test:browser` checks (docs/EVIDENCE.md).
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -24,7 +33,6 @@ jobs:
       - run: npm run build
       - run: npm run check:dist
       - run: npm run typecheck
-      - run: npm run test:browser
       - run: npm run test:stage-output
       - run: npm run test:autopilot-ui
       - run: npm run test:output-controls
@@ -33,6 +41,45 @@ jobs:
         if: always()
         with:
           name: browser-verification
+          path: artifacts/
+          if-no-files-found: warn
+
+  browser-lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/4, 2/4, 3/4, 4/4]
+    name: browser lab ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:browser -- --only lab --shard ${{ matrix.shard }}
+
+  browser-show:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:browser -- --only show
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-show
           path: artifacts/
           if-no-files-found: warn
 

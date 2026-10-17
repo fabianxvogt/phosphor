@@ -73,6 +73,8 @@ const stageParams = (scene) =>
     .map((d) => d.key);
 
 let { set, report } = loadSet(localStorage, scenes);
+// The last local mute toggle the stage has not yet confirmed (renderStatus).
+let pendingMute = null;
 // A fresh control session starts with catalog Autopilot. An already-running
 // Stage remains authoritative and restores its state through the hello/status
 // handshake below; importing a set later still honors its saved settings.
@@ -729,7 +731,15 @@ function renderStatus() {
   $("normalSpeed").ariaPressed = String(s.speed === 1);
   if (alive) {
     const a = status.audio;
-    $("audioMute").checked = !!a.muted;
+    // A status sent before the stage applied a mute toggle still carries the
+    // old state; keep the performer's choice until the stage confirms it.
+    if (
+      pendingMute &&
+      (a.muted === pendingMute.muted ||
+        performance.now() - pendingMute.at > 5000)
+    )
+      pendingMute = null;
+    if (!pendingMute) $("audioMute").checked = !!a.muted;
     $("audioPill").textContent = s.paused
       ? tr("Paused")
       : a.source === "off"
@@ -1998,6 +2008,7 @@ $("audioOff").onclick = () => {
   send({ type: "audio", source: "off", muted: $("audioMute").checked });
 };
 $("audioMute").onchange = () => {
+  pendingMute = { muted: $("audioMute").checked, at: performance.now() };
   send({ type: "audio-mute", muted: $("audioMute").checked });
   demoAudio.mute($("audioMute").checked);
   renderLocalAudio();
